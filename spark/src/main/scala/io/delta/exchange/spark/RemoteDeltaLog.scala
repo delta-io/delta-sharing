@@ -4,7 +4,7 @@ import java.net.{URI, URL}
 
 import org.apache.spark.sql.delta._
 import org.apache.hadoop.fs.{FileStatus, Path}
-import org.apache.spark.sql.catalyst.expressions.{Attribute, Cast, Expression, GenericInternalRow, Literal}
+import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal}
 import org.apache.spark.sql.delta.actions.{AddFile, Metadata, SingleAction}
 import org.apache.spark.sql.delta.schema.SchemaUtils
 import org.apache.spark.sql.delta.stats.DeltaScan
@@ -98,7 +98,7 @@ class RemoteSnapshot(client: DeltaLogClient, uuid: String, val version: Long) {
   lazy val allFiles: Dataset[AddFile] = {
     val implicits = spark.implicits
     import implicits._
-    client.getFiles(GetFilesRequest(uuid, version)).file.map { addFileJson =>
+    client.getFiles(GetFilesRequest(uuid, version, None)).file.map { addFileJson =>
       val addFile = JsonUtils.fromJson[AddFile](addFileJson)
       val deltaPath = DeltaFileSystem.createPath(new URI(addFile.path), addFile.size)
       addFile.copy(path = deltaPath.toUri.toString)
@@ -112,9 +112,23 @@ class RemoteSnapshot(client: DeltaLogClient, uuid: String, val version: Long) {
       DeltaTableUtils.splitMetadataAndDataPredicates(filter, metadata.partitionColumns, spark)._1
     }
 
+    val partitionFilterSql = partitionFilters.reduceLeftOption(And).map(_.sql)
+
+    println("partitionFilterSql: " + partitionFilterSql)
+
+    val remoteFiles = {
+      val implicits = spark.implicits
+      import implicits._
+      client.getFiles(GetFilesRequest(uuid, version, partitionFilterSql)).file.map { addFileJson =>
+        val addFile = JsonUtils.fromJson[AddFile](addFileJson)
+        val deltaPath = DeltaFileSystem.createPath(new URI(addFile.path), addFile.size)
+        addFile.copy(path = deltaPath.toUri.toString)
+      }.toDS()
+    }.toDF
+
     val files = DeltaLog.filterFileList(
       metadata.partitionSchema,
-      allFiles.toDF(),
+      remoteFiles,
       partitionFilters).as[AddFile].collect()
 
     DeltaScan(version = version, files, null, null, null)(null, null, null, null)

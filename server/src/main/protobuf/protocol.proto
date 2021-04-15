@@ -30,6 +30,7 @@ message GetMetadataResponse {
 message GetFilesRequest {
     optional string uuid = 1;
     optional int64 version = 2;
+    optional string partition_filter = 3;
 }
 
 message GetFilesResponse {

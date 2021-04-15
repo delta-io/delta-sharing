@@ -113,25 +113,9 @@ releaseProcess := Seq[ReleaseStep](
 )
 
 lazy val root = (project in file("."))
-  .aggregate(sdk, spark, server)
+  .aggregate(spark, server)
 
-lazy val sdk = (project in file("sdk")) settings(
-  name := "delta-exchange-sdk",
-  commonSettings,
-  releaseSettings,
-  libraryDependencies ++= Seq(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.6.7.1",
-    "org.json4s" %% "json4s-jackson" % "3.5.3" excludeAll(
-      ExclusionRule("com.fasterxml.jackson.core"),
-      ExclusionRule("com.fasterxml.jackson.module")
-    ),
-    "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7",
-    "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7.3",
-    "org.scalatest" %% "scalatest" % "3.0.5" % "test"
-  )
-)
-
-lazy val spark = (project in file("spark")) dependsOn (sdk) settings(
+lazy val spark = (project in file("spark")) settings(
   name := "delta-exchange-spark",
   commonSettings,
   releaseSettings,
@@ -154,11 +138,22 @@ lazy val spark = (project in file("spark")) dependsOn (sdk) settings(
   )
 )
 
-lazy val server = (project in file("server")) dependsOn (sdk) settings(
+lazy val server = (project in file("server")) settings(
   name := "delta-exchange-server",
   commonSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
+    "org.apache.spark" %% "spark-sql" % "2.4.7" excludeAll(
+      ExclusionRule("org.slf4j"),
+      ExclusionRule("io.netty")
+    ),
+    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.6.7.1",
+    "org.json4s" %% "json4s-jackson" % "3.5.3" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module")
+    ),
+    "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7",
+    "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7.3",
     "com.linecorp.armeria" %% "armeria-scalapb" % "1.6.0" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")

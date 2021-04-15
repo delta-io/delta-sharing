@@ -132,7 +132,7 @@ class S3IntegerationSuite extends QueryTest with SharedSparkSession {
 
   // Run `build/sbt "server/runMain io.delta.exchange.server.DeltaExchangeService"` in a separate
   // shell before running this test
-  ignore("s3: sign in local server") {
+  test("s3: sign in local server") {
     import TestResource.AWS._
     val s3RootPath = s"s3a://$bucket/ryan_delta_remote_test"
     val uuid = java.util.UUID.randomUUID().toString
@@ -151,6 +151,35 @@ class S3IntegerationSuite extends QueryTest with SharedSparkSession {
       val path = s"delta://$uuid:$token@$host"
       val df = spark.read.format("delta-exchange").load(path)
       checkAnswer(df, spark.range(1, 10).map(x => x -> x.toString).toDF)
+    } finally {
+      new Path(s3Path).getFileSystem(spark.sessionState.newHadoopConf)
+        .delete(new Path(s3Path), true)
+    }
+  }
+
+  // Run `build/sbt "server/runMain io.delta.exchange.server.DeltaExchangeService"` in a separate
+  // shell before running this test
+  test("s3: sign in local server with partition filter") {
+    import TestResource.AWS._
+    val s3RootPath = s"s3a://$bucket/ryan_delta_remote_test"
+    val uuid = java.util.UUID.randomUUID().toString
+    val s3Path = new Path(s3RootPath, uuid).toString
+    withSQLConf(
+      "fs.s3a.access.key" -> awsAccessKey,
+      "fs.s3a.secret.key" -> awsSecretKey
+    ) {
+      spark.range(1, 10).map(x => x -> x % 2).toDF("c1", "c2")
+        .write.partitionBy("c2").format("delta").save(s3Path)
+    }
+
+    try {
+      val token = "dapi4e0a5ee596e45c73931d16df478d5234"
+      val host = "localhost"
+      val path = s"delta://$uuid:$token@$host"
+      val df = spark.read.format("delta-exchange").load(path).where("c2 = 0")
+      checkAnswer(
+        df,
+        spark.range(1, 10).map(x => x -> x % 2).toDF("c1", "c2").where("c2 = 0").toDF)
     } finally {
       new Path(s3Path).getFileSystem(spark.sessionState.newHadoopConf)
         .delete(new Path(s3Path), true)

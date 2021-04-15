@@ -5,6 +5,12 @@ import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
 import io.delta.exchange.protocol._
+import io.delta.standalone.internal.actions.AddFile
+import org.apache.spark.sql.Encoders
+import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
+import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, Cast, Expression, ExtractValue, Literal}
+import org.apache.spark.sql.types.{DataType, MapType, StructField, StructType}
 
 object DeltaTableHelper {
   import io.delta.exchange.server.TestResource.AWS._
@@ -69,16 +75,25 @@ object DeltaTableHelper {
     val snapshot = deltaLog.getSnapshotForVersionAsOf(request.getVersion)
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
+
+    println("request.partitionFilter: " + request.partitionFilter)
+
+    val selectedFiles = request.partitionFilter match {
+      case Some(f) =>
+        val schema = DataType.fromJson(state.metadata.schemaString).asInstanceOf[StructType]
+        val partitionSchema =
+          new StructType(state.metadata.partitionColumns.map(c => schema(c)).toArray)
+        ParserUtils.evaluatePredicate(partitionSchema, f, state.activeFiles.values.toSeq)
+      case None => state.activeFiles.values.toSeq
+    }
+
     val response = GetFilesResponse().withFile(
-      state.activeFiles
-        .mapValues { addFile =>
-          val s3Path = getS3Path(request.getUuid, addFile.path)
-          val signedUrl = signFile(s3Path)
-          println(s"path: $s3Path signed: $signedUrl")
-          toJson(addFile.copy(path = signFile(s3Path)))
-        }
-        .values
-        .toSeq
+      selectedFiles.map { addFile =>
+        val s3Path = getS3Path(request.getUuid, addFile.path)
+        val signedUrl = signFile(s3Path)
+        println(s"path: $s3Path signed: $signedUrl")
+        toJson(addFile.copy(path = signFile(s3Path)))
+      }
     )
     response
   }

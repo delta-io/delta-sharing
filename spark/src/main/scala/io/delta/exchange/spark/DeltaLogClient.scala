@@ -25,7 +25,7 @@ case class GetMetadataRequest(uuid: String, version: Long)
 // metadata is the json format of Metadata
 case class GetMetadataResponse(metadata: String)
 
-case class GetFilesRequest(uuid: String, version: Long)
+case class GetFilesRequest(uuid: String, version: Long, partitionFilter: Option[String])
 
 // file is the json format of AddFile whose path is a pre-signed url
 case class GetFilesResponse(file: Seq[String])
