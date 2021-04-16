@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        - include:
+        include:
           - python-version: 3.8
             pandas-version: 1.2.4
             pyarrow-version: 2.0.0
