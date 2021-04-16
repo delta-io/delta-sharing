@@ -3,6 +3,8 @@ on: [push, pull_request]
 jobs:
   build-and-test:
     runs-on: ubuntu-20.04
+    env:
+      SPARK_LOCAL_IP: localhost
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -25,6 +27,7 @@ jobs:
       PYTHON_VERSION: ${{ matrix.python-version }}
       PANDAS_VERSION: ${{ matrix.pandas-version }}
       PYARROW_VERSION: ${{ matrix.pyarrow-version }}
+      SPARK_LOCAL_IP: localhost
       # Github Actions' default miniconda
       CONDA_PREFIX: /usr/share/miniconda
     steps:
