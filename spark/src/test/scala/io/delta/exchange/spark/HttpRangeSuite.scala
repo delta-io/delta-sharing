@@ -48,6 +48,8 @@ class HttpRangeSuite extends SparkFunSuite {
   }
 
   test("aws") {
+    assume(sys.env.get("DELTA_EXCHANGE_TEST_AWS_ACCESS_KEY").nonEmpty)
+
     import TestResource.AWS._
 
     val objectKey = "ryan_delta_remote_test/" +
@@ -64,6 +66,8 @@ class HttpRangeSuite extends SparkFunSuite {
   }
 
   test("azure") {
+    assume(sys.env.get("DELTA_EXCHANGE_TEST_AZURE_STORAGE_ACCOUNT").nonEmpty)
+
     import TestResource.Azure._
 
     val testContainer = s"ryan-delta-remote-test"
@@ -81,6 +85,8 @@ class HttpRangeSuite extends SparkFunSuite {
   }
 
   test("gcp") {
+    assume(sys.env.get("DELTA_EXCHANGE_TEST_GCP_KEY").nonEmpty)
+
     import TestResource.GCP._
 
     val objectName =

@@ -82,6 +82,8 @@ class S3IntegerationSuite extends QueryTest with SharedSparkSession {
   }
 
   test("s3: sign locally") {
+    assume(sys.env.get("DELTA_EXCHANGE_TEST_AWS_ACCESS_KEY").nonEmpty)
+
     import TestResource.AWS._
     val s3RootPath = s"s3a://$bucket/ryan_delta_remote_test"
     withSQLConf(
@@ -106,6 +108,8 @@ class S3IntegerationSuite extends QueryTest with SharedSparkSession {
 
   // Use https://github.com/databricks/universe/pull/90204 to test
   ignore("s3: sign in databricks") {
+    assume(sys.env.get("DELTA_EXCHANGE_TEST_AWS_ACCESS_KEY").nonEmpty)
+
     import TestResource.AWS._
     val s3RootPath = s"s3a://$bucket/ryan_delta_remote_test"
     val uuid = java.util.UUID.randomUUID().toString
@@ -133,6 +137,8 @@ class S3IntegerationSuite extends QueryTest with SharedSparkSession {
   // Run `build/sbt "server/runMain io.delta.exchange.server.DeltaExchangeService"` in a separate
   // shell before running this test
   test("s3: sign in local server") {
+    assume(sys.env.get("DELTA_EXCHANGE_TEST_AWS_ACCESS_KEY").nonEmpty)
+
     import TestResource.AWS._
     val s3RootPath = s"s3a://$bucket/ryan_delta_remote_test"
     val uuid = java.util.UUID.randomUUID().toString
@@ -160,6 +166,8 @@ class S3IntegerationSuite extends QueryTest with SharedSparkSession {
   // Run `build/sbt "server/runMain io.delta.exchange.server.DeltaExchangeService"` in a separate
   // shell before running this test
   test("s3: sign in local server with partition filter") {
+    assume(sys.env.get("DELTA_EXCHANGE_TEST_AWS_ACCESS_KEY").nonEmpty)
+
     import TestResource.AWS._
     val s3RootPath = s"s3a://$bucket/ryan_delta_remote_test"
     val uuid = java.util.UUID.randomUUID().toString
@@ -197,6 +205,8 @@ class AzureIntegrationSuite extends QueryTest with SharedSparkSession {
   }
 
   test("azure: sign locally") {
+    assume(sys.env.get("DELTA_EXCHANGE_TEST_AZURE_STORAGE_ACCOUNT").nonEmpty)
+
     import TestResource.Azure._
     val testContainer = s"ryan-delta-remote-test"
     val wasbRootPath =
@@ -230,6 +240,8 @@ class GCSIntegrationSuite extends QueryTest with SharedSparkSession {
   }
 
   test("gcs: sign locally") {
+    assume(sys.env.get("DELTA_EXCHANGE_TEST_GCP_KEY").nonEmpty)
+
     import TestResource.GCP._
     val gcsRootPath = s"gs://$bucket/ryan_delta_remote_test"
     withSQLConf(
