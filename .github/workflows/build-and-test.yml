@@ -8,4 +8,4 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: '8'
-      - run: build/sbt test
+      - run: ./build/sbt test
