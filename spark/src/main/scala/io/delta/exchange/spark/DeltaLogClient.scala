@@ -30,12 +30,24 @@ case class GetFilesRequest(uuid: String, version: Long, partitionFilter: Option[
 // file is the json format of AddFile whose path is a pre-signed url
 case class GetFilesResponse(file: Seq[String])
 
+case class ListSharesResponse(name: Seq[String])
+
+case class GetShareRequest(name: String)
+
+case class SharedTable(name: String, schema: String, shareName: String)
+
+case class GetShareResponse(table: Seq[SharedTable])
+
 trait DeltaLogClient {
   def getTableInfo(request: GetTableInfoRequest): GetTableInfoResponse
 
   def getMetadata(request: GetMetadataRequest): GetMetadataResponse
 
   def getFiles(request: GetFilesRequest): GetFilesResponse
+
+  def listShares(): ListSharesResponse
+
+  def getShare(request: GetShareRequest): GetShareResponse
 }
 
 
@@ -74,12 +86,20 @@ class DeltaLogLocalClient(deltaLog: DeltaLog, signer: CloudFileSigner) extends D
     val objectKey = uri.getPath.substring(1)
     addFile.copy(signer.sign(bucket, objectKey).toURI.toString)
   }
+
+  override def listShares(): ListSharesResponse = ???
+
+  override def getShare(request: GetShareRequest): GetShareResponse = ???
 }
 
 /**
  * A hacky client talking to the server built by https://github.com/databricks/universe/pull/90204
  */
 class DeltaLogRestClient(apiUrl: URL, apiToken: String) extends DeltaLogClient {
+
+  def this() {
+    this(new URL("https://localhost:443"), "dummy")
+  }
 
   val client = {
     val sslTrustAll = apiUrl.getHost == "localhost" || apiUrl.getHost == "localhost:443"
@@ -176,6 +196,14 @@ class DeltaLogRestClient(apiUrl: URL, apiToken: String) extends DeltaLogClient {
 
   def close(): Unit = {
     client.close()
+  }
+
+  override def listShares(): ListSharesResponse = {
+    getInternal[Any, ListSharesResponse]("/s3commit/table/shares", None)
+  }
+
+  override def getShare(request: GetShareRequest): GetShareResponse = {
+    getInternal[GetShareRequest, GetShareResponse]("/s3commit/table/share", Some(request))
   }
 }
 

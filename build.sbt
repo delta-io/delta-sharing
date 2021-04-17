@@ -115,10 +115,14 @@ releaseProcess := Seq[ReleaseStep](
 lazy val root = (project in file("."))
   .aggregate(spark, server)
 
-lazy val spark = (project in file("spark")) settings(
+lazy val spark = (project in file("spark")) enablePlugins(Antlr4Plugin)  settings(
   name := "delta-exchange-spark",
   commonSettings,
   releaseSettings,
+  antlr4Version in Antlr4 := "4.7",
+  antlr4PackageName in Antlr4 := Some("io.delta.exchange.sql.parser"),
+  antlr4GenListener in Antlr4 := true,
+  antlr4GenVisitor in Antlr4 := true,
   libraryDependencies ++= Seq(
     "org.apache.parquet" % "parquet-hadoop" % "1.10.1" % "provided",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",

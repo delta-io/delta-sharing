@@ -36,3 +36,21 @@ message GetFilesRequest {
 message GetFilesResponse {
     repeated string file = 1;
 }
+
+message ListSharesResponse {
+    repeated string name = 1;
+}
+
+message GetShare {
+    optional string name = 1;
+}
+
+message Table {
+    optional string name = 1;
+    optional string schema = 2;
+    optional string share_name = 3;
+}
+
+message GetShareResponse {
+    repeated Table table = 1;
+}

@@ -41,5 +41,7 @@ addSbtPlugin("com.eed3si9n" % "sbt-unidoc" % "0.4.2")
 
 addSbtPlugin("com.thesamet" % "sbt-protoc" % "1.0.2")
 
+addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.8.3")
+
 libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.11.1"
 
