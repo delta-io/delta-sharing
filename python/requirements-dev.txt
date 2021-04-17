@@ -1,0 +1,14 @@
+# Dependencies. When you update don't forget to update setup.py.
+pandas
+pyarrow
+fsspec
+
+# Linter
+mypy
+flake8
+
+# Code formatter. Only support Python 3.6+
+black==19.10b0
+
+# Test
+pytest

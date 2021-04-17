@@ -65,6 +65,7 @@ python/deps
 docs/python/_static/
 docs/python/_templates/
 docs/python/_build/
+python/build/
 python/test_coverage/coverage_data
 python/test_coverage/htmlcov
 python/pyspark/python
@@ -102,3 +103,6 @@ spark-warehouse/
 
 # For SBT
 .jvmopts
+
+# For Python
+*.egg-info
