@@ -1,5 +1,6 @@
 package io.delta.exchange.spark
 
+import scala.collection.JavaConverters._
 import java.net.{URI, URL}
 import java.util
 
@@ -16,7 +17,7 @@ import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, Hadoop
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{Dataset, SparkSession, SQLContext}
-import org.apache.spark.sql.connector.catalog.{Table, TableProvider}
+import org.apache.spark.sql.connector.catalog.{SupportsRead, Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
@@ -158,16 +159,23 @@ class DeltaExchangeDataSource extends TableProvider with RelationProvider with D
   // TODO: I have no idea what's going on here. Implementing the DataSourceV2 TableProvider without
   // retaining RelationProvider doesn't work when creating a metastore table; Spark insists on
   // looking up the USING `format` as a V1 source, and will fail if this source only uses v2.
-  // But the DSv2 methods are never actually called! What having the V2 implementation does do is
-  // change the value of parameters passed to the V1 createRelation() method (!!) to include the
-  // TBLPROPERTIES we need.
+  // But the DSv2 methods are never actually called in the metastore path! What having the V2
+  // implementation does do is change the value of parameters passed to the V1 createRelation()
+  // method (!!) to include the TBLPROPERTIES we need. (When reading from a file path, though,
+  // the v2 path is used as normal.)
   override def inferSchema(options: CaseInsensitiveStringMap): StructType = new StructType()
   override def getTable(
       schema: StructType,
       partitioning: Array[Transform],
       properties: util.Map[String, String]): Table = {
-    print(s"\n\nFor some reason this will never be printed\n\n")
-    throw new IllegalStateException("for some reason this is never hit")
+    // Return a Table with no capabilities so we fall back to the v1 path.
+    new Table {
+      override def name(): String = s"V1FallbackTable"
+
+      override def schema(): StructType = new StructType()
+
+      override def capabilities(): util.Set[TableCapability] = Set.empty[TableCapability].asJava
+    }
   }
 
   override def createRelation(
@@ -181,6 +189,14 @@ class DeltaExchangeDataSource extends TableProvider with RelationProvider with D
   }
 
   override def shortName() = "delta-exchange"
+}
+
+class DeltaExchangeTable(path: String) extends Table {
+  override def name(): String = s"delta://$path"
+
+  override def schema(): StructType = new StructType()
+
+  override def capabilities(): util.Set[TableCapability] = Set.empty[TableCapability].asJava
 }
 
 class RemoteTahoeLogFileIndex(
