@@ -1,9 +1,12 @@
 package io.delta.exchange.spark
 
+import scala.collection.JavaConverters._
 import java.net.{URI, URL}
+import java.util
 
 import org.apache.spark.sql.delta._
 import org.apache.hadoop.fs.{FileStatus, Path}
+
 import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal}
 import org.apache.spark.sql.delta.actions.{AddFile, Metadata, SingleAction}
 import org.apache.spark.sql.delta.schema.SchemaUtils
@@ -13,16 +16,30 @@ import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{Dataset, SQLContext, SparkSession}
+import org.apache.spark.sql.{Dataset, SparkSession, SQLContext}
+import org.apache.spark.sql.connector.catalog.{SupportsRead, Table, TableCapability, TableProvider}
+import org.apache.spark.sql.connector.expressions.Transform
+import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 case class RemoteDeltaTable(apiUrl: URL, apiToken: String, uuid: String)
 
 object RemoteDeltaTable {
-  def apply(path: String): RemoteDeltaTable = {
+  def apply(path: String, tokenFile: Option[String] = None): RemoteDeltaTable = {
     // delta://uuid:token@apiurl
     val uri = new URI(path)
     assert(uri.getScheme == "delta")
-    val Array(uuid, apiToken) = uri.getUserInfo.split(":")
+    val Array(uuid, apiToken) = tokenFile match {
+      case Some(tokenFilePath) =>
+        val file = scala.io.Source.fromFile(tokenFilePath)
+        try {
+          val itr = file.getLines()
+          assert(itr.hasNext)
+          Array(uri.getUserInfo, itr.next())
+        } finally {
+          file.close()
+        }
+      case None => uri.getUserInfo.split(":")
+    }
     val host = uri.getHost
     RemoteDeltaTable(new URL(s"https://$host"), apiToken, uuid)
   }
@@ -60,10 +77,12 @@ class RemoteDeltaLog(uuid: String, initialVersion: Long, path: Path, client: Del
 }
 
 object RemoteDeltaLog {
-  def apply(path: String): RemoteDeltaLog = {
-    val table = RemoteDeltaTable(path)
+  def apply(path: String, tokenFile: Option[String]): RemoteDeltaLog = {
+    val table = RemoteDeltaTable(path, tokenFile)
     val localClientPath = SparkSession.active.conf.getOption("delta.exchange.localClient.path")
     val client = localClientPath.map { path =>
+      // This is a local client for testing purposes. Only these two tokens are valid
+      assert(Seq("token", "tokenFromLocalFile").contains(table.apiToken))
       val tablePath = new Path(path, table.uuid)
       val deltaLog = DeltaLog.forTable(SparkSession.active, tablePath)
       if (path.startsWith("s3")) {
@@ -135,17 +154,49 @@ class RemoteSnapshot(client: DeltaLogClient, uuid: String, val version: Long) {
   }
 }
 
-class DeltaExchangeDataSource extends RelationProvider with DataSourceRegister {
+class DeltaExchangeDataSource extends TableProvider with RelationProvider with DataSourceRegister {
+
+  // TODO: I have no idea what's going on here. Implementing the DataSourceV2 TableProvider without
+  // retaining RelationProvider doesn't work when creating a metastore table; Spark insists on
+  // looking up the USING `format` as a V1 source, and will fail if this source only uses v2.
+  // But the DSv2 methods are never actually called in the metastore path! What having the V2
+  // implementation does do is change the value of parameters passed to the V1 createRelation()
+  // method (!!) to include the TBLPROPERTIES we need. (When reading from a file path, though,
+  // the v2 path is used as normal.)
+  override def inferSchema(options: CaseInsensitiveStringMap): StructType = new StructType()
+  override def getTable(
+      schema: StructType,
+      partitioning: Array[Transform],
+      properties: util.Map[String, String]): Table = {
+    // Return a Table with no capabilities so we fall back to the v1 path.
+    new Table {
+      override def name(): String = s"V1FallbackTable"
+
+      override def schema(): StructType = new StructType()
+
+      override def capabilities(): util.Set[TableCapability] = Set.empty[TableCapability].asJava
+    }
+  }
+
   override def createRelation(
       sqlContext: SQLContext,
       parameters: Map[String, String]): BaseRelation = {
-    val path = parameters.get("path")
-      .getOrElse(throw new IllegalArgumentException("'path' is not specified"))
-    val deltaLog = RemoteDeltaLog(path)
+    val path = parameters.getOrElse(
+      "path", throw new IllegalArgumentException("'path' is not specified"))
+    val tokenFile = parameters.get("tokenFile")
+    val deltaLog = RemoteDeltaLog(path, tokenFile)
     deltaLog.createRelation()
   }
 
-  override def shortName(): String = "delta-exchange"
+  override def shortName() = "delta-exchange"
+}
+
+class DeltaExchangeTable(path: String) extends Table {
+  override def name(): String = s"delta://$path"
+
+  override def schema(): StructType = new StructType()
+
+  override def capabilities(): util.Set[TableCapability] = Set.empty[TableCapability].asJava
 }
 
 class RemoteTahoeLogFileIndex(

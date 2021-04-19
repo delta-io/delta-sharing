@@ -70,6 +70,49 @@ class RemoteDeltaLogSuite extends QueryTest with SharedSparkSession {
       }
     }
   }
+
+  test("metastore table") {
+    withTable("results") {
+      withTempDir { tempDir =>
+        withSQLConf("delta.exchange.localClient.path" -> tempDir.getCanonicalPath) {
+          val uuid = java.util.UUID.randomUUID().toString
+          val localPath = new java.io.File(tempDir, uuid).getCanonicalPath
+          spark.range(1, 10).write.format("delta").save(localPath)
+
+          val path = s"delta://$uuid:token@databricks.com"
+          sql(s"CREATE TABLE results (id LONG) USING `delta-exchange` LOCATION '$path' " +
+            s"TBLPROPERTIES ('hithere' = '1')")
+          val df = spark.read.table("results")
+          checkAnswer(df, spark.range(1, 10).toDF())
+        }
+      }
+    }
+  }
+
+  test("metastore table with token file") {
+    withTable("results") {
+      withTempPaths(2) { case Seq(dataDir, localTokenDir) =>
+        withSQLConf("delta.exchange.localClient.path" -> dataDir.getCanonicalPath) {
+          val uuid = java.util.UUID.randomUUID().toString
+          val localPath = new java.io.File(dataDir, uuid).getCanonicalPath
+          spark.range(1, 10).write.format("delta").save(localPath)
+
+          val pw = new java.io.PrintWriter(new java.io.File(localTokenDir, "myTokenFile"))
+          try {
+            pw.write("tokenFromLocalFile")
+          } finally {
+            pw.close()
+          }
+
+          val tablePath = s"delta://$uuid@databricks.com"
+          sql(s"CREATE TABLE results (id LONG) USING `delta-exchange` LOCATION '$tablePath' " +
+            s"TBLPROPERTIES ('tokenFile' = '$localTokenDir/myTokenFile')")
+          val df = spark.read.table("results")
+          checkAnswer(df, spark.range(1, 10).toDF())
+        }
+      }
+    }
+  }
 }
 
 class S3IntegerationSuite extends QueryTest with SharedSparkSession {
