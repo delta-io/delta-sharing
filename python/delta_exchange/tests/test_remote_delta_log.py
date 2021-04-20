@@ -13,9 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import pytest
 
-from delta_exchange.version import __version__
+from delta_exchange.remote_delta_log import RemoteDeltaTable
 
 
-def test_version():
-    assert __version__ == "0.0.1.dev0"
+def test_remote_delta_table():
+    path = "delta://uuid:token@databricks.com"
+    table = RemoteDeltaTable.from_path_string(path)
+    assert table == RemoteDeltaTable("https://databricks.com", "token", "uuid")
+
+    path = "https://uuid:token@databricks.com"
+    with pytest.raises(AssertionError):
+        RemoteDeltaTable.from_path_string(path)

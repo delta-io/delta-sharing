@@ -32,7 +32,7 @@ class RemoteDeltaTable(NamedTuple):
     def from_path_string(path: str):
         url = urlparse(path)
         assert url.scheme == "delta"
-        api_url = "https://{hostname}".format(hostname=url.hostname)
+        api_url = f"https://{url.hostname}"
         api_token = url.password
         uuid = url.username
         return RemoteDeltaTable(api_url, api_token, uuid)

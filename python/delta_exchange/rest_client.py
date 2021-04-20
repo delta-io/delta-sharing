@@ -61,7 +61,7 @@ class DeltaLogRestClient:
 
     def _get_internal(self, target: str, data: Dict[str, Any]) -> Dict[str, str]:
         url = urljoin(self._api_url, DeltaLogRestClient._get_path(target))
-        headers = {"Authorization": "Bearer {api_token}".format(api_token=self._api_token)}
+        headers = {"Authorization": f"Bearer {self._api_token}"}
         response = self._session.get(url, headers=headers, json=data)
         try:
             response.raise_for_status()
@@ -71,4 +71,4 @@ class DeltaLogRestClient:
 
     @staticmethod
     def _get_path(target: str) -> str:
-        return "/api/2.0{target}".format(target=target)
+        return f"/api/2.0{target}"
