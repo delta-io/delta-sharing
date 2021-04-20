@@ -20,7 +20,7 @@ import fsspec
 import pandas as pd
 from pyarrow.dataset import dataset
 
-from delta_exchange.client import DeltaLogRestClient
+from delta_exchange.rest_client import DeltaLogRestClient
 
 
 class RemoteDeltaTable(NamedTuple):
@@ -42,18 +42,18 @@ class RemoteDeltaLog(NamedTuple):
     uuid: str
     version: int
     path: str
-    client: DeltaLogRestClient
+    rest_client: DeltaLogRestClient
 
     @property
     def files(self) -> Sequence[str]:
-        return self.client.get_files(uuid=self.uuid, version=self.version).files
+        return self.rest_client.get_files(uuid=self.uuid, version=self.version).files
 
     def to_pandas(self) -> pd.DataFrame:
         files = self.files
         if len(files) > 0:
             scheme = urlparse(files[0]).scheme
             assert all(urlparse(f).scheme == scheme for f in files[1:])
-            filesystem = fsspec.get_filesystem_class(scheme)
+            filesystem = fsspec.filesystem(scheme)
         else:
-            filesystem = fsspec.get_filesystem_class("https")
-        return dataset(source=files, filesystem=filesystem()).to_table().to_pandas()
+            filesystem = None
+        return dataset(source=files, filesystem=filesystem).to_table().to_pandas()

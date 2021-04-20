@@ -15,8 +15,8 @@
 #
 import pandas as pd
 
-from delta_exchange.client import DeltaLogRestClient
 from delta_exchange.remote_delta_log import RemoteDeltaLog, RemoteDeltaTable
+from delta_exchange.rest_client import DeltaLogRestClient
 
 
 class DeltaExchange:
@@ -24,10 +24,10 @@ class DeltaExchange:
         self._path = path
 
         delta_table = RemoteDeltaTable.from_path_string(path)
-        client = DeltaLogRestClient(delta_table.api_url, delta_table.api_token)
-        table_info = client.get_table_info(delta_table.uuid)
+        rest_client = DeltaLogRestClient(delta_table.api_url, delta_table.api_token)
+        table_info = rest_client.get_table_info(delta_table.uuid)
         self._delta_log = RemoteDeltaLog(
-            delta_table.uuid, table_info.version, table_info.path, client
+            delta_table.uuid, table_info.version, table_info.path, rest_client
         )
 
     def to_pandas(self) -> pd.DataFrame:
