@@ -45,6 +45,8 @@ setup(
         'pandas',
         'pyarrow',
         'fsspec',
+        'requests',
+        'aiohttp',
     ],
     author="Databricks",
     license='http://www.apache.org/licenses/LICENSE-2.0',

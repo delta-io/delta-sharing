@@ -2,6 +2,8 @@
 pandas
 pyarrow
 fsspec
+requests
+aiohttp
 
 # Linter
 mypy

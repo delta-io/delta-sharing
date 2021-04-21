@@ -47,6 +47,7 @@ jobs:
           conda config --env --add pinned_packages python=$PYTHON_VERSION
           conda config --env --add pinned_packages pandas==$PANDAS_VERSION
           conda config --env --add pinned_packages pyarrow==$PYARROW_VERSION
+          conda install -c conda-forge --yes pandas==$PANDAS_VERSION pyarrow==$PYARROW_VERSION
           sed -i -e "/pandas/d" -e "/pyarrow/d" python/requirements-dev.txt
           conda install -c conda-forge --yes --file python/requirements-dev.txt
           conda list
