@@ -1,0 +1,48 @@
+syntax = "proto2";
+
+package io.delta.exchange.server;
+
+import "scalapb/scalapb.proto";
+
+option java_package = "io.delta.exchange.server";
+
+option java_generate_equals_and_hash = true;
+option (scalapb.options).flat_package = true;
+
+message HadoopConfigurationEntry {
+    optional string key = 1;
+    optional string value = 2;
+}
+
+message HadoopConfiguration {
+    optional string name = 1;
+    repeated HadoopConfigurationEntry entries = 2;
+}
+
+message Recipient {
+    optional string name = 1;
+    optional string bearer_token = 2;
+}
+
+message TableConfig {
+    optional string name = 1;
+    optional string location = 2;
+    optional string configuration = 3;
+}
+
+message ShareConfig {
+    optional string name = 1;
+    repeated SchemaConfig schemas = 2;
+    repeated string recipients = 3;
+}
+
+message SchemaConfig {
+    optional string name = 1;
+    repeated TableConfig tables = 2;
+}
+
+message ServerConfig {
+    repeated ShareConfig shares = 1;
+    repeated Recipient recipients = 2;
+    repeated HadoopConfiguration configurations = 3;
+}

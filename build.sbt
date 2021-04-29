@@ -41,6 +41,7 @@ lazy val commonSettings = Seq(
     "-Dspark.sql.shuffle.partitions=5",
     "-Ddelta.log.cacheSize=3",
     "-Dspark.sql.sources.parallelPartitionDiscovery.parallelism=5",
+    "-Dspark.delta.exchange.client.sslTrustAll=true",
     "-Xmx1024m"
   )
 )
@@ -113,9 +114,62 @@ releaseProcess := Seq[ReleaseStep](
 )
 
 lazy val root = (project in file("."))
-  .aggregate(spark, server)
+  .aggregate(client, spark, server)
 
-lazy val spark = (project in file("spark")) enablePlugins(Antlr4Plugin)  settings(
+lazy val client = (project in file("client")) settings(
+  name := "delta-exchange-client",
+  commonSettings,
+  releaseSettings,
+  libraryDependencies ++= Seq(
+    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.10.0",
+    "org.json4s" %% "json4s-jackson" % "3.6.6" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module")
+    ),
+    "org.apache.httpcomponents" % "httpclient" % "4.5.13"
+  )
+)
+
+lazy val getInitialCommandsForConsole: Def.Initialize[String] = Def.settingDyn {
+  val base = """ println("Welcome to\n" +
+               |"      ____              __\n" +
+               |"     / __/__  ___ _____/ /__\n" +
+               |"    _\\ \\/ _ \\/ _ `/ __/  '_/\n" +
+               |"   /___/ .__/\\_,_/_/ /_/\\_\\   version \"%s\"\n" +
+               |"      /_/\n" +
+               |"Using Scala \"%s\"\n")
+               |
+               |import org.apache.spark.SparkContext._
+               |
+               |val sc = {
+               |  val conf = new org.apache.spark.SparkConf()
+               |    .setMaster("local")
+               |    .setAppName("Sbt console + Spark!")
+               |    .set("spark.sql.extensions", "io.delta.exchange.sql.DeltaExchangeSparkSessionExtension")
+               |  new org.apache.spark.SparkContext(conf)
+               |}
+               |sc.setLogLevel("WARN")
+               |println("Created spark context as sc.")
+    """.format(sparkVersion, scalaVersion.value).stripMargin
+  if (libraryDependencies.value.map(_.name.contains("spark-sql")).reduce(_ || _)) {
+    Def.setting {
+      base +
+        """val sqlContext = {
+          |  val _sqlContext = new org.apache.spark.sql.SQLContext(sc)
+          |  println("SQL context available as sqlContext.")
+          |  _sqlContext
+          |}
+          |import sqlContext.implicits._
+          |import sqlContext.sql
+          |import org.apache.spark.sql.functions._
+          """.stripMargin
+    }
+  } else {
+    Def.setting(base)
+  }
+}
+
+lazy val spark = (project in file("spark")) enablePlugins(Antlr4Plugin) dependsOn(client) settings(
   name := "delta-exchange-spark",
   commonSettings,
   releaseSettings,
@@ -123,10 +177,12 @@ lazy val spark = (project in file("spark")) enablePlugins(Antlr4Plugin)  setting
   antlr4PackageName in Antlr4 := Some("io.delta.exchange.sql.parser"),
   antlr4GenListener in Antlr4 := true,
   antlr4GenVisitor in Antlr4 := true,
+  initialCommands in console := getInitialCommandsForConsole.value,
+  cleanupCommands in console := "sc.stop()",
   libraryDependencies ++= Seq(
     "org.apache.parquet" % "parquet-hadoop" % "1.10.1" % "provided",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-    "io.delta" %% "delta-core" % "0.8.0",
+    "io.delta" %% "delta-core" % "0.8.0" % "test",
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",

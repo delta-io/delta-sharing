@@ -2,6 +2,7 @@ package io.delta.exchange.spark
 
 import java.net.{URI, URL}
 
+import io.delta.exchange.client.JsonUtils
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.QueryTest
@@ -23,10 +24,10 @@ class RemoteDeltaLogSuite extends QueryTest with SharedSparkSession {
       spark.range(1, 10).write.format("delta").save(path)
       val deltaLog = DeltaLog.forTable(spark, path)
       val uuid = java.util.UUID.randomUUID().toString
-      val client = new DeltaLogLocalClient(deltaLog, new DummyFileSigner)
+      val client = new DeltaLogLocalClient(new Path(path), new DummyFileSigner)
       val remoteDeltaLog = new RemoteDeltaLog(uuid, 0, new Path(path), client)
       assert(remoteDeltaLog.snapshot.version == deltaLog.snapshot.version)
-      assert(remoteDeltaLog.snapshot.metadata == deltaLog.snapshot.metadata)
+      assert(JsonUtils.toJson(remoteDeltaLog.snapshot.metadata) == JsonUtils.toJson(deltaLog.snapshot.metadata))
       checkAnswer(
         remoteDeltaLog.snapshot.allFiles.map { add =>
           val uri = DeltaFileSystem.restoreUri(new Path(new URI(add.path)))._1

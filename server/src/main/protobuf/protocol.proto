@@ -9,48 +9,32 @@ option java_package = "io.delta.exchange.protocol";
 option java_generate_equals_and_hash = true;
 option (scalapb.options).flat_package = true;
 
-message GetTableInfoRequest {
-    optional string uuid = 1;
-}
-
-message GetTableInfoResponse {
-    optional string path = 1;
-    optional int64 version = 2;
-}
-
-message GetMetadataRequest {
-    optional string uuid = 1;
-    optional int64 version = 2;
-}
-
-message GetMetadataResponse {
-    optional string metadata = 1;
-}
-
-message GetFilesRequest {
-    optional string uuid = 1;
-    optional int64 version = 2;
-    optional string partition_filter = 3;
-}
-
-message GetFilesResponse {
-    repeated string file = 1;
-}
-
-message ListSharesResponse {
-    repeated string name = 1;
-}
-
-message GetShare {
+message Share {
     optional string name = 1;
+}
+
+message Schema {
+    optional string name = 1;
+    optional string share = 2;
 }
 
 message Table {
     optional string name = 1;
     optional string schema = 2;
-    optional string share_name = 3;
+    optional string share = 3;
 }
 
-message GetShareResponse {
-    repeated Table table = 1;
+message ListSharesResponse {
+    repeated Share items = 1;
+    optional string next_page_token = 2;
+}
+
+message ListSchemasResponse {
+    repeated Schema items = 1;
+    optional string next_page_token = 2;
+}
+
+message ListTablesResponse {
+    repeated Table items = 1;
+    optional string next_page_token = 2;
 }
