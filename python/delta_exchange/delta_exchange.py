@@ -13,22 +13,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import pandas as pd
+from itertools import chain
+from typing import BinaryIO, Sequence, TextIO, Union
+from pathlib import Path
 
-from delta_exchange.remote_delta_log import RemoteDeltaLog, RemoteDeltaTable
-from delta_exchange.rest_client import DeltaLogRestClient
+from delta_exchange.protocol import Schema, Share, ShareProfile, Table
+from delta_exchange.rest_client import DataSharingRestClient
 
 
 class DeltaExchange:
-    def __init__(self, path: str):
-        self._path = path
+    def __init__(self, profile: Union[str, BinaryIO, TextIO, Path, ShareProfile]):
+        if not isinstance(profile, ShareProfile):
+            profile = ShareProfile.read_from_file(profile)
+        self._profile = profile
+        self._rest_client = DataSharingRestClient(profile)
 
-        delta_table = RemoteDeltaTable.from_path_string(path)
-        rest_client = DeltaLogRestClient(delta_table.api_url, delta_table.api_token)
-        table_info = rest_client.get_table_info(delta_table.uuid)
-        self._delta_log = RemoteDeltaLog(
-            delta_table.uuid, table_info.version, table_info.path, rest_client
-        )
+    def list_shares(self) -> Sequence[Share]:
+        return self._rest_client.list_shares().shares
 
-    def to_pandas(self) -> pd.DataFrame:
-        return self._delta_log.to_pandas()
+    def list_schemas(self, share: Share) -> Sequence[Schema]:
+        return self._rest_client.list_schemas(share=share).schemas
+
+    def list_tables(self, schema: Schema) -> Sequence[Table]:
+        return self._rest_client.list_tables(schema=schema).tables
+
+    def list_all_tables(self) -> Sequence[Table]:
+        shares = self.list_shares()
+        schemas = chain(*(self.list_schemas(share) for share in shares))
+        return list(chain(*(self.list_tables(schema) for schema in schemas)))
