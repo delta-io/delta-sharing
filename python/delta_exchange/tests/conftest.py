@@ -22,9 +22,9 @@ from delta_exchange.protocol import ShareProfile
 from delta_exchange.rest_client import DataSharingRestClient
 
 
-# Make it `False` if the server is running.
-SKIP = True
-SKIP_MESSAGE = "The test server is not running."
+# Make it `True` if the server is running.
+ENABLE_INTEGRATION = False
+SKIP_MESSAGE = "The integration tests are disabled."
 
 
 @pytest.fixture

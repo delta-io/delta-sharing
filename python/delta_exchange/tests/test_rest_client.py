@@ -25,16 +25,16 @@ from delta_exchange.protocol import (
     Table,
 )
 from delta_exchange.rest_client import DataSharingRestClient
-from delta_exchange.tests.conftest import SKIP, SKIP_MESSAGE
+from delta_exchange.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_shares(rest_client: DataSharingRestClient):
     response = rest_client.list_shares()
     assert response.shares == [Share(name="share1"), Share(name="share2")]
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_schemas(rest_client: DataSharingRestClient):
     response = rest_client.list_schemas(Share(name="share1"))
     assert response.schemas == [Schema(name="default", share="share1")]
@@ -43,7 +43,7 @@ def test_list_schemas(rest_client: DataSharingRestClient):
     assert response.schemas == [Schema(name="default", share="share2")]
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_tables(rest_client: DataSharingRestClient):
     response = rest_client.list_tables(Schema(name="default", share="share1"))
     assert response.tables == [
@@ -55,7 +55,7 @@ def test_list_tables(rest_client: DataSharingRestClient):
     assert response.tables == [Table(name="table2", share="share2", schema="default")]
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_table_metadata_non_partitioned(rest_client: DataSharingRestClient):
     response = rest_client.query_table_metadata(
         Table(name="table1", share="share1", schema="default")
@@ -75,7 +75,7 @@ def test_query_table_metadata_non_partitioned(rest_client: DataSharingRestClient
     )
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_table_metadata_partitioned(rest_client: DataSharingRestClient):
     response = rest_client.query_table_metadata(
         Table(name="table2", share="share2", schema="default")
@@ -95,7 +95,7 @@ def test_query_table_metadata_partitioned(rest_client: DataSharingRestClient):
     )
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_table_metadata_partitioned_different_schemas(rest_client: DataSharingRestClient):
     response = rest_client.query_table_metadata(
         Table(name="table3", share="share1", schema="default")
@@ -116,7 +116,7 @@ def test_query_table_metadata_partitioned_different_schemas(rest_client: DataSha
     )
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_files_in_table_non_partitioned(rest_client: DataSharingRestClient):
     response = rest_client.list_files_in_table(
         Table(name="table1", share="share1", schema="default")
@@ -164,7 +164,7 @@ def test_list_files_in_table_non_partitioned(rest_client: DataSharingRestClient)
     ]
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_files_in_table_partitioned(rest_client: DataSharingRestClient):
     response = rest_client.list_files_in_table(
         Table(name="table2", share="share2", schema="default")
@@ -212,7 +212,7 @@ def test_list_files_in_table_partitioned(rest_client: DataSharingRestClient):
     ]
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_files_in_table_partitioned_different_schemas(rest_client: DataSharingRestClient):
     response = rest_client.list_files_in_table(
         Table(name="table3", share="share1", schema="default")

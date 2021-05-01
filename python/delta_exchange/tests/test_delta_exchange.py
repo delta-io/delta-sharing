@@ -20,16 +20,16 @@ import pytest
 
 from delta_exchange.delta_exchange import DeltaExchange
 from delta_exchange.protocol import Schema, Share, Table
-from delta_exchange.tests.conftest import SKIP, SKIP_MESSAGE
+from delta_exchange.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_shares(exchange: DeltaExchange):
     shares = exchange.list_shares()
     assert shares == [Share(name="share1"), Share(name="share2")]
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_schemas(exchange: DeltaExchange):
     schemas = exchange.list_schemas(Share(name="share1"))
     assert schemas == [Schema(name="default", share="share1")]
@@ -38,7 +38,7 @@ def test_list_schemas(exchange: DeltaExchange):
     assert schemas == [Schema(name="default", share="share2")]
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_tables(exchange: DeltaExchange):
     tables = exchange.list_tables(Schema(name="default", share="share1"))
     assert tables == [
@@ -50,7 +50,7 @@ def test_list_tables(exchange: DeltaExchange):
     assert tables == [Table(name="table2", share="share2", schema="default")]
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_all_tables(exchange: DeltaExchange):
     tables = exchange.list_all_tables()
     assert tables == [
@@ -60,7 +60,7 @@ def test_list_all_tables(exchange: DeltaExchange):
     ]
 
 
-@pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
     "fragments,table,expected",
     [
