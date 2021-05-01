@@ -20,9 +20,9 @@ import fsspec
 import pandas as pd
 from pyarrow.dataset import dataset
 
+from delta_exchange.converter import to_converters
 from delta_exchange.protocol import AddFile, Table
 from delta_exchange.rest_client import DataSharingRestClient
-from delta_exchange.utils import to_converters
 
 
 class DeltaExchangeReader:
