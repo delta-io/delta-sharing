@@ -15,6 +15,8 @@
 #
 import io
 
+import pytest
+
 from delta_exchange.protocol import (
     AddFile,
     Format,
@@ -130,80 +132,87 @@ def test_metadata():
     )
 
 
-def test_add_file_1():
-    json = """
-        {
-            "path" : "https://localhost/path/to/file.parquet",
-            "partitionValues" : {},
-            "size" : 120,
-            "modificationTime" : 1616958613000,
-            "dataChange" : false,
-            "stats" : {
-                "numRecords" : 2,
-                "minValues" : {
-                    "a" : 0,
-                    "b" : "a"
-                },
-                "maxValues" : {
-                    "a" : 10,
-                    "b" : "z"
-                },
-                "nullCount" : {
-                    "a" : 0,
-                    "b" : 0
+@pytest.mark.parametrize(
+    "json,expected",
+    [
+        pytest.param(
+            """
+            {
+                "path" : "https://localhost/path/to/file.parquet",
+                "partitionValues" : {},
+                "size" : 120,
+                "modificationTime" : 1616958613000,
+                "dataChange" : false,
+                "stats" : {
+                    "numRecords" : 2,
+                    "minValues" : {
+                        "a" : 0,
+                        "b" : "a"
+                    },
+                    "maxValues" : {
+                        "a" : 10,
+                        "b" : "z"
+                    },
+                    "nullCount" : {
+                        "a" : 0,
+                        "b" : 0
+                    }
                 }
             }
-        }
-        """
-    add_file = AddFile.from_json(json)
-    assert add_file == AddFile(
-        path="https://localhost/path/to/file.parquet",
-        partition_values={},
-        size=120,
-        data_change=False,
-        tags={},
-        stats={
-            "numRecords": 2,
-            "minValues": {"a": 0, "b": "a"},
-            "maxValues": {"a": 10, "b": "z"},
-            "nullCount": {"a": 0, "b": 0},
-        },
-    )
-
-
-def test_add_file_2():
-    json = """
-        {
-            "path" : "https://localhost/path/to/file.parquet",
-            "partitionValues" : {"b": "x"},
-            "size" : 120,
-            "modificationTime" : 1616958613000,
-            "dataChange" : false,
-            "stats" : {
-                "numRecords" : 2,
-                "minValues" : {
-                    "a" : 0
+            """,
+            AddFile(
+                path="https://localhost/path/to/file.parquet",
+                partition_values={},
+                size=120,
+                data_change=False,
+                tags={},
+                stats={
+                    "numRecords": 2,
+                    "minValues": {"a": 0, "b": "a"},
+                    "maxValues": {"a": 10, "b": "z"},
+                    "nullCount": {"a": 0, "b": 0},
                 },
-                "maxValues" : {
-                    "a" : 10
-                },
-                "nullCount" : {
-                    "a" : 0
+            ),
+            id="non partitioned",
+        ),
+        pytest.param(
+            """
+            {
+                "path" : "https://localhost/path/to/file.parquet",
+                "partitionValues" : {"b": "x"},
+                "size" : 120,
+                "modificationTime" : 1616958613000,
+                "dataChange" : false,
+                "stats" : {
+                    "numRecords" : 2,
+                    "minValues" : {
+                        "a" : 0
+                    },
+                    "maxValues" : {
+                        "a" : 10
+                    },
+                    "nullCount" : {
+                        "a" : 0
+                    }
                 }
             }
-        }
-        """
-    add_file = AddFile.from_json(json)
-    assert add_file == AddFile(
-        path="https://localhost/path/to/file.parquet",
-        partition_values={"b": "x"},
-        size=120,
-        data_change=False,
-        tags={},
-        stats={
-            "numRecords": 2,
-            "minValues": {"a": 0},
-            "maxValues": {"a": 10},
-            "nullCount": {"a": 0},
-        },
-    )
+            """,
+            AddFile(
+                path="https://localhost/path/to/file.parquet",
+                partition_values={"b": "x"},
+                size=120,
+                data_change=False,
+                tags={},
+                stats={
+                    "numRecords": 2,
+                    "minValues": {"a": 0},
+                    "maxValues": {"a": 10},
+                    "nullCount": {"a": 0},
+                },
+            ),
+            id="partitioned",
+        ),
+    ],
+)
+def test_add_file(json: str, expected: AddFile):
+    assert AddFile.from_json(json) == expected

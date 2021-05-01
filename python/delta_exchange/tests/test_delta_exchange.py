@@ -64,7 +64,7 @@ def test_list_all_tables(exchange: DeltaExchange):
 @pytest.mark.parametrize(
     "fragments,table,expected",
     [
-        (
+        pytest.param(
             "share1.default.table1",
             Table(name="table1", share="share1", schema="default"),
             pd.DataFrame(
@@ -76,8 +76,9 @@ def test_list_all_tables(exchange: DeltaExchange):
                     "date": [date(2021, 4, 28), date(2021, 4, 28)],
                 }
             ),
+            id="non partitioned",
         ),
-        (
+        pytest.param(
             "share2.default.table2",
             Table(name="table2", share="share2", schema="default"),
             pd.DataFrame(
@@ -89,8 +90,9 @@ def test_list_all_tables(exchange: DeltaExchange):
                     "date": [date(2021, 4, 28), date(2021, 4, 28)],
                 }
             ),
+            id="partitioned",
         ),
-        (
+        pytest.param(
             "share1.default.table3",
             Table(name="table3", share="share1", schema="default"),
             pd.DataFrame(
@@ -104,6 +106,7 @@ def test_list_all_tables(exchange: DeltaExchange):
                     "type": ["bar", "foo", None],
                 }
             ),
+            id="partitioned and different schemas",
         ),
     ],
 )

@@ -33,13 +33,13 @@ def test_to_converter_boolean():
 @pytest.mark.parametrize(
     "type_str,expected",
     [
-        ("byte", np.int8(1)),
-        ("short", np.int16(1)),
-        ("integer", np.int32(1)),
-        ("long", np.int64(1)),
-        ("float", np.float32(1)),
-        ("double", np.float64(1)),
-        ("decimal(10,0)", Decimal(1)),
+        pytest.param("byte", np.int8(1), id="byte"),
+        pytest.param("short", np.int16(1), id="short"),
+        pytest.param("integer", np.int32(1), id="integer"),
+        pytest.param("long", np.int64(1), id="long"),
+        pytest.param("float", np.float32(1), id="float"),
+        pytest.param("double", np.float64(1), id="double"),
+        pytest.param("decimal(10,0)", Decimal(1), id="decimal"),
     ],
 )
 def test_to_converter_numeric(type_str: str, expected: Any):
