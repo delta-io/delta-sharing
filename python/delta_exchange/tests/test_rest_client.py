@@ -56,7 +56,7 @@ def test_list_tables(rest_client: DataSharingRestClient):
 
 
 @pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
-def test_query_table_metadata_1(rest_client: DataSharingRestClient):
+def test_query_table_metadata_non_partitioned(rest_client: DataSharingRestClient):
     response = rest_client.query_table_metadata(
         Table(name="table1", share="share1", schema="default")
     )
@@ -76,7 +76,7 @@ def test_query_table_metadata_1(rest_client: DataSharingRestClient):
 
 
 @pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
-def test_query_table_metadata_2(rest_client: DataSharingRestClient):
+def test_query_table_metadata_partitioned(rest_client: DataSharingRestClient):
     response = rest_client.query_table_metadata(
         Table(name="table2", share="share2", schema="default")
     )
@@ -96,7 +96,7 @@ def test_query_table_metadata_2(rest_client: DataSharingRestClient):
 
 
 @pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
-def test_query_table_metadata_3(rest_client: DataSharingRestClient):
+def test_query_table_metadata_partitioned_different_schemas(rest_client: DataSharingRestClient):
     response = rest_client.query_table_metadata(
         Table(name="table3", share="share1", schema="default")
     )
@@ -117,7 +117,7 @@ def test_query_table_metadata_3(rest_client: DataSharingRestClient):
 
 
 @pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
-def test_list_files_in_table_1(rest_client: DataSharingRestClient):
+def test_list_files_in_table_non_partitioned(rest_client: DataSharingRestClient):
     response = rest_client.list_files_in_table(
         Table(name="table1", share="share1", schema="default")
     )
@@ -165,7 +165,7 @@ def test_list_files_in_table_1(rest_client: DataSharingRestClient):
 
 
 @pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
-def test_list_files_in_table_2(rest_client: DataSharingRestClient):
+def test_list_files_in_table_partitioned(rest_client: DataSharingRestClient):
     response = rest_client.list_files_in_table(
         Table(name="table2", share="share2", schema="default")
     )
@@ -213,7 +213,7 @@ def test_list_files_in_table_2(rest_client: DataSharingRestClient):
 
 
 @pytest.mark.skipif(SKIP, reason=SKIP_MESSAGE)
-def test_list_files_in_table_3(rest_client: DataSharingRestClient):
+def test_list_files_in_table_partitioned_different_schemas(rest_client: DataSharingRestClient):
     response = rest_client.list_files_in_table(
         Table(name="table3", share="share1", schema="default")
     )
