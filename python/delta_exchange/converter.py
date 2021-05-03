@@ -31,28 +31,28 @@ def to_converters(schema_string: str) -> Dict[str, Callable[[str], Any]]:
 
 def to_converter(json) -> Callable[[str], Any]:
     if json == "boolean":
-        return lambda x: x is True or x == "true"
+        return lambda x: None if (x is None or x == "") else (x is True or x == "true")
     elif json == "byte":
-        return np.int8
+        return lambda x: np.nan if (x is None or x == "") else np.int8(x)
     elif json == "short":
-        return np.int16
+        return lambda x: np.nan if (x is None or x == "") else np.int16(x)
     elif json == "integer":
-        return np.int32
+        return lambda x: np.nan if (x is None or x == "") else np.int32(x)
     elif json == "long":
-        return np.int64
+        return lambda x: np.nan if (x is None or x == "") else np.int64(x)
     elif json == "float":
-        return np.float32
+        return lambda x: np.nan if (x is None or x == "") else np.float32(x)
     elif json == "double":
-        return np.float64
+        return lambda x: np.nan if (x is None or x == "") else np.float64(x)
     elif isinstance(json, str) and json.startswith("decimal"):
-        return Decimal
+        return lambda x: None if (x is None or x == "") else Decimal(x)
     elif json == "string":
-        return str
+        return lambda x: None if (x is None or x == "") else str(x)
     elif json == "date":
-        return date.fromisoformat
+        return lambda x: None if (x is None or x == "") else date.fromisoformat(x)
     elif json == "timestamp":
-        return lambda x: pd.Timestamp(x).tz_localize(None)
+        return lambda x: pd.NaT if (x is None or x == "") else pd.Timestamp(x)
 
-    # TODO: binary, array, map, struct?
+    # TODO: binary
 
     raise ValueError(f"Could not parse datatype: {json}")

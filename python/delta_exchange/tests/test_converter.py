@@ -28,6 +28,7 @@ def test_to_converter_boolean():
     converter = to_converter("boolean")
     assert converter("true") is True
     assert converter("false") is False
+    assert converter("") is None
 
 
 @pytest.mark.parametrize(
@@ -39,24 +40,33 @@ def test_to_converter_boolean():
         pytest.param("long", np.int64(1), id="long"),
         pytest.param("float", np.float32(1), id="float"),
         pytest.param("double", np.float64(1), id="double"),
-        pytest.param("decimal(10,0)", Decimal(1), id="decimal"),
     ],
 )
 def test_to_converter_numeric(type_str: str, expected: Any):
     converter = to_converter(type_str)
     assert converter("1") == expected
+    assert np.isnan(converter(""))
+
+
+def test_to_converter_decimal():
+    converter = to_converter("decimal(10,0)")
+    assert converter("1") == Decimal(1)
+    assert converter("") is None
 
 
 def test_to_converter_string():
     converter = to_converter("string")
     assert converter("abc") == "abc"
+    assert converter("") is None
 
 
 def test_to_converter_date():
     converter = to_converter("date")
     assert converter("2021-01-01") == date(2021, 1, 1)
+    assert converter("") is None
 
 
 def test_to_converter_timestamp():
     converter = to_converter("timestamp")
-    assert converter("2021-04-28T23:36:47.599Z") == pd.Timestamp("2021-04-28 23:36:47.599")
+    assert converter("2021-04-28 23:36:47.599") == pd.Timestamp("2021-04-28 23:36:47.599")
+    assert converter("") is pd.NaT

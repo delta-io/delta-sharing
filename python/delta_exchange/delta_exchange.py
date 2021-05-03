@@ -18,6 +18,8 @@ from typing import BinaryIO, Sequence, TextIO, Union
 from pathlib import Path
 from urllib.parse import urlparse
 
+import pandas as pd
+
 from delta_exchange.protocol import Schema, Share, ShareProfile, Table
 from delta_exchange.reader import DeltaExchangeReader
 from delta_exchange.rest_client import DataSharingRestClient
@@ -43,6 +45,9 @@ class DeltaExchange:
         shares = self.list_shares()
         schemas = chain(*(self.list_schemas(share) for share in shares))
         return list(chain(*(self.list_tables(schema) for schema in schemas)))
+
+    def load_as_pandas(self, table: Table) -> pd.DataFrame:
+        return DeltaExchangeReader(table=table, rest_client=self._rest_client).to_pandas()
 
     @staticmethod
     def load(url: str) -> DeltaExchangeReader:
