@@ -23,7 +23,7 @@ from delta_exchange.rest_client import DataSharingRestClient
 
 
 # Make it `True` if the server is running.
-ENABLE_INTEGRATION = True  # False
+ENABLE_INTEGRATION = False
 SKIP_MESSAGE = "The integration tests are disabled."
 
 
