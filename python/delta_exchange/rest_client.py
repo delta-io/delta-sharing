@@ -13,62 +13,147 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import collections
+from contextlib import contextmanager
 import json
-from typing import Any, Dict, NamedTuple, Sequence
-from urllib.parse import urljoin, urlparse
+from typing import Any, Dict, NamedTuple, Optional, Sequence
+from urllib.parse import urlparse
 
 import requests
 
-
-class TableInfo(NamedTuple):
-    path: str
-    version: int
+from delta_exchange.protocol import AddFile, Metadata, Protocol, Share, ShareProfile, Schema, Table
 
 
-class Metadata(NamedTuple):
-    metadata: str
+class ListSharesRespons(NamedTuple):
+    shares: Sequence[Share]
+    next_page_tokan: Optional[str]
 
 
-class Files(NamedTuple):
-    files: Sequence[str]
+class ListSchemasResponse(NamedTuple):
+    schemas: Sequence[Schema]
+    next_page_token: Optional[str]
 
 
-class DeltaLogRestClient:
-    def __init__(self, api_url: str, api_token: str):
-        self._api_url = api_url
-        self._api_token = api_token
+class ListTablesResponse(NamedTuple):
+    tables: Sequence[Table]
+    next_page_token: Optional[str]
+
+
+class QueryTableMetadataResponse(NamedTuple):
+    protocol: Protocol
+    metadata: Metadata
+
+
+class ListFilesInTableResponse(NamedTuple):
+    protocol: Protocol
+    metadata: Metadata
+    add_files: Sequence[AddFile]
+
+
+class DataSharingRestClient:
+    def __init__(self, profile: ShareProfile):
+        self._profile = profile
 
         self._session = requests.Session()
-        if urlparse(api_url).netloc in ("localhost", "localhost:443"):
+        self._session.headers.update({"Authorization": f"Bearer {profile.token}"})
+        if urlparse(profile.endpoint).netloc in ("localhost", "localhost:443"):
             self._session.verify = False
 
-    def get_table_info(self, uuid: str) -> TableInfo:
-        response = self._get_internal("/s3commit/table/info", {"uuid": uuid})
-        return TableInfo(response["path"], int(response["version"]))
+    def list_shares(
+        self, *, max_results: Optional[int] = None, page_token: Optional[str] = None
+    ) -> ListSharesRespons:
+        data: Dict = {}
+        if max_results is not None:
+            data["maxResults"] = max_results
+        if page_token is not None:
+            data["pageToken"] = page_token
 
-    def get_metadata(self, uuid: str, version: int) -> Metadata:
-        response = self._get_internal(
-            "/s3commit/table/metadata", {"uuid": uuid, "version": version}
-        )
-        return Metadata(response["metadata"])
+        with self._get_internal("/shares", data) as lines:
+            shares_json = json.loads(next(lines))
+            return ListSharesRespons(
+                shares=[Share.from_json(share_json) for share_json in shares_json["items"]],
+                next_page_tokan=shares_json.get("nextPageToken", None),
+            )
 
-    def get_files(self, uuid: str, version: int) -> Files:
-        response = self._get_internal("/s3commit/table/files", {"uuid": uuid, "version": version})
-        return Files([json.loads(r)["path"] for r in response["file"]])
+    def list_schemas(
+        self, share: Share, *, max_results: Optional[int] = None, page_token: Optional[str] = None
+    ) -> ListSchemasResponse:
+        data: Dict = {}
+        if max_results is not None:
+            data["maxResults"] = max_results
+        if page_token is not None:
+            data["pageToken"] = page_token
+
+        with self._get_internal(f"/shares/{share.name}/schemas", data) as lines:
+            schemas_json = json.loads(next(lines))
+            return ListSchemasResponse(
+                schemas=[Schema.from_json(schema_json) for schema_json in schemas_json["items"]],
+                next_page_token=schemas_json.get("nextPageToken", None),
+            )
+
+    def list_tables(
+        self, schema: Schema, *, max_results: Optional[int] = None, page_token: Optional[str] = None
+    ) -> ListTablesResponse:
+        data: Dict = {}
+        if max_results is not None:
+            data["maxResults"] = max_results
+        if page_token is not None:
+            data["pageToken"] = page_token
+
+        with self._get_internal(
+            f"/shares/{schema.share}/schemas/{schema.name}/tables", data
+        ) as lines:
+            tables_json = json.loads(next(lines))
+            return ListTablesResponse(
+                tables=[Table.from_json(table_json) for table_json in tables_json["items"]],
+                next_page_token=tables_json.get("nextPageToken", None),
+            )
+
+    def query_table_metadata(self, table: Table) -> QueryTableMetadataResponse:
+        with self._get_internal(
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata"
+        ) as lines:
+            protocol_json = json.loads(next(lines))
+            metadata_json = json.loads(next(lines))
+            return QueryTableMetadataResponse(
+                protocol=Protocol.from_json(protocol_json["protocol"]),
+                metadata=Metadata.from_json(metadata_json["metaData"]),
+            )
+
+    def list_files_in_table(
+        self,
+        table: Table,
+        *,
+        predicates: Optional[Sequence[str]] = None,
+        limit: Optional[int] = None,
+    ) -> ListFilesInTableResponse:
+        data: Dict = {}
+        if predicates is not None:
+            data["predicates"] = predicates
+        if limit is not None:
+            data["limit"] = limit
+
+        with self._get_internal(
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query", data=data,
+        ) as lines:
+            protocol_json = json.loads(next(lines))
+            metadata_json = json.loads(next(lines))
+            return ListFilesInTableResponse(
+                protocol=Protocol.from_json(protocol_json["protocol"]),
+                metadata=Metadata.from_json(metadata_json["metaData"]),
+                add_files=[AddFile.from_json(json.loads(file)["add"]) for file in lines],
+            )
 
     def close(self):
         self._session.close()
 
-    def _get_internal(self, target: str, data: Dict[str, Any]) -> Dict[str, str]:
-        url = urljoin(self._api_url, DeltaLogRestClient._get_path(target))
-        headers = {"Authorization": f"Bearer {self._api_token}"}
-        response = self._session.get(url, headers=headers, json=data)
+    @contextmanager
+    def _get_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
+        response = self._session.get(f"{self._profile.endpoint}{target}", json=data)
         try:
             response.raise_for_status()
-            return response.json()
+            lines = response.iter_lines(decode_unicode=True)
+            yield lines
         finally:
+            collections.deque(lines, maxlen=0)
             response.close()
-
-    @staticmethod
-    def _get_path(target: str) -> str:
-        return f"/api/2.0{target}"

@@ -1,0 +1,97 @@
+#
+# Copyright (C) 2021 The Delta Lake Project Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+from typing import Any, Callable, Dict, Optional, Sequence
+from urllib.parse import urlparse
+
+import fsspec
+import pandas as pd
+from pyarrow.dataset import dataset
+
+from delta_exchange.converter import to_converters
+from delta_exchange.protocol import AddFile, Table
+from delta_exchange.rest_client import DataSharingRestClient
+
+
+class DeltaExchangeReader:
+    def __init__(
+        self,
+        table: Table,
+        rest_client: DataSharingRestClient,
+        *,
+        predicates: Optional[Sequence[str]] = None,
+        limit: Optional[int] = None
+    ):
+        self._table = table
+        self._rest_client = rest_client
+
+        self._predicates = predicates
+        self._limit = limit
+
+    @property
+    def table(self) -> Table:
+        return self._table
+
+    def predicates(self, predicates: Optional[Sequence[str]]) -> "DeltaExchangeReader":
+        return self._copy(predicates=predicates, limit=self._limit)
+
+    def limit(self, limit: Optional[int]) -> "DeltaExchangeReader":
+        return self._copy(predicates=self._predicates, limit=limit)
+
+    def to_pandas(self) -> pd.DataFrame:
+        response = self._rest_client.list_files_in_table(
+            self._table, predicates=self._predicates, limit=self._limit
+        )
+
+        if len(response.add_files) == 0:
+            return pd.DataFrame()
+
+        converters = to_converters(response.metadata.schema_string)
+
+        return pd.concat(
+            [DeltaExchangeReader._to_pandas(file, converters) for file in response.add_files],
+            axis=0,
+            ignore_index=True,
+            copy=False,
+        )[converters.keys()]
+
+    def _copy(
+        self, *, predicates: Optional[Sequence[str]], limit: Optional[int]
+    ) -> "DeltaExchangeReader":
+        return DeltaExchangeReader(
+            table=self._table, rest_client=self._rest_client, predicates=predicates, limit=limit
+        )
+
+    @staticmethod
+    def _to_pandas(add_file: AddFile, converters: Dict[str, Callable[[str], Any]]) -> pd.DataFrame:
+        protocol = urlparse(add_file.path).scheme
+        filesystem = fsspec.filesystem(protocol)
+
+        pdf = (
+            dataset(source=add_file.path, format="parquet", filesystem=filesystem)
+            .to_table()
+            .to_pandas(
+                date_as_object=True, use_threads=False, split_blocks=True, self_destruct=True
+            )
+        )
+
+        for col, converter in converters.items():
+            if col not in pdf.columns:
+                if col in add_file.partition_values:
+                    pdf[col] = converter(add_file.partition_values[col])
+                else:
+                    pdf[col] = None
+
+        return pdf
