@@ -1,76 +1,43 @@
 package io.delta.exchange.server
 
-import java.io.File
-
-import com.google.common.io.Files
 import io.delta.exchange.protocol.{Schema, Share, Table}
-import scalapb.json4s.JsonFormat
-import java.nio.charset.StandardCharsets.UTF_8
 
-class FileBasedShareManagement(configFile: String) {
+import io.delta.exchange.server.config.{ServerConfig, TableConfig}
 
-  val (shares, configurations, recipients) = {
-    val serverConfigContent = Files.asCharSource(new File(configFile), UTF_8).read()
-    val serverConfig = JsonFormat.fromJsonString[ServerConfig](serverConfigContent)
-    validateServerConfig(serverConfig)
-    (
-      serverConfig.shares.map(share => share.getName -> share).toMap,
-      serverConfig.configurations.map(c => c.getName -> c).toMap,
-      serverConfig.recipients.map(r => r.getName -> r.getBearerToken).toMap,
-    )
-  }
+import scala.collection.JavaConverters._
 
-  private def validateServerConfig(serverConfig: ServerConfig): Unit = {
-    // TODO
-  }
+class ShareManagement(serverConfig: ServerConfig) {
 
-  def checkAccessToShare(bearerToken: String, share: String): Unit = {
-    val shareConfig = shares.getOrElse(share, throw new ForbiddenException)
-    shareConfig.recipients.foreach { r =>
-      val token = recipients.getOrElse(r, throw new ForbiddenException)
-      if (bearerToken == token) {
-        return
-      }
-    }
-    throw new ForbiddenException
-  }
+  val shares = serverConfig.getShares.asScala.map(share => share.getName -> share).toMap
 
-  def listShares(bearerToken: String): Seq[Share] = {
-    println(recipients)
-    val (recipient, _) =
-      recipients.find(_._2 == bearerToken).getOrElse(throw new ForbiddenException)
-    println(recipient)
-    shares.filter(_._2.recipients.exists(_ == recipient)).values.map { share =>
+  def listShares(): Seq[Share] = {
+    shares.values.map { share =>
       Share().withName(share.getName)
     }.toSeq
   }
 
-  def listSchemas(bearerToken: String, share: String): Seq[Schema] = {
-    checkAccessToShare(bearerToken, share)
+  def listSchemas(share: String): Seq[Schema] = {
     val shareConfig = shares.getOrElse(share, throw new NoSuchElementException)
-    shareConfig.schemas.map { schemaConfig =>
+    shareConfig.getSchemas.asScala.map { schemaConfig =>
       Schema().withName(schemaConfig.getName).withShare(share)
     }
   }
 
-  def listTables(bearerToken: String, share: String, schema: String): Seq[Table] = {
-    checkAccessToShare(bearerToken, share)
+  def listTables(share: String, schema: String): Seq[Table] = {
     val shareConfig = shares.getOrElse(share, throw new NoSuchElementException)
-    val schemaConfig = shareConfig.schemas.find(_.getName == schema)
+    val schemaConfig = shareConfig.getSchemas.asScala.find(_.getName == schema)
       .getOrElse(throw new NoSuchElementException)
-    schemaConfig.tables.map { tableConfig =>
+    schemaConfig.getTables.asScala.map { tableConfig =>
       Table().withName(tableConfig.getName).withSchema(schema).withShare(share)
     }
   }
 
-  def getTable(bearerToken: String, share: String, schema: String, table: String): (TableConfig, HadoopConfiguration) =  {
-    checkAccessToShare(bearerToken, share)
-    val tableKey = (share, schema, table)
+  def getTable(share: String, schema: String, table: String): TableConfig =  {
     val shareConfig = shares.getOrElse(share, throw new NoSuchElementException)
-    val schemaConfig = shareConfig.schemas.find(_.getName == schema)
+    val schemaConfig = shareConfig.getSchemas.asScala.find(_.getName == schema)
       .getOrElse(throw new NoSuchElementException)
-    val tableConfig = schemaConfig.tables.find(_.getName == table)
+    val tableConfig = schemaConfig.getTables.asScala.find(_.getName == table)
       .getOrElse(throw new NoSuchElementException)
-    tableConfig -> configurations(tableConfig.getConfiguration)
+    tableConfig
   }
 }

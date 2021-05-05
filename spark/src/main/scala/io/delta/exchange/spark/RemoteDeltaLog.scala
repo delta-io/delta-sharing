@@ -1,33 +1,34 @@
 package io.delta.exchange.spark
 
 import scala.collection.JavaConverters._
-import java.io.FileNotFoundException
+import java.io.{File, FileNotFoundException}
 import java.net.{URI, URL}
 import java.util
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import io.delta.exchange.spark.actions._
-import io.delta.exchange.client.{DeltaExchangeClient, GetFilesRequest, GetMetadataRequest, GetTableInfoRequest, JsonUtils}
+import com.google.common.io.Files
+import io.delta.exchange.client.{DeltaExchangeClient, DeltaExchangeProfile, DeltaExchangeProfileProvider, DeltaExchangeRestClient, JsonUtils}
 import org.apache.hadoop.fs.{FileStatus, Path}
-
+import io.delta.exchange.client.model.{AddFile, Metadata, Protocol, Table => SharedTable}
+import org.apache.commons.io.{FileUtils, IOUtils}
+import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal}
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
-import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{Dataset, SparkSession, SQLContext}
+import org.apache.spark.sql.types.{DataType, StructField, StructType}
+import org.apache.spark.sql.{AnalysisException, Column, DataFrame, Dataset, Encoder, SQLContext, SparkSession}
 import org.apache.spark.sql.connector.catalog.{SupportsRead, Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
 import org.apache.spark.sql.catalyst.catalog.{CatalogTable, SessionCatalog}
+import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 import org.apache.spark.sql.catalyst.expressions.{And, Attribute, AttributeSet, Cast, Expression, ExpressionSet, GenericInternalRow, Literal, PredicateHelper, SubqueryExpression}
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
-import org.apache.spark.sql.types.{StructField, StructType}
-import org.apache.spark.sql.{Column, DataFrame, Dataset, SQLContext, SparkSession}
 
 import scala.util.{Failure, Success, Try}
 
@@ -56,76 +57,116 @@ object RemoteDeltaTable {
 }
 
 // scalastyle:off
-class RemoteDeltaLog(uuid: String, initialVersion: Long, path: Path, client: DeltaExchangeClient) {
+class RemoteDeltaLog(table: SharedTable, path: Path, client: DeltaExchangeClient) {
 
-  @volatile private var currentSnapshot: RemoteSnapshot =
-    new RemoteSnapshot(client, uuid, initialVersion)
+  @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(client, table)
 
   protected def spark = SparkSession.active
 
   def snapshot: RemoteSnapshot = currentSnapshot
 
   def update(): Unit = synchronized {
-    val tableInfo = client.getTableInfo(GetTableInfoRequest(uuid))
-    currentSnapshot = new RemoteSnapshot(client, uuid, tableInfo.version)
+    currentSnapshot = new RemoteSnapshot(client, table)
   }
 
   def createRelation(): BaseRelation = {
     val snapshotToUse = snapshot
-    if (snapshotToUse.version < 0) {
-      throw new FileNotFoundException(path.toString)
-    }
     val fileIndex = new RemoteTahoeLogFileIndex(spark, this, path, snapshotToUse)
     new HadoopFsRelation(
       fileIndex,
-      partitionSchema = snapshotToUse.metadata.partitionSchema,
-      dataSchema = snapshotToUse.metadata.schema,
+      partitionSchema = snapshotToUse.partitionSchema,
+      dataSchema = snapshotToUse.schema,
       bucketSpec = None,
       snapshotToUse.fileFormat,
-      snapshotToUse.metadata.format.options)(spark)
+      Map.empty)(spark)
   }
+}
+
+class DeltaExchangeFileProfileProvider(file: String) extends DeltaExchangeProfileProvider {
+  val profile = {
+    val conf = SparkSession.getActiveSession.map(_.sessionState.newHadoopConf()).getOrElse(new Configuration)
+    val input = new Path(file).getFileSystem(conf).open(new Path(file))
+    try {
+      JsonUtils.fromJson[DeltaExchangeProfile](IOUtils.toString(input, "UTF-8"))
+    } finally {
+      input.close()
+    }
+  }
+
+  override def getProfile: DeltaExchangeProfile = profile
 }
 
 object RemoteDeltaLog {
+  private lazy val _addFileEncoder: ExpressionEncoder[AddFile] = ExpressionEncoder[AddFile]()
+
+  implicit def addFileEncoder: Encoder[AddFile] = {
+    _addFileEncoder.copy()
+  }
+
   def apply(path: String, tokenFile: Option[String]): RemoteDeltaLog = {
-    val table = RemoteDeltaTable(path, tokenFile)
-    val localClientPath = SparkSession.active.conf.getOption("delta.exchange.localClient.path")
-    val client = localClientPath.map { path =>
-      // This is a local client for testing purposes. Only these two tokens are valid
-      assert(Seq("token", "tokenFromLocalFile").contains(table.apiToken))
-      val tablePath = new Path(path, table.uuid)
-      if (path.startsWith("s3")) {
-        val constructor = Class.forName("io.delta.exchange.spark.DeltaLogLocalClient")
-          .getConstructor(classOf[Path], classOf[CloudFileSigner])
-        constructor.newInstance(tablePath, TestResource.AWS.signer).asInstanceOf[DeltaExchangeClient]
-      } else if (path.startsWith("gs")) {
-        val constructor = Class.forName("io.delta.exchange.spark.DeltaLogLocalClient")
-          .getConstructor(classOf[Path], classOf[CloudFileSigner])
-        constructor.newInstance(tablePath, TestResource.GCP.signer).asInstanceOf[DeltaExchangeClient]
-      } else if (path.startsWith("wasb")) {
-        val constructor = Class.forName("io.delta.exchange.spark.DeltaLogLocalClient")
-          .getConstructor(classOf[Path], classOf[CloudFileSigner])
-        constructor.newInstance(tablePath, TestResource.Azure.signer).asInstanceOf[DeltaExchangeClient]
-      } else {
-        val constructor = Class.forName("io.delta.exchange.spark.DeltaLogLocalClient")
-          .getConstructor(classOf[Path], classOf[CloudFileSigner])
-        constructor.newInstance(tablePath, new DummyFileSigner).asInstanceOf[DeltaExchangeClient]
-      }
-    } getOrElse {
-      new SparkDeltaExchangeRestClient
+    val sslTrustAll =
+      SparkSession.active.sessionState.conf
+        .getConfString("spark.delta.exchange.client.sslTrustAll", "false").toBoolean
+    val shapeIndex = path.lastIndexOf('#')
+    if (shapeIndex < 0) {
+      throw new IllegalArgumentException(s"path $path is not valid")
     }
-    val tableInfo = client.getTableInfo(GetTableInfoRequest(table.uuid))
-    new RemoteDeltaLog(table.uuid, tableInfo.version, new Path(tableInfo.path), client)
+    val profileFile = path.substring(0, shapeIndex)
+    val profileProvider = new DeltaExchangeFileProfileProvider(profileFile)
+    val tableSplits = path.substring(shapeIndex + 1).split("\\.")
+    if (tableSplits.length != 3) {
+      throw new IllegalArgumentException(s"path $path is not valid")
+    }
+
+    val table = SharedTable(tableSplits(2), tableSplits(1), tableSplits(0))
+    val client = new DeltaExchangeRestClient(profileProvider, sslTrustAll)
+    new RemoteDeltaLog(table, new Path(path), client)
+//    val table = RemoteDeltaTable(path, tokenFile)
+//    val localClientPath = SparkSession.active.conf.getOption("delta.exchange.localClient.path")
+//    val client = localClientPath.map { path =>
+//      // This is a local client for testing purposes. Only these two tokens are valid
+//      assert(Seq("token", "tokenFromLocalFile").contains(table.apiToken))
+//      val tablePath = new Path(path, table.uuid)
+//      if (path.startsWith("s3")) {
+//        val constructor = Class.forName("io.delta.exchange.spark.DeltaLogLocalClient")
+//          .getConstructor(classOf[Path], classOf[CloudFileSigner])
+//        constructor.newInstance(tablePath, TestResource.AWS.signer).asInstanceOf[DeltaExchangeClient]
+//      } else if (path.startsWith("gs")) {
+//        val constructor = Class.forName("io.delta.exchange.spark.DeltaLogLocalClient")
+//          .getConstructor(classOf[Path], classOf[CloudFileSigner])
+//        constructor.newInstance(tablePath, TestResource.GCP.signer).asInstanceOf[DeltaExchangeClient]
+//      } else if (path.startsWith("wasb")) {
+//        val constructor = Class.forName("io.delta.exchange.spark.DeltaLogLocalClient")
+//          .getConstructor(classOf[Path], classOf[CloudFileSigner])
+//        constructor.newInstance(tablePath, TestResource.Azure.signer).asInstanceOf[DeltaExchangeClient]
+//      } else {
+//        val constructor = Class.forName("io.delta.exchange.spark.DeltaLogLocalClient")
+//          .getConstructor(classOf[Path], classOf[CloudFileSigner])
+//        constructor.newInstance(tablePath, new DummyFileSigner).asInstanceOf[DeltaExchangeClient]
+//      }
+//    } getOrElse {
+//      new SparkDeltaExchangeRestClient
+//    }
+//    val tableInfo = client.getTableInfo(GetTableInfoRequest(table.uuid))
+//    new RemoteDeltaLog(table.uuid, tableInfo.version, new Path(tableInfo.path), client)
   }
 }
 
-class RemoteSnapshot(client: DeltaExchangeClient, uuid: String, val version: Long) {
+class RemoteSnapshot(client: DeltaExchangeClient, table: SharedTable) {
 
   protected def spark = SparkSession.active
 
-  lazy val metadata: Metadata = {
-    JsonUtils.fromJson[Metadata](client.getMetadata(GetMetadataRequest(uuid, version)).metadata)
+  lazy val (metadata, protocol) = {
+    val tableMetadata = client.getMetadata(table)
+    (tableMetadata.metadata, tableMetadata.protocol)
   }
+
+  lazy val schema: StructType =
+    Option(metadata.schemaString).map { s =>
+      DataType.fromJson(s).asInstanceOf[StructType]
+    }.getOrElse(StructType.apply(Nil))
+
+  lazy val partitionSchema = new StructType(metadata.partitionColumns.map(c => schema(c)).toArray)
 
   def fileFormat: FileFormat = new ParquetFileFormat()
 
@@ -134,40 +175,48 @@ class RemoteSnapshot(client: DeltaExchangeClient, uuid: String, val version: Lon
   lazy val allFiles: Dataset[AddFile] = {
     val implicits = spark.implicits
     import implicits._
-    client.getFiles(GetFilesRequest(uuid, version, None)).file.map { addFileJson =>
-      val addFile = JsonUtils.fromJson[AddFile](addFileJson)
-      val deltaPath = DeltaFileSystem.createPath(new URI(addFile.path), addFile.size)
-      addFile.copy(path = deltaPath.toUri.toString)
-    }.toDS()
+    val tableFiles = client.getFiles(table, Nil, None)
+    checkProtocolNotChange(tableFiles.protocol)
+    checkSchemaNotChange(tableFiles.metadata)
+    tableFiles.files.toDS()
   }
 
-  def filesForScan(projection: Seq[Attribute], filters: Seq[Expression]): DeltaScan = {
-    implicit val enc = SingleAction.addFileEncoder
+  private def checkProtocolNotChange(newProtocol: Protocol): Unit = {
+    if (newProtocol != protocol)
+      throw new RuntimeException(
+        s"""The table protocol has changed since your DataFrame was created. Please redefine your DataFrame""")
+  }
+
+  private def checkSchemaNotChange(newMetadata: Metadata): Unit = {
+    if (newMetadata.schemaString != metadata.schemaString || newMetadata.partitionColumns != metadata.partitionColumns)
+      throw new RuntimeException(
+        s"""The schema or partition columns of your Delta table has changed since your
+           |DataFrame was created. Please redefine your DataFrame""")
+  }
+
+  def filesForScan(projection: Seq[Attribute], filters: Seq[Expression]): Seq[AddFile] = {
+    implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
       DeltaTableUtils.splitMetadataAndDataPredicates(filter, metadata.partitionColumns, spark)._1
     }
 
-    val partitionFilterSql = partitionFilters.reduceLeftOption(And).map(_.sql)
-
-    println("partitionFilterSql: " + partitionFilterSql)
+    val predicates = partitionFilters.map(_.sql)
 
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
-      client.getFiles(GetFilesRequest(uuid, version, partitionFilterSql)).file.map { addFileJson =>
-        val addFile = JsonUtils.fromJson[AddFile](addFileJson)
-        val deltaPath = DeltaFileSystem.createPath(new URI(addFile.path), addFile.size)
-        addFile.copy(path = deltaPath.toUri.toString)
-      }.toDS()
-    }.toDF
+      val tableFiles = client.getFiles(table, predicates, None)
 
-    val files = filterFileList(
-      metadata.partitionSchema,
-      remoteFiles,
+      checkProtocolNotChange(tableFiles.protocol)
+      checkSchemaNotChange(tableFiles.metadata)
+      tableFiles.files.toDS()
+    }
+
+    filterFileList(
+      partitionSchema,
+      remoteFiles.toDF,
       partitionFilters).as[AddFile].collect()
-
-    DeltaScan(version = version, files, null, null, null)(null, null, null, null)
   }
 
   def filterFileList(
@@ -277,24 +326,27 @@ class RemoteTahoeLogFileIndex(
 
   override def inputFiles: Array[String] = {
     snapshotAtAnalysis.filesForScan(projection = Nil, Nil)
-      .files
-      .map(f => absolutePath(f.path).toString)
+      .map(f => toDeltaPath(f).toString)
       .toArray
   }
 
   override def refresh(): Unit = {}
   override val sizeInBytes: Long = deltaLog.snapshot.sizeInBytes
 
-  override def partitionSchema: StructType = snapshotAtAnalysis.metadata.partitionSchema
+  override def partitionSchema: StructType = snapshotAtAnalysis.partitionSchema
 
   override def rootPaths: Seq[Path] = path :: Nil
+
+  private def toDeltaPath(f: AddFile): Path = {
+    DeltaFileSystem.createPath(new URI(f.url), f.size)
+  }
 
   override def listFiles(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     val timeZone = spark.sessionState.conf.sessionLocalTimeZone
     snapshotAtAnalysis.filesForScan(projection = Nil, partitionFilters ++ dataFilters)
-      .files.groupBy(_.partitionValues).map {
+      .groupBy(_.partitionValues).map {
         case (partitionValues, files) =>
           val rowValues: Array[Any] = partitionSchema.map { p =>
             Cast(Literal(partitionValues(p.name)), p.dataType, Option(timeZone)).eval()
@@ -306,33 +358,13 @@ class RemoteTahoeLogFileIndex(
               /* isDir */ false,
               /* blockReplication */ 0,
               /* blockSize */ 1,
-              /* modificationTime */ f.modificationTime,
-              absolutePath(f.path))
+              /* modificationTime */ 0,
+              toDeltaPath(f))
           }.toArray
 
           PartitionDirectory(new GenericInternalRow(rowValues), fileStats)
       }.toSeq
   }
-}
-
-/**
- * Used to hold details the files and stats for a scan where we have already
- * applied filters and a limit.
- */
-case class DeltaScan(
-  version: Long,
-  files: Seq[AddFile],
-  total: DataSize,
-  partition: DataSize,
-  scanned: DataSize)(
-  // Moved to separate argument list, to not be part of case class equals check -
-  // expressions can differ by exprId or ordering, but as long as same files are scanned, the
-  // PreparedDeltaFileIndex and HadoopFsRelation should be considered equal for reuse purposes.
-  val partitionFilters: ExpressionSet,
-  val dataFilters: ExpressionSet,
-  val unusedFilters: ExpressionSet,
-  val projection: AttributeSet) {
-  def allFilters: ExpressionSet = partitionFilters ++ dataFilters ++ unusedFilters
 }
 
 object DeltaTableUtils extends PredicateHelper {
@@ -410,9 +442,3 @@ object DeltaTableUtils extends PredicateHelper {
       !containsSubquery(condition)
   }
 }
-
-case class DataSize(
-  @JsonDeserialize(contentAs = classOf[java.lang.Long])
-  bytesCompressed: Option[Long] = None,
-  @JsonDeserialize(contentAs = classOf[java.lang.Long])
-  rows: Option[Long] = None)

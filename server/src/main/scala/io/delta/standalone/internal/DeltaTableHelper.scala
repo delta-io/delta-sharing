@@ -4,13 +4,14 @@ import java.net.URI
 import java.util.Optional
 import java.util.concurrent.TimeUnit
 
+import io.delta.exchange.server.{CloudFileSigner, S3FileSigner, TestResource, model}
 import com.amazonaws.auth.BasicAWSCredentials
 import com.fasterxml.jackson.annotation.JsonInclude.Include
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
 import io.delta.exchange.protocol._
-import io.delta.exchange.server.{CloudFileSigner, HadoopConfiguration, S3FileSigner, TableConfig}
+import io.delta.exchange.server.config.TableConfig
 import io.delta.standalone.internal.actions.{AddFile, SingleAction}
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.Encoders
@@ -103,13 +104,14 @@ object DeltaTableHelper {
 //    response
 //  }
 
+  def getTableVersion(tableConfig: TableConfig): Long = withClassLoader {
+    getDeltaLog(tableConfig).snapshot.version
+  }
 
-  def query(tableConfig: TableConfig, hadoopConfiguration: HadoopConfiguration, shouldReturnFiles: Boolean, predicates: Seq[String], limit: Optional[Int]): Seq[Any] = withClassLoader {
-    val deltaLog = getDeltaLog(tableConfig, hadoopConfiguration)
-    val awsAccessKey =
-      hadoopConfiguration.entries.find(_.getKey == "fs.s3a.access.key").head.getValue
-    val awsSecretKey =
-      hadoopConfiguration.entries.find(_.getKey == "fs.s3a.secret.key").head.getValue
+  def query(tableConfig: TableConfig, shouldReturnFiles: Boolean, predicates: Seq[String], limit: Option[Int]): (Long, Seq[Any]) = withClassLoader {
+    val deltaLog = getDeltaLog(tableConfig)
+    val awsAccessKey = TestResource.AWS.awsAccessKey
+    val awsSecretKey =  TestResource.AWS.awsSecretKey
     val snapshot = deltaLog.snapshot
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
@@ -117,18 +119,32 @@ object DeltaTableHelper {
     val selectedFiles = state.activeFiles.values.toSeq
     // TODO 15 should be a config
     val signer = new S3FileSigner(new BasicAWSCredentials(awsAccessKey, awsSecretKey), 15, TimeUnit.MINUTES)
-    Seq(state.protocol.wrap, state.metadata.wrap) ++ {
+    val modelProtocol = model.Protocol(state.protocol.minReaderVersion)
+    val modelMetadata = model.Metadata(
+      id = state.metadata.id,
+      name = state.metadata.name,
+      description = state.metadata.description,
+      format = model.Format(),
+      schemaString = state.metadata.schemaString,
+      partitionColumns = state.metadata.partitionColumns
+    )
+    snapshot.version -> (Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
       if (shouldReturnFiles) {
         selectedFiles.map { addFile =>
           val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
           val signedUrl = signFile(signer, cloudPath)
           println(s"path: $cloudPath signed: $signedUrl")
-          addFile.copy(path = signedUrl).wrap
+          val modelAddFile = model.AddFile(url = signedUrl,
+            id = addFile.path,
+            partitionValues = addFile.partitionValues,
+            size = addFile.size,
+            stats = addFile.stats)
+          modelAddFile.wrap
         }
       } else {
         Nil
       }
-    }
+    })
   }
 
   private def absolutePath(path: Path, child: String): Path = {
@@ -140,13 +156,12 @@ object DeltaTableHelper {
     }
   }
 
-  def getDeltaLog(tableConfig: TableConfig, hadoopConfiguration: HadoopConfiguration): DeltaLogImpl = {
+  def getDeltaLog(tableConfig: TableConfig): DeltaLogImpl = {
     import io.delta.standalone.DeltaLog
     import org.apache.hadoop.conf.Configuration
     val conf = new Configuration()
-    hadoopConfiguration.entries.foreach { c =>
-      conf.set(c.getKey, c.getValue)
-    }
+    conf.set("fs.s3a.access.key", TestResource.AWS.awsAccessKey)
+    conf.set("fs.s3a.secret.key", TestResource.AWS.awsSecretKey)
     DeltaLog.forTable(conf, tableConfig.getLocation).asInstanceOf[DeltaLogImpl]
   }
 

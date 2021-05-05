@@ -24,6 +24,11 @@ message Table {
     optional string share = 3;
 }
 
+message QueryTableRequest {
+    repeated string predicateHints = 1;
+    optional int32 limitHint = 2;
+}
+
 message ListSharesResponse {
     repeated Share items = 1;
     optional string next_page_token = 2;
