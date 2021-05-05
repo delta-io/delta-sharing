@@ -1,10 +1,18 @@
-package io.delta.exchange.server.model
+package io.delta.exchange.client.model
 
-import com.fasterxml.jackson.annotation.{JsonIgnore, JsonInclude}
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import io.delta.exchange.server.JsonUtils
-import org.apache.spark.util.Utils
+import com.fasterxml.jackson.annotation.JsonInclude
+import io.delta.exchange.client.JsonUtils
 import org.codehaus.jackson.annotate.JsonRawValue
+
+case class DeltaTableMetadata(protocol: Protocol, metadata: Metadata)
+
+case class DeltaTableFiles(protocol: Protocol, metadata: Metadata, files: Seq[AddFile])
+
+case class Share(name: String)
+
+case class Schema(name: String, share: String)
+
+case class Table(name: String, schema: String, share: String)
 
 case class SingleAction(
   add: AddFile = null,

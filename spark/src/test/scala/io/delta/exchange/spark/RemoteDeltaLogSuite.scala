@@ -5,38 +5,69 @@ import java.net.{URI, URL}
 import io.delta.exchange.client.JsonUtils
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.QueryTest
+import org.apache.spark.sql.{QueryTest, Row}
 import org.apache.spark.sql.delta.DeltaLog
 import org.apache.spark.sql.test.SharedSparkSession
+import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.unsafe.types.UTF8String
+import org.apache.spark.sql.catalyst.util.DateTimeUtils.{getZoneId, stringToDate, stringToTimestamp, toJavaDate, toJavaTimestamp}
+import org.scalatest.Ignore
 
-class RemoteDeltaLogSuite extends QueryTest with SharedSparkSession {
+@Ignore
+class RemoteDeltaLogSuite extends QueryTest with SharedSparkSession with DeltaExchangeTest {
   import testImplicits._
 
-  test("RemoteDeltaTable") {
-    val uuid = java.util.UUID.randomUUID().toString
-    val table = RemoteDeltaTable(s"delta://$uuid:token@databricks.com")
-    assert(table == RemoteDeltaTable(new URL("https://databricks.com"), "token", uuid))
+  protected def sqlDate(date: String): java.sql.Date = {
+    toJavaDate(stringToDate(
+      UTF8String.fromString(date),
+      getZoneId(SQLConf.get.sessionLocalTimeZone)).get)
   }
 
-  test("RemoteDeltaLog") {
-    withTempDir { tempDir =>
-      val path = tempDir.getCanonicalPath
-      spark.range(1, 10).write.format("delta").save(path)
-      val deltaLog = DeltaLog.forTable(spark, path)
-      val uuid = java.util.UUID.randomUUID().toString
-      val client = new DeltaLogLocalClient(new Path(path), new DummyFileSigner)
-      val remoteDeltaLog = new RemoteDeltaLog(uuid, 0, new Path(path), client)
-      assert(remoteDeltaLog.snapshot.version == deltaLog.snapshot.version)
-      assert(JsonUtils.toJson(remoteDeltaLog.snapshot.metadata) == JsonUtils.toJson(deltaLog.snapshot.metadata))
-      checkAnswer(
-        remoteDeltaLog.snapshot.allFiles.map { add =>
-          val uri = DeltaFileSystem.restoreUri(new Path(new URI(add.path)))._1
-          add.copy(path = uri.toString)
-        }.toDF,
-        deltaLog.snapshot.allFiles.map { add =>
-          add.copy(path = s"file:$path/${add.path}")
-        }.toDF
-      )
+  protected def sqlTimestamp(timestamp: String): java.sql.Timestamp = {
+    toJavaTimestamp(stringToTimestamp(
+      UTF8String.fromString(timestamp),
+      getZoneId(SQLConf.get.sessionLocalTimeZone)).get)
+  }
+
+  //  test("RemoteDeltaTable") {
+//    val uuid = java.util.UUID.randomUUID().toString
+//    val table = RemoteDeltaTable(s"delta://$uuid:token@databricks.com")
+//    assert(table == RemoteDeltaTable(new URL("https://databricks.com"), "token", uuid))
+//  }
+//
+//  test("RemoteDeltaLog") {
+//    withTempDir { tempDir =>
+//      val path = tempDir.getCanonicalPath
+//      spark.range(1, 10).write.format("delta").save(path)
+//      val deltaLog = DeltaLog.forTable(spark, path)
+//      val uuid = java.util.UUID.randomUUID().toString
+//      val client = new DeltaLogLocalClient(new Path(path), new DummyFileSigner)
+//      val remoteDeltaLog = new RemoteDeltaLog(uuid, 0, new Path(path), client)
+//      assert(remoteDeltaLog.snapshot.version == deltaLog.snapshot.version)
+//      assert(JsonUtils.toJson(remoteDeltaLog.snapshot.metadata) == JsonUtils.toJson(deltaLog.snapshot.metadata))
+//      checkAnswer(
+//        remoteDeltaLog.snapshot.allFiles.map { add =>
+//          val uri = DeltaFileSystem.restoreUri(new Path(new URI(add.path)))._1
+//          add.copy(path = uri.toString)
+//        }.toDF,
+//        deltaLog.snapshot.allFiles.map { add =>
+//          add.copy(path = s"file:$path/${add.path}")
+//        }.toDF
+//      )
+//    }
+//  }
+
+  test("foo") {
+    val tablePath = testProfilePath + "#share1.default.table3"
+    val expected = Seq(
+      Row(sqlTimestamp("2021-04-28 16:33:57.955"), sqlDate("2021-04-28")),
+      Row(sqlTimestamp("2021-04-28 16:33:48.719"), sqlDate("2021-04-28"))
+    )
+    spark.read.format("delta_sharing").load(tablePath).show(false)
+    checkAnswer(spark.read.format("delta_sharing").load(tablePath), expected)
+    withTable("delta_exchange_test") {
+      sql(s"CREATE TABLE delta_exchange_test USING delta_sharing LOCATION '$tablePath'")
+      checkAnswer(sql(s"SELECT * FROM delta_exchange_test"), expected)
     }
   }
 

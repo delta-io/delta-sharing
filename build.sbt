@@ -214,6 +214,7 @@ lazy val server = (project in file("server")) settings(
     ),
     "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7",
     "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7.3",
+    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.6.7",
     "com.linecorp.armeria" %% "armeria-scalapb" % "1.6.0" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")
