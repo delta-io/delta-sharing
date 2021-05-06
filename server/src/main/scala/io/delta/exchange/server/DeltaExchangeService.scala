@@ -76,8 +76,9 @@ class DeltaExchangeService(serverConfig: ServerConfig) {
   @ProducesJson
   def listShares(
       @Param("maxResults") @Default("500") maxResults: Int,
-      @Param("pageToken") @Default("") pageToken: String): ListSharesResponse = {
-    ListSharesResponse(shareManagement.listShares())
+      @Param("pageToken") @Nullable pageToken: String): ListSharesResponse = {
+    val (shares, nextPageToken) = shareManagement.listShares(Option(pageToken), Some(maxResults))
+    ListSharesResponse(shares, nextPageToken)
   }
 
   // curl -k -XGET -H "Authorization: Bearer dapi5e3574ec767ca1548ae5bbed1a2dc04d" https://localhost/delta-exchange/shares/share1/schemas 2>/dev/null | json_pp
@@ -86,8 +87,9 @@ class DeltaExchangeService(serverConfig: ServerConfig) {
   def listSchemas(
       @Param("share") share: String,
       @Param("maxResults") @Default("500") maxResults: Int,
-      @Param("pageToken") @Default("") pageToken: String): ListSchemasResponse = {
-    ListSchemasResponse(shareManagement.listSchemas(share))
+      @Param("pageToken") @Nullable pageToken: String): ListSchemasResponse = {
+    val (schemas, nextPageToken) = shareManagement.listSchemas(share, Option(pageToken), Some(maxResults))
+    ListSchemasResponse(schemas, nextPageToken)
   }
 
   // curl -k -I -H "Authorization: Bearer dapi5e3574ec767ca1548ae5bbed1a2dc04d" https://localhost/delta-exchange/shares/share1/schemas/default/tables/table1
@@ -111,8 +113,10 @@ class DeltaExchangeService(serverConfig: ServerConfig) {
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("maxResults") @Default("500") maxResults: Int,
-      @Param("pageToken") @Default("") pageToken: String): ListTablesResponse = {
-    ListTablesResponse(shareManagement.listTables(share, schema))
+      @Param("pageToken") @Nullable pageToken: String): ListTablesResponse = {
+    println("maxResults: " + maxResults)
+    val (tables, nextPageToken) = shareManagement.listTables(share, schema, Option(pageToken), Some(maxResults))
+    ListTablesResponse(tables, nextPageToken)
   }
 
   // table1 (non partitioned):

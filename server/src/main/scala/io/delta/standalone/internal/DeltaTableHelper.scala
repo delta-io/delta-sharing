@@ -111,7 +111,7 @@ object DeltaTableHelper {
   def query(tableConfig: TableConfig, shouldReturnFiles: Boolean, predicates: Seq[String], limit: Option[Int]): (Long, Seq[Any]) = withClassLoader {
     val deltaLog = getDeltaLog(tableConfig)
     val awsAccessKey = TestResource.AWS.awsAccessKey
-    val awsSecretKey =  TestResource.AWS.awsSecretKey
+    val awsSecretKey = TestResource.AWS.awsSecretKey
     val snapshot = deltaLog.snapshot
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]

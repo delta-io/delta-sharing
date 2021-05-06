@@ -18,6 +18,8 @@ import io.delta.exchange.server.model.{AddFile, Format, Metadata, Protocol, Sing
 import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
+import scala.collection.mutable.ArrayBuffer
+
 class DeltaExchangeServiceSuite extends FunSuite with BeforeAndAfterAll {
   import DeltaExchangeService.requestPath
   import TestResource._
@@ -114,6 +116,19 @@ class DeltaExchangeServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expected == JsonFormat.fromJsonString[ListSharesResponse](response))
   }
 
+  integrationTest("/shares: maxResults") {
+    var response =
+      JsonFormat.fromJsonString[ListSharesResponse](readJson(requestPath("/shares?maxResults=1")))
+    val shares = ArrayBuffer[Share]()
+    shares ++= response.items
+    while (response.nextPageToken.nonEmpty) {
+      response = JsonFormat.fromJsonString[ListSharesResponse](readJson(requestPath(s"/shares?pageToken=${response.nextPageToken.get}&maxResults=1")))
+      shares ++= response.items
+    }
+    val expected = Seq(Share().withName("share1"), Share().withName("share2"))
+    assert(expected == shares)
+  }
+
   integrationTest("/shares/{share}/schemas") {
     val response = readJson(requestPath("/shares/share1/schemas"))
     val expected = ListSchemasResponse(
@@ -128,6 +143,23 @@ class DeltaExchangeServiceSuite extends FunSuite with BeforeAndAfterAll {
         Table().withName("table3").withSchema("default").withShare("share1") :: Nil)
     assert(expected == JsonFormat.fromJsonString[ListTablesResponse](response))
   }
+
+  integrationTest("/shares/{share}/schemas/{schema}/tables: maxResults") {
+    var response = JsonFormat.fromJsonString[ListTablesResponse](readJson(requestPath("/shares/share1/schemas/default/tables?maxResults=1")))
+    println(response)
+    val tables = ArrayBuffer[Table]()
+    tables ++= response.items
+    while (response.nextPageToken.nonEmpty) {
+      response = JsonFormat.fromJsonString[ListTablesResponse](readJson(requestPath(s"/shares/share1/schemas/default/tables?pageToken=${response.nextPageToken.get}&maxResults=1")))
+      println(response)
+      tables ++= response.items
+    }
+    val expected =
+      Table().withName("table1").withSchema("default").withShare("share1") ::
+        Table().withName("table3").withSchema("default").withShare("share1") :: Nil
+    assert(expected == tables)
+  }
+
 
   integrationTest("table1 - head - /shares/{share}/schemas/{schema}/tables/{table}") {
     val url = requestPath("/shares/share1/schemas/default/tables/table1")

@@ -27,7 +27,7 @@ object TestResource {
   val fakeTokenForRecipient2 = "dapi4e0a5ee596e45c73931d16df478d5234"
 
   def setupTestTables(): File = {
-    val testConfigFile = Files.createTempFile("delta-exchange", ".json").toFile
+    val testConfigFile = Files.createTempFile("delta-exchange", ".yaml").toFile
     testConfigFile.deleteOnExit()
     println("file: " + testConfigFile)
     val writer = new PrintWriter(testConfigFile)

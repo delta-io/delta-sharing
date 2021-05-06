@@ -21,7 +21,7 @@ trait DeltaExchangeTest extends SparkFunSuite with BeforeAndAfterAll {
     super.beforeAll()
     tempProfileFile = Files.createTempFile("profile-file", ".share").toFile
     val profile =
-      DeltaExchangeProfile("https://localhost:443/delta-exchange", "dapi5e3574ec767ca1548ae5bbed1a2dc04d")
+      DeltaExchangeProfile("https://localhost/delta-exchange", "dapi5e3574ec767ca1548ae5bbed1a2dc04d")
     FileUtils.writeStringToFile(tempProfileFile, JsonUtils.toJson(profile), "UTF-8")
   }
 

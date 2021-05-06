@@ -9,6 +9,10 @@ option java_package = "io.delta.exchange.protocol";
 option java_generate_equals_and_hash = true;
 option (scalapb.options).flat_package = true;
 
+message PageToken {
+    optional string id = 1;
+}
+
 message Share {
     optional string name = 1;
 }

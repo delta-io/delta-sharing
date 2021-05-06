@@ -301,7 +301,7 @@ class DeltaExchangeDataSource extends TableProvider with RelationProvider with D
     deltaLog.createRelation()
   }
 
-  override def shortName() = "delta-exchange"
+  override def shortName() = "delta_sharing"
 }
 
 class DeltaExchangeTable(path: String) extends Table {

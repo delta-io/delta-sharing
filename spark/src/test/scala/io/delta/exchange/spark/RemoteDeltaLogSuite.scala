@@ -58,14 +58,15 @@ class RemoteDeltaLogSuite extends QueryTest with SharedSparkSession with DeltaEx
 //  }
 
   test("foo") {
-    val tablePath = testProfilePath + "#share2.default.table2"
+    val tablePath = testProfilePath + "#share1.default.table3"
     val expected = Seq(
       Row(sqlTimestamp("2021-04-28 16:33:57.955"), sqlDate("2021-04-28")),
       Row(sqlTimestamp("2021-04-28 16:33:48.719"), sqlDate("2021-04-28"))
     )
-    checkAnswer(spark.read.format("delta-exchange").load(tablePath), expected)
+    spark.read.format("delta_sharing").load(tablePath).show(false)
+    checkAnswer(spark.read.format("delta_sharing").load(tablePath), expected)
     withTable("delta_exchange_test") {
-      sql(s"CREATE TABLE delta_exchange_test USING `delta-exchange` LOCATION '$tablePath'")
+      sql(s"CREATE TABLE delta_exchange_test USING delta_sharing LOCATION '$tablePath'")
       checkAnswer(sql(s"SELECT * FROM delta_exchange_test"), expected)
     }
   }
