@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from datetime import date
 from decimal import Decimal
 from json import loads
 from typing import Any, Callable, Dict
@@ -49,7 +48,7 @@ def to_converter(json) -> Callable[[str], Any]:
     elif json == "string":
         return lambda x: None if (x is None or x == "") else str(x)
     elif json == "date":
-        return lambda x: None if (x is None or x == "") else date.fromisoformat(x)
+        return lambda x: None if (x is None or x == "") else pd.Timestamp(x).date()
     elif json == "timestamp":
         return lambda x: pd.NaT if (x is None or x == "") else pd.Timestamp(x)
 

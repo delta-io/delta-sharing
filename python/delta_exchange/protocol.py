@@ -13,14 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from dataclasses import dataclass, field
 from json import loads
 from pathlib import Path
-from typing import Dict, IO, NamedTuple, Optional, Sequence, Union
+from typing import Dict, IO, Optional, Sequence, Union
 
 import fsspec
 
 
-class ShareProfile(NamedTuple):
+@dataclass(frozen=True)
+class ShareProfile:
     endpoint: str
     token: str
 
@@ -44,7 +46,8 @@ class ShareProfile(NamedTuple):
         return ShareProfile(endpoint=json["endpoint"], token=json["token"])
 
 
-class Share(NamedTuple):
+@dataclass(frozen=True)
+class Share:
     name: str
 
     @staticmethod
@@ -54,7 +57,8 @@ class Share(NamedTuple):
         return Share(name=json["name"])
 
 
-class Schema(NamedTuple):
+@dataclass(frozen=True)
+class Schema:
     name: str
     share: str
 
@@ -65,7 +69,8 @@ class Schema(NamedTuple):
         return Schema(name=json["name"], share=json["share"])
 
 
-class Table(NamedTuple):
+@dataclass(frozen=True)
+class Table:
     name: str
     share: str
     schema: str
@@ -77,7 +82,8 @@ class Table(NamedTuple):
         return Table(name=json["name"], share=json["share"], schema=json["schema"])
 
 
-class Protocol(NamedTuple):
+@dataclass(frozen=True)
+class Protocol:
     min_reader_version: int
 
     @staticmethod
@@ -87,9 +93,10 @@ class Protocol(NamedTuple):
         return Protocol(min_reader_version=int(json["minReaderVersion"]))
 
 
-class Format(NamedTuple):
+@dataclass(frozen=True)
+class Format:
     provider: str = "parquet"
-    options: Dict[str, str] = {}
+    options: Dict[str, str] = field(default_factory=dict)
 
     @staticmethod
     def from_json(json) -> "Format":
@@ -98,13 +105,14 @@ class Format(NamedTuple):
         return Format(provider=json.get("provider", "parquet"), options=json.get("options", {}))
 
 
-class Metadata(NamedTuple):
+@dataclass(frozen=True)
+class Metadata:
     id: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
     format: Format = Format()
     schema_string: Optional[str] = None
-    partition_columns: Sequence[str] = []
+    partition_columns: Sequence[str] = field(default_factory=list)
 
     @staticmethod
     def from_json(json) -> "Metadata":
@@ -120,7 +128,8 @@ class Metadata(NamedTuple):
         )
 
 
-class AddFile(NamedTuple):
+@dataclass(frozen=True)
+class AddFile:
     url: str
     id: str
     partition_values: Dict[str, str]
