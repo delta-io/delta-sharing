@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 from itertools import chain
-from typing import BinaryIO, Sequence, TextIO, Union
+from typing import BinaryIO, Optional, Sequence, TextIO, Union
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -46,8 +46,21 @@ class DeltaExchange:
         schemas = chain(*(self.list_schemas(share) for share in shares))
         return list(chain(*(self.list_tables(schema) for schema in schemas)))
 
-    def load_as_pandas(self, table: Table) -> pd.DataFrame:
-        return DeltaExchangeReader(table=table, rest_client=self._rest_client).to_pandas()
+    def load_as_pandas(
+        self,
+        table: Table,
+        *,
+        predicateHints: Optional[Sequence[str]] = None,
+        limitHint: Optional[int] = None
+    ) -> pd.DataFrame:
+        reader = DeltaExchangeReader(table=table, rest_client=self._rest_client)
+
+        if predicateHints is not None:
+            reader = reader.predicateHints(predicateHints)
+        if limitHint is not None:
+            reader = reader.limitHint(limitHint)
+
+        return reader.to_pandas()
 
     @staticmethod
     def load(url: str) -> DeltaExchangeReader:

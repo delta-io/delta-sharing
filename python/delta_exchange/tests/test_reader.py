@@ -35,8 +35,8 @@ def test_to_pandas_non_partitioned(tmp_path):
             self,
             table: Table,
             *,
-            predicates: Optional[Sequence[str]] = None,
-            limit: Optional[int] = None,
+            predicateHints: Optional[Sequence[str]] = None,
+            limitHint: Optional[int] = None,
         ) -> ListFilesInTableResponse:
             assert table == Table("table_name", "share_name", "schema_name")
 
@@ -50,16 +50,18 @@ def test_to_pandas_non_partitioned(tmp_path):
             )
             add_files = [
                 AddFile(
-                    path=str(tmp_path / "pdf1.parquet"),
+                    url=str(tmp_path / "pdf1.parquet"),
+                    id="pdf1",
                     partition_values={},
                     size=0,
-                    data_change=False,
+                    stats="",
                 ),
                 AddFile(
-                    path=str(tmp_path / "pdf2.parquet"),
+                    url=str(tmp_path / "pdf2.parquet"),
+                    id="pdf2",
                     partition_values={},
                     size=0,
-                    data_change=False,
+                    stats="",
                 ),
             ]
             return ListFilesInTableResponse(protocol=None, metadata=metadata, add_files=add_files)
@@ -84,8 +86,8 @@ def test_to_pandas_partitioned(tmp_path):
             self,
             table: Table,
             *,
-            predicates: Optional[Sequence[str]] = None,
-            limit: Optional[int] = None,
+            predicateHints: Optional[Sequence[str]] = None,
+            limitHint: Optional[int] = None,
         ) -> ListFilesInTableResponse:
             assert table == Table("table_name", "share_name", "schema_name")
 
@@ -99,16 +101,18 @@ def test_to_pandas_partitioned(tmp_path):
             )
             add_files = [
                 AddFile(
-                    path=str(tmp_path / "pdf1.parquet"),
+                    url=str(tmp_path / "pdf1.parquet"),
+                    id="pdf1",
                     partition_values={"b": "x"},
                     size=0,
-                    data_change=False,
+                    stats="",
                 ),
                 AddFile(
-                    path=str(tmp_path / "pdf2.parquet"),
+                    url=str(tmp_path / "pdf2.parquet"),
+                    id="pdf2",
                     partition_values={"b": "y"},
                     size=0,
-                    data_change=False,
+                    stats="",
                 ),
             ]
             return ListFilesInTableResponse(protocol=None, metadata=metadata, add_files=add_files)
@@ -137,8 +141,8 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
             self,
             table: Table,
             *,
-            predicates: Optional[Sequence[str]] = None,
-            limit: Optional[int] = None,
+            predicateHints: Optional[Sequence[str]] = None,
+            limitHint: Optional[int] = None,
         ) -> ListFilesInTableResponse:
             assert table == Table("table_name", "share_name", "schema_name")
 
@@ -153,16 +157,18 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
             )
             add_files = [
                 AddFile(
-                    path=str(tmp_path / "pdf1.parquet"),
+                    url=str(tmp_path / "pdf1.parquet"),
+                    id="pdf1",
                     partition_values={"c": "2021-01-01"},
                     size=0,
-                    data_change=False,
+                    stats="",
                 ),
                 AddFile(
-                    path=str(tmp_path / "pdf2.parquet"),
+                    url=str(tmp_path / "pdf2.parquet"),
+                    id="pdf2",
                     partition_values={"c": "2021-01-02"},
                     size=0,
-                    data_change=False,
+                    stats="",
                 ),
             ]
             return ListFilesInTableResponse(protocol=None, metadata=metadata, add_files=add_files)

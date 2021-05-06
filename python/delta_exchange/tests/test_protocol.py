@@ -95,12 +95,11 @@ def test_table():
 def test_protocol():
     json = """
         {
-            "minReaderVersion" : 1,
-            "minWriterVersion" : 2
+            "minReaderVersion" : 1
         }
         """
     protocol = Protocol.from_json(json)
-    assert protocol == Protocol(1, 2)
+    assert protocol == Protocol(1)
 
 
 def test_metadata():
@@ -117,9 +116,7 @@ def test_metadata():
                 "options" : {{}}
             }},
             "schemaString" : "{schema_string}",
-            "partitionColumns" : [],
-            "configuration" : {{}},
-            "createdTime" : 1616958611482
+            "partitionColumns" : []
         }}
         """
     metadata = Metadata.from_json(json)
@@ -128,7 +125,6 @@ def test_metadata():
         format=Format(),
         schema_string=schema_string.replace(r"\"", '"'),
         partition_columns=[],
-        configuration={},
     )
 
 
@@ -138,77 +134,38 @@ def test_metadata():
         pytest.param(
             """
             {
-                "path" : "https://localhost/path/to/file.parquet",
+                "url" : "https://localhost/path/to/file.parquet",
+                "id" : "id",
                 "partitionValues" : {},
                 "size" : 120,
-                "modificationTime" : 1616958613000,
-                "dataChange" : false,
-                "stats" : {
-                    "numRecords" : 2,
-                    "minValues" : {
-                        "a" : 0,
-                        "b" : "a"
-                    },
-                    "maxValues" : {
-                        "a" : 10,
-                        "b" : "z"
-                    },
-                    "nullCount" : {
-                        "a" : 0,
-                        "b" : 0
-                    }
-                }
+                "stats" : "{\\"numRecords\\":2}"
             }
             """,
             AddFile(
-                path="https://localhost/path/to/file.parquet",
+                url="https://localhost/path/to/file.parquet",
+                id="id",
                 partition_values={},
                 size=120,
-                data_change=False,
-                tags={},
-                stats={
-                    "numRecords": 2,
-                    "minValues": {"a": 0, "b": "a"},
-                    "maxValues": {"a": 10, "b": "z"},
-                    "nullCount": {"a": 0, "b": 0},
-                },
+                stats=r'{"numRecords":2}',
             ),
             id="non partitioned",
         ),
         pytest.param(
             """
             {
-                "path" : "https://localhost/path/to/file.parquet",
+                "url" : "https://localhost/path/to/file.parquet",
+                "id" : "id",
                 "partitionValues" : {"b": "x"},
                 "size" : 120,
-                "modificationTime" : 1616958613000,
-                "dataChange" : false,
-                "stats" : {
-                    "numRecords" : 2,
-                    "minValues" : {
-                        "a" : 0
-                    },
-                    "maxValues" : {
-                        "a" : 10
-                    },
-                    "nullCount" : {
-                        "a" : 0
-                    }
-                }
+                "stats" : "{\\"numRecords\\":2}"
             }
             """,
             AddFile(
-                path="https://localhost/path/to/file.parquet",
+                url="https://localhost/path/to/file.parquet",
+                id="id",
                 partition_values={"b": "x"},
                 size=120,
-                data_change=False,
-                tags={},
-                stats={
-                    "numRecords": 2,
-                    "minValues": {"a": 0},
-                    "maxValues": {"a": 10},
-                    "nullCount": {"a": 0},
-                },
+                stats=r'{"numRecords":2}',
             ),
             id="partitioned",
         ),

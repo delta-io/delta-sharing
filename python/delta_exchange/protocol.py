@@ -15,7 +15,7 @@
 #
 from json import loads
 from pathlib import Path
-from typing import Any, Dict, IO, NamedTuple, Optional, Sequence, Union
+from typing import Dict, IO, NamedTuple, Optional, Sequence, Union
 
 import fsspec
 
@@ -79,16 +79,12 @@ class Table(NamedTuple):
 
 class Protocol(NamedTuple):
     min_reader_version: int
-    min_writer_version: int
 
     @staticmethod
     def from_json(json) -> "Protocol":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        return Protocol(
-            min_reader_version=int(json["minReaderVersion"]),
-            min_writer_version=int(json["minWriterVersion"]),
-        )
+        return Protocol(min_reader_version=int(json["minReaderVersion"]))
 
 
 class Format(NamedTuple):
@@ -109,7 +105,6 @@ class Metadata(NamedTuple):
     format: Format = Format()
     schema_string: Optional[str] = None
     partition_columns: Sequence[str] = []
-    configuration: Dict[str, str] = {}
 
     @staticmethod
     def from_json(json) -> "Metadata":
@@ -122,27 +117,24 @@ class Metadata(NamedTuple):
             format=Format.from_json(json["format"]),
             schema_string=json["schemaString"],
             partition_columns=json["partitionColumns"],
-            configuration=json["configuration"],
         )
 
 
 class AddFile(NamedTuple):
-    path: str
+    url: str
+    id: str
     partition_values: Dict[str, str]
     size: int
-    data_change: bool
-    tags: Dict[str, str] = {}
-    stats: Dict[str, Any] = {}
+    stats: str
 
     @staticmethod
     def from_json(json) -> "AddFile":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
         return AddFile(
-            path=json["path"],
+            url=json["url"],
+            id=json["id"],
             partition_values=json["partitionValues"],
             size=int(json["size"]),
-            data_change=bool(json["dataChange"]),
-            tags=json.get("tags", {}),
-            stats=json.get("stats", {}),
+            stats=json["stats"],
         )
