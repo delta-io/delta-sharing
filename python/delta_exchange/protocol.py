@@ -13,14 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from dataclasses import dataclass, field
 from json import loads
 from pathlib import Path
-from typing import Any, Dict, IO, NamedTuple, Optional, Sequence, Union
+from typing import Dict, IO, Optional, Sequence, Union
 
 import fsspec
 
 
-class ShareProfile(NamedTuple):
+@dataclass(frozen=True)
+class ShareProfile:
     endpoint: str
     token: str
 
@@ -44,7 +46,8 @@ class ShareProfile(NamedTuple):
         return ShareProfile(endpoint=json["endpoint"], token=json["token"])
 
 
-class Share(NamedTuple):
+@dataclass(frozen=True)
+class Share:
     name: str
 
     @staticmethod
@@ -54,7 +57,8 @@ class Share(NamedTuple):
         return Share(name=json["name"])
 
 
-class Schema(NamedTuple):
+@dataclass(frozen=True)
+class Schema:
     name: str
     share: str
 
@@ -65,7 +69,8 @@ class Schema(NamedTuple):
         return Schema(name=json["name"], share=json["share"])
 
 
-class Table(NamedTuple):
+@dataclass(frozen=True)
+class Table:
     name: str
     share: str
     schema: str
@@ -77,23 +82,21 @@ class Table(NamedTuple):
         return Table(name=json["name"], share=json["share"], schema=json["schema"])
 
 
-class Protocol(NamedTuple):
+@dataclass(frozen=True)
+class Protocol:
     min_reader_version: int
-    min_writer_version: int
 
     @staticmethod
     def from_json(json) -> "Protocol":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        return Protocol(
-            min_reader_version=int(json["minReaderVersion"]),
-            min_writer_version=int(json["minWriterVersion"]),
-        )
+        return Protocol(min_reader_version=int(json["minReaderVersion"]))
 
 
-class Format(NamedTuple):
+@dataclass(frozen=True)
+class Format:
     provider: str = "parquet"
-    options: Dict[str, str] = {}
+    options: Dict[str, str] = field(default_factory=dict)
 
     @staticmethod
     def from_json(json) -> "Format":
@@ -102,14 +105,14 @@ class Format(NamedTuple):
         return Format(provider=json.get("provider", "parquet"), options=json.get("options", {}))
 
 
-class Metadata(NamedTuple):
+@dataclass(frozen=True)
+class Metadata:
     id: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
-    format: Format = Format()
+    format: Format = field(default_factory=Format)
     schema_string: Optional[str] = None
-    partition_columns: Sequence[str] = []
-    configuration: Dict[str, str] = {}
+    partition_columns: Sequence[str] = field(default_factory=list)
 
     @staticmethod
     def from_json(json) -> "Metadata":
@@ -122,27 +125,25 @@ class Metadata(NamedTuple):
             format=Format.from_json(json["format"]),
             schema_string=json["schemaString"],
             partition_columns=json["partitionColumns"],
-            configuration=json["configuration"],
         )
 
 
-class AddFile(NamedTuple):
-    path: str
+@dataclass(frozen=True)
+class AddFile:
+    url: str
+    id: str
     partition_values: Dict[str, str]
     size: int
-    data_change: bool
-    tags: Dict[str, str] = {}
-    stats: Dict[str, Any] = {}
+    stats: str
 
     @staticmethod
     def from_json(json) -> "AddFile":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
         return AddFile(
-            path=json["path"],
+            url=json["url"],
+            id=json["id"],
             partition_values=json["partitionValues"],
             size=int(json["size"]),
-            data_change=bool(json["dataChange"]),
-            tags=json.get("tags", {}),
-            stats=json.get("stats", {}),
+            stats=json["stats"],
         )

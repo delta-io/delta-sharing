@@ -16,6 +16,7 @@
 
 from delta_exchange.delta_exchange import DeltaExchange
 from delta_exchange.protocol import Share, Schema, Table
+from delta_exchange.version import __version__
 
 
-__all__ = ["DeltaExchange", "Share", "Schema", "Table"]
+__all__ = ["DeltaExchange", "Share", "Schema", "Table", "__version__"]
