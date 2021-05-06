@@ -40,13 +40,14 @@ setup(
     packages=[
         'delta_exchange',
     ],
-    python_requires='>=3.7,<3.10',
+    python_requires='>=3.6,<3.10',
     install_requires=[
         'pandas',
         'pyarrow',
         'fsspec',
         'requests',
         'aiohttp',
+        'dataclasses;python_version<"3.7"',
     ],
     extras_require={
         's3': ['s3fs'],
@@ -61,6 +62,7 @@ setup(
     long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown',
     classifiers=[
+        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',

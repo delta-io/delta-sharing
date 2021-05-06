@@ -124,16 +124,16 @@ class DataSharingRestClient:
         self,
         table: Table,
         *,
-        predicates: Optional[Sequence[str]] = None,
-        limit: Optional[int] = None,
+        predicateHints: Optional[Sequence[str]] = None,
+        limitHint: Optional[int] = None,
     ) -> ListFilesInTableResponse:
         data: Dict = {}
-        if predicates is not None:
-            data["predicates"] = predicates
-        if limit is not None:
-            data["limit"] = limit
+        if predicateHints is not None:
+            data["predicateHints"] = predicateHints
+        if limitHint is not None:
+            data["limitHint"] = limitHint
 
-        with self._get_internal(
+        with self._post_internal(
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query", data=data,
         ) as lines:
             protocol_json = json.loads(next(lines))
@@ -147,13 +147,21 @@ class DataSharingRestClient:
     def close(self):
         self._session.close()
 
-    @contextmanager
     def _get_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
-        response = self._session.get(f"{self._profile.endpoint}{target}", json=data)
+        return self._request_internal(request=self._session.get, target=target, data=data)
+
+    def _post_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
+        return self._request_internal(request=self._session.post, target=target, data=data)
+
+    @contextmanager
+    def _request_internal(self, request, target: str, data: Optional[Dict[str, Any]]):
+        response = request(f"{self._profile.endpoint}{target}", json=data)
         try:
             response.raise_for_status()
             lines = response.iter_lines(decode_unicode=True)
-            yield lines
+            try:
+                yield lines
+            finally:
+                collections.deque(lines, maxlen=0)
         finally:
-            collections.deque(lines, maxlen=0)
             response.close()

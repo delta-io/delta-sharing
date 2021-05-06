@@ -31,28 +31,34 @@ class DeltaExchangeReader:
         table: Table,
         rest_client: DataSharingRestClient,
         *,
-        predicates: Optional[Sequence[str]] = None,
-        limit: Optional[int] = None
+        predicateHints: Optional[Sequence[str]] = None,
+        limitHint: Optional[int] = None
     ):
         self._table = table
         self._rest_client = rest_client
 
-        self._predicates = predicates
-        self._limit = limit
+        if predicateHints is not None:
+            assert isinstance(predicateHints, Sequence)
+            assert all(isinstance(predicateHint, str) for predicateHint in predicateHints)
+        self._predicateHints = predicateHints
+
+        if limitHint is not None:
+            assert isinstance(limitHint, int)
+        self._limitHint = limitHint
 
     @property
     def table(self) -> Table:
         return self._table
 
-    def predicates(self, predicates: Optional[Sequence[str]]) -> "DeltaExchangeReader":
-        return self._copy(predicates=predicates, limit=self._limit)
+    def predicateHints(self, predicateHints: Optional[Sequence[str]]) -> "DeltaExchangeReader":
+        return self._copy(predicateHints=predicateHints, limitHint=self._limitHint)
 
-    def limit(self, limit: Optional[int]) -> "DeltaExchangeReader":
-        return self._copy(predicates=self._predicates, limit=limit)
+    def limitHint(self, limitHint: Optional[int]) -> "DeltaExchangeReader":
+        return self._copy(predicateHints=self._predicateHints, limitHint=limitHint)
 
     def to_pandas(self) -> pd.DataFrame:
         response = self._rest_client.list_files_in_table(
-            self._table, predicates=self._predicates, limit=self._limit
+            self._table, predicateHints=self._predicateHints, limitHint=self._limitHint
         )
 
         if len(response.add_files) == 0:
@@ -68,19 +74,22 @@ class DeltaExchangeReader:
         )[converters.keys()]
 
     def _copy(
-        self, *, predicates: Optional[Sequence[str]], limit: Optional[int]
+        self, *, predicateHints: Optional[Sequence[str]], limitHint: Optional[int]
     ) -> "DeltaExchangeReader":
         return DeltaExchangeReader(
-            table=self._table, rest_client=self._rest_client, predicates=predicates, limit=limit
+            table=self._table,
+            rest_client=self._rest_client,
+            predicateHints=predicateHints,
+            limitHint=limitHint,
         )
 
     @staticmethod
     def _to_pandas(add_file: AddFile, converters: Dict[str, Callable[[str], Any]]) -> pd.DataFrame:
-        protocol = urlparse(add_file.path).scheme
+        protocol = urlparse(add_file.url).scheme
         filesystem = fsspec.filesystem(protocol)
 
         pdf = (
-            dataset(source=add_file.path, format="parquet", filesystem=filesystem)
+            dataset(source=add_file.url, format="parquet", filesystem=filesystem)
             .to_table()
             .to_pandas(
                 date_as_object=True, use_threads=False, split_blocks=True, self_destruct=True
