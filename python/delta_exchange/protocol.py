@@ -110,7 +110,7 @@ class Metadata:
     id: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
-    format: Format = Format()
+    format: Format = field(default_factory=Format)
     schema_string: Optional[str] = None
     partition_columns: Sequence[str] = field(default_factory=list)
 
