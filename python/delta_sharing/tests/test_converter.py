@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from delta_exchange.converter import to_converter
+from delta_sharing.converter import to_converter
 
 
 def test_to_converter_boolean():

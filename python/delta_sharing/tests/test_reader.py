@@ -18,9 +18,9 @@ from typing import Optional, Sequence
 
 import pandas as pd
 
-from delta_exchange.protocol import AddFile, Metadata, Table
-from delta_exchange.reader import DeltaExchangeReader
-from delta_exchange.rest_client import ListFilesInTableResponse
+from delta_sharing.protocol import AddFile, Metadata, Table
+from delta_sharing.reader import DeltaSharingReader
+from delta_sharing.rest_client import ListFilesInTableResponse
 
 
 def test_to_pandas_non_partitioned(tmp_path):
@@ -66,7 +66,7 @@ def test_to_pandas_non_partitioned(tmp_path):
             ]
             return ListFilesInTableResponse(protocol=None, metadata=metadata, add_files=add_files)
 
-    reader = DeltaExchangeReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.to_pandas()
 
     expected = pd.concat([pdf1, pdf2]).reset_index(drop=True)
@@ -117,7 +117,7 @@ def test_to_pandas_partitioned(tmp_path):
             ]
             return ListFilesInTableResponse(protocol=None, metadata=metadata, add_files=add_files)
 
-    reader = DeltaExchangeReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.to_pandas()
 
     expected1 = pdf1.copy()
@@ -173,7 +173,7 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
             ]
             return ListFilesInTableResponse(protocol=None, metadata=metadata, add_files=add_files)
 
-    reader = DeltaExchangeReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.to_pandas()
 
     expected1 = pdf1.copy()

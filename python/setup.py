@@ -20,25 +20,25 @@ from os import path
 from setuptools import setup
 import sys
 
-DESCRIPTION = "Delta Exchange"
+DESCRIPTION = "Delta Sharing"
 
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     LONG_DESCRIPTION = f.read()
 
 try:
-    exec(open('delta_exchange/version.py').read())
+    exec(open('delta_sharing/version.py').read())
 except IOError:
-    print("Failed to load Delta Exchange version file for packaging.",
+    print("Failed to load Delta Sharing version file for packaging.",
           file=sys.stderr)
     sys.exit(-1)
 VERSION = __version__  # noqa
 
 setup(
-    name='delta-exchange',
+    name='delta_sharing',
     version=VERSION,
     packages=[
-        'delta_exchange',
+        'delta_sharing',
     ],
     python_requires='>=3.6,<3.10',
     install_requires=[

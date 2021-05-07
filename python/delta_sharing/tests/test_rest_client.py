@@ -15,7 +15,7 @@
 #
 import pytest
 
-from delta_exchange.protocol import (
+from delta_sharing.protocol import (
     AddFile,
     Format,
     Metadata,
@@ -24,8 +24,8 @@ from delta_exchange.protocol import (
     Share,
     Table,
 )
-from delta_exchange.rest_client import DataSharingRestClient
-from delta_exchange.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
+from delta_sharing.rest_client import DataSharingRestClient
+from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)

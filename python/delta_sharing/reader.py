@@ -20,12 +20,12 @@ import fsspec
 import pandas as pd
 from pyarrow.dataset import dataset
 
-from delta_exchange.converter import to_converters
-from delta_exchange.protocol import AddFile, Table
-from delta_exchange.rest_client import DataSharingRestClient
+from delta_sharing.converter import to_converters
+from delta_sharing.protocol import AddFile, Table
+from delta_sharing.rest_client import DataSharingRestClient
 
 
-class DeltaExchangeReader:
+class DeltaSharingReader:
     def __init__(
         self,
         table: Table,
@@ -50,10 +50,10 @@ class DeltaExchangeReader:
     def table(self) -> Table:
         return self._table
 
-    def predicateHints(self, predicateHints: Optional[Sequence[str]]) -> "DeltaExchangeReader":
+    def predicateHints(self, predicateHints: Optional[Sequence[str]]) -> "DeltaSharingReader":
         return self._copy(predicateHints=predicateHints, limitHint=self._limitHint)
 
-    def limitHint(self, limitHint: Optional[int]) -> "DeltaExchangeReader":
+    def limitHint(self, limitHint: Optional[int]) -> "DeltaSharingReader":
         return self._copy(predicateHints=self._predicateHints, limitHint=limitHint)
 
     def to_pandas(self) -> pd.DataFrame:
@@ -67,7 +67,7 @@ class DeltaExchangeReader:
         converters = to_converters(response.metadata.schema_string)
 
         return pd.concat(
-            [DeltaExchangeReader._to_pandas(file, converters) for file in response.add_files],
+            [DeltaSharingReader._to_pandas(file, converters) for file in response.add_files],
             axis=0,
             ignore_index=True,
             copy=False,
@@ -75,8 +75,8 @@ class DeltaExchangeReader:
 
     def _copy(
         self, *, predicateHints: Optional[Sequence[str]], limitHint: Optional[int]
-    ) -> "DeltaExchangeReader":
-        return DeltaExchangeReader(
+    ) -> "DeltaSharingReader":
+        return DeltaSharingReader(
             table=self._table,
             rest_client=self._rest_client,
             predicateHints=predicateHints,

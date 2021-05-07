@@ -20,12 +20,12 @@ from urllib.parse import urlparse
 
 import pandas as pd
 
-from delta_exchange.protocol import Schema, Share, ShareProfile, Table
-from delta_exchange.reader import DeltaExchangeReader
-from delta_exchange.rest_client import DataSharingRestClient
+from delta_sharing.protocol import Schema, Share, ShareProfile, Table
+from delta_sharing.reader import DeltaSharingReader
+from delta_sharing.rest_client import DataSharingRestClient
 
 
-class DeltaExchange:
+class DeltaSharing:
     def __init__(self, profile: Union[str, BinaryIO, TextIO, Path, ShareProfile]):
         if not isinstance(profile, ShareProfile):
             profile = ShareProfile.read_from_file(profile)
@@ -53,7 +53,7 @@ class DeltaExchange:
         predicateHints: Optional[Sequence[str]] = None,
         limitHint: Optional[int] = None
     ) -> pd.DataFrame:
-        reader = DeltaExchangeReader(table=table, rest_client=self._rest_client)
+        reader = DeltaSharingReader(table=table, rest_client=self._rest_client)
 
         if predicateHints is not None:
             reader = reader.predicateHints(predicateHints)
@@ -63,7 +63,7 @@ class DeltaExchange:
         return reader.to_pandas()
 
     @staticmethod
-    def load(url: str) -> DeltaExchangeReader:
+    def load(url: str) -> DeltaSharingReader:
         profile_json = url.split("#")[0]
         profile = ShareProfile.read_from_file(profile_json)
 
@@ -73,7 +73,7 @@ class DeltaExchange:
             raise ValueError("table")
         share, schema, table = fragments
 
-        return DeltaExchangeReader(
+        return DeltaSharingReader(
             table=Table(name=table, share=share, schema=schema),
             rest_client=DataSharingRestClient(profile),
         )

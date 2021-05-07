@@ -17,7 +17,7 @@ import io
 
 import pytest
 
-from delta_exchange.protocol import (
+from delta_sharing.protocol import (
     AddFile,
     Format,
     Metadata,
@@ -32,31 +32,31 @@ from delta_exchange.protocol import (
 def test_share_profile(tmp_path):
     json = """
         {
-            "endpoint": "https://localhost/delta-exchange/",
+            "endpoint": "https://localhost/delta-sharing/",
             "token": "token"
         }
         """
     profile = ShareProfile.from_json(json)
-    assert profile == ShareProfile("https://localhost/delta-exchange/", "token")
+    assert profile == ShareProfile("https://localhost/delta-sharing/", "token")
 
     profile = ShareProfile.read_from_file(io.StringIO(json))
-    assert profile == ShareProfile("https://localhost/delta-exchange/", "token")
+    assert profile == ShareProfile("https://localhost/delta-sharing/", "token")
 
     profile_path = tmp_path / "test_profile.json"
     with open(profile_path, "w") as f:
         f.write(json)
 
     profile = ShareProfile.read_from_file(str(profile_path))
-    assert profile == ShareProfile("https://localhost/delta-exchange/", "token")
+    assert profile == ShareProfile("https://localhost/delta-sharing/", "token")
 
     profile = ShareProfile.read_from_file(profile_path.as_uri())
-    assert profile == ShareProfile("https://localhost/delta-exchange/", "token")
+    assert profile == ShareProfile("https://localhost/delta-sharing/", "token")
 
     profile = ShareProfile.read_from_file(profile_path)
-    assert profile == ShareProfile("https://localhost/delta-exchange/", "token")
+    assert profile == ShareProfile("https://localhost/delta-sharing/", "token")
 
     profile = ShareProfile.read_from_file(io.FileIO(profile_path))
-    assert profile == ShareProfile("https://localhost/delta-exchange/", "token")
+    assert profile == ShareProfile("https://localhost/delta-sharing/", "token")
 
 
 def test_share():

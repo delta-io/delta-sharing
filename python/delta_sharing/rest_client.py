@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from delta_exchange.protocol import AddFile, Metadata, Protocol, Share, ShareProfile, Schema, Table
+from delta_sharing.protocol import AddFile, Metadata, Protocol, Share, ShareProfile, Schema, Table
 
 
 class ListSharesRespons(NamedTuple):
