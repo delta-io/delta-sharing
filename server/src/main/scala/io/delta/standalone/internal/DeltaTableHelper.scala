@@ -1,46 +1,28 @@
 package io.delta.standalone.internal
 
 import java.net.URI
-import java.util.Optional
-import java.util.concurrent.TimeUnit
+import java.nio.charset.StandardCharsets.UTF_8
 
-import io.delta.exchange.server.{CloudFileSigner, S3FileSigner, TestResource, model}
-import com.amazonaws.auth.BasicAWSCredentials
-import com.fasterxml.jackson.annotation.JsonInclude.Include
-import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
-import io.delta.exchange.protocol._
-import io.delta.exchange.server.config.TableConfig
-import io.delta.standalone.internal.actions.{AddFile, SingleAction}
+import io.delta.sharing.server.{CloudFileSigner, S3FileSigner, model}
+import com.google.common.hash.Hashing
+import io.delta.sharing.server.config.TableConfig
+import io.delta.standalone.DeltaLog
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
-import org.apache.spark.sql.Encoders
-import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
-import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, Cast, Expression, ExtractValue, Literal}
-import org.apache.spark.sql.types.{DataType, MapType, StructField, StructType}
+import org.apache.hadoop.fs.s3a.S3AFileSystem
 
+/**
+ * TODO
+ *  - Clean up this class.
+ *  - Better error message.
+ *  - Support predicateHits and limitHit.
+ */
 object DeltaTableHelper {
-  lazy val mapper = {
-    val mapper = new ObjectMapper with ScalaObjectMapper
-    mapper.setSerializationInclusion(Include.NON_ABSENT)
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-    mapper.registerModule(DefaultScalaModule)
-    mapper
-  }
 
-  def toJson[T: Manifest](obj: T): String = {
-    mapper.writeValueAsString(obj)
-  }
-
-  def toPrettyJson[T: Manifest](obj: T): String = {
-    mapper.writerWithDefaultPrettyPrinter().writeValueAsString(obj)
-  }
-
-  def fromJson[T: Manifest](json: String): T = {
-    mapper.readValue[T](json)
-  }
-
+  /**
+   * Run `func` under the classloader of `DeltaTableHelper`. We cannot use the classloader set by
+   * Armeria as Hadoop needs to search the classpath to find its classes.
+   */
   def withClassLoader[T](func: => T): T = {
     val classLoader = Thread.currentThread().getContextClassLoader
     if (classLoader == null) {
@@ -55,76 +37,39 @@ object DeltaTableHelper {
     }
   }
 
-//  // TODO Cache DeltaLog
-//  def getTableInfo(request: GetTableInfoRequest): GetTableInfoResponse = withClassLoader {
-//    println("this: " + this.getClass.getClassLoader)
-//    println("context: " + Thread.currentThread().getContextClassLoader)
-//    val deltaLog = getDeltaLog(request.getUuid)
-//    val response = GetTableInfoResponse()
-//      .withPath(deltaLog.dataPath.toString)
-//      .withVersion(deltaLog.snapshot.version)
-//    response
-//  }
-//
-//  def getMetadata(request: GetMetadataRequest): GetMetadataResponse = withClassLoader {
-//    val deltaLog = getDeltaLog(request.getUuid)
-//    val snapshot = deltaLog.getSnapshotForVersionAsOf(request.getVersion)
-//    val stateMethod = snapshot.getClass.getMethod("state")
-//    val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
-//    val metadata = state.metadata
-//    val response = GetMetadataResponse().withMetadata(toJson(metadata))
-//    response
-//  }
-
-//  def getFiles(request: GetFilesRequest): GetFilesResponse = withClassLoader {
-//    val deltaLog = getDeltaLog(request.getUuid)
-//    val snapshot = deltaLog.getSnapshotForVersionAsOf(request.getVersion)
-//    val stateMethod = snapshot.getClass.getMethod("state")
-//    val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
-//
-//    println("request.partitionFilter: " + request.partitionFilter)
-//
-//    val selectedFiles = request.partitionFilter match {
-//      case Some(f) =>
-//        val schema = DataType.fromJson(state.metadata.schemaString).asInstanceOf[StructType]
-//        val partitionSchema =
-//          new StructType(state.metadata.partitionColumns.map(c => schema(c)).toArray)
-//        ParserUtils.evaluatePredicate(partitionSchema, f, state.activeFiles.values.toSeq)
-//      case None => state.activeFiles.values.toSeq
-//    }
-//
-//    val response = GetFilesResponse().withFile(
-//      selectedFiles.map { addFile =>
-//        val s3Path = getS3Path(request.getUuid, addFile.path)
-//        val signedUrl = signFile(s3Path)
-//        println(s"path: $s3Path signed: $signedUrl")
-//        toJson(addFile.copy(path = signFile(s3Path)))
-//      }
-//    )
-//    response
-//  }
-
   def getTableVersion(tableConfig: TableConfig): Long = withClassLoader {
-    getDeltaLog(tableConfig).snapshot.version
+    // TODO only list files
+    val conf = new Configuration()
+    val tablePath = new Path(tableConfig.getLocation)
+    val deltaLog = DeltaLog.forTable(conf, tablePath).asInstanceOf[DeltaLogImpl]
+    deltaLog.snapshot.version
   }
 
-  def query(tableConfig: TableConfig, shouldReturnFiles: Boolean, predicates: Seq[String], limit: Option[Int]): (Long, Seq[Any]) = withClassLoader {
-    val deltaLog = getDeltaLog(tableConfig)
-    val awsAccessKey = TestResource.AWS.awsAccessKey
-    val awsSecretKey = TestResource.AWS.awsSecretKey
+  def query(
+      tableConfig: TableConfig,
+      shouldReturnFiles: Boolean,
+      predicateHits: Seq[String],
+      limitHint: Option[Int],
+      preSignedUrlTimeoutSeconds: Long): (Long, Seq[Any]) = withClassLoader {
+    val conf = new Configuration()
+    val tablePath = new Path(tableConfig.getLocation)
+    val fs = tablePath.getFileSystem(conf)
+    if (!fs.isInstanceOf[S3AFileSystem]){
+      throw new IllegalStateException("Cannot share tables on non S3 file systems")
+    }
+    val deltaLog = DeltaLog.forTable(conf, tablePath).asInstanceOf[DeltaLogImpl]
     val snapshot = deltaLog.snapshot
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
-    // TODO predicates, limit
     val selectedFiles = state.activeFiles.values.toSeq
-    // TODO 15 should be a config
-    val signer = new S3FileSigner(new BasicAWSCredentials(awsAccessKey, awsSecretKey), 15, TimeUnit.MINUTES)
+    val signer = new S3FileSigner(tablePath.toUri, conf, preSignedUrlTimeoutSeconds)
     val modelProtocol = model.Protocol(state.protocol.minReaderVersion)
     val modelMetadata = model.Metadata(
       id = state.metadata.id,
       name = state.metadata.name,
       description = state.metadata.description,
       format = model.Format(),
+      // TODO Clean up Column's metadata and add test
       schemaString = state.metadata.schemaString,
       partitionColumns = state.metadata.partitionColumns
     )
@@ -133,9 +78,8 @@ object DeltaTableHelper {
         selectedFiles.map { addFile =>
           val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
           val signedUrl = signFile(signer, cloudPath)
-          println(s"path: $cloudPath signed: $signedUrl")
           val modelAddFile = model.AddFile(url = signedUrl,
-            id = addFile.path,
+            id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
             partitionValues = addFile.partitionValues,
             size = addFile.size,
             stats = addFile.stats)
@@ -150,22 +94,13 @@ object DeltaTableHelper {
   private def absolutePath(path: Path, child: String): Path = {
     val p = new Path(new URI(child))
     if (p.isAbsolute) {
-      p
+      throw new IllegalStateException("table containing absolute paths cannot be shared")
     } else {
       new Path(path, p)
     }
   }
 
-  def getDeltaLog(tableConfig: TableConfig): DeltaLogImpl = {
-    import io.delta.standalone.DeltaLog
-    import org.apache.hadoop.conf.Configuration
-    val conf = new Configuration()
-    conf.set("fs.s3a.access.key", TestResource.AWS.awsAccessKey)
-    conf.set("fs.s3a.secret.key", TestResource.AWS.awsSecretKey)
-    DeltaLog.forTable(conf, tableConfig.getLocation).asInstanceOf[DeltaLogImpl]
-  }
-
-  def signFile(signer: CloudFileSigner, path: Path): String = {
+  private def signFile(signer: CloudFileSigner, path: Path): String = {
     val absPath = path.toUri
     val bucketName = absPath.getHost
     val objectKey = absPath.getPath.stripPrefix("/")

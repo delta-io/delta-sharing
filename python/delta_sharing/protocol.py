@@ -43,7 +43,7 @@ class ShareProfile:
     def from_json(json) -> "ShareProfile":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        return ShareProfile(endpoint=json["endpoint"], token=json["token"])
+        return ShareProfile(endpoint=json["endpoint"], token=json["bearerToken"])
 
 
 @dataclass(frozen=True)

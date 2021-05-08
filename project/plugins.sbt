@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-
 resolvers += Resolver.url("artifactory", url("https://scalasbt.artifactoryonline.com/scalasbt/sbt-plugin-releases"))(Resolver.ivyStylePatterns)
-
-resolvers += "bintray-spark-packages" at "https://dl.bintray.com/spark-packages/maven/"
 
 resolvers += "Typesafe Repository" at "https://repo.typesafe.com/typesafe/releases/"
 
@@ -29,19 +26,10 @@ addSbtPlugin("com.github.gseitz" % "sbt-release" % "1.0.13")
 
 addSbtPlugin("org.foundweekends" % "sbt-bintray" % "0.5.6")
 
-addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.14.9")
-
 addSbtPlugin("io.get-coursier" % "sbt-coursier" % "1.0.3")
 
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
 
-addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.10.0-RC1")
-
-addSbtPlugin("com.eed3si9n" % "sbt-unidoc" % "0.4.2")
-
 addSbtPlugin("com.thesamet" % "sbt-protoc" % "1.0.2")
 
-addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.8.3")
-
 libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.11.1"
-

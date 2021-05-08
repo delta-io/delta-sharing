@@ -58,6 +58,8 @@ class DataSharingRestClient:
         self._session.headers.update({"Authorization": f"Bearer {profile.token}"})
         if urlparse(profile.endpoint).netloc in ("localhost", "localhost:443"):
             self._session.verify = False
+        # TODO Remove this. This is added for demo.
+        self._session.verify = False
 
     def list_shares(
         self, *, max_results: Optional[int] = None, page_token: Optional[str] = None
@@ -141,7 +143,7 @@ class DataSharingRestClient:
             return ListFilesInTableResponse(
                 protocol=Protocol.from_json(protocol_json["protocol"]),
                 metadata=Metadata.from_json(metadata_json["metaData"]),
-                add_files=[AddFile.from_json(json.loads(file)["add"]) for file in lines],
+                add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
             )
 
     def close(self):

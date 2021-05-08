@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 from itertools import chain
-from typing import BinaryIO, Optional, Sequence, TextIO, Union
+from typing import BinaryIO, Sequence, TextIO, Union
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -46,22 +46,6 @@ class DeltaSharing:
         schemas = chain(*(self.list_schemas(share) for share in shares))
         return list(chain(*(self.list_tables(schema) for schema in schemas)))
 
-    def load_as_pandas(
-        self,
-        table: Table,
-        *,
-        predicateHints: Optional[Sequence[str]] = None,
-        limitHint: Optional[int] = None
-    ) -> pd.DataFrame:
-        reader = DeltaSharingReader(table=table, rest_client=self._rest_client)
-
-        if predicateHints is not None:
-            reader = reader.predicateHints(predicateHints)
-        if limitHint is not None:
-            reader = reader.limitHint(limitHint)
-
-        return reader.to_pandas()
-
     @staticmethod
     def load(url: str) -> DeltaSharingReader:
         profile_json = url.split("#")[0]
@@ -77,3 +61,13 @@ class DeltaSharing:
             table=Table(name=table, share=share, schema=schema),
             rest_client=DataSharingRestClient(profile),
         )
+
+    @staticmethod
+    def load_as_pandas(url: str) -> pd.DataFrame:
+        return DeltaSharing.load(url).to_pandas()
+
+    @staticmethod
+    def load_as_spark(url: str):
+        from pyspark.sql import SparkSession
+
+        return SparkSession.getActiveSession().read.format("deltaSharing").load(url)

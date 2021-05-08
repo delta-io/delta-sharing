@@ -1,1 +1,1 @@
-io.delta.exchange.spark.DeltaFileSystem
+io.delta.sharing.spark.DeltaSharingFileSystem

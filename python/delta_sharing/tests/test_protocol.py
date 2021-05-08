@@ -33,7 +33,7 @@ def test_share_profile(tmp_path):
     json = """
         {
             "endpoint": "https://localhost/delta-sharing/",
-            "token": "token"
+            "bearerToken": "token"
         }
         """
     profile = ShareProfile.from_json(json)

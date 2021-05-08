@@ -116,6 +116,3 @@ def test_load(profile_path: str, fragments: str, table: Table, expected: pd.Data
 
     pdf = reader.to_pandas()
     pd.testing.assert_frame_equal(pdf, expected)
-
-    pdf = DeltaSharing(profile_path).load_as_pandas(table)
-    pd.testing.assert_frame_equal(pdf, expected)

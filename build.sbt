@@ -18,18 +18,16 @@ import ReleaseTransformations._
 import sbt.ExclusionRule
 
 parallelExecution in ThisBuild := false
-crossScalaVersions in ThisBuild := Seq("2.12.8", "2.11.12")
 
 lazy val compileScalastyle = taskKey[Unit]("compileScalastyle")
 lazy val testScalastyle = taskKey[Unit]("testScalastyle")
 
-val sparkVersion = "3.0.2"
+val sparkVersion = "3.1.1"
 val hadoopVersion = "2.7.2"
-val deltaVersion = "0.5.0"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
-  scalaVersion := "2.12.8",
+  scalaVersion := "2.12.10",
   fork := true,
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
   scalacOptions += "-target:jvm-1.8",
@@ -41,7 +39,7 @@ lazy val commonSettings = Seq(
     "-Dspark.sql.shuffle.partitions=5",
     "-Ddelta.log.cacheSize=3",
     "-Dspark.sql.sources.parallelPartitionDiscovery.parallelism=5",
-    "-Dspark.delta.exchange.client.sslTrustAll=true",
+    "-Dspark.delta.sharing.client.sslTrustAll=true",
     "-Xmx1024m"
   )
 )
@@ -51,10 +49,10 @@ lazy val releaseSettings = Seq(
   releaseCrossBuild := true,
   licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
   pomExtra :=
-    <url>https://github.com/delta-io/delta-exchange</url>
+    <url>https://github.com/delta-io/delta-sharing</url>
       <scm>
-        <url>git@github.com:delta-io/delta-exchange.git</url>
-        <connection>scm:git:git@github.com:delta-io/delta-exchange.git</connection>
+        <url>git@github.com:delta-io/delta-sharing.git</url>
+        <connection>scm:git:git@github.com:delta-io/delta-sharing.git</connection>
       </scm>
       <developers>
         <developer>
@@ -114,21 +112,7 @@ releaseProcess := Seq[ReleaseStep](
 )
 
 lazy val root = (project in file("."))
-  .aggregate(client, spark, server)
-
-lazy val client = (project in file("client")) settings(
-  name := "delta-exchange-client",
-  commonSettings,
-  releaseSettings,
-  libraryDependencies ++= Seq(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.10.0",
-    "org.json4s" %% "json4s-jackson" % "3.6.6" excludeAll(
-      ExclusionRule("com.fasterxml.jackson.core"),
-      ExclusionRule("com.fasterxml.jackson.module")
-    ),
-    "org.apache.httpcomponents" % "httpclient" % "4.5.13"
-  )
-)
+  .aggregate(spark, server)
 
 lazy val getInitialCommandsForConsole: Def.Initialize[String] = Def.settingDyn {
   val base = """ println("Welcome to\n" +
@@ -145,7 +129,7 @@ lazy val getInitialCommandsForConsole: Def.Initialize[String] = Def.settingDyn {
                |  val conf = new org.apache.spark.SparkConf()
                |    .setMaster("local")
                |    .setAppName("Sbt console + Spark!")
-               |    .set("spark.sql.extensions", "io.delta.exchange.sql.DeltaExchangeSparkSessionExtension")
+               |    .set("spark.delta.sharing.client.sslTrustAll", "true")
                |  new org.apache.spark.SparkContext(conf)
                |}
                |sc.setLogLevel("WARN")
@@ -159,6 +143,8 @@ lazy val getInitialCommandsForConsole: Def.Initialize[String] = Def.settingDyn {
           |  println("SQL context available as sqlContext.")
           |  _sqlContext
           |}
+          |val spark = sqlContext.sparkSession
+          |println("SparkSession available as spark.")
           |import sqlContext.implicits._
           |import sqlContext.sql
           |import org.apache.spark.sql.functions._
@@ -169,37 +155,23 @@ lazy val getInitialCommandsForConsole: Def.Initialize[String] = Def.settingDyn {
   }
 }
 
-lazy val spark = (project in file("spark")) enablePlugins(Antlr4Plugin) dependsOn(client) settings(
-  name := "delta-exchange-spark",
+lazy val spark = (project in file("spark")) settings(
+  name := "delta-sharing-spark",
   commonSettings,
   releaseSettings,
-  antlr4Version in Antlr4 := "4.7",
-  antlr4PackageName in Antlr4 := Some("io.delta.exchange.sql.parser"),
-  antlr4GenListener in Antlr4 := true,
-  antlr4GenVisitor in Antlr4 := true,
   initialCommands in console := getInitialCommandsForConsole.value,
   cleanupCommands in console := "sc.stop()",
   libraryDependencies ++= Seq(
-    "org.apache.parquet" % "parquet-hadoop" % "1.10.1" % "provided",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-    "io.delta" %% "delta-core" % "0.8.0" % "test",
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
-    "org.scalatest" %% "scalatest" % "3.0.5" % "test",
-
-    "org.apache.hadoop" % "hadoop-client" % "2.10.1",
-    "org.apache.hadoop" % "hadoop-common" % "2.10.1",
-    "org.apache.hadoop" % "hadoop-aws" % "2.10.1",
-    "org.apache.hadoop" % "hadoop-azure" % "2.10.1",
-
-    "com.google.cloud" % "google-cloud-storage" % "1.113.14",
-    "com.google.cloud.bigdataoss" % "gcs-connector" % "hadoop2-2.2.0"
+    "org.scalatest" %% "scalatest" % "3.2.3" % "test"
   )
 )
 
 lazy val server = (project in file("server")) settings(
-  name := "delta-exchange-server",
+  name := "delta-sharing-server",
   commonSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
@@ -253,7 +225,8 @@ lazy val server = (project in file("server")) settings(
     ),
     "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7",
     "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7.3",
-    "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+    "org.scalatest" %% "scalatest" % "3.0.5" % "test",
+    "net.sourceforge.argparse4j" % "argparse4j" % "0.9.0"
   ),
   Compile / PB.targets := Seq(
     scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"

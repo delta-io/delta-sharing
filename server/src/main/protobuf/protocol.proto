@@ -1,13 +1,16 @@
 syntax = "proto2";
 
-package io.delta.exchange.protocol;
+package io.delta.sharing.server.protocol;
 
 import "scalapb/scalapb.proto";
 
-option java_package = "io.delta.exchange.protocol";
+option java_package = "io.delta.sharing.server.protocol";
 
 option java_generate_equals_and_hash = true;
 option (scalapb.options).flat_package = true;
+
+// Define the JSON objects used by REST APIs. The table metadata format is not defined in this file
+// because it requires Map type which is not supported by Protocol Buffers Version 2.
 
 message PageToken {
     optional string id = 1;
