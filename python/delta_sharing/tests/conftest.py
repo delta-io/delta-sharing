@@ -17,9 +17,9 @@ import os
 
 import pytest
 
-from delta_exchange.delta_exchange import DeltaExchange
-from delta_exchange.protocol import ShareProfile
-from delta_exchange.rest_client import DataSharingRestClient
+from delta_sharing.delta_sharing import DeltaSharing
+from delta_sharing.protocol import ShareProfile
+from delta_sharing.rest_client import DataSharingRestClient
 
 
 # Make it `True` if the server is running.
@@ -43,5 +43,5 @@ def rest_client(profile) -> DataSharingRestClient:
 
 
 @pytest.fixture
-def exchange(profile) -> DeltaExchange:
-    return DeltaExchange(profile)
+def sharing(profile) -> DeltaSharing:
+    return DeltaSharing(profile)

@@ -28,4 +28,4 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-$BLACK_BUILD delta_exchange --line-length 100
+$BLACK_BUILD delta_sharing --line-length 100

@@ -18,41 +18,41 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from delta_exchange.delta_exchange import DeltaExchange
-from delta_exchange.protocol import Schema, Share, Table
-from delta_exchange.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
+from delta_sharing.delta_sharing import DeltaSharing
+from delta_sharing.protocol import Schema, Share, Table
+from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_list_shares(exchange: DeltaExchange):
-    shares = exchange.list_shares()
+def test_list_shares(sharing: DeltaSharing):
+    shares = sharing.list_shares()
     assert shares == [Share(name="share1"), Share(name="share2")]
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_list_schemas(exchange: DeltaExchange):
-    schemas = exchange.list_schemas(Share(name="share1"))
+def test_list_schemas(sharing: DeltaSharing):
+    schemas = sharing.list_schemas(Share(name="share1"))
     assert schemas == [Schema(name="default", share="share1")]
 
-    schemas = exchange.list_schemas(Share(name="share2"))
+    schemas = sharing.list_schemas(Share(name="share2"))
     assert schemas == [Schema(name="default", share="share2")]
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_list_tables(exchange: DeltaExchange):
-    tables = exchange.list_tables(Schema(name="default", share="share1"))
+def test_list_tables(sharing: DeltaSharing):
+    tables = sharing.list_tables(Schema(name="default", share="share1"))
     assert tables == [
         Table(name="table1", share="share1", schema="default"),
         Table(name="table3", share="share1", schema="default"),
     ]
 
-    tables = exchange.list_tables(Schema(name="default", share="share2"))
+    tables = sharing.list_tables(Schema(name="default", share="share2"))
     assert tables == [Table(name="table2", share="share2", schema="default")]
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_list_all_tables(exchange: DeltaExchange):
-    tables = exchange.list_all_tables()
+def test_list_all_tables(sharing: DeltaSharing):
+    tables = sharing.list_all_tables()
     assert tables == [
         Table(name="table1", share="share1", schema="default"),
         Table(name="table3", share="share1", schema="default"),
@@ -111,11 +111,11 @@ def test_list_all_tables(exchange: DeltaExchange):
     ],
 )
 def test_load(profile_path: str, fragments: str, table: Table, expected: pd.DataFrame):
-    reader = DeltaExchange.load(f"{profile_path}#{fragments}")
+    reader = DeltaSharing.load(f"{profile_path}#{fragments}")
     assert reader.table == table
 
     pdf = reader.to_pandas()
     pd.testing.assert_frame_equal(pdf, expected)
 
-    pdf = DeltaExchange(profile_path).load_as_pandas(table)
+    pdf = DeltaSharing(profile_path).load_as_pandas(table)
     pd.testing.assert_frame_equal(pdf, expected)
