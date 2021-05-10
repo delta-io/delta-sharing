@@ -32,31 +32,32 @@ from delta_sharing.protocol import (
 def test_share_profile(tmp_path):
     json = """
         {
+            "version": 1,
             "endpoint": "https://localhost/delta-sharing/",
             "bearerToken": "token"
         }
         """
     profile = ShareProfile.from_json(json)
-    assert profile == ShareProfile("https://localhost/delta-sharing/", "token")
+    assert profile == ShareProfile(1, "https://localhost/delta-sharing/", "token")
 
     profile = ShareProfile.read_from_file(io.StringIO(json))
-    assert profile == ShareProfile("https://localhost/delta-sharing/", "token")
+    assert profile == ShareProfile(1, "https://localhost/delta-sharing/", "token")
 
     profile_path = tmp_path / "test_profile.json"
     with open(profile_path, "w") as f:
         f.write(json)
 
     profile = ShareProfile.read_from_file(str(profile_path))
-    assert profile == ShareProfile("https://localhost/delta-sharing/", "token")
+    assert profile == ShareProfile(1, "https://localhost/delta-sharing/", "token")
 
     profile = ShareProfile.read_from_file(profile_path.as_uri())
-    assert profile == ShareProfile("https://localhost/delta-sharing/", "token")
+    assert profile == ShareProfile(1, "https://localhost/delta-sharing/", "token")
 
     profile = ShareProfile.read_from_file(profile_path)
-    assert profile == ShareProfile("https://localhost/delta-sharing/", "token")
+    assert profile == ShareProfile(1, "https://localhost/delta-sharing/", "token")
 
     profile = ShareProfile.read_from_file(io.FileIO(profile_path))
-    assert profile == ShareProfile("https://localhost/delta-sharing/", "token")
+    assert profile == ShareProfile(1, "https://localhost/delta-sharing/", "token")
 
 
 def test_share():

@@ -52,9 +52,9 @@ setup(
     extras_require={
         's3': ['s3fs'],
         'abfs': ['adlfs'],
-        "adl": ["adlfs"],
+        'adl': ['adlfs'],
         'gcs': ['gcsfs'],
-        "gs": ["gcsfs"],
+        'gs': ['gcsfs'],
     },
     author="Databricks",
     license='http://www.apache.org/licenses/LICENSE-2.0',

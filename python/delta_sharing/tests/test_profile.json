@@ -1,4 +1,5 @@
 {
-  "endpoint": "https://localhost/delta-sharing",
-  "token": "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
+  "version": 1,
+  "endpoint": "https://localhost/delta-sharing/",
+  "bearerToken": "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
 }
