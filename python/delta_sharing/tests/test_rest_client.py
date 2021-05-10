@@ -134,7 +134,7 @@ def test_list_files_in_table_non_partitioned(rest_client: DataSharingRestClient)
     assert response.add_files == [
         AddFile(
             url=response.add_files[0].url,
-            id="part-00000-7d93fddb-fc8b-4922-9ac9-5eab51368afa-c000.snappy.parquet",
+            id="061cb3683a467066995f8cdaabd8667d",
             partition_values={},
             size=781,
             stats=(
@@ -146,7 +146,7 @@ def test_list_files_in_table_non_partitioned(rest_client: DataSharingRestClient)
         ),
         AddFile(
             url=response.add_files[1].url,
-            id="part-00000-feb9b2f7-4f80-455c-860d-04530534753e-c000.snappy.parquet",
+            id="e268cbf70dbaa6143e7e9fa3e2d3b00e",
             partition_values={},
             size=781,
             stats=(
@@ -181,10 +181,7 @@ def test_list_files_in_table_partitioned(rest_client: DataSharingRestClient):
     assert response.add_files == [
         AddFile(
             url=response.add_files[0].url,
-            id=(
-                "date=2021-04-28/"
-                "part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet"
-            ),
+            id="9f1a49539c5cffe1ea7f9e055d5c003c",
             partition_values={"date": "2021-04-28"},
             size=573,
             stats=(
@@ -196,10 +193,7 @@ def test_list_files_in_table_partitioned(rest_client: DataSharingRestClient):
         ),
         AddFile(
             url=response.add_files[1].url,
-            id=(
-                "date=2021-04-28/"
-                "part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet"
-            ),
+            id="cd2209b32f5ed5305922dd50f5908a75",
             partition_values={"date": "2021-04-28"},
             size=573,
             stats=(
@@ -233,10 +227,7 @@ def test_list_files_in_table_partitioned_different_schemas(rest_client: DataShar
     assert response.add_files == [
         AddFile(
             url=response.add_files[0].url,
-            id=(
-                "date=2021-04-28/"
-                "part-00000-77c3cdf5-cce2-4c0a-ad13-9fad7b1ebce1.c000.snappy.parquet"
-            ),
+            id="db213271abffec6fd6c7fc2aad9d4b3f",
             partition_values={"date": "2021-04-28"},
             size=778,
             stats=(
@@ -248,10 +239,7 @@ def test_list_files_in_table_partitioned_different_schemas(rest_client: DataShar
         ),
         AddFile(
             url=response.add_files[1].url,
-            id=(
-                "date=2021-04-28/"
-                "part-00000-e0a66ac8-57a9-44a3-b00f-d099ff34479d.c000.snappy.parquet"
-            ),
+            id="f1f8be229d8b18eb6d6a34255f2d7089",
             partition_values={"date": "2021-04-28"},
             size=778,
             stats=(
@@ -263,10 +251,7 @@ def test_list_files_in_table_partitioned_different_schemas(rest_client: DataShar
         ),
         AddFile(
             url=response.add_files[2].url,
-            id=(
-                "date=2021-04-28/"
-                "part-00000-8bede38b-766a-4858-9454-4aa47631d0fe.c000.snappy.parquet"
-            ),
+            id="a892a55d770ee70b34ffb2ebf7dc2fd0",
             partition_values={"date": "2021-04-28"},
             size=573,
             stats=(

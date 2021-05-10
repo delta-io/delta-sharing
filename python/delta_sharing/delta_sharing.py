@@ -14,11 +14,16 @@
 # limitations under the License.
 #
 from itertools import chain
-from typing import BinaryIO, Sequence, TextIO, Union
+from typing import BinaryIO, List, Optional, Sequence, TextIO, Union
 from pathlib import Path
 from urllib.parse import urlparse
 
 import pandas as pd
+
+try:
+    from pyspark.sql import DataFrame as PySparkDataFrame
+except ImportError:
+    pass
 
 from delta_sharing.protocol import Schema, Share, ShareProfile, Table
 from delta_sharing.reader import DeltaSharingReader
@@ -33,13 +38,34 @@ class DeltaSharing:
         self._rest_client = DataSharingRestClient(profile)
 
     def list_shares(self) -> Sequence[Share]:
-        return self._rest_client.list_shares().shares
+        shares: List[Share] = []
+        page_token: Optional[str] = None
+        while True:
+            response = self._rest_client.list_shares(page_token=page_token)
+            shares.extend(response.shares)
+            page_token = response.next_page_token
+            if page_token is None:
+                return shares
 
     def list_schemas(self, share: Share) -> Sequence[Schema]:
-        return self._rest_client.list_schemas(share=share).schemas
+        schemas: List[Schema] = []
+        page_token: Optional[str] = None
+        while True:
+            response = self._rest_client.list_schemas(share=share, page_token=page_token)
+            schemas.extend(response.schemas)
+            page_token = response.next_page_token
+            if page_token is None:
+                return schemas
 
     def list_tables(self, schema: Schema) -> Sequence[Table]:
-        return self._rest_client.list_tables(schema=schema).tables
+        tables: List[Table] = []
+        page_token: Optional[str] = None
+        while True:
+            response = self._rest_client.list_tables(schema=schema, page_token=page_token)
+            tables.extend(response.tables)
+            page_token = response.next_page_token
+            if page_token is None:
+                return tables
 
     def list_all_tables(self) -> Sequence[Table]:
         shares = self.list_shares()
@@ -67,7 +93,12 @@ class DeltaSharing:
         return DeltaSharing.load(url).to_pandas()
 
     @staticmethod
-    def load_as_spark(url: str):
+    def load_as_spark(url: str) -> "PySparkDataFrame":
         from pyspark.sql import SparkSession
 
-        return SparkSession.getActiveSession().read.format("deltaSharing").load(url)
+        spark = SparkSession.getActiveSession()
+        assert spark is not None, (
+            "No active SparkSession was found. "
+            "`DeltaSharing.load_as_spark` needs SparkSession with DeltaSharing data source enabled."
+        )
+        return spark.read.format("deltaSharing").load(url)

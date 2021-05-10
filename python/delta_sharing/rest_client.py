@@ -15,8 +15,9 @@
 #
 import collections
 from contextlib import contextmanager
+from dataclasses import dataclass
 import json
-from typing import Any, Dict, NamedTuple, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 from urllib.parse import urlparse
 
 import requests
@@ -24,27 +25,32 @@ import requests
 from delta_sharing.protocol import AddFile, Metadata, Protocol, Share, ShareProfile, Schema, Table
 
 
-class ListSharesRespons(NamedTuple):
+@dataclass(frozen=True)
+class ListSharesRespons:
     shares: Sequence[Share]
-    next_page_tokan: Optional[str]
+    next_page_token: Optional[str]
 
 
-class ListSchemasResponse(NamedTuple):
+@dataclass(frozen=True)
+class ListSchemasResponse:
     schemas: Sequence[Schema]
     next_page_token: Optional[str]
 
 
-class ListTablesResponse(NamedTuple):
+@dataclass(frozen=True)
+class ListTablesResponse:
     tables: Sequence[Table]
     next_page_token: Optional[str]
 
 
-class QueryTableMetadataResponse(NamedTuple):
+@dataclass(frozen=True)
+class QueryTableMetadataResponse:
     protocol: Protocol
     metadata: Metadata
 
 
-class ListFilesInTableResponse(NamedTuple):
+@dataclass(frozen=True)
+class ListFilesInTableResponse:
     protocol: Protocol
     metadata: Metadata
     add_files: Sequence[AddFile]
@@ -74,7 +80,7 @@ class DataSharingRestClient:
             shares_json = json.loads(next(lines))
             return ListSharesRespons(
                 shares=[Share.from_json(share_json) for share_json in shares_json["items"]],
-                next_page_tokan=shares_json.get("nextPageToken", None),
+                next_page_token=shares_json.get("nextPageToken", None),
             )
 
     def list_schemas(

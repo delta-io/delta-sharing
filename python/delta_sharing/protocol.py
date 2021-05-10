@@ -23,6 +23,7 @@ import fsspec
 
 @dataclass(frozen=True)
 class ShareProfile:
+    version: int
     endpoint: str
     token: str
 
@@ -43,7 +44,9 @@ class ShareProfile:
     def from_json(json) -> "ShareProfile":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        return ShareProfile(endpoint=json["endpoint"], token=json["bearerToken"])
+        return ShareProfile(
+            version=int(json["version"]), endpoint=json["endpoint"], token=json["bearerToken"]
+        )
 
 
 @dataclass(frozen=True)
