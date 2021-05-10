@@ -96,4 +96,9 @@ class DeltaSharing:
     def load_as_spark(url: str) -> "PySparkDataFrame":
         from pyspark.sql import SparkSession
 
-        return SparkSession.getActiveSession().read.format("deltaSharing").load(url)
+        spark = SparkSession.getActiveSession()
+        assert spark is not None, (
+            "No active SparkSession was found. "
+            "`DeltaSharing.load_as_spark` needs SparkSession with DeltaSharing data source enabled."
+        )
+        return spark.read.format("deltaSharing").load(url)
