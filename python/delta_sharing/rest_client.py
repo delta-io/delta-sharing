@@ -24,6 +24,7 @@ import requests
 
 # TODO Remove this. This is added for demo.
 import urllib3
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from delta_sharing.protocol import AddFile, Metadata, Protocol, Share, ShareProfile, Schema, Table

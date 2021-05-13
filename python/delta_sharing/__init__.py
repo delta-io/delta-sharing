@@ -19,4 +19,12 @@ from delta_sharing.protocol import Share, Schema, Table
 from delta_sharing.version import __version__
 
 
-__all__ = ["SharingClient", "Share", "Schema", "Table", "__version__", "load_as_pandas", "load_as_spark"]
+__all__ = [
+    "SharingClient",
+    "Share",
+    "Schema",
+    "Table",
+    "load_as_pandas",
+    "load_as_spark",
+    "__version__",
+]

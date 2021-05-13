@@ -31,7 +31,19 @@ from delta_sharing.rest_client import DataSharingRestClient
 
 
 def load_as_pandas(url: str) -> pd.DataFrame:
-    return SharingClient.load(url).to_pandas()
+    profile_json = url.split("#")[0]
+    profile = ShareProfile.read_from_file(profile_json)
+
+    parsed = urlparse(url)
+    fragments = parsed.fragment.split(".")
+    if len(fragments) != 3:
+        raise ValueError("table")
+    share, schema, table = fragments
+
+    return DeltaSharingReader(
+        table=Table(name=table, share=share, schema=schema),
+        rest_client=DataSharingRestClient(profile),
+    ).to_pandas()
 
 
 def load_as_spark(url: str) -> "PySparkDataFrame":
@@ -86,19 +98,3 @@ class SharingClient:
         shares = self.list_shares()
         schemas = chain(*(self.list_schemas(share) for share in shares))
         return list(chain(*(self.list_tables(schema) for schema in schemas)))
-
-    @staticmethod
-    def load(url: str) -> DeltaSharingReader:
-        profile_json = url.split("#")[0]
-        profile = ShareProfile.read_from_file(profile_json)
-
-        parsed = urlparse(url)
-        fragments = parsed.fragment.split(".")
-        if len(fragments) != 3:
-            raise ValueError("table")
-        share, schema, table = fragments
-
-        return DeltaSharingReader(
-            table=Table(name=table, share=share, schema=schema),
-            rest_client=DataSharingRestClient(profile),
-        )

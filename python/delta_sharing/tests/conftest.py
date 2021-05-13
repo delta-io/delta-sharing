@@ -17,7 +17,7 @@ import os
 
 import pytest
 
-from delta_sharing.delta_sharing import DeltaSharing
+from delta_sharing.delta_sharing import SharingClient
 from delta_sharing.protocol import ShareProfile
 from delta_sharing.rest_client import DataSharingRestClient
 
@@ -43,5 +43,5 @@ def rest_client(profile) -> DataSharingRestClient:
 
 
 @pytest.fixture
-def sharing(profile) -> DeltaSharing:
-    return DeltaSharing(profile)
+def sharing_client(profile) -> SharingClient:
+    return SharingClient(profile)
