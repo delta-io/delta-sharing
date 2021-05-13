@@ -3,7 +3,7 @@ package io.delta.sharing.spark
 import org.apache.hadoop.fs.FileSystem
 
 import scala.collection.JavaConverters._
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{SQLContext, SparkSession}
 import org.apache.spark.sql.connector.catalog.{Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
@@ -54,6 +54,8 @@ object DeltaSharingDataSource {
   def reloadFileSystemsIfNeeded(): Unit = synchronized {
     if (!reloaded) {
       reloaded = true
+      SparkSession.active.sparkContext.hadoopConfiguration
+        .set("fs.delta-sharing.impl", "io.delta.sharing.spark.DeltaSharingFileSystem")
       val f = classOf[FileSystem].getDeclaredField("FILE_SYSTEMS_LOADED")
       f.setAccessible(true)
       f.set(null, false)

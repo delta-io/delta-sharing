@@ -30,7 +30,22 @@ from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import DataSharingRestClient
 
 
-class DeltaSharing:
+def load_as_pandas(url: str) -> pd.DataFrame:
+    return SharingClient.load(url).to_pandas()
+
+
+def load_as_spark(url: str) -> "PySparkDataFrame":
+    from pyspark.sql import SparkSession
+
+    spark = SparkSession.getActiveSession()
+    assert spark is not None, (
+        "No active SparkSession was found. "
+        "`DeltaSharing.load_as_spark` needs SparkSession with DeltaSharing data source enabled."
+    )
+    return spark.read.format("deltaSharing").load(url)
+
+
+class SharingClient:
     def __init__(self, profile: Union[str, BinaryIO, TextIO, Path, ShareProfile]):
         if not isinstance(profile, ShareProfile):
             profile = ShareProfile.read_from_file(profile)
@@ -87,18 +102,3 @@ class DeltaSharing:
             table=Table(name=table, share=share, schema=schema),
             rest_client=DataSharingRestClient(profile),
         )
-
-    @staticmethod
-    def load_as_pandas(url: str) -> pd.DataFrame:
-        return DeltaSharing.load(url).to_pandas()
-
-    @staticmethod
-    def load_as_spark(url: str) -> "PySparkDataFrame":
-        from pyspark.sql import SparkSession
-
-        spark = SparkSession.getActiveSession()
-        assert spark is not None, (
-            "No active SparkSession was found. "
-            "`DeltaSharing.load_as_spark` needs SparkSession with DeltaSharing data source enabled."
-        )
-        return spark.read.format("deltaSharing").load(url)
