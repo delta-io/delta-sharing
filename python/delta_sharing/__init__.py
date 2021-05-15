@@ -14,9 +14,17 @@
 # limitations under the License.
 #
 
-from delta_sharing.delta_sharing import DeltaSharing
+from delta_sharing.delta_sharing import SharingClient, load_as_pandas, load_as_spark
 from delta_sharing.protocol import Share, Schema, Table
 from delta_sharing.version import __version__
 
 
-__all__ = ["DeltaSharing", "Share", "Schema", "Table", "__version__"]
+__all__ = [
+    "SharingClient",
+    "Share",
+    "Schema",
+    "Table",
+    "load_as_pandas",
+    "load_as_spark",
+    "__version__",
+]

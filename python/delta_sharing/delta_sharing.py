@@ -30,7 +30,34 @@ from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import DataSharingRestClient
 
 
-class DeltaSharing:
+def load_as_pandas(url: str) -> pd.DataFrame:
+    profile_json = url.split("#")[0]
+    profile = ShareProfile.read_from_file(profile_json)
+
+    parsed = urlparse(url)
+    fragments = parsed.fragment.split(".")
+    if len(fragments) != 3:
+        raise ValueError("table")
+    share, schema, table = fragments
+
+    return DeltaSharingReader(
+        table=Table(name=table, share=share, schema=schema),
+        rest_client=DataSharingRestClient(profile),
+    ).to_pandas()
+
+
+def load_as_spark(url: str) -> "PySparkDataFrame":
+    from pyspark.sql import SparkSession
+
+    spark = SparkSession.getActiveSession()
+    assert spark is not None, (
+        "No active SparkSession was found. "
+        "`DeltaSharing.load_as_spark` needs SparkSession with DeltaSharing data source enabled."
+    )
+    return spark.read.format("deltaSharing").load(url)
+
+
+class SharingClient:
     def __init__(self, profile: Union[str, BinaryIO, TextIO, Path, ShareProfile]):
         if not isinstance(profile, ShareProfile):
             profile = ShareProfile.read_from_file(profile)
@@ -71,34 +98,3 @@ class DeltaSharing:
         shares = self.list_shares()
         schemas = chain(*(self.list_schemas(share) for share in shares))
         return list(chain(*(self.list_tables(schema) for schema in schemas)))
-
-    @staticmethod
-    def load(url: str) -> DeltaSharingReader:
-        profile_json = url.split("#")[0]
-        profile = ShareProfile.read_from_file(profile_json)
-
-        parsed = urlparse(url)
-        fragments = parsed.fragment.split(".")
-        if len(fragments) != 3:
-            raise ValueError("table")
-        share, schema, table = fragments
-
-        return DeltaSharingReader(
-            table=Table(name=table, share=share, schema=schema),
-            rest_client=DataSharingRestClient(profile),
-        )
-
-    @staticmethod
-    def load_as_pandas(url: str) -> pd.DataFrame:
-        return DeltaSharing.load(url).to_pandas()
-
-    @staticmethod
-    def load_as_spark(url: str) -> "PySparkDataFrame":
-        from pyspark.sql import SparkSession
-
-        spark = SparkSession.getActiveSession()
-        assert spark is not None, (
-            "No active SparkSession was found. "
-            "`DeltaSharing.load_as_spark` needs SparkSession with DeltaSharing data source enabled."
-        )
-        return spark.read.format("deltaSharing").load(url)
