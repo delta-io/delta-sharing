@@ -5,6 +5,8 @@ jobs:
     runs-on: ubuntu-20.04
     env:
       SPARK_LOCAL_IP: localhost
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2

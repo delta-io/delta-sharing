@@ -19,6 +19,10 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
   var testProfileFile: File = _
 
   override def beforeAll(): Unit = {
+    println("found AWS_ACCESS_KEY_ID: " + sys.env.get("AWS_ACCESS_KEY_ID").nonEmpty)
+    if (sys.env.get("AWS_ACCESS_KEY_ID").nonEmpty) {
+      println("found AWS_ACCESS_KEY_ID: " + sys.env.get("AWS_ACCESS_KEY_ID").get.length)
+    }
     super.beforeAll()
     if (sys.env.get("AWS_ACCESS_KEY_ID").nonEmpty) {
       pidFile = Files.createTempFile("delta-sharing-server", ".pid").toFile
