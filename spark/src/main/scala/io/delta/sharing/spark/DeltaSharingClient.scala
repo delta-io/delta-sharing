@@ -16,20 +16,18 @@
 
 package io.delta.sharing.spark
 
-import io.delta.sharing.spark.model._
-import java.io.InputStream
 import java.net.{URL, URLEncoder}
-
+import java.nio.charset.StandardCharsets.UTF_8
+import scala.collection.mutable.ArrayBuffer
 import io.delta.sharing.spark.util.JsonUtils
+import io.delta.sharing.spark.model._
+import org.apache.commons.io.IOUtils
 import org.apache.http.{HttpHeaders, HttpHost}
 import org.apache.http.client.methods.{HttpGet, HttpHead, HttpPost, HttpRequestBase}
 import org.apache.http.client.protocol.HttpClientContext
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, TrustSelfSignedStrategy}
-
-import scala.collection.mutable.ArrayBuffer
-import scala.io.Source
 
 trait DeltaSharingClient {
   def listAllTables(): Seq[Table]
@@ -61,7 +59,8 @@ case class ListTablesResponse(
 
 class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
-    sslTrustAll: Boolean = false) extends DeltaSharingClient {
+    sslTrustAll: Boolean = false,
+    maxConnections: Int = 15) extends DeltaSharingClient {
 
   @volatile private var created = false
 
@@ -77,7 +76,10 @@ class DeltaSharingRestClient(
     } else {
       HttpClientBuilder.create()
     }
-    val client = clientBuilder.build()
+    val client = clientBuilder
+      .setMaxConnPerRoute(maxConnections)
+      .setMaxConnTotal(maxConnections)
+      .build()
     created = true
     client
   }
@@ -232,12 +234,11 @@ class DeltaSharingRestClient(
       val body = if (entity == null) {
         ""
       } else {
-        val is: InputStream = entity.getContent()
+        val input = entity.getContent()
         try {
-          val res = Source.fromInputStream(is).mkString
-          res
+          IOUtils.toString(input, UTF_8)
         } finally {
-          is.close()
+          input.close()
         }
       }
 

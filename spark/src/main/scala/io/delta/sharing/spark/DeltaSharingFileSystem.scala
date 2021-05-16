@@ -23,17 +23,32 @@ import java.util.Base64
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.fs._
 import org.apache.hadoop.util.Progressable
+import org.apache.http.impl.client.HttpClientBuilder
 
 /** Read-only file system for delta paths. */
 class DeltaSharingFileSystem extends FileSystem {
   import DeltaSharingFileSystem._
+
+  private lazy val httpClient = {
+    val maxConnections = getConf.getInt("spark.delta.sharing.maxConnections", 15)
+    HttpClientBuilder.create()
+      .setMaxConnTotal(maxConnections)
+      .setMaxConnPerRoute(maxConnections)
+      .build()
+  }
 
   override def getScheme: String = SCHEME
 
   override def getUri(): URI = URI.create(s"$SCHEME:///")
 
   override def open(f: Path, bufferSize: Int): FSDataInputStream = {
-    new FSDataInputStream(new InMemoryHttpInputStream(restoreUri(f)._1))
+    val resolved = makeQualified(f)
+    val (uri, len) = restoreUri(resolved)
+    if (getConf.getBoolean("spark.delta.sharing.loadDataFilesInMemory", false)) {
+      new FSDataInputStream(new InMemoryHttpInputStream(uri))
+    } else {
+      new FSDataInputStream(new RandomAccessHttpInputStream(httpClient, uri, len, statistics))
+    }
   }
 
   override def create(
@@ -67,7 +82,16 @@ class DeltaSharingFileSystem extends FileSystem {
     throw new UnsupportedOperationException("mkdirs")
 
   override def getFileStatus(f: Path): FileStatus = {
+    val resolved = makeQualified(f)
     new FileStatus(restoreUri(f)._2, false, 0, 1, 0, f)
+  }
+
+  override def finalize(): Unit = {
+    try super.finalize() finally close()
+  }
+
+  override def close(): Unit = {
+    try super.close() finally httpClient.close()
   }
 }
 
@@ -87,7 +111,10 @@ object DeltaSharingFileSystem {
 
   /** Restore the original URI and the file size from the delta-sharing path. */
   def restoreUri(path: Path): (URI, Long) = {
-    val encoded = path.toUri.toString.stripPrefix(s"$SCHEME:///").getBytes(UTF_8)
+    val encoded = path.toUri.toString
+      .stripPrefix(s"$SCHEME:///")
+      .stripPrefix(s"$SCHEME:/")
+      .getBytes(UTF_8)
     val uriWithSize = new String(Base64.getUrlDecoder.decode(encoded), UTF_8)
     val i = uriWithSize.lastIndexOf("#size=")
     if (i < 0) {

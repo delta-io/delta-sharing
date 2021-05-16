@@ -78,12 +78,12 @@ object RemoteDeltaLog {
     }
 
     val table = DeltaSharingTable(tableSplits(2), tableSplits(1), tableSplits(0))
+    val sqlConf = SparkSession.active.sessionState.conf
     // This is a flag to allow us testing the server locally. Should never be used in production.
-    // TODO Change the default value to false. This is set for demo.
     val sslTrustAll =
-      SparkSession.active.sessionState.conf
-        .getConfString("spark.delta.sharing.client.sslTrustAll", "true").toBoolean
-    val client = new DeltaSharingRestClient(profileProvider, sslTrustAll)
+      sqlConf.getConfString("spark.delta.sharing.client.sslTrustAll", "false").toBoolean
+    val maxConnections = sqlConf.getConfString("spark.delta.sharing.maxConnections", "15").toInt
+    val client = new DeltaSharingRestClient(profileProvider, sslTrustAll, maxConnections)
     new RemoteDeltaLog(table, new Path(path), client)
   }
 }

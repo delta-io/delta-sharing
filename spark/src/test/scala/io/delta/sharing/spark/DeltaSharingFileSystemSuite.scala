@@ -18,6 +18,7 @@ package io.delta.sharing.spark
 
 import java.net.URI
 
+import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkFunSuite
 
 class DeltaSharingFileSystemSuite extends SparkFunSuite {
@@ -26,8 +27,10 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
   test("encode and decode") {
     val uri = new URI("https://delta.io/foo")
     assert(restoreUri(createPath(uri, 100)) == (uri, 100))
+    assert(restoreUri(new Path(createPath(uri, 100).toString)) == (uri, 100))
 
     val uri2 = new URI("file:///foo")
     assert(restoreUri(createPath(uri2, 200)) == (uri2, 200))
+    assert(restoreUri(new Path(createPath(uri2, 100).toString)) == (uri2, 100))
   }
 }

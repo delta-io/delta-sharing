@@ -33,14 +33,16 @@ class InMemoryHttpInputStream(uri: URI)
     pos
   }
 
-  override def seekToNewSource(targetPos: Long): Boolean =
-    throw new UnsupportedOperationException("seekToNewSource")
+  override def seekToNewSource(targetPos: Long): Boolean = {
+    // We don't support this feature
+    false
+  }
 
   override def read(
-    position: Long,
-    buffer: Array[Byte],
-    offset: Int,
-    length: Int): Int = synchronized {
+      position: Long,
+      buffer: Array[Byte],
+      offset: Int,
+      length: Int): Int = synchronized {
     val oldPos = getPos()
     var nread = -1
     try {
@@ -53,10 +55,10 @@ class InMemoryHttpInputStream(uri: URI)
   }
 
   override def readFully(
-    position: Long,
-    buffer: Array[Byte],
-    offset: Int,
-    length: Int): Unit = synchronized {
+      position: Long,
+      buffer: Array[Byte],
+      offset: Int,
+      length: Int): Unit = synchronized {
     var nread = 0
     while (nread < length) {
       val nbytes = read(position + nread, buffer, offset + nread, length - nread)

@@ -16,6 +16,10 @@
 
 package io.delta.sharing.spark
 
+import java.io.EOFException
+import scala.util.Random
+import org.apache.commons.io.IOUtils
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.catalyst.util.DateTimeUtils._
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
@@ -23,6 +27,7 @@ import org.apache.spark.sql.{QueryTest, Row}
 import org.apache.spark.unsafe.types.UTF8String
 
 class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaSharingIntegrationTest {
+
   import testImplicits._
 
   protected def sqlDate(date: String): java.sql.Date = {
@@ -89,6 +94,58 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     withTable("delta_sharing_test") {
       sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
       checkAnswer(sql(s"SELECT * FROM delta_sharing_test WHERE date = '2021-04-28'"), expected)
+    }
+  }
+
+  integrationTest("random access stream") {
+    val seed = System.currentTimeMillis()
+    // scalastyle:off println
+    println(s"seed for random access stream test: $seed")
+    // scalastyle:on println
+    val r = new Random(seed)
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.table1"
+    val file = spark.read.format("deltaSharing").load(tablePath).inputFiles.head
+    var content: Array[Byte] = null
+    withSQLConf("spark.delta.sharing.loadDataFilesInMemory" -> "true") {
+      FileSystem.closeAll()
+      val fs = new Path(file).getFileSystem(spark.sessionState.newHadoopConf())
+      val input = fs.open(new Path(file))
+      assert(input.getWrappedStream.isInstanceOf[InMemoryHttpInputStream])
+      try {
+        content = IOUtils.toByteArray(input)
+      } finally {
+        input.close()
+      }
+    }
+    FileSystem.closeAll()
+    val fs = new Path(file).getFileSystem(spark.sessionState.newHadoopConf())
+    val input = fs.open(new Path(file))
+    try {
+      assert(input.getWrappedStream.isInstanceOf[RandomAccessHttpInputStream])
+      intercept[EOFException] {
+        input.seek(-1)
+      }
+      intercept[EOFException] {
+        input.seek(content.length)
+      }
+      var currentPos = 0
+      var i = r.nextInt(10) + 5
+      while (i >= 0) {
+        i -= 1
+        val nextAction = r.nextInt(2)
+        if (nextAction == 0) { // seek
+          currentPos = r.nextInt(content.length)
+          input.seek(currentPos)
+        } else { // read
+          val readSize = r.nextInt(content.length - currentPos + 1)
+          val buf = new Array[Byte](readSize)
+          input.readFully(buf)
+          assert(buf.toList == content.slice(currentPos, currentPos + readSize).toList)
+          currentPos += readSize
+        }
+      }
+    } finally {
+      input.close()
     }
   }
 }
