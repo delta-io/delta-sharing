@@ -1,7 +1,24 @@
+/*
+ * Copyright (2021) The Delta Lake Project Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.delta.sharing.spark
 
 import io.delta.sharing.spark.model.{AddFile, Format, Metadata, Protocol, Table}
 
+// scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   integrationTest("listAllTables") {
@@ -65,14 +82,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           id = "9f1a49539c5cffe1ea7f9e055d5c003c",
           partitionValues = Map("date" -> "2021-04-28"),
           size = 573,
-          stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:57.955Z"},"maxValues":{"eventTime":"2021-04-28T23:33:57.955Z"},"nullCount":{"eventTime":0}}""",
+          stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:57.955Z"},"maxValues":{"eventTime":"2021-04-28T23:33:57.955Z"},"nullCount":{"eventTime":0}}"""
         ),
         AddFile(
           url = tableFiles.files(1).url,
           id = "cd2209b32f5ed5305922dd50f5908a75",
           partitionValues = Map("date" -> "2021-04-28"),
           size = 573,
-          stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"maxValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"nullCount":{"eventTime":0}}""",
+          stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"maxValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"nullCount":{"eventTime":0}}"""
         )
       )
       assert(expectedFiles == tableFiles.files.toList)

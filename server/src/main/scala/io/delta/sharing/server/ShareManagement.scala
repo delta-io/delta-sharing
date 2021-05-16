@@ -1,3 +1,19 @@
+/*
+ * Copyright (2021) The Delta Lake Project Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.delta.sharing.server
 
 import java.nio.charset.StandardCharsets.UTF_8
@@ -40,7 +56,9 @@ class ShareManagement(serverConfig: ServerConfig) {
     results -> nextId.map(id => encodePageToken(id.toString))
   }
 
-  def listShares(nextPageToken: Option[String] = None, maxResults: Option[Int] = None): (Seq[Share], Option[String]) = {
+  def listShares(
+      nextPageToken: Option[String] = None,
+      maxResults: Option[Int] = None): (Seq[Share], Option[String]) = {
     getPage(nextPageToken, maxResults, shares.size) { (start, end) =>
       shares.values.map { share =>
         Share().withName(share.getName)
@@ -48,7 +66,10 @@ class ShareManagement(serverConfig: ServerConfig) {
     }
   }
 
-  def listSchemas(share: String, nextPageToken: Option[String] = None, maxResults: Option[Int] = None): (Seq[Schema], Option[String]) = {
+  def listSchemas(
+      share: String,
+      nextPageToken: Option[String] = None,
+      maxResults: Option[Int] = None): (Seq[Schema], Option[String]) = {
     val shareConfig = shares.getOrElse(share, throw new NoSuchElementException)
     getPage(nextPageToken, maxResults, shareConfig.getSchemas.size) { (start, end) =>
       shareConfig.getSchemas.asScala.map { schemaConfig =>
@@ -57,7 +78,11 @@ class ShareManagement(serverConfig: ServerConfig) {
     }
   }
 
-  def listTables(share: String, schema: String, nextPageToken: Option[String] = None, maxResults: Option[Int] = None): (Seq[Table], Option[String]) = {
+  def listTables(
+      share: String,
+      schema: String,
+      nextPageToken: Option[String] = None,
+      maxResults: Option[Int] = None): (Seq[Table], Option[String]) = {
     val shareConfig = shares.getOrElse(share, throw new NoSuchElementException)
     val schemaConfig = shareConfig.getSchemas.asScala.find(_.getName == schema)
       .getOrElse(throw new NoSuchElementException)
@@ -68,7 +93,7 @@ class ShareManagement(serverConfig: ServerConfig) {
     }
   }
 
-  def getTable(share: String, schema: String, table: String): TableConfig =  {
+  def getTable(share: String, schema: String, table: String): TableConfig = {
     val shareConfig = shares.getOrElse(share, throw new NoSuchElementException)
     val schemaConfig = shareConfig.getSchemas.asScala.find(_.getName == schema)
       .getOrElse(throw new NoSuchElementException)

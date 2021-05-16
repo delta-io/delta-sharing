@@ -1,3 +1,19 @@
+/*
+ * Copyright (2021) The Delta Lake Project Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.delta.sharing.spark
 
 import io.delta.sharing.spark.model._
@@ -31,11 +47,17 @@ trait PaginationResponse {
 
 case class QueryTableRequest(predicateHints: Seq[String], limitHint: Option[Int])
 
-case class ListSharesResponse(items: Seq[Share], nextPageToken: Option[String]) extends PaginationResponse
+case class ListSharesResponse(
+    items: Seq[Share],
+    nextPageToken: Option[String]) extends PaginationResponse
 
-case class ListSchemasResponse(items: Seq[Schema], nextPageToken: Option[String]) extends PaginationResponse
+case class ListSchemasResponse(
+    items: Seq[Schema],
+    nextPageToken: Option[String]) extends PaginationResponse
 
-case class ListTablesResponse(items: Seq[Table], nextPageToken: Option[String]) extends PaginationResponse
+case class ListTablesResponse(
+    items: Seq[Table],
+    nextPageToken: Option[String]) extends PaginationResponse
 
 class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
@@ -64,13 +86,17 @@ class DeltaSharingRestClient(
     listShares().flatMap(listSchemas).flatMap(listTables)
   }
 
+  private def getTargetUrl(suffix: String): String = {
+    s"${profileProvider.getProfile.endpoint.stripSuffix("/")}/${suffix.stripPrefix("/")}"
+  }
+
   private def listShares(): Seq[Share] = {
-    val target = s"${profileProvider.getProfile.endpoint.stripSuffix("/")}/shares"
+    val target = getTargetUrl("shares")
     val shares = ArrayBuffer[Share]()
     var response = getJson[ListSharesResponse](target)
     shares ++= response.items
     while (response.nextPageToken.nonEmpty) {
-      val target = s"${profileProvider.getProfile.endpoint.stripSuffix("/")}/shares?pageToken=${response.nextPageToken.get}"
+      val target = getTargetUrl("/shares?pageToken=${response.nextPageToken.get}")
       response = getJson[ListSharesResponse](target)
       shares ++= response.items
     }
@@ -79,12 +105,13 @@ class DeltaSharingRestClient(
 
   private def listSchemas(share: Share): Seq[Schema] = {
     val encodedShareName = URLEncoder.encode(share.name, "UTF-8")
-    val target = s"${profileProvider.getProfile.endpoint.stripSuffix("/")}/shares/$encodedShareName/schemas"
+    val target = getTargetUrl(s"/shares/$encodedShareName/schemas")
     val schemas = ArrayBuffer[Schema]()
     var response = getJson[ListSchemasResponse](target)
     schemas ++= response.items
     while (response.nextPageToken.nonEmpty) {
-      val target = s"${profileProvider.getProfile.endpoint.stripSuffix("/")}/shares/$encodedShareName/schemas?pageToken=${response.nextPageToken.get}"
+      val target =
+        getTargetUrl(s"/shares/$encodedShareName/schemas?pageToken=${response.nextPageToken.get}")
       response = getJson[ListSchemasResponse](target)
       schemas ++= response.items
     }
@@ -94,12 +121,13 @@ class DeltaSharingRestClient(
   private def listTables(schema: Schema): Seq[Table] = {
     val encodedShareName = URLEncoder.encode(schema.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(schema.name, "UTF-8")
-    val target = s"${profileProvider.getProfile.endpoint.stripSuffix("/")}/shares/$encodedShareName/schemas/$encodedSchemaName/tables"
+    val target = getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables")
     val tables = ArrayBuffer[Table]()
     var response = getJson[ListTablesResponse](target)
     tables ++= response.items
     while (response.nextPageToken.nonEmpty) {
-      val target = s"${profileProvider.getProfile.endpoint.stripSuffix("/")}/shares/$encodedShareName/schemas/$encodedSchemaName/tables?pageToken=${response.nextPageToken.get}"
+      val target = getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables" +
+        s"?pageToken=${response.nextPageToken.get}")
       response = getJson[ListTablesResponse](target)
       tables ++= response.items
     }
@@ -110,7 +138,8 @@ class DeltaSharingRestClient(
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
-    val target = s"${profileProvider.getProfile.endpoint.stripSuffix("/")}/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName"
+    val target =
+      getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName")
     val (version, _) = getResponse(new HttpHead(target))
     version.getOrElse {
       throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
@@ -121,7 +150,8 @@ class DeltaSharingRestClient(
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
-    val target = s"${profileProvider.getProfile.endpoint.stripSuffix("/")}/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata"
+    val target = getTargetUrl(
+      s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata")
     val (version, lines) = getNDJson(target)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
@@ -140,11 +170,15 @@ class DeltaSharingRestClient(
     }
   }
 
-  override def getFiles(table: Table, predicates: Seq[String], limit: Option[Int]): DeltaTableFiles = {
+  override def getFiles(
+      table: Table,
+      predicates: Seq[String],
+      limit: Option[Int]): DeltaTableFiles = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
-    val target = s"${profileProvider.getProfile.endpoint.stripSuffix("/")}/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query"
+    val target = getTargetUrl(
+      s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val (version, lines) = getNDJson(target, QueryTableRequest(predicates, limit))
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
@@ -190,7 +224,8 @@ class DeltaSharingRestClient(
   private def getResponse(httpContext: HttpRequestBase): (Option[Long], String) = {
     val profile = profileProvider.getProfile
     httpContext.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer ${profile.bearerToken}")
-    val response = client.execute(getHttpHost(profile.endpoint), httpContext, HttpClientContext.create())
+    val response =
+      client.execute(getHttpHost(profile.endpoint), httpContext, HttpClientContext.create())
     try {
       val status = response.getStatusLine()
       val entity = response.getEntity()
@@ -209,7 +244,9 @@ class DeltaSharingRestClient(
       val statusCode = status.getStatusCode
 
       if (statusCode != 200) {
-        throw new UnexpectedHttpError(s"HTTP request failed with status: $status $body", statusCode)
+        throw new UnexpectedHttpStatus(
+          s"HTTP request failed with status: $status $body",
+          statusCode)
       }
       Option(response.getFirstHeader("Delta-Table-Version")).map(_.getValue.toLong) -> body
     } finally {
@@ -240,5 +277,5 @@ object DeltaSharingRestClient {
   val CURRENT = 1
 }
 
-class UnexpectedHttpError(message: String, val statusCode: Int)
+class UnexpectedHttpStatus(message: String, val statusCode: Int)
   extends IllegalStateException(message)

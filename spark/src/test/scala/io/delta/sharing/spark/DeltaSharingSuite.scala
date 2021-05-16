@@ -1,3 +1,19 @@
+/*
+ * Copyright (2021) The Delta Lake Project Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.delta.sharing.spark
 
 import org.apache.spark.sql.catalyst.util.DateTimeUtils._
@@ -68,7 +84,8 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       Row(sqlTimestamp("2021-04-28 16:36:47.599"), sqlDate("2021-04-28"), "foo"),
       Row(sqlTimestamp("2021-04-28 16:36:51.945"), sqlDate("2021-04-28"), "bar")
     )
-    checkAnswer(spark.read.format("deltaSharing").load(tablePath).where("date = '2021-04-28'"), expected)
+    checkAnswer(
+      spark.read.format("deltaSharing").load(tablePath).where("date = '2021-04-28'"), expected)
     withTable("delta_sharing_test") {
       sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
       checkAnswer(sql(s"SELECT * FROM delta_sharing_test WHERE date = '2021-04-28'"), expected)

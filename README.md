@@ -1,67 +1,86 @@
-
+<img src="https://docs.delta.io/latest/_static/delta-lake-white.png" width="400" alt="Delta Lake Logo"></img>
 
 [![Build and Test](https://github.com/delta-io/delta-sharing/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/delta-io/delta-sharing/actions/workflows/build-and-test.yml)
 
-### Install the Spark connector
+[Delta Sharing](https://delta.io/sharing) is an open API to share [Delta Lake](https://delta.io/) tables between data providers and data recipients.
 
-```
-build/sbt spark/publishLocal
-```
+# Introduction
 
-Note: Make sure deleting the following directory when changing the Spark connector. Spark's `--packages` will cache it. 
+This repo includes a Pandas connector and an Apache Spark connector that implement the [Delta Sharing Protocol](PROTOCOL.md), and a reference implementation of a Delta Sharing server.
 
-```
-rm -rf ~/.ivy2/cache/io.delta/delta-sharing-spark_2.12
-```
+## Data Share Profile
 
-### Install Python Pandas connector
 
-```
-cd python/
-pip install -e .
-```
 
-Note: this installs the package in the current directory. Make sure staying in the `python` directory when testing it.
+## Pandas Connector
 
-### Create a profile file.
 
-Save the following content in a file.
+## Apache Spark Connector
 
-```
-{
-  "version": 1,
-  "endpoint": "https://ec2-18-237-148-30.us-west-2.compute.amazonaws.com/delta-sharing/",
-  "bearerToken": "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
-}
+You can add the Spark connector as a dependency using your favorite build tool.
+
+### Maven
+
+```xml
+<dependency>
+  <groupId>io.delta</groupId>
+  <artifactId>delta-sharing-spark_2.12</artifactId>
+  <version>0.1.0</version>
+</dependency>
 ```
 
-### Start PySpark
+### SBT
 
-Make sure you are using PySpark 3.1.1 and still in the `python` directory. Adding `SPARK_LOCAL_IP` to fix the network issue in VPN.
-
+```scala
+libraryDependencies += "io.delta" %% "delta-sharing-spark" % "0.1.0"
 ```
-SPARK_LOCAL_IP=127.0.0.1 pyspark --packages io.delta:delta-sharing-spark_2.12:0.1.0-SNAPSHOT
-```
+### Compatibility with Apache Spark Versions
 
-### Try the folllowing codes
+Delta Sharing Spark Connector currently requires Apache Spark 3.0.0 and above.
 
-Make sure you connect to VPN. `load_as_pandas` doesn't require PySpark.
+## Delta Sharing Server
 
-```
->>> from delta_sharing import DeltaSharing
->>> delta = DeltaSharing("<the-profile-file>")
->>> delta.list_all_tables()
-[Table(name='table1', share='share1', schema='default'), Table(name='table3', share='share1', schema='default'), Table(name='table2', share='share2', schema='default')]
->>> DeltaSharing.load_as_pandas('<the-profile-file>#share1.default.table1')
-                eventTime        date
-0 2021-04-28 06:32:22.421  2021-04-28
-1 2021-04-28 06:32:02.070  2021-04-28
->>> DeltaSharing.load_as_spark('<the-profile-file>#share1.default.table1').show()
-+--------------------+----------+                                               
-|           eventTime|      date|
-+--------------------+----------+
-|2021-04-27 23:32:...|2021-04-28|
-|2021-04-27 23:32:...|2021-04-28|
-+--------------------+----------+
-```
 
+# Delta Sharing Protocol
+
+[Delta Sharing Protocol](PROTOCOL.md) document provides a specification of the Delta Sharing protocol.
+
+# Reporting issues
+
+We use [GitHub Issues](https://github.com/delta-io/delta-sharing/issues) to track community reported issues. You can also [contact](#community) the community for getting answers.
+
+# Building
+
+Delta Sharing Spark Connector and Delta Sharing Server are compiled using [SBT](https://www.scala-sbt.org/1.x/docs/Command-Line-Reference.html).
+
+To compile, run
+
+    build/sbt compile
+
+To generate artifacts, run
+
+    build/sbt package
+
+To execute tests, run
+
+    build/sbt test
+
+Refer to [SBT docs](https://www.scala-sbt.org/1.x/docs/Command-Line-Reference.html) for more commands.
+
+# Contributing 
+We welcome contributions to Delta Sharing. See our [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
+
+We also adhere to the [Delta Lake Code of Conduct](CODE_OF_CONDUCT.md).
+
+# License
+Apache License 2.0, see [LICENSE](LICENSE.txt).
+
+# Community
+
+There are two mediums of communication within the Delta Lake community.
+
+- Public Slack Channel
+  - [Register here](https://dbricks.co/delta-users-slack)
+  - [Login here](https://delta-users.slack.com/)
+
+- Public [Mailing list](https://groups.google.com/forum/#!forum/delta-users)

@@ -1,3 +1,19 @@
+/*
+ * Copyright (2021) The Delta Lake Project Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.delta.sharing.spark
 
 import scala.collection.JavaConverters._
@@ -100,16 +116,20 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) {
   }
 
   private def checkProtocolNotChange(newProtocol: Protocol): Unit = {
-    if (newProtocol != protocol)
+    if (newProtocol != protocol) {
       throw new RuntimeException(
-        s"""The table protocol has changed since your DataFrame was created. Please redefine your DataFrame""")
+        "The table protocol has changed since your DataFrame was created. " +
+          "Please redefine your DataFrame")
+    }
   }
 
   private def checkSchemaNotChange(newMetadata: Metadata): Unit = {
-    if (newMetadata.schemaString != metadata.schemaString || newMetadata.partitionColumns != metadata.partitionColumns)
+    if (newMetadata.schemaString != metadata.schemaString ||
+      newMetadata.partitionColumns != metadata.partitionColumns) {
       throw new RuntimeException(
         s"""The schema or partition columns of your Delta table has changed since your
            |DataFrame was created. Please redefine your DataFrame""")
+    }
   }
 
   def filesForScan(projection: Seq[Attribute], filters: Seq[Expression]): Seq[AddFile] = {

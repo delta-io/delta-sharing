@@ -1,3 +1,19 @@
+/*
+ * Copyright (2021) The Delta Lake Project Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.delta.sharing.server
 
 import java.nio.charset.StandardCharsets.UTF_8
@@ -55,7 +71,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("share") share: String,
       @Param("maxResults") @Default("500") maxResults: Int,
       @Param("pageToken") @Nullable pageToken: String): ListSchemasResponse = {
-    val (schemas, nextPageToken) = shareManagement.listSchemas(share, Option(pageToken), Some(maxResults))
+    val (schemas, nextPageToken) =
+      shareManagement.listSchemas(share, Option(pageToken), Some(maxResults))
     ListSchemasResponse(schemas, nextPageToken)
   }
 
@@ -79,7 +96,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("schema") schema: String,
       @Param("maxResults") @Default("500") maxResults: Int,
       @Param("pageToken") @Nullable pageToken: String): ListTablesResponse = {
-    val (tables, nextPageToken) = shareManagement.listTables(share, schema, Option(pageToken), Some(maxResults))
+    val (tables, nextPageToken) =
+      shareManagement.listTables(share, schema, Option(pageToken), Some(maxResults))
     ListTablesResponse(tables, nextPageToken)
   }
 
@@ -164,14 +182,19 @@ object DeltaSharingService {
     parser
   }
 
+  private def updateDefaultJsonPrinterForScalaPbConverterUtil(): Unit = {
+    val module = Class.forName("com.linecorp.armeria.server.scalapb.ScalaPbConverterUtil$")
+      .getDeclaredField("MODULE$").get(null)
+    val defaultJsonPrinterField =
+      Class.forName("com.linecorp.armeria.server.scalapb.ScalaPbConverterUtil$")
+        .getDeclaredField("defaultJsonPrinter")
+    defaultJsonPrinterField.setAccessible(true)
+    defaultJsonPrinterField.set(module, new Printer())
+  }
+
   def start(serverConfig: ServerConfig): Server = {
     lazy val server = {
-      import com.linecorp.armeria.server.Server
-      val m = Class.forName("com.linecorp.armeria.server.scalapb.ScalaPbConverterUtil$").getDeclaredField("MODULE$").get(null)
-      val f = Class.forName("com.linecorp.armeria.server.scalapb.ScalaPbConverterUtil$").getDeclaredField("defaultJsonPrinter")
-      f.setAccessible(true)
-      f.set(m, new Printer())
-
+      updateDefaultJsonPrinterForScalaPbConverterUtil()
       val builder = Server.builder()
         .defaultHostname(serverConfig.getHost)
         .https(serverConfig.getPort)

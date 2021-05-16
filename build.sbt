@@ -19,9 +19,6 @@ import sbt.ExclusionRule
 
 parallelExecution in ThisBuild := false
 
-lazy val compileScalastyle = taskKey[Unit]("compileScalastyle")
-lazy val testScalastyle = taskKey[Unit]("testScalastyle")
-
 val sparkVersion = "3.1.1"
 val hadoopVersion = "2.7.2"
 
@@ -158,6 +155,7 @@ lazy val getInitialCommandsForConsole: Def.Initialize[String] = Def.settingDyn {
 lazy val spark = (project in file("spark")) settings(
   name := "delta-sharing-spark",
   commonSettings,
+  scalaStyleSettings,
   releaseSettings,
   initialCommands in console := getInitialCommandsForConsole.value,
   cleanupCommands in console := "sc.stop()",
@@ -173,6 +171,7 @@ lazy val spark = (project in file("spark")) settings(
 lazy val server = (project in file("server")) settings(
   name := "delta-sharing-server",
   commonSettings,
+  scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
     "org.apache.spark" %% "spark-sql" % "2.4.7" excludeAll(
@@ -231,4 +230,24 @@ lazy val server = (project in file("server")) settings(
   Compile / PB.targets := Seq(
     scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
   )
+)
+
+/*
+ ***********************
+ * ScalaStyle settings *
+ ***********************
+ */
+scalastyleConfig in ThisBuild := baseDirectory.value / "scalastyle-config.xml"
+
+lazy val compileScalastyle = taskKey[Unit]("compileScalastyle")
+lazy val testScalastyle = taskKey[Unit]("testScalastyle")
+
+lazy val scalaStyleSettings = Seq(
+  compileScalastyle := scalastyle.in(Compile).toTask("").value,
+
+  (compile in Compile) := ((compile in Compile) dependsOn compileScalastyle).value,
+
+  testScalastyle := scalastyle.in(Test).toTask("").value,
+
+  (test in Test) := ((test in Test) dependsOn testScalastyle).value
 )
