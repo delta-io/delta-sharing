@@ -12,7 +12,7 @@ object TestDeltaSharingServer {
     val pidFile = new File(args(0))
     println(s"Writing pid $pid to $pidFile")
     FileUtils.writeStringToFile(pidFile, pid)
-    if (sys.env.get("AWS_ACCESS_KEY_ID").nonEmpty) {
+    if (sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0)) {
       val serverConfigPath = TestResource.setupTestTables().getCanonicalPath
       val serverConfig = ServerConfig.load(serverConfigPath)
       val server = DeltaSharingService.start(serverConfig)

@@ -13,6 +13,8 @@ object TestResource {
     val bucket = "delta-exchange-test"
   }
 
+  val TEST_PORT = 12345
+
   val testAuthorizationToken = "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
 
   def setupTestTables(): File = {
@@ -38,7 +40,7 @@ object TestResource {
           )
         ))
     )
-    val serverConfig = ServerConfig(1, shares, Authorization(testAuthorizationToken))
+    val serverConfig = ServerConfig(1, shares, Authorization(testAuthorizationToken), port = TEST_PORT)
     serverConfig.save(testConfigFile.getCanonicalPath)
     testConfigFile
   }
