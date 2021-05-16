@@ -38,7 +38,7 @@ object TestResource {
           )
         ))
     )
-    val serverConfig = ServerConfig(1, shares, Authorization(testAuthorizationToken))
+    val serverConfig = ServerConfig(1, shares, Authorization(testAuthorizationToken), port = 12345)
     serverConfig.save(testConfigFile.getCanonicalPath)
     testConfigFile
   }
