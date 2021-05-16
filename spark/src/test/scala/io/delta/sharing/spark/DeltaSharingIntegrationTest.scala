@@ -14,23 +14,25 @@ import sys.process._
 
 trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
 
+  def shouldRunIntegrationTest: Boolean = {
+    sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0)
+  }
+
   @volatile private var process: Process = _
   @volatile private var pidFile: File = _
   var testProfileFile: File = _
 
+  val TEST_PORT = 12345
+
   override def beforeAll(): Unit = {
-    println("found AWS_ACCESS_KEY_ID: " + sys.env.get("AWS_ACCESS_KEY_ID").nonEmpty)
-    if (sys.env.get("AWS_ACCESS_KEY_ID").nonEmpty) {
-      println("found AWS_ACCESS_KEY_ID: " + sys.env.get("AWS_ACCESS_KEY_ID").get.length)
-    }
     super.beforeAll()
-    if (sys.env.get("AWS_ACCESS_KEY_ID").nonEmpty) {
+    if (shouldRunIntegrationTest) {
       pidFile = Files.createTempFile("delta-sharing-server", ".pid").toFile
       testProfileFile = Files.createTempFile("delta-test", ".share").toFile
       FileUtils.writeStringToFile(testProfileFile,
-        """{
+        s"""{
           |  "version": 1,
-          |  "endpoint": "https://localhost:443/delta-sharing",
+          |  "endpoint": "https://localhost:$TEST_PORT/delta-sharing",
           |  "bearerToken": "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
           |}""".stripMargin, "UTF-8")
 
@@ -41,7 +43,7 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
         override def run(): Unit = {
           val processLogger = ProcessLogger { stdout =>
             println(stdout)
-            if (stdout.contains("https://127.0.0.1:443/")) {
+            if (stdout.contains(s"https://127.0.0.1:$TEST_PORT/")) {
               startLatch.countDown()
             }
           }
@@ -73,7 +75,7 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
   }
 
   override def afterAll(): Unit = {
-    if (sys.env.get("AWS_ACCESS_KEY_ID").nonEmpty) {
+    if (shouldRunIntegrationTest) {
       try {
         if (process != null) {
           process.destroy()
@@ -102,7 +104,7 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
 
   def integrationTest(testName: String)(func: => Unit): Unit = {
     test(testName) {
-      assume(sys.env.get("AWS_ACCESS_KEY_ID").nonEmpty)
+      assume(shouldRunIntegrationTest)
       func
     }
   }

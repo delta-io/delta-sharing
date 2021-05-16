@@ -25,6 +25,10 @@ import scala.collection.mutable.ArrayBuffer
 class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   import io.delta.sharing.server.TestResource._
 
+  def shouldRunIntegrationTest: Boolean = {
+    sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0)
+  }
+
   private var serverConfig: ServerConfig = _
   private var server: Server = _
 
@@ -50,7 +54,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   override def beforeAll() {
-    if (sys.env.get("AWS_ACCESS_KEY_ID").nonEmpty) {
+    if (shouldRunIntegrationTest) {
       enableUntrustedServer()
       val serverConfigPath = TestResource.setupTestTables().getCanonicalPath
       serverConfig = ServerConfig.load(serverConfigPath)
@@ -105,7 +109,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   def integrationTest(testName: String)(func: => Unit): Unit = {
     test(testName) {
-      assume(sys.env.get("AWS_ACCESS_KEY_ID").nonEmpty)
+      assume(shouldRunIntegrationTest)
       func
     }
   }
