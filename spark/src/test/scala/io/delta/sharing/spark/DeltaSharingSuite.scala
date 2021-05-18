@@ -98,54 +98,58 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("random access stream") {
-    val seed = System.currentTimeMillis()
-    // scalastyle:off println
-    println(s"seed for random access stream test: $seed")
-    // scalastyle:on println
-    val r = new Random(seed)
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.table1"
-    val file = spark.read.format("deltaSharing").load(tablePath).inputFiles.head
-    var content: Array[Byte] = null
-    withSQLConf("spark.delta.sharing.loadDataFilesInMemory" -> "true") {
+    // Set maxConnections to 1 so that if we leak any connection, we will hang forever because any
+    // further request won't be able to get a free connection from the pool.
+    withSQLConf("spark.delta.sharing.maxConnections" -> "1") {
+      val seed = System.currentTimeMillis()
+      // scalastyle:off println
+      println(s"seed for random access stream test: $seed")
+      // scalastyle:on println
+      val r = new Random(seed)
+      val tablePath = testProfileFile.getCanonicalPath + "#share1.default.table1"
+      val file = spark.read.format("deltaSharing").load(tablePath).inputFiles.head
+      var content: Array[Byte] = null
+      withSQLConf("spark.delta.sharing.loadDataFilesInMemory" -> "true") {
+        FileSystem.closeAll()
+        val fs = new Path(file).getFileSystem(spark.sessionState.newHadoopConf())
+        val input = fs.open(new Path(file))
+        assert(input.getWrappedStream.isInstanceOf[InMemoryHttpInputStream])
+        try {
+          content = IOUtils.toByteArray(input)
+        } finally {
+          input.close()
+        }
+      }
       FileSystem.closeAll()
       val fs = new Path(file).getFileSystem(spark.sessionState.newHadoopConf())
       val input = fs.open(new Path(file))
-      assert(input.getWrappedStream.isInstanceOf[InMemoryHttpInputStream])
       try {
-        content = IOUtils.toByteArray(input)
+        assert(input.getWrappedStream.isInstanceOf[RandomAccessHttpInputStream])
+        intercept[EOFException] {
+          input.seek(-1)
+        }
+        intercept[EOFException] {
+          input.seek(content.length)
+        }
+        var currentPos = 0
+        var i = r.nextInt(10) + 5
+        while (i >= 0) {
+          i -= 1
+          val nextAction = r.nextInt(2)
+          if (nextAction == 0) { // seek
+            currentPos = r.nextInt(content.length)
+            input.seek(currentPos)
+          } else { // read
+            val readSize = r.nextInt(content.length - currentPos + 1)
+            val buf = new Array[Byte](readSize)
+            input.readFully(buf)
+            assert(buf.toList == content.slice(currentPos, currentPos + readSize).toList)
+            currentPos += readSize
+          }
+        }
       } finally {
         input.close()
       }
-    }
-    FileSystem.closeAll()
-    val fs = new Path(file).getFileSystem(spark.sessionState.newHadoopConf())
-    val input = fs.open(new Path(file))
-    try {
-      assert(input.getWrappedStream.isInstanceOf[RandomAccessHttpInputStream])
-      intercept[EOFException] {
-        input.seek(-1)
-      }
-      intercept[EOFException] {
-        input.seek(content.length)
-      }
-      var currentPos = 0
-      var i = r.nextInt(10) + 5
-      while (i >= 0) {
-        i -= 1
-        val nextAction = r.nextInt(2)
-        if (nextAction == 0) { // seek
-          currentPos = r.nextInt(content.length)
-          input.seek(currentPos)
-        } else { // read
-          val readSize = r.nextInt(content.length - currentPos + 1)
-          val buf = new Array[Byte](readSize)
-          input.readFully(buf)
-          assert(buf.toList == content.slice(currentPos, currentPos + readSize).toList)
-          currentPos += readSize
-        }
-      }
-    } finally {
-      input.close()
     }
   }
 }

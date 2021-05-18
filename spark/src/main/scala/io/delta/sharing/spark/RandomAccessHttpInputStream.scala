@@ -48,6 +48,7 @@ import org.apache.hadoop.fs.{FSExceptionMessages, FSInputStream, FileSystem}
 import org.apache.http.HttpStatus
 import org.apache.http.client.HttpClient
 import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
+import org.apache.http.conn.EofSensorInputStream
 import org.apache.spark.internal.Logging
 
 /**
@@ -62,8 +63,6 @@ class RandomAccessHttpInputStream(
 
   private var closed = false
   private var pos = 0L
-
-  private var httpRequest: HttpRequestBase = null
   private var currentStream: InputStream = null
 
   private def assertNotClosed(): Unit = {
@@ -136,7 +135,7 @@ class RandomAccessHttpInputStream(
     } else {
       logDebug(s"Opening file $uri at pos $pos")
 
-      httpRequest = createHttpRequest(pos)
+      val httpRequest = createHttpRequest(pos)
       val response = client.execute(httpRequest)
       val status = response.getStatusLine()
       val entity = response.getEntity()
@@ -175,12 +174,11 @@ class RandomAccessHttpInputStream(
    * remaining bytes are still a lot. See `EofSensorInputStream` for more details.
    */
   private def abortCurrentStream(): Unit = {
-    if (httpRequest != null) {
-      httpRequest.abort()
-      httpRequest = null
-    }
     if (currentStream != null) {
-      currentStream.close()
+      currentStream match {
+        case e: EofSensorInputStream => e.abortConnection()
+        case _ => currentStream.close()
+      }
       currentStream = null
     }
   }
