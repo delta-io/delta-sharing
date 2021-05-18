@@ -23,7 +23,7 @@ import org.apache.hadoop.fs.Path
 import java.nio.charset.StandardCharsets.UTF_8
 
 case class DeltaSharingProfile(
-    version: Option[Int] = Some(DeltaSharingProfile.CURRENT),
+    shareCredentialsVersion: Option[Int] = Some(DeltaSharingProfile.CURRENT),
     endpoint: String = null,
     bearerToken: String = null)
 
@@ -50,13 +50,17 @@ class DeltaSharingFileProfileProvider(
     } finally {
       input.close()
     }
-    if (profile.version.isEmpty) {
-      throw new IllegalArgumentException("Cannot find the 'version' field in the profile file")
+    if (profile.shareCredentialsVersion.isEmpty) {
+      throw new IllegalArgumentException(
+        "Cannot find the 'shareCredentialsVersion' field in the profile file")
     }
-    if (profile.version.get > DeltaSharingProfile.CURRENT) {
-      throw new IllegalArgumentException(s"The 'version' (${profile.version.get}) in the profile " +
-        s"is too new. The current release supports version ${DeltaSharingProfile.CURRENT} and " +
-        s"below. Please upgrade to a newer release.")
+
+    if (profile.shareCredentialsVersion.get > DeltaSharingProfile.CURRENT) {
+      throw new IllegalArgumentException(
+        s"'shareCredentialsVersion' in the profile is " +
+          s"${profile.shareCredentialsVersion.get} which is too new. The current release " +
+          s"supports version ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer " +
+          s"release.")
     }
     if (profile.endpoint == null) {
       throw new IllegalArgumentException("Cannot find the 'endpoint' field in the profile file")

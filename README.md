@@ -8,9 +8,29 @@
 
 This repo includes a Pandas connector and an Apache Spark connector that implement the [Delta Sharing Protocol](PROTOCOL.md), and a reference implementation of a Delta Sharing server.
 
-## Data Share Profile
+# Quick Start
 
+## Get the Share Profile File
 
+The first step to read shared Delta tables is getting a profile file from your share provider. It's a JSON file that contains the information to access a sharing server. There are three fields.
+
+Field Name | Descrption
+-|-
+shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client.
+endpoint | The url of the sharing server.
+bearerToken | The [bearer token](https://tools.ietf.org/html/rfc6750) to access the server.
+
+Example:
+
+```
+{
+  "shareCredentialsVersion": 1,
+  "endpoint": "https://sharing.delta.io/delta-sharing/",
+  "bearerToken": "<token>"
+}
+```
+
+The Delta Sharing library will need this file to access the shared tables.
 
 ## Pandas Connector
 

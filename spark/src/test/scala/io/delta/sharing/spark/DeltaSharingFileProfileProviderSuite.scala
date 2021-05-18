@@ -23,7 +23,7 @@ import org.apache.spark.SparkFunSuite
 
 class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
 
-  def testProfile(profile: String, expected: DeltaSharingProfile): Unit = {
+  private def testProfile(profile: String, expected: DeltaSharingProfile): Unit = {
     val temp = Files.createTempFile("test", ".share").toFile
     try {
       FileUtils.writeStringToFile(temp, profile, "UTF-8")
@@ -37,12 +37,12 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
   test("parse") {
     testProfile(
       """{
-        |  "version": 1,
+        |  "shareCredentialsVersion": 1,
         |  "endpoint": "foo",
         |  "bearerToken": "bar"
         |}
         |""".stripMargin,
-      DeltaSharingProfile(version = Some(1), endpoint = "foo", bearerToken = "bar")
+      DeltaSharingProfile(shareCredentialsVersion = Some(1), endpoint = "foo", bearerToken = "bar")
     )
   }
 
@@ -57,27 +57,29 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
         null
       )
     }
-    assert(e.getMessage.contains("Cannot find the 'version' field in the profile file"))
+    assert(e.getMessage.contains(
+      "Cannot find the 'shareCredentialsVersion' field in the profile file"))
   }
 
-  test("version is not supported") {
+  test("shareCredentialsVersion is not supported") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         """{
-          |  "version": 100
+          |  "shareCredentialsVersion": 100
           |}
           |""".stripMargin,
         null
       )
     }
-    assert(e.getMessage.contains("The 'version' (100) in the profile is too new."))
+    assert(e.getMessage.contains(
+      "'shareCredentialsVersion' in the profile is 100 which is too new."))
   }
 
   test("endpoint is missing") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         """{
-          |  "version": 1,
+          |  "shareCredentialsVersion": 1,
           |  "bearerToken": "bar"
           |}
           |""".stripMargin,
@@ -91,7 +93,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         """{
-          |  "version": 1,
+          |  "shareCredentialsVersion": 1,
           |  "endpoint": "foo"
           |}
           |""".stripMargin,
@@ -104,13 +106,13 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
   test("unknown field should be ignored") {
     testProfile(
       """{
-        |  "version": 1,
+        |  "shareCredentialsVersion": 1,
         |  "endpoint": "foo",
         |  "bearerToken": "bar",
         |  "futureField": "xyz"
         |}
         |""".stripMargin,
-      DeltaSharingProfile(version = Some(1), endpoint = "foo", bearerToken = "bar")
+      DeltaSharingProfile(shareCredentialsVersion = Some(1), endpoint = "foo", bearerToken = "bar")
     )
   }
 }

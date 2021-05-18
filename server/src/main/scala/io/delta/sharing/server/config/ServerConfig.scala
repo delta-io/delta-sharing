@@ -58,6 +58,7 @@ case class ServerConfig(
   @BeanProperty var version: Int,
   @BeanProperty var shares: java.util.List[ShareConfig],
   @BeanProperty var authorization: Authorization,
+  @BeanProperty var ssl: Boolean = true,
   @BeanProperty var host: String = "localhost",
   @BeanProperty var port: Int = 443,
   @BeanProperty var endpoint: String = "/delta-sharing",

@@ -47,7 +47,7 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
       testProfileFile = Files.createTempFile("delta-test", ".share").toFile
       FileUtils.writeStringToFile(testProfileFile,
         s"""{
-          |  "version": 1,
+          |  "shareCredentialsVersion": 1,
           |  "endpoint": "https://localhost:$TEST_PORT/delta-sharing",
           |  "bearerToken": "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
           |}""".stripMargin, "UTF-8")

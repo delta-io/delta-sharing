@@ -197,12 +197,15 @@ object DeltaSharingService {
       updateDefaultJsonPrinterForScalaPbConverterUtil()
       val builder = Server.builder()
         .defaultHostname(serverConfig.getHost)
-        .https(serverConfig.getPort)
-        // TODO TLS Config
-        .tlsSelfSigned()
         .disableDateHeader()
         .disableServerHeader()
         .annotatedService(serverConfig.endpoint, new DeltaSharingService(serverConfig): Any)
+      if (serverConfig.ssl) {
+        // TODO TLS Config
+        builder.https(serverConfig.getPort).tlsSelfSigned()
+      } else {
+        builder.http(serverConfig.getPort)
+      }
       if (serverConfig.getAuthorization != null) {
         // Authorization is set. Set up the authorization using the token in the server config.
         val authServiceBuilder =
