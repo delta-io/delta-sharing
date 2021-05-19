@@ -1,0 +1,29 @@
+---
+# The format version of this config file
+version: 1
+# Config shares/schemas/tables to share
+shares:
+- name: "share1"
+  schemas:
+  - name: "schema1"
+    tables:
+    - name: "table1"
+      location: "s3a://<bucket-name>/<the-table-path>"
+    - name: "table2"
+      location: "s3a://<bucket-name>/<the-table-path>"
+- name: "share2"
+  schemas:
+  - name: "schema2"
+    tables:
+    - name: "table3"
+      location: "s3a://<bucket-name>/<the-table-path>"
+# Set the host name that the server will use
+host: "localhost"
+# Set the port that the server will listen on
+port: 10000
+# Set whether turn on SSL
+ssl: false
+# Set the url prefix for the REST APIs
+endpoint: "/delta-sharing"
+# Set the timeout of S3 presigned url in seconds
+preSignedUrlTimeoutSeconds: 900

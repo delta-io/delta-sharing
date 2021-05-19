@@ -75,6 +75,10 @@ object DeltaTableHelper {
     }
     val deltaLog = DeltaLog.forTable(conf, tablePath).asInstanceOf[DeltaLogImpl]
     val snapshot = deltaLog.snapshot
+    if (snapshot.version < 0) {
+      throw new IllegalStateException(s"The table ${tableConfig.getName} " +
+        s"doesn't exist on the file system or is not a Delta table")
+    }
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
     val selectedFiles = state.activeFiles.values.toSeq

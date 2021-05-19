@@ -168,7 +168,7 @@ lazy val spark = (project in file("spark")) settings(
   )
 )
 
-lazy val server = (project in file("server")) settings(
+lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) settings(
   name := "delta-sharing-server",
   commonSettings,
   scalaStyleSettings,
