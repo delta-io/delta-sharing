@@ -34,7 +34,7 @@
 
 # Overview
 
-This document is a specification for the Delta Sharing Protocol, which is the open protocol for secure data sharing, making it sipmle to share data with other organizations regardless of which computing platforms they use. The protocol defines the REST APIs and the formats of messages used by any clients and servers to exchange data.
+This document is a specification for the Delta Sharing Protocol, which is the industry's first open protocol for secure data sharing, making it simple to share data with other organizations regardless of which computing platforms they use. The protocol defines the REST APIs and the formats of messages used by any clients and servers to exchange data.
 
 # Delta Sharing Specification
 
@@ -42,13 +42,13 @@ This document is a specification for the Delta Sharing Protocol, which is the op
 
 - Share: A share is a logical grouping to share with recipients. A share can be shared with one or multiple recipients. A recipient can access all resources in a share. A share may contain multiple schemas.
 - Schema: A schema is a logical grouping of tables. A schema may contain multiple tables.
-- Table: A table is a Delta table or a view on top of a Delta table.
+- Table: A table is a [Delta](https://delta.io/) table or a view on top of a Delta table.
 - Recipient: A principal that has a bearer token to access shared tables.
 - Sharing Server: A server that implements this protocol.
 
 ## REST APIs
 
-Here are the list of APIs used by Delta Sharing Protocol. All of the REST APIs use [bearer tokens for authorization](https://tools.ietf.org/html/rfc6750). The prefix of each API is configurable, and servers hosted by different providers may pick up different prefixes.
+Here are the list of APIs used by Delta Sharing Protocol. All of the REST APIs use [bearer tokens for authorization](https://tools.ietf.org/html/rfc6750). The `{prefix}` of each API is configurable, and servers hosted by different providers may pick up different prefixes.
 
 ### List Shares
 
@@ -59,7 +59,7 @@ HTTP Parameters | Value
 HTTP Method | GET
 Header | Authorization: Bearer {token}
 URL | {prefix}/shares
-Query Parameters | **maxResults** (type: Int, optional): The maximum number of results per page that should be returned. If the number of available results is larger than maxResults, the response will provide a nextPageToken that can be used to get the next page of results in subsequent list requests. The server may return fewer than maxResults items even if there are more available. The client should check nextPageToken in the response to determine if there are more available.<br><br>**pageToken** (type: String, optional): Specifies a page token to use. Set pageToken to the nextPageToken returned by a previous list request to get the next page of results. nextPageToken will not be returned in a response if there are no more results available.
+Query Parameters | **maxResults** (type: Int, optional): The maximum number of results per page that should be returned. If the number of available results is larger than `maxResults`, the response will provide a `nextPageToken` that can be used to get the next page of results in subsequent list requests. The server may return fewer than `maxResults` items even if there are more available. The client should check `nextPageToken` in the response to determine if there are more available.<br><br>**pageToken** (type: String, optional): Specifies a page token to use. Set `pageToken` to the `nextPageToken` returned by a previous list request to get the next page of results. `nextPageToken` will not be returned in a response if there are no more results available.
 Response Header | Content-Type: application/json; charset=utf-8
 Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>    }<br>  ],<br>  "nextPageToken": string,<br>}</pre>
 
@@ -92,7 +92,7 @@ HTTP Method | GET
 Header | Authorization: Bearer {token}
 URL | {prefix}/shares/{share}/schemas
 URL Parameters | **{share}**: The share name to query.
-Query Parameters | **{share}**: The share name to query.<br><br>**maxResults** (type: Int, optional): The maximum number of results per page that should be returned. If the number of available results is larger than maxResults, the response will provide a nextPageToken that can be used to get the next page of results in subsequent list requests. The server may return fewer than maxResults items even if there are more available. The client should check nextPageToken in the response to determine if there are more available.<br><br>**pageToken** (type: String, optional): Specifies a page token to use. Set pageToken to the nextPageToken returned by a previous list request to get the next page of results. nextPageToken will not be returned in a response if there are no more results available.
+Query Parameters | **maxResults** (type: Int, optional): The maximum number of results per page that should be returned. If the number of available results is larger than `maxResults`, the response will provide a `nextPageToken` that can be used to get the next page of results in subsequent list requests. The server may return fewer than `maxResults` items even if there are more available. The client should check `nextPageToken` in the response to determine if there are more available.<br><br>**pageToken** (type: String, optional): Specifies a page token to use. Set `pageToken` to the `nextPageToken` returned by a previous list request to get the next page of results. `nextPageToken` will not be returned in a response if there are no more results available.
 Response Header | Content-Type: application/json; charset=utf-8
 Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>      "share": string<br>    }<br>  ],<br>  "nextPageToken": string,<br>}</pre>
 
@@ -123,9 +123,9 @@ HTTP Method | GET
 Header | Authorization: Bearer {token}
 URL | {prefix}/shares/{share}/schemas/{schema}/tables
 URL Parameters | **{share}**: The share name to query.<br>**{schema}**: The schema name to query.
-Query Parameters | <br>**maxResults** (type: Int, optional): The maximum number of results per page that should be returned. If the number of available results is larger than maxResults, the response will provide a nextPageToken that can be used to get the next page of results in subsequent list requests. The server may return fewer than maxResults items even if there are more available. The client should check nextPageToken in the response to determine if there are more available.<br><br>**pageToken** (type: String, optional): Specifies a page token to use. Set pageToken to the nextPageToken returned by a previous list request to get the next page of results. nextPageToken will not be returned in a response if there are no more results available.
+Query Parameters | **maxResults** (type: Int, optional): The maximum number of results per page that should be returned. If the number of available results is larger than `maxResults`, the response will provide a `nextPageToken` that can be used to get the next page of results in subsequent list requests. The server may return fewer than `maxResults` items even if there are more available. The client should check `nextPageToken` in the response to determine if there are more available.<br><br>**pageToken** (type: String, optional): Specifies a page token to use. Set `pageToken` to the `nextPageToken` returned by a previous list request to get the next page of results. `nextPageToken` will not be returned in a response if there are no more results available.
 Response Header | Content-Type: application/json; charset=utf-8
-Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>      "share": string<br>    }<br>  ],<br>  "nextPageToken": string,<br>}</pre>
+Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>      "schema": string<br>      "share": string<br>    }<br>  ],<br>  "nextPageToken": string,<br>}</pre>
 
 Example:
 
@@ -181,10 +181,10 @@ HTTP Method | GET
 Header | Authorization: Bearer {token}
 URL | {prefix}/shares/{share}/schemas/{schema}/tables/{table}/metadata
 URL Parameters | **{share}**: The share name to query.<br>**{schema}**: The schema name to query.<br>**{table}**: The table name to query.
-Response Header | Content-Type: application/x-ndjson<br>Delta-Table-Version: {version}<br><br>**{version}** is a long value which represents the current table version.
-Response Body | A sequence of JSON strings delimited by newline. Each line is a JSON object defined in Table Metadata Format. <br><br>The response contains two lines:<br>- The first line is a JSON wrapper object containing the table protocol.<br>- The second line is a JSON wrapper object containing the table metadata.
+Response Header | Content-Type: [application/x-ndjson](http://ndjson.org/)<br>Delta-Table-Version: {version}<br><br>**{version}** is a long value which represents the current table version.
+Response Body | A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [Table Metadata Format](#table-metadata-format). <br><br>The response contains two lines:<br>- The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.<br>- The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
 
-Example (See Table Metadata Format for more details about the format):
+Example (See [Table Metadata Format](#table-metadata-format) for more details about the format):
 
 ```
 GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/metadata
@@ -192,7 +192,6 @@ GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patie
 HTTP/2 200 
 content-type: application/x-ndjson; charset=utf-8
 delta-table-version: 123
-server: XXXX
 
 {"protocol":{"minReaderVersion":1}}
 {"metaData":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"]}}
@@ -209,29 +208,25 @@ Header | Authorization: Bearer {token}
 URL | {prefix}/shares/{share}/schemas/{schema}/tables/{table}/query
 URL Parameters | **{share}**: The share name to query.<br>**{schema}**: The schema name to query.<br>**{table}**: The table name to query.
 Request Header | Content-Type: application/json; charset=utf-8
-Request Body | {<br>  "predicateHints": [<br>    string<br>  ],<br>  "limitHint": int<br><br> See below for more details.}
-Response Header | Content-Type: application/x-ndjson<br>Delta-Table-Version: {version}<br><br>**{version}** is a long value which represents the current table version.
-Response Body | A sequence of JSON strings delimited by newline. Each line is a JSON object defined in Table Metadata Format. <br><br>The response contains multiple  lines:<br>- The first line is a JSON wrapper object containing the table protocol.<br>- The second line is a JSON wrapper object containing the table metadata.<br>The rest of the lines are JSON wrapper objects for files in the table.
+Request Body | <pre>{<br>  "predicateHints": [<br>    string<br>  ],<br>  "limitHint": int<br>}</pre><br> See [below](#request-body) for more details.
+Response Header | Content-Type: [application/x-ndjson](http://ndjson.org/)<br>Delta-Table-Version: {version}<br><br>**{version}** is a long value which represents the current table version.
+Response Body | A sequence of JSON strings delimited by newline. Each line is a JSON object defined in Table Metadata Format. <br><br>The response contains multiple  lines:<br>- The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.<br>- The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.<br>- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [files](#file) in the table.
 
 #### Request Body
 
 The response body should be a JSON string containing the following two optional fields:
  
-- predicateHints (type: String, optional): a list of SQL boolean expressions using a restricted subset of SQL, in a JSON array.
+- **predicateHints** (type: String, optional): a list of SQL boolean expressions using [a restricted subset of SQL](#sql-expressions-for-filtering), in a JSON array.
   - When it’s present, the server will use the provided predicates as a hint to apply the SQL predicates on the returned files.
-    - Filtering files based on the SQL predicates is BEST EFFORT. The server may return files that don’t satisfy the predicates.
-    - If the server fails to parse one of the SQL predicates, or fails to evaluate it, the server will skip it.
+    - Filtering files based on the SQL predicates is **BEST EFFORT**. The server may return files that don’t satisfy the predicates.
+    - If the server fails to parse one of the SQL predicates, or fails to evaluate it, the server may skip it.
     - Predicate expressions are conjunctive (AND-ed together).
-  - When it’s absent, the HTTP response will return all files in the table.
+  - When it’s absent, the server will return all of files in the table.
 
-- limitHint (type: Int, optional): an optional limit number. It’s a hint from the client to tell the server how many rows the client plans to read. The server can use this hint to return only some files by using the stats in the Delta transaction logs. For example, when running SELECT * FROM table LIMIT 1000, the client can send limit=1000 to the server.
-  - Applying LIMIT is BEST EFFORT. The server may return files containing more rows than the client requests.
+- **limitHint** (type: Int, optional): an optional limit number. It’s a hint from the client to tell the server how many rows in the table the client plans to read. The server can use this hint to return only some files by using the file stats. For example, when running `SELECT * FROM table LIMIT 1000`, the client can set `limitHint` to `1000`.
+  - Applying `limitHint` is **BEST EFFORT**. The server may return files containing more rows than the client requests.
 
-When `predicateHits` and `limitHint` are both present, the server should apply `predicateHits` first then `limitHint`.
-
-As these two parameters are hints rather than enforcement, the client must always apply predicateHints and limitHint on the response returned by the server if it wishes to filter and limit the returned data.
-
-An empty JSON object should be provided when these two parameters are missing.
+When `predicateHits` and `limitHint` are both present, the server should apply `predicateHits` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
 Example (See Table Metadata Format for more details about the format):
 
@@ -266,21 +261,21 @@ The JSON object in each line is a wrapper object that may contain the following 
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
-protocol | The Protocol JSON object. | Defines the versioning information about the table metadata format. | Optional
-metaData | The Metadata JSON object. | The table metadata including schema, partitionColumns, etc. | Optional
-file | The File JSON object. | An individual data file in the table. | Optional
+protocol | The [Protocol](#protocol) JSON object. | Defines the versioning information about the table metadata format. | Optional
+metaData | The [Metadata](#metadata) JSON object. | The table metadata including schema, partitionColumns, etc. | Optional
+file | The [File](#file) JSON object. | An individual data file in the table. | Optional
 
 It must contain only **ONE** of the above fields.
 
 ### Protocol
 
-Protocol versioning will allow servers to exclude older clients that are missing features required to correctly interpret their response if the Delta Sharing protocol evolves in the future. The protocol version will be increased whenever non-forward-compatible changes are made to the protocol. When a client is running an unsupported protocol version, it should show an error message instructing the user to upgrade to a newer version of their client.
+Protocol versioning will allow servers to exclude older clients that are missing features required to correctly interpret their response if the Delta Sharing Protocol evolves in the future. The protocol version will be increased whenever non-forward-compatible changes are made to the protocol. When a client is running an unsupported protocol version, it should show an error message instructing the user to upgrade to a newer version of their client.
 
 Since only breaking changes must be accompanied by an increase in the protocol version recorded in a table, clients can assume that any unrecognized fields in a response that supports their reader version are never required in order to correctly interpret the response.
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
-minReaderVersion | Int | The minimum version of the protocol  that a client must implement in order to correctly read a Delta table. Currently it’s always 1. It will be changed in future when we introduce non-forward-compatible changes that require clients to implement. | Required
+minReaderVersion | Int | The minimum version of the protocol that a client must implement in order to correctly read a Delta table. Currently it’s always `1`. It will be changed in future when we introduce non-forward-compatible changes that require clients to implement. | Required
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -299,11 +294,11 @@ Field Name | Data Type | Description | Optional/Required
 id | String | Unique identifier for this table | Required
 name | String | User-provided identifier for this table | Optional
 description | String | User-provided description for this table | Optional
-format | Format Object | Specification of the encoding for the files stored in the table. | Required
-schemaString | String | Schema of the table. This is a serialized JSON string which can be deserialized to a Schema Object. | Required
-partitionColumns | Array<String> | An array containing the names of columns by which the data should be partitioned. When a table doesn’t have partition columns, this will be an empty array. | Required
+format | [Format](#format) Object | Specification of the encoding for the files stored in the table. | Required
+schemaString | String | Schema of the table. This is a serialized JSON string which can be deserialized to a [Schema](#schema-object) Object. | Required
+partitionColumns | Array<String> | An array containing the names of columns by which the data should be partitioned. When a table doesn’t have partition columns, this will be an **empty** array. | Required
 
-Example for illustration purposes; each JSON object must be a single line in the response):
+Example (for illustration purposes; each JSON object must be a single line in the response):
 
 ```
 {
@@ -326,9 +321,9 @@ Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | A https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
 id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
-partitionValues | Map[String, String] | A map from partition column to value for this file. See  Partition Value Serialization for how to parse the partition values. When the table doesn’t have partition columns, this will be an empty map. | Required
+partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
-stats | String | Contains statistics (e.g., count, min/max values for columns) about the data in this file. This field may be missing. A file may or may not have stats. This is a serialized JSON string which can be deserialized to a Statistics Struct. A client can decide whether to use stats or drop it. | Optional
+stats | String | Contains statistics (e.g., count, min/max values for columns) about the data in this file. This field may be missing. A file may or may not have stats. This is a serialized JSON string which can be deserialized to a [Statistics Struct](#per-file-statistics). A client can decide whether to use stats or drop it. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -350,7 +345,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
-provider | String | Name of the encoding for data files in this table. Currently the only valid value is parquet. This is to enable possible support for other formats in the future. | Required
+provider | String | Name of the encoding for data files in this table. Currently the only valid value is `parquet`. This is to enable possible support for other formats in the future. | Required
 
 ### Schema Object
 
@@ -362,7 +357,7 @@ A struct is used to represent both the top-level schema of the table as well as 
 
 Field Name | Description
 -|-
-type | Always the string "struct"
+type | Always the string `struct`
 fields | An array of fields
 
 #### Struct Field
@@ -373,23 +368,23 @@ Field Name | Description
 -|-
 name | Name of this (possibly nested) column
 type | String containing the name of a primitive type, a struct definition, an array definition or a map definition
-nullable | Boolean denoting whether this field can be null
-metadata | A JSON map containing information about this column. For example, the "comment" key means its value is the column comment.
+nullable | Boolean denoting whether this field can be `null`
+metadata | A JSON map containing information about this column. For example, the `comment` key means its value is the column comment.
 
 #### Primitive Types
 
 Field Name | Description
 -|-
 string | UTF-8 encoded string of characters
-long | 8-byte signed integer. Range: -9223372036854775808 to 9223372036854775807
-integer | 4-byte signed integer. Range: -2147483648 to 2147483647
-short | 2-byte signed integer numbers. Range: -32768 to 32767
-byte | 1-byte signed integer number. Range: -128 to 127
+long | 8-byte signed integer. Range: `-9223372036854775808` to `9223372036854775807`
+integer | 4-byte signed integer. Range: `-2147483648` to `2147483647`
+short | 2-byte signed integer numbers. Range: `-32768` to `32767`
+byte | 1-byte signed integer number. Range: `-128` to `127`
 float | 4-byte single-precision floating-point numbers
 double | 8-byte double-precision floating-point numbers
-boolean | true or false
+boolean | `true` or `false`
 binary | A sequence of binary data
-date | A calendar date, represented as a year-month-day triple without a timezone
+date | A calendar date, represented as a `year-month-day` triple without a timezone
 timestamp | Microsecond precision timestamp without a timezone
 
 #### Array Type
@@ -398,7 +393,7 @@ An array stores a variable length collection of items of some type.
 
 Field Name | Description
 -|-
-type | Always the string "array"
+type | Always the string `array`
 elementType | The type of element stored in this array represented as a string containing the name of a primitive type, a struct definition, an array definition or a map definition
 containsNull | Boolean denoting whether this array can contain one or more null values
 
@@ -408,10 +403,10 @@ A map stores an arbitrary length collection of key-value pairs with a single key
 
 Field Name | Description
 -|-
-type | Always the string "map"
+type | Always the string `map`
 keyType | The type of element used for the key of this map, represented as a string containing the name of a primitive type, a struct definition, an array definition or a map definition
 valueType | The type of element used for the key of this map, represented as a string containing the name of a primitive type, a struct definition, an array definition or a map definition
-valueContainsNull | Indicates if map values have "null" values.
+valueContainsNull | Indicates if map values have `null` values.
 
 #### Example
 
@@ -498,19 +493,19 @@ JSON Encoded Table Schema:
 
 ### Partition Value Serialization
 
-Partition values are stored as strings, using the following formats. An empty string for any type translates to a null partition value.
+Partition values are stored as strings, using the following formats. An empty string for any type translates to a `null` partition value.
 
 Type | Serialization Format
 -|-
 string | No translation required
 numeric types | The string representation of the number
-date | Encoded as {year}-{month}-{day}. For example, 1970-01-01
-timestamp | Encoded as {year}-{month}-{day} {hour}:{minute}:{second}. For example: 1970-01-01 00:00:00
-boolean | Encoded as the string "true" or "false"
+date | Encoded as `{year}-{month}-{day}`. For example, `1970-01-01`
+timestamp | Encoded as `{year}-{month}-{day} {hour}:{minute}:{second}`. For example: `1970-01-01 00:00:00`
+boolean | Encoded as the string `true` or `false`
 
 ### Per-file Statistics
 
-A File JSON object can optionally contain statistics about the data in the file being added to the table. These statistics can be used for eliminating files based on query predicates or as inputs to query optimization.
+A [File](#file) JSON object can optionally contain statistics about the data in the file being added to the table. These statistics can be used for eliminating files based on query predicates or as inputs to query optimization.
 
 Global statistics record information about the entire file. The following global statistic is currently supported:
 
@@ -610,13 +605,13 @@ The following per-column statistics are currently supported:
 
 Name | Description
 -|-
-nullCount | The number of null values for this column
+nullCount | The number of `null` values for this column
 minValues | A value smaller than all values present in the file for this column
 maxValues | A value larger than all values present in the file for this column
 
 ## SQL Expressions for Filtering
 
-The client may send a sequence of predicates to the server as a hint to request fewer files when it only wishes to query a subset of the data (e.g., data where the “country” field is “US”). The server may try its best to filter files based on the predicates. This is BEST EFFORT, so the server may return files that don’t satisfy the predicates. For example, if the server fails to parse a SQL expression, the server can skip it. Hence, the client should always apply predicates to filter the data returned by the server.
+The client may send a sequence of predicates to the server as a hint to request fewer files when it only wishes to query a subset of the data (e.g., data where the `country` field is `US`). The server may try its best to filter files based on the predicates. This is **BEST EFFORT**, so the server may return files that don’t satisfy the predicates. For example, if the server fails to parse a SQL expression, the server can skip it. Hence, the client should always apply predicates to filter the data returned by the server.
 
 At the beginning, the server will support the following simple comparison expressions between a column in the table and a constant value.
 

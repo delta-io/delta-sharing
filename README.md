@@ -2,11 +2,11 @@
 
 [![Build and Test](https://github.com/delta-io/delta-sharing/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/delta-io/delta-sharing/actions/workflows/build-and-test.yml)
 
-[Delta Sharing](https://delta.io/sharing) is an open API to share [Delta Lake](https://delta.io/) tables between data providers and data recipients.
+[Delta Sharing](https://delta.io/sharing) is the industry's first open protocol for secure data sharing, making it simple to share data with other organizations regardless of which computing platforms they use. 
 
 # Introduction
 
-This repo includes a Pandas connector and an Apache Spark connector that implement the [Delta Sharing Protocol](PROTOCOL.md), and a reference implementation of a Delta Sharing server.
+This repo includes a Pandas connector and an Apache Spark connector that implement the [Delta Sharing Protocol](PROTOCOL.md), and a reference implementation of the Delta Sharing server.
 
 # Quick Start
 
