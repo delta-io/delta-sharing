@@ -23,7 +23,7 @@ import pytest
 from pytest import TempPathFactory
 
 from delta_sharing.delta_sharing import SharingClient
-from delta_sharing.protocol import ShareProfile
+from delta_sharing.protocol import DeltaSharingProfile
 from delta_sharing.rest_client import DataSharingRestClient
 
 
@@ -37,8 +37,8 @@ def profile_path() -> str:
 
 
 @pytest.fixture
-def profile(profile_path) -> ShareProfile:
-    return ShareProfile.read_from_file(profile_path)
+def profile(profile_path) -> DeltaSharingProfile:
+    return DeltaSharingProfile.read_from_file(profile_path)
 
 
 @pytest.fixture
