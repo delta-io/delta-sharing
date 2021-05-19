@@ -23,9 +23,9 @@ import fsspec
 
 @dataclass(frozen=True)
 class ShareProfile:
-    version: int
+    share_credentials_version: int
     endpoint: str
-    token: str
+    bearer_token: str
 
     @staticmethod
     def read_from_file(profile: Union[str, IO, Path]) -> "ShareProfile":
@@ -45,7 +45,9 @@ class ShareProfile:
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
         return ShareProfile(
-            version=int(json["version"]), endpoint=json["endpoint"], token=json["bearerToken"]
+            share_credentials_version=int(json["shareCredentialsVersion"]),
+            endpoint=json["endpoint"],
+            bearer_token=json["bearerToken"],
         )
 
 

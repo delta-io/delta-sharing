@@ -66,8 +66,8 @@ class DataSharingRestClient:
         self._profile = profile
 
         self._session = requests.Session()
-        self._session.headers.update({"Authorization": f"Bearer {profile.token}"})
-        if urlparse(profile.endpoint).netloc in ("localhost", "localhost:443"):
+        self._session.headers.update({"Authorization": f"Bearer {profile.bearer_token}"})
+        if urlparse(profile.endpoint).hostname == "localhost":
             self._session.verify = False
         # TODO Remove this. This is added for demo.
         self._session.verify = False

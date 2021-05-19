@@ -32,7 +32,7 @@ from delta_sharing.protocol import (
 def test_share_profile(tmp_path):
     json = """
         {
-            "version": 1,
+            "shareCredentialsVersion": 1,
             "endpoint": "https://localhost/delta-sharing/",
             "bearerToken": "token"
         }
