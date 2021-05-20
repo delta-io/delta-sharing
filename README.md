@@ -151,7 +151,7 @@ spark.sql("SELECT * FROM COVID_19_NYT")
 val tableUrl = "https://sharing.delta.io/open-profile.share#delta_sharing.default.COVID_19_NYT"
 
 // Access the table using DataFrame APIs.
-df = spark.read.format("deltaSharing").load(tableUrl)
+val df = spark.read.format("deltaSharing").load(tableUrl)
 
 // Register the table in catalog and use SQL to access it.
 spark.sql(s"CREATE TABLE COVID_19_NYT USING deltaSharing LOCATION '$table_url'")
@@ -188,7 +188,7 @@ Download the pre-built package `delta-sharing-server-x.y.z.zip` from [GitHub Rel
 
 ## Config the shared tables for the server
 
-- Unpack the pre-built package and copy the server config template file `conf/delta-sharing-server.yaml.templace` to create your own server yaml file, such as `conf/delta-sharing-server.yaml`.
+- Unpack the pre-built package and copy the server config template file `conf/delta-sharing-server.yaml.template` to create your own server yaml file, such as `conf/delta-sharing-server.yaml`.
 - Make changes to your yaml file, such as add the Delta tables you would like to share in this server. You may also need to update some server configs for special requirements.
 
 ## Config the server to access tables on S3
