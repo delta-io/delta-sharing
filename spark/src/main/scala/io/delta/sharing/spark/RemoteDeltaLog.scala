@@ -23,6 +23,7 @@ import org.apache.hadoop.fs.{FileStatus, Path}
 import io.delta.sharing.spark.model.{AddFile, Metadata, Protocol, Table => DeltaSharingTable}
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 import org.apache.spark.sql.{Column, DataFrame, Encoder, SparkSession}
+import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal, PredicateHelper, SubqueryExpression}
@@ -255,7 +256,17 @@ class RemoteTahoeLogFileIndex(
               toDeltaPath(f))
           }.toArray
 
-          PartitionDirectory(new GenericInternalRow(rowValues), fileStats)
+          try {
+            // Databricks Runtime has a different `PartitionDirectory.apply` method. We need to use
+            // Java Reflection to call it.
+            classOf[PartitionDirectory].getMethod("apply", classOf[InternalRow], fileStats.getClass)
+              .invoke(null, new GenericInternalRow(rowValues), fileStats)
+              .asInstanceOf[PartitionDirectory]
+          } catch {
+            case _: NoSuchMethodException =>
+              // This is not in Databricks Runtime. We can call Spark's PartitionDirectory directly.
+              PartitionDirectory(new GenericInternalRow(rowValues), fileStats)
+          }
       }.toSeq
   }
 }

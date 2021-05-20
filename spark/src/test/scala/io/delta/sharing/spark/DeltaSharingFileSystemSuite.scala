@@ -18,6 +18,7 @@ package io.delta.sharing.spark
 
 import java.net.URI
 
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkFunSuite
 
@@ -32,5 +33,14 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
     val uri2 = new URI("file:///foo")
     assert(restoreUri(createPath(uri2, 200)) == (uri2, 200))
     assert(restoreUri(new Path(createPath(uri2, 100).toString)) == (uri2, 100))
+  }
+
+  test("file system should be cached") {
+    val uri = new URI("https://delta.io/foo")
+    val path = createPath(uri, 100)
+    val conf = new Configuration
+    val fs = path.getFileSystem(conf)
+    assert(fs.isInstanceOf[DeltaSharingFileSystem])
+    assert(fs eq path.getFileSystem(conf))
   }
 }

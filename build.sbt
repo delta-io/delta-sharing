@@ -63,6 +63,11 @@ lazy val releaseSettings = Seq(
           <url>https://github.com/jose-torres</url>
         </developer>
         <developer>
+          <id>ueshin</id>
+          <name>Takuya UESHIN</name>
+          <url>https://github.com/ueshin</url>
+        </developer>
+        <developer>
           <id>zsxwing</id>
           <name>Shixiong Zhu</name>
           <url>https://github.com/zsxwing</url>
