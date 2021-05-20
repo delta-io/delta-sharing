@@ -16,7 +16,8 @@ jobs:
           path: |
             ~/.sbt
             ~/.ivy2
-          key: build-and-test
+            ~/.cache/coursier
+          key: build-and-test-scala
       - name: Install Java 8
         uses: actions/setup-java@v1
         with:
@@ -50,7 +51,8 @@ jobs:
           path: |
             ~/.sbt
             ~/.ivy2
-          key: build-and-test
+            ~/.cache/coursier
+          key: build-and-test-python
       - name: Install Java 8
         uses: actions/setup-java@v1
         with:
