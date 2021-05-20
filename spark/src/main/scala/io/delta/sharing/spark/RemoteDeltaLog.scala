@@ -16,20 +16,22 @@
 
 package io.delta.sharing.spark
 
-import scala.collection.JavaConverters._
 import java.net.URI
 
+import scala.collection.JavaConverters._
+
 import org.apache.hadoop.fs.{FileStatus, Path}
-import io.delta.sharing.spark.model.{AddFile, Metadata, Protocol, Table => DeltaSharingTable}
-import org.apache.spark.sql.types.{DataType, StructField, StructType}
 import org.apache.spark.sql.{Column, DataFrame, Encoder, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal, PredicateHelper, SubqueryExpression}
-import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
+import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
+import org.apache.spark.sql.types.{DataType, StructField, StructType}
+
+import io.delta.sharing.spark.model.{AddFile, Metadata, Protocol, Table => DeltaSharingTable}
 
 class RemoteDeltaLog(table: DeltaSharingTable, path: Path, client: DeltaSharingClient) {
 

@@ -16,14 +16,13 @@
 
 package io.delta.sharing.server.model
 
-import com.fasterxml.jackson.annotation.{JsonInclude}
-import io.delta.sharing.server.util.JsonUtils
+import com.fasterxml.jackson.annotation.JsonInclude
 import org.codehaus.jackson.annotate.JsonRawValue
 
 case class SingleAction(
-  file: AddFile = null,
-  metaData: Metadata = null,
-  protocol: Protocol = null) {
+    file: AddFile = null,
+    metaData: Metadata = null,
+    protocol: Protocol = null) {
 
   def unwrap: Action = {
     if (file != null) {
@@ -41,19 +40,19 @@ case class SingleAction(
 case class Format(provider: String = "parquet")
 
 case class Metadata(
-  id: String = null,
-  name: String = null,
-  description: String = null,
-  format: Format = Format(),
-  schemaString: String = null,
-  partitionColumns: Seq[String] = Nil) extends Action {
+    id: String = null,
+    name: String = null,
+    description: String = null,
+    format: Format = Format(),
+    schemaString: String = null,
+    partitionColumns: Seq[String] = Nil) extends Action {
+
   override def wrap: SingleAction = SingleAction(metaData = this)
 }
 
 sealed trait Action {
+  /** Turn this object to the [[SingleAction]] wrap object. */
   def wrap: SingleAction
-
-  def json: String = JsonUtils.toJson(wrap)
 }
 
 case class Protocol(minReaderVersion: Int) extends Action {
@@ -61,15 +60,13 @@ case class Protocol(minReaderVersion: Int) extends Action {
 }
 
 case class AddFile(
-  url: String,
-  id: String,
-  @JsonInclude(JsonInclude.Include.ALWAYS)
-  partitionValues: Map[String, String],
-  size: Long,
-  @JsonRawValue
-  stats: String = null) extends Action {
-
-  require(url.nonEmpty)
+    url: String,
+    id: String,
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    partitionValues: Map[String, String],
+    size: Long,
+    @JsonRawValue
+    stats: String = null) extends Action {
 
   override def wrap: SingleAction = SingleAction(file = this)
 }

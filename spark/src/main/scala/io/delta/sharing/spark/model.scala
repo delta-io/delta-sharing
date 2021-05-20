@@ -17,7 +17,6 @@
 package io.delta.sharing.spark.model
 
 import com.fasterxml.jackson.annotation.JsonInclude
-import io.delta.sharing.spark.util.JsonUtils
 import org.codehaus.jackson.annotate.JsonRawValue
 
 case class DeltaTableMetadata(version: Long, protocol: Protocol, metadata: Metadata)
@@ -66,7 +65,6 @@ case class Metadata(
 
 sealed trait Action {
   def wrap: SingleAction
-  def json: String = JsonUtils.toJson(wrap)
 }
 
 case class Protocol(minReaderVersion: Int) extends Action {

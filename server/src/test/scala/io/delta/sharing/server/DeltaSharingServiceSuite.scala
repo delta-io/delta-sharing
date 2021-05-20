@@ -18,25 +18,21 @@ package io.delta.sharing.server
 
 import java.io.IOException
 import java.net.URL
-
-import javax.net.ssl.HostnameVerifier
-import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLSession
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
+import java.nio.charset.StandardCharsets.UTF_8
 import java.security.cert.X509Certificate
-
-import com.linecorp.armeria.server.Server
-import io.delta.sharing.server.config.ServerConfig
-import scalapb.json4s.JsonFormat
-import io.delta.sharing.server.protocol.{ListSchemasResponse, ListSharesResponse, ListTablesResponse, Schema, Share, Table}
-import io.delta.sharing.server.model.{AddFile, Format, Metadata, Protocol, SingleAction}
-import io.delta.sharing.server.util.JsonUtils
-import org.apache.commons.io.IOUtils
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import javax.net.ssl._
 
 import scala.collection.mutable.ArrayBuffer
+
+import com.linecorp.armeria.server.Server
+import org.apache.commons.io.IOUtils
+import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import scalapb.json4s.JsonFormat
+
+import io.delta.sharing.server.config.ServerConfig
+import io.delta.sharing.server.model._
+import io.delta.sharing.server.protocol._
+import io.delta.sharing.server.util.JsonUtils
 
 // scalastyle:off maxLineLength
 class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
@@ -48,7 +44,11 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   private var serverConfig: ServerConfig = _
   private var server: Server = _
 
-  private def enableUntrustedServer(): Unit = {
+  /**
+   * Disable the ssl verification for Java's HTTP client because our local test server doesn't have
+   * CA-signed certificate.
+   */
+  private def allowUntrustedServer(): Unit = {
     val trustAllCerts = Array[TrustManager](new X509TrustManager {
       override def getAcceptedIssuers(): Array[X509Certificate] = null
 
@@ -71,7 +71,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   override def beforeAll() {
     if (shouldRunIntegrationTest) {
-      enableUntrustedServer()
+      allowUntrustedServer()
       val serverConfigPath = TestResource.setupTestTables().getCanonicalPath
       serverConfig = ServerConfig.load(serverConfigPath)
       server = DeltaSharingService.start(serverConfig)
@@ -101,7 +101,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       connection.setRequestProperty("Content-Type", "application/json; charset=utf8")
       val output = connection.getOutputStream()
       try {
-        output.write(d.getBytes("UTF-8"))
+        output.write(d.getBytes(UTF_8))
       } finally {
         output.close()
       }
@@ -300,7 +300,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val files = lines.drop(2)
     val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
     assert(actualFiles.size == 2)
-    // TODO verify stats
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
@@ -351,7 +350,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val files = lines.drop(2)
     val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
     assert(actualFiles.size == 3)
-    // TODO verify stats
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,

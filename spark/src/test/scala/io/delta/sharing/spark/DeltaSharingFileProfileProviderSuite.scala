@@ -16,7 +16,9 @@
 
 package io.delta.sharing.spark
 
+import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
+
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkFunSuite
@@ -26,7 +28,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
   private def testProfile(profile: String, expected: DeltaSharingProfile): Unit = {
     val temp = Files.createTempFile("test", ".share").toFile
     try {
-      FileUtils.writeStringToFile(temp, profile, "UTF-8")
+      FileUtils.writeStringToFile(temp, profile, UTF_8)
       assert(new DeltaSharingFileProfileProvider(new Configuration, temp.getCanonicalPath)
         .getProfile == expected)
     } finally {

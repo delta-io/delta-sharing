@@ -22,11 +22,6 @@ from urllib.parse import urlparse
 
 import requests
 
-# TODO Remove this. This is added for demo.
-import urllib3
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 from delta_sharing.protocol import (
     AddFile,
     DeltaSharingProfile,
@@ -77,8 +72,6 @@ class DataSharingRestClient:
         self._session.headers.update({"Authorization": f"Bearer {profile.bearer_token}"})
         if urlparse(profile.endpoint).hostname == "localhost":
             self._session.verify = False
-        # TODO Remove this. This is added for demo.
-        self._session.verify = False
 
     def list_shares(
         self, *, max_results: Optional[int] = None, page_token: Optional[str] = None

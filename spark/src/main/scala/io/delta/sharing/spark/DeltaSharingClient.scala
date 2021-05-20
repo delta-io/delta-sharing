@@ -18,16 +18,19 @@ package io.delta.sharing.spark
 
 import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
+
 import scala.collection.mutable.ArrayBuffer
-import io.delta.sharing.spark.util.JsonUtils
-import io.delta.sharing.spark.model._
+
 import org.apache.commons.io.IOUtils
 import org.apache.http.{HttpHeaders, HttpHost}
 import org.apache.http.client.methods.{HttpGet, HttpHead, HttpPost, HttpRequestBase}
 import org.apache.http.client.protocol.HttpClientContext
+import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, TrustSelfSignedStrategy}
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
-import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, TrustSelfSignedStrategy}
+
+import io.delta.sharing.spark.model._
+import io.delta.sharing.spark.util.JsonUtils
 
 trait DeltaSharingClient {
   def listAllTables(): Seq[Table]
@@ -200,7 +203,7 @@ class DeltaSharingRestClient(
     val httpPost = new HttpPost(target)
     val json = JsonUtils.toJson(data)
     httpPost.setHeader("Content-type", "application/json")
-    httpPost.setEntity(new StringEntity(json, "UTF-8"))
+    httpPost.setEntity(new StringEntity(json, UTF_8))
     val (version, response) = getResponse(httpPost)
     version.getOrElse {
       throw new IllegalStateException("Cannot find Delta-Table-Version in the header")

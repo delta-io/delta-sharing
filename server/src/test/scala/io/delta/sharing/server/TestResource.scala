@@ -18,6 +18,7 @@ package io.delta.sharing.server
 
 import java.io.File
 import java.nio.file.Files
+
 import io.delta.sharing.server.config._
 
 object TestResource {
@@ -56,8 +57,14 @@ object TestResource {
           )
         ))
     )
-    val serverConfig =
-      ServerConfig(1, shares, Authorization(testAuthorizationToken), port = TEST_PORT)
+
+    val serverConfig = new ServerConfig()
+    serverConfig.setVersion(1)
+    serverConfig.setShares(shares)
+    serverConfig.setAuthorization(Authorization(testAuthorizationToken))
+    serverConfig.setPort(TEST_PORT)
+    serverConfig.setSsl(SSLConfig(selfSigned = true, null, null, null))
+
     serverConfig.save(testConfigFile.getCanonicalPath)
     testConfigFile
   }

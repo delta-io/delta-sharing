@@ -19,9 +19,14 @@ package io.delta.sharing.server
 import java.io.File
 import java.lang.management.ManagementFactory
 
-import io.delta.sharing.server.config.ServerConfig
 import org.apache.commons.io.FileUtils
 
+import io.delta.sharing.server.config.ServerConfig
+
+/**
+ * This is a special test class for the client projects to test end-to-end experience. It will
+ * generate configs for testing and start the server.
+ */
 object TestDeltaSharingServer {
   def main(args: Array[String]): Unit = {
     val pid = ManagementFactory.getRuntimeMXBean().getName().split("@")(0)

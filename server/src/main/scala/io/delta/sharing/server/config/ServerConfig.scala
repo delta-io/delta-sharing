@@ -16,65 +16,65 @@
 
 package io.delta.sharing.server.config
 
-import java.io.File
+import java.io.{File, IOException}
 import java.util.Collections
 
 import scala.beans.BeanProperty
 
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper, SerializationFeature}
+import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 
-case class Authorization(@BeanProperty var bearerToken: String) {
-  def this() {
-    this(null)
-  }
+/** A trait that requires to implement */
+trait ConfigItem {
+  /** Verify whether the config is valid */
+  def checkConfig(): Unit
 }
 
-case class ShareConfig(
-  @BeanProperty var name: String,
-  @BeanProperty var schemas: java.util.List[SchemaConfig]) {
-  def this() {
-    this(null, null)
-  }
-}
-
-case class SchemaConfig(
-  @BeanProperty var name: String,
-  @BeanProperty var tables: java.util.List[TableConfig]) {
-  def this() {
-    this(null, null)
-  }
-}
-
-case class TableConfig(@BeanProperty name: String, @BeanProperty var location: String) {
-
-  def this() {
-    this(null, null)
-  }
-}
-
+/**
+ * The class for the server config yaml file. The yaml file will be loaded as this class.
+ *
+ * As `jackson-dataformat-yaml` only supports Java,  we need to use `@BeanProperty var` to generate
+ * Java bean classes.
+ */
 case class ServerConfig(
-  @BeanProperty var version: Int,
-  @BeanProperty var shares: java.util.List[ShareConfig],
-  @BeanProperty var authorization: Authorization,
-  @BeanProperty var ssl: Boolean = true,
-  @BeanProperty var host: String = "localhost",
-  @BeanProperty var port: Int = 443,
-  @BeanProperty var endpoint: String = "/delta-sharing",
-  @BeanProperty var preSignedUrlTimeoutSeconds: Long = 15 * 60
-  // TODO TLS config
-) {
+    @BeanProperty var version: java.lang.Integer,
+    @BeanProperty var shares: java.util.List[ShareConfig],
+    @BeanProperty var authorization: Authorization,
+    @BeanProperty var ssl: SSLConfig,
+    @BeanProperty var host: String,
+    @BeanProperty var port: Int,
+    @BeanProperty var endpoint: String,
+    @BeanProperty var preSignedUrlTimeoutSeconds: Long,
+    @BeanProperty var deltaTableCacheSize: Int
+) extends ConfigItem {
   import ServerConfig._
 
   def this() = {
-    this(1, Collections.emptyList(), null)
+    // Set default values here
+    this(
+      version = null,
+      shares = Collections.emptyList(),
+      authorization = null,
+      ssl = null,
+      host = "localhost",
+      port = 80,
+      endpoint = "/delta-sharing",
+      preSignedUrlTimeoutSeconds = 15 * 60,
+      deltaTableCacheSize = 10
+    )
   }
 
   private def checkVersion(): Unit = {
+    if (version == null) {
+      throw new IllegalArgumentException("'version' must be provided")
+    }
+    if (version <= 0) {
+      throw new IllegalArgumentException("'version' must be greater than 0")
+    }
     if (version > CURRENT) {
-      throw new IllegalArgumentException(s"The 'version' ($version) in the server config is " +
-        s"too new. The current release supports version $CURRENT and below. " +
+      throw new IllegalArgumentException(s"The 'version' in the server config is $version which " +
+        s"is too new. The current release supports version $CURRENT and below. " +
         s"Please upgrade to a newer release.")
     }
   }
@@ -82,18 +82,22 @@ case class ServerConfig(
   def save(configFile: String): Unit = {
     ServerConfig.save(this, configFile)
   }
+
+  override def checkConfig(): Unit = {
+    checkVersion()
+    shares.forEach(_.checkConfig())
+    if (authorization != null) {
+      authorization.checkConfig()
+    }
+    if (ssl != null) {
+      ssl.checkConfig()
+    }
+  }
 }
 
 object ServerConfig{
   /** The version that we understand */
   private val CURRENT = 1
-
-  private def createJsonObjectMapper = {
-    new ObjectMapper()
-      .enable(SerializationFeature.INDENT_OUTPUT)
-      .setSerializationInclusion(JsonInclude.Include.NON_ABSENT)
-      .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-  }
 
   private def createYamlObjectMapper = {
     new ObjectMapper(new YAMLFactory)
@@ -103,31 +107,116 @@ object ServerConfig{
 
   /**
    * Load the configurations for the server from the config file. If the file name ends with
-   * `.yaml` or `.yml`, load it using the YAML parser. Otherwise, use the JSON parser to load it.
+   * `.yaml` or `.yml`, load it using the YAML parser. Otherwise, throw an error.
    */
   def load(configFile: String): ServerConfig = {
     if (configFile.endsWith(".yaml") || configFile.endsWith(".yml")) {
       val serverConfig =
         createYamlObjectMapper.readValue(new File(configFile), classOf[ServerConfig])
-      serverConfig.checkVersion()
+      serverConfig.checkConfig()
       serverConfig
     } else {
-      val serverConfig =
-        createJsonObjectMapper.readValue(new File(configFile), classOf[ServerConfig])
-      serverConfig.checkVersion()
-      serverConfig
+      throw new IOException("The server config file must be a yml or yaml file")
     }
   }
 
   /**
    * Serialize the [[ServerConfig]] object to the config file. If the file name ends with `.yaml`
-   * or `.yml`, save it as a YAML file. Otherwise, save it as a JSON file.
+   * or `.yml`, save it as a YAML file. Otherwise, throw an error.
    */
   def save(config: ServerConfig, configFile: String): Unit = {
     if (configFile.endsWith(".yaml") || configFile.endsWith(".yml")) {
       createYamlObjectMapper.writeValue(new File(configFile), config)
     } else {
-      createJsonObjectMapper.writeValue(new File(configFile), config)
+      throw new IOException("The server config file must be a yml or yaml file")
+    }
+  }
+}
+
+case class Authorization(@BeanProperty var bearerToken: String) extends ConfigItem {
+
+  def this() {
+    this(null)
+  }
+
+  override def checkConfig(): Unit = {
+    if (bearerToken == null) {
+      throw new IllegalArgumentException("'bearerToken' in 'authorization' must be provided")
+    }
+  }
+}
+
+case class SSLConfig(
+    @BeanProperty var selfSigned: Boolean,
+    // The file of the PEM-format certificate
+    @BeanProperty var certificateFile: String,
+    // The file of the certificate’s private key
+    @BeanProperty var certificateKeyFile: String,
+    // The file storing the password to access the above certificate’s private key if it's protected
+    @BeanProperty var certificatePasswordFile: String) extends ConfigItem {
+
+  def this() {
+    this(selfSigned = false, null, null, null)
+  }
+
+  override def checkConfig(): Unit = {
+    if (!selfSigned) {
+      if (certificateFile == null) {
+        throw new IllegalArgumentException("'certificateFile' in a SSL config must be provided")
+      }
+      if (certificateKeyFile == null) {
+        throw new IllegalArgumentException("'certificateKeyFile' in a SSL config must be provided")
+      }
+    }
+  }
+}
+
+case class ShareConfig(
+    @BeanProperty var name: String,
+    @BeanProperty var schemas: java.util.List[SchemaConfig]) extends ConfigItem {
+
+  def this() {
+    this(null, Collections.emptyList())
+  }
+
+  override def checkConfig(): Unit = {
+    if (name == null) {
+      throw new IllegalArgumentException("'name' in a share must be provided")
+    }
+    schemas.forEach(_.checkConfig())
+  }
+}
+
+case class SchemaConfig(
+    @BeanProperty var name: String,
+    @BeanProperty var tables: java.util.List[TableConfig]) extends ConfigItem {
+
+  def this() {
+    this(null, Collections.emptyList())
+  }
+
+  override def checkConfig(): Unit = {
+    if (name == null) {
+      throw new IllegalArgumentException("'name' in a schema must be provided")
+    }
+    tables.forEach(_.checkConfig())
+  }
+}
+
+case class TableConfig(
+    @BeanProperty var name: String,
+    @BeanProperty var location: String) extends ConfigItem {
+
+  def this() {
+    this(null, null)
+  }
+
+  override def checkConfig(): Unit = {
+    if (name == null) {
+      throw new IllegalArgumentException("'name' in a table must be provided")
+    }
+    if (location == null) {
+      throw new IllegalArgumentException("'location' in a table must be provided")
     }
   }
 }

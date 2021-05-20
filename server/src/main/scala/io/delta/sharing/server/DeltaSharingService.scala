@@ -16,25 +16,35 @@
 
 package io.delta.sharing.server
 
+import java.io.{ByteArrayOutputStream, File}
 import java.nio.charset.StandardCharsets.UTF_8
-import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
 import java.util.concurrent.CompletableFuture
-import com.linecorp.armeria.server.auth.AuthService
-import com.linecorp.armeria.common.auth.OAuth2Token
-import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpRequest, HttpResponse, HttpStatus, ResponseHeaders}
-import com.linecorp.armeria.server.{Server, ServiceRequestContext}
-import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Head, Param, Post}
-import io.delta.standalone.internal.DeltaTableHelper
-import io.delta.sharing.server.protocol._
-import io.delta.sharing.server.config.ServerConfig
-import io.delta.sharing.server.util.JsonUtils
 import javax.annotation.Nullable
+
+import scala.collection.JavaConverters._
+
+import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
+import com.linecorp.armeria.common.auth.OAuth2Token
+import com.linecorp.armeria.internal.server.ResponseConversionUtil
+import com.linecorp.armeria.server.{Server, ServiceRequestContext}
+import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
+import com.linecorp.armeria.server.auth.AuthService
+import io.delta.standalone.internal.DeltaSharedTableLoader
 import net.sourceforge.argparse4j.ArgumentParsers
+import org.apache.commons.io.FileUtils
 import org.slf4j.LoggerFactory
 import scalapb.json4s.Printer
-import com.linecorp.armeria.server.annotation.{ProducesJson, Get}
 
+import io.delta.sharing.server.config.ServerConfig
+import io.delta.sharing.server.model.SingleAction
+import io.delta.sharing.server.protocol._
+import io.delta.sharing.server.util.JsonUtils
+
+/**
+ * A special handler to expose the messages of user facing exceptions to the user. By default, all
+ * of exception messages will not be in the response.
+ */
 class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
   private val logger = LoggerFactory.getLogger(classOf[DeltaSharingServiceExceptionHandler])
 
@@ -42,8 +52,11 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
       ctx: ServiceRequestContext,
       req: HttpRequest,
       cause: Throwable): HttpResponse = {
-    if (cause.isInstanceOf[NoSuchElementException]) {
-      return HttpResponse.of(HttpStatus.NOT_FOUND)
+    if (cause.isInstanceOf[DeltaSharingNoSuchElementException]) {
+      return HttpResponse.of(HttpStatus.NOT_FOUND, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
+    }
+    if (cause.isInstanceOf[DeltaSharingIllegalArgumentException]) {
+      return HttpResponse.of(HttpStatus.BAD_REQUEST, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
     }
     logger.error(cause.getMessage, cause)
     ExceptionHandlerFunction.fallthrough()
@@ -54,14 +67,16 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
 class DeltaSharingService(serverConfig: ServerConfig) {
   import DeltaSharingService.{DELTA_TABLE_VERSION_HEADER, DELTA_TABLE_METADATA_CONTENT_TYPE}
 
-  private val shareManagement = new ShareManagement(serverConfig)
+  private val sharedTableManager = new SharedTableManager(serverConfig)
+
+  private val deltaSharedTableLoader = new DeltaSharedTableLoader(serverConfig)
 
   @Get("/shares")
   @ProducesJson
   def listShares(
       @Param("maxResults") @Default("500") maxResults: Int,
       @Param("pageToken") @Nullable pageToken: String): ListSharesResponse = {
-    val (shares, nextPageToken) = shareManagement.listShares(Option(pageToken), Some(maxResults))
+    val (shares, nextPageToken) = sharedTableManager.listShares(Option(pageToken), Some(maxResults))
     ListSharesResponse(shares, nextPageToken)
   }
 
@@ -72,21 +87,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("maxResults") @Default("500") maxResults: Int,
       @Param("pageToken") @Nullable pageToken: String): ListSchemasResponse = {
     val (schemas, nextPageToken) =
-      shareManagement.listSchemas(share, Option(pageToken), Some(maxResults))
+      sharedTableManager.listSchemas(share, Option(pageToken), Some(maxResults))
     ListSchemasResponse(schemas, nextPageToken)
-  }
-
-  @Head("/shares/{share}/schemas/{schema}/tables/{table}")
-  def getTableVersion(
-      @Param("share") share: String,
-      @Param("schema") schema: String,
-      @Param("table") table: String): HttpResponse = {
-    val tableConfig = shareManagement.getTable(share, schema, table)
-    val version = DeltaTableHelper.getTableVersion(tableConfig)
-    val headers = ResponseHeaders.builder(200)
-      .set(DeltaSharingService.DELTA_TABLE_VERSION_HEADER, version.toString)
-      .build()
-    HttpResponse.of(headers)
   }
 
   @Get("/shares/{share}/schemas/{schema}/tables")
@@ -97,8 +99,23 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("maxResults") @Default("500") maxResults: Int,
       @Param("pageToken") @Nullable pageToken: String): ListTablesResponse = {
     val (tables, nextPageToken) =
-      shareManagement.listTables(share, schema, Option(pageToken), Some(maxResults))
+      sharedTableManager.listTables(share, schema, Option(pageToken), Some(maxResults))
     ListTablesResponse(tables, nextPageToken)
+  }
+
+  private def createHeadersBuilderForTableVersion(version: Long): ResponseHeadersBuilder = {
+    ResponseHeaders.builder(200).set(DELTA_TABLE_VERSION_HEADER, version.toString)
+  }
+
+  @Head("/shares/{share}/schemas/{schema}/tables/{table}")
+  def getTableVersion(
+    @Param("share") share: String,
+    @Param("schema") schema: String,
+    @Param("table") table: String): HttpResponse = {
+    val tableConfig = sharedTableManager.getTable(share, schema, table)
+    val version = deltaSharedTableLoader.loadTable(tableConfig).tableVersion
+    val headers = createHeadersBuilderForTableVersion(version).build()
+    HttpResponse.of(headers)
   }
 
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/metadata")
@@ -107,28 +124,13 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("schema") schema: String,
       @Param("table") table: String): HttpResponse = {
     import scala.collection.JavaConverters._
-    val tableConfig = shareManagement.getTable(share, schema, table)
-    val (version, s) = DeltaTableHelper.query(
-      tableConfig,
-      false,
+    val tableConfig = sharedTableManager.getTable(share, schema, table)
+    val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
+      includeFiles = false,
       Nil,
       None,
       serverConfig.preSignedUrlTimeoutSeconds)
-    val headers = ResponseHeaders.builder(200)
-      .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
-      .set(DELTA_TABLE_VERSION_HEADER, version.toString)
-      .build()
-    com.linecorp.armeria.internal.server.ResponseConversionUtil.streamingFrom(
-      s.asJava.stream(),
-      headers,
-      HttpHeaders.of(),
-      (o: Any) => {
-        val out = new ByteArrayOutputStream
-        JsonUtils.toJson(out, o)
-        out.write('\n')
-        HttpData.wrap(out.toByteArray)
-      },
-      ServiceRequestContext.current().blockingTaskExecutor())
+    streamingOutput(version, actions)
   }
 
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/query")
@@ -138,23 +140,24 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("schema") schema: String,
       @Param("table") table: String,
       queryTableRequest: QueryTableRequest): HttpResponse = {
-    import scala.collection.JavaConverters._
-    val tableConfig = shareManagement.getTable(share, schema, table)
-    val (version, s) = DeltaTableHelper.query(
-      tableConfig,
-      true,
+    val tableConfig = sharedTableManager.getTable(share, schema, table)
+    val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
+      includeFiles = true,
       queryTableRequest.predicateHints,
       queryTableRequest.limitHint,
       serverConfig.preSignedUrlTimeoutSeconds)
-    val headers = ResponseHeaders.builder(200)
+    streamingOutput(version, actions)
+  }
+
+  private def streamingOutput(version: Long, actions: Seq[SingleAction]): HttpResponse = {
+    val headers = createHeadersBuilderForTableVersion(version)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
-      .set(DELTA_TABLE_VERSION_HEADER, version.toString)
       .build()
-    com.linecorp.armeria.internal.server.ResponseConversionUtil.streamingFrom(
-      s.asJava.stream(),
+    ResponseConversionUtil.streamingFrom(
+      actions.asJava.stream(),
       headers,
       HttpHeaders.of(),
-      (o: Any) => {
+      (o: SingleAction) => {
         val out = new ByteArrayOutputStream
         JsonUtils.mapper.writeValue(out, o)
         out.write('\n')
@@ -200,11 +203,25 @@ object DeltaSharingService {
         .disableDateHeader()
         .disableServerHeader()
         .annotatedService(serverConfig.endpoint, new DeltaSharingService(serverConfig): Any)
-      if (serverConfig.ssl) {
-        // TODO TLS Config
-        builder.https(serverConfig.getPort).tlsSelfSigned()
-      } else {
+      if (serverConfig.ssl == null) {
         builder.http(serverConfig.getPort)
+      } else {
+        builder.https(serverConfig.getPort)
+        if (serverConfig.ssl.selfSigned) {
+          builder.tlsSelfSigned()
+        } else {
+          if (serverConfig.ssl.certificatePasswordFile == null) {
+            builder.tls(
+              new File(serverConfig.ssl.certificateFile),
+              new File(serverConfig.ssl.certificateKeyFile))
+          } else {
+            builder.tls(
+              new File(serverConfig.ssl.certificateFile),
+              new File(serverConfig.ssl.certificateKeyFile),
+              FileUtils.readFileToString(new File(serverConfig.ssl.certificatePasswordFile), UTF_8)
+            )
+          }
+        }
       }
       if (serverConfig.getAuthorization != null) {
         // Authorization is set. Set up the authorization using the token in the server config.
@@ -214,11 +231,7 @@ object DeltaSharingService {
             val authorized = MessageDigest.isEqual(
               token.accessToken.getBytes(UTF_8),
               serverConfig.getAuthorization.getBearerToken.getBytes(UTF_8))
-            if (authorized) {
-              CompletableFuture.completedFuture(true)
-            } else {
-              CompletableFuture.completedFuture(false)
-            }
+            CompletableFuture.completedFuture(authorized)
           })
         builder.decorator(authServiceBuilder.newDecorator)
       }

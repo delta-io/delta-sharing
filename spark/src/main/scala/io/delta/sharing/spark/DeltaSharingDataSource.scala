@@ -17,7 +17,8 @@
 package io.delta.sharing.spark
 
 import scala.collection.JavaConverters._
-import org.apache.spark.sql.{SQLContext, SparkSession}
+
+import org.apache.spark.sql.{SparkSession, SQLContext}
 import org.apache.spark.sql.connector.catalog.{Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}

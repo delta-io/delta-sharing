@@ -20,13 +20,13 @@ import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.{CountDownLatch, TimeUnit}
 
+import scala.sys.process._
+import scala.util.Try
+
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkFunSuite
 import org.scalatest.BeforeAndAfterAll
-
-import scala.util.Try
-import sys.process._
 
 trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
 
@@ -69,7 +69,7 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
             Seq(
               "/bin/bash",
               "-c",
-              s"cd .. && build/sbt 'server/test:runMain " +
+              s"cd .. && build/sbt 'server / Test / runMain " +
                 s"io.delta.sharing.server.TestDeltaSharingServer ${pidFile.getCanonicalPath}'")
               .run(processLogger)
           process.exitValue()

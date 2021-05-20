@@ -1,4 +1,3 @@
----
 # The format version of this config file
 version: 1
 # Config shares/schemas/tables to share
@@ -20,10 +19,10 @@ shares:
 # Set the host name that the server will use
 host: "localhost"
 # Set the port that the server will listen on
-port: 10000
-# Set whether turn on SSL
-ssl: false
+port: 80
 # Set the url prefix for the REST APIs
 endpoint: "/delta-sharing"
 # Set the timeout of S3 presigned url in seconds
 preSignedUrlTimeoutSeconds: 900
+# How many tables to cache in the server
+deltaTableCacheSize: 10

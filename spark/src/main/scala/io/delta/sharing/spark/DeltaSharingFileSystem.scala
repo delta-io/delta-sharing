@@ -20,8 +20,8 @@ import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.Base64
 
-import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.fs._
+import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.http.impl.client.HttpClientBuilder
 

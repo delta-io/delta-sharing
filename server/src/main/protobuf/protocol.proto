@@ -27,10 +27,6 @@ option (scalapb.options).flat_package = true;
 // Define the JSON objects used by REST APIs. The table metadata format is not defined in this file
 // because it requires Map type which is not supported by Protocol Buffers Version 2.
 
-message PageToken {
-    optional string id = 1;
-}
-
 message Share {
     optional string name = 1;
 }
@@ -64,4 +60,14 @@ message ListSchemasResponse {
 message ListTablesResponse {
     repeated Table items = 1;
     optional string next_page_token = 2;
+}
+
+// Define a special class to generate the page token for pagination. It includes the information we
+// need to know where we should start to query, and check whether the page token comes from the
+// right result. For example, we would like to throw an error when the user uses a page token
+// returning from ListShares and uses it in ListSchemas REST API.
+message PageToken {
+    optional string id = 1;
+    optional string share = 2;
+    optional string schema = 3;
 }

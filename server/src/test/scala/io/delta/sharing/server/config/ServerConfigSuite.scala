@@ -16,84 +16,149 @@
 
 package io.delta.sharing.server.config
 
-import java.nio.file.Files
+import java.io.File
 import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.Files
 import java.util.Arrays
+
 import org.apache.commons.io.FileUtils
 import org.scalatest.FunSuite
 
 class ServerConfigSuite extends FunSuite {
 
-  def testJsonConfig(serverConfig: ServerConfig): Unit = {
-    val tempFile = Files.createTempFile("delta-sharing-server", ".json").toFile
-    try {
-      serverConfig.save(tempFile.getCanonicalPath)
-      assert(serverConfig == ServerConfig.load(tempFile.getCanonicalPath))
-    } finally {
-      tempFile.delete()
-    }
-  }
-
-  def testYamlConfig(serverConfig: ServerConfig): Unit = {
+  def testConfig(content: String, serverConfig: ServerConfig): Unit = {
     val tempFile = Files.createTempFile("delta-sharing-server", ".yaml").toFile
     try {
-      serverConfig.save(tempFile.getCanonicalPath)
-      assert(serverConfig == ServerConfig.load(tempFile.getCanonicalPath))
+      FileUtils.writeStringToFile(tempFile, content, UTF_8)
+      val loaded = ServerConfig.load(tempFile.getCanonicalPath)
+      assert(serverConfig == loaded)
     } finally {
       tempFile.delete()
     }
   }
 
   test("empty config") {
-    val serverConfig = new ServerConfig(1, new java.util.ArrayList(), null)
-    testJsonConfig(serverConfig)
-    testYamlConfig(serverConfig)
+    val serverConfig = new ServerConfig()
+    serverConfig.setVersion(1)
+    testConfig("version: 1", serverConfig)
   }
 
-  test("authorization config") {
-    val serverConfig = new ServerConfig(1, new java.util.ArrayList(), new Authorization("token"))
-    testJsonConfig(serverConfig)
-    testYamlConfig(serverConfig)
+  test("template") {
+    val tempFile = Files.createTempFile("delta-sharing-server", ".yaml").toFile
+    try {
+      FileUtils.copyFile(
+        new File("src/universal/conf/delta-sharing-server.yaml.template"),
+        tempFile)
+      val loaded = ServerConfig.load(tempFile.getCanonicalPath)
+      val sharesInTemplate = Arrays.asList(
+        ShareConfig("share1", Arrays.asList(
+          SchemaConfig("schema1", Arrays.asList(
+            TableConfig("table1", "s3a://<bucket-name>/<the-table-path>"),
+            TableConfig("table2", "s3a://<bucket-name>/<the-table-path>")
+          ))
+        )),
+        ShareConfig("share2", Arrays.asList(
+          SchemaConfig("schema2", Arrays.asList(
+            TableConfig("table3", "s3a://<bucket-name>/<the-table-path>")
+          ))
+        ))
+      )
+      val serverConfig = new ServerConfig()
+      serverConfig.setVersion(1)
+      serverConfig.setShares(sharesInTemplate)
+      assert(loaded == serverConfig)
+    } finally {
+      tempFile.delete()
+    }
   }
 
-  test("preSignedUrlTimeoutSeconds config") {
-    val serverConfig = new ServerConfig(1, new java.util.ArrayList(), new Authorization("token"))
-    serverConfig.setPreSignedUrlTimeoutSeconds(1000);
-    testJsonConfig(serverConfig)
-    testYamlConfig(serverConfig)
+  private def assertInvalidConfig(expectedErrorMessage: String)(func: => Unit): Unit = {
+    assert(intercept[IllegalArgumentException] {
+      func
+    }.getMessage.contains(expectedErrorMessage))
   }
 
-  test("shares config") {
-    val tables = Arrays.asList(
-      new TableConfig("table1", "/foo/table1"),
-      new TableConfig("table1", "/foo/table2")
-    )
-    val schemas = Arrays.asList(
-      new SchemaConfig("default", tables)
-    )
-    val shares = Arrays.asList(
-      new ShareConfig("share1", schemas),
-      new ShareConfig("share2", schemas)
-    )
-    val serverConfig = new ServerConfig(1, shares, new Authorization("token"))
-    testJsonConfig(serverConfig)
-    testYamlConfig(serverConfig)
+  test("invalid version") {
+    assertInvalidConfig("'version' must be greater than 0") {
+      testConfig("version: 0", null)
+    }
   }
 
-  test("shares config without authorization") {
-    val tables = Arrays.asList(
-      new TableConfig("table1", "/foo/table1"),
-      new TableConfig("table1", "/foo/table2")
-    )
-    val schemas = Arrays.asList(
-      new SchemaConfig("default", tables)
-    )
-    val shares = Arrays.asList(
-      new ShareConfig("share1", schemas),
-      new ShareConfig("share2", schemas)
-    )
-    val serverConfig = new ServerConfig(1, shares, null)
-    testJsonConfig(serverConfig)
-    testYamlConfig(serverConfig)
+  test("future version") {
+    assertInvalidConfig("The 'version' in the server config is 100 which is too new.") {
+      testConfig("version: 100", null)
+    }
+  }
+
+  test("invalid ssl") {
+    assertInvalidConfig("'certificateFile' in a SSL config must be provided") {
+      testConfig(
+        """version: 1
+          |ssl:
+          |  selfSigned: false
+          |""".stripMargin, null)
+    }
+  }
+
+  test("Authorization") {
+    assertInvalidConfig("'bearerToken' in 'authorization' must be provided") {
+      new Authorization().checkConfig()
+    }
+  }
+
+  test("SSLConfig") {
+    assertInvalidConfig("'certificateFile' in a SSL config must be provided") {
+      val s = new SSLConfig()
+      assert(s.selfSigned == false)
+      s.checkConfig()
+    }
+    assertInvalidConfig("'certificateKeyFile' in a SSL config must be provided") {
+      val s = new SSLConfig()
+      s.setCertificateFile("file")
+      s.checkConfig()
+    }
+    val s = new SSLConfig()
+    s.setSelfSigned(true)
+    s.checkConfig()
+  }
+
+  test("ShareConfig") {
+    assertInvalidConfig("'name' in a share must be provided") {
+      new ShareConfig().checkConfig()
+    }
+    assertInvalidConfig("'name' in a schema must be provided") {
+      val s = new ShareConfig()
+      s.setName("name")
+      s.setSchemas(Arrays.asList(new SchemaConfig()))
+      s.checkConfig()
+    }
+  }
+
+  test("SchemaConfig") {
+    assertInvalidConfig("'name' in a schema must be provided") {
+      new SchemaConfig().checkConfig()
+    }
+    assertInvalidConfig("'name' in a table must be provided") {
+      val s = new SchemaConfig()
+      s.setName("name")
+      s.setTables(Arrays.asList(new TableConfig()))
+      s.checkConfig()
+    }
+  }
+
+  test("TableConfig") {
+    assertInvalidConfig("'name' in a table must be provided") {
+      new TableConfig().checkConfig()
+    }
+    assertInvalidConfig("'name' in a table must be provided") {
+      val t = new TableConfig()
+      t.setLocation("Location")
+      t.checkConfig()
+    }
+    assertInvalidConfig("'location' in a table must be provided") {
+      val t = new TableConfig()
+      t.setName("name")
+      t.checkConfig()
+    }
   }
 }

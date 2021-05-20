@@ -18,6 +18,7 @@ package io.delta.sharing.spark
 
 import java.io.{ByteArrayInputStream, EOFException}
 import java.net.URI
+
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{PositionedReadable, Seekable}
 

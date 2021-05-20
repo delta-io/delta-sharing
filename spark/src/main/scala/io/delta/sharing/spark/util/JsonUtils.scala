@@ -34,10 +34,6 @@ object JsonUtils {
     mapper.writeValueAsString(obj)
   }
 
-  def toPrettyJson[T: Manifest](obj: T): String = {
-    mapper.writerWithDefaultPrettyPrinter().writeValueAsString(obj)
-  }
-
   def fromJson[T: Manifest](json: String): T = {
     mapper.readValue[T](json)
   }

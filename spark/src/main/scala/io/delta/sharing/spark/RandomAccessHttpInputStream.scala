@@ -39,12 +39,12 @@
  */
 package io.delta.sharing.spark
 
-import java.io.{EOFException, IOException, InputStream}
+import java.io.{EOFException, InputStream, IOException}
 import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop.fs.{FSExceptionMessages, FSInputStream, FileSystem}
+import org.apache.hadoop.fs.{FileSystem, FSExceptionMessages, FSInputStream}
 import org.apache.http.HttpStatus
 import org.apache.http.client.HttpClient
 import org.apache.http.client.methods.{HttpGet, HttpRequestBase}

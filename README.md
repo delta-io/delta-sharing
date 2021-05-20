@@ -301,7 +301,7 @@ Refer to [SBT docs](https://www.scala-sbt.org/1.x/docs/Command-Line-Reference.ht
 # Contributing 
 We welcome contributions to Delta Sharing. See our [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
 
-We also adhere to the [Delta Lake Code of Conduct](CODE_OF_CONDUCT.md).
+We also adhere to the [Delta Lake Code of Conduct](https://github.com/delta-io/delta/blob/master/CODE_OF_CONDUCT.md).
 
 # License
 Apache License 2.0, see [LICENSE](LICENSE.txt).
