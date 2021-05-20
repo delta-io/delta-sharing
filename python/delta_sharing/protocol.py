@@ -16,19 +16,30 @@
 from dataclasses import dataclass, field
 from json import loads
 from pathlib import Path
-from typing import Dict, IO, Optional, Sequence, Union
+from typing import ClassVar, Dict, IO, Optional, Sequence, Union
 
 import fsspec
 
 
 @dataclass(frozen=True)
-class ShareProfile:
-    version: int
+class DeltaSharingProfile:
+    CURRENT: ClassVar[int] = 1
+
+    share_credentials_version: int
     endpoint: str
-    token: str
+    bearer_token: str
+
+    def __post_init__(self):
+        if self.share_credentials_version > DeltaSharingProfile.CURRENT:
+            raise ValueError(
+                "'shareCredentialsVersion' in the profile is "
+                f"{self.share_credentials_version} which is too new. "
+                f"The current release supports version {DeltaSharingProfile.CURRENT} and below. "
+                "Please upgrade to a newer release."
+            )
 
     @staticmethod
-    def read_from_file(profile: Union[str, IO, Path]) -> "ShareProfile":
+    def read_from_file(profile: Union[str, IO, Path]) -> "DeltaSharingProfile":
         if isinstance(profile, str):
             infile = fsspec.open(profile).open()
         elif isinstance(profile, Path):
@@ -36,16 +47,18 @@ class ShareProfile:
         else:
             infile = profile
         try:
-            return ShareProfile.from_json(infile.read())
+            return DeltaSharingProfile.from_json(infile.read())
         finally:
             infile.close()
 
     @staticmethod
-    def from_json(json) -> "ShareProfile":
+    def from_json(json) -> "DeltaSharingProfile":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        return ShareProfile(
-            version=int(json["version"]), endpoint=json["endpoint"], token=json["bearerToken"]
+        return DeltaSharingProfile(
+            share_credentials_version=int(json["shareCredentialsVersion"]),
+            endpoint=json["endpoint"],
+            bearer_token=json["bearerToken"],
         )
 
 

@@ -27,7 +27,15 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from delta_sharing.protocol import AddFile, Metadata, Protocol, Share, ShareProfile, Schema, Table
+from delta_sharing.protocol import (
+    AddFile,
+    DeltaSharingProfile,
+    Metadata,
+    Protocol,
+    Share,
+    Schema,
+    Table,
+)
 
 
 @dataclass(frozen=True)
@@ -62,12 +70,12 @@ class ListFilesInTableResponse:
 
 
 class DataSharingRestClient:
-    def __init__(self, profile: ShareProfile):
+    def __init__(self, profile: DeltaSharingProfile):
         self._profile = profile
 
         self._session = requests.Session()
-        self._session.headers.update({"Authorization": f"Bearer {profile.token}"})
-        if urlparse(profile.endpoint).netloc in ("localhost", "localhost:443"):
+        self._session.headers.update({"Authorization": f"Bearer {profile.bearer_token}"})
+        if urlparse(profile.endpoint).hostname == "localhost":
             self._session.verify = False
         # TODO Remove this. This is added for demo.
         self._session.verify = False

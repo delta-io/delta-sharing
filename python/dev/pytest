@@ -32,9 +32,13 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 FWDIR="$( cd "$DIR"/.. && pwd )"
 cd "$FWDIR"
 
+if [ -n "AWS_ACCESS_KEY_ID" ]; then
+    logopts=(-o log_cli=true -s)
+fi
+
 # Runs both doctests and unit tests by default, otherwise hands arguments over to pytest.
 if [ "$#" = 0 ]; then
-    $PYTHON_EXECUTABLE -m pytest --verbose --showlocals --color=yes --doctest-modules delta_sharing
+    $PYTHON_EXECUTABLE -m pytest --verbose --showlocals --color=yes --doctest-modules delta_sharing "${logopts[@]}"
 else
     $PYTHON_EXECUTABLE -m pytest "$@"
 fi

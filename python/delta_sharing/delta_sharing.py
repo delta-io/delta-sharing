@@ -25,14 +25,14 @@ try:
 except ImportError:
     pass
 
-from delta_sharing.protocol import Schema, Share, ShareProfile, Table
+from delta_sharing.protocol import DeltaSharingProfile, Schema, Share, Table
 from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import DataSharingRestClient
 
 
 def load_as_pandas(url: str) -> pd.DataFrame:
     profile_json = url.split("#")[0]
-    profile = ShareProfile.read_from_file(profile_json)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
 
     parsed = urlparse(url)
     fragments = parsed.fragment.split(".")
@@ -58,9 +58,9 @@ def load_as_spark(url: str) -> "PySparkDataFrame":
 
 
 class SharingClient:
-    def __init__(self, profile: Union[str, BinaryIO, TextIO, Path, ShareProfile]):
-        if not isinstance(profile, ShareProfile):
-            profile = ShareProfile.read_from_file(profile)
+    def __init__(self, profile: Union[str, BinaryIO, TextIO, Path, DeltaSharingProfile]):
+        if not isinstance(profile, DeltaSharingProfile):
+            profile = DeltaSharingProfile.read_from_file(profile)
         self._profile = profile
         self._rest_client = DataSharingRestClient(profile)
 
