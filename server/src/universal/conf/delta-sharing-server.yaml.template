@@ -29,3 +29,5 @@ deltaTableCacheSize: 10
 # Whether we can accept working with a stale version of the table. This is useful when sharing
 # static tables that will never be changed.
 stalenessAcceptable: false
+# Whether to evaluate user provided `predicateHints`
+evaluatePredicateHints: false

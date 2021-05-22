@@ -70,7 +70,7 @@ case class ServerConfig(
       preSignedUrlTimeoutSeconds = 15 * 60,
       deltaTableCacheSize = 10,
       stalenessAcceptable = false,
-      evaluatePredicateHints = true
+      evaluatePredicateHints = false
     )
   }
 

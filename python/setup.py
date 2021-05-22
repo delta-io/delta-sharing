@@ -35,7 +35,7 @@ except IOError:
 VERSION = __version__  # noqa
 
 setup(
-    name='delta_sharing',
+    name='delta-sharing',
     version=VERSION,
     packages=[
         'delta_sharing',
@@ -56,7 +56,7 @@ setup(
         'gcs': ['gcsfs'],
         'gs': ['gcsfs'],
     },
-    author="Databricks",
+    author="Delta Lake Authors",
     license='http://www.apache.org/licenses/LICENSE-2.0',
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,

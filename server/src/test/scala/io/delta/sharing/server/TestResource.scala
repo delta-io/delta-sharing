@@ -64,6 +64,7 @@ object TestResource {
     serverConfig.setAuthorization(Authorization(testAuthorizationToken))
     serverConfig.setPort(TEST_PORT)
     serverConfig.setSsl(SSLConfig(selfSigned = true, null, null, null))
+    serverConfig.setEvaluatePredicateHints(true)
 
     serverConfig.save(testConfigFile.getCanonicalPath)
     testConfigFile

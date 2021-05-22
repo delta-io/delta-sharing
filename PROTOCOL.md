@@ -29,6 +29,7 @@
     - [Partition Value Serialization](#partition-value-serialization)
     - [Per-file Statistics](#per-file-statistics)
   - [SQL Expressions for Filtering](#sql-expressions-for-filtering)
+- [Profile File Format](#profile-file-format)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -627,3 +628,23 @@ Expression | Example
 `IS NOT NULL` | `col IS NOT NULL`
 
 More expression support will be added incrementally in future.
+
+# Profile File Format
+
+A profile file is a JSON file that contains the information to access a sharing server. There are three fields in this file.
+
+Field Name | Descrption
+-|-
+shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client.
+endpoint | The url of the sharing server.
+bearerToken | The [bearer token](https://tools.ietf.org/html/rfc6750) to access the server.
+
+Example:
+
+```
+{
+  "shareCredentialsVersion": 1,
+  "endpoint": "https://sharing.delta.io/delta-sharing/",
+  "bearerToken": "<token>"
+}
+```

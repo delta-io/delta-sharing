@@ -4,8 +4,8 @@
 
 [Delta Sharing](https://delta.io/sharing) is the industry's first open protocol for secure data sharing, making it simple to share data with other organizations regardless of which computing platforms they use. This repo includes the following components:
 
-- Python Connector: A Python library that implements the [Delta Sharing Protocol](PROTOCOL.md) to read shared tables from a Delta Sharing Server.
-- [Apache Spark](http://spark.apache.org/) Connector: An Apache Spark connector that implements the [Delta Sharing Protocol](PROTOCOL.md) to read shared tables from a Delta Sharing Server.
+- Python Connector: A Python library that implements the [Delta Sharing Protocol](PROTOCOL.md) to read shared tables from a Delta Sharing Server. You can load shared tables as a [pandas](https://pandas.pydata.org/) DataFrame, or as a [Apache Spark](http://spark.apache.org/) DataFrame if running in PySpark with the following connector installed.
+- [Apache Spark](http://spark.apache.org/) Connector: An Apache Spark connector that implements the [Delta Sharing Protocol](PROTOCOL.md) to read shared tables from a Delta Sharing Server. It's powered by Apache Spark and can be used in Python, Scala, Java, R, and SQL.
 - Delta Sharing Server: A reference implementation server for the [Delta Sharing Protocol](PROTOCOL.md).
 
 # Python Connector
@@ -20,11 +20,13 @@ Python 3.6+
 pip install delta-sharing
 ```
 
+If you are using [Databricks Runtime](https://docs.databricks.com/runtime/dbr.html), you can follow [Databricks Libraries doc](https://docs.databricks.com/libraries/index.html) to install the library on your clusters.
+
 ## Get the share profile file
 
 The first step to read shared Delta tables is getting [a profile file](#profile-file-format) from your share provider. The Delta Sharing library will need this file to access the shared tables.
 
-We also host an open Delta Sharing Server with open datasets. You can download the profile file to access it [here](https://sharing.delta.io/open-profile.share), or use `https://sharing.delta.io/open-profile.share` as the profile file path directly in your code.
+We also host an open Delta Sharing Server with open datasets. You can download the profile file to access it [here](https://sharing.delta.io/open-profile.share).
 
 ## Usages
 
@@ -32,7 +34,7 @@ We also host an open Delta Sharing Server with open datasets. You can download t
 import delta_sharing
 
 # Point to the profile file. It can be a file on the local file system or a file on a remote storage.
-profile_file = "https://sharing.delta.io/open-profile.share"
+profile_file = "<profile-file-path>"
 
 # Create a SharingClient.
 client = delta_sharing.SharingClient(profile_file)
@@ -42,10 +44,9 @@ client.list_all_tables()
 
 # Create a url to access a shared table.
 # A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
-table_url = "https://sharing.delta.io/open-profile.share#delta_sharing.default.COVID_19_NYT"
+table_url = profile_file + "#<share-name>.<schema-name>.<table-name>"
 
-# Load a table as a Pandas DataFrame.
-# This can be used to process tables that can fit in the memory.
+# Load a table as a Pandas DataFrame. This can be used to process tables that can fit in the memory.
 delta_sharing.load_as_pandas(table_url)
 
 # If the code is running with PySpark, you can use `load_as_spark` to load the table as a Spark DataFrame.
@@ -63,7 +64,7 @@ delta_sharing.load_as_spark(table_url)
 
 - Java 8+
 - Scala 2.12.x
-- Apache Spark 3.x.y or [Databricks Runtime](https://docs.databricks.com/runtime/dbr.html) 7.x/8.x
+- Apache Spark 3+ or [Databricks Runtime](https://docs.databricks.com/runtime/dbr.html) 7+
 
 ## Get the share profile file
 
@@ -75,6 +76,9 @@ You can set up Apache Spark on your local machine in the following two ways:
 
 - Run interactively: Start the Spark shell (Scala or Python) with Delta Sharing connector and run the code snippets interactively in the shell.
 - Run as a project: Set up a Maven or SBT project (Scala or Java) with Delta Sharing connector, copy the code snippets into a source file, and run the project.
+
+
+If you are using [Databricks Runtime](https://docs.databricks.com/runtime/dbr.html), you can skip this section and follow [Databricks Libraries doc](https://docs.databricks.com/libraries/index.html) to install the connector on your clusters.
 
 ### Set up interactive shell
 
@@ -131,46 +135,39 @@ libraryDependencies += "io.delta" %% "delta-sharing-spark" % "0.1.0"
 ### Python
 
 ```python
-# Create a url to access a shared table.
 # A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
-table_url = "https://sharing.delta.io/open-profile.share#delta_sharing.default.COVID_19_NYT"
-
-# Access the table using DataFrame APIs.
-df = spark.read.format("deltaSharing").load(table_url)
-
-# Register the table in catalog and use SQL to access it.
-spark.sql("CREATE TABLE COVID_19_NYT USING deltaSharing LOCATION '%s'" % (table_url))
-spark.sql("SELECT * FROM COVID_19_NYT")
+table_path = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
+df = spark.read.format("deltaSharing").load(table_path)
 ```
 
 ### Scala
 
 ```scala
-// Create a url to access a shared table.
 // A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
-val tableUrl = "https://sharing.delta.io/open-profile.share#delta_sharing.default.COVID_19_NYT"
-
-// Access the table using DataFrame APIs.
-val df = spark.read.format("deltaSharing").load(tableUrl)
-
-// Register the table in catalog and use SQL to access it.
-spark.sql(s"CREATE TABLE COVID_19_NYT USING deltaSharing LOCATION '$table_url'")
-spark.sql("SELECT * FROM COVID_19_NYT")
+val tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
+val df = spark.read.format("deltaSharing").load(tablePath)
 ```
 
 ### Java
 
 ```java
-// Create a url to access a shared table.
 // A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
-String tableUrl = "https://sharing.delta.io/open-profile.share#delta_sharing.default.COVID_19_NYT";
+String tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>";
+Dataset<Row> df = spark.read.format("deltaSharing").load(tablePath);
+```
 
-// Access the table using DataFrame APIs.
-Dataset<Row> df = spark.read.format("deltaSharing").load(tableUrl);
+### R
+```r
+# A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
+table_path <- "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
+df <- read.df(table_path, "deltaSharing")
+```
 
-// Register the table in catalog and use SQL to access it.
-spark.sql("CREATE TABLE COVID_19_NYT USING deltaSharing LOCATION '" + table_url + "'");
-spark.sql("SELECT * FROM COVID_19_NYT");
+### SQL
+```sql
+-- A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
+CREATE TABLE mytable USING deltaSharing LOCATION '<profile-file-path>#<share-name>.<schema-name>.<table-name>';
+SELECT * FROM mytable;
 ```
 
 ### Table path
@@ -179,6 +176,8 @@ spark.sql("SELECT * FROM COVID_19_NYT");
 - A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
 
 # Delta Sharing Server
+
+Delta Sharing Server is a reference implementation server for the [Delta Sharing Protocol](PROTOCOL.md). This can be used to set up a small service to test your own connector that implements the [Delta Sharing Protocol](PROTOCOL.md). Note: It's not a completed implementation of secure web server. We highly recommend you to put this behind a secure proxy if you would like to expose it to public.
 
 Here are the steps to setup a server to share your own data.
 
@@ -213,6 +212,21 @@ The server is using `hadooop-aws` to read S3. You can find other approaches in [
 
 More cloud storage supports will be added in the future.
 
+## Authorization
+
+The server supports a basic authorization with pre-configed bearer token. You can add the following config to your server yaml file:
+
+```yaml
+authorization:
+  bearerToken: <token>
+```
+
+Then any should send with the above token, otherwise, the server will refuse the request.
+
+If you don't config the bearer token in the server yaml file, all requests will be accepted without authorization.
+
+To be more secure, you recommend you to put the server behind a secure proxy such as [NGINX](https://www.nginx.com/) to set up [JWT Authentication](https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-jwt-authentication/).
+
 ## Start the server
 
 Run the following shell command:
@@ -226,26 +240,6 @@ bin/delta-sharing-server -- --config <the-server-config-yaml-file>
 # Delta Sharing Protocol
 
 [Delta Sharing Protocol](PROTOCOL.md) document provides a specification of the Delta Sharing protocol.
-
-# Profile File Format
-
-A profile file is a JSON file that contains the information to access a sharing server. There are three fields in this file.
-
-Field Name | Descrption
--|-
-shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client.
-endpoint | The url of the sharing server.
-bearerToken | The [bearer token](https://tools.ietf.org/html/rfc6750) to access the server.
-
-Example:
-
-```
-{
-  "shareCredentialsVersion": 1,
-  "endpoint": "https://sharing.delta.io/delta-sharing/",
-  "bearerToken": "<token>"
-}
-```
 
 # Reporting issues
 
@@ -281,6 +275,8 @@ To generate a wheel file, run
 cd python/
 python setup.py sdist bdist_wheel
 ```
+
+It will generate `python/dist/delta_sharing-0.1.0.dev0-py3-none-any.whl`.
 
 ## Apache Spark Connector and Delta Sharing Server
 

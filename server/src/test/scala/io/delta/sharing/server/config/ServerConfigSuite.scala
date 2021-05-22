@@ -81,6 +81,17 @@ class ServerConfigSuite extends FunSuite {
         |""".stripMargin, serverConfig)
   }
 
+  test("authorization token") {
+    val serverConfig = new ServerConfig()
+    serverConfig.setVersion(1)
+    serverConfig.setAuthorization(Authorization("<token>"))
+    testConfig(
+      """version: 1
+        |authorization:
+        |  bearerToken: <token>
+        |""".stripMargin, serverConfig)
+  }
+
   private def assertInvalidConfig(expectedErrorMessage: String)(func: => Unit): Unit = {
     assert(intercept[IllegalArgumentException] {
       func
