@@ -130,7 +130,17 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
-  integrationTest("401 Unauthorized Error") {
+  integrationTest("401 Unauthorized Error: incorrect token") {
+    val url = requestPath("/shares")
+    val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
+    connection.setRequestProperty("Authorization", s"Bearer incorrect-token")
+    val e = intercept[IOException] {
+      connection.getInputStream()
+    }
+    assert(e.getMessage.contains("Server returned HTTP response code: 401"))
+  }
+
+  integrationTest("401 Unauthorized Error: no token") {
     val url = requestPath("/shares")
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     val e = intercept[IOException] {
@@ -222,7 +232,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       """
         |{
         |  "predicateHints": [
-        |    "date = '2021-01-31'"
+        |    "date = CAST('2021-04-28' AS DATE)"
         |  ]
         |}
         |""".stripMargin
@@ -280,7 +290,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       """
         |{
         |  "predicateHints": [
-        |    "date = '2021-01-31'"
+        |    "date = CAST('2021-04-28' AS DATE)"
         |  ],
         |  "limitHint": 123
         |}

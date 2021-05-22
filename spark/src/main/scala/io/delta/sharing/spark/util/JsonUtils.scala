@@ -20,7 +20,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.{DefaultScalaModule, ScalaObjectMapper}
 
-object JsonUtils {
+private[sharing] object JsonUtils {
   /** Used to convert between classes and JSON. */
   lazy val mapper = {
     val _mapper = new ObjectMapper with ScalaObjectMapper

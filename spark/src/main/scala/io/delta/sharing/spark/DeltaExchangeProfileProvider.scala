@@ -24,16 +24,16 @@ import org.apache.hadoop.fs.Path
 
 import io.delta.sharing.spark.util.JsonUtils
 
-case class DeltaSharingProfile(
+private[sharing] case class DeltaSharingProfile(
     shareCredentialsVersion: Option[Int] = Some(DeltaSharingProfile.CURRENT),
     endpoint: String = null,
     bearerToken: String = null)
 
-object DeltaSharingProfile {
+private[sharing] object DeltaSharingProfile {
   val CURRENT = 1
 }
 
-trait DeltaSharingProfileProvider {
+private[sharing] trait DeltaSharingProfileProvider {
   def getProfile: DeltaSharingProfile
 }
 
@@ -41,7 +41,7 @@ trait DeltaSharingProfileProvider {
  * Load [[DeltaSharingProfile]] from a file. `conf` should be provided to load the file from remote
  * file systems.
  */
-class DeltaSharingFileProfileProvider(
+private[sharing] class DeltaSharingFileProfileProvider(
     conf: Configuration,
     file: String) extends DeltaSharingProfileProvider {
 

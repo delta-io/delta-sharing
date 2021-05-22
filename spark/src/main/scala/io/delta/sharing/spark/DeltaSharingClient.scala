@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.commons.io.IOUtils
-import org.apache.http.{HttpHeaders, HttpHost}
+import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
 import org.apache.http.client.methods.{HttpGet, HttpHead, HttpPost, HttpRequestBase}
 import org.apache.http.client.protocol.HttpClientContext
 import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, TrustSelfSignedStrategy}
@@ -30,9 +30,10 @@ import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 
 import io.delta.sharing.spark.model._
-import io.delta.sharing.spark.util.JsonUtils
+import io.delta.sharing.spark.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
 
-trait DeltaSharingClient {
+/** An interface to fetch Delta metadata from remote server. */
+private[sharing] trait DeltaSharingClient {
   def listAllTables(): Seq[Table]
 
   def getTableVersion(table: Table): Long
@@ -42,28 +43,28 @@ trait DeltaSharingClient {
   def getFiles(table: Table, predicates: Seq[String], limit: Option[Int]): DeltaTableFiles
 }
 
-trait PaginationResponse {
+private[sharing] trait PaginationResponse {
   def nextPageToken: Option[String]
 }
 
-case class QueryTableRequest(predicateHints: Seq[String], limitHint: Option[Int])
+private[sharing] case class QueryTableRequest(predicateHints: Seq[String], limitHint: Option[Int])
 
-case class ListSharesResponse(
+private[sharing] case class ListSharesResponse(
     items: Seq[Share],
     nextPageToken: Option[String]) extends PaginationResponse
 
-case class ListSchemasResponse(
+private[sharing] case class ListSchemasResponse(
     items: Seq[Schema],
     nextPageToken: Option[String]) extends PaginationResponse
 
-case class ListTablesResponse(
+private[sharing] case class ListTablesResponse(
     items: Seq[Table],
     nextPageToken: Option[String]) extends PaginationResponse
 
-class DeltaSharingRestClient(
+/** A REST client to fetch Delta metadata from remote server. */
+private[sharing] class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
-    sslTrustAll: Boolean = false,
-    maxConnections: Int = 15) extends DeltaSharingClient {
+    sslTrustAll: Boolean = false) extends DeltaSharingClient {
 
   @volatile private var created = false
 
@@ -80,8 +81,9 @@ class DeltaSharingRestClient(
       HttpClientBuilder.create()
     }
     val client = clientBuilder
-      .setMaxConnPerRoute(maxConnections)
-      .setMaxConnTotal(maxConnections)
+      // Disable the default retry behavior because we have our own retry logic.
+      // See `RetryUtils.runWithExponentialBackoff`.
+      .disableAutomaticRetries()
       .build()
     created = true
     client
@@ -101,7 +103,8 @@ class DeltaSharingRestClient(
     var response = getJson[ListSharesResponse](target)
     shares ++= response.items
     while (response.nextPageToken.nonEmpty) {
-      val target = getTargetUrl("/shares?pageToken=${response.nextPageToken.get}")
+      val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
+      val target = getTargetUrl(s"/shares?pageToken=$encodedPageToken")
       response = getJson[ListSharesResponse](target)
       shares ++= response.items
     }
@@ -115,8 +118,9 @@ class DeltaSharingRestClient(
     var response = getJson[ListSchemasResponse](target)
     schemas ++= response.items
     while (response.nextPageToken.nonEmpty) {
+      val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
       val target =
-        getTargetUrl(s"/shares/$encodedShareName/schemas?pageToken=${response.nextPageToken.get}")
+        getTargetUrl(s"/shares/$encodedShareName/schemas?pageToken=$encodedPageToken")
       response = getJson[ListSchemasResponse](target)
       schemas ++= response.items
     }
@@ -131,8 +135,9 @@ class DeltaSharingRestClient(
     var response = getJson[ListTablesResponse](target)
     tables ++= response.items
     while (response.nextPageToken.nonEmpty) {
+      val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
       val target = getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables" +
-        s"?pageToken=${response.nextPageToken.get}")
+        s"?pageToken=$encodedPageToken")
       response = getJson[ListTablesResponse](target)
       tables ++= response.items
     }
@@ -226,11 +231,16 @@ class DeltaSharingRestClient(
     new HttpHost(url.getHost, port, protocol)
   }
 
-  private def getResponse(httpContext: HttpRequestBase): (Option[Long], String) = {
+  /**
+   * Send the http request and return the table version in the header if any, and the response
+   * content.
+   */
+  private def getResponse(
+      httpRequest: HttpRequestBase): (Option[Long], String) = RetryUtils.runWithExponentialBackoff {
     val profile = profileProvider.getProfile
-    httpContext.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer ${profile.bearerToken}")
+    httpRequest.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer ${profile.bearerToken}")
     val response =
-      client.execute(getHttpHost(profile.endpoint), httpContext, HttpClientContext.create())
+      client.execute(getHttpHost(profile.endpoint), httpRequest, HttpClientContext.create())
     try {
       val status = response.getStatusLine()
       val entity = response.getEntity()
@@ -246,8 +256,7 @@ class DeltaSharingRestClient(
       }
 
       val statusCode = status.getStatusCode
-
-      if (statusCode != 200) {
+      if (statusCode != HttpStatus.SC_OK) {
         throw new UnexpectedHttpStatus(
           s"HTTP request failed with status: $status $body",
           statusCode)
@@ -260,26 +269,15 @@ class DeltaSharingRestClient(
 
   def close(): Unit = {
     if (created) {
-      try {
-        client.close()
-      } finally {
-        created = false
-      }
+      try client.close() finally created = false
     }
   }
 
   override def finalize(): Unit = {
-    try {
-      close()
-    } finally {
-      super.finalize()
-    }
+    try close() finally super.finalize()
   }
 }
 
-object DeltaSharingRestClient {
+private[sharing] object DeltaSharingRestClient {
   val CURRENT = 1
 }
-
-class UnexpectedHttpStatus(message: String, val statusCode: Int)
-  extends IllegalStateException(message)

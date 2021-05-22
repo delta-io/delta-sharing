@@ -18,14 +18,14 @@ package io.delta.sharing.spark
 
 import java.net.URI
 
-import scala.collection.JavaConverters._
-
 import org.apache.hadoop.fs.{FileStatus, Path}
-import org.apache.spark.sql.{Column, DataFrame, Encoder, SparkSession}
+import org.apache.spark.SparkException
+import org.apache.spark.internal.Logging
+import org.apache.spark.sql.{Column, Encoder, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
-import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal, PredicateHelper, SubqueryExpression}
+import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal, SubqueryExpression}
 import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
@@ -33,14 +33,17 @@ import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.spark.model.{AddFile, Metadata, Protocol, Table => DeltaSharingTable}
 
-class RemoteDeltaLog(table: DeltaSharingTable, path: Path, client: DeltaSharingClient) {
+/** Used to query the current state of the transaction logs of a remote shared Delta table. */
+private[sharing] class RemoteDeltaLog(
+    table: DeltaSharingTable,
+    path: Path,
+    client: DeltaSharingClient) {
 
   @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(client, table)
 
-  protected def spark = SparkSession.active
-
   def snapshot: RemoteSnapshot = currentSnapshot
 
+  /** Update the current snapshot to the latest version. */
   def update(): Unit = synchronized {
     if (client.getTableVersion(table) != currentSnapshot.version) {
       currentSnapshot = new RemoteSnapshot(client, table)
@@ -48,8 +51,9 @@ class RemoteDeltaLog(table: DeltaSharingTable, path: Path, client: DeltaSharingC
   }
 
   def createRelation(): BaseRelation = {
+    val spark = SparkSession.active
     val snapshotToUse = snapshot
-    val fileIndex = new RemoteTahoeLogFileIndex(spark, this, path, snapshotToUse)
+    val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse)
     new HadoopFsRelation(
       fileIndex,
       partitionSchema = snapshotToUse.partitionSchema,
@@ -60,38 +64,47 @@ class RemoteDeltaLog(table: DeltaSharingTable, path: Path, client: DeltaSharingC
   }
 }
 
-object RemoteDeltaLog {
+private[sharing] object RemoteDeltaLog {
   private lazy val _addFileEncoder: ExpressionEncoder[AddFile] = ExpressionEncoder[AddFile]()
 
   implicit def addFileEncoder: Encoder[AddFile] = {
     _addFileEncoder.copy()
   }
 
-  def apply(path: String): RemoteDeltaLog = {
+  /**
+   * Parse the user provided path `profile_file#share.schema.share` to
+   * `(profile_file, share, schema, share)`.
+   */
+  def parsePath(path: String): (String, String, String, String) = {
     val shapeIndex = path.lastIndexOf('#')
     if (shapeIndex < 0) {
       throw new IllegalArgumentException(s"path $path is not valid")
     }
     val profileFile = path.substring(0, shapeIndex)
-    val conf = SparkSession.active.sessionState.newHadoopConf()
-    val profileProvider = new DeltaSharingFileProfileProvider(conf, profileFile)
     val tableSplits = path.substring(shapeIndex + 1).split("\\.")
     if (tableSplits.length != 3) {
       throw new IllegalArgumentException(s"path $path is not valid")
     }
+    (profileFile, tableSplits(0), tableSplits(1), tableSplits(2))
+  }
 
-    val table = DeltaSharingTable(tableSplits(2), tableSplits(1), tableSplits(0))
+  def apply(path: String): RemoteDeltaLog = {
+    val (profileFile, share, schema, table) = parsePath(path)
+    val profileProvider = new DeltaSharingFileProfileProvider(
+      SparkSession.active.sessionState.newHadoopConf,
+      profileFile)
+    val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
     val sqlConf = SparkSession.active.sessionState.conf
-    // This is a flag to allow us testing the server locally. Should never be used in production.
+    // This is a flag to test the local https server. Should never be used in production.
     val sslTrustAll =
       sqlConf.getConfString("spark.delta.sharing.client.sslTrustAll", "false").toBoolean
-    val maxConnections = sqlConf.getConfString("spark.delta.sharing.maxConnections", "15").toInt
-    val client = new DeltaSharingRestClient(profileProvider, sslTrustAll, maxConnections)
-    new RemoteDeltaLog(table, new Path(path), client)
+    val client = new DeltaSharingRestClient(profileProvider, sslTrustAll)
+    new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
   }
 }
 
-class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) {
+/** An immutable snapshot of a Delta table at some delta version */
+class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) extends Logging {
 
   protected def spark = SparkSession.active
 
@@ -120,7 +133,7 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) {
 
   private def checkProtocolNotChange(newProtocol: Protocol): Unit = {
     if (newProtocol != protocol) {
-      throw new RuntimeException(
+      throw new SparkException(
         "The table protocol has changed since your DataFrame was created. " +
           "Please redefine your DataFrame")
     }
@@ -129,49 +142,40 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) {
   private def checkSchemaNotChange(newMetadata: Metadata): Unit = {
     if (newMetadata.schemaString != metadata.schemaString ||
       newMetadata.partitionColumns != metadata.partitionColumns) {
-      throw new RuntimeException(
+      throw new SparkException(
         s"""The schema or partition columns of your Delta table has changed since your
            |DataFrame was created. Please redefine your DataFrame""")
     }
   }
 
-  def filesForScan(projection: Seq[Attribute], filters: Seq[Expression]): Seq[AddFile] = {
+  def filesForScan(filters: Seq[Expression]): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
       DeltaTableUtils.splitMetadataAndDataPredicates(filter, metadata.partitionColumns, spark)._1
     }
 
-    val predicates = partitionFilters.map(_.sql)
+    val rewrittenFilters = rewritePartitionFilters(
+      partitionSchema,
+      spark.sessionState.conf.resolver,
+      partitionFilters)
+
+    val predicates = rewrittenFilters.map(_.sql)
+    if (predicates.nonEmpty) {
+      logDebug(s"Sending predicates $predicates to the server")
+    }
 
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(table, predicates, None)
-
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.toDS()
     }
 
-    filterFileList(
-      partitionSchema,
-      remoteFiles.toDF,
-      partitionFilters).as[AddFile].collect()
-  }
-
-  def filterFileList(
-    partitionSchema: StructType,
-    files: DataFrame,
-    partitionFilters: Seq[Expression],
-    partitionColumnPrefixes: Seq[String] = Nil): DataFrame = {
-    val rewrittenFilters = rewritePartitionFilters(
-      partitionSchema,
-      files.sparkSession.sessionState.conf.resolver,
-      partitionFilters,
-      partitionColumnPrefixes)
     val columnFilter = new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
-    files.filter(columnFilter)
+    remoteFiles.filter(columnFilter).as[AddFile].collect()
   }
 
   /**
@@ -179,15 +183,11 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) {
    * We need to explicitly resolve the partitioning columns here because the partition columns
    * are stored as keys of a Map type instead of attributes in the AddFile schema (below) and thus
    * cannot be resolved automatically.
-   *
-   * @param partitionFilters Filters on the partition columns
-   * @param partitionColumnPrefixes The path to the `partitionValues` column, if it's nested
    */
-  def rewritePartitionFilters(
-    partitionSchema: StructType,
-    resolver: Resolver,
-    partitionFilters: Seq[Expression],
-    partitionColumnPrefixes: Seq[String] = Nil): Seq[Expression] = {
+  private def rewritePartitionFilters(
+      partitionSchema: StructType,
+      resolver: Resolver,
+      partitionFilters: Seq[Expression]): Seq[Expression] = {
     partitionFilters.map(_.transformUp {
       case a: Attribute =>
         // If we have a special column name, e.g. `a.a`, then an UnresolvedAttribute returns
@@ -197,36 +197,32 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) {
         partitionCol match {
           case Some(StructField(name, dataType, _, _)) =>
             Cast(
-              UnresolvedAttribute(partitionColumnPrefixes ++ Seq("partitionValues", name)),
+              UnresolvedAttribute(Seq("partitionValues", name)),
               dataType)
           case None =>
             // This should not be able to happen, but the case was present in the original code so
             // we kept it to be safe.
-            UnresolvedAttribute(partitionColumnPrefixes ++ Seq("partitionValues", a.name))
+            UnresolvedAttribute(Seq("partitionValues", a.name))
         }
     })
   }
 }
 
-class RemoteTahoeLogFileIndex(
+/** A [[FileIndex]] that generates the list of files from the remote transaction logs. */
+private[sharing] class RemoteDeltaFileIndex(
     spark: SparkSession,
     deltaLog: RemoteDeltaLog,
     path: Path,
     snapshotAtAnalysis: RemoteSnapshot) extends FileIndex {
 
-  protected def absolutePath(child: String): Path = {
-    val p = new Path(new URI(child))
-    assert(p.isAbsolute)
-    p
-  }
-
   override def inputFiles: Array[String] = {
-    snapshotAtAnalysis.filesForScan(projection = Nil, Nil)
+    snapshotAtAnalysis.filesForScan(Nil)
       .map(f => toDeltaPath(f).toString)
       .toArray
   }
 
   override def refresh(): Unit = {}
+
   override def sizeInBytes: Long = deltaLog.snapshot.sizeInBytes
 
   override def partitionSchema: StructType = snapshotAtAnalysis.partitionSchema
@@ -241,7 +237,7 @@ class RemoteTahoeLogFileIndex(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     val timeZone = spark.sessionState.conf.sessionLocalTimeZone
-    snapshotAtAnalysis.filesForScan(projection = Nil, partitionFilters ++ dataFilters)
+    snapshotAtAnalysis.filesForScan(partitionFilters ++ dataFilters)
       .groupBy(_.partitionValues).map {
         case (partitionValues, files) =>
           val rowValues: Array[Any] = partitionSchema.map { p =>
@@ -273,15 +269,26 @@ class RemoteTahoeLogFileIndex(
   }
 }
 
-object DeltaTableUtils extends PredicateHelper {
+// scalastyle:off
+/** Fork from Delta Lake: https://github.com/delta-io/delta/blob/v0.8.0/src/main/scala/org/apache/spark/sql/delta/DeltaTable.scala#L76 */
+// scalastyle:on
+private[sharing] object DeltaTableUtils {
+
+  def splitConjunctivePredicates(condition: Expression): Seq[Expression] = {
+    condition match {
+      case And(cond1, cond2) =>
+        splitConjunctivePredicates(cond1) ++ splitConjunctivePredicates(cond2)
+      case other => other :: Nil
+    }
+  }
 
   /**
    * Does the predicate only contains partition columns?
    */
   def isPredicatePartitionColumnsOnly(
-    condition: Expression,
-    partitionColumns: Seq[String],
-    spark: SparkSession): Boolean = {
+      condition: Expression,
+      partitionColumns: Seq[String],
+      spark: SparkSession): Boolean = {
     val nameEquality = spark.sessionState.analyzer.resolver
     condition.references.forall { r =>
       partitionColumns.exists(nameEquality(r.name, _))
@@ -294,9 +301,9 @@ object DeltaTableUtils extends PredicateHelper {
    * - other predicates.
    */
   def splitMetadataAndDataPredicates(
-    condition: Expression,
-    partitionColumns: Seq[String],
-    spark: SparkSession): (Seq[Expression], Seq[Expression]) = {
+      condition: Expression,
+      partitionColumns: Seq[String],
+      spark: SparkSession): (Seq[Expression], Seq[Expression]) = {
     splitConjunctivePredicates(condition).partition(
       isPredicateMetadataOnly(_, partitionColumns, spark))
   }
@@ -313,9 +320,9 @@ object DeltaTableUtils extends PredicateHelper {
    * only references partition columns and involves no subquery.
    */
   def isPredicateMetadataOnly(
-    condition: Expression,
-    partitionColumns: Seq[String],
-    spark: SparkSession): Boolean = {
+      condition: Expression,
+      partitionColumns: Seq[String],
+      spark: SparkSession): Boolean = {
     isPredicatePartitionColumnsOnly(condition, partitionColumns, spark) &&
       !containsSubquery(condition)
   }

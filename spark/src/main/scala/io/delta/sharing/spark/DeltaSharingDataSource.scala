@@ -16,7 +16,7 @@
 
 package io.delta.sharing.spark
 
-import scala.collection.JavaConverters._
+import java.util.Collections
 
 import org.apache.spark.sql.{SparkSession, SQLContext}
 import org.apache.spark.sql.connector.catalog.{Table, TableCapability, TableProvider}
@@ -25,18 +25,14 @@ import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationP
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
-class DeltaSharingDataSource extends TableProvider with RelationProvider with DataSourceRegister {
+/** A DataSource V1 for integrating Delta into Spark SQL batch APIs. */
+private[sharing] class DeltaSharingDataSource extends TableProvider with RelationProvider
+  with DataSourceRegister {
 
-  DeltaSharingDataSource.reloadFileSystemsIfNeeded()
+  DeltaSharingDataSource.setupFileSystem()
 
-  // TODO: I have no idea what's going on here. Implementing the DataSourceV2 TableProvider without
-  // retaining RelationProvider doesn't work when creating a metastore table; Spark insists on
-  // looking up the USING `format` as a V1 source, and will fail if this source only uses v2.
-  // But the DSv2 methods are never actually called in the metastore path! What having the V2
-  // implementation does do is change the value of parameters passed to the V1 createRelation()
-  // method (!!) to include the TBLPROPERTIES we need. (When reading from a file path, though,
-  // the v2 path is used as normal.)
   override def inferSchema(options: CaseInsensitiveStringMap): StructType = new StructType()
+
   override def getTable(
       schema: StructType,
       partitioning: Array[Transform],
@@ -44,11 +40,8 @@ class DeltaSharingDataSource extends TableProvider with RelationProvider with Da
     // Return a Table with no capabilities so we fall back to the v1 path.
     new Table {
       override def name(): String = s"V1FallbackTable"
-
       override def schema(): StructType = new StructType()
-
-      override def capabilities(): java.util.Set[TableCapability] =
-        Set.empty[TableCapability].asJava
+      override def capabilities(): java.util.Set[TableCapability] = Collections.emptySet()
     }
   }
 
@@ -64,14 +57,14 @@ class DeltaSharingDataSource extends TableProvider with RelationProvider with Da
   override def shortName: String = "deltaSharing"
 }
 
-object DeltaSharingDataSource {
-  private var reloaded = false
+private[sharing] object DeltaSharingDataSource {
 
-  def reloadFileSystemsIfNeeded(): Unit = synchronized {
-    if (!reloaded) {
-      reloaded = true
-      SparkSession.active.sparkContext.hadoopConfiguration
-        .set("fs.delta-sharing.impl", "io.delta.sharing.spark.DeltaSharingFileSystem")
-    }
+  def setupFileSystem(): Unit = {
+    // We have put our class name in the `org.apache.hadoop.fs.FileSystem` resource file. However,
+    // this file will be loaded only if the class `FileSystem` is loaded. Hence, it won't work when
+    // we add the library after starting Spark. Therefore we change the global `hadoopConfiguration`
+    // to make sure we set up `DeltaSharingFileSystem` correctly.
+    SparkSession.active.sparkContext.hadoopConfiguration
+      .set("fs.delta-sharing.impl", "io.delta.sharing.spark.DeltaSharingFileSystem")
   }
 }

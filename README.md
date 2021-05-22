@@ -255,17 +255,31 @@ We use [GitHub Issues](https://github.com/delta-io/delta-sharing/issues) to trac
 
 ## Python Connector
 
-To install locally, run
+To execute tests, run
+
+```
+python/dev/pytest
+```
+
+To install in develop mode, run
 
 ```
 cd python/
 pip install -e .
 ```
 
-To execute tests, run
+To install locally, run
 
 ```
-python/dev/pytest
+cd python/
+pip install .
+```
+
+To generate a wheel file, run
+
+```
+cd python/
+python setup.py sdist bdist_wheel
 ```
 
 ## Apache Spark Connector and Delta Sharing Server
@@ -278,23 +292,27 @@ To compile, run
 build/sbt compile
 ```
 
-To generate artifacts, run
-
-```
-build/sbt package
-```
-
 To execute tests, run
 
 ```
 build/sbt test
 ```
 
-To generate the pre-built server package, run
+To generate the Apache Spark Connector, run
+
+```
+build/sbt spark/package
+```
+
+It will generate `spark/target/scala-2.12/delta-sharing-spark_2.12-0.1.0-SNAPSHOT.jar`.
+
+To generate the pre-built Delta Sharing Server package, run
 
 ```
 build/sbt server/universal:packageBin
 ```
+
+It will generate `server/target/universal/delta-sharing-server-0.1.0-SNAPSHOT.zip`.
 
 Refer to [SBT docs](https://www.scala-sbt.org/1.x/docs/Command-Line-Reference.html) for more commands.
 

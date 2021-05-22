@@ -45,8 +45,15 @@ case class ServerConfig(
     @BeanProperty var host: String,
     @BeanProperty var port: Int,
     @BeanProperty var endpoint: String,
+    // The timeout of S3 presigned url in seconds
     @BeanProperty var preSignedUrlTimeoutSeconds: Long,
-    @BeanProperty var deltaTableCacheSize: Int
+    // How many tables to cache in the memory.
+    @BeanProperty var deltaTableCacheSize: Int,
+    // Whether we can accept working with a stale version of the table. This is useful when sharing
+    // static tables that will never be changed.
+    @BeanProperty var stalenessAcceptable: Boolean,
+    // Whether to evaluate user provided `predicateHints`
+    @BeanProperty var evaluatePredicateHints: Boolean
 ) extends ConfigItem {
   import ServerConfig._
 
@@ -61,7 +68,9 @@ case class ServerConfig(
       port = 80,
       endpoint = "/delta-sharing",
       preSignedUrlTimeoutSeconds = 15 * 60,
-      deltaTableCacheSize = 10
+      deltaTableCacheSize = 10,
+      stalenessAcceptable = false,
+      evaluatePredicateHints = true
     )
   }
 

@@ -19,21 +19,24 @@ package io.delta.sharing.spark.model
 import com.fasterxml.jackson.annotation.JsonInclude
 import org.codehaus.jackson.annotate.JsonRawValue
 
-case class DeltaTableMetadata(version: Long, protocol: Protocol, metadata: Metadata)
+private[sharing] case class DeltaTableMetadata(
+    version: Long,
+    protocol: Protocol,
+    metadata: Metadata)
 
-case class DeltaTableFiles(
+private[sharing] case class DeltaTableFiles(
     version: Long,
     protocol: Protocol,
     metadata: Metadata,
     files: Seq[AddFile])
 
-case class Share(name: String)
+private[sharing] case class Share(name: String)
 
-case class Schema(name: String, share: String)
+private[sharing] case class Schema(name: String, share: String)
 
-case class Table(name: String, schema: String, share: String)
+private[sharing] case class Table(name: String, schema: String, share: String)
 
-case class SingleAction(
+private[sharing] case class SingleAction(
     file: AddFile = null,
     metaData: Metadata = null,
     protocol: Protocol = null) {
@@ -51,9 +54,9 @@ case class SingleAction(
   }
 }
 
-case class Format(provider: String = "parquet")
+private[sharing] case class Format(provider: String = "parquet")
 
-case class Metadata(
+private[sharing] case class Metadata(
     id: String = null,
     name: String = null,
     description: String = null,
@@ -63,24 +66,23 @@ case class Metadata(
   override def wrap: SingleAction = SingleAction(metaData = this)
 }
 
-sealed trait Action {
+private[sharing] sealed trait Action {
+  /** Turn this object to the [[SingleAction]] wrap object. */
   def wrap: SingleAction
 }
 
-case class Protocol(minReaderVersion: Int) extends Action {
+private[sharing] case class Protocol(minReaderVersion: Int) extends Action {
   override def wrap: SingleAction = SingleAction(protocol = this)
 }
 
-case class AddFile(
-  url: String,
-  id: String,
-  @JsonInclude(JsonInclude.Include.ALWAYS)
-  partitionValues: Map[String, String],
-  size: Long,
-  @JsonRawValue
-  stats: String = null) extends Action {
-
-  require(url.nonEmpty)
+private[sharing] case class AddFile(
+    url: String,
+    id: String,
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    partitionValues: Map[String, String],
+    size: Long,
+    @JsonRawValue
+    stats: String = null) extends Action {
 
   override def wrap: SingleAction = SingleAction(file = this)
 }

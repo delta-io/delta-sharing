@@ -26,14 +26,17 @@ import org.apache.hadoop.util.Progressable
 import org.apache.http.impl.client.HttpClientBuilder
 
 /** Read-only file system for delta paths. */
-class DeltaSharingFileSystem extends FileSystem {
+private[sharing] class DeltaSharingFileSystem extends FileSystem {
   import DeltaSharingFileSystem._
 
   private lazy val httpClient = {
-    val maxConnections = getConf.getInt("spark.delta.sharing.maxConnections", 15)
+    val maxConnections = getConf.getInt("spark.delta.sharing.maxConnections", 64)
     HttpClientBuilder.create()
       .setMaxConnTotal(maxConnections)
       .setMaxConnPerRoute(maxConnections)
+      // Disable the default retry behavior because we have our own retry logic.
+      // See `RetryUtils.runWithExponentialBackoff`.
+      .disableAutomaticRetries()
       .build()
   }
 
@@ -83,7 +86,8 @@ class DeltaSharingFileSystem extends FileSystem {
 
   override def getFileStatus(f: Path): FileStatus = {
     val resolved = makeQualified(f)
-    new FileStatus(restoreUri(f)._2, false, 0, 1, 0, f)
+    val (_, len) = restoreUri(resolved)
+    new FileStatus(len, false, 0, 1, 0, f)
   }
 
   override def finalize(): Unit = {
@@ -95,7 +99,7 @@ class DeltaSharingFileSystem extends FileSystem {
   }
 }
 
-object DeltaSharingFileSystem {
+private[sharing] object DeltaSharingFileSystem {
 
   val SCHEME = "delta-sharing"
 

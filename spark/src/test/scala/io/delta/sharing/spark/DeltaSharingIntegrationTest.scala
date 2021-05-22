@@ -17,6 +17,7 @@
 package io.delta.sharing.spark
 
 import java.io.File
+import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
 import java.util.concurrent.{CountDownLatch, TimeUnit}
 
@@ -50,7 +51,7 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
           |  "shareCredentialsVersion": 1,
           |  "endpoint": "https://localhost:$TEST_PORT/delta-sharing",
           |  "bearerToken": "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
-          |}""".stripMargin, "UTF-8")
+          |}""".stripMargin, UTF_8)
 
       val startLatch = new CountDownLatch(1)
       new Thread("Run TestDeltaSharingServer") {

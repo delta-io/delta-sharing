@@ -51,11 +51,13 @@ import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
 import org.apache.http.conn.EofSensorInputStream
 import org.apache.spark.internal.Logging
 
+import io.delta.sharing.spark.util.{RetryUtils, UnexpectedHttpStatus}
+
 /**
  * This is a special input stream to provide random access over HTTP. This class requires the server
- * side to support HTTP Range header
+ * side to support HTTP Range header.
  */
-class RandomAccessHttpInputStream(
+private[sharing] class RandomAccessHttpInputStream(
     client: HttpClient,
     uri: URI,
     contentLength: Long,
@@ -135,27 +137,30 @@ class RandomAccessHttpInputStream(
     } else {
       logDebug(s"Opening file $uri at pos $pos")
 
-      val httpRequest = createHttpRequest(pos)
-      val response = client.execute(httpRequest)
-      val status = response.getStatusLine()
-      val entity = response.getEntity()
-      val statusCode = status.getStatusCode
-      if (statusCode != HttpStatus.SC_PARTIAL_CONTENT) {
-        // Note: we will still fail if the server returns 200 because it means the server doesn't
-        // support HTTP Range header.
-        val errorBody = if (entity == null) {
-          ""
-        } else {
-          val input = entity.getContent()
-          try {
-            IOUtils.toString(input, UTF_8)
-          } finally {
-            input.close()
+     val entity = RetryUtils.runWithExponentialBackoff {
+        val httpRequest = createHttpRequest(pos)
+        val response = client.execute(httpRequest)
+        val status = response.getStatusLine()
+        val entity = response.getEntity()
+        val statusCode = status.getStatusCode
+        if (statusCode != HttpStatus.SC_PARTIAL_CONTENT) {
+          // Note: we will still fail if the server returns 200 because it means the server doesn't
+          // support HTTP Range header.
+          val errorBody = if (entity == null) {
+            ""
+          } else {
+            val input = entity.getContent()
+            try {
+              IOUtils.toString(input, UTF_8)
+            } finally {
+              input.close()
+            }
           }
+          throw new UnexpectedHttpStatus(
+            s"HTTP request failed with status: $status $errorBody",
+            statusCode)
         }
-        throw new UnexpectedHttpStatus(
-          s"HTTP request failed with status: $status $errorBody",
-          statusCode)
+        entity
       }
       currentStream = entity.getContent()
       this.pos = pos

@@ -72,6 +72,15 @@ class ServerConfigSuite extends FunSuite {
     }
   }
 
+  test("accept unknown fields") {
+    val serverConfig = new ServerConfig()
+    serverConfig.setVersion(1)
+    testConfig(
+      """version: 1
+        |unknown: "test"
+        |""".stripMargin, serverConfig)
+  }
+
   private def assertInvalidConfig(expectedErrorMessage: String)(func: => Unit): Unit = {
     assert(intercept[IllegalArgumentException] {
       func

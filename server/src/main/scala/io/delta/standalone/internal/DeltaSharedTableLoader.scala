@@ -46,8 +46,15 @@ class DeltaSharedTableLoader(serverConfig: ServerConfig) {
 
   def loadTable(tableConfig: TableConfig): DeltaSharedTable = {
     val deltaSharedTable =
-      deltaSharedTableCache.get(tableConfig.location, () => new DeltaSharedTable(tableConfig))
-    deltaSharedTable.update()
+      deltaSharedTableCache.get(tableConfig.location, () => {
+        new DeltaSharedTable(
+          tableConfig,
+          serverConfig.preSignedUrlTimeoutSeconds,
+          serverConfig.evaluatePredicateHints)
+      })
+    if (!serverConfig.stalenessAcceptable) {
+      deltaSharedTable.update()
+    }
     deltaSharedTable
   }
 }
@@ -55,12 +62,26 @@ class DeltaSharedTableLoader(serverConfig: ServerConfig) {
 /**
  * A table class that wraps `DeltaLog` to provide the methods used by the server.
  */
-class DeltaSharedTable(tableConfig: TableConfig) {
+class DeltaSharedTable(
+    tableConfig: TableConfig,
+    preSignedUrlTimeoutSeconds: Long,
+    evaluatePredicateHints: Boolean) {
+
+  private val conf = withClassLoader {
+    new Configuration()
+  }
 
   private val deltaLog = withClassLoader {
-    val conf = new Configuration()
     val tablePath = new Path(tableConfig.getLocation)
+    val fs = tablePath.getFileSystem(conf)
+    if (!fs.isInstanceOf[S3AFileSystem]) {
+      throw new IllegalStateException("Cannot share tables on non S3 file systems")
+    }
     DeltaLog.forTable(conf, tablePath).asInstanceOf[DeltaLogImpl]
+  }
+
+  private val signer = withClassLoader {
+    new S3FileSigner(deltaLog.dataPath.toUri, conf, preSignedUrlTimeoutSeconds)
   }
 
   /**
@@ -87,14 +108,8 @@ class DeltaSharedTable(tableConfig: TableConfig) {
   def query(
       includeFiles: Boolean,
       predicateHits: Seq[String],
-      limitHint: Option[Int],
-      preSignedUrlTimeoutSeconds: Long): (Long, Seq[model.SingleAction]) = withClassLoader {
-    val conf = new Configuration()
-    val tablePath = new Path(tableConfig.getLocation)
-    val fs = tablePath.getFileSystem(conf)
-    if (!fs.isInstanceOf[S3AFileSystem]) {
-      throw new IllegalStateException("Cannot share tables on non S3 file systems")
-    }
+      limitHint: Option[Int]): (Long, Seq[model.SingleAction]) = withClassLoader {
+    // TODO Support `limitHint`
     val snapshot = deltaLog.snapshot
     if (snapshot.version < 0) {
       throw new IllegalStateException(s"The table ${tableConfig.getName} " +
@@ -103,8 +118,6 @@ class DeltaSharedTable(tableConfig: TableConfig) {
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
-    val selectedFiles = state.activeFiles.values.toSeq
-    val signer = new S3FileSigner(tablePath.toUri, conf, preSignedUrlTimeoutSeconds)
     val modelProtocol = model.Protocol(state.protocol.minReaderVersion)
     val modelMetadata = model.Metadata(
       id = state.metadata.id,
@@ -116,9 +129,21 @@ class DeltaSharedTable(tableConfig: TableConfig) {
     )
     val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
       if (includeFiles) {
-        selectedFiles.map { addFile =>
+        val selectedFiles = state.activeFiles.values.toSeq
+        val filteredFilters =
+          if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
+            PartitionFilterUtils.evaluatePredicate(
+              modelMetadata.schemaString,
+              modelMetadata.partitionColumns,
+              predicateHits,
+              selectedFiles
+            )
+          } else {
+            selectedFiles
+          }
+        filteredFilters.map { addFile =>
           val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
-          val signedUrl = signFile(signer, cloudPath)
+          val signedUrl = signFile(cloudPath)
           val modelAddFile = model.AddFile(url = signedUrl,
             id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
             partitionValues = addFile.partitionValues,
@@ -157,7 +182,7 @@ class DeltaSharedTable(tableConfig: TableConfig) {
     }
   }
 
-  private def signFile(signer: CloudFileSigner, path: Path): String = {
+  private def signFile(path: Path): String = {
     val absPath = path.toUri
     val bucketName = absPath.getHost
     val objectKey = absPath.getPath.stripPrefix("/")

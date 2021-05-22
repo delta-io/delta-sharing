@@ -23,7 +23,7 @@ import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{PositionedReadable, Seekable}
 
 /** An input stream that holds the entire content in memory to provide random access. */
-class InMemoryHttpInputStream(uri: URI)
+private[sharing] class InMemoryHttpInputStream(uri: URI)
   extends ByteArrayInputStream(IOUtils.toByteArray(uri)) with Seekable with PositionedReadable {
 
   override def seek(pos: Long): Unit = synchronized {
