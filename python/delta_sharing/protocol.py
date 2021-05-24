@@ -100,7 +100,17 @@ class Table:
 
 @dataclass(frozen=True)
 class Protocol:
+    CURRENT: ClassVar[int] = 1
+
     min_reader_version: int
+
+    def __post_init__(self):
+        if self.min_reader_version > Protocol.CURRENT:
+            raise ValueError(
+                f"The table requires a newer version {self.min_reader_version} to read. "
+                f"But the current release supports version {Protocol.CURRENT} and below. "
+                f"Please upgrade to a newer release."
+            )
 
     @staticmethod
     def from_json(json) -> "Protocol":

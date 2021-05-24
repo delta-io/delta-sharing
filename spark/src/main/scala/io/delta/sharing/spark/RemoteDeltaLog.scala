@@ -81,8 +81,12 @@ private[sharing] object RemoteDeltaLog {
       throw new IllegalArgumentException(s"path $path is not valid")
     }
     val profileFile = path.substring(0, shapeIndex)
-    val tableSplits = path.substring(shapeIndex + 1).split("\\.")
+    val tableSplits = path.substring(shapeIndex + 1).split("\\.", -1)
     if (tableSplits.length != 3) {
+      throw new IllegalArgumentException(s"path $path is not valid")
+    }
+    if (profileFile.isEmpty || tableSplits(0).isEmpty ||
+      tableSplits(1).isEmpty || tableSplits(2).isEmpty) {
       throw new IllegalArgumentException(s"path $path is not valid")
     }
     (profileFile, tableSplits(0), tableSplits(1), tableSplits(2))

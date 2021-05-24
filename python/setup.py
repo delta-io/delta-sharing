@@ -20,10 +20,10 @@ from os import path
 from setuptools import setup
 import sys
 
-DESCRIPTION = "Delta Sharing"
+DESCRIPTION = "Python Connector for Delta Sharing"
 
 this_directory = path.abspath(path.dirname(__file__))
-with open(path.join(this_directory, '../README.md'), encoding='utf-8') as f:
+with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     LONG_DESCRIPTION = f.read()
 
 try:
@@ -56,12 +56,24 @@ setup(
         'gcs': ['gcsfs'],
         'gs': ['gcsfs'],
     },
-    author="Delta Lake Authors",
-    license='http://www.apache.org/licenses/LICENSE-2.0',
+    author="The Delta Lake Project Authors",
+    author_email="delta-users@googlegroups.com",
+    license="Apache-2.0",
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown',
+    url="https://github.com/delta-io/delta-sharing/",
+    project_urls={
+        'Source': 'https://github.com/delta-io/delta-sharing',
+        'Documentation': 'https://github.com/delta-io/delta-sharing',
+        'Issues': 'https://github.com/delta-io/delta-sharing/issues'
+    },
     classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: Apache Software License",
+        "Operating System :: OS Independent",
+        "Topic :: Software Development :: Libraries :: Python Modules",
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',

@@ -114,6 +114,14 @@ def test_protocol():
     protocol = Protocol.from_json(json)
     assert protocol == Protocol(1)
 
+    json = """
+        {
+            "minReaderVersion" : 100
+        }
+        """
+    with pytest.raises(ValueError, match="The table requires a newer version 100 to read."):
+        Protocol.from_json(json)
+
 
 def test_metadata():
     schema_string = (
