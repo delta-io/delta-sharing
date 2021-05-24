@@ -389,7 +389,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(IOUtils.toByteArray(new URL(actualFiles(2).url)).size == 573)
   }
 
-  test("case insensitive") {
+  integrationTest("case insensitive") {
     val response = readNDJson(requestPath("/shares/sHare1/schemas/deFault/tables/taBle3/metadata"), expectedTableVersion = Some(4))
     val Array(protocol, metadata) = response.split("\n")
     val expectedProtocol = Protocol(minReaderVersion = 1).wrap
