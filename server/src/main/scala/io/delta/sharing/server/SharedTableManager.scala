@@ -31,6 +31,8 @@ import io.delta.sharing.server.protocol.{PageToken, Schema, Share, Table}
  */
 class SharedTableManager(serverConfig: ServerConfig) {
 
+  private val caseInsensitiveComparer = (a: String, b: String) => a.equalsIgnoreCase(b)
+
   private val shares = serverConfig.getShares
 
   private val defaultMaxResults = 500
@@ -91,12 +93,12 @@ class SharedTableManager(serverConfig: ServerConfig) {
   }
 
   private def getShare(share: String): ShareConfig = {
-    shares.asScala.find(_.getName == share)
+    shares.asScala.find(s => caseInsensitiveComparer(s.getName, share))
       .getOrElse(throw new DeltaSharingNoSuchElementException(s"share '$share' not found"))
   }
 
   private def getSchema(shareConfig: ShareConfig, schema: String): SchemaConfig = {
-    shareConfig.getSchemas.asScala.find(_.getName == schema)
+    shareConfig.getSchemas.asScala.find(s => caseInsensitiveComparer(s.getName, schema))
       .getOrElse(throw new DeltaSharingNoSuchElementException(s"schema '$schema' not found"))
   }
 
@@ -139,7 +141,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
 
   def getTable(share: String, schema: String, table: String): TableConfig = {
     val schemaConfig = getSchema(getShare(share), schema)
-    schemaConfig.getTables.asScala.find(_.getName == table)
+    schemaConfig.getTables.asScala.find(t => caseInsensitiveComparer(t.getName, table))
       .getOrElse(throw new DeltaSharingNoSuchElementException(s"table '$table' not found"))
   }
 }

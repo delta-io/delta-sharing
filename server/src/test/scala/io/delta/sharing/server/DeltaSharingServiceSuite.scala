@@ -388,4 +388,17 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(IOUtils.toByteArray(new URL(actualFiles(1).url)).size == 778)
     assert(IOUtils.toByteArray(new URL(actualFiles(2).url)).size == 573)
   }
+
+  test("case insensitive") {
+    val response = readNDJson(requestPath("/shares/sHare1/schemas/deFault/tables/taBle3/metadata"), expectedTableVersion = Some(4))
+    val Array(protocol, metadata) = response.split("\n")
+    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val expectedMetadata = Metadata(
+      id = "7ba6d727-a578-4234-a138-953f790b427c",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}},{"name":"type","type":"string","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Seq("date")).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+  }
 }

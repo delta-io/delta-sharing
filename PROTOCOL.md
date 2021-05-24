@@ -92,7 +92,7 @@ HTTP Parameters | Value
 HTTP Method | GET
 Header | Authorization: Bearer {token}
 URL | {prefix}/shares/{share}/schemas
-URL Parameters | **{share}**: The share name to query.
+URL Parameters | **{share}**: The share name to query. It's case-insensitive.
 Query Parameters | **maxResults** (type: Int, optional): The maximum number of results per page that should be returned. If the number of available results is larger than `maxResults`, the response will provide a `nextPageToken` that can be used to get the next page of results in subsequent list requests. The server may return fewer than `maxResults` items even if there are more available. The client should check `nextPageToken` in the response to determine if there are more available.<br><br>**pageToken** (type: String, optional): Specifies a page token to use. Set `pageToken` to the `nextPageToken` returned by a previous list request to get the next page of results. `nextPageToken` will not be returned in a response if there are no more results available.
 Response Header | Content-Type: application/json; charset=utf-8
 Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>      "share": string<br>    }<br>  ],<br>  "nextPageToken": string,<br>}</pre>
@@ -123,7 +123,7 @@ HTTP Parameters | Value
 HTTP Method | GET
 Header | Authorization: Bearer {token}
 URL | {prefix}/shares/{share}/schemas/{schema}/tables
-URL Parameters | **{share}**: The share name to query.<br>**{schema}**: The schema name to query.
+URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.
 Query Parameters | **maxResults** (type: Int, optional): The maximum number of results per page that should be returned. If the number of available results is larger than `maxResults`, the response will provide a `nextPageToken` that can be used to get the next page of results in subsequent list requests. The server may return fewer than `maxResults` items even if there are more available. The client should check `nextPageToken` in the response to determine if there are more available.<br><br>**pageToken** (type: String, optional): Specifies a page token to use. Set `pageToken` to the `nextPageToken` returned by a previous list request to get the next page of results. `nextPageToken` will not be returned in a response if there are no more results available.
 Response Header | Content-Type: application/json; charset=utf-8
 Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>      "schema": string<br>      "share": string<br>    }<br>  ],<br>  "nextPageToken": string,<br>}</pre>
@@ -159,7 +159,7 @@ HTTP Parameters | Value
 HTTP Method | HEAD
 Header | Authorization: Bearer {token}
 URL | {prefix}/shares/{share}/schemas/{schema}/tables/{table}
-URL Parameters | **{share}**: The share name to query.<br>**{schema}**: The schema name to query.<br>**{table}**: The table name to query.
+URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.<br>**{table}**: The table name to query. It's case-insensitive.
 Response Header | Delta-Table-Version: {version}<br><br>**{version}** is a long value which represents the current table version.
 Response Body | Empty
 
@@ -181,7 +181,7 @@ HTTP Parameters | Value
 HTTP Method | GET
 Header | Authorization: Bearer {token}
 URL | {prefix}/shares/{share}/schemas/{schema}/tables/{table}/metadata
-URL Parameters | **{share}**: The share name to query.<br>**{schema}**: The schema name to query.<br>**{table}**: The table name to query.
+URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.<br>**{table}**: The table name to query. It's case-insensitive.
 Response Header | Content-Type: [application/x-ndjson](http://ndjson.org/)<br>Delta-Table-Version: {version}<br><br>**{version}** is a long value which represents the current table version.
 Response Body | A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [Table Metadata Format](#table-metadata-format). <br><br>The response contains two lines:<br>- The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.<br>- The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
 
@@ -207,7 +207,7 @@ HTTP Parameters | Value
 HTTP Method | POST
 Header | Authorization: Bearer {token}
 URL | {prefix}/shares/{share}/schemas/{schema}/tables/{table}/query
-URL Parameters | **{share}**: The share name to query.<br>**{schema}**: The schema name to query.<br>**{table}**: The table name to query.
+URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.<br>**{table}**: The table name to query. It's case-insensitive.
 Request Header | Content-Type: application/json; charset=utf-8
 Request Body | <pre>{<br>  "predicateHints": [<br>    string<br>  ],<br>  "limitHint": int<br>}</pre><br> See [below](#request-body) for more details.
 Response Header | Content-Type: [application/x-ndjson](http://ndjson.org/)<br>Delta-Table-Version: {version}<br><br>**{version}** is a long value which represents the current table version.

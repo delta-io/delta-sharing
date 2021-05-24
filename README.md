@@ -26,7 +26,7 @@ If you are using [Databricks Runtime](https://docs.databricks.com/runtime/dbr.ht
 
 The first step to read shared Delta tables is getting [a profile file](PROTOCOL.md#profile-file-format) from your share provider. The Delta Sharing library will need this file to access the shared tables.
 
-We also host an open Delta Sharing Server with open datasets. You can download the profile file to access it [here](https://sharing.delta.io/open-profile.share).
+We also host an open Delta Sharing Server with open datasets. You can download the profile file to access it [here](https://delta.io/sharing/open-datasets.share).
 
 ## Usages
 
