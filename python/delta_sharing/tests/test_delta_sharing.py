@@ -18,7 +18,7 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from delta_sharing.delta_sharing import SharingClient, load_as_pandas
+from delta_sharing.delta_sharing import SharingClient, load_as_pandas, load_as_spark, _parse_url
 from delta_sharing.protocol import Schema, Share, Table
 from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
@@ -110,3 +110,37 @@ def test_list_all_tables(sharing_client: SharingClient):
 def test_load(profile_path: str, fragments: str, expected: pd.DataFrame):
     pdf = load_as_pandas(f"{profile_path}#{fragments}")
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+def test_parse_url():
+    def check_invalid_url(url: str):
+        with pytest.raises(ValueError, match=f"Invalid 'url': {url}"):
+            _parse_url(url)
+
+    check_invalid_url("")
+    check_invalid_url("#")
+    check_invalid_url("foo")
+    check_invalid_url("foo#")
+    check_invalid_url("foo#share")
+    check_invalid_url("foo#share.schema")
+    check_invalid_url("foo#share.schema.")
+
+    assert _parse_url("profile#share.schema.table") == ("profile", "share", "schema", "table")
+    assert _parse_url("foo#bar#share.schema.table") == ("foo#bar", "share", "schema", "table")
+
+
+def test_load_as_spark():
+    try:
+        import pyspark  # noqa: F401
+
+        with pytest.raises(
+            AssertionError,
+            match="No active SparkSession was found. "
+            "`load_as_spark` requires running in a PySpark application.",
+        ):
+            load_as_spark("not-used")
+    except ImportError:
+        with pytest.raises(
+            ImportError, match="Unable to import pyspark. `load_as_spark` requires PySpark."
+        ):
+            load_as_spark("not-used")

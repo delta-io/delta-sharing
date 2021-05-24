@@ -183,7 +183,7 @@ private[sharing] class DeltaSharingRestClient(
   private def checkProtocol(protocol: Protocol): Unit = {
     if (protocol.minReaderVersion > DeltaSharingRestClient.CURRENT) {
       throw new IllegalArgumentException(s"The table requires a newer version" +
-        s" (${protocol.minReaderVersion}) to read. But the current release supports version " +
+        s" ${protocol.minReaderVersion} to read. But the current release supports version " +
         s"is ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer release.")
     }
   }

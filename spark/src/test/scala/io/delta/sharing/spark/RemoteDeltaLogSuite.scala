@@ -22,6 +22,10 @@ class RemoteDeltaLogSuite extends SparkFunSuite {
 
   test("parsePath") {
     assert(RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c") == ("file:///foo/bar", "a", "b", "c"))
+    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c") ==
+      ("file:///foo/bar#bar", "a", "b", "c"))
+    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c ") ==
+      ("file:///foo/bar#bar", "a", "b", "c "))
     intercept[IllegalArgumentException] {
       RemoteDeltaLog.parsePath("file:///foo/bar")
     }
@@ -30,6 +34,15 @@ class RemoteDeltaLogSuite extends SparkFunSuite {
     }
     intercept[IllegalArgumentException] {
       RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c.d")
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("#a.b.c")
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("foo#a.b.")
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("foo#a.b.c.")
     }
   }
 }
