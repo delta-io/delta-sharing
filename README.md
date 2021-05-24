@@ -2,13 +2,22 @@
 
 [![Build and Test](https://github.com/delta-io/delta-sharing/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/delta-io/delta-sharing/actions/workflows/build-and-test.yml)
 
-[Delta Sharing](https://delta.io/sharing) is the industry's first open protocol for secure data sharing, making it simple to share data with other organizations regardless of which computing platforms they use. This repo includes the following components:
+# Introduction
+
+[Delta Sharing](https://delta.io/sharing) is an open protocol for secure real-time exchange of large datasets, which enables secure data sharing across products for the first time. It is a simple [REST protocol](PROTOCOL.md) that securely shares access to part of a cloud dataset. It leverages modern cloud storage systems, such as S3, ADLS, or GCS, to reliably transfer large datasets.
+
+With Delta Sharing, the user accessing shared data can directly connect to it through Pandas, Tableau, or dozens of other systems that implement the open protocol, without having to deploy a specific platform first. This reduces their access time from months to minutes, and makes life dramatically simpler for data providers who want to reach as many users as possible.
+
+This repo includes the following components:
 
 - Python Connector: A Python library that implements the [Delta Sharing Protocol](PROTOCOL.md) to read shared tables from a Delta Sharing Server. You can load shared tables as a [pandas](https://pandas.pydata.org/) DataFrame, or as an [Apache Spark](http://spark.apache.org/) DataFrame if running in PySpark with the following connector installed.
 - [Apache Spark](http://spark.apache.org/) Connector: An Apache Spark connector that implements the [Delta Sharing Protocol](PROTOCOL.md) to read shared tables from a Delta Sharing Server. It's powered by Apache Spark and can be used in Python, Scala, Java, R, and SQL.
-- Delta Sharing Server: A reference implementation server for the [Delta Sharing Protocol](PROTOCOL.md).
+- Delta Sharing Server: A reference implementation server for the [Delta Sharing Protocol](PROTOCOL.md). The user can deploy this server to share their tables on modern cloud storage systems.
+
 
 # Python Connector
+
+The Python Connector is a Python library that implements the [Delta Sharing Protocol](PROTOCOL.md) to read shared tables from a Delta Sharing Server. You can load shared tables as a [pandas](https://pandas.pydata.org/) DataFrame, or as an [Apache Spark](http://spark.apache.org/) DataFrame if running in PySpark with the Apache Spark Connector installed.
 
 ## Requirement
 
@@ -22,13 +31,17 @@ pip install delta-sharing
 
 If you are using [Databricks Runtime](https://docs.databricks.com/runtime/dbr.html), you can follow [Databricks Libraries doc](https://docs.databricks.com/libraries/index.html) to install the library on your clusters.
 
-## Get the share profile file
+## Download the share profile file
 
-The first step to read shared Delta tables is getting [a profile file](PROTOCOL.md#profile-file-format) from your share provider. The Delta Sharing library will need this file to access the shared tables.
+[A profile file](PROTOCOL.md#profile-file-format) is a JSON file that contains the information to access a Delta Sharing server. The connectors need this file to access the shared tables. There are multiple ways to download the profile file:
 
-We also host an open Delta Sharing Server with open datasets. You can download the profile file to access it [here](https://delta.io/sharing/open-datasets.share).
+- Download the profile file from our open Delta Sharing Server [here](https://delta.io/sharing/open-datasets.share). We host an open Delta Sharing Server with several open datasets. You can try the connectors with these datasets.
+- Start your own [Delta Sharing Server](#delta-sharing-server) and create your own profile file following [profile file format](PROTOCOL.md#profile-file-format) to connect to this server.
+- Download the profile file from your data provider.
 
-## Usages
+## Quick Start
+
+After you save the profile file, you can use it in the connector to access shared tables.
 
 ```python
 import delta_sharing
@@ -60,15 +73,17 @@ delta_sharing.load_as_spark(table_url)
 
 # Apache Spark Connector
 
+The Apache Spark Connector implements the [Delta Sharing Protocol](PROTOCOL.md) to read shared tables from a Delta Sharing Server. It's powered by Apache Spark and can be used in Python, Scala, Java, R, and SQL.
+
 ## Requirement
 
 - Java 8+
 - Scala 2.12.x
 - Apache Spark 3+ or [Databricks Runtime](https://docs.databricks.com/runtime/dbr.html) 7+
 
-## Get the share profile file
+## Download the share profile file
 
-See [Get the share profile file](#get-the-share-profile-file) in Python Connector
+See [Download the share profile file](#download-the-share-profile-file) in Python Connector
 
 ## Set up Apache Spark
 
@@ -130,7 +145,9 @@ You include Delta Sharing connector in your SBT project by adding the following 
 libraryDependencies += "io.delta" %% "delta-sharing-spark" % "0.1.0"
 ```
 
-## Usages
+## Quick Start
+
+After you save the profile file and set up Spark with the connector, you can access shared tables using any language we support.
 
 ### Python
 
@@ -188,11 +205,11 @@ Download the pre-built package `delta-sharing-server-x.y.z.zip` from [GitHub Rel
 ## Config the shared tables for the server
 
 - Unpack the pre-built package and copy the server config template file `conf/delta-sharing-server.yaml.template` to create your own server yaml file, such as `conf/delta-sharing-server.yaml`.
-- Make changes to your yaml file, such as add the Delta tables you would like to share in this server. You may also need to update some server configs for special requirements.
+- Make changes to your yaml file, such as add the Delta Lake tables you would like to share in this server. You may also need to update some server configs for special requirements.
 
 ## Config the server to access tables on S3
 
-We only support sharing Delta tables on S3. There are multiple ways to config the server to access S3.
+We only support sharing Delta Lake tables on S3 right now. There are multiple ways to config the server to access S3.
 
 ### EC2 IAM Metadata Authentication (Recommended)
 
