@@ -19,21 +19,56 @@ package io.delta.sharing.spark
 import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.Base64
+import java.util.concurrent.TimeUnit
 
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
+import org.apache.http.client.config.RequestConfig
 import org.apache.http.impl.client.HttpClientBuilder
+import org.apache.spark.network.util.JavaUtils
 
 /** Read-only file system for delta paths. */
 private[sharing] class DeltaSharingFileSystem extends FileSystem {
   import DeltaSharingFileSystem._
 
-  private lazy val httpClient = {
-    val maxConnections = getConf.getInt("spark.delta.sharing.maxConnections", 64)
+  lazy private val numRetries = {
+    val numRetries = getConf.getInt("spark.delta.sharing.network.numRetries", 10)
+    if (numRetries < 0) {
+      throw new IllegalArgumentException(
+        "spark.delta.sharing.network.numRetries must not be negative")
+    }
+    numRetries
+  }
+
+  lazy private val timeoutInSeconds = {
+    val timeoutStr = getConf.get("spark.delta.sharing.network.timeout", "120s")
+    val timeoutInSeconds = JavaUtils.timeStringAs(timeoutStr, TimeUnit.SECONDS)
+    if (timeoutInSeconds < 0) {
+      throw new IllegalArgumentException(
+        "spark.delta.sharing.network.timeout must not be negative")
+    }
+    if (timeoutInSeconds > Int.MaxValue) {
+      throw new IllegalArgumentException(
+        s"spark.delta.sharing.network.timeout is too big: $timeoutStr")
+    }
+    timeoutInSeconds.toInt
+  }
+
+  lazy private val httpClient = {
+    val maxConnections = getConf.getInt("spark.delta.sharing.network.maxConnections", 64)
+    if (maxConnections < 0) {
+      throw new IllegalArgumentException(
+        "spark.delta.sharing.network.maxConnections must not be negative")
+    }
+    val config = RequestConfig.custom()
+      .setConnectTimeout(timeoutInSeconds * 1000)
+      .setConnectionRequestTimeout(timeoutInSeconds * 1000)
+      .setSocketTimeout(timeoutInSeconds * 1000).build()
     HttpClientBuilder.create()
       .setMaxConnTotal(maxConnections)
       .setMaxConnPerRoute(maxConnections)
+      .setDefaultRequestConfig(config)
       // Disable the default retry behavior because we have our own retry logic.
       // See `RetryUtils.runWithExponentialBackoff`.
       .disableAutomaticRetries()
@@ -50,7 +85,8 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
     if (getConf.getBoolean("spark.delta.sharing.loadDataFilesInMemory", false)) {
       new FSDataInputStream(new InMemoryHttpInputStream(uri))
     } else {
-      new FSDataInputStream(new RandomAccessHttpInputStream(httpClient, uri, len, statistics))
+      new FSDataInputStream(
+        new RandomAccessHttpInputStream(httpClient, uri, len, statistics, numRetries))
     }
   }
 

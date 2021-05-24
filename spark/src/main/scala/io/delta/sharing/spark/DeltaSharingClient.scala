@@ -23,6 +23,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.commons.io.IOUtils
 import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
+import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.{HttpGet, HttpHead, HttpPost, HttpRequestBase}
 import org.apache.http.client.protocol.HttpClientContext
 import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, TrustSelfSignedStrategy}
@@ -64,6 +65,8 @@ private[sharing] case class ListTablesResponse(
 /** A REST client to fetch Delta metadata from remote server. */
 private[sharing] class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
+    timeoutInSeconds: Int = 120,
+    numRetries: Int = 10,
     sslTrustAll: Boolean = false) extends DeltaSharingClient {
 
   @volatile private var created = false
@@ -80,10 +83,15 @@ private[sharing] class DeltaSharingRestClient(
     } else {
       HttpClientBuilder.create()
     }
+    val config = RequestConfig.custom()
+      .setConnectTimeout(timeoutInSeconds * 1000)
+      .setConnectionRequestTimeout(timeoutInSeconds * 1000)
+      .setSocketTimeout(timeoutInSeconds * 1000).build()
     val client = clientBuilder
       // Disable the default retry behavior because we have our own retry logic.
       // See `RetryUtils.runWithExponentialBackoff`.
       .disableAutomaticRetries()
+      .setDefaultRequestConfig(config)
       .build()
     created = true
     client
@@ -235,37 +243,37 @@ private[sharing] class DeltaSharingRestClient(
    * Send the http request and return the table version in the header if any, and the response
    * content.
    */
-  private def getResponse(
-      httpRequest: HttpRequestBase): (Option[Long], String) = RetryUtils.runWithExponentialBackoff {
-    val profile = profileProvider.getProfile
-    httpRequest.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer ${profile.bearerToken}")
-    val response =
-      client.execute(getHttpHost(profile.endpoint), httpRequest, HttpClientContext.create())
-    try {
-      val status = response.getStatusLine()
-      val entity = response.getEntity()
-      val body = if (entity == null) {
-        ""
-      } else {
-        val input = entity.getContent()
-        try {
-          IOUtils.toString(input, UTF_8)
-        } finally {
-          input.close()
+  private def getResponse(httpRequest: HttpRequestBase): (Option[Long], String) =
+    RetryUtils.runWithExponentialBackoff(numRetries) {
+      val profile = profileProvider.getProfile
+      httpRequest.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer ${profile.bearerToken}")
+      val response =
+        client.execute(getHttpHost(profile.endpoint), httpRequest, HttpClientContext.create())
+      try {
+        val status = response.getStatusLine()
+        val entity = response.getEntity()
+        val body = if (entity == null) {
+          ""
+        } else {
+          val input = entity.getContent()
+          try {
+            IOUtils.toString(input, UTF_8)
+          } finally {
+            input.close()
+          }
         }
-      }
 
-      val statusCode = status.getStatusCode
-      if (statusCode != HttpStatus.SC_OK) {
-        throw new UnexpectedHttpStatus(
-          s"HTTP request failed with status: $status $body",
-          statusCode)
+        val statusCode = status.getStatusCode
+        if (statusCode != HttpStatus.SC_OK) {
+          throw new UnexpectedHttpStatus(
+            s"HTTP request failed with status: $status $body",
+            statusCode)
+        }
+        Option(response.getFirstHeader("Delta-Table-Version")).map(_.getValue.toLong) -> body
+      } finally {
+        response.close()
       }
-      Option(response.getFirstHeader("Delta-Table-Version")).map(_.getValue.toLong) -> body
-    } finally {
-      response.close()
     }
-  }
 
   def close(): Unit = {
     if (created) {

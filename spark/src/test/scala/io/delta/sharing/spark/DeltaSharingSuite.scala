@@ -102,7 +102,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   integrationTest("random access stream") {
     // Set maxConnections to 1 so that if we leak any connection, we will hang forever because any
     // further request won't be able to get a free connection from the pool.
-    withSQLConf("spark.delta.sharing.maxConnections" -> "1") {
+    withSQLConf("spark.delta.sharing.network.maxConnections" -> "1") {
       val seed = System.currentTimeMillis()
       // scalastyle:off println
       println(s"seed for random access stream test: $seed")

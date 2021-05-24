@@ -27,7 +27,7 @@ private[sharing] object RetryUtils extends Logging {
   // Expose it for testing
   @volatile var sleeper: Long => Unit = (sleepMs: Long) => Thread.sleep(sleepMs)
 
-  def runWithExponentialBackoff[T](func: => T): T = {
+  def runWithExponentialBackoff[T](numRetries: Int)(func: => T): T = {
     var times = 0
     var sleepMs = 100
     while (true) {
@@ -35,8 +35,8 @@ private[sharing] object RetryUtils extends Logging {
       try {
         return func
       } catch {
-        case NonFatal(e) if shouldRetry(e) && times < 10 =>
-          logWarning(s"Sleeping $sleepMs ms because of error: " + e.getMessage, e)
+        case NonFatal(e) if shouldRetry(e) && times <= numRetries =>
+          logWarning(s"Sleeping $sleepMs ms to retry because of error: ${e.getMessage}", e)
           sleeper(sleepMs)
           sleepMs *= 2
       }

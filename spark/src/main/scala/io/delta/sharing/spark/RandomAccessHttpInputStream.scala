@@ -61,7 +61,8 @@ private[sharing] class RandomAccessHttpInputStream(
     client: HttpClient,
     uri: URI,
     contentLength: Long,
-    stats: FileSystem.Statistics) extends FSInputStream with Logging {
+    stats: FileSystem.Statistics,
+    numRetries: Int) extends FSInputStream with Logging {
 
   private var closed = false
   private var pos = 0L
@@ -137,7 +138,7 @@ private[sharing] class RandomAccessHttpInputStream(
     } else {
       logDebug(s"Opening file $uri at pos $pos")
 
-     val entity = RetryUtils.runWithExponentialBackoff {
+     val entity = RetryUtils.runWithExponentialBackoff(numRetries) {
         val httpRequest = createHttpRequest(pos)
         val response = client.execute(httpRequest)
         val status = response.getStatusLine()

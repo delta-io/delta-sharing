@@ -33,7 +33,7 @@ lazy val commonSettings = Seq(
     "-Dspark.databricks.delta.snapshotPartitions=2",
     "-Dspark.sql.shuffle.partitions=5",
     "-Dspark.sql.sources.parallelPartitionDiscovery.parallelism=5",
-    "-Dspark.delta.sharing.client.sslTrustAll=true",
+    "-Dspark.delta.sharing.network.sslTrustAll=true",
     "-Xmx1024m"
   )
 )

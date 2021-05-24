@@ -40,15 +40,17 @@ class RetryUtilsSuite extends SparkFunSuite {
     RetryUtils.sleeper = (sleepMs: Long) => sleeps += sleepMs
     // Retry case
     intercept[UnexpectedHttpStatus] {
-      runWithExponentialBackoff {
+      runWithExponentialBackoff(10) {
         throw new UnexpectedHttpStatus("error", 429)
       }
     }
-    assert(sleeps == Seq(100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600))
+    // Run 11 times should sleep 10 times
+    assert(sleeps.length == 10)
+    assert(sleeps == Seq(100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200))
     // No retry case
     sleeps.clear()
     intercept[RuntimeException] {
-      runWithExponentialBackoff {
+      runWithExponentialBackoff(10) {
         throw new RuntimeException
       }
     }

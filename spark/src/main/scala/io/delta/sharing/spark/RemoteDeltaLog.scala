@@ -17,10 +17,12 @@
 package io.delta.sharing.spark
 
 import java.net.URI
+import java.util.concurrent.TimeUnit
 
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.SparkException
 import org.apache.spark.internal.Logging
+import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.sql.{Column, Encoder, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
@@ -97,8 +99,28 @@ private[sharing] object RemoteDeltaLog {
     val sqlConf = SparkSession.active.sessionState.conf
     // This is a flag to test the local https server. Should never be used in production.
     val sslTrustAll =
-      sqlConf.getConfString("spark.delta.sharing.client.sslTrustAll", "false").toBoolean
-    val client = new DeltaSharingRestClient(profileProvider, sslTrustAll)
+      sqlConf.getConfString("spark.delta.sharing.network.sslTrustAll", "false").toBoolean
+    val numRetries = sqlConf.getConfString("spark.delta.sharing.network.numRetries", "10").toInt
+    if (numRetries < 0) {
+      throw new IllegalArgumentException(
+        "spark.delta.sharing.network.numRetries must not be negative")
+    }
+    val timeoutInSeconds = {
+      val timeoutStr = sqlConf.getConfString("spark.delta.sharing.network.timeout", "120s")
+      val timeoutInSeconds = JavaUtils.timeStringAs(timeoutStr, TimeUnit.SECONDS)
+      if (timeoutInSeconds < 0) {
+        throw new IllegalArgumentException(
+          "spark.delta.sharing.network.timeout must not be negative")
+      }
+      if (timeoutInSeconds > Int.MaxValue) {
+        throw new IllegalArgumentException(
+          s"spark.delta.sharing.network.timeout is too big")
+      }
+      timeoutInSeconds.toInt
+    }
+
+    val client =
+      new DeltaSharingRestClient(profileProvider, timeoutInSeconds, numRetries, sslTrustAll)
     new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
   }
 }
