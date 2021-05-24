@@ -14,17 +14,22 @@
 # limitations under the License.
 #
 from itertools import chain
-from typing import BinaryIO, List, Optional, Sequence, TextIO, Union
+from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
 from pathlib import Path
 
 import pandas as pd
+
+try:
+    from pyspark.sql import DataFrame as PySparkDataFrame
+except ImportError:
+    pass
 
 from delta_sharing.protocol import DeltaSharingProfile, Schema, Share, Table
 from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import DataSharingRestClient
 
 
-def _parse_url(url: str) -> tuple[str, str, str, str]:
+def _parse_url(url: str) -> Tuple[str, str, str, str]:
     """
     :param url: a url under the format "<profile>#<share>.<schema>.<table>"
     :return: a tuple with parsed (profile, share, schema, table)
