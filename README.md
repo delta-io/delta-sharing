@@ -35,7 +35,7 @@ If you are using [Databricks Runtime](https://docs.databricks.com/runtime/dbr.ht
 
 [A profile file](PROTOCOL.md#profile-file-format) is a JSON file that contains the information to access a Delta Sharing server. The connectors need this file to access the shared tables. There are multiple ways to download the profile file:
 
-- Download the profile file from our open Delta Sharing Server [here](https://delta.io/sharing/open-datasets.share). We host an open Delta Sharing Server with several open datasets. You can try the connectors with these datasets.
+- Download the profile file from our open Delta Sharing Server [here](https://databricks-datasets-oregon.s3-us-west-2.amazonaws.com/delta-sharing/share/open-datasets.share). We host an open Delta Sharing Server with several open datasets. You can try the connectors with these datasets.
 - Start your own [Delta Sharing Server](#delta-sharing-server) and create your own profile file following [profile file format](PROTOCOL.md#profile-file-format) to connect to this server.
 - Download the profile file from your data provider.
 
