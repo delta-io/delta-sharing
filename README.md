@@ -71,6 +71,16 @@ delta_sharing.load_as_spark(table_url)
 - The profile file path for `load_as_spark` can be any url supported by Hadoop FileSystem (such as `s3a://my_bucket/my/profile/file`).
 - A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
 
+## API Compatibility
+
+Here is the list of public interfaces which will remain stable within a major release.
+
+- `delta_sharing.load_as_pandas`
+- `delta_sharing.load_as_spark`
+- `delta_sharing.SharingClient`
+
+All other interfaces in this library are considered internal, and they are subject to change across minor/patch releases.
+
 # Apache Spark Connector
 
 The Apache Spark Connector implements the [Delta Sharing Protocol](PROTOCOL.md) to read shared tables from a Delta Sharing Server. It's powered by Apache Spark and can be used in Python, Scala, Java, R, and SQL.
@@ -192,6 +202,12 @@ SELECT * FROM mytable;
 - A profile file path can be any url supported by Hadoop FileSystem (such as `s3a://my_bucket/my/profile/file`).
 - A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
 
+## API Compatibility
+
+The only stable public APIs, currently provided by Aapche Spark Connector, are reading a table through `DataFrameReader` (i.e. `spark.read`), or creating a table using Spark SQL.
+
+All other interfaces in this library are considered internal, and they are subject to change across minor/patch releases.
+
 # Delta Sharing Server
 
 Delta Sharing Server is a reference implementation server for the [Delta Sharing Protocol](PROTOCOL.md). This can be used to set up a small service to test your own connector that implements the [Delta Sharing Protocol](PROTOCOL.md). Note: It's not a completed implementation of secure web server. We highly recommend you to put this behind a secure proxy if you would like to expose it to public.
@@ -238,7 +254,7 @@ authorization:
   bearerToken: <token>
 ```
 
-Then any should send with the above token, otherwise, the server will refuse the request.
+Then any request should send with the above token, otherwise, the server will refuse the request.
 
 If you don't config the bearer token in the server yaml file, all requests will be accepted without authorization.
 
@@ -253,6 +269,12 @@ bin/delta-sharing-server -- --config <the-server-config-yaml-file>
 ```
 
 `<the-server-config-yaml-file>` should be the path of the yaml file you created in the previous step. You can find options to config JVM in [sbt-native-packager](https://www.scala-sbt.org/sbt-native-packager/archetypes/java_app/index.html#start-script-options).
+
+## API Compatibility
+
+The REST APIs provided by Delta Sharing Server are stable public APIs. They are defined by [Delta Sharing Protocol](PROTOCOL.md) and we will follow the entire protocol strictly.
+
+The interfaces inside Delta Sharing Server are not public APIs. They are considered internal, and they are subject to change across minor/patch releases.
 
 # Delta Sharing Protocol
 
@@ -293,7 +315,7 @@ cd python/
 python setup.py sdist bdist_wheel
 ```
 
-It will generate `python/dist/delta_sharing-0.1.0.dev0-py3-none-any.whl`.
+It will generate `python/dist/delta_sharing-x.y.z-py3-none-any.whl`.
 
 ## Apache Spark Connector and Delta Sharing Server
 
@@ -317,7 +339,7 @@ To generate the Apache Spark Connector, run
 build/sbt spark/package
 ```
 
-It will generate `spark/target/scala-2.12/delta-sharing-spark_2.12-0.1.0-SNAPSHOT.jar`.
+It will generate `spark/target/scala-2.12/delta-sharing-spark_2.12-x.y.z.jar`.
 
 To generate the pre-built Delta Sharing Server package, run
 
@@ -325,7 +347,7 @@ To generate the pre-built Delta Sharing Server package, run
 build/sbt server/universal:packageBin
 ```
 
-It will generate `server/target/universal/delta-sharing-server-0.1.0-SNAPSHOT.zip`.
+It will generate `server/target/universal/delta-sharing-server-x.y.z.zip`.
 
 Refer to [SBT docs](https://www.scala-sbt.org/1.x/docs/Command-Line-Reference.html) for more commands.
 
