@@ -1,6 +1,6 @@
 # Delta Sharing
 
-[Delta Sharing](https://delta.io/sharing) is an open protocol for secure real-time exchange of large datasets, which enables secure data sharing across different computing platforms. It allows users to share access to Delta Lake and Apache Parquet tables with other organizations, who can then directly read the table in Pandas, Apache Spark, or any other software that implements the open protocol.
+[Delta Sharing](https://delta.io/sharing) is an open protocol for secure real-time exchange of large datasets, which enables secure data sharing across different computing platforms. It allows users to share access to existing Delta Lake and Apache Parquet tables with other organizations, who can then directly read the table in Pandas, Apache Spark, or any other software that implements the open protocol.
 
 This is the Python client library for Delta Sharing, which lets you load shared tables as [pandas](https://pandas.pydata.org/) DataFrames or as [Apache Spark](http://spark.apache.org/) DataFrames if running in PySpark with the [Apache Spark Connector library](https://github.com/delta-io/delta-sharing#set-up-apache-spark).
 
