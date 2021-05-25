@@ -73,7 +73,7 @@ delta_sharing.load_as_spark(table_url)
 
 ## API Compatibility
 
-Here is the list of public interfaces which will remain stable within a major release.
+Here is the list of public interfaces which will remain stable within a major release. They are following [Semantic Versioning](https://semver.org/).
 
 - `delta_sharing.load_as_pandas`
 - `delta_sharing.load_as_spark`
