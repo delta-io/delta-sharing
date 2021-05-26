@@ -1,3 +1,19 @@
+#
+# Copyright (2021) The Delta Lake Project Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import delta_sharing
 
 # Point to the profile file. It can be a file on the local file system or a file on a remote storage.
@@ -7,6 +23,7 @@ profile_file = "https://databricks-datasets-oregon.s3-us-west-2.amazonaws.com/de
 client = delta_sharing.SharingClient(profile_file)
 
 # List all shared tables.
+print("########### All available tables #############")
 print(client.list_all_tables())
 
 # Create a url to access a shared table.
@@ -17,4 +34,5 @@ table_url = profile_file + "#delta_sharing.default.COVID_19_NYT"
 data = delta_sharing.load_as_pandas(table_url)
 
 # Do whatever you want to your share data!
+print("########### Show data #############")
 print(data[data["cases"] < 100].head(10))
