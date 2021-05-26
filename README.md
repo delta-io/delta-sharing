@@ -1,10 +1,13 @@
 # Delta Sharing: An Open Protocol for Secure Data Sharing
 
 [![Build and Test](https://github.com/delta-io/delta-sharing/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/delta-io/delta-sharing/actions/workflows/build-and-test.yml)
+[![License](https://img.shields.io/badge/license-Apache%202-brightgreen.svg)](https://github.com/delta-io/delta-sharing/blob/main/LICENSE.txt)
+[![PyPI](https://img.shields.io/pypi/v/delta-sharing.svg)](https://pypi.org/project/delta-sharing/)
+[![Maven](https://img.shields.io/maven-central/v/io.delta/delta-sharing-spark_2.12.svg)](https://mvnrepository.com/artifact/io.delta)
 
 [Delta Sharing](https://delta.io/sharing) is an open protocol for secure real-time exchange of large datasets, which enables organizations to share data in real time regardless of which computing platforms they use. It is a simple [REST protocol](PROTOCOL.md) that securely shares access to part of a cloud dataset and leverages modern cloud storage systems, such as S3, ADLS, or GCS, to reliably transfer data.
 
-With Delta Sharing, a user accessing shared data can directly connect to it through pandas, Tableau, Apache Spark, Rust, Python, or dozens of other systems that support the open protocol, without having to deploy a specific compute platform first. This makes life simpler for both data providers and consumers. Data providers can share a dataset once to reach a broad range of consumers on any platform, and data consumers can get started using the data in minutes on their existing computing tools.
+With Delta Sharing, a user accessing shared data can directly connect to it through pandas, Tableau, Apache Spark, Rust, Python, or dozens of other systems that support the open protocol, without having to deploy a specific compute platform first. Data providers can share a dataset once to reach a broad range of consumers, while data consumers can get started using the data in minutes on their existing computing tools.
 
 This repo includes the following components:
 
