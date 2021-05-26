@@ -16,7 +16,10 @@ print(client.list_all_tables())
 table_url = profile_file + "#delta_sharing.default.COVID_19_NYT"
 
 # Create Spark with delta sharing connector
-spark = SparkSession.builder.appName("delta-sharing-demo").config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:0.1.0").getOrCreate()
+spark = SparkSession.builder \
+	.appName("delta-sharing-demo") \
+	.config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:0.1.0") \
+	.getOrCreate()
 
 # Read data using format "deltaSharing"
 spark.read.format("deltaSharing").load(table_url).where("cases < 100").show()
