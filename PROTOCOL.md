@@ -35,7 +35,11 @@
 
 # Overview
 
-This document is a specification for the Delta Sharing Protocol, which is the industry's first open protocol for secure data sharing, making it simple to share data with other organizations regardless of which computing platforms they use. The protocol defines the REST APIs and the formats of messages used by any clients and servers to exchange data.
+[Delta Sharing](https://delta.io/sharing) is an open protocol for secure real-time exchange of large datasets, which enables secure data sharing across products for the first time. It is a simple REST protocol that securely shares access to part of a cloud dataset. It leverages modern cloud storage systems, such as S3, ADLS, or GCS, to reliably transfer large datasets.
+
+With Delta Sharing, the user accessing shared data can directly connect to it through Pandas, Tableau, or dozens of other systems that implement the open protocol, without having to deploy a specific platform first. This reduces their access time from months to minutes, and makes life dramatically simpler for data providers who want to reach as many users as possible.
+
+This document is a specification for the Delta Sharing Protocol, which defines the REST APIs and the formats of messages used by any clients and servers to exchange data.
 
 # Delta Sharing Specification
 
@@ -43,7 +47,7 @@ This document is a specification for the Delta Sharing Protocol, which is the in
 
 - Share: A share is a logical grouping to share with recipients. A share can be shared with one or multiple recipients. A recipient can access all resources in a share. A share may contain multiple schemas.
 - Schema: A schema is a logical grouping of tables. A schema may contain multiple tables.
-- Table: A table is a [Delta](https://delta.io/) table or a view on top of a Delta table.
+- Table: A table is a [Delta Lake](https://delta.io/) table or a view on top of a Delta Lake table.
 - Recipient: A principal that has a bearer token to access shared tables.
 - Sharing Server: A server that implements this protocol.
 
@@ -276,7 +280,7 @@ Since only breaking changes must be accompanied by an increase in the protocol v
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
-minReaderVersion | Int | The minimum version of the protocol that a client must implement in order to correctly read a Delta table. Currently it’s always `1`. It will be changed in future when we introduce non-forward-compatible changes that require clients to implement. | Required
+minReaderVersion | Int | The minimum version of the protocol that a client must implement in order to correctly read a Delta Lake table. Currently it’s always `1`. It will be changed in future when we introduce non-forward-compatible changes that require clients to implement. | Required
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -631,7 +635,7 @@ More expression support will be added incrementally in future.
 
 # Profile File Format
 
-A profile file is a JSON file that contains the information to access a sharing server. There are three fields in this file.
+A profile file is a JSON file that contains the information to access a Delta Sharing server. There are three fields in this file.
 
 Field Name | Descrption
 -|-
