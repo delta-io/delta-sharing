@@ -70,16 +70,6 @@ delta_sharing.load_as_spark(table_url)
 - The profile file path for `load_as_spark` can be any URL supported by Hadoop FileSystem (such as `s3a://my_bucket/my/profile/file`).
 - A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
 
-## API Compatibility
-
-The folllowing public interfaces are considered stable, and follow [Semantic Versioning](https://semver.org/).
-
-- `delta_sharing.load_as_pandas`
-- `delta_sharing.load_as_spark`
-- `delta_sharing.SharingClient`
-
-All other interfaces in this library are considered internal, and they are subject to change across minor/patch releases.
-
 # Apache Spark Connector
 
 The Apache Spark Connector implements the [Delta Sharing Protocol](PROTOCOL.md) to read shared tables from a Delta Sharing Server. It can be used in SQL, Python, Java, Scala and R.
@@ -190,12 +180,6 @@ df <- read.df(table_path, "deltaSharing")
 
 - A profile file path can be any URL supported by Hadoop FileSystem (such as `s3a://my_bucket/my/profile/file`).
 - A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
-
-## API Compatibility
-
-The only stable public APIs, currently provided by Aapche Spark Connector, are reading a table through `DataFrameReader` (i.e. `spark.read`), or creating a table using Spark SQL.
-
-All other interfaces in this library are considered internal, and they are subject to change across minor/patch releases.
 
 # Delta Sharing Reference Server
 
@@ -350,7 +334,7 @@ Apache License 2.0, see [LICENSE](LICENSE.txt).
 
 # Community
 
-We use the same community as the Delta Lake project.
+We use the same community resources as the Delta Lake project:
 
 - Public Slack Channel
   - [Register here](https://dbricks.co/delta-users-slack)
