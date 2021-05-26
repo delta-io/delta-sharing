@@ -8,7 +8,9 @@
 
 With Delta Sharing, a user accessing shared data can directly connect to it through pandas, Tableau, Apache Spark, Rust, or other systems that support the open protocol, without having to deploy a specific compute platform first. Data providers can share a dataset once to reach a broad range of consumers, while consumers can begin using the data in minutes.
 
-<img src="https://delta.io/wp-content/uploads/2021/05/sharing-hero-v3.png"/>
+<p align="center">
+  <img src="https://delta.io/wp-content/uploads/2021/05/sharing-hero-v3.png" width="85%"/>
+</p>
 
 This repo includes the following components:
 
