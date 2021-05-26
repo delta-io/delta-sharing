@@ -253,10 +253,6 @@ The interfaces inside Delta Sharing Server are not public APIs. They are conside
 
 The [Delta Sharing Protocol specification](PROTOCOL.md) details the protocol.
 
-# Reporting issues
-
-We use [GitHub Issues](https://github.com/delta-io/delta-sharing/issues) to track community reported issues. You can also [contact](#community) the community for getting answers.
-
 # Building this Project
 
 ## Python Connector
@@ -324,13 +320,17 @@ It will generate `server/target/universal/delta-sharing-server-x.y.z.zip`.
 
 Refer to [SBT docs](https://www.scala-sbt.org/1.x/docs/Command-Line-Reference.html) for more commands.
 
+# Reporting Issues
+
+We use [GitHub Issues](https://github.com/delta-io/delta-sharing/issues) to track community reported issues. You can also [contact](#community) the community for getting answers.
+
 # Contributing 
 We welcome contributions to Delta Sharing. See our [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
 
 We also adhere to the [Delta Lake Code of Conduct](https://github.com/delta-io/delta/blob/master/CODE_OF_CONDUCT.md).
 
 # License
-Apache License 2.0, see [LICENSE](LICENSE.txt).
+[Apache License 2.0](LICENSE.txt).
 
 # Community
 
