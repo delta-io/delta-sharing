@@ -3,7 +3,6 @@
 [![Build and Test](https://github.com/delta-io/delta-sharing/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/delta-io/delta-sharing/actions/workflows/build-and-test.yml)
 [![License](https://img.shields.io/badge/license-Apache%202-brightgreen.svg)](https://github.com/delta-io/delta-sharing/blob/main/LICENSE.txt)
 [![PyPI](https://img.shields.io/pypi/v/delta-sharing.svg)](https://pypi.org/project/delta-sharing/)
-[![Maven](https://img.shields.io/maven-central/v/io.delta/delta-sharing-spark_2.12.svg)](https://mvnrepository.com/artifact/io.delta)
 
 [Delta Sharing](https://delta.io/sharing) is an open protocol for secure real-time exchange of large datasets, which enables organizations to share data in real time regardless of which computing platforms they use. It is a simple [REST protocol](PROTOCOL.md) that securely shares access to part of a cloud dataset and leverages modern cloud storage systems, such as S3, ADLS, or GCS, to reliably transfer data.
 
