@@ -22,7 +22,7 @@ This repo includes the following components:
 
 # Python Connector
 
-The Delta Sharing Python Connector is a Python library that implements the [Delta Sharing Protocol](PROTOCOL.md) to read  tables from a Delta Sharing Server. You can load shared tables as a [pandas](https://pandas.pydata.org/) DataFrame, or as an [Apache Spark](http://spark.apache.org/) DataFrame if running in PySpark with the Apache Spark Connector installed.
+The Delta Sharing Python Connector is a Python library that implements the [Delta Sharing Protocol](PROTOCOL.md) to read tables from a Delta Sharing Server. You can load shared tables as a [pandas](https://pandas.pydata.org/) DataFrame, or as an [Apache Spark](http://spark.apache.org/) DataFrame if running in PySpark with the Apache Spark Connector installed.
 
 ## System Requirements
 
@@ -70,6 +70,9 @@ delta_sharing.load_as_pandas(table_url)
 # If the code is running with PySpark, you can use `load_as_spark` to load the table as a Spark DataFrame.
 delta_sharing.load_as_spark(table_url)
 ```
+
+You can try this by running our [examples](examples/README.md) with the open, example Delta Sharing Server.
+
 ### Details on Profile Paths
 
 - The profile file path for `SharingClient` and `load_as_pandas` can be any URL supported by [FSSPEC](https://filesystem-spec.readthedocs.io/en/latest/index.html) (such as `s3a://my_bucket/my/profile/file`). If you are using [Databricks File System](https://docs.databricks.com/data/databricks-file-system.html), you can also [preface the path with `/dbfs/`](https://docs.databricks.com/data/databricks-file-system.html#dbfs-and-local-driver-node-paths) to access the profile file as if it were a local file.  
@@ -181,6 +184,7 @@ table_path <- "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 df <- read.df(table_path, "deltaSharing")
 ```
 
+You can try this by running our [examples](examples/README.md) with the open, example Delta Sharing Server.
 
 ### Table paths
 
