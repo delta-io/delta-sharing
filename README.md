@@ -71,7 +71,7 @@ delta_sharing.load_as_pandas(table_url)
 delta_sharing.load_as_spark(table_url)
 ```
 
-You can try this by running our [examples](examples/README.me) with the open, example Delta Sharing Server.
+You can try this by running our [examples](examples/README.md) with the open, example Delta Sharing Server.
 
 ### Details on Profile Paths
 
@@ -184,7 +184,7 @@ table_path <- "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 df <- read.df(table_path, "deltaSharing")
 ```
 
-You can try this by running our [examples](examples/README.me) with the open, example Delta Sharing Server.
+You can try this by running our [examples](examples/README.md) with the open, example Delta Sharing Server.
 
 ### Table paths
 
