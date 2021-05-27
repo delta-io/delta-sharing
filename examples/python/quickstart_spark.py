@@ -18,12 +18,13 @@ import delta_sharing
 from pyspark.sql import SparkSession
 
 # Point to the profile file. It can be a file on the local file system or a file on a remote storage.
-profile_file = "https://databricks-datasets-oregon.s3-us-west-2.amazonaws.com/delta-sharing/share/open-datasets.share"
+profile_file = "../tmp/open-datasets.share"
 
 # Create a SharingClient.
 client = delta_sharing.SharingClient(profile_file)
 
 # List all shared tables.
+print("########### All Available Tables #############")
 print(client.list_all_tables())
 
 # Create a url to access a shared table.
@@ -39,12 +40,12 @@ spark = SparkSession.builder \
 # Read data using format "deltaSharing"
 print("########### Loading delta_sharing.default.owid-covid-data with Spark #############")
 df1 = spark.read.format("deltaSharing").load(table_url) \
-	.where("human_development_index > 0.6") \
+	.where("iso_code == 'USA'") \
 	.select("iso_code", "total_cases", "human_development_index") \
 	.show()
 
 # Or if the code is running with PySpark, you can use `load_as_spark` to load the table as a Spark DataFrame.
 print("########### Loading delta_sharing.default.owid-covid-data with Spark #############")
 data = delta_sharing.load_as_spark(table_url)
-data.where("human_development_index > 0.6") \
+data.where("iso_code == 'USA'") \
 	.select("iso_code", "total_cases", "human_development_index").show()

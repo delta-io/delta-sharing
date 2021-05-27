@@ -17,7 +17,7 @@
 import delta_sharing
 
 # Point to the profile file. It can be a file on the local file system or a file on a remote storage.
-profile_file = "https://databricks-datasets-oregon.s3-us-west-2.amazonaws.com/delta-sharing/share/open-datasets.share"
+profile_file = "../tmp/open-datasets.share"
 
 # Create a SharingClient.
 client = delta_sharing.SharingClient(profile_file)
@@ -36,4 +36,4 @@ data = delta_sharing.load_as_pandas(table_url)
 
 # Do whatever you want to your share data!
 print("########### Show Data #############")
-print(data[data["human_development_index"] > 0.6].head(10))
+print(data[data["iso_code"] == "USA"].head(10))

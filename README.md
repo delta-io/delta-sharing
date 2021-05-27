@@ -184,6 +184,7 @@ table_path <- "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 df <- read.df(table_path, "deltaSharing")
 ```
 
+You can try this by running our [examples](examples/README.me) with the open, example Delta Sharing Server.
 
 ### Table paths
 
