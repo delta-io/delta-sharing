@@ -23,16 +23,17 @@ profile_file = "https://databricks-datasets-oregon.s3-us-west-2.amazonaws.com/de
 client = delta_sharing.SharingClient(profile_file)
 
 # List all shared tables.
-print("########### All available tables #############")
+print("########### All Available Tables #############")
 print(client.list_all_tables())
 
 # Create a url to access a shared table.
 # A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
-table_url = profile_file + "#delta_sharing.default.COVID_19_NYT"
+table_url = profile_file + "#delta_sharing.default.owid-covid-data"
 
 # Load a table as a Pandas DataFrame. This can be used to process tables that can fit in the memory.
+print("########### Loading delta_sharing.default.owid-covid-data as a Pandas DataFrame #############")
 data = delta_sharing.load_as_pandas(table_url)
 
 # Do whatever you want to your share data!
-print("########### Show data #############")
-print(data[data["cases"] < 100].head(10))
+print("########### Show Data #############")
+print(data[data["human_development_index"] > 0.6].head(10))

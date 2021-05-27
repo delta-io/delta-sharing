@@ -29,7 +29,7 @@ print(client.list_all_tables())
 
 # Create a url to access a shared table.
 # A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
-table_url = profile_file + "#delta_sharing.default.COVID_19_NYT"
+table_url = profile_file + "#delta_sharing.default.owid-covid-data"
 
 # Create Spark with delta sharing connector
 spark = SparkSession.builder \
@@ -38,10 +38,14 @@ spark = SparkSession.builder \
 	.getOrCreate()
 
 # Read data using format "deltaSharing"
-print("############# Load with format `deltaSharing` ###############")
-spark.read.format("deltaSharing").load(table_url).where("cases < 100").show()
+print("########### Loading delta_sharing.default.owid-covid-data with Spark #############")
+df1 = spark.read.format("deltaSharing").load(table_url) \
+	.where("human_development_index > 0.6") \
+	.select("iso_code", "total_cases", "human_development_index") \
+	.show()
 
 # Or if the code is running with PySpark, you can use `load_as_spark` to load the table as a Spark DataFrame.
-print("############# Load with `load_as_spark` ###############")
+print("########### Loading delta_sharing.default.owid-covid-data with Spark #############")
 data = delta_sharing.load_as_spark(table_url)
-data.where("cases < 100").show()
+data.where("human_development_index > 0.6") \
+	.select("iso_code", "total_cases", "human_development_index").show()
