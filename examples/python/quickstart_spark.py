@@ -17,7 +17,6 @@
 import delta_sharing
 from pyspark.sql import SparkSession
 
-
 # Point to the profile file. It can be a file on the local file system or a file on a remote storage.
 profile_file = "https://databricks-datasets-oregon.s3-us-west-2.amazonaws.com/delta-sharing/share/open-datasets.share"
 
