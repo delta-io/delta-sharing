@@ -14,10 +14,11 @@
 # limitations under the License.
 #
 
+import os
 import delta_sharing
 
 # Point to the profile file. It can be a file on the local file system or a file on a remote storage.
-profile_file = "../tmp/open-datasets.share"
+profile_file = os.path.dirname(__file__) + "/../open-datasets.share"
 
 # Create a SharingClient.
 client = delta_sharing.SharingClient(profile_file)
