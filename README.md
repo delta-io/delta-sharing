@@ -303,19 +303,19 @@ Apache Spark Connector and Delta Sharing Server are compiled using [SBT](https:/
 To compile, run
 
 ```
-build/sbt compile
+./build/sbt compile
 ```
 
 To execute tests, run
 
 ```
-build/sbt test
+./build/sbt test
 ```
 
 To generate the Apache Spark Connector, run
 
 ```
-build/sbt spark/package
+./build/sbt spark/package
 ```
 
 It will generate `spark/target/scala-2.12/delta-sharing-spark_2.12-x.y.z.jar`.
@@ -323,7 +323,7 @@ It will generate `spark/target/scala-2.12/delta-sharing-spark_2.12-x.y.z.jar`.
 To generate the pre-built Delta Sharing Server package, run
 
 ```
-build/sbt server/universal:packageBin
+./build/sbt server/universal:packageBin
 ```
 
 It will generate `server/target/universal/delta-sharing-server-x.y.z.zip`.
