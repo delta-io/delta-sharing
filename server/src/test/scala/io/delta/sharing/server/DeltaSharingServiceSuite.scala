@@ -173,7 +173,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val response = readJson(requestPath("/shares/share1/schemas"))
     val expected = ListSchemasResponse(
       Schema().withName("default").withShare("share1") :: Nil)
-    assert(expected ==  JsonFormat.fromJsonString[ListSchemasResponse](response))
+    assert(expected == JsonFormat.fromJsonString[ListSchemasResponse](response))
   }
 
   integrationTest("/shares/{share}/schemas/{schema}/tables") {
@@ -400,5 +400,67 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}},{"name":"type","type":"string","nullable":true,"metadata":{}}]}""",
       partitionColumns = Seq("date")).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+  }
+
+  def assertHttpError(
+    url: String,
+    method: String,
+    data: Option[String],
+    expectedErrorCode: Int,
+    expectedErrorMessage: String): Unit = {
+    val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
+    connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    connection.setRequestMethod(method)
+    data.foreach { d =>
+      connection.setDoOutput(true)
+      connection.setRequestProperty("Content-Type", "application/json; charset=utf8")
+      val output = connection.getOutputStream()
+      try {
+        output.write(d.getBytes(UTF_8))
+      } finally {
+        output.close()
+      }
+    }
+    val e = intercept[IOException] {
+      connection.getInputStream()
+    }
+    assert(e.getMessage.contains(s"Server returned HTTP response code: $expectedErrorCode"))
+    assert(IOUtils.toString(connection.getErrorStream()).contains(expectedErrorMessage))
+  }
+
+  integrationTest("invalid request json") {
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some(
+        """
+          |{
+          |  "predicateHints": {}
+          |}
+          |""".stripMargin),
+      expectedErrorCode = 400,
+      expectedErrorMessage =
+        "Expected an array for repeated field predicateHints of QueryTableRequest"
+    )
+  }
+
+  integrationTest("empty request body") {
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some(""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "No content to map due to end-of-input"
+    )
+  }
+
+  integrationTest("wrong 'maxResults' type") {
+    assertHttpError(
+      url = requestPath("/shares?maxResults=string"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "expected a number but the string does not have the appropriate format"
+    )
   }
 }

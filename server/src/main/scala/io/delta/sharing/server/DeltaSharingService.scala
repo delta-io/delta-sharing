@@ -52,14 +52,32 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
       ctx: ServiceRequestContext,
       req: HttpRequest,
       cause: Throwable): HttpResponse = {
-    if (cause.isInstanceOf[DeltaSharingNoSuchElementException]) {
-      return HttpResponse.of(HttpStatus.NOT_FOUND, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
+    cause match {
+      // Handle exceptions caused by incorrect requests
+      case _: DeltaSharingNoSuchElementException =>
+        HttpResponse.of(HttpStatus.NOT_FOUND, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
+      case _: DeltaSharingIllegalArgumentException =>
+        HttpResponse.of(HttpStatus.BAD_REQUEST, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
+      // Handle potential exceptions thrown when Armeria parses the requests. These exceptions
+      // happens before `DeltaSharingService` receives the requests so these exceptions should never
+      // contain sensitive information and should be okay to return their messages to the user.
+      case _: scalapb.json4s.JsonFormatException =>
+        HttpResponse.of(HttpStatus.BAD_REQUEST, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
+      case _: com.fasterxml.jackson.databind.JsonMappingException =>
+        HttpResponse.of(HttpStatus.BAD_REQUEST, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
+      case _: NumberFormatException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.PLAIN_TEXT_UTF_8,
+          "expected a number but the string does not have the appropriate format")
+      // Handle unhandle exceptions
+      case _: DeltaInternalException =>
+        logger.error(cause.getMessage, cause)
+        HttpResponse.of(HttpStatus.INTERNAL_SERVER_ERROR)
+      case _ =>
+        logger.error(cause.getMessage, cause)
+        ExceptionHandlerFunction.fallthrough()
     }
-    if (cause.isInstanceOf[DeltaSharingIllegalArgumentException]) {
-      return HttpResponse.of(HttpStatus.BAD_REQUEST, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
-    }
-    logger.error(cause.getMessage, cause)
-    ExceptionHandlerFunction.fallthrough()
   }
 }
 
@@ -71,11 +89,24 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
   private val deltaSharedTableLoader = new DeltaSharedTableLoader(serverConfig)
 
+  /**
+   * Call `func` and catch any unhandled exception and convert it to `DeltaInternalException`. Any
+   * code that processes requests should use this method to ensure that unhandled exceptions are
+   * always wrapped by `DeltaInternalException`.
+   */
+  private def processRequest[T](func: => T): T = {
+    try func catch {
+      case e: DeltaSharingNoSuchElementException => throw e
+      case e: DeltaSharingIllegalArgumentException => throw e
+      case e: Throwable => throw new DeltaInternalException(e)
+    }
+  }
+
   @Get("/shares")
   @ProducesJson
   def listShares(
       @Param("maxResults") @Default("500") maxResults: Int,
-      @Param("pageToken") @Nullable pageToken: String): ListSharesResponse = {
+      @Param("pageToken") @Nullable pageToken: String): ListSharesResponse = processRequest {
     val (shares, nextPageToken) = sharedTableManager.listShares(Option(pageToken), Some(maxResults))
     ListSharesResponse(shares, nextPageToken)
   }
@@ -85,7 +116,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   def listSchemas(
       @Param("share") share: String,
       @Param("maxResults") @Default("500") maxResults: Int,
-      @Param("pageToken") @Nullable pageToken: String): ListSchemasResponse = {
+      @Param("pageToken") @Nullable pageToken: String): ListSchemasResponse = processRequest {
     val (schemas, nextPageToken) =
       sharedTableManager.listSchemas(share, Option(pageToken), Some(maxResults))
     ListSchemasResponse(schemas, nextPageToken)
@@ -97,7 +128,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("maxResults") @Default("500") maxResults: Int,
-      @Param("pageToken") @Nullable pageToken: String): ListTablesResponse = {
+      @Param("pageToken") @Nullable pageToken: String): ListTablesResponse = processRequest {
     val (tables, nextPageToken) =
       sharedTableManager.listTables(share, schema, Option(pageToken), Some(maxResults))
     ListTablesResponse(tables, nextPageToken)
@@ -111,7 +142,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   def getTableVersion(
     @Param("share") share: String,
     @Param("schema") schema: String,
-    @Param("table") table: String): HttpResponse = {
+    @Param("table") table: String): HttpResponse = processRequest {
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     val version = deltaSharedTableLoader.loadTable(tableConfig).tableVersion
     val headers = createHeadersBuilderForTableVersion(version).build()
@@ -122,7 +153,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   def getMetadata(
       @Param("share") share: String,
       @Param("schema") schema: String,
-      @Param("table") table: String): HttpResponse = {
+      @Param("table") table: String): HttpResponse = processRequest {
     import scala.collection.JavaConverters._
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
@@ -138,7 +169,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
-      queryTableRequest: QueryTableRequest): HttpResponse = {
+      queryTableRequest: QueryTableRequest): HttpResponse = processRequest {
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
@@ -155,7 +186,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       actions.asJava.stream(),
       headers,
       HttpHeaders.of(),
-      (o: SingleAction) => {
+      (o: SingleAction) => processRequest {
         val out = new ByteArrayOutputStream
         JsonUtils.mapper.writeValue(out, o)
         out.write('\n')
