@@ -62,14 +62,17 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
       // happens before `DeltaSharingService` receives the requests so these exceptions should never
       // contain sensitive information and should be okay to return their messages to the user.
       case _: scalapb.json4s.JsonFormatException =>
+        // valid json but may be incorrect field type
         HttpResponse.of(HttpStatus.BAD_REQUEST, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
       case _: com.fasterxml.jackson.databind.JsonMappingException =>
+        // invalid json
         HttpResponse.of(HttpStatus.BAD_REQUEST, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
       case _: NumberFormatException =>
+        // `maxResults` is not an int.
         HttpResponse.of(
           HttpStatus.BAD_REQUEST,
           MediaType.PLAIN_TEXT_UTF_8,
-          "expected a number but the string does not have the appropriate format")
+          "expected a number but the string didn't have the appropriate format")
       // Handle unhandle exceptions
       case _: DeltaInternalException =>
         logger.error(cause.getMessage, cause)

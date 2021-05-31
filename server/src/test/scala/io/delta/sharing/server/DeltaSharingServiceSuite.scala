@@ -428,7 +428,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(IOUtils.toString(connection.getErrorStream()).contains(expectedErrorMessage))
   }
 
-  integrationTest("invalid request json") {
+  integrationTest("valid request json but incorrect field type") {
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
       method = "POST",
@@ -444,7 +444,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-  integrationTest("empty request body") {
+  integrationTest("invalid request json") {
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
       method = "POST",
@@ -460,7 +460,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "expected a number but the string does not have the appropriate format"
+      expectedErrorMessage = "expected a number but the string didn't have the appropriate format"
     )
   }
 }
