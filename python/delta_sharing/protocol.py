@@ -160,7 +160,7 @@ class AddFile:
     id: str
     partition_values: Dict[str, str]
     size: int
-    stats: str = None
+    stats: Optional[str] = None
 
     @staticmethod
     def from_json(json) -> "AddFile":
