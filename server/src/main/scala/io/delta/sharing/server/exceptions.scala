@@ -35,3 +35,11 @@ class DeltaSharingIllegalArgumentException(message: String)
  */
 class DeltaSharingNoSuchElementException(message: String)
   extends NoSuchElementException(message)
+
+
+/**
+ * A special exception that wraps an unhandled exception when processing a request.
+ * `DeltaInternalException` should never be exposed to users as an unhandled exception may contain
+ * sensitive information.
+ */
+class DeltaInternalException(e: Throwable) extends RuntimeException(e)
