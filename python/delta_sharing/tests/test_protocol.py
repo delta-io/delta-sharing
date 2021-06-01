@@ -204,7 +204,7 @@ def test_metadata():
                 id="id",
                 partition_values={"b": "x"},
                 size=120,
-                stats=None
+                stats=None,
             ),
             id="no stats",
         ),
