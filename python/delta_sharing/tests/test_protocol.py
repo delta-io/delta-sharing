@@ -190,6 +190,24 @@ def test_metadata():
             ),
             id="partitioned",
         ),
+        pytest.param(
+            """
+            {
+                "url" : "https://localhost/path/to/file.parquet",
+                "id" : "id",
+                "partitionValues" : {"b": "x"},
+                "size" : 120
+            }
+            """,
+            AddFile(
+                url="https://localhost/path/to/file.parquet",
+                id="id",
+                partition_values={"b": "x"},
+                size=120,
+                stats=None,
+            ),
+            id="no stats",
+        ),
     ],
 )
 def test_add_file(json: str, expected: AddFile):
