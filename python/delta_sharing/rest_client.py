@@ -34,7 +34,7 @@ from delta_sharing.protocol import (
 
 
 @dataclass(frozen=True)
-class ListSharesRespons:
+class ListSharesResponse:
     shares: Sequence[Share]
     next_page_token: Optional[str]
 
@@ -75,7 +75,7 @@ class DataSharingRestClient:
 
     def list_shares(
         self, *, max_results: Optional[int] = None, page_token: Optional[str] = None
-    ) -> ListSharesRespons:
+    ) -> ListSharesResponse:
         data: Dict = {}
         if max_results is not None:
             data["maxResults"] = max_results
@@ -84,7 +84,7 @@ class DataSharingRestClient:
 
         with self._get_internal("/shares", data) as lines:
             shares_json = json.loads(next(lines))
-            return ListSharesRespons(
+            return ListSharesResponse(
                 shares=[Share.from_json(share_json) for share_json in shares_json["items"]],
                 next_page_token=shares_json.get("nextPageToken", None),
             )
