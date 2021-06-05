@@ -85,11 +85,11 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     }
   }
 
-  integrationTest("table4: none of parquet files has all table columns") {
+  integrationTest("table4: table column order is not the same as parquet files") {
     val tablePath = testProfileFile.getCanonicalPath + "#share3.default.table4"
     val expected = Seq(
-      Row(sqlTimestamp("2021-04-28 16:33:57.955"), sqlDate("2021-04-28"), null),
-      Row(sqlTimestamp("2021-04-28 16:33:48.719"), sqlDate("2021-04-28"), null)
+      Row(null, sqlTimestamp("2021-04-28 16:33:57.955"), sqlDate("2021-04-28")),
+      Row(null, sqlTimestamp("2021-04-28 16:33:48.719"), sqlDate("2021-04-28"))
     )
     checkAnswer(spark.read.format("deltaSharing").load(tablePath), expected)
     withTable("delta_sharing_test") {

@@ -119,7 +119,7 @@ def test_list_all_tables(sharing_client: SharingClient):
                     "type": [None, None],
                 }
             ),
-            id="none of parquet files has all table columns",
+            id="table column order is not the same as parquet files",
         ),
     ],
 )
