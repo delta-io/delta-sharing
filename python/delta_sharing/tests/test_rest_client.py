@@ -31,7 +31,7 @@ from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_shares(rest_client: DataSharingRestClient):
     response = rest_client.list_shares()
-    assert response.shares == [Share(name="share1"), Share(name="share2")]
+    assert response.shares == [Share(name="share1"), Share(name="share2"), Share(name="share3")]
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
