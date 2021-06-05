@@ -113,8 +113,8 @@ def test_list_all_tables(sharing_client: SharingClient):
                 {
                     "type": [None, None],
                     "eventTime": [
-                        pd.Timestamp("2021-04-28 23:33:48.719"),
                         pd.Timestamp("2021-04-28 23:33:57.955"),
+                        pd.Timestamp("2021-04-28 23:33:48.719"),
                     ],
                     "date": [date(2021, 4, 28), date(2021, 4, 28)],
                 }
