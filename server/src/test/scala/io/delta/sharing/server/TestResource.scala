@@ -55,7 +55,18 @@ object TestResource {
             TableConfig("table2", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table2")
           )
           )
-        ))
+        )),
+      ShareConfig("share3",
+        java.util.Arrays.asList(
+          SchemaConfig(
+            "default",
+            java.util.Arrays.asList(
+              TableConfig("table4", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table4"),
+              TableConfig("table5", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table5")
+            )
+          )
+        )
+      )
     )
 
     val serverConfig = new ServerConfig()

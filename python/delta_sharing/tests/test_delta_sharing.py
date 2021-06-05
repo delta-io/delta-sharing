@@ -26,7 +26,7 @@ from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_shares(sharing_client: SharingClient):
     shares = sharing_client.list_shares()
-    assert shares == [Share(name="share1"), Share(name="share2")]
+    assert shares == [Share(name="share1"), Share(name="share2"), Share(name="share3")]
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -57,6 +57,8 @@ def test_list_all_tables(sharing_client: SharingClient):
         Table(name="table1", share="share1", schema="default"),
         Table(name="table3", share="share1", schema="default"),
         Table(name="table2", share="share2", schema="default"),
+        Table(name="table4", share="share3", schema="default"),
+        Table(name="table5", share="share3", schema="default"),
     ]
 
 
@@ -104,6 +106,20 @@ def test_list_all_tables(sharing_client: SharingClient):
                 }
             ),
             id="partitioned and different schemas",
+        ),
+        pytest.param(
+            "share3.default.table4",
+            pd.DataFrame(
+                {
+                    "eventTime": [
+                        pd.Timestamp("2021-04-28 23:33:48.719"),
+                        pd.Timestamp("2021-04-28 23:33:57.955"),
+                    ],
+                    "date": [date(2021, 4, 28), date(2021, 4, 28)],
+                    "type": [None, None],
+                }
+            ),
+            id="none of parquet files has all table columns",
         ),
     ],
 )

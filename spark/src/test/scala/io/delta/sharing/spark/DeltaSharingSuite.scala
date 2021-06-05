@@ -26,6 +26,7 @@ import org.apache.spark.sql.{QueryTest, Row}
 import org.apache.spark.sql.catalyst.util.DateTimeUtils._
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
+import org.apache.spark.sql.types.{DateType, StringType, StructField, StructType, TimestampType}
 import org.apache.spark.unsafe.types.UTF8String
 
 class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaSharingIntegrationTest {
@@ -81,6 +82,34 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     withTable("delta_sharing_test") {
       sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
       checkAnswer(sql(s"SELECT * FROM delta_sharing_test"), expected)
+    }
+  }
+
+  integrationTest("table4: none of parquet files has all table columns") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share3.default.table4"
+    val expected = Seq(
+      Row(sqlTimestamp("2021-04-28 16:33:57.955"), sqlDate("2021-04-28"), null),
+      Row(sqlTimestamp("2021-04-28 16:33:48.719"), sqlDate("2021-04-28"), null)
+    )
+    checkAnswer(spark.read.format("deltaSharing").load(tablePath), expected)
+    withTable("delta_sharing_test") {
+      sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
+      checkAnswer(sql(s"SELECT * FROM delta_sharing_test"), expected)
+    }
+  }
+
+  integrationTest("table5: empty table") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share3.default.table5"
+    checkAnswer(spark.read.format("deltaSharing").load(tablePath), Nil)
+    val expectedSchema = StructType(Array(
+      StructField("eventTime", TimestampType),
+      StructField("date", DateType),
+      StructField("type", StringType).withComment("this is a comment")))
+    assert(spark.read.format("deltaSharing").load(tablePath).schema == expectedSchema)
+    withTable("delta_sharing_test") {
+      sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
+      checkAnswer(sql(s"SELECT * FROM delta_sharing_test"), Nil)
+      assert(sql(s"SELECT * FROM delta_sharing_test").schema == expectedSchema)
     }
   }
 
