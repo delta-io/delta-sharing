@@ -51,7 +51,8 @@ def get_empty_table(schema_string: str) -> pd.DataFrame:
     assert schema_json["type"] == "struct"
 
     dummy_table = pd.DataFrame({field["name"]:
-                                _get_dummy_column(field["type"]) for field in schema_json["fields"]})
+                                _get_dummy_column(field["type"])
+                                for field in schema_json["fields"]})
     return dummy_table.iloc[0:0]
 
 
