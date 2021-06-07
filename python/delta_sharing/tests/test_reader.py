@@ -230,7 +230,7 @@ def test_to_pandas_empty(tmp_path):
                     '],"type":"struct"}'
                 )
             )
-            add_files = []
+            add_files: Sequence[AddFile] = []
             return ListFilesInTableResponse(protocol=None, metadata=metadata, add_files=add_files)
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
