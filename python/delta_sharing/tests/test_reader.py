@@ -16,6 +16,7 @@
 from datetime import date
 from typing import Optional, Sequence
 
+import numpy as np
 import pandas as pd
 
 from delta_sharing.protocol import AddFile, Metadata, Table
@@ -181,5 +182,56 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
     expected2 = pdf2.copy()
     expected2["c"] = date(2021, 1, 2)
     expected = pd.concat([expected1, expected2])[["a", "b", "c"]].reset_index(drop=True)
+
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
+def test_to_pandas_empty(tmp_path):
+    pdf1 = pd.DataFrame({"a": pd.Series([], dtype=np.dtype("bool")),
+                         "b": pd.Series([], dtype=np.dtype("int8")),
+                         "c": pd.Series([], dtype=np.dtype("int16")),
+                         "d": pd.Series([], dtype=np.dtype("int32")),
+                         "e": pd.Series([], dtype=np.dtype("int64")),
+                         "f": pd.Series([], dtype=np.dtype("float32")),
+                         "g": pd.Series([], dtype=np.dtype("float64")),
+                         "h": pd.Series([], dtype=np.dtype("O")),
+                         "i": pd.Series([], dtype="string"),
+                         "j": pd.Series([], dtype="datetime64[ns]"),
+                         "k": pd.Series([], dtype="datetime64[ns]"),})
+
+    class RestClientMock:
+        def list_files_in_table(
+                self,
+                table: Table,
+                *,
+                predicateHints: Optional[Sequence[str]] = None,
+                limitHint: Optional[int] = None,
+        ) -> ListFilesInTableResponse:
+            assert table == Table("table_name", "share_name", "schema_name")
+
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"a","nullable":true,"type":"boolean"},'
+                    '{"metadata":{},"name":"b","nullable":true,"type":"byte"},'
+                    '{"metadata":{},"name":"c","nullable":true,"type":"short"},'
+                    '{"metadata":{},"name":"d","nullable":true,"type":"integer"},'
+                    '{"metadata":{},"name":"e","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"f","nullable":true,"type":"float"},'
+                    '{"metadata":{},"name":"g","nullable":true,"type":"double"},'
+                    '{"metadata":{},"name":"h","nullable":true,"type":"decimal"},'
+                    '{"metadata":{},"name":"i","nullable":true,"type":"string"},'
+                    '{"metadata":{},"name":"j","nullable":true,"type":"date"},'
+                    '{"metadata":{},"name":"k","nullable":true,"type":"timestamp"}'
+                    '],"type":"struct"}'
+                )
+            )
+            add_files = []
+            return ListFilesInTableResponse(protocol=None, metadata=metadata, add_files=add_files)
+
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    pdf = reader.to_pandas()
+
+    expected = pdf1.copy()
 
     pd.testing.assert_frame_equal(pdf, expected)
