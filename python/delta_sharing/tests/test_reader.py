@@ -187,25 +187,29 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
 
 
 def test_to_pandas_empty(tmp_path):
-    pdf1 = pd.DataFrame({"a": pd.Series([], dtype=np.dtype("bool")),
-                         "b": pd.Series([], dtype=np.dtype("int8")),
-                         "c": pd.Series([], dtype=np.dtype("int16")),
-                         "d": pd.Series([], dtype=np.dtype("int32")),
-                         "e": pd.Series([], dtype=np.dtype("int64")),
-                         "f": pd.Series([], dtype=np.dtype("float32")),
-                         "g": pd.Series([], dtype=np.dtype("float64")),
-                         "h": pd.Series([], dtype=np.dtype("O")),
-                         "i": pd.Series([], dtype="string"),
-                         "j": pd.Series([], dtype="datetime64[ns]"),
-                         "k": pd.Series([], dtype="datetime64[ns]"),})
+    pdf1 = pd.DataFrame(
+        {
+            "a": pd.Series([], dtype=np.dtype("bool")),
+            "b": pd.Series([], dtype=np.dtype("int8")),
+            "c": pd.Series([], dtype=np.dtype("int16")),
+            "d": pd.Series([], dtype=np.dtype("int32")),
+            "e": pd.Series([], dtype=np.dtype("int64")),
+            "f": pd.Series([], dtype=np.dtype("float32")),
+            "g": pd.Series([], dtype=np.dtype("float64")),
+            "h": pd.Series([], dtype=np.dtype("O")),
+            "i": pd.Series([], dtype="string"),
+            "j": pd.Series([], dtype="datetime64[ns]"),
+            "k": pd.Series([], dtype="datetime64[ns]"),
+        }
+    )
 
     class RestClientMock:
         def list_files_in_table(
-                self,
-                table: Table,
-                *,
-                predicateHints: Optional[Sequence[str]] = None,
-                limitHint: Optional[int] = None,
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            limitHint: Optional[int] = None,
         ) -> ListFilesInTableResponse:
             assert table == Table("table_name", "share_name", "schema_name")
 
