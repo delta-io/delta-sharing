@@ -20,7 +20,9 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 FWDIR="$( cd "$DIR"/.. && pwd )"
 cd "$FWDIR"
 
-BLACK_BUILD="python -m black"
+PYTHON_EXECUTABLE="${PYTHON_EXECUTABLE:-python}"
+
+BLACK_BUILD="$PYTHON_EXECUTABLE -m black"
 BLACK_VERSION="19.10b0"
 $BLACK_BUILD 2> /dev/null
 if [ $? -ne 0 ]; then
