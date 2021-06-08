@@ -197,8 +197,8 @@ def test_to_pandas_empty(tmp_path):
             "f": pd.Series([], dtype=np.dtype("float32")),
             "g": pd.Series([], dtype=np.dtype("float64")),
             "h": pd.Series([], dtype=np.dtype("O")),
-            "i": pd.Series([], dtype="string"),
-            "j": pd.Series([], dtype="datetime64[ns]"),
+            "i": pd.Series([], dtype=np.dtype("O")),
+            "j": pd.Series([], dtype=np.dtype("O")),
             "k": pd.Series([], dtype="datetime64[ns]"),
         }
     )

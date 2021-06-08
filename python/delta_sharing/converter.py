@@ -39,11 +39,11 @@ def _get_dummy_column(type_string: str):
     elif type_string.startswith("decimal"):
         return pd.Series([Decimal("1.2")])
     elif type_string == "string":
-        return pd.Series(["dummy"], dtype="string")
+        return pd.Series(["dummy"])
     elif type_string == "date":
-        return pd.Series([pd.Timestamp(0).date()], dtype="datetime64[ns]")
+        return pd.Series([pd.Timestamp(0).date()])
     elif type_string == "timestamp":
-        return pd.Series([pd.Timestamp(0)], dtype="datetime64[ns]")
+        return pd.Series([pd.Timestamp(0)])
 
     raise ValueError(f"Could not parse datatype: {type_string}")
 
