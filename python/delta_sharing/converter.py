@@ -36,7 +36,7 @@ def _get_dummy_column(type_string: str):
         return pd.Series([0], dtype="float32")
     elif type_string == "double":
         return pd.Series([0], dtype="float64")
-    elif isinstance(type_string, str) and type_string.startswith("decimal"):
+    elif type_string.startswith("decimal"):
         return pd.Series([Decimal("1.2")])
     elif type_string == "string":
         return pd.Series(["dummy"], dtype="string")
@@ -44,6 +44,8 @@ def _get_dummy_column(type_string: str):
         return pd.Series([pd.Timestamp(0).date()], dtype="datetime64[ns]")
     elif type_string == "timestamp":
         return pd.Series([pd.Timestamp(0)], dtype="datetime64[ns]")
+
+    raise ValueError(f"Could not parse datatype: {type_string}")
 
 
 def get_empty_table(schema_string: str) -> pd.DataFrame:
@@ -78,7 +80,7 @@ def to_converter(json) -> Callable[[str], Any]:
         return lambda x: np.nan if (x is None or x == "") else np.float32(x)
     elif json == "double":
         return lambda x: np.nan if (x is None or x == "") else np.float64(x)
-    elif isinstance(json, str) and json.startswith("decimal"):
+    elif json.startswith("decimal"):
         return lambda x: None if (x is None or x == "") else Decimal(x)
     elif json == "string":
         return lambda x: None if (x is None or x == "") else str(x)
