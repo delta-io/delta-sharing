@@ -29,8 +29,6 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap
 private[sharing] class DeltaSharingDataSource extends TableProvider with RelationProvider
   with DataSourceRegister {
 
-  DeltaSharingDataSource.setupFileSystem()
-
   override def inferSchema(options: CaseInsensitiveStringMap): StructType = new StructType()
 
   override def getTable(
@@ -48,6 +46,7 @@ private[sharing] class DeltaSharingDataSource extends TableProvider with Relatio
   override def createRelation(
       sqlContext: SQLContext,
       parameters: Map[String, String]): BaseRelation = {
+    DeltaSharingDataSource.setupFileSystem(sqlContext)
     val path = parameters.getOrElse(
       "path", throw new IllegalArgumentException("'path' is not specified"))
     val deltaLog = RemoteDeltaLog(path)
@@ -59,12 +58,12 @@ private[sharing] class DeltaSharingDataSource extends TableProvider with Relatio
 
 private[sharing] object DeltaSharingDataSource {
 
-  def setupFileSystem(): Unit = {
+  def setupFileSystem(sqlContext: SQLContext): Unit = {
     // We have put our class name in the `org.apache.hadoop.fs.FileSystem` resource file. However,
     // this file will be loaded only if the class `FileSystem` is loaded. Hence, it won't work when
     // we add the library after starting Spark. Therefore we change the global `hadoopConfiguration`
     // to make sure we set up `DeltaSharingFileSystem` correctly.
-    SparkSession.active.sparkContext.hadoopConfiguration
+    sqlContext.sparkContext.hadoopConfiguration
       .set("fs.delta-sharing.impl", "io.delta.sharing.spark.DeltaSharingFileSystem")
   }
 }
