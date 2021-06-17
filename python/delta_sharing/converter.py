@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 from decimal import Decimal
-from json import loads
 from typing import Any, Callable, Dict
 
 import numpy as np
@@ -52,8 +51,7 @@ def _get_dummy_column(schema_type):
     raise ValueError(f"Could not parse datatype: {schema_type}")
 
 
-def get_empty_table(schema_string: str) -> pd.DataFrame:
-    schema_json = loads(schema_string)
+def get_empty_table(schema_json: dict) -> pd.DataFrame:
     assert schema_json["type"] == "struct"
 
     dummy_table = pd.DataFrame(
@@ -62,8 +60,7 @@ def get_empty_table(schema_string: str) -> pd.DataFrame:
     return dummy_table.iloc[0:0]
 
 
-def to_converters(schema_string: str) -> Dict[str, Callable[[str], Any]]:
-    schema_json = loads(schema_string)
+def to_converters(schema_json: dict) -> Dict[str, Callable[[str], Any]]:
     assert schema_json["type"] == "struct"
 
     return {field["name"]: to_converter(field["type"]) for field in schema_json["fields"]}
@@ -93,9 +90,9 @@ def to_converter(schema_type) -> Callable[[str], Any]:
     elif schema_type == "timestamp":
         return lambda x: pd.NaT if (x is None or x == "") else pd.Timestamp(x)
     elif schema_type == "binary":
-        return None  # partition on binary column not supported yet
+        return None  # partition on binary column not supported
     elif isinstance(schema_type, dict) and schema_type["type"] in ("array", "struct", "map"):
-        return None  # partition on complex column not supported yet
+        return None  # partition on complex column not supported
 
     # TODO: binary
 

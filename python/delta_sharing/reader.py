@@ -15,6 +15,7 @@
 #
 from typing import Any, Callable, Dict, Optional, Sequence
 from urllib.parse import urlparse
+from json import loads
 
 import fsspec
 import pandas as pd
@@ -61,17 +62,19 @@ class DeltaSharingReader:
             self._table, predicateHints=self._predicateHints, limitHint=self._limitHint
         )
 
-        if len(response.add_files) == 0:
-            return get_empty_table(response.metadata.schema_string)
+        schema_json = loads(response.metadata.schema_string)
 
-        converters = to_converters(response.metadata.schema_string)
+        if len(response.add_files) == 0:
+            return get_empty_table(schema_json)
+
+        converters = to_converters(schema_json)
 
         return pd.concat(
             [DeltaSharingReader._to_pandas(file, converters) for file in response.add_files],
             axis=0,
             ignore_index=True,
             copy=False,
-        )[converters.keys()]
+        )[[field["name"] for field in schema_json["fields"]]]
 
     def _copy(
         self, *, predicateHints: Optional[Sequence[str]], limitHint: Optional[int]
@@ -99,7 +102,10 @@ class DeltaSharingReader:
         for col, converter in converters.items():
             if col not in pdf.columns:
                 if col in add_file.partition_values:
-                    pdf[col] = converter(add_file.partition_values[col])
+                    if converter is not None:
+                        pdf[col] = converter(add_file.partition_values[col])
+                    else:
+                        raise ValueError("Cannot partition on binary or complex columns")
                 else:
                     pdf[col] = None
 
