@@ -6,7 +6,7 @@ requests
 aiohttp
 
 # Linter
-mypy
+mypy==0.812
 flake8
 
 # Code formatter. Only support Python 3.6+
