@@ -13,15 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import pytest
+
 from datetime import date
 from typing import Optional, Sequence
 
-import numpy as np
 import pandas as pd
 
 from delta_sharing.protocol import AddFile, Metadata, Table
 from delta_sharing.reader import DeltaSharingReader
-from delta_sharing.rest_client import ListFilesInTableResponse
+from delta_sharing.rest_client import ListFilesInTableResponse, DataSharingRestClient
+from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
 
 def test_to_pandas_non_partitioned(tmp_path):
@@ -186,23 +188,8 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
     pd.testing.assert_frame_equal(pdf, expected)
 
 
-def test_to_pandas_empty(tmp_path):
-    pdf1 = pd.DataFrame(
-        {
-            "a": pd.Series([], dtype=np.dtype("bool")),
-            "b": pd.Series([], dtype=np.dtype("int8")),
-            "c": pd.Series([], dtype=np.dtype("int16")),
-            "d": pd.Series([], dtype=np.dtype("int32")),
-            "e": pd.Series([], dtype=np.dtype("int64")),
-            "f": pd.Series([], dtype=np.dtype("float32")),
-            "g": pd.Series([], dtype=np.dtype("float64")),
-            "h": pd.Series([], dtype=np.dtype("O")),
-            "i": pd.Series([], dtype=np.dtype("O")),
-            "j": pd.Series([], dtype=np.dtype("O")),
-            "k": pd.Series([], dtype="datetime64[ns]"),
-        }
-    )
-
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_to_pandas_empty(rest_client: DataSharingRestClient):
     class RestClientMock:
         def list_files_in_table(
             self,
@@ -223,10 +210,18 @@ def test_to_pandas_empty(tmp_path):
                     '{"metadata":{},"name":"e","nullable":true,"type":"long"},'
                     '{"metadata":{},"name":"f","nullable":true,"type":"float"},'
                     '{"metadata":{},"name":"g","nullable":true,"type":"double"},'
-                    '{"metadata":{},"name":"h","nullable":true,"type":"decimal"},'
+                    '{"metadata":{},"name":"h","nullable":true,"type":"decimal(5,2)"},'
                     '{"metadata":{},"name":"i","nullable":true,"type":"string"},'
-                    '{"metadata":{},"name":"j","nullable":true,"type":"date"},'
-                    '{"metadata":{},"name":"k","nullable":true,"type":"timestamp"}'
+                    '{"metadata":{},"name":"j","nullable":true,"type":"binary"},'
+                    '{"metadata":{},"name":"k","nullable":true,"type":"timestamp"},'
+                    '{"metadata":{},"name":"l","nullable":true,"type":"date"},'
+                    '{"metadata":{},"name":"m","nullable":true,"type":{"type":"array",'
+                    '"elementType":"string","containsNull":true}},'
+                    '{"metadata":{},"name":"n","nullable":true,"type":{"type":"struct","fields":'
+                    '[{"name":"foo","type":"string","nullable":true,"metadata":{}},'
+                    '{"name":"bar","type":"integer","nullable":true,"metadata":{}}]}},'
+                    '{"metadata":{},"name":"o","nullable":true,"type":{"type":"map",'
+                    '"keyType":"string","valueType":"integer","valueContainsNull":true}}'
                     '],"type":"struct"}'
                 )
             )
@@ -236,6 +231,7 @@ def test_to_pandas_empty(tmp_path):
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.to_pandas()
 
-    expected = pdf1.copy()
+    reader = DeltaSharingReader(Table(name="table7", share="share1", schema="default"), rest_client)
+    expected = reader.to_pandas().iloc[0:0]
 
     pd.testing.assert_frame_equal(pdf, expected)

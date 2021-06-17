@@ -21,31 +21,35 @@ import numpy as np
 import pandas as pd
 
 
-def _get_dummy_column(type_string: str):
-    if type_string == "boolean":
+def _get_dummy_column(schema_type):
+    if schema_type == "boolean":
         return pd.Series([False])
-    elif type_string == "byte":
+    elif schema_type == "byte":
         return pd.Series([0], dtype="int8")
-    elif type_string == "short":
+    elif schema_type == "short":
         return pd.Series([0], dtype="int16")
-    elif type_string == "integer":
+    elif schema_type == "integer":
         return pd.Series([0], dtype="int32")
-    elif type_string == "long":
+    elif schema_type == "long":
         return pd.Series([0], dtype="int64")
-    elif type_string == "float":
+    elif schema_type == "float":
         return pd.Series([0], dtype="float32")
-    elif type_string == "double":
+    elif schema_type == "double":
         return pd.Series([0], dtype="float64")
-    elif type_string.startswith("decimal"):
-        return pd.Series([Decimal("1.2")])
-    elif type_string == "string":
-        return pd.Series(["dummy"])
-    elif type_string == "date":
+    elif isinstance(schema_type, str) and schema_type.startswith("decimal"):
+        return pd.Series([0], dtype=np.dtype("O"))
+    elif schema_type == "string":
+        return pd.Series([0], dtype=np.dtype("O"))
+    elif schema_type == "date":
         return pd.Series([pd.Timestamp(0).date()])
-    elif type_string == "timestamp":
-        return pd.Series([pd.Timestamp(0)])
+    elif schema_type == "timestamp":
+        return pd.Series([pd.Timestamp(0).date()], dtype=np.dtype("datetime64[ns]"))
+    elif schema_type == "binary":
+        return pd.Series([0], dtype=np.dtype("O"))
+    elif isinstance(schema_type, dict) and schema_type["type"] in ("array", "struct", "map"):
+        return pd.Series([0], dtype=np.dtype("O"))
 
-    raise ValueError(f"Could not parse datatype: {type_string}")
+    raise ValueError(f"Could not parse datatype: {schema_type}")
 
 
 def get_empty_table(schema_string: str) -> pd.DataFrame:
@@ -65,30 +69,34 @@ def to_converters(schema_string: str) -> Dict[str, Callable[[str], Any]]:
     return {field["name"]: to_converter(field["type"]) for field in schema_json["fields"]}
 
 
-def to_converter(json) -> Callable[[str], Any]:
-    if json == "boolean":
+def to_converter(schema_type) -> Callable[[str], Any]:
+    if schema_type == "boolean":
         return lambda x: None if (x is None or x == "") else (x is True or x == "true")
-    elif json == "byte":
+    elif schema_type == "byte":
         return lambda x: np.nan if (x is None or x == "") else np.int8(x)
-    elif json == "short":
+    elif schema_type == "short":
         return lambda x: np.nan if (x is None or x == "") else np.int16(x)
-    elif json == "integer":
+    elif schema_type == "integer":
         return lambda x: np.nan if (x is None or x == "") else np.int32(x)
-    elif json == "long":
+    elif schema_type == "long":
         return lambda x: np.nan if (x is None or x == "") else np.int64(x)
-    elif json == "float":
+    elif schema_type == "float":
         return lambda x: np.nan if (x is None or x == "") else np.float32(x)
-    elif json == "double":
+    elif schema_type == "double":
         return lambda x: np.nan if (x is None or x == "") else np.float64(x)
-    elif json.startswith("decimal"):
+    elif isinstance(schema_type, str) and schema_type.startswith("decimal"):
         return lambda x: None if (x is None or x == "") else Decimal(x)
-    elif json == "string":
+    elif schema_type == "string":
         return lambda x: None if (x is None or x == "") else str(x)
-    elif json == "date":
+    elif schema_type == "date":
         return lambda x: None if (x is None or x == "") else pd.Timestamp(x).date()
-    elif json == "timestamp":
+    elif schema_type == "timestamp":
         return lambda x: pd.NaT if (x is None or x == "") else pd.Timestamp(x)
+    elif schema_type == "binary":
+        return None  # partition on binary column not supported yet
+    elif isinstance(schema_type, dict) and schema_type["type"] in ("array", "struct", "map"):
+        return None  # partition on complex column not supported yet
 
     # TODO: binary
 
-    raise ValueError(f"Could not parse datatype: {json}")
+    raise ValueError(f"Could not parse datatype: {schema_type}")
