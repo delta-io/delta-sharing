@@ -48,7 +48,7 @@ def _get_dummy_column(schema_type):
     elif schema_type == "date":
         return pd.Series([pd.Timestamp(0).date()])
     elif schema_type == "timestamp":
-        return pd.Series([pd.Timestamp(0).date()], dtype=np.dtype("datetime64[ns]"))
+        return pd.Series([pd.Timestamp(0)], dtype=np.dtype("datetime64[ns]"))
     elif schema_type == "binary":
         return pd.Series([0], dtype=np.dtype("O"))
     elif isinstance(schema_type, dict) and schema_type["type"] in ("array", "struct", "map"):
