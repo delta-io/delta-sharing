@@ -29,7 +29,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "table2", schema = "default", share = "share2"),
         Table(name = "table3", schema = "default", share = "share1"),
         Table(name = "table4", schema = "default", share = "share3"),
-        Table(name = "table5", schema = "default", share = "share3")
+        Table(name = "table5", schema = "default", share = "share3"),
+        Table(name = "table7", schema = "default", share = "share1")
       )
       assert(expected == client.listAllTables().toSet)
     } finally {

@@ -44,7 +44,8 @@ object TestResource {
             "default",
             java.util.Arrays.asList(
               TableConfig("table1", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table1"),
-              TableConfig("table3", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table3")
+              TableConfig("table3", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table3"),
+              TableConfig("table7", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table7")
             )
           )
         )

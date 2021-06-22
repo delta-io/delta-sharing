@@ -49,6 +49,7 @@ def test_list_tables(rest_client: DataSharingRestClient):
     assert response.tables == [
         Table(name="table1", share="share1", schema="default"),
         Table(name="table3", share="share1", schema="default"),
+        Table(name="table7", share="share1", schema="default"),
     ]
 
     response = rest_client.list_tables(Schema(name="default", share="share2"))
