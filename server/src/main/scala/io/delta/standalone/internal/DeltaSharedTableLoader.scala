@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
 
 import com.google.common.cache.CacheBuilder
 import com.google.common.hash.Hashing
-import io.delta.standalone.DeltaLog
+import io.delta.standalone.{DeltaLog, Snapshot}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.s3a.S3AFileSystem
@@ -101,8 +101,7 @@ class DeltaSharedTable(
   }
 
   /** Check if the table version in deltalog is valid */
-  def validateDeltaTable(): Unit = {
-    val snapshot = deltaLog.snapshot
+  private def validateDeltaTable(snapshot: SnapshotImpl): Unit = {
     if (snapshot.version < 0) {
       throw new IllegalStateException(s"The table ${tableConfig.getName} " +
         s"doesn't exist on the file system or is not a Delta table")
@@ -111,8 +110,9 @@ class DeltaSharedTable(
 
   /** Return the current table version */
   def tableVersion: Long = withClassLoader {
-    validateDeltaTable()
-    deltaLog.snapshot.version
+    val snapshot = deltaLog.snapshot
+    validateDeltaTable(snapshot)
+    snapshot.version
   }
 
   def query(
@@ -121,7 +121,7 @@ class DeltaSharedTable(
       limitHint: Option[Int]): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
     val snapshot = deltaLog.snapshot
-    validateDeltaTable()
+    validateDeltaTable(snapshot)
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
