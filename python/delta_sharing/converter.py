@@ -21,6 +21,12 @@ import pandas as pd
 
 
 def _get_dummy_column(schema_type):
+    """
+    Return a dummy column with the data type specified in schema_type.
+    The dummy column is used to populate the dtype fields in empty tables.
+    :param schema_type: str or json representing a data type
+    :return: dummy pandas Series to be inserted into an empty table
+    """
     if schema_type == "boolean":
         return pd.Series([False])
     elif schema_type == "byte":
@@ -52,6 +58,13 @@ def _get_dummy_column(schema_type):
 
 
 def get_empty_table(schema_json: dict) -> pd.DataFrame:
+    """
+    For empty tables, we use dummy columns from `_get_dummy_column` and then
+    drop all rows to generate a table with the correct column names and
+    data types.
+    :param schema_json: json object representing the table schema
+    :return: empty table with columns specified in schema_json
+    """
     assert schema_json["type"] == "struct"
 
     dummy_table = pd.DataFrame(
@@ -67,6 +80,13 @@ def to_converters(schema_json: dict) -> Dict[str, Callable[[str], Any]]:
 
 
 def to_converter(schema_type) -> Callable[[str], Any]:
+    """
+    For types that support partitioning, a lambda to parse data into the
+    corresponding type is returned. For data types that cannot be partitioned
+    on, we return None. The caller is expected to check if the value is None before using.
+    :param schema_type: str or json representing a data type
+    :return: converter function or None
+    """
     if schema_type == "boolean":
         return lambda x: None if (x is None or x == "") else (x is True or x == "true")
     elif schema_type == "byte":
