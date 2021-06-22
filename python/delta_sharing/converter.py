@@ -114,6 +114,4 @@ def to_converter(schema_type) -> Callable[[str], Any]:
     elif isinstance(schema_type, dict) and schema_type["type"] in ("array", "struct", "map"):
         return None  # partition on complex column not supported
 
-    # TODO: binary
-
     raise ValueError(f"Could not parse datatype: {schema_type}")
