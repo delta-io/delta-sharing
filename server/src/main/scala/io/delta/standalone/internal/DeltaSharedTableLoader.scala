@@ -100,8 +100,18 @@ class DeltaSharedTable(
     }
   }
 
+  /** Check if the table version in deltalog is valid */
+  def validateDeltaTable(): Unit = {
+    val snapshot = deltaLog.snapshot
+    if (snapshot.version < 0) {
+      throw new IllegalStateException(s"The table ${tableConfig.getName} " +
+        s"doesn't exist on the file system or is not a Delta table")
+    }
+  }
+
   /** Return the current table version */
   def tableVersion: Long = withClassLoader {
+    validateDeltaTable()
     deltaLog.snapshot.version
   }
 
@@ -111,10 +121,7 @@ class DeltaSharedTable(
       limitHint: Option[Int]): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
     val snapshot = deltaLog.snapshot
-    if (snapshot.version < 0) {
-      throw new IllegalStateException(s"The table ${tableConfig.getName} " +
-        s"doesn't exist on the file system or is not a Delta table")
-    }
+    validateDeltaTable()
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
