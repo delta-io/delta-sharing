@@ -67,8 +67,6 @@ class ListFilesInTableResponse:
 class DataSharingRestClient:
     def __init__(self, profile: DeltaSharingProfile):
         self._profile = profile
-        if self._profile.endpoint.endswith("/"):
-            self._profile.endpoint = self._profile.endpoint[:-1]
 
         self._session = requests.Session()
         self._session.headers.update({"Authorization": f"Bearer {profile.bearer_token}"})
@@ -171,6 +169,7 @@ class DataSharingRestClient:
 
     @contextmanager
     def _request_internal(self, request, target: str, data: Optional[Dict[str, Any]]):
+        assert target.startswith("/"), "Targets should start with '/'"
         response = request(f"{self._profile.endpoint}{target}", json=data)
         try:
             response.raise_for_status()

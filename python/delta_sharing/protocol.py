@@ -55,9 +55,12 @@ class DeltaSharingProfile:
     def from_json(json) -> "DeltaSharingProfile":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
+        endpoint = json["endpoint"]
+        if endpoint.endswith("/"):
+            endpoint = endpoint[:-1]
         return DeltaSharingProfile(
             share_credentials_version=int(json["shareCredentialsVersion"]),
-            endpoint=json["endpoint"],
+            endpoint=endpoint,
             bearer_token=json["bearerToken"],
         )
 
