@@ -169,6 +169,7 @@ class DataSharingRestClient:
 
     @contextmanager
     def _request_internal(self, request, target: str, data: Optional[Dict[str, Any]]):
+        assert target.startswith("/"), "Targets should start with '/'"
         response = request(f"{self._profile.endpoint}{target}", json=data)
         try:
             response.raise_for_status()
