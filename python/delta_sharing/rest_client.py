@@ -67,6 +67,8 @@ class ListFilesInTableResponse:
 class DataSharingRestClient:
     def __init__(self, profile: DeltaSharingProfile):
         self._profile = profile
+        if self._profile.endpoint.endswith("/"):
+            self._profile.endpoint = self._profile.endpoint[:-1]
 
         self._session = requests.Session()
         self._session.headers.update({"Authorization": f"Bearer {profile.bearer_token}"})
