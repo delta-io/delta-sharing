@@ -59,6 +59,7 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   commonSettings,
   scalaStyleSettings,
   releaseSettings,
+  scriptClasspath ++= Seq("../conf"),
   libraryDependencies ++= Seq(
     // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a
     // breaking change making us not able to use `delta-standalone`.
