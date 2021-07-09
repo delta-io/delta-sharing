@@ -251,14 +251,6 @@ Run the following shell command:
 bin/delta-sharing-server -- --config <the-server-config-yaml-file> 
 ```
 
-Or run the Docker image built from [the instructions below](#imageBuild):
-
-```
-docker run -p <host-port>:<container-port> --mount type=bind,source="$(pwd)",target=/config delta-sharing-server:x.y.z-SNAPSHOT -- --config <the-server-config-yaml-file>
-```
-
-Note that `<container-port>` should be the same as the port defined inside the config file.
-
 `<the-server-config-yaml-file>` should be the path of the yaml file you created in the previous step. You can find options to config JVM in [sbt-native-packager](https://www.scala-sbt.org/sbt-native-packager/archetypes/java_app/index.html#start-script-options).
 
 ## API Compatibility
@@ -336,13 +328,20 @@ build/sbt server/universal:packageBin
 
 It will generate `server/target/universal/delta-sharing-server-x.y.z.zip`.
 
-<a name="imageBuild"></a>To build the Docker image for Delta Sharing Server, run
+To build the Docker image for Delta Sharing Server, run
 
 ```
 build/sbt docker:publishLocal
 ```
 
-This will build a Docker image tagged `delta-sharing-server:x.y.z-SNAPSHOT`
+This will build a Docker image tagged `delta-sharing-server:x.y.z`, which you can run with:
+
+```
+docker run -p <host-port>:<container-port> --mount type=bind,source=<the-server-config-yaml-file>,target=/config/delta-sharing-server-config.yaml delta-sharing-server:x.y.z -- --config /config/delta-sharing-server-config.yaml
+```
+
+Note that `<container-port>` should be the same as the port defined inside the config file.
+
 
 Refer to [SBT docs](https://www.scala-sbt.org/1.x/docs/Command-Line-Reference.html) for more commands.
 
