@@ -117,21 +117,7 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   Compile / PB.targets := Seq(
     scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
   ),
-  daemonUser in Docker := "root",
-  daemonUserUid in Docker := None,
-  // insert setcap to before entrypoint
-  dockerCommands := {
-    val commandLen = dockerCommands.value.length
-    (dockerCommands.value.take(commandLen-2)
-      ++ Seq(Cmd(
-                "RUN",
-                "setcap", """cap_net_bind_service=+eip""",
-              "$(readlink -f /opt/docker/bin/delta-sharing-server)"),
-              Cmd("RUN", "mkdir /config", "&&", "touch",
-                "/config/delta-sharing-server-config.yaml")
-            )
-      ++ dockerCommands.value.drop(commandLen-2))
-  }
+  daemonUserUid in Docker := None
 )
 
 /*
