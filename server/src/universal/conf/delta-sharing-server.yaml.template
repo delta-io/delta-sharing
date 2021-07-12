@@ -18,8 +18,9 @@ shares:
       location: "s3a://<bucket-name>/<the-table-path>"
 # Set the host name that the server will use
 host: "localhost"
-# Set the port that the server will listen on
-port: 80
+# Set the port that the server will listen on. Note: using ports below 1024 
+# may require a privileged user in some operating systems.
+port: 8080
 # Set the url prefix for the REST APIs
 endpoint: "/delta-sharing"
 # Set the timeout of S3 presigned url in seconds

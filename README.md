@@ -328,6 +328,21 @@ build/sbt server/universal:packageBin
 
 It will generate `server/target/universal/delta-sharing-server-x.y.z.zip`.
 
+To build the Docker image for Delta Sharing Server, run
+
+```
+build/sbt server/docker:publishLocal
+```
+
+This will build a Docker image tagged `delta-sharing-server:x.y.z`, which you can run with:
+
+```
+docker run -p <host-port>:<container-port> --mount type=bind,source=<the-server-config-yaml-file>,target=/config/delta-sharing-server-config.yaml delta-sharing-server:x.y.z -- --config /config/delta-sharing-server-config.yaml
+```
+
+Note that `<container-port>` should be the same as the port defined inside the config file.
+
+
 Refer to [SBT docs](https://www.scala-sbt.org/1.x/docs/Command-Line-Reference.html) for more commands.
 
 # Reporting Issues

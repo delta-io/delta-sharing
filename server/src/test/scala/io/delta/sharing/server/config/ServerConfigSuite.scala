@@ -66,6 +66,7 @@ class ServerConfigSuite extends FunSuite {
       val serverConfig = new ServerConfig()
       serverConfig.setVersion(1)
       serverConfig.setShares(sharesInTemplate)
+      serverConfig.setPort(8080)
       assert(loaded == serverConfig)
     } finally {
       tempFile.delete()
