@@ -331,7 +331,7 @@ It will generate `server/target/universal/delta-sharing-server-x.y.z.zip`.
 To build the Docker image for Delta Sharing Server, run
 
 ```
-build/sbt docker:publishLocal
+build/sbt server/docker:publishLocal
 ```
 
 This will build a Docker image tagged `delta-sharing-server:x.y.z`, which you can run with:
