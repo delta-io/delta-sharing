@@ -15,7 +15,6 @@
  */
 
 import sbt.ExclusionRule
-import com.typesafe.sbt.packager.docker._
 
 ThisBuild / parallelExecution := false
 
@@ -116,8 +115,7 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   ),
   Compile / PB.targets := Seq(
     scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
-  ),
-  daemonUserUid in Docker := None
+  )
 )
 
 /*
