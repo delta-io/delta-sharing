@@ -65,7 +65,7 @@ case class ServerConfig(
       authorization = null,
       ssl = null,
       host = "localhost",
-      port = 8080,
+      port = 80,
       endpoint = "/delta-sharing",
       preSignedUrlTimeoutSeconds = 15 * 60,
       deltaTableCacheSize = 10,
