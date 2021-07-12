@@ -19,7 +19,7 @@ shares:
 # Set the host name that the server will use
 host: "localhost"
 # Set the port that the server will listen on. Note: using ports below 1024 
-# may require a privileged user in some operator systems.
+# may require a privileged user in some operating systems.
 port: 8080
 # Set the url prefix for the REST APIs
 endpoint: "/delta-sharing"
