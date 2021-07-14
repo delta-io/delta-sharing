@@ -16,7 +16,6 @@
 from datetime import date
 
 import pandas as pd
-import numpy as np
 import pytest
 
 from delta_sharing.delta_sharing import SharingClient, load_as_pandas, load_as_spark, _parse_url
