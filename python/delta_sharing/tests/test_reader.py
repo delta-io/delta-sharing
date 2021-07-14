@@ -238,8 +238,11 @@ def test_to_pandas_empty(rest_client: DataSharingRestClient):
 
     pd.testing.assert_frame_equal(pdf, expected)
 
+
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_load_gzip_table(rest_client: DataSharingRestClient):
-    reader = DeltaSharingReader(Table(name="test_gzip", share="share4", schema="default"), rest_client)
+    reader = DeltaSharingReader(
+        Table(name="test_gzip", share="share4", schema="default"), rest_client
+    )
     expected = reader.to_pandas()
-    assert(len(expected) == 1)
+    assert len(expected) == 1
