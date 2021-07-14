@@ -16,6 +16,7 @@
 from datetime import date
 
 import pandas as pd
+import numpy as np
 import pytest
 
 from delta_sharing.delta_sharing import SharingClient, load_as_pandas, load_as_spark, _parse_url
@@ -127,6 +128,11 @@ def test_list_all_tables(sharing_client: SharingClient):
                     "date": [date(2021, 4, 28), date(2021, 4, 28)],
                 }
             ),
+            id="table column order is not the same as parquet files",
+        ),
+        pytest.param(
+            "share4.default.test_gzip",
+            pd.DataFrame({"a": [True], "b": pd.Series([1], dtype="int32"), "c": ["Hi"]}),
             id="table column order is not the same as parquet files",
         ),
     ],

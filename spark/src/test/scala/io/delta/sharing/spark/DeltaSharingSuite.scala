@@ -113,6 +113,16 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     }
   }
 
+  integrationTest("test_gzip: non-default compression codec") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share4.default.test_gzip"
+    val expected = Seq(Row(true, 1, "Hi"))
+    checkAnswer(spark.read.format("deltaSharing").load(tablePath), expected)
+    withTable("delta_sharing_test") {
+      sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
+      checkAnswer(sql(s"SELECT * FROM delta_sharing_test"), expected)
+    }
+  }
+
   integrationTest("partition pruning") {
     val tablePath = testProfileFile.getCanonicalPath + "#share1.default.table3"
     val expected = Seq(
