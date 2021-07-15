@@ -26,7 +26,12 @@ from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_shares(sharing_client: SharingClient):
     shares = sharing_client.list_shares()
-    assert shares == [Share(name="share1"), Share(name="share2"), Share(name="share3")]
+    assert shares == [
+        Share(name="share1"),
+        Share(name="share2"),
+        Share(name="share3"),
+        Share(name="share4"),
+    ]
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -61,6 +66,7 @@ def test_list_all_tables(sharing_client: SharingClient):
         Table(name="table2", share="share2", schema="default"),
         Table(name="table4", share="share3", schema="default"),
         Table(name="table5", share="share3", schema="default"),
+        Table(name="test_gzip", share="share4", schema="default"),
     ]
 
 
@@ -121,6 +127,11 @@ def test_list_all_tables(sharing_client: SharingClient):
                     "date": [date(2021, 4, 28), date(2021, 4, 28)],
                 }
             ),
+            id="table column order is not the same as parquet files",
+        ),
+        pytest.param(
+            "share4.default.test_gzip",
+            pd.DataFrame({"a": [True], "b": pd.Series([1], dtype="int32"), "c": ["Hi"]}),
             id="table column order is not the same as parquet files",
         ),
     ],

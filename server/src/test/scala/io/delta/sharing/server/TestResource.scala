@@ -67,6 +67,17 @@ object TestResource {
             )
           )
         )
+      ),
+      ShareConfig("share4",
+        java.util.Arrays.asList(
+          SchemaConfig(
+            "default",
+            java.util.Arrays.asList(
+              // table made with spark.sql.parquet.compression.codec=gzip
+              TableConfig("test_gzip", s"s3a://${TestResource.AWS.bucket}/compress-test/table1")
+            )
+          )
+        )
       )
     )
 

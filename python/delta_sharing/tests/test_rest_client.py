@@ -36,7 +36,12 @@ def test_read_endpoint(rest_client: DataSharingRestClient):
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_shares(rest_client: DataSharingRestClient):
     response = rest_client.list_shares()
-    assert response.shares == [Share(name="share1"), Share(name="share2"), Share(name="share3")]
+    assert response.shares == [
+        Share(name="share1"),
+        Share(name="share2"),
+        Share(name="share3"),
+        Share(name="share4"),
+    ]
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
