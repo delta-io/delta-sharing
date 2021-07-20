@@ -19,8 +19,11 @@ from dataclasses import dataclass
 import json
 from typing import Any, Dict, Optional, Sequence
 from urllib.parse import urlparse
+import time
+import logging
 
 import requests
+from requests.exceptions import HTTPError
 
 from delta_sharing.protocol import (
     AddFile,
@@ -65,8 +68,10 @@ class ListFilesInTableResponse:
 
 
 class DataSharingRestClient:
-    def __init__(self, profile: DeltaSharingProfile):
+    def __init__(self, profile: DeltaSharingProfile, num_retries = 10):
         self._profile = profile
+        self._num_retries = num_retries
+        self._sleeper = lambda sleep_ms: time.sleep(sleep_ms / 1000)
 
         self._session = requests.Session()
         self._session.headers.update({"Authorization": f"Bearer {profile.bearer_token}"})
@@ -180,3 +185,30 @@ class DataSharingRestClient:
                 collections.deque(lines, maxlen=0)
         finally:
             response.close()
+
+    def _retry_with_exponential_backoff(self, func):
+        times_retried = 0
+        sleep_ms = 100
+        while True:
+            times_retried += 1
+            try:
+                return func()
+            except Exception as e:
+                if self._should_retry(e) and times_retried <= self._num_retries:
+                    logging.info(f"Sleeping {sleep_ms} to retry because of error {e}")
+                    self._sleeper(sleep_ms)
+                    sleep_ms *= 2
+                else:
+                    raise e
+
+    def _should_retry(self, error):
+        if isinstance(error, HTTPError):
+            error_code = error.response.status_code
+            if error_code == 429:
+                return True
+            elif 500 <= error_code <= 600:
+                return True
+            else:
+                return False
+        else:
+            return False

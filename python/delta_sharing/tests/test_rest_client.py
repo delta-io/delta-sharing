@@ -15,6 +15,9 @@
 #
 import pytest
 
+from requests.models import Response
+from requests.exceptions import HTTPError
+
 from delta_sharing.protocol import (
     AddFile,
     Format,
@@ -26,6 +29,40 @@ from delta_sharing.protocol import (
 )
 from delta_sharing.rest_client import DataSharingRestClient
 from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
+
+
+def test_retry(rest_client: DataSharingRestClient):
+    sleeps = []
+    rest_client._sleeper = sleeps.append
+
+    success = lambda: True
+    assert rest_client._retry_with_exponential_backoff(success)
+
+    error = HTTPError()
+    response = Response()
+    response.status_code = 429
+    error.response = response
+
+    def all_fail():
+        raise error
+    try:
+        rest_client._retry_with_exponential_backoff(all_fail)
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+    assert sleeps == [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]
+    sleeps.clear()
+
+
+    responses = iter([error, error, error, error, True])
+    def fail_before_success():
+        element = next(responses)
+        if isinstance(element, HTTPError):
+            raise element
+        else:
+            return element
+    assert rest_client._retry_with_exponential_backoff(fail_before_success)
+    assert sleeps == [100, 200, 400, 800]
+    sleeps.clear()
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
