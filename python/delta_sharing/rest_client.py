@@ -172,6 +172,10 @@ class DataSharingRestClient:
     def _post_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
         return self._request_internal(request=self._session.post, target=target, data=data)
 
+    def _request_internal_with_backoff(self, request, target: str, data: Optional[Dict[str, Any]]):
+        return self._retry_with_exponential_backoff(
+            lambda :self._request_internal(request=request, target=target, data=data))
+
     @contextmanager
     def _request_internal(self, request, target: str, data: Optional[Dict[str, Any]]):
         assert target.startswith("/"), "Targets should start with '/'"
