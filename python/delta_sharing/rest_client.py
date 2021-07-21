@@ -68,7 +68,7 @@ class ListFilesInTableResponse:
 
 
 class DataSharingRestClient:
-    def __init__(self, profile: DeltaSharingProfile, num_retries = 10):
+    def __init__(self, profile: DeltaSharingProfile, num_retries=10):
         self._profile = profile
         self._num_retries = num_retries
         self._sleeper = lambda sleep_ms: time.sleep(sleep_ms / 1000)
@@ -174,7 +174,8 @@ class DataSharingRestClient:
 
     def _request_internal_with_backoff(self, request, target: str, data: Optional[Dict[str, Any]]):
         return self._retry_with_exponential_backoff(
-            lambda :self._request_internal(request=request, target=target, data=data))
+            lambda: self._request_internal(request=request, target=target, data=data)
+        )
 
     @contextmanager
     def _request_internal(self, request, target: str, data: Optional[Dict[str, Any]]):

@@ -17,6 +17,7 @@ import pytest
 
 from requests.models import Response
 from requests.exceptions import HTTPError
+from typing import List
 
 from delta_sharing.protocol import (
     AddFile,
@@ -32,7 +33,7 @@ from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
 
 def test_retry(rest_client: DataSharingRestClient):
-    sleeps = []
+    sleeps: List[int] = []
     rest_client._sleeper = sleeps.append
 
     success = lambda: True
@@ -45,6 +46,7 @@ def test_retry(rest_client: DataSharingRestClient):
 
     def all_fail():
         raise error
+
     try:
         rest_client._retry_with_exponential_backoff(all_fail)
     except Exception as e:
@@ -52,14 +54,15 @@ def test_retry(rest_client: DataSharingRestClient):
     assert sleeps == [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]
     sleeps.clear()
 
-
     responses = iter([error, error, error, error, True])
+
     def fail_before_success():
         element = next(responses)
         if isinstance(element, HTTPError):
             raise element
         else:
             return element
+
     assert rest_client._retry_with_exponential_backoff(fail_before_success)
     assert sleeps == [100, 200, 400, 800]
     sleeps.clear()
