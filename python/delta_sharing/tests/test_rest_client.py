@@ -62,6 +62,7 @@ def test_retry(rest_client: DataSharingRestClient):
 
     wrapper = TestWrapper()
     assert wrapper.success()
+    assert not wrapper.sleeps
 
     try:
         wrapper.all_fail()
