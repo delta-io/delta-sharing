@@ -82,6 +82,7 @@ def retry_with_exponential_backoff(func):
                     sleep_ms *= 2
                 else:
                     raise e
+
     return func_with_retry
 
 
@@ -190,14 +191,10 @@ class DataSharingRestClient:
         self._session.close()
 
     def _get_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
-        return self._request_internal(
-            request=self._session.get, target=target, data=data
-        )
+        return self._request_internal(request=self._session.get, target=target, data=data)
 
     def _post_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
-        return self._request_internal(
-            request=self._session.post, target=target, data=data
-        )
+        return self._request_internal(request=self._session.post, target=target, data=data)
 
     @contextmanager
     def _request_internal(self, request, target: str, data: Optional[Dict[str, Any]]):

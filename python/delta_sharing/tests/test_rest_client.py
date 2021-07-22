@@ -31,6 +31,7 @@ from delta_sharing.protocol import (
 from delta_sharing.rest_client import DataSharingRestClient, retry_with_exponential_backoff
 from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
+
 def test_retry(rest_client: DataSharingRestClient):
     class TestWrapper(DataSharingRestClient):
         def __init__(self):
@@ -73,6 +74,7 @@ def test_retry(rest_client: DataSharingRestClient):
     assert wrapper.fail_before_success()
     assert wrapper.sleeps == [100, 200, 400, 800]
     wrapper.sleeps.clear()
+
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_read_endpoint(rest_client: DataSharingRestClient):
