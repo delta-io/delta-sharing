@@ -101,7 +101,9 @@ class DataSharingRestClient:
         with self._get_internal(f"/shares/{share.name}/schemas", data) as lines:
             schemas_json = json.loads(next(lines))
             return ListSchemasResponse(
-                schemas=[Schema.from_json(schema_json) for schema_json in schemas_json.get("items", [])],
+                schemas=[
+                    Schema.from_json(schema_json) for schema_json in schemas_json.get("items", [])
+                ],
                 next_page_token=schemas_json.get("nextPageToken", None),
             )
 

@@ -32,7 +32,7 @@ def test_list_shares(sharing_client: SharingClient):
         Share(name="share3"),
         Share(name="share4"),
         Share(name="share5"),
-        Share(name="share6")
+        Share(name="share6"),
     ]
 
 
