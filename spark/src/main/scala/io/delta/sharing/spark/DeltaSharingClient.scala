@@ -124,13 +124,13 @@ private[sharing] class DeltaSharingRestClient(
     val target = getTargetUrl(s"/shares/$encodedShareName/schemas")
     val schemas = ArrayBuffer[Schema]()
     var response = getJson[ListSchemasResponse](target)
-    schemas ++= response.items
+    if (response != null && response.items != null) schemas ++= response.items
     while (response.nextPageToken.nonEmpty) {
       val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
       val target =
         getTargetUrl(s"/shares/$encodedShareName/schemas?pageToken=$encodedPageToken")
       response = getJson[ListSchemasResponse](target)
-      schemas ++= response.items
+      if (response != null && response.items != null) schemas ++= response.items
     }
     schemas
   }
@@ -141,13 +141,13 @@ private[sharing] class DeltaSharingRestClient(
     val target = getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables")
     val tables = ArrayBuffer[Table]()
     var response = getJson[ListTablesResponse](target)
-    tables ++= response.items
+    if (response != null && response.items != null) tables ++= response.items
     while (response.nextPageToken.nonEmpty) {
       val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
       val target = getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables" +
         s"?pageToken=$encodedPageToken")
       response = getJson[ListTablesResponse](target)
-      tables ++= response.items
+      if (response != null && response.items != null) tables ++= response.items
     }
     tables
   }
