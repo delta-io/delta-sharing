@@ -17,7 +17,6 @@ import pytest
 
 from requests.models import Response
 from requests.exceptions import HTTPError
-from typing import List
 
 from delta_sharing.protocol import (
     AddFile,
