@@ -28,45 +28,51 @@ from delta_sharing.protocol import (
     Share,
     Table,
 )
-from delta_sharing.rest_client import DataSharingRestClient
+from delta_sharing.rest_client import DataSharingRestClient, retry_with_exponential_backoff
 from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
-
 def test_retry(rest_client: DataSharingRestClient):
-    sleeps: List[int] = []
-    rest_client._sleeper = sleeps.append
+    class TestWrapper(DataSharingRestClient):
+        def __init__(self):
+            # inherit from DataSharingRestClient to make sure all the helper methods are the same
+            super().__init__(rest_client._profile)
+            self.sleeps = []
+            self._sleeper = self.sleeps.append
 
-    success = lambda: True
-    assert rest_client._retry_with_exponential_backoff(success)
+            error = HTTPError()
+            response = Response()
+            response.status_code = 429
+            error.response = response
+            self.error = error
 
-    error = HTTPError()
-    response = Response()
-    response.status_code = 429
-    error.response = response
+        @retry_with_exponential_backoff
+        def success(self):
+            return True
 
-    def all_fail():
-        raise error
+        @retry_with_exponential_backoff
+        def all_fail(self):
+            raise self.error
+
+        @retry_with_exponential_backoff
+        def fail_before_success(self):
+            if len(self.sleeps) < 4:
+                raise self.error
+            else:
+                return True
+
+    wrapper = TestWrapper()
+    assert wrapper.success()
 
     try:
-        rest_client._retry_with_exponential_backoff(all_fail)
+        wrapper.all_fail()
     except Exception as e:
         assert isinstance(e, HTTPError)
-    assert sleeps == [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]
-    sleeps.clear()
+    assert wrapper.sleeps == [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]
+    wrapper.sleeps.clear()
 
-    responses = iter([error, error, error, error, True])
-
-    def fail_before_success():
-        element = next(responses)
-        if isinstance(element, HTTPError):
-            raise element
-        else:
-            return element
-
-    assert rest_client._retry_with_exponential_backoff(fail_before_success)
-    assert sleeps == [100, 200, 400, 800]
-    sleeps.clear()
-
+    assert wrapper.fail_before_success()
+    assert wrapper.sleeps == [100, 200, 400, 800]
+    wrapper.sleeps.clear()
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_read_endpoint(rest_client: DataSharingRestClient):
