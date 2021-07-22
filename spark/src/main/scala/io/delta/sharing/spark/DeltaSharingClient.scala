@@ -109,12 +109,16 @@ private[sharing] class DeltaSharingRestClient(
     val target = getTargetUrl("shares")
     val shares = ArrayBuffer[Share]()
     var response = getJson[ListSharesResponse](target)
-    if (response != null && response.items != null) shares ++= response.items
+    if (response != null && response.items != null) {
+      shares ++= response.items
+    }
     while (response.nextPageToken.nonEmpty) {
       val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
       val target = getTargetUrl(s"/shares?pageToken=$encodedPageToken")
       response = getJson[ListSharesResponse](target)
-      if (response != null && response.items != null) shares ++= response.items
+      if (response != null && response.items != null) {
+        shares ++= response.items
+      }
     }
     shares
   }
@@ -124,13 +128,17 @@ private[sharing] class DeltaSharingRestClient(
     val target = getTargetUrl(s"/shares/$encodedShareName/schemas")
     val schemas = ArrayBuffer[Schema]()
     var response = getJson[ListSchemasResponse](target)
-    if (response != null && response.items != null) schemas ++= response.items
+    if (response != null && response.items != null) {
+      schemas ++= response.items
+    }
     while (response.nextPageToken.nonEmpty) {
       val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
       val target =
         getTargetUrl(s"/shares/$encodedShareName/schemas?pageToken=$encodedPageToken")
       response = getJson[ListSchemasResponse](target)
-      if (response != null && response.items != null) schemas ++= response.items
+      if (response != null && response.items != null) {
+        schemas ++= response.items
+      }
     }
     schemas
   }
@@ -141,13 +149,17 @@ private[sharing] class DeltaSharingRestClient(
     val target = getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables")
     val tables = ArrayBuffer[Table]()
     var response = getJson[ListTablesResponse](target)
-    if (response != null && response.items != null) tables ++= response.items
+    if (response != null && response.items != null) {
+      tables ++= response.items
+    }
     while (response.nextPageToken.nonEmpty) {
       val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
       val target = getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables" +
         s"?pageToken=$encodedPageToken")
       response = getJson[ListTablesResponse](target)
-      if (response != null && response.items != null) tables ++= response.items
+      if (response != null && response.items != null) {
+        tables ++= response.items
+      }
     }
     tables
   }
