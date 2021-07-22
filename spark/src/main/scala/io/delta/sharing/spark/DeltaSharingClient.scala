@@ -109,12 +109,12 @@ private[sharing] class DeltaSharingRestClient(
     val target = getTargetUrl("shares")
     val shares = ArrayBuffer[Share]()
     var response = getJson[ListSharesResponse](target)
-    shares ++= response.items
+    if (response != null && response.items != null) shares ++= response.items
     while (response.nextPageToken.nonEmpty) {
       val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
       val target = getTargetUrl(s"/shares?pageToken=$encodedPageToken")
       response = getJson[ListSharesResponse](target)
-      shares ++= response.items
+      if (response != null && response.items != null) shares ++= response.items
     }
     shares
   }
