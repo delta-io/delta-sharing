@@ -44,7 +44,7 @@ def test_retry(rest_client: DataSharingRestClient):
             response.status_code = 429
             error.response = response
             self.http_error = http_error
-            
+
             self.connection_error = ConnectionError()
 
         @retry_with_exponential_backoff
@@ -54,7 +54,7 @@ def test_retry(rest_client: DataSharingRestClient):
         @retry_with_exponential_backoff
         def all_fail_http(self):
             raise self.http_error
-            
+
         @retry_with_exponential_backoff
         def all_fail_connection(self):
             raise self.connection_error
@@ -76,7 +76,7 @@ def test_retry(rest_client: DataSharingRestClient):
         assert isinstance(e, HTTPError)
     assert wrapper.sleeps == [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]
     wrapper.sleeps.clear()
-    
+
     try:
         wrapper.all_fail_connection()
     except Exception as e:
