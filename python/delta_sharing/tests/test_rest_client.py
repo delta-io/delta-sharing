@@ -16,7 +16,7 @@
 import pytest
 
 from requests.models import Response
-from requests.exceptions import HTTPError
+from requests.exceptions import HTTPError, ConnectionError
 
 from delta_sharing.protocol import (
     AddFile,
@@ -39,24 +39,30 @@ def test_retry(rest_client: DataSharingRestClient):
             self.sleeps = []
             self._sleeper = self.sleeps.append
 
-            error = HTTPError()
+            http_error = HTTPError()
             response = Response()
             response.status_code = 429
             error.response = response
-            self.error = error
+            self.http_error = http_error
+            
+            self.connection_error = ConnectionError()
 
         @retry_with_exponential_backoff
         def success(self):
             return True
 
         @retry_with_exponential_backoff
-        def all_fail(self):
-            raise self.error
+        def all_fail_http(self):
+            raise self.http_error
+            
+        @retry_with_exponential_backoff
+        def all_fail_connection(self):
+            raise self.connection_error
 
         @retry_with_exponential_backoff
         def fail_before_success(self):
             if len(self.sleeps) < 4:
-                raise self.error
+                raise self.http_error
             else:
                 return True
 
@@ -65,9 +71,16 @@ def test_retry(rest_client: DataSharingRestClient):
     assert not wrapper.sleeps
 
     try:
-        wrapper.all_fail()
+        wrapper.all_fail_http()
     except Exception as e:
         assert isinstance(e, HTTPError)
+    assert wrapper.sleeps == [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]
+    wrapper.sleeps.clear()
+    
+    try:
+        wrapper.all_fail_connection()
+    except Exception as e:
+        assert isinstance(e, ConnectionError)
     assert wrapper.sleeps == [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]
     wrapper.sleeps.clear()
 
