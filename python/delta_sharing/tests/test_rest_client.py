@@ -42,7 +42,7 @@ def test_retry(rest_client: DataSharingRestClient):
             http_error = HTTPError()
             response = Response()
             response.status_code = 429
-            error.response = response
+            http_error.response = response
             self.http_error = http_error
 
             self.connection_error = ConnectionError()
