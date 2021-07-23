@@ -68,6 +68,8 @@ Query Parameters | **maxResults** (type: Int, optional): The maximum number of r
 Response Header | Content-Type: application/json; charset=utf-8
 Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>    }<br>  ],<br>  "nextPageToken": string,<br>}</pre>
 
+Note: the "items" field may be an empty array or missing when no results are found.
+
 Example:
 
 ```
@@ -101,6 +103,8 @@ Query Parameters | **maxResults** (type: Int, optional): The maximum number of r
 Response Header | Content-Type: application/json; charset=utf-8
 Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>      "share": string<br>    }<br>  ],<br>  "nextPageToken": string,<br>}</pre>
 
+Note: the "items" field may be an empty array or missing when no results are found.
+
 Example:
 
 ```
@@ -131,6 +135,8 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br
 Query Parameters | **maxResults** (type: Int, optional): The maximum number of results per page that should be returned. If the number of available results is larger than `maxResults`, the response will provide a `nextPageToken` that can be used to get the next page of results in subsequent list requests. The server may return fewer than `maxResults` items even if there are more available. The client should check `nextPageToken` in the response to determine if there are more available.<br><br>**pageToken** (type: String, optional): Specifies a page token to use. Set `pageToken` to the `nextPageToken` returned by a previous list request to get the next page of results. `nextPageToken` will not be returned in a response if there are no more results available.
 Response Header | Content-Type: application/json; charset=utf-8
 Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>      "schema": string<br>      "share": string<br>    }<br>  ],<br>  "nextPageToken": string,<br>}</pre>
+
+Note: the "items" field may be an empty array or missing when no results are found.
 
 Example:
 
