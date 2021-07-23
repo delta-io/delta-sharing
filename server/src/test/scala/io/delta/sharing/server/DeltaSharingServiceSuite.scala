@@ -152,7 +152,15 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   integrationTest("/shares") {
     val response = readJson(requestPath("/shares"))
     val expected = ListSharesResponse(
-      Vector(Share().withName("share1"), Share().withName("share2"), Share().withName("share3"), Share().withName("share4")))
+      Vector(
+        Share().withName("share1"),
+        Share().withName("share2"),
+        Share().withName("share3"),
+        Share().withName("share4"),
+        Share().withName("share5"),
+        Share().withName("share6")
+      )
+    )
     assert(expected == JsonFormat.fromJsonString[ListSharesResponse](response))
   }
 
@@ -165,7 +173,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       response = JsonFormat.fromJsonString[ListSharesResponse](readJson(requestPath(s"/shares?pageToken=${response.nextPageToken.get}&maxResults=1")))
       shares ++= response.items
     }
-    val expected = Seq(Share().withName("share1"), Share().withName("share2"), Share().withName("share3"), Share().withName("share4"))
+    val expected = Seq(
+        Share().withName("share1"),
+        Share().withName("share2"),
+        Share().withName("share3"),
+        Share().withName("share4"),
+        Share().withName("share5"),
+        Share().withName("share6")
+    )
     assert(expected == shares)
   }
 

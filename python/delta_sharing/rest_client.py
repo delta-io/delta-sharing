@@ -85,7 +85,7 @@ class DataSharingRestClient:
         with self._get_internal("/shares", data) as lines:
             shares_json = json.loads(next(lines))
             return ListSharesResponse(
-                shares=[Share.from_json(share_json) for share_json in shares_json["items"]],
+                shares=[Share.from_json(share_json) for share_json in shares_json.get("items", [])],
                 next_page_token=shares_json.get("nextPageToken", None),
             )
 
@@ -101,7 +101,9 @@ class DataSharingRestClient:
         with self._get_internal(f"/shares/{share.name}/schemas", data) as lines:
             schemas_json = json.loads(next(lines))
             return ListSchemasResponse(
-                schemas=[Schema.from_json(schema_json) for schema_json in schemas_json["items"]],
+                schemas=[
+                    Schema.from_json(schema_json) for schema_json in schemas_json.get("items", [])
+                ],
                 next_page_token=schemas_json.get("nextPageToken", None),
             )
 
@@ -119,7 +121,7 @@ class DataSharingRestClient:
         ) as lines:
             tables_json = json.loads(next(lines))
             return ListTablesResponse(
-                tables=[Table.from_json(table_json) for table_json in tables_json["items"]],
+                tables=[Table.from_json(table_json) for table_json in tables_json.get("items", [])],
                 next_page_token=tables_json.get("nextPageToken", None),
             )
 

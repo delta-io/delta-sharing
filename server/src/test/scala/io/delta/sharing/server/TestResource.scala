@@ -78,6 +78,17 @@ object TestResource {
             )
           )
         )
+      ),
+      ShareConfig("share5",
+        java.util.Arrays.asList(
+          SchemaConfig(
+            "default", // empty schema
+            java.util.Arrays.asList()
+          )
+        )
+      ),
+      ShareConfig("share6",
+        java.util.Arrays.asList()
       )
     )
 
