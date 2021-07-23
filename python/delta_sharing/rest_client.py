@@ -23,7 +23,7 @@ import time
 import logging
 
 import requests
-from requests.exceptions import HTTPError
+from requests.exceptions import HTTPError, ConnectionError
 
 from delta_sharing.protocol import (
     AddFile,
@@ -213,11 +213,13 @@ class DataSharingRestClient:
     def _should_retry(self, error):
         if isinstance(error, HTTPError):
             error_code = error.response.status_code
-            if error_code == 429:
+            if error_code == 429: # Too Many Requests
                 return True
-            elif 500 <= error_code <= 600:
+            elif 500 <= error_code < 600: # Internal Error
                 return True
             else:
                 return False
+        elif isinstance(error, ConnectionError): # Unable to connect to service
+            return True
         else:
             return False
