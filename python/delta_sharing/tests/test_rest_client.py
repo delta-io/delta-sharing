@@ -15,6 +15,9 @@
 #
 import pytest
 
+from requests.models import Response
+from requests.exceptions import HTTPError, ConnectionError
+
 from delta_sharing.protocol import (
     AddFile,
     Format,
@@ -24,8 +27,66 @@ from delta_sharing.protocol import (
     Share,
     Table,
 )
-from delta_sharing.rest_client import DataSharingRestClient
+from delta_sharing.rest_client import DataSharingRestClient, retry_with_exponential_backoff
 from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
+
+
+def test_retry(rest_client: DataSharingRestClient):
+    class TestWrapper(DataSharingRestClient):
+        def __init__(self):
+            # inherit from DataSharingRestClient to make sure all the helper methods are the same
+            super().__init__(rest_client._profile)
+            self.sleeps = []
+            self._sleeper = self.sleeps.append
+
+            http_error = HTTPError()
+            response = Response()
+            response.status_code = 429
+            http_error.response = response
+            self.http_error = http_error
+
+            self.connection_error = ConnectionError()
+
+        @retry_with_exponential_backoff
+        def success(self):
+            return True
+
+        @retry_with_exponential_backoff
+        def all_fail_http(self):
+            raise self.http_error
+
+        @retry_with_exponential_backoff
+        def all_fail_connection(self):
+            raise self.connection_error
+
+        @retry_with_exponential_backoff
+        def fail_before_success(self):
+            if len(self.sleeps) < 4:
+                raise self.http_error
+            else:
+                return True
+
+    wrapper = TestWrapper()
+    assert wrapper.success()
+    assert not wrapper.sleeps
+
+    try:
+        wrapper.all_fail_http()
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+    assert wrapper.sleeps == [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]
+    wrapper.sleeps.clear()
+
+    try:
+        wrapper.all_fail_connection()
+    except Exception as e:
+        assert isinstance(e, ConnectionError)
+    assert wrapper.sleeps == [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]
+    wrapper.sleeps.clear()
+
+    assert wrapper.fail_before_success()
+    assert wrapper.sleeps == [100, 200, 400, 800]
+    wrapper.sleeps.clear()
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
