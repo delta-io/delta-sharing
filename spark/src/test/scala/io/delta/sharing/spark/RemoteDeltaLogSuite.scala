@@ -18,6 +18,14 @@ package io.delta.sharing.spark
 
 import org.apache.spark.SparkFunSuite
 
+import io.delta.sharing.spark.model.{
+  DeltaTableFiles,
+  DeltaTableMetadata,
+  Metadata,
+  Protocol,
+  Table
+}
+
 class RemoteDeltaLogSuite extends SparkFunSuite {
 
   test("parsePath") {
@@ -44,5 +52,36 @@ class RemoteDeltaLogSuite extends SparkFunSuite {
     intercept[IllegalArgumentException] {
       RemoteDeltaLog.parsePath("foo#a.b.c.")
     }
+  }
+
+  test("RemoteSnapshot getFiles with limit") {
+    class DummySharingClient extends DeltaSharingClient {
+      var limits = Seq.empty[Long]
+
+      override def listAllTables(): Seq[Table] = Nil
+
+      override def getMetadata(table: Table): DeltaTableMetadata = {
+        DeltaTableMetadata(0, Protocol(0), Metadata())
+      }
+
+      override def getTableVersion(table: Table): Long = 0
+
+      override def getFiles(
+          table: Table,
+          predicates: Seq[String],
+          limit: Option[Long]): DeltaTableFiles = {
+        limit.foreach(lim => limits = limits :+ lim)
+        DeltaTableFiles(0, Protocol(0), Metadata(), Nil)
+      }
+    }
+
+    // sanity check for dummy client
+    val client = new DummySharingClient()
+    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(2L))
+    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(3L))
+    assert(client.limits === Seq(2, 3))
+
+
+
   }
 }

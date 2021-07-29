@@ -174,7 +174,7 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) exten
     }
   }
 
-  def filesForScan(filters: Seq[Expression]): Seq[AddFile] = {
+  def filesForScan(filters: Seq[Expression], limitHint: Option[Long]): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
@@ -194,7 +194,7 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) exten
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
-      val tableFiles = client.getFiles(table, predicates, None)
+      val tableFiles = client.getFiles(table, predicates, limitHint) // TODO: pass limit here
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.toDS()
@@ -242,7 +242,7 @@ private[sharing] class RemoteDeltaFileIndex(
     snapshotAtAnalysis: RemoteSnapshot) extends FileIndex {
 
   override def inputFiles: Array[String] = {
-    snapshotAtAnalysis.filesForScan(Nil)
+    snapshotAtAnalysis.filesForScan(Nil, None)
       .map(f => toDeltaPath(f).toString)
       .toArray
   }
@@ -263,7 +263,7 @@ private[sharing] class RemoteDeltaFileIndex(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     val timeZone = spark.sessionState.conf.sessionLocalTimeZone
-    snapshotAtAnalysis.filesForScan(partitionFilters ++ dataFilters)
+    snapshotAtAnalysis.filesForScan(partitionFilters ++ dataFilters, None)
       .groupBy(_.partitionValues).map {
         case (partitionValues, files) =>
           val rowValues: Array[Any] = partitionSchema.map { p =>

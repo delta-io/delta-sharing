@@ -41,14 +41,14 @@ private[sharing] trait DeltaSharingClient {
 
   def getMetadata(table: Table): DeltaTableMetadata
 
-  def getFiles(table: Table, predicates: Seq[String], limit: Option[Int]): DeltaTableFiles
+  def getFiles(table: Table, predicates: Seq[String], limit: Option[Long]): DeltaTableFiles
 }
 
 private[sharing] trait PaginationResponse {
   def nextPageToken: Option[String]
 }
 
-private[sharing] case class QueryTableRequest(predicateHints: Seq[String], limitHint: Option[Int])
+private[sharing] case class QueryTableRequest(predicateHints: Seq[String], limitHint: Option[Long])
 
 private[sharing] case class ListSharesResponse(
     items: Seq[Share],
@@ -203,7 +203,7 @@ private[sharing] class DeltaSharingRestClient(
   override def getFiles(
       table: Table,
       predicates: Seq[String],
-      limit: Option[Int]): DeltaTableFiles = {
+      limit: Option[Long]): DeltaTableFiles = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
