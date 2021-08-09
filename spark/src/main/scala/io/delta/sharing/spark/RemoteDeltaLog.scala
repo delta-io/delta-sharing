@@ -16,11 +16,12 @@
 
 package io.delta.sharing.spark
 
-import java.net.URI
+import java.lang.ref.WeakReference
 import java.util.concurrent.TimeUnit
 
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.SparkException
+import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.internal.Logging
 import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.sql.{Column, Encoder, SparkSession}
@@ -42,14 +43,14 @@ private[sharing] class RemoteDeltaLog(
     path: Path,
     client: DeltaSharingClient) {
 
-  @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(client, table)
+  @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(path, client, table)
 
   def snapshot: RemoteSnapshot = currentSnapshot
 
   /** Update the current snapshot to the latest version. */
   def update(): Unit = synchronized {
     if (client.getTableVersion(table) != currentSnapshot.version) {
-      currentSnapshot = new RemoteSnapshot(client, table)
+      currentSnapshot = new RemoteSnapshot(path, client, table)
     }
   }
 
@@ -146,7 +147,10 @@ private[sharing] object RemoteDeltaLog {
 }
 
 /** An immutable snapshot of a Delta table at some delta version */
-class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) extends Logging {
+class RemoteSnapshot(
+    tablePath: Path,
+    client: DeltaSharingClient,
+    table: DeltaSharingTable) extends Logging {
 
   protected def spark = SparkSession.active
 
@@ -190,7 +194,10 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) exten
     }
   }
 
-  def filesForScan(filters: Seq[Expression], limitHint: Option[Long]): Seq[AddFile] = {
+  def filesForScan(
+      filters: Seq[Expression],
+      limitHint: Option[Long],
+      fileIndex: Option[RemoteDeltaFileIndex]): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
@@ -211,6 +218,17 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) exten
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(table, predicates, limitHint)
+      if (fileIndex.nonEmpty) {
+        val idToUrl = tableFiles.files.map { add =>
+          add.id -> add.url
+        }.toMap
+        CachedTableManager.INSTANCE
+          .register(tablePath.toString, idToUrl, new WeakReference(fileIndex.get), () => {
+            client.getFiles(table, Nil, None).files.map { add =>
+              add.id -> add.url
+            }.toMap
+          })
+      }
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.toDS()
@@ -259,8 +277,8 @@ private[sharing] case class RemoteDeltaFileIndex(
     limitHint: Option[Long]) extends FileIndex {
 
   override def inputFiles: Array[String] = {
-    snapshotAtAnalysis.filesForScan(Nil, None)
-      .map(f => toDeltaPath(f).toString)
+    snapshotAtAnalysis.filesForScan(Nil, None, None)
+      .map(f => toDeltaSharingPath(f).toString)
       .toArray
   }
 
@@ -272,15 +290,15 @@ private[sharing] case class RemoteDeltaFileIndex(
 
   override def rootPaths: Seq[Path] = path :: Nil
 
-  private def toDeltaPath(f: AddFile): Path = {
-    DeltaSharingFileSystem.createPath(new URI(f.url), f.size)
+  private def toDeltaSharingPath(f: AddFile): Path = {
+    DeltaSharingFileSystem.encode(path, f)
   }
 
   override def listFiles(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     val timeZone = spark.sessionState.conf.sessionLocalTimeZone
-    snapshotAtAnalysis.filesForScan(partitionFilters ++ dataFilters, limitHint)
+    snapshotAtAnalysis.filesForScan(partitionFilters ++ dataFilters, limitHint, Some(this))
       .groupBy(_.partitionValues).map {
         case (partitionValues, files) =>
           val rowValues: Array[Any] = partitionSchema.map { p =>
@@ -294,7 +312,7 @@ private[sharing] case class RemoteDeltaFileIndex(
               /* blockReplication */ 0,
               /* blockSize */ 1,
               /* modificationTime */ 0,
-              toDeltaPath(f))
+              toDeltaSharingPath(f))
           }.toArray
 
           try {

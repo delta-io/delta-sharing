@@ -67,8 +67,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     client.clear()
 
     // check snapshot
-    val snapshot = new RemoteSnapshot(client, Table("fe", "fi", "fo"))
-    snapshot.filesForScan(Nil, Some(2L))
+    val snapshot = new RemoteSnapshot(new Path("test"), client, Table("fe", "fi", "fo"))
+    snapshot.filesForScan(Nil, Some(2L), None)
     assert(TestDeltaSharingClient.limits === Seq(2L))
     client.clear()
 

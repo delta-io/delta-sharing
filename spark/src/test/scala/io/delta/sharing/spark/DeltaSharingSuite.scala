@@ -17,6 +17,7 @@
 package io.delta.sharing.spark
 
 import java.io.EOFException
+import java.net.URI
 
 import scala.util.Random
 
@@ -157,12 +158,13 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       // scalastyle:on println
       val r = new Random(seed)
       val tablePath = testProfileFile.getCanonicalPath + "#share1.default.table1"
-      val file = spark.read.format("deltaSharing").load(tablePath).inputFiles.head
+      val df = spark.read.format("deltaSharing").load(tablePath)
+      val file = new Path(new URI(df.selectExpr("input_file_name()").as[String].head))
       var content: Array[Byte] = null
       withSQLConf("spark.delta.sharing.loadDataFilesInMemory" -> "true") {
         FileSystem.closeAll()
-        val fs = new Path(file).getFileSystem(spark.sessionState.newHadoopConf())
-        val input = fs.open(new Path(file))
+        val fs = file.getFileSystem(spark.sessionState.newHadoopConf())
+        val input = fs.open(file)
         assert(input.getWrappedStream.isInstanceOf[InMemoryHttpInputStream])
         try {
           content = IOUtils.toByteArray(input)
@@ -171,8 +173,8 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
         }
       }
       FileSystem.closeAll()
-      val fs = new Path(file).getFileSystem(spark.sessionState.newHadoopConf())
-      val input = fs.open(new Path(file))
+      val fs = file.getFileSystem(spark.sessionState.newHadoopConf())
+      val input = fs.open(file)
       try {
         assert(input.getWrappedStream.isInstanceOf[RandomAccessHttpInputStream])
         intercept[EOFException] {

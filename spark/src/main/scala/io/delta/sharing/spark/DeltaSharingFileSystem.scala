@@ -16,9 +16,7 @@
 
 package io.delta.sharing.spark
 
-import java.net.URI
-import java.nio.charset.StandardCharsets.UTF_8
-import java.util.Base64
+import java.net.{URI, URLDecoder, URLEncoder}
 import java.util.concurrent.TimeUnit
 
 import org.apache.hadoop.fs._
@@ -26,7 +24,11 @@ import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.impl.client.HttpClientBuilder
+import org.apache.spark.SparkEnv
+import org.apache.spark.delta.sharing.{PreSignedUrlCache, PreSignedUrlFetcher}
 import org.apache.spark.network.util.JavaUtils
+
+import io.delta.sharing.spark.model.AddFile
 
 /** Read-only file system for delta paths. */
 private[sharing] class DeltaSharingFileSystem extends FileSystem {
@@ -75,18 +77,26 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
       .build()
   }
 
+  private lazy val refreshThresholdMs = getConf.getLong(
+    "spark.delta.sharing.executor.refreshThresholdMs",
+    TimeUnit.MINUTES.toMillis(10))
+
+  private lazy val preSignedUrlCacheRef = PreSignedUrlCache.getEndpointRefInExecutor(SparkEnv.get)
+
   override def getScheme: String = SCHEME
 
   override def getUri(): URI = URI.create(s"$SCHEME:///")
 
   override def open(f: Path, bufferSize: Int): FSDataInputStream = {
-    val resolved = makeQualified(f)
-    val (uri, len) = restoreUri(resolved)
+    val path = DeltaSharingFileSystem.decode(f)
+    val fetcher = new PreSignedUrlFetcher(preSignedUrlCacheRef, path, refreshThresholdMs)
     if (getConf.getBoolean("spark.delta.sharing.loadDataFilesInMemory", false)) {
-      new FSDataInputStream(new InMemoryHttpInputStream(uri))
+      // `InMemoryHttpInputStream` loads the content into the memory immediately, so we don't need
+      // to refresh urls.
+      new FSDataInputStream(new InMemoryHttpInputStream(new URI(fetcher.getUrl())))
     } else {
       new FSDataInputStream(
-        new RandomAccessHttpInputStream(httpClient, uri, len, statistics, numRetries))
+        new RandomAccessHttpInputStream(httpClient, fetcher, statistics, numRetries))
     }
   }
 
@@ -122,8 +132,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
 
   override def getFileStatus(f: Path): FileStatus = {
     val resolved = makeQualified(f)
-    val (_, len) = restoreUri(resolved)
-    new FileStatus(len, false, 0, 1, 0, f)
+    new FileStatus(decode(resolved).fileSize, false, 0, 1, 0, f)
   }
 
   override def finalize(): Unit = {
@@ -135,33 +144,40 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
   }
 }
 
-private[sharing] object DeltaSharingFileSystem {
+object DeltaSharingFileSystem {
 
   val SCHEME = "delta-sharing"
 
-  /**
-   * Create a delta-sharing path for the uri and the file size. The file size will be encoded
-   * in the path in order to implement `DeltaSharingFileSystem.getFileStatus`.
-   */
-  def createPath(uri: URI, size: Long): Path = {
-    val uriWithSize = s"$uri#size=$size"
-    val encoded = new String(Base64.getUrlEncoder.encode(uriWithSize.getBytes(UTF_8)), UTF_8)
-    new Path(new URI(s"$SCHEME:///$encoded"))
+  case class DeltaSharingPath(tablePath: String, fileId: String, fileSize: Long) {
+
+    /**
+     * Convert `DeltaSharingPath` to a `Path` in the following format:
+     *
+     * ```
+     * delta-sharing:///<url encoded table path>/<url encoded file id>/<size>
+     * ```
+     *
+     * This format can be decoded by `DeltaSharingFileSystem.decode`.
+     */
+    def toPath: Path = {
+      val encodedTablePath = URLEncoder.encode(tablePath, "UTF-8")
+      val encodedFileId = URLEncoder.encode(fileId, "UTF-8")
+      new Path(s"$SCHEME:///$encodedTablePath/$encodedFileId/$fileSize")
+    }
   }
 
-  /** Restore the original URI and the file size from the delta-sharing path. */
-  def restoreUri(path: Path): (URI, Long) = {
-    val encoded = path.toUri.toString
+  def encode(tablePath: Path, addFile: AddFile): Path = {
+    DeltaSharingPath(tablePath.toString, addFile.id, addFile.size).toPath
+  }
+
+  def decode(path: Path): DeltaSharingPath = {
+    val encodedPath = path.toString
       .stripPrefix(s"$SCHEME:///")
       .stripPrefix(s"$SCHEME:/")
-      .getBytes(UTF_8)
-    val uriWithSize = new String(Base64.getUrlDecoder.decode(encoded), UTF_8)
-    val i = uriWithSize.lastIndexOf("#size=")
-    if (i < 0) {
-      throw new IllegalArgumentException(s"$path is not a valid delta-sharing path")
-    }
-    val uri = uriWithSize.substring(0, i)
-    val size = uriWithSize.substring(i + "#size=".length).toLong
-    (new URI(uri), size)
+    val Array(encodedTablePath, encodedFileId, sizeString) = encodedPath.split("/")
+    DeltaSharingPath(
+      URLDecoder.decode(encodedTablePath, "UTF-8"),
+      URLDecoder.decode(encodedFileId, "UTF-8"),
+      sizeString.toLong)
   }
 }

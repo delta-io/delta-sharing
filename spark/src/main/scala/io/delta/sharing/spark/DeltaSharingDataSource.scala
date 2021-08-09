@@ -18,6 +18,8 @@ package io.delta.sharing.spark
 
 import java.util.Collections
 
+import org.apache.spark.SparkEnv
+import org.apache.spark.delta.sharing.PreSignedUrlCache
 import org.apache.spark.sql.{SparkSession, SQLContext}
 import org.apache.spark.sql.connector.catalog.{Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.expressions.Transform
@@ -65,5 +67,6 @@ private[sharing] object DeltaSharingDataSource {
     // to make sure we set up `DeltaSharingFileSystem` correctly.
     sqlContext.sparkContext.hadoopConfiguration
       .set("fs.delta-sharing.impl", "io.delta.sharing.spark.DeltaSharingFileSystem")
+    PreSignedUrlCache.registerIfNeeded(SparkEnv.get)
   }
 }
