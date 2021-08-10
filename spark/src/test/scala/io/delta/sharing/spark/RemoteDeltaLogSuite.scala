@@ -16,17 +16,14 @@
 
 package io.delta.sharing.spark
 
+import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkFunSuite
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.test.SharedSparkSession
 
-import io.delta.sharing.spark.model.{
-  DeltaTableFiles,
-  DeltaTableMetadata,
-  Metadata,
-  Protocol,
-  Table
-}
+import io.delta.sharing.spark.model.{DeltaTableFiles, DeltaTableMetadata, Metadata, Protocol, Table}
 
-class RemoteDeltaLogSuite extends SparkFunSuite {
+class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
   test("parsePath") {
     assert(RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c") == ("file:///foo/bar", "a", "b", "c"))
@@ -75,13 +72,28 @@ class RemoteDeltaLogSuite extends SparkFunSuite {
       }
     }
 
+    val spark = SparkSession.active
+
     // sanity check for dummy client
     val client = new DummySharingClient()
     client.getFiles(Table("fe", "fi", "fo"), Nil, Some(2L))
     client.getFiles(Table("fe", "fi", "fo"), Nil, Some(3L))
-    assert(client.limits === Seq(2, 3))
+    assert(client.limits === Seq(2L, 3L))
+    client.limits = client.limits.take(0)
 
+    // check snapshot
+    val snapshot = new RemoteSnapshot(client, Table("fe", "fi", "fo"))
+    snapshot.filesForScan(Nil, Some(2L))
+    assert(client.limits === Seq(2L))
+    client.limits = client.limits.take(0)
 
-
+    // check RemoteDeltaFileIndex
+    val remoteDeltaLog = new RemoteDeltaLog(Table("fe", "fi", "fo"), new Path("test"), client)
+    val fileIndex = {
+      new RemoteDeltaFileIndex(spark, remoteDeltaLog, new Path("test"), snapshot, Some(2L))
+    }
+    fileIndex.listFiles(Seq.empty, Seq.empty)
+    assert(client.limits === Seq(2L))
+    client.limits = client.limits.take(0)
   }
 }

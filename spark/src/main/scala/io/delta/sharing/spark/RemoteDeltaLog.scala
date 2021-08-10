@@ -27,12 +27,13 @@ import org.apache.spark.sql.{Column, Encoder, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
-import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal, SubqueryExpression}
-import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
+import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, IntegerLiteral, Literal, SubqueryExpression}
+import org.apache.spark.sql.catalyst.plans.logical._
+import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, LogicalRelation, PartitionDirectory}
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
-
 import io.delta.sharing.spark.model.{AddFile, Metadata, Protocol, Table => DeltaSharingTable}
 
 /** Used to query the current state of the transaction logs of a remote shared Delta table. */
@@ -55,7 +56,7 @@ private[sharing] class RemoteDeltaLog(
   def createRelation(): BaseRelation = {
     val spark = SparkSession.active
     val snapshotToUse = snapshot
-    val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse)
+    val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse, None)
     new HadoopFsRelation(
       fileIndex,
       partitionSchema = snapshotToUse.partitionSchema,
@@ -194,7 +195,7 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) exten
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
-      val tableFiles = client.getFiles(table, predicates, limitHint) // TODO: pass limit here
+      val tableFiles = client.getFiles(table, predicates, limitHint)
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.toDS()
@@ -239,7 +240,8 @@ private[sharing] class RemoteDeltaFileIndex(
     spark: SparkSession,
     deltaLog: RemoteDeltaLog,
     path: Path,
-    snapshotAtAnalysis: RemoteSnapshot) extends FileIndex {
+    snapshotAtAnalysis: RemoteSnapshot,
+    limitHint: Option[Long]) extends FileIndex {
 
   override def inputFiles: Array[String] = {
     snapshotAtAnalysis.filesForScan(Nil, None)
@@ -263,7 +265,7 @@ private[sharing] class RemoteDeltaFileIndex(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     val timeZone = spark.sessionState.conf.sessionLocalTimeZone
-    snapshotAtAnalysis.filesForScan(partitionFilters ++ dataFilters, None)
+    snapshotAtAnalysis.filesForScan(partitionFilters ++ dataFilters, limitHint)
       .groupBy(_.partitionValues).map {
         case (partitionValues, files) =>
           val rowValues: Array[Any] = partitionSchema.map { p =>
@@ -294,6 +296,17 @@ private[sharing] class RemoteDeltaFileIndex(
       }.toSeq
   }
 }
+
+object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
+  def apply(p: LogicalPlan): LogicalPlan = p transform {
+    case LocalLimit(IntegerLiteral(limit), l: LogicalRelation(r: HadoopFsRelation(index: RemoteDeltaFileIndex, _, _, _, _, _), _, _, _))
+    if index.limit.isEmpty =>
+    LocalLimit(int, l.copy(relation = r.copy(index = new RemoteDeltaFileIndex(...., Some(limit)) )))
+    case _ =>
+      None
+  }
+}
+
 
 // scalastyle:off
 /** Fork from Delta Lake: https://github.com/delta-io/delta/blob/v0.8.0/src/main/scala/org/apache/spark/sql/delta/DeltaTable.scala#L76 */
