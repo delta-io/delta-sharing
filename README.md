@@ -255,7 +255,7 @@ bin/delta-sharing-server -- --config <the-server-config-yaml-file>
 
 ## Use the pre-built Docker image
 
-You can use the pre-built docker image from https://hub.docker.com/repository/docker/deltaio/delta-sharing-server by running the following command
+You can use the pre-built docker image from https://hub.docker.com/r/deltaio/delta-sharing-server by running the following command
 
 ```
 docker run -p <host-port>:<container-port> --mount type=bind,source=<the-server-config-yaml-file>,target=/config/delta-sharing-server-config.yaml deltaio/delta-sharing-server:0.2.0 -- --config /config/delta-sharing-server-config.yaml
