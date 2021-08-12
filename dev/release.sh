@@ -32,11 +32,14 @@ cd ..
 
 # Generate the pre-built server package and sign files
 build/sbt server/universal:packageBin
-sha256sum server/target/universal/delta-sharing-server-$VERSION.zip > server/target/universal/delta-sharing-server-$VERSION.zip.sha256
-gpg --detach-sign --armor --sign server/target/universal/delta-sharing-server-$VERSION.zip
-gpg --detach-sign --armor --sign server/target/universal/delta-sharing-server-$VERSION.zip.sha256
-gpg --verify server/target/universal/delta-sharing-server-$VERSION.zip.asc
-gpg --verify server/target/universal/delta-sharing-server-$VERSION.zip.sha256.asc
+cd server/target/universal
+gpg --detach-sign --armor --sign delta-sharing-server-$VERSION.zip
+gpg --verify delta-sharing-server-$VERSION.zip.asc
+sha256sum delta-sharing-server-$VERSION.zip > delta-sharing-server-$VERSION.zip.sha256
+sha256sum -c delta-sharing-server-$VERSION.zip.sha256
+sha256sum delta-sharing-server-$VERSION.zip.asc > delta-sharing-server-$VERSION.zip.asc.sha256
+sha256sum -c delta-sharing-server-$VERSION.zip.asc.sha256
+cd -
 
 # Build the docker image
 build/sbt server/docker:publish
