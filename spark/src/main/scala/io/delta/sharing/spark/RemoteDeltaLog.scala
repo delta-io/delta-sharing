@@ -34,6 +34,7 @@ import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, Hadoop
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
+
 import io.delta.sharing.spark.model.{AddFile, Metadata, Protocol, Table => DeltaSharingTable}
 
 /** Used to query the current state of the transaction logs of a remote shared Delta table. */
@@ -124,8 +125,20 @@ private[sharing] object RemoteDeltaLog {
       timeoutInSeconds.toInt
     }
 
-    val client =
-      new DeltaSharingRestClient(profileProvider, timeoutInSeconds, numRetries, sslTrustAll)
+
+    val clientClass =
+      sqlConf.getConfString("spark.delta.sharing.client.class",
+        "io.delta.sharing.spark.DeltaSharingRestClient")
+
+    val client: DeltaSharingClient =
+      Class.forName(clientClass)
+        .getConstructor(classOf[DeltaSharingProfileProvider],
+          classOf[Int], classOf[Int], classOf[Boolean])
+        .newInstance(profileProvider,
+          java.lang.Integer.valueOf(timeoutInSeconds),
+          java.lang.Integer.valueOf(numRetries),
+          java.lang.Boolean.valueOf(sslTrustAll))
+        .asInstanceOf[DeltaSharingClient]
     new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
   }
 }
@@ -236,7 +249,7 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) exten
 }
 
 /** A [[FileIndex]] that generates the list of files from the remote transaction logs. */
-private[sharing] class RemoteDeltaFileIndex(
+private[sharing] case class RemoteDeltaFileIndex(
     spark: SparkSession,
     deltaLog: RemoteDeltaLog,
     path: Path,
@@ -298,12 +311,32 @@ private[sharing] class RemoteDeltaFileIndex(
 }
 
 object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
-  def apply(p: LogicalPlan): LogicalPlan = p transform {
-    case LocalLimit(IntegerLiteral(limit), l: LogicalRelation(r: HadoopFsRelation(index: RemoteDeltaFileIndex, _, _, _, _, _), _, _, _))
-    if index.limit.isEmpty =>
-    LocalLimit(int, l.copy(relation = r.copy(index = new RemoteDeltaFileIndex(...., Some(limit)) )))
-    case _ =>
-      None
+  def apply(p: LogicalPlan): LogicalPlan = {
+    // scalastyle:off println
+    println(s"LIMIT: CALLED ON $p")
+    // scalastyle:on println
+    p transform {
+      case localLimit @ LocalLimit(
+      literalExpr @ IntegerLiteral(limit),
+      l @ LogicalRelation(
+      r @ HadoopFsRelation(remoteIndex: RemoteDeltaFileIndex, _, _, _, _, _),
+      _, _, _)
+      ) =>
+        // scalastyle:off println
+        println(s"LIMIT: MATCHED")
+        // scalastyle:on println
+        if (remoteIndex.limitHint.isEmpty) {
+          val spark = SparkSession.active
+          LocalLimit(literalExpr,
+            l.copy(
+              relation = r.copy(
+                location = remoteIndex.copy(limitHint = Some(limit)))(spark)
+            )
+          )
+        } else {
+          localLimit
+        }
+    }
   }
 }
 
