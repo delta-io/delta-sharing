@@ -125,6 +125,7 @@ private[sharing] object RemoteDeltaLog {
       timeoutInSeconds.toInt
     }
 
+    SparkSession.active.experimental.extraOptimizations ++= Seq(DeltaSharingLimitPushDown)
 
     val clientClass =
       sqlConf.getConfString("spark.delta.sharing.client.class",
@@ -312,19 +313,13 @@ private[sharing] case class RemoteDeltaFileIndex(
 
 object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
   def apply(p: LogicalPlan): LogicalPlan = {
-    // scalastyle:off println
-    println(s"LIMIT: CALLED ON $p")
-    // scalastyle:on println
     p transform {
       case localLimit @ LocalLimit(
-      literalExpr @ IntegerLiteral(limit),
-      l @ LogicalRelation(
-      r @ HadoopFsRelation(remoteIndex: RemoteDeltaFileIndex, _, _, _, _, _),
-      _, _, _)
+        literalExpr @ IntegerLiteral(limit),
+          l @ LogicalRelation(
+            r @ HadoopFsRelation(remoteIndex: RemoteDeltaFileIndex, _, _, _, _, _),
+            _, _, _)
       ) =>
-        // scalastyle:off println
-        println(s"LIMIT: MATCHED")
-        // scalastyle:on println
         if (remoteIndex.limitHint.isEmpty) {
           val spark = SparkSession.active
           LocalLimit(literalExpr,

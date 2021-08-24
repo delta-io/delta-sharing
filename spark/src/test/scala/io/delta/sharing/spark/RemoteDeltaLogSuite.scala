@@ -92,7 +92,6 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
          |}""".stripMargin, UTF_8)
     SparkSession.active.sessionState.conf.setConfString(
       "spark.delta.sharing.client.class", "io.delta.sharing.spark.TestDeltaSharingClient")
-    SparkSession.active.experimental.extraOptimizations ++= Seq(DeltaSharingLimitPushDown)
 
     val tablePath = testProfileFile.getCanonicalPath + "#share2.default.table2"
     withTable("delta_sharing_test") {

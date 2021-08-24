@@ -19,6 +19,7 @@ package io.delta.sharing.spark
 import java.io.EOFException
 
 import scala.util.Random
+
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{QueryTest, Row, SparkSession}
