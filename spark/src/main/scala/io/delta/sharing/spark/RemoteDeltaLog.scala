@@ -36,6 +36,7 @@ import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.spark.model.{AddFile, Metadata, Protocol, Table => DeltaSharingTable}
+import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 
 /** Used to query the current state of the transaction logs of a remote shared Delta table. */
 private[sharing] class RemoteDeltaLog(
@@ -58,6 +59,10 @@ private[sharing] class RemoteDeltaLog(
     val spark = SparkSession.active
     val snapshotToUse = snapshot
     val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse, None)
+    if (spark.sessionState.conf.getConfString(
+      "spark.delta.sharing.limitPushdown.enabled", "false").toBoolean) {
+      DeltaSharingLimitPushDown.setup(spark)
+    }
     new HadoopFsRelation(
       fileIndex,
       partitionSchema = snapshotToUse.partitionSchema,
@@ -124,8 +129,6 @@ private[sharing] object RemoteDeltaLog {
       }
       timeoutInSeconds.toInt
     }
-
-    SparkSession.active.experimental.extraOptimizations ++= Seq(DeltaSharingLimitPushDown)
 
     val clientClass =
       sqlConf.getConfString("spark.delta.sharing.client.class",
@@ -308,30 +311,6 @@ private[sharing] case class RemoteDeltaFileIndex(
               PartitionDirectory(new GenericInternalRow(rowValues), fileStats)
           }
       }.toSeq
-  }
-}
-
-object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
-  def apply(p: LogicalPlan): LogicalPlan = {
-    p transform {
-      case localLimit @ LocalLimit(
-        literalExpr @ IntegerLiteral(limit),
-          l @ LogicalRelation(
-            r @ HadoopFsRelation(remoteIndex: RemoteDeltaFileIndex, _, _, _, _, _),
-            _, _, _)
-      ) =>
-        if (remoteIndex.limitHint.isEmpty) {
-          val spark = SparkSession.active
-          LocalLimit(literalExpr,
-            l.copy(
-              relation = r.copy(
-                location = remoteIndex.copy(limitHint = Some(limit)))(spark)
-            )
-          )
-        } else {
-          localLimit
-        }
-    }
   }
 }
 

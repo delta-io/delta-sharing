@@ -25,7 +25,7 @@ import org.apache.spark.SparkFunSuite
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.test.SharedSparkSession
 
-import io.delta.sharing.spark.model.{DeltaTableFiles, DeltaTableMetadata, Metadata, Protocol, Table}
+import io.delta.sharing.spark.model.Table
 
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
@@ -90,14 +90,17 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
          |  "endpoint": "https://localhost:12345/delta-sharing",
          |  "bearerToken": "mock"
          |}""".stripMargin, UTF_8)
-    SparkSession.active.sessionState.conf.setConfString(
-      "spark.delta.sharing.client.class", "io.delta.sharing.spark.TestDeltaSharingClient")
 
-    val tablePath = testProfileFile.getCanonicalPath + "#share2.default.table2"
-    withTable("delta_sharing_test") {
-      sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
-      sql(s"SELECT * FROM delta_sharing_test LIMIT 2").show()
+    withSQLConf(
+      "spark.delta.sharing.client.class" -> "io.delta.sharing.spark.TestDeltaSharingClient",
+      "spark.delta.sharing.limitPushdown.enabled" -> "true") {
+      val tablePath = testProfileFile.getCanonicalPath + "#share2.default.table2"
+      withTable("delta_sharing_test") {
+        sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
+        sql(s"SELECT * FROM delta_sharing_test LIMIT 2").show()
+        sql(s"SELECT col1, col2 FROM delta_sharing_test LIMIT 3").show()
+      }
+      assert(TestDeltaSharingClient.limits === Seq(2L, 3L))
     }
-    assert(TestDeltaSharingClient.limits === Seq(2L))
   }
 }
