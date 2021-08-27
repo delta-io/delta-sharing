@@ -9,7 +9,7 @@
 With Delta Sharing, a user accessing shared data can directly connect to it through pandas, Tableau, Apache Spark, Rust, or other systems that support the open protocol, without having to deploy a specific compute platform first. Data providers can share a dataset once to reach a broad range of consumers, while consumers can begin using the data in minutes.
 
 <p align="center">
-  <img src="https://delta.io/wp-content/uploads/2021/05/sharing-hero-v3.png" width="85%"/>
+  <img src="https://delta.io/wp-content/uploads/2021/08/sharing-hero-v3b.png" width="85%"/>
 </p>
 
 This repo includes the following components:
@@ -109,13 +109,13 @@ To use Delta Sharing connector interactively within the Spark’s Scala/Python s
 #### PySpark shell
 
 ```
-pyspark --packages io.delta:delta-sharing-spark_2.12:0.1.0
+pyspark --packages io.delta:delta-sharing-spark_2.12:0.2.0
 ```
 
 #### Scala Shell
 
 ```
-bin/spark-shell --packages io.delta:delta-sharing-spark_2.12:0.1.0
+bin/spark-shell --packages io.delta:delta-sharing-spark_2.12:0.2.0
 ```
 
 ### Set up a standalone project
@@ -130,7 +130,7 @@ You include Delta Sharing connector in your Maven project by adding it as a depe
 <dependency>
   <groupId>io.delta</groupId>
   <artifactId>delta-sharing-spark_2.12</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
@@ -139,7 +139,7 @@ You include Delta Sharing connector in your Maven project by adding it as a depe
 You include Delta Sharing connector in your SBT project by adding the following line to your `build.sbt` file:
 
 ```scala
-libraryDependencies += "io.delta" %% "delta-sharing-spark" % "0.1.0"
+libraryDependencies += "io.delta" %% "delta-sharing-spark" % "0.2.0"
 ```
 
 ## Quick Start
@@ -252,6 +252,16 @@ bin/delta-sharing-server -- --config <the-server-config-yaml-file>
 ```
 
 `<the-server-config-yaml-file>` should be the path of the yaml file you created in the previous step. You can find options to config JVM in [sbt-native-packager](https://www.scala-sbt.org/sbt-native-packager/archetypes/java_app/index.html#start-script-options).
+
+## Use the pre-built Docker image
+
+You can use the pre-built docker image from https://hub.docker.com/r/deltaio/delta-sharing-server by running the following command
+
+```
+docker run -p <host-port>:<container-port> --mount type=bind,source=<the-server-config-yaml-file>,target=/config/delta-sharing-server-config.yaml deltaio/delta-sharing-server:0.2.0 -- --config /config/delta-sharing-server-config.yaml
+```
+
+Note that `<container-port>` should be the same as the port defined inside the config file.
 
 ## API Compatibility
 
