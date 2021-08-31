@@ -33,24 +33,28 @@ object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
   }
 
   def apply(p: LogicalPlan): LogicalPlan = {
-    p transform {
-      case localLimit @ LocalLimit(
-      literalExpr @ IntegerLiteral(limit),
-      l @ LogicalRelation(
-      r @ HadoopFsRelation(remoteIndex: RemoteDeltaFileIndex, _, _, _, _, _),
-      _, _, _)
-      ) =>
-        if (remoteIndex.limitHint.isEmpty) {
-          val spark = SparkSession.active
-          LocalLimit(literalExpr,
-            l.copy(
-              relation = r.copy(
-                location = remoteIndex.copy(limitHint = Some(limit)))(spark)
+    if (p.conf.getConfString("spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
+      p transform {
+        case localLimit @ LocalLimit(
+        literalExpr @ IntegerLiteral(limit),
+        l @ LogicalRelation(
+        r @ HadoopFsRelation(remoteIndex: RemoteDeltaFileIndex, _, _, _, _, _),
+        _, _, _)
+        ) =>
+          if (remoteIndex.limitHint.isEmpty) {
+            val spark = SparkSession.active
+            LocalLimit(literalExpr,
+              l.copy(
+                relation = r.copy(
+                  location = remoteIndex.copy(limitHint = Some(limit)))(spark)
+              )
             )
-          )
-        } else {
-          localLimit
-        }
+          } else {
+            localLimit
+          }
+      }
+    } else {
+      p
     }
   }
 }

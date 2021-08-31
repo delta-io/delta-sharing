@@ -58,7 +58,7 @@ private[sharing] class RemoteDeltaLog(
     val snapshotToUse = snapshot
     val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse, None)
     if (spark.sessionState.conf.getConfString(
-      "spark.delta.sharing.limitPushdown.enabled", "false").toBoolean) {
+      "spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
       DeltaSharingLimitPushDown.setup(spark)
     }
     new HadoopFsRelation(

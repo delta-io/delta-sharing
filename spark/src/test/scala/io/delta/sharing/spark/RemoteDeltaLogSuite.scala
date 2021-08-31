@@ -91,9 +91,19 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
          |  "bearerToken": "mock"
          |}""".stripMargin, UTF_8)
 
+    withSQLConf("spark.delta.sharing.limitPushdown.enabled" -> "false",
+      "spark.delta.sharing.client.class" -> "io.delta.sharing.spark.TestDeltaSharingClient") {
+      val tablePath = testProfileFile.getCanonicalPath + "#share2.default.table2"
+      withTable("delta_sharing_test") {
+        sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
+        sql(s"SELECT * FROM delta_sharing_test LIMIT 2").show()
+        sql(s"SELECT col1, col2 FROM delta_sharing_test LIMIT 3").show()
+      }
+      assert(TestDeltaSharingClient.limits === Nil)
+    }
+
     withSQLConf(
-      "spark.delta.sharing.client.class" -> "io.delta.sharing.spark.TestDeltaSharingClient",
-      "spark.delta.sharing.limitPushdown.enabled" -> "true") {
+      "spark.delta.sharing.client.class" -> "io.delta.sharing.spark.TestDeltaSharingClient") {
       val tablePath = testProfileFile.getCanonicalPath + "#share2.default.table2"
       withTable("delta_sharing_test") {
         sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
