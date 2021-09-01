@@ -34,6 +34,7 @@ import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.spark.model.{AddFile, Metadata, Protocol, Table => DeltaSharingTable}
+import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 
 /** Used to query the current state of the transaction logs of a remote shared Delta table. */
 private[sharing] class RemoteDeltaLog(
@@ -55,7 +56,11 @@ private[sharing] class RemoteDeltaLog(
   def createRelation(): BaseRelation = {
     val spark = SparkSession.active
     val snapshotToUse = snapshot
-    val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse)
+    val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse, None)
+    if (spark.sessionState.conf.getConfString(
+      "spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
+      DeltaSharingLimitPushDown.setup(spark)
+    }
     new HadoopFsRelation(
       fileIndex,
       partitionSchema = snapshotToUse.partitionSchema,
@@ -123,8 +128,19 @@ private[sharing] object RemoteDeltaLog {
       timeoutInSeconds.toInt
     }
 
-    val client =
-      new DeltaSharingRestClient(profileProvider, timeoutInSeconds, numRetries, sslTrustAll)
+    val clientClass =
+      sqlConf.getConfString("spark.delta.sharing.client.class",
+        "io.delta.sharing.spark.DeltaSharingRestClient")
+
+    val client: DeltaSharingClient =
+      Class.forName(clientClass)
+        .getConstructor(classOf[DeltaSharingProfileProvider],
+          classOf[Int], classOf[Int], classOf[Boolean])
+        .newInstance(profileProvider,
+          java.lang.Integer.valueOf(timeoutInSeconds),
+          java.lang.Integer.valueOf(numRetries),
+          java.lang.Boolean.valueOf(sslTrustAll))
+        .asInstanceOf[DeltaSharingClient]
     new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
   }
 }
@@ -174,7 +190,7 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) exten
     }
   }
 
-  def filesForScan(filters: Seq[Expression]): Seq[AddFile] = {
+  def filesForScan(filters: Seq[Expression], limitHint: Option[Long]): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
@@ -194,7 +210,7 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) exten
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
-      val tableFiles = client.getFiles(table, predicates, None)
+      val tableFiles = client.getFiles(table, predicates, limitHint)
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.toDS()
@@ -235,14 +251,15 @@ class RemoteSnapshot(client: DeltaSharingClient, table: DeltaSharingTable) exten
 }
 
 /** A [[FileIndex]] that generates the list of files from the remote transaction logs. */
-private[sharing] class RemoteDeltaFileIndex(
+private[sharing] case class RemoteDeltaFileIndex(
     spark: SparkSession,
     deltaLog: RemoteDeltaLog,
     path: Path,
-    snapshotAtAnalysis: RemoteSnapshot) extends FileIndex {
+    snapshotAtAnalysis: RemoteSnapshot,
+    limitHint: Option[Long]) extends FileIndex {
 
   override def inputFiles: Array[String] = {
-    snapshotAtAnalysis.filesForScan(Nil)
+    snapshotAtAnalysis.filesForScan(Nil, None)
       .map(f => toDeltaPath(f).toString)
       .toArray
   }
@@ -263,7 +280,7 @@ private[sharing] class RemoteDeltaFileIndex(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     val timeZone = spark.sessionState.conf.sessionLocalTimeZone
-    snapshotAtAnalysis.filesForScan(partitionFilters ++ dataFilters)
+    snapshotAtAnalysis.filesForScan(partitionFilters ++ dataFilters, limitHint)
       .groupBy(_.partitionValues).map {
         case (partitionValues, files) =>
           val rowValues: Array[Any] = partitionSchema.map { p =>
@@ -294,6 +311,7 @@ private[sharing] class RemoteDeltaFileIndex(
       }.toSeq
   }
 }
+
 
 // scalastyle:off
 /** Fork from Delta Lake: https://github.com/delta-io/delta/blob/v0.8.0/src/main/scala/org/apache/spark/sql/delta/DeltaTable.scala#L76 */

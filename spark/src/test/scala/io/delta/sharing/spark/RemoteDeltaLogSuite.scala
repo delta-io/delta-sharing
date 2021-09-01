@@ -16,9 +16,19 @@
 
 package io.delta.sharing.spark
 
-import org.apache.spark.SparkFunSuite
+import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.Files
 
-class RemoteDeltaLogSuite extends SparkFunSuite {
+import org.apache.commons.io.FileUtils
+import org.apache.hadoop.fs.Path
+import org.apache.spark.SparkFunSuite
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.test.SharedSparkSession
+
+import io.delta.sharing.spark.model.Table
+
+
+class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
   test("parsePath") {
     assert(RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c") == ("file:///foo/bar", "a", "b", "c"))
@@ -43,6 +53,64 @@ class RemoteDeltaLogSuite extends SparkFunSuite {
     }
     intercept[IllegalArgumentException] {
       RemoteDeltaLog.parsePath("foo#a.b.c.")
+    }
+  }
+
+  test("RemoteSnapshot getFiles with limit") {
+    val spark = SparkSession.active
+
+    // sanity check for dummy client
+    val client = new TestDeltaSharingClient()
+    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(2L))
+    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(3L))
+    assert(TestDeltaSharingClient.limits === Seq(2L, 3L))
+    client.clear()
+
+    // check snapshot
+    val snapshot = new RemoteSnapshot(client, Table("fe", "fi", "fo"))
+    snapshot.filesForScan(Nil, Some(2L))
+    assert(TestDeltaSharingClient.limits === Seq(2L))
+    client.clear()
+
+    // check RemoteDeltaFileIndex
+    val remoteDeltaLog = new RemoteDeltaLog(Table("fe", "fi", "fo"), new Path("test"), client)
+    val fileIndex = {
+      RemoteDeltaFileIndex(spark, remoteDeltaLog, new Path("test"), snapshot, Some(2L))
+    }
+    fileIndex.listFiles(Seq.empty, Seq.empty)
+    assert(TestDeltaSharingClient.limits === Seq(2L))
+    client.clear()
+  }
+
+  test("Limit pushdown test") {
+    val testProfileFile = Files.createTempFile("delta-test", ".share").toFile
+    FileUtils.writeStringToFile(testProfileFile,
+      s"""{
+         |  "shareCredentialsVersion": 1,
+         |  "endpoint": "https://localhost:12345/delta-sharing",
+         |  "bearerToken": "mock"
+         |}""".stripMargin, UTF_8)
+
+    withSQLConf("spark.delta.sharing.limitPushdown.enabled" -> "false",
+      "spark.delta.sharing.client.class" -> "io.delta.sharing.spark.TestDeltaSharingClient") {
+      val tablePath = testProfileFile.getCanonicalPath + "#share2.default.table2"
+      withTable("delta_sharing_test") {
+        sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
+        sql(s"SELECT * FROM delta_sharing_test LIMIT 2").show()
+        sql(s"SELECT col1, col2 FROM delta_sharing_test LIMIT 3").show()
+      }
+      assert(TestDeltaSharingClient.limits === Nil)
+    }
+
+    withSQLConf(
+      "spark.delta.sharing.client.class" -> "io.delta.sharing.spark.TestDeltaSharingClient") {
+      val tablePath = testProfileFile.getCanonicalPath + "#share2.default.table2"
+      withTable("delta_sharing_test") {
+        sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
+        sql(s"SELECT * FROM delta_sharing_test LIMIT 2").show()
+        sql(s"SELECT col1, col2 FROM delta_sharing_test LIMIT 3").show()
+      }
+      assert(TestDeltaSharingClient.limits === Seq(2L, 3L))
     }
   }
 }

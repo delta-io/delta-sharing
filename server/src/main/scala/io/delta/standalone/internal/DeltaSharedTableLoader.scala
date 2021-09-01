@@ -118,7 +118,7 @@ class DeltaSharedTable(
   def query(
       includeFiles: Boolean,
       predicateHits: Seq[String],
-      limitHint: Option[Int]): (Long, Seq[model.SingleAction]) = withClassLoader {
+      limitHint: Option[Long]): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
     val snapshot = deltaLog.snapshot
     validateDeltaTable(snapshot)

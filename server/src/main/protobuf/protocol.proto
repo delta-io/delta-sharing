@@ -44,7 +44,7 @@ message Table {
 
 message QueryTableRequest {
     repeated string predicateHints = 1;
-    optional int32 limitHint = 2;
+    optional int64 limitHint = 2;
 }
 
 message ListSharesResponse {
