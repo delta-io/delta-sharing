@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit.SECONDS
 
 import com.amazonaws.HttpMethod
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest
+import com.microsoft.azure.storage.{CloudStorageAccount, SharedAccessAccountPolicy}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.s3a.DefaultS3ClientFactory
 import org.apache.hadoop.util.ReflectionUtils
@@ -45,5 +46,46 @@ class S3FileSigner(
       .withMethod(HttpMethod.GET)
       .withExpiration(expiration)
     s3Client.generatePresignedUrl(request)
+  }
+}
+
+class AzureFileSigner(name: URI,
+                      accountName: String,
+                      storageKey: String,
+                      preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
+
+  private def getCloudStorageAccount: CloudStorageAccount = {
+    val connectionString = Seq(
+      "DefaultEndpointsProtocol=https",
+      s"AccountName=$accountName",
+      s"AccountKey=$storageKey",
+      "EndpointSuffix=core.windows.net"
+    ).mkString(";")
+    CloudStorageAccount.parse(connectionString)
+  }
+
+  private val cloudStorageAccount = getCloudStorageAccount
+
+  override def sign(bucket: String, objectKey: String): URL = {
+
+    val startDate = new Date(System.currentTimeMillis())
+    val expirationDate =
+      new Date(System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds))
+
+    // Generate a Shared Access Policy with expiration
+    val sharedAccessAccountPolicy = new SharedAccessAccountPolicy()
+    sharedAccessAccountPolicy.setPermissionsFromString("racwdlup")
+    sharedAccessAccountPolicy.setSharedAccessStartTime(startDate)
+    sharedAccessAccountPolicy.setSharedAccessExpiryTime(expirationDate)
+    sharedAccessAccountPolicy.setResourceTypeFromString("sco")
+    sharedAccessAccountPolicy.setServiceFromString("bfqt")
+
+    val sasToken = cloudStorageAccount.generateSharedAccessSignature(sharedAccessAccountPolicy)
+
+    // The base URI includes the name of the account, the name of the container, and
+    // the name of the blob
+    val baseURI = s"https://$bucket/$objectKey?"
+
+    new URL(baseURI + sasToken)
   }
 }
