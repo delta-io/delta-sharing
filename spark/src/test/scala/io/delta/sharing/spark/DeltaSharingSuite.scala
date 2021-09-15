@@ -138,6 +138,15 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     }
   }
 
+  integrationTest("azure support") {
+    for (azureTableName <- "table_wasb" :: "table_abfs" :: Nil) {
+      val tablePath = testProfileFile.getCanonicalPath + s"#share_azure.default.${azureTableName}"
+      checkAnswer(
+        spark.read.format("deltaSharing").load(tablePath),
+        Row("foo bar", "foo bar") :: Nil)
+    }
+  }
+
   integrationTest("random access stream") {
     // Set maxConnections to 1 so that if we leak any connection, we will hang forever because any
     // further request won't be able to get a free connection from the pool.

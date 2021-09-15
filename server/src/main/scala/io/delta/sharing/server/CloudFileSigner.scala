@@ -16,19 +16,24 @@
 
 package io.delta.sharing.server
 
-import java.net.{URI, URL}
+import java.net.URI
 import java.util.Date
 import java.util.concurrent.TimeUnit.SECONDS
 
 import com.amazonaws.HttpMethod
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest
-import com.microsoft.azure.storage.{CloudStorageAccount, SharedAccessAccountPolicy}
+import com.microsoft.azure.storage.{CloudStorageAccount, SharedAccessProtocols, StorageCredentialsSharedAccessSignature}
+import com.microsoft.azure.storage.blob.{SharedAccessBlobPermissions, SharedAccessBlobPolicy}
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.azure.{AzureNativeFileSystemStore, NativeAzureFileSystem}
+import org.apache.hadoop.fs.azurebfs.{AzureBlobFileSystem, AzureBlobFileSystemStore}
+import org.apache.hadoop.fs.azurebfs.services.AuthType
 import org.apache.hadoop.fs.s3a.DefaultS3ClientFactory
 import org.apache.hadoop.util.ReflectionUtils
 
 trait CloudFileSigner {
-  def sign(bucket: String, objectKey: String): URL
+  def sign(path: Path): String
 }
 
 class S3FileSigner(
@@ -39,53 +44,147 @@ class S3FileSigner(
   private val s3Client = ReflectionUtils.newInstance(classOf[DefaultS3ClientFactory], conf)
     .createS3Client(name)
 
-  override def sign(bucket: String, objectKey: String): URL = {
+  override def sign(path: Path): String = {
+    val absPath = path.toUri
+    val bucketName = absPath.getHost
+    val objectKey = absPath.getPath.stripPrefix("/")
     val expiration =
       new Date(System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds))
-    val request = new GeneratePresignedUrlRequest(bucket, objectKey)
+    val request = new GeneratePresignedUrlRequest(bucketName, objectKey)
       .withMethod(HttpMethod.GET)
       .withExpiration(expiration)
-    s3Client.generatePresignedUrl(request)
+    s3Client.generatePresignedUrl(request).toString
   }
 }
 
-class AzureFileSigner(name: URI,
-                      accountName: String,
-                      storageKey: String,
-                      preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
+class AzureFileSigner(
+    accountName: String,
+    storageKey: String,
+    container: String,
+    preSignedUrlTimeoutSeconds: Long,
+    objectKeyExtractor: Path => String) extends CloudFileSigner {
 
+  private val (rawAccountName, endpointSuffix) = {
+    val splits = accountName.split("\\.", 3)
+    if (splits.length != 3) {
+      throw new IllegalArgumentException(s"Incorrect account name: $accountName")
+    }
+    (splits(0), splits(2))
+  }
+
+  // endpointSuffix ?
   private def getCloudStorageAccount: CloudStorageAccount = {
     val connectionString = Seq(
       "DefaultEndpointsProtocol=https",
-      s"AccountName=$accountName",
+      s"AccountName=$rawAccountName",
       s"AccountKey=$storageKey",
-      "EndpointSuffix=core.windows.net"
+      s"EndpointSuffix=$endpointSuffix"
     ).mkString(";")
     CloudStorageAccount.parse(connectionString)
   }
 
   private val cloudStorageAccount = getCloudStorageAccount
 
-  override def sign(bucket: String, objectKey: String): URL = {
+  private val blobClient = cloudStorageAccount.createCloudBlobClient()
 
-    val startDate = new Date(System.currentTimeMillis())
-    val expirationDate =
+  private def getAccessPolicy: SharedAccessBlobPolicy = {
+    val expiration =
       new Date(System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds))
+    val sharedAccessPolicy = new SharedAccessBlobPolicy()
+    sharedAccessPolicy.setPermissions(java.util.EnumSet.of(SharedAccessBlobPermissions.READ))
+    sharedAccessPolicy.setSharedAccessExpiryTime(expiration)
+    sharedAccessPolicy
+  }
 
-    // Generate a Shared Access Policy with expiration
-    val sharedAccessAccountPolicy = new SharedAccessAccountPolicy()
-    sharedAccessAccountPolicy.setPermissionsFromString("racwdlup")
-    sharedAccessAccountPolicy.setSharedAccessStartTime(startDate)
-    sharedAccessAccountPolicy.setSharedAccessExpiryTime(expirationDate)
-    sharedAccessAccountPolicy.setResourceTypeFromString("sco")
-    sharedAccessAccountPolicy.setServiceFromString("bfqt")
+  override def sign(path: Path): String = {
+    val containerRef = blobClient.getContainerReference(container)
+    val blobRef = containerRef.getBlockBlobReference(objectKeyExtractor(path))
+    val accessPolicy = getAccessPolicy
+    val sasToken = blobRef.generateSharedAccessSignature(
+      accessPolicy,
+      /* headers */ null,
+      /* groupPolicyIdentifier */ null,
+      /* ipRange */ null,
+      SharedAccessProtocols.HTTPS_ONLY
+    )
+    val sasTokenCredentials = new StorageCredentialsSharedAccessSignature(sasToken)
+    sasTokenCredentials.transformUri(blobRef.getUri).toString
+  }
+}
 
-    val sasToken = cloudStorageAccount.generateSharedAccessSignature(sharedAccessAccountPolicy)
+object WasbFileSigner {
+  private def getAccountFromAuthority(store: AzureNativeFileSystemStore, uri: URI): String = {
+    val getAccountFromAuthorityMethod = classOf[AzureNativeFileSystemStore]
+      .getDeclaredMethod("getAccountFromAuthority", classOf[URI])
+    getAccountFromAuthorityMethod.setAccessible(true)
+    getAccountFromAuthorityMethod.invoke(store, uri).asInstanceOf[String]
+  }
 
-    // The base URI includes the name of the account, the name of the container, and
-    // the name of the blob
-    val baseURI = s"https://$bucket/$objectKey?"
+  private def getContainerFromAuthority(store: AzureNativeFileSystemStore, uri: URI): String = {
+    val getContainerFromAuthorityMethod = classOf[AzureNativeFileSystemStore]
+      .getDeclaredMethod("getContainerFromAuthority", classOf[URI])
+    getContainerFromAuthorityMethod.setAccessible(true)
+    getContainerFromAuthorityMethod.invoke(store, uri).asInstanceOf[String]
+  }
 
-    new URL(baseURI + sasToken)
+  def apply(
+      fs: NativeAzureFileSystem,
+      uri: URI,
+      conf: Configuration,
+      preSignedUrlTimeoutSeconds: Long): CloudFileSigner = {
+    val accountName = getAccountFromAuthority(fs.getStore, uri)
+    val accountKey = AzureNativeFileSystemStore.getAccountKeyFromConfiguration(accountName, conf)
+    val container = getContainerFromAuthority(fs.getStore, uri)
+    new AzureFileSigner(
+      accountName,
+      accountKey,
+      container,
+      preSignedUrlTimeoutSeconds,
+      fs.pathToKey)
+  }
+}
+
+object AbfsFileSigner {
+  private def getAbfsStore(fs: AzureBlobFileSystem): AzureBlobFileSystemStore = {
+    val getAbfsStoreMethod = classOf[AzureBlobFileSystem].getDeclaredMethod("getAbfsStore")
+    getAbfsStoreMethod.setAccessible(true)
+    getAbfsStoreMethod.invoke(fs).asInstanceOf[AzureBlobFileSystemStore]
+  }
+
+  private def getRelativePath(abfsStore: AzureBlobFileSystemStore, path: Path): String = {
+    val getRelativePathMethod = classOf[AzureBlobFileSystemStore]
+      .getDeclaredMethod("getRelativePath", classOf[Path])
+    getRelativePathMethod.setAccessible(true)
+    getRelativePathMethod.invoke(abfsStore, path).asInstanceOf[String]
+  }
+
+  private def authorityParts(abfsStore: AzureBlobFileSystemStore, uri: URI): Array[String] = {
+    val authorityPartsMethod = classOf[AzureBlobFileSystemStore]
+      .getDeclaredMethod("authorityParts", classOf[URI])
+    authorityPartsMethod.setAccessible(true)
+    authorityPartsMethod.invoke(abfsStore, uri).asInstanceOf[Array[String]]
+  }
+
+  def apply(
+      fs: AzureBlobFileSystem,
+      uri: URI,
+      preSignedUrlTimeoutSeconds: Long): CloudFileSigner = {
+    val getAbfsStoreMethod = classOf[AzureBlobFileSystem].getDeclaredMethod("getAbfsStore")
+    getAbfsStoreMethod.setAccessible(true)
+    val abfsStore = getAbfsStore(fs)
+    val abfsConfiguration = abfsStore.getAbfsConfiguration
+    val accountName = abfsConfiguration.accountConf("dummy").stripPrefix("dummy.")
+    val authType = abfsConfiguration.getAuthType(accountName)
+    if (authType != AuthType.SharedKey) {
+      throw new UnsupportedOperationException(s"unsupported auth type: $authType")
+    }
+    val accountKey = abfsConfiguration.getStorageAccountKey
+    val container = authorityParts(abfsStore, uri)(0)
+    new AzureFileSigner(
+      accountName,
+      accountKey,
+      container,
+      preSignedUrlTimeoutSeconds,
+      getRelativePath(abfsStore, _))
   }
 }

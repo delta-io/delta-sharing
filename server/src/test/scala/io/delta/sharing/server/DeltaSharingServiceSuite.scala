@@ -158,7 +158,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Share().withName("share3"),
         Share().withName("share4"),
         Share().withName("share5"),
-        Share().withName("share6")
+        Share().withName("share6"),
+        Share().withName("share_azure")
       )
     )
     assert(expected == JsonFormat.fromJsonString[ListSharesResponse](response))
@@ -179,7 +180,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Share().withName("share3"),
         Share().withName("share4"),
         Share().withName("share5"),
-        Share().withName("share6")
+        Share().withName("share6"),
+        Share().withName("share_azure")
     )
     assert(expected == shares)
   }
@@ -285,8 +287,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       )
     )
     assert(expectedFiles == actualFiles.toList)
-    assert(IOUtils.toByteArray(new URL(actualFiles(0).url)).size == 781)
-    assert(IOUtils.toByteArray(new URL(actualFiles(1).url)).size == 781)
+    verifyPreSignedUrl(actualFiles(0).url, 781)
+    verifyPreSignedUrl(actualFiles(1).url, 781)
   }
 
   integrationTest("table2 - partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
@@ -344,8 +346,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       )
     )
     assert(expectedFiles == actualFiles.toList)
-    assert(IOUtils.toByteArray(new URL(actualFiles(0).url)).size == 573)
-    assert(IOUtils.toByteArray(new URL(actualFiles(1).url)).size == 573)
+    verifyPreSignedUrl(actualFiles(0).url, 573)
+    verifyPreSignedUrl(actualFiles(1).url, 573)
   }
 
   integrationTest("table3 - different data file schemas - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
@@ -401,9 +403,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       )
     )
     assert(expectedFiles == actualFiles.toList)
-    assert(IOUtils.toByteArray(new URL(actualFiles(0).url)).size == 778)
-    assert(IOUtils.toByteArray(new URL(actualFiles(1).url)).size == 778)
-    assert(IOUtils.toByteArray(new URL(actualFiles(2).url)).size == 573)
+    verifyPreSignedUrl(actualFiles(0).url, 778)
+    verifyPreSignedUrl(actualFiles(1).url, 778)
+    verifyPreSignedUrl(actualFiles(2).url, 573)
   }
 
   integrationTest("case insensitive") {
@@ -479,5 +481,53 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       expectedErrorCode = 400,
       expectedErrorMessage = "expected a number but the string didn't have the appropriate format"
     )
+  }
+
+  integrationTest("azure support") {
+    for (azureTableName <- "table_wasb" :: "table_abfs" :: Nil) {
+      val response = readNDJson(requestPath(s"/shares/share_azure/schemas/default/tables/${azureTableName}/query"), Some("POST"), Some("{}"), Some(0))
+      val lines = response.split("\n")
+      val protocol = lines(0)
+      val metadata = lines(1)
+      val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+      assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+      val expectedMetadata = Metadata(
+        id = "de102585-bd69-4bba-bb10-fa92c50a7f85",
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"c1","type":"string","nullable":true,"metadata":{}},{"name":"c2","type":"string","nullable":true,"metadata":{}}]}""",
+        partitionColumns = Seq("c2")).wrap
+      assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      val files = lines.drop(2)
+      val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+      assert(actualFiles.size == 1)
+      val expectedFiles = Seq(
+        AddFile(
+          url = actualFiles(0).url,
+          id = "84f5f9e4de01e99837f77bfc2b7215b0",
+          partitionValues = Map("c2" -> "foo bar"),
+          size = 568,
+          stats = """{"numRecords":1,"minValues":{"c1":"foo bar"},"maxValues":{"c1":"foo bar"},"nullCount":{"c1":0}}"""
+        )
+      )
+      assert(expectedFiles == actualFiles.toList)
+      verifyPreSignedUrl(actualFiles(0).url, 568)
+    }
+  }
+
+  private def verifyPreSignedUrl(url: String, expectedLength: Int): Unit = {
+    // We should be able to read from the url
+    assert(IOUtils.toByteArray(new URL(url)).size == expectedLength)
+
+    // Modifying the file to access a different path should fail. This ensures the url is scoped
+    // down to the specific file.
+    // scalastyle:off
+    println("url: " + url)
+    val urlForDifferentObject = url.replaceAll("\\.parquet", ".orc")
+    assert(url != urlForDifferentObject)
+    println("urlForDifferentObject: " + urlForDifferentObject)
+    val e = intercept[IOException] {
+      IOUtils.toByteArray(new URL(urlForDifferentObject))
+    }
+    assert(e.getMessage.contains("Server returned HTTP response code: 403")) // 403 Forbidden
   }
 }
