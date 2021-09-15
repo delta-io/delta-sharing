@@ -171,8 +171,6 @@ object AbfsFileSigner {
       fs: AzureBlobFileSystem,
       uri: URI,
       preSignedUrlTimeoutSeconds: Long): CloudFileSigner = {
-    val getAbfsStoreMethod = classOf[AzureBlobFileSystem].getDeclaredMethod("getAbfsStore")
-    getAbfsStoreMethod.setAccessible(true)
     val abfsStore = getAbfsStore(fs)
     val abfsConfiguration = abfsStore.getAbfsConfiguration
     val accountName = abfsConfiguration.accountConf("dummy").stripPrefix("dummy.")

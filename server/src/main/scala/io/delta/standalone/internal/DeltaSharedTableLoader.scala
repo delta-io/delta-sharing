@@ -89,7 +89,7 @@ class DeltaSharedTable(
       case abfs: AzureBlobFileSystem =>
         AbfsFileSigner(abfs, deltaLog.dataPath.toUri, preSignedUrlTimeoutSeconds)
       case _ =>
-        throw new IllegalStateException("Cannot share tables on non S3 or non Azure file systems")
+        throw new IllegalStateException(s"File system ${fs.getClass} is not supported")
     }
   }
 
