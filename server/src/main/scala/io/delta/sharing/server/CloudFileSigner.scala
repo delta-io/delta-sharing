@@ -50,6 +50,7 @@ class S3FileSigner(
     val objectKey = absPath.getPath.stripPrefix("/")
     val expiration =
       new Date(System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds))
+    assert(objectKey.nonEmpty, s"cannot get object key from $path")
     val request = new GeneratePresignedUrlRequest(bucketName, objectKey)
       .withMethod(HttpMethod.GET)
       .withExpiration(expiration)
@@ -97,6 +98,8 @@ class AzureFileSigner(
 
   override def sign(path: Path): String = {
     val containerRef = blobClient.getContainerReference(container)
+    val objectKey = objectKeyExtractor(path)
+    assert(objectKey.nonEmpty, s"cannot get object key from $path")
     val blobRef = containerRef.getBlockBlobReference(objectKeyExtractor(path))
     val accessPolicy = getAccessPolicy
     val sasToken = blobRef.generateSharedAccessSignature(
