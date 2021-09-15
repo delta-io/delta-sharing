@@ -23,13 +23,15 @@ import java.util.concurrent.TimeUnit
 
 import com.google.common.cache.CacheBuilder
 import com.google.common.hash.Hashing
-import io.delta.standalone.{DeltaLog, Snapshot}
+import io.delta.standalone.DeltaLog
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.azure.NativeAzureFileSystem
+import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem
 import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 
-import io.delta.sharing.server.{model, CloudFileSigner, S3FileSigner}
+import io.delta.sharing.server.{model, AzureFileSigner, S3FileSigner}
 import io.delta.sharing.server.config.{ServerConfig, TableConfig}
 
 /**
@@ -68,20 +70,46 @@ class DeltaSharedTable(
     evaluatePredicateHints: Boolean) {
 
   private val conf = withClassLoader {
-    new Configuration()
+    val defaultConfig = new Configuration()
+    val azureStorageAccount = sys.env.getOrElse("AZURE_STORAGE_ACCOUNT", "")
+    val azureStorageKey = sys.env.getOrElse("AZURE_STORAGE_KEY", "")
+    // Set access keys for Azure Data Lake Storage Gen1 and Gen2
+    defaultConfig.set(s"fs.azure.account.key.$azureStorageAccount.blob.core.windows.net",
+      azureStorageKey)
+    defaultConfig.set(s"fs.azure.account.key.$azureStorageAccount.dfs.core.windows.net",
+      azureStorageKey)
+    defaultConfig
   }
 
   private val deltaLog = withClassLoader {
     val tablePath = new Path(tableConfig.getLocation)
     val fs = tablePath.getFileSystem(conf)
-    if (!fs.isInstanceOf[S3AFileSystem]) {
-      throw new IllegalStateException("Cannot share tables on non S3 file systems")
+    if (!(fs.isInstanceOf[S3AFileSystem] ||
+      fs.isInstanceOf[NativeAzureFileSystem] ||
+      fs.isInstanceOf[AzureBlobFileSystem])) {
+      throw new IllegalStateException("Cannot share tables on non S3 or non Azure file systems")
     }
     DeltaLog.forTable(conf, tablePath).asInstanceOf[DeltaLogImpl]
   }
 
-  private val signer = withClassLoader {
-    new S3FileSigner(deltaLog.dataPath.toUri, conf, preSignedUrlTimeoutSeconds)
+  private val fileSigner = withClassLoader {
+    val tablePath = new Path(tableConfig.getLocation)
+    val fs = tablePath.getFileSystem(conf)
+    if (fs.isInstanceOf[S3AFileSystem]) {
+      new S3FileSigner(deltaLog.dataPath.toUri, conf, preSignedUrlTimeoutSeconds)
+    } else if (fs.isInstanceOf[NativeAzureFileSystem] || fs.isInstanceOf[AzureBlobFileSystem]) {
+
+      val azureStorageKey = sys.env.getOrElse("AZURE_STORAGE_KEY", "")
+      val azureStorageAccount = sys.env.getOrElse("AZURE_STORAGE_ACCOUNT", "")
+
+      new AzureFileSigner(deltaLog.dataPath.toUri,
+        azureStorageAccount,
+        azureStorageKey,
+        preSignedUrlTimeoutSeconds)
+
+    } else {
+      throw new IllegalStateException("Cannot share tables on non S3 or non Azure file systems")
+    }
   }
 
   /**
@@ -191,8 +219,23 @@ class DeltaSharedTable(
 
   private def signFile(path: Path): String = {
     val absPath = path.toUri
-    val bucketName = absPath.getHost
-    val objectKey = absPath.getPath.stripPrefix("/")
-    signer.sign(bucketName, objectKey).toString
+    val scheme = absPath.getScheme
+    val bucketName = scheme match {
+      case "abfss" => absPath.getHost.replaceAll("dfs", "blob")
+      case _ => absPath.getHost
+    }
+    val objectKey = scheme match {
+      case "s3" => absPath.getPath.stripPrefix("/")
+      case "wasbs" =>
+        val container = absPath.toString.replaceAll("wasbs://", "").split("@").head
+        container + absPath.getPath
+      case "abfss" =>
+        val container = absPath.toString.replaceAll("abfss://", "").split("@").head
+        container + absPath.getPath
+      case _ =>
+        throw new IllegalStateException("Cannot share tables on non S3 or non Azure file systems")
+    }
+    fileSigner.sign(bucketName, objectKey).toString
   }
+
 }
