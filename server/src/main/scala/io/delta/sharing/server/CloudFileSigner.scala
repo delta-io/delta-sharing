@@ -72,7 +72,6 @@ class AzureFileSigner(
     (splits(0), splits(2))
   }
 
-  // endpointSuffix ?
   private def getCloudStorageAccount: CloudStorageAccount = {
     val connectionString = Seq(
       "DefaultEndpointsProtocol=https",

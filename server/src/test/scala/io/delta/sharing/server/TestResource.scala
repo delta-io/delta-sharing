@@ -101,9 +101,7 @@ object TestResource {
           SchemaConfig(
             "default",
             java.util.Arrays.asList(
-              // table made with spark.sql.parquet.compression.codec=gzip
               TableConfig("table_wasb", s"wasbs://${Azure.container}@${Azure.accountName}.blob.core.windows.net/delta-sharing-test/table1"),
-              // table made with spark.sql.parquet.compression.codec=gzip
               TableConfig("table_abfs", s"abfss://${Azure.container}@${Azure.accountName}.dfs.core.windows.net/delta-sharing-test/table1")
             )
           )

@@ -520,11 +520,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
     // Modifying the file to access a different path should fail. This ensures the url is scoped
     // down to the specific file.
-    // scalastyle:off
-    println("url: " + url)
     val urlForDifferentObject = url.replaceAll("\\.parquet", ".orc")
     assert(url != urlForDifferentObject)
-    println("urlForDifferentObject: " + urlForDifferentObject)
     val e = intercept[IOException] {
       IOUtils.toByteArray(new URL(urlForDifferentObject))
     }
