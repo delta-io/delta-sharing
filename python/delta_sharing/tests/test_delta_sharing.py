@@ -141,22 +141,12 @@ def test_list_all_tables(sharing_client: SharingClient):
         ),
         pytest.param(
             "share_azure.default.table_wasb",
-            pd.DataFrame(
-                {
-                    "c1": ["foo bar"],
-                    "c2": ["foo bar"],
-                }
-            ),
+            pd.DataFrame({"c1": ["foo bar"], "c2": ["foo bar"],}),
             id="Azure Blob Storage",
         ),
         pytest.param(
             "share_azure.default.table_abfs",
-            pd.DataFrame(
-                {
-                    "c1": ["foo bar"],
-                    "c2": ["foo bar"],
-                }
-            ),
+            pd.DataFrame({"c1": ["foo bar"], "c2": ["foo bar"],}),
             id="Azure Data Lake Storage Gen2",
         ),
     ],
