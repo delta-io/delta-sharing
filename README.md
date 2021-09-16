@@ -235,10 +235,14 @@ The server is using `hadooop-aws` to read S3. You can find other approaches in [
 The server is using `hadoop-azure` to read Azure Blob Storage. Using Azure Blob Storage requires [configuration of credentials](https://hadoop.apache.org/docs/current/hadoop-azure/index.html#Configuring_Credentials). You can create a Hadoop configuration file named `core-site.xml` and add it to the server's `conf` directory. Then add the following content to the xml file:
 
 ```xml
-<property>
-  <name>fs.azure.account.key.YOUR-ACCOUNT-NAME.blob.core.windows.net</name>
-  <value>YOUR-ACCOUNT-KEY</value>
-</property>
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>fs.azure.account.key.YOUR-ACCOUNT-NAME.blob.core.windows.net</name>
+    <value>YOUR-ACCOUNT-KEY</value>
+  </property>
+</configuration>
 ```
 `YOUR-ACCOUNT-NAME` is your Azure storage account and `YOUR-ACCOUNT-KEY` is your account key.
 
@@ -247,19 +251,23 @@ The server is using `hadoop-azure` to read Azure Blob Storage. Using Azure Blob 
 The server is using `hadoop-azure` to read Azure Data Lake Storage Gen2. We support [the Shared Key authentication](https://hadoop.apache.org/docs/stable/hadoop-azure/abfs.html#Default:_Shared_Key). You can create a Hadoop configuration file named `core-site.xml` and add it to the server's `conf` directory. Then add the following content to the xml file:
 
 ```xml
-<property>
-  <name>fs.azure.account.auth.type.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
-  <value>SharedKey</value>
-  <description>
-  </description>
-</property>
-<property>
-  <name>fs.azure.account.key.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
-  <value>YOUR-ACCOUNT-KEY</value>
-  <description>
-  The secret password. Never share these.
-  </description>
-</property>
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>fs.azure.account.auth.type.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
+    <value>SharedKey</value>
+    <description>
+    </description>
+  </property>
+  <property>
+    <name>fs.azure.account.key.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
+    <value>YOUR-ACCOUNT-KEY</value>
+    <description>
+    The secret password. Never share these.
+    </description>
+  </property>
+</configuration>
 ```
 `YOUR-ACCOUNT-NAME` is your Azure storage account and `YOUR-ACCOUNT-KEY` is your account key.
 
