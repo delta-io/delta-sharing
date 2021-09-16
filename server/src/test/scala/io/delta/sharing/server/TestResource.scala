@@ -30,6 +30,11 @@ object TestResource {
     val bucket = "delta-exchange-test"
   }
 
+  object Azure {
+    val accountName = "deltasharingtest"
+    val container = "delta-sharing-test-container"
+  }
+
   val TEST_PORT = 12345
 
   val testAuthorizationToken = "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
@@ -89,7 +94,20 @@ object TestResource {
       ),
       ShareConfig("share6",
         java.util.Arrays.asList()
+      ),
+      // scalastyle:off maxLineLength
+      ShareConfig("share_azure",
+        java.util.Arrays.asList(
+          SchemaConfig(
+            "default",
+            java.util.Arrays.asList(
+              TableConfig("table_wasb", s"wasbs://${Azure.container}@${Azure.accountName}.blob.core.windows.net/delta-sharing-test/table1"),
+              TableConfig("table_abfs", s"abfss://${Azure.container}@${Azure.accountName}.dfs.core.windows.net/delta-sharing-test/table1")
+            )
+          )
+        )
       )
+      // scalastyle:on
     )
 
     val serverConfig = new ServerConfig()

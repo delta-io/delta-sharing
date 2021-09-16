@@ -206,15 +206,19 @@ Download the pre-built package `delta-sharing-server-x.y.z.zip` from [GitHub Rel
 - Unpack the pre-built package and copy the server config template file `conf/delta-sharing-server.yaml.template` to create your own server yaml file, such as `conf/delta-sharing-server.yaml`.
 - Make changes to your yaml file, such as add the Delta Lake tables you would like to share in this server. You may also need to update some server configs for special requirements.
 
-## Config the server to access tables on S3
+## Config the server to access tables on cloud storage
 
-We only support sharing Delta Lake tables on S3 right now. There are multiple ways to config the server to access S3.
+We support sharing Delta Lake tables on S3, Azure Blob Storage and Azure Data Lake Storage Gen2.
 
-### EC2 IAM Metadata Authentication (Recommended)
+### S3
+
+There are multiple ways to config the server to access S3.
+
+#### EC2 IAM Metadata Authentication (Recommended)
 
 Applications running in EC2 may associate an IAM role with the VM and query the [EC2 Instance Metadata Service](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html) for credentials to access S3.
 
-### Authenticating via the AWS Environment Variables
+#### Authenticating via the AWS Environment Variables
 
 We support configuration via [the standard AWS environment variables](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html#cli-environment). The core environment variables are for the access key and associated secret:
 ```
@@ -222,9 +226,42 @@ export AWS_ACCESS_KEY_ID=my.aws.key
 export AWS_SECRET_ACCESS_KEY=my.secret.key
 ```
 
-### Other S3 authentication methods
+#### Other S3 authentication methods
 
 The server is using `hadooop-aws` to read S3. You can find other approaches in [hadoop-aws doc](https://hadoop.apache.org/docs/r2.10.1/hadoop-aws/tools/hadoop-aws/index.html#S3A_Authentication_methods).
+
+### Azure Blob Storage
+
+The server is using `hadoop-azure` to read Azure Blob Storage. Using Azure Blob Storage requires [configuration of credentials](https://hadoop.apache.org/docs/current/hadoop-azure/index.html#Configuring_Credentials). You can create a Hadoop configuration file named `core-site.xml` and add it to the server's `conf` directory. Then add the following content to the xml file:
+
+```xml
+<property>
+  <name>fs.azure.account.key.YOUR-ACCOUNT-NAME.blob.core.windows.net</name>
+  <value>YOUR-ACCOUNT-KEY</value>
+</property>
+```
+`YOUR-ACCOUNT-NAME` is your Azure storage account and `YOUR-ACCOUNT-KEY` is your account key.
+
+### Azure Data Lake Storage Gen2
+
+The server is using `hadoop-azure` to read Azure Data Lake Storage Gen2. We support [the Shared Key authentication](https://hadoop.apache.org/docs/stable/hadoop-azure/abfs.html#Default:_Shared_Key). You can create a Hadoop configuration file named `core-site.xml` and add it to the server's `conf` directory. Then add the following content to the xml file:
+
+```xml
+<property>
+  <name>fs.azure.account.auth.type.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
+  <value>SharedKey</value>
+  <description>
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.key.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
+  <value>YOUR-ACCOUNT-KEY</value>
+  <description>
+  The secret password. Never share these.
+  </description>
+</property>
+```
+`YOUR-ACCOUNT-NAME` is your Azure storage account and `YOUR-ACCOUNT-KEY` is your account key.
 
 More cloud storage supports will be added in the future.
 

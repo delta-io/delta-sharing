@@ -33,6 +33,7 @@ def test_list_shares(sharing_client: SharingClient):
         Share(name="share4"),
         Share(name="share5"),
         Share(name="share6"),
+        Share(name="share_azure"),
     ]
 
 
@@ -69,6 +70,8 @@ def test_list_all_tables(sharing_client: SharingClient):
         Table(name="table4", share="share3", schema="default"),
         Table(name="table5", share="share3", schema="default"),
         Table(name="test_gzip", share="share4", schema="default"),
+        Table(name="table_wasb", share="share_azure", schema="default"),
+        Table(name="table_abfs", share="share_azure", schema="default"),
     ]
 
 
@@ -135,6 +138,16 @@ def test_list_all_tables(sharing_client: SharingClient):
             "share4.default.test_gzip",
             pd.DataFrame({"a": [True], "b": pd.Series([1], dtype="int32"), "c": ["Hi"]}),
             id="table column order is not the same as parquet files",
+        ),
+        pytest.param(
+            "share_azure.default.table_wasb",
+            pd.DataFrame({"c1": ["foo bar"], "c2": ["foo bar"],}),
+            id="Azure Blob Storage",
+        ),
+        pytest.param(
+            "share_azure.default.table_abfs",
+            pd.DataFrame({"c1": ["foo bar"], "c2": ["foo bar"],}),
+            id="Azure Data Lake Storage Gen2",
         ),
     ],
 )

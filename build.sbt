@@ -34,6 +34,7 @@ lazy val commonSettings = Seq(
     "-Dspark.sql.shuffle.partitions=5",
     "-Dspark.sql.sources.parallelPartitionDiscovery.parallelism=5",
     "-Dspark.delta.sharing.network.sslTrustAll=true",
+    s"-Dazure.account.key=${sys.env.getOrElse("AZURE_TEST_ACCOUNT_KEY", "")}",
     "-Xmx1024m"
   )
 )

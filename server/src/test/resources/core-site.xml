@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+    <!-- wasb -->
+    <property>
+        <name>fs.azure.account.key.deltasharingtest.blob.core.windows.net</name>
+        <value>${azure.account.key}</value>
+    </property>
+    <!-- abfs -->
+    <property>
+        <name>fs.azure.account.auth.type.deltasharingtest.dfs.core.windows.net</name>
+        <value>SharedKey</value>
+        <description>
+        </description>
+    </property>
+    <property>
+        <name>fs.azure.account.key.deltasharingtest.dfs.core.windows.net</name>
+        <value>${azure.account.key}</value>
+    </property>
+</configuration>
