@@ -100,7 +100,7 @@ class AzureFileSigner(
     val containerRef = blobClient.getContainerReference(container)
     val objectKey = objectKeyExtractor(path)
     assert(objectKey.nonEmpty, s"cannot get object key from $path")
-    val blobRef = containerRef.getBlockBlobReference(objectKeyExtractor(path))
+    val blobRef = containerRef.getBlockBlobReference(objectKey)
     val accessPolicy = getAccessPolicy
     val sasToken = blobRef.generateSharedAccessSignature(
       accessPolicy,
