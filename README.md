@@ -205,7 +205,7 @@ Download the pre-built package `delta-sharing-server-x.y.z.zip` from [GitHub Rel
 
 - Unpack the pre-built package and copy the server config template file `conf/delta-sharing-server.yaml.template` to create your own server yaml file, such as `conf/delta-sharing-server.yaml`.
 - Make changes to your yaml file. You may also need to update some server configs for special requirements.
-- To add Shared Data, add reference to  Delta Lake tables you would like to share from this server in this config file.
+- To add Shared Data, add reference to Delta Lake tables you would like to share from this server in this config file.
 
 ## Config the server to access tables on cloud storage
 
