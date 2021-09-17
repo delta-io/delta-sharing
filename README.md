@@ -201,10 +201,11 @@ Here are the steps to setup a server to share your own data.
 
 Download the pre-built package `delta-sharing-server-x.y.z.zip` from [GitHub Releases](https://github.com/delta-io/delta-sharing/releases).
 
-## Config the shared tables for the server
+## Server configuration and adding Shared Data
 
 - Unpack the pre-built package and copy the server config template file `conf/delta-sharing-server.yaml.template` to create your own server yaml file, such as `conf/delta-sharing-server.yaml`.
-- Make changes to your yaml file, such as add the Delta Lake tables you would like to share in this server. You may also need to update some server configs for special requirements.
+- Make changes to your yaml file. You may also need to update some server configs for special requirements.
+- To add Shared Data, add reference to  Delta Lake tables you would like to share from this server in this config file.
 
 ## Config the server to access tables on cloud storage
 
