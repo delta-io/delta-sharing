@@ -142,7 +142,7 @@ GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables?maxResults=10
       {
          "share" : "vaccine_share",
          "schema" : "acme_vaccine_data",
-         "name" : "vaccine_ingredints"
+         "name" : "vaccine_ingredients"
       },
       {
          "share" : "vaccine_share",
