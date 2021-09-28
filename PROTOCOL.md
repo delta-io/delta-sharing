@@ -9,6 +9,7 @@
     - [List Shares](#list-shares)
     - [List Schemas in a Share](#list-schemas-in-a-share)
     - [List Tables in a Schema](#list-tables-in-a-schema)
+    - [List all Tables in a Share](#list-all-tables-in-a-share)
     - [Query Table Version](#query-table-version)
     - [Query Table Metadata](#query-table-metadata)
     - [Read Data from a Table](#read-data-from-a-table)
@@ -147,6 +148,42 @@ GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables?maxResults=10
       {
          "share" : "vaccine_share",
          "schema" : "acme_vaccine_data",
+         "name" : "vaccine_patients"
+      }
+   ],
+   "nextPageToken" : "..."
+}
+```
+
+### List all Tables in a Share
+
+This is the API to list all the tables under all schemas in a share.
+
+HTTP Parameters | Value
+-|-
+HTTP Method | GET
+Header | Authorization: Bearer {token}
+URL | {prefix}/shares/{share}/all-tables
+URL Parameters | **{share}**: The share name to query. It's case-insensitive.
+Query Parameters | **maxResults** (type: Int, optional): The maximum number of results per page that should be returned. If the number of available results is larger than `maxResults`, the response will provide a `nextPageToken` that can be used to get the next page of results in subsequent list requests. The server may return fewer than `maxResults` items even if there are more available. The client should check `nextPageToken` in the response to determine if there are more available.<br><br>**pageToken** (type: String, optional): Specifies a page token to use. Set `pageToken` to the `nextPageToken` returned by a previous list request to get the next page of results. `nextPageToken` will not be returned in a response if there are no more results available.
+Response Header | Content-Type: application/json; charset=utf-8
+Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>      "schema": string<br>      "share": string<br>    }<br>  ],<br>  "nextPageToken": string,<br>}</pre> Note: the `items` field may be an empty array or missing when no results are found. The client must handle both cases.
+
+Example:
+
+```
+GET {prefix}/shares/vaccine_share/all-tables
+
+{
+   "items" : [
+      {
+         "share" : "vaccine_share",
+         "schema" : "acme_vaccine_ingredient_data",
+         "name" : "vaccine_ingredients"
+      },
+      {
+         "share" : "vaccine_share",
+         "schema" : "acme_vaccine_patient_data",
          "name" : "vaccine_patients"
       }
    ],
