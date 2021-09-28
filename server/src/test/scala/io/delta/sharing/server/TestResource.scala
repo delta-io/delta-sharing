@@ -95,6 +95,22 @@ object TestResource {
       ShareConfig("share6",
         java.util.Arrays.asList()
       ),
+      ShareConfig("share7",
+        java.util.Arrays.asList(
+          SchemaConfig(
+            "schema1",
+            java.util.Arrays.asList(
+              TableConfig("table8", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table8")
+            )
+          ),
+          SchemaConfig(
+            "schema2",
+            java.util.Arrays.asList(
+              TableConfig("table9", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table9")
+            )
+          )
+        )
+      ),
       // scalastyle:off maxLineLength
       ShareConfig("share_azure",
         java.util.Arrays.asList(
