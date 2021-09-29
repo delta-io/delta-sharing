@@ -33,6 +33,7 @@ def test_list_shares(sharing_client: SharingClient):
         Share(name="share4"),
         Share(name="share5"),
         Share(name="share6"),
+        Share(name="share7"),
         Share(name="share_azure"),
     ]
 
@@ -70,6 +71,8 @@ def test_list_all_tables(sharing_client: SharingClient):
         Table(name="table4", share="share3", schema="default"),
         Table(name="table5", share="share3", schema="default"),
         Table(name="test_gzip", share="share4", schema="default"),
+        Table(name="table8", share="share7", schema="schema1"),
+        Table(name="table9", share="share7", schema="schema2"),
         Table(name="table_wasb", share="share_azure", schema="default"),
         Table(name="table_abfs", share="share_azure", schema="default"),
     ]

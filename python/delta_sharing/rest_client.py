@@ -55,6 +55,12 @@ class ListTablesResponse:
 
 
 @dataclass(frozen=True)
+class ListAllTablesResponse:
+    tables: Sequence[Table]
+    next_page_token: Optional[str]
+
+
+@dataclass(frozen=True)
 class QueryTableMetadataResponse:
     protocol: Protocol
     metadata: Metadata
@@ -148,6 +154,23 @@ class DataSharingRestClient:
         ) as lines:
             tables_json = json.loads(next(lines))
             return ListTablesResponse(
+                tables=[Table.from_json(table_json) for table_json in tables_json.get("items", [])],
+                next_page_token=tables_json.get("nextPageToken", None),
+            )
+
+    @retry_with_exponential_backoff
+    def list_all_tables(
+        self, share: Share, *, max_results: Optional[int] = None, page_token: Optional[str] = None
+    ) -> ListAllTablesResponse:
+        data: Dict = {}
+        if max_results is not None:
+            data["maxResults"] = max_results
+        if page_token is not None:
+            data["pageToken"] = page_token
+
+        with self._get_internal(f"/shares/{share.name}/all-tables", data) as lines:
+            tables_json = json.loads(next(lines))
+            return ListAllTablesResponse(
                 tables=[Table.from_json(table_json) for table_json in tables_json.get("items", [])],
                 next_page_token=tables_json.get("nextPageToken", None),
             )
