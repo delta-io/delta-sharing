@@ -99,7 +99,7 @@ class SharingClient:
         tables: List[Table] = []
         page_token: Optional[str] = None
         while True:
-            response = self._rest_client.list_all_tables(share = share, page_token=page_token)
+            response = self._rest_client.list_all_tables(share=share, page_token=page_token)
             tables.extend(response.tables)
             page_token = response.next_page_token
             if page_token is None:

@@ -53,10 +53,12 @@ class ListTablesResponse:
     tables: Sequence[Table]
     next_page_token: Optional[str]
 
+
 @dataclass(frozen=True)
 class ListAllTablesResponse:
     tables: Sequence[Table]
     next_page_token: Optional[str]
+
 
 @dataclass(frozen=True)
 class QueryTableMetadataResponse:
