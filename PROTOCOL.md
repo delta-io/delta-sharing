@@ -268,7 +268,7 @@ The response body should be a JSON string containing the following two optional 
 - **limitHint** (type: Int, optional): an optional limit number. It’s a hint from the client to tell the server how many rows in the table the client plans to read. The server can use this hint to return only some files by using the file stats. For example, when running `SELECT * FROM table LIMIT 1000`, the client can set `limitHint` to `1000`.
   - Applying `limitHint` is **BEST EFFORT**. The server may return files containing more rows than the client requests.
 
-When `predicateHits` and `limitHint` are both present, the server should apply `predicateHits` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
+When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
 Example (See Table Metadata Format for more details about the format):
 
