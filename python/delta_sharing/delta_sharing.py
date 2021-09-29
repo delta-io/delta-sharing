@@ -95,6 +95,16 @@ class SharingClient:
         self._profile = profile
         self._rest_client = DataSharingRestClient(profile)
 
+    def __list_all_tables_in_share(self, share: Share) -> Sequence[Table]:
+        tables: List[Table] = []
+        page_token: Optional[str] = None
+        while True:
+            response = self._rest_client.list_all_tables(share = share, page_token=page_token)
+            tables.extend(response.tables)
+            page_token = response.next_page_token
+            if page_token is None:
+                return tables
+
     def list_shares(self) -> Sequence[Share]:
         """
         List shares that can be accessed by you in a Delta Sharing Server.
@@ -149,5 +159,4 @@ class SharingClient:
         :return: all tables that can be accessed.
         """
         shares = self.list_shares()
-        schemas = chain(*(self.list_schemas(share) for share in shares))
-        return list(chain(*(self.list_tables(schema) for schema in schemas)))
+        return list(chain(*(self.__list_all_tables_in_share(share) for share in shares)))
