@@ -54,11 +54,7 @@ private[sharing] case class ListSharesResponse(
     items: Seq[Share],
     nextPageToken: Option[String]) extends PaginationResponse
 
-private[sharing] case class ListSchemasResponse(
-    items: Seq[Schema],
-    nextPageToken: Option[String]) extends PaginationResponse
-
-private[sharing] case class ListTablesResponse(
+private[sharing] case class ListAllTablesResponse(
     items: Seq[Table],
     nextPageToken: Option[String]) extends PaginationResponse
 
@@ -98,7 +94,7 @@ private[sharing] class DeltaSharingRestClient(
   }
 
   override def listAllTables(): Seq[Table] = {
-    listShares().flatMap(listSchemas).flatMap(listTables)
+    listShares().flatMap(listAllTablesInShare)
   }
 
   private def getTargetUrl(suffix: String): String = {
@@ -123,40 +119,19 @@ private[sharing] class DeltaSharingRestClient(
     shares
   }
 
-  private def listSchemas(share: Share): Seq[Schema] = {
+  private def listAllTablesInShare(share: Share): Seq[Table] = {
     val encodedShareName = URLEncoder.encode(share.name, "UTF-8")
-    val target = getTargetUrl(s"/shares/$encodedShareName/schemas")
-    val schemas = ArrayBuffer[Schema]()
-    var response = getJson[ListSchemasResponse](target)
-    if (response != null && response.items != null) {
-      schemas ++= response.items
-    }
-    while (response.nextPageToken.nonEmpty) {
-      val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
-      val target =
-        getTargetUrl(s"/shares/$encodedShareName/schemas?pageToken=$encodedPageToken")
-      response = getJson[ListSchemasResponse](target)
-      if (response != null && response.items != null) {
-        schemas ++= response.items
-      }
-    }
-    schemas
-  }
-
-  private def listTables(schema: Schema): Seq[Table] = {
-    val encodedShareName = URLEncoder.encode(schema.share, "UTF-8")
-    val encodedSchemaName = URLEncoder.encode(schema.name, "UTF-8")
-    val target = getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables")
+    val target = getTargetUrl(s"/shares/$encodedShareName/all-tables")
     val tables = ArrayBuffer[Table]()
-    var response = getJson[ListTablesResponse](target)
+    var response = getJson[ListAllTablesResponse](target)
     if (response != null && response.items != null) {
       tables ++= response.items
     }
     while (response.nextPageToken.nonEmpty) {
       val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
-      val target = getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables" +
-        s"?pageToken=$encodedPageToken")
-      response = getJson[ListTablesResponse](target)
+      val target =
+        getTargetUrl(s"/shares/$encodedShareName/all-tables?pageToken=$encodedPageToken")
+      response = getJson[ListAllTablesResponse](target)
       if (response != null && response.items != null) {
         tables ++= response.items
       }

@@ -31,6 +31,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "table4", schema = "default", share = "share3"),
         Table(name = "table5", schema = "default", share = "share3"),
         Table(name = "table7", schema = "default", share = "share1"),
+        Table(name = "table8", schema = "schema1", share = "share7"),
+        Table(name = "table9", schema = "schema2", share = "share7"),
         Table(name = "test_gzip", schema = "default", share = "share4"),
         Table(name = "table_wasb", schema = "default", share = "share_azure"),
         Table(name = "table_abfs", schema = "default", share = "share_azure")
