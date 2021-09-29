@@ -128,6 +128,41 @@ class SharedTableManagerSuite extends FunSuite {
     }.getMessage.contains("schema 'schema2' not found"))
   }
 
+  test("list all tables") {
+    val serverConfig = new ServerConfig()
+    serverConfig.shares = Arrays.asList(
+      ShareConfig(
+        "share1",
+        Arrays.asList(
+          SchemaConfig(
+            "schema1",
+            Arrays.asList(
+              TableConfig("table1", "location1"),
+              TableConfig("table2", "location1")
+            )
+          ),
+          SchemaConfig(
+            "schema2",
+            Arrays.asList(
+              TableConfig("table3", "location1")
+            )
+          )
+        )
+      )
+    )
+    val sharedTableManager = new SharedTableManager(serverConfig)
+    val (tables, _) = sharedTableManager.listAllTables("share1")
+    assert(tables == Seq(
+      Table().withName("table1").withSchema("schema1").withShare("share1"),
+      Table().withName("table2").withSchema("schema1").withShare("share1"),
+      Table().withName("table3").withSchema("schema2").withShare("share1")
+    ))
+
+    assert(intercept[DeltaSharingNoSuchElementException] {
+      sharedTableManager.listAllTables("share2")
+    }.getMessage.contains("share 'share2' not found"))
+  }
+
   test("getTable") {
     val serverConfig = new ServerConfig()
     serverConfig.shares = Arrays.asList(
@@ -211,6 +246,10 @@ class SharedTableManagerSuite extends FunSuite {
     assert(intercept[DeltaSharingIllegalArgumentException] {
       sharedTableManager.listTables(
         "share1", "schema1", nextPageToken = nextPageToken, maxResults = Some(0))
+    }.getMessage.contains("invalid 'nextPageToken'"))
+    assert(intercept[DeltaSharingIllegalArgumentException] {
+      sharedTableManager.listAllTables(
+        "share1", nextPageToken = nextPageToken, maxResults = Some(0))
     }.getMessage.contains("invalid 'nextPageToken'"))
   }
 }

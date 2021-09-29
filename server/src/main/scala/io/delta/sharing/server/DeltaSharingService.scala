@@ -137,6 +137,17 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     ListTablesResponse(tables, nextPageToken)
   }
 
+  @Get("/shares/{share}/all-tables")
+  @ProducesJson
+  def listAllTables(
+      @Param("share") share: String,
+      @Param("maxResults") @Default("500") maxResults: Int,
+      @Param("pageToken") @Nullable pageToken: String): ListAllTablesResponse = processRequest {
+    val (tables, nextPageToken) =
+      sharedTableManager.listAllTables(share, Option(pageToken), Some(maxResults))
+    ListAllTablesResponse(tables, nextPageToken)
+  }
+
   private def createHeadersBuilderForTableVersion(version: Long): ResponseHeadersBuilder = {
     ResponseHeaders.builder(200).set(DELTA_TABLE_VERSION_HEADER, version.toString)
   }

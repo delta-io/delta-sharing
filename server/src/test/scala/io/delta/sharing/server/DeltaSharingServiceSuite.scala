@@ -159,6 +159,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Share().withName("share4"),
         Share().withName("share5"),
         Share().withName("share6"),
+        Share().withName("share7"),
         Share().withName("share_azure")
       )
     )
@@ -181,6 +182,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Share().withName("share4"),
         Share().withName("share5"),
         Share().withName("share6"),
+        Share().withName("share7"),
         Share().withName("share_azure")
     )
     assert(expected == shares)
@@ -214,6 +216,28 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       Table().withName("table1").withSchema("default").withShare("share1") ::
         Table().withName("table3").withSchema("default").withShare("share1") ::
         Table().withName("table7").withSchema("default").withShare("share1") :: Nil
+    assert(expected == tables)
+  }
+
+  integrationTest("/shares/{share}/all-tables") {
+    val response = readJson(requestPath("/shares/share7/all-tables"))
+    val expected = ListAllTablesResponse(
+      Table().withName("table8").withSchema("schema1").withShare("share7") ::
+        Table().withName("table9").withSchema("schema2").withShare("share7") :: Nil)
+    assert(expected == JsonFormat.fromJsonString[ListAllTablesResponse](response))
+  }
+
+  integrationTest("/shares/{share}/all-tables: maxResults") {
+    var response = JsonFormat.fromJsonString[ListAllTablesResponse](readJson(requestPath("/shares/share7/all-tables?maxResults=1")))
+    val tables = ArrayBuffer[Table]()
+    tables ++= response.items
+    while (response.nextPageToken.nonEmpty) {
+      response = JsonFormat.fromJsonString[ListAllTablesResponse](readJson(requestPath(s"/shares/share7/all-tables?pageToken=${response.nextPageToken.get}&maxResults=1")))
+      tables ++= response.items
+    }
+    val expected =
+      Table().withName("table8").withSchema("schema1").withShare("share7") ::
+        Table().withName("table9").withSchema("schema2").withShare("share7") :: Nil
     assert(expected == tables)
   }
 

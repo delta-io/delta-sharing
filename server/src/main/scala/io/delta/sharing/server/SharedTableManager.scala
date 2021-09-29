@@ -139,6 +139,27 @@ class SharedTableManager(serverConfig: ServerConfig) {
     }
   }
 
+  def listAllTables(
+      share: String,
+      nextPageToken: Option[String] = None,
+      maxResults: Option[Int] = None): (Seq[Table], Option[String]) = {
+    val shareConfig = getShare(share)
+    val totalSize = shareConfig.schemas.asScala.map(_.tables.size).sum
+    getPage(nextPageToken, Some(share), None, maxResults, totalSize) {
+      (start, end) =>
+        shareConfig.schemas.asScala.flatMap { schema =>
+          schema.tables.asScala.map {
+            table =>
+              Table(
+                name = Some(table.getName),
+                schema = Some(schema.name),
+                share = Some(share)
+              )
+          }
+        }.slice(start, end)
+    }
+  }
+
   def getTable(share: String, schema: String, table: String): TableConfig = {
     val schemaConfig = getSchema(getShare(share), schema)
     schemaConfig.getTables.asScala.find(t => caseInsensitiveComparer(t.getName, table))
