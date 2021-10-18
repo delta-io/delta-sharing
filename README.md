@@ -199,7 +199,9 @@ You can try this by running our [examples](examples/README.md) with the open, ex
 
 The Delta Sharing Reference Server is a reference implementation server for the [Delta Sharing Protocol](PROTOCOL.md). This can be used to set up a small service to test your own connector that implements the [Delta Sharing Protocol](PROTOCOL.md). Please note that this is not a completed implementation of secure web server. We highly recommend you to put this behind a secure proxy if you would like to expose it to public.
 
-Here are the steps to setup a server to share your own data.
+Some vendors offer managed services for Delta Sharing too (for example, [Databricks](https://databricks.com/product/delta-sharing)). Please refer to your vendor's website for how to set up sharing there. Vendors that are interested in being listed as a service provider should open an issue on GitHub to be added to this README and our project's website.
+
+Here are the steps to setup the reference server to share your own data.
 
 ## Get the pre-built package
 
