@@ -197,7 +197,7 @@ class RemoteSnapshot(
   def filesForScan(
       filters: Seq[Expression],
       limitHint: Option[Long],
-      fileIndex: Option[RemoteDeltaFileIndex]): Seq[AddFile] = {
+      fileIndex: RemoteDeltaFileIndex): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
@@ -218,17 +218,15 @@ class RemoteSnapshot(
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(table, predicates, limitHint)
-      if (fileIndex.nonEmpty) {
-        val idToUrl = tableFiles.files.map { add =>
-          add.id -> add.url
-        }.toMap
-        CachedTableManager.INSTANCE
-          .register(tablePath.toString, idToUrl, new WeakReference(fileIndex.get), () => {
-            client.getFiles(table, Nil, None).files.map { add =>
-              add.id -> add.url
-            }.toMap
-          })
-      }
+      val idToUrl = tableFiles.files.map { add =>
+        add.id -> add.url
+      }.toMap
+      CachedTableManager.INSTANCE
+        .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
+          client.getFiles(table, Nil, None).files.map { add =>
+            add.id -> add.url
+          }.toMap
+        })
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.toDS()
@@ -277,7 +275,7 @@ private[sharing] case class RemoteDeltaFileIndex(
     limitHint: Option[Long]) extends FileIndex {
 
   override def inputFiles: Array[String] = {
-    snapshotAtAnalysis.filesForScan(Nil, None, None)
+    snapshotAtAnalysis.filesForScan(Nil, None, this)
       .map(f => toDeltaSharingPath(f).toString)
       .toArray
   }
@@ -298,7 +296,7 @@ private[sharing] case class RemoteDeltaFileIndex(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     val timeZone = spark.sessionState.conf.sessionLocalTimeZone
-    snapshotAtAnalysis.filesForScan(partitionFilters ++ dataFilters, limitHint, Some(this))
+    snapshotAtAnalysis.filesForScan(partitionFilters ++ dataFilters, limitHint, this)
       .groupBy(_.partitionValues).map {
         case (partitionValues, files) =>
           val rowValues: Array[Any] = partitionSchema.map { p =>

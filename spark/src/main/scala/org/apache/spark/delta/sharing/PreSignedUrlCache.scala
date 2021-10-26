@@ -82,6 +82,8 @@ class CachedTableManager(
           cachedTable.lastAccess,
           cachedTable.refresher
         )
+        // Failing to replace the table is fine because if it did happen, we would retry after
+        // `refreshCheckIntervalMs` milliseconds.
         cache.replace(tablePath, cachedTable, newTable)
       }
     }

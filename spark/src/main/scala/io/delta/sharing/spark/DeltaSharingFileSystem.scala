@@ -145,7 +145,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
   }
 }
 
-object DeltaSharingFileSystem {
+private[sharing] object DeltaSharingFileSystem {
 
   val SCHEME = "delta-sharing"
 
