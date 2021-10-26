@@ -19,18 +19,24 @@ package org.apache.spark.delta.sharing
 import java.lang.ref.WeakReference
 import java.util.concurrent.TimeUnit
 
-import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.rpc.{RpcCallContext, RpcEndpoint, RpcEndpointRef, RpcEnv}
 import org.apache.spark.util.{RpcUtils, ThreadUtils}
 
-import io.delta.sharing.spark.DeltaSharingFileSystem.DeltaSharingPath
-
+/**
+ * @param expiration the expiration time of the pre signed urls
+ * @param idToUrl the file id to pre sign url map
+ * @param refs the references that we track. When all of references in the table are gone, we will
+ *             remove the cached table from our cache.
+ * @param lastAccess When the table was accessed last time. We will remove old tables that are not
+ *                   accessed after `expireAfterAccessMs` milliseconds.
+ * @param refresher the function to generate a new file id to pre sign url map.
+ */
 class CachedTable(
     val expiration: Long,
     val idToUrl: Map[String, String],
-    val references: Seq[WeakReference[AnyRef]],
+    val refs: Seq[WeakReference[AnyRef]],
     @volatile var lastAccess: Long,
     val refresher: () => Map[String, String])
 
@@ -38,7 +44,7 @@ class CachedTableManager(
     preSignedUrlExpirationMs: Long,
     refreshCheckIntervalMs: Long,
     refreshThresholdMs: Long,
-    expireAfterAccessMs: Long) {
+    expireAfterAccessMs: Long) extends Logging {
 
   private val cache = new java.util.concurrent.ConcurrentHashMap[String, CachedTable]()
 
@@ -59,14 +65,20 @@ class CachedTableManager(
     for (entry <- snapshot) {
       val tablePath = entry.getKey
       val cachedTable = entry.getValue
-      if (cachedTable.references.forall(_.get == null)
-          || cachedTable.lastAccess + expireAfterAccessMs < System.currentTimeMillis()) {
+      if (cachedTable.refs.forall(_.get == null)) {
+        logInfo(s"Removing $tablePath from the pre signed url cache as there are" +
+          " no references pointed to it")
+        cache.remove(tablePath, cachedTable)
+      } else if (cachedTable.lastAccess + expireAfterAccessMs < System.currentTimeMillis()) {
+        logInfo(s"Removing $tablePath from the pre signed url cache as it was not accessed after " +
+          s" $expireAfterAccessMs ms")
         cache.remove(tablePath, cachedTable)
       } else if (cachedTable.expiration - System.currentTimeMillis() < refreshThresholdMs) {
+        logInfo(s"Updating pre signed urls for $tablePath")
         val newTable = new CachedTable(
           System.currentTimeMillis(),
           cachedTable.refresher(),
-          cachedTable.references,
+          cachedTable.refs,
           cachedTable.lastAccess,
           cachedTable.refresher
         )
@@ -76,18 +88,18 @@ class CachedTableManager(
   }
 
   /** Returns `PreSignedUrl` from the cache. */
-  def getPreSignedUrl(path: DeltaSharingPath): PreSignedUrl = {
-    val cachedTable = cache.get(path.tablePath)
+  def getPreSignedUrl(
+      tablePath: String,
+      fileId: String): PreSignedUrlCache.Rpc.GetPreSignedUrlResponse = {
+    val cachedTable = cache.get(tablePath)
     if (cachedTable == null) {
-      throw new IllegalStateException(
-        s"table ${path.tablePath} was removed")
+      throw new IllegalStateException(s"table $tablePath was removed")
     }
     cachedTable.lastAccess = System.currentTimeMillis()
-    val url = cachedTable.idToUrl.getOrElse(path.fileId, {
-      throw new IllegalStateException(
-        s"cannot find url for id ${path.fileId} in table ${path.tablePath}")
+    val url = cachedTable.idToUrl.getOrElse(fileId, {
+      throw new IllegalStateException(s"cannot find url for id $fileId in table $tablePath")
     })
-    PreSignedUrl(url, cachedTable.expiration)
+    (url, cachedTable.expiration)
   }
 
   /**
@@ -97,7 +109,7 @@ class CachedTableManager(
    * @param tablePath the table path. This is usually the profile file path.
    * @param idToUrl the pre signed url map. This will be refreshed when the pre signed urls is going
    *                to expire.
-   * @param reference A weak reference which can be used to determine whether the cache is still
+   * @param ref A weak reference which can be used to determine whether the cache is still
    *                  needed. When the weak reference returns null, we will remove the pre signed
    *                  url cache of this table form the cache.
    * @param refresher A function to re-generate pre signed urls for the table.
@@ -105,42 +117,65 @@ class CachedTableManager(
   def register(
       tablePath: String,
       idToUrl: Map[String, String],
-      reference: WeakReference[AnyRef],
+      ref: WeakReference[AnyRef],
       refresher: () => Map[String, String]): Unit = {
-    var cachedTable = new CachedTable(
+    val cachedTable = new CachedTable(
       preSignedUrlExpirationMs + System.currentTimeMillis(),
       idToUrl,
-      Seq(reference),
+      Seq(ref),
       System.currentTimeMillis(),
       refresher
     )
     var oldTable = cache.putIfAbsent(tablePath, cachedTable)
     if (oldTable == null) {
+      // We insert a new entry to the cache
       return
     }
+    // There is an existing entry so we try to merge it with the new one
     while (true) {
-      cachedTable = new CachedTable(
+      val mergedTable = new CachedTable(
+        // Pick up the min value because we will merge urls and we have to refresh when any of urls
+        // expire
         cachedTable.expiration min oldTable.expiration,
-        cachedTable.idToUrl ++ oldTable.idToUrl,
-        reference +: oldTable.references,
-        System.currentTimeMillis(),
+        // Overwrite urls with the new registered ones because they are usually newer
+        oldTable.idToUrl ++ cachedTable.idToUrl,
+        // Try to avoid storing duplicate references
+        if (oldTable.refs.exists(_.get eq ref.get)) oldTable.refs else ref +: oldTable.refs,
+        lastAccess = System.currentTimeMillis(),
         refresher
       )
-      if (cache.replace(tablePath, oldTable, cachedTable)) {
+      if (cache.replace(tablePath, oldTable, mergedTable)) {
+        // Put the merged one to the cache
         return
       }
+      // Failed to put the merged one
       oldTable = cache.get(tablePath)
       if (oldTable == null) {
+        // It was removed between `cache.replace` and `cache.get`
         oldTable = cache.putIfAbsent(tablePath, cachedTable)
         if (oldTable == null) {
+          // We insert a new entry to the cache
           return
         }
+        // There was a new inserted one between `cache.get` and `cache.putIfAbsent`. Trying to
+        // merge it.
+      } else {
+        // There was a new inserted one between `cache.replace` and `cache.get`. Trying to
+        // merge it.
       }
     }
   }
 
   def stop(): Unit = {
     refreshThread.shutdownNow()
+  }
+
+  /**
+   * Clear the cached pre signed urls. This is an internal API to clear the cache in case some users
+   * config incorrect pre signed url expiration time and leave expired urls in the cache.
+   */
+  def clear(): Unit = {
+    cache.clear()
   }
 }
 
@@ -164,7 +199,7 @@ object CachedTableManager {
   private lazy val expireAfterAccessMs = Option(SparkEnv.get)
     .flatMap(_.conf.getOption("spark.delta.sharing.driver.accessThresholdToExpireMs"))
     .map(_.toLong)
-    .getOrElse(TimeUnit.MINUTES.toMillis(60))
+    .getOrElse(TimeUnit.HOURS.toMillis(1))
 
   lazy val INSTANCE = new CachedTableManager(
     preSignedUrlExpirationMs = preSignedUrlExpirationMs,
@@ -173,16 +208,11 @@ object CachedTableManager {
     expireAfterAccessMs = expireAfterAccessMs)
 }
 
-/** The RPC request to fetch `PreSignedUrl` from the driver. */
-case class GetPreSignedUrl(path: DeltaSharingPath)
-
-/** The PRC response that is returned to executors. */
-case class PreSignedUrl(url: String, expirationMs: Long)
-
 /** An `RpcEndpoint` running in Spark driver to allow executors to fetch pre signed urls. */
 class PreSignedUrlCacheEndpoint(override val rpcEnv: RpcEnv) extends RpcEndpoint {
   override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
-    case GetPreSignedUrl(path) => context.reply(CachedTableManager.INSTANCE.getPreSignedUrl(path))
+    case (tablePath: String, fileId: String) =>
+      context.reply(CachedTableManager.INSTANCE.getPreSignedUrl(tablePath, fileId))
   }
 }
 
@@ -192,21 +222,35 @@ class PreSignedUrlCacheEndpoint(override val rpcEnv: RpcEnv) extends RpcEndpoint
  */
 class PreSignedUrlFetcher(
     ref: RpcEndpointRef,
-    val path: DeltaSharingPath,
-    refreshThresholdMs: Long) {
+    tablePath: String,
+    fileId: String,
+    refreshThresholdMs: Long) extends Logging {
 
-  private var preSignedUrl: PreSignedUrl = _
+  private var preSignedUrl: PreSignedUrlCache.Rpc.GetPreSignedUrlResponse = _
 
   def getUrl(): String = {
     if (preSignedUrl == null ||
-        preSignedUrl.expirationMs - System.currentTimeMillis() < refreshThresholdMs) {
-      preSignedUrl = ref.askSync[PreSignedUrl](GetPreSignedUrl(path))
+        preSignedUrl._2 - System.currentTimeMillis() < refreshThresholdMs) {
+      logInfo(s"Getting pre signed url for $tablePath/$fileId")
+      preSignedUrl =
+        ref.askSync[PreSignedUrlCache.Rpc.GetPreSignedUrlResponse](tablePath -> fileId)
     }
-    preSignedUrl.url
+    preSignedUrl._1
   }
 }
 
 object PreSignedUrlCache extends Logging {
+
+  /**
+   * Define the Rpc messages used by driver and executors. Note: as we are a third-party of Spark,
+   * Spark's Rpc classloader may not have our classes, so we should not use our own Rpc classes.
+   * Instead, we should reuse existing Scala classes, such as tuple.
+   */
+  object Rpc {
+    type GetPreSignedUrl = (String, String)
+    type GetPreSignedUrlResponse = (String, Long)
+  }
+
 
   private val endpointName = "delta.sharing.PreSignedUrlCache"
 

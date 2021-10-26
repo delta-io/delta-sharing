@@ -89,14 +89,15 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
 
   override def open(f: Path, bufferSize: Int): FSDataInputStream = {
     val path = DeltaSharingFileSystem.decode(f)
-    val fetcher = new PreSignedUrlFetcher(preSignedUrlCacheRef, path, refreshThresholdMs)
+    val fetcher =
+      new PreSignedUrlFetcher(preSignedUrlCacheRef, path.tablePath, path.fileId, refreshThresholdMs)
     if (getConf.getBoolean("spark.delta.sharing.loadDataFilesInMemory", false)) {
       // `InMemoryHttpInputStream` loads the content into the memory immediately, so we don't need
       // to refresh urls.
       new FSDataInputStream(new InMemoryHttpInputStream(new URI(fetcher.getUrl())))
     } else {
       new FSDataInputStream(
-        new RandomAccessHttpInputStream(httpClient, fetcher, statistics, numRetries))
+        new RandomAccessHttpInputStream(httpClient, fetcher, path.fileSize, statistics, numRetries))
     }
   }
 

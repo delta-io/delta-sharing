@@ -60,10 +60,10 @@ import io.delta.sharing.spark.util.{RetryUtils, UnexpectedHttpStatus}
 private[sharing] class RandomAccessHttpInputStream(
     client: HttpClient,
     fetcher: PreSignedUrlFetcher,
+    contentLength: Long,
     stats: FileSystem.Statistics,
     numRetries: Int) extends FSInputStream with Logging {
 
-  private val contentLength = fetcher.path.fileSize
   private var closed = false
   private var pos = 0L
   private var currentStream: InputStream = null

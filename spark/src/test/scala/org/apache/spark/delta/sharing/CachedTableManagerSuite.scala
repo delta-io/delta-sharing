@@ -22,8 +22,6 @@ import org.apache.spark.SparkFunSuite
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.SpanSugar._
 
-import io.delta.sharing.spark.DeltaSharingFileSystem.DeltaSharingPath
-
 class CachedTableManagerSuite extends SparkFunSuite {
 
   test("cache") {
@@ -42,8 +40,8 @@ class CachedTableManagerSuite extends SparkFunSuite {
         () => {
           Map("id1" -> "url1", "id2" -> "url2")
         })
-      assert(manager.getPreSignedUrl(DeltaSharingPath("test-table-path", "id1", 100)).url == "url1")
-      assert(manager.getPreSignedUrl(DeltaSharingPath("test-table-path", "id2", 100)).url == "url2")
+      assert(manager.getPreSignedUrl("test-table-path", "id1")._1 == "url1")
+      assert(manager.getPreSignedUrl("test-table-path", "id2")._1 == "url2")
 
       manager.register(
         "test-table-path2",
@@ -54,10 +52,8 @@ class CachedTableManagerSuite extends SparkFunSuite {
         })
       // We should get the new urls eventually
       eventually(timeout(10.seconds)) {
-        assert(
-          manager.getPreSignedUrl(DeltaSharingPath("test-table-path2", "id1", 100)).url == "url3")
-        assert(
-          manager.getPreSignedUrl(DeltaSharingPath("test-table-path2", "id2", 100)).url == "url4")
+        assert(manager.getPreSignedUrl("test-table-path2", "id1")._1 == "url3")
+        assert(manager.getPreSignedUrl("test-table-path2", "id2")._1 == "url4")
       }
 
       manager.register(
@@ -70,13 +66,33 @@ class CachedTableManagerSuite extends SparkFunSuite {
       // We should remove the cached table eventually
       eventually(timeout(10.seconds)) {
         System.gc()
-        intercept[IllegalStateException] {
-          manager.getPreSignedUrl(DeltaSharingPath("test-table-path3", "id1", 100))
-        }
-        intercept[IllegalStateException] {
-          manager.getPreSignedUrl(DeltaSharingPath("test-table-path3", "id1", 100))
-        }
+        intercept[IllegalStateException](manager.getPreSignedUrl("test-table-path3", "id1"))
+        intercept[IllegalStateException](manager.getPreSignedUrl("test-table-path3", "id1"))
       }
+    } finally {
+      manager.stop()
+    }
+  }
+
+  test("expireAfterAccessMs") {
+    val manager = new CachedTableManager(
+      preSignedUrlExpirationMs = 10,
+      refreshCheckIntervalMs = 10,
+      refreshThresholdMs = 10,
+      expireAfterAccessMs = 10
+    )
+    try {
+      val ref = new AnyRef
+      manager.register(
+        "test-table-path",
+        Map("id1" -> "url1", "id2" -> "url2"),
+        new WeakReference(ref),
+        () => {
+          Map("id1" -> "url1", "id2" -> "url2")
+        })
+      Thread.sleep(1000)
+      // We should remove the cached table when it's not accessed
+      intercept[IllegalStateException](manager.getPreSignedUrl("test-table-path", "id1"))
     } finally {
       manager.stop()
     }
