@@ -19,6 +19,8 @@ package org.apache.spark.delta.sharing
 import java.lang.ref.WeakReference
 import java.util.concurrent.TimeUnit
 
+import scala.util.control.NonFatal
+
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.rpc.{RpcCallContext, RpcEndpoint, RpcEndpointRef, RpcEnv}
@@ -74,17 +76,31 @@ class CachedTableManager(
           s" $expireAfterAccessMs ms")
         cache.remove(tablePath, cachedTable)
       } else if (cachedTable.expiration - System.currentTimeMillis() < refreshThresholdMs) {
-        logInfo(s"Updating pre signed urls for $tablePath")
-        val newTable = new CachedTable(
-          System.currentTimeMillis(),
-          cachedTable.refresher(),
-          cachedTable.refs,
-          cachedTable.lastAccess,
-          cachedTable.refresher
-        )
-        // Failing to replace the table is fine because if it did happen, we would retry after
-        // `refreshCheckIntervalMs` milliseconds.
-        cache.replace(tablePath, cachedTable, newTable)
+        logInfo(s"Updating pre signed urls for $tablePath (expiration time: " +
+          s"${new java.util.Date(cachedTable.expiration)})")
+        try {
+          val newTable = new CachedTable(
+            preSignedUrlExpirationMs + System.currentTimeMillis(),
+            cachedTable.refresher(),
+            cachedTable.refs,
+            cachedTable.lastAccess,
+            cachedTable.refresher
+          )
+          // Failing to replace the table is fine because if it did happen, we would retry after
+          // `refreshCheckIntervalMs` milliseconds.
+          cache.replace(tablePath, cachedTable, newTable)
+        } catch {
+          case NonFatal(e) =>
+            logError(s"Failed to refresh pre signed urls for table $tablePath", e)
+            if (cachedTable.expiration > System.currentTimeMillis()) {
+              logInfo(s"Removing table $tablePath form cache as the pre signed url have expired")
+              // Remove the cached table as pre signed urls have expired
+              cache.remove(tablePath, cachedTable)
+            } else {
+              // If the pre signed urls haven't expired, we will keep it in cache so that we can
+              // retry the refresh next time.
+            }
+        }
       }
     }
   }
@@ -233,7 +249,12 @@ class PreSignedUrlFetcher(
   def getUrl(): String = {
     if (preSignedUrl == null ||
         preSignedUrl._2 - System.currentTimeMillis() < refreshThresholdMs) {
-      logInfo(s"Getting pre signed url for $tablePath/$fileId")
+      if (preSignedUrl == null) {
+        logInfo(s"Fetching pre signed url for $tablePath/$fileId for the first time")
+      } else {
+        logInfo(s"Fetching pre signed url for $tablePath/$fileId (expiration time: " +
+          s"at ${new java.util.Date(preSignedUrl._2)})")
+      }
       preSignedUrl =
         ref.askSync[PreSignedUrlCache.Rpc.GetPreSignedUrlResponse](tablePath -> fileId)
     }
