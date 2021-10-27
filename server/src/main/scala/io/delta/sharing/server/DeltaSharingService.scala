@@ -92,6 +92,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
   private val deltaSharedTableLoader = new DeltaSharedTableLoader(serverConfig)
 
+  private val logger = LoggerFactory.getLogger(classOf[DeltaSharingService])
   /**
    * Call `func` and catch any unhandled exception and convert it to `DeltaInternalException`. Any
    * code that processes requests should use this method to ensure that unhandled exceptions are
@@ -184,11 +185,14 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("schema") schema: String,
       @Param("table") table: String,
       queryTableRequest: QueryTableRequest): HttpResponse = processRequest {
+    val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
       queryTableRequest.predicateHints,
       queryTableRequest.limitHint)
+    logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
+      s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
     streamingOutput(version, actions)
   }
 
