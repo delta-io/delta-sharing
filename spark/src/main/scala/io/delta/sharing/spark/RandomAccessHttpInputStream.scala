@@ -40,7 +40,6 @@
 package io.delta.sharing.spark
 
 import java.io.{EOFException, InputStream, IOException}
-import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.commons.io.IOUtils
@@ -49,6 +48,7 @@ import org.apache.http.HttpStatus
 import org.apache.http.client.HttpClient
 import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
 import org.apache.http.conn.EofSensorInputStream
+import org.apache.spark.delta.sharing.PreSignedUrlFetcher
 import org.apache.spark.internal.Logging
 
 import io.delta.sharing.spark.util.{RetryUtils, UnexpectedHttpStatus}
@@ -59,7 +59,7 @@ import io.delta.sharing.spark.util.{RetryUtils, UnexpectedHttpStatus}
  */
 private[sharing] class RandomAccessHttpInputStream(
     client: HttpClient,
-    uri: URI,
+    fetcher: PreSignedUrlFetcher,
     contentLength: Long,
     stats: FileSystem.Statistics,
     numRetries: Int) extends FSInputStream with Logging {
@@ -67,15 +67,23 @@ private[sharing] class RandomAccessHttpInputStream(
   private var closed = false
   private var pos = 0L
   private var currentStream: InputStream = null
+  private var uri: String = null
 
   private def assertNotClosed(): Unit = {
     if (closed) {
       throw new IOException(FSExceptionMessages.STREAM_IS_CLOSED)
     }
+    val newUrl = fetcher.getUrl()
+    if (uri != newUrl) {
+      // Abort the current open stream so that we will re-open a new stream using the new url
+      uri = newUrl
+      abortCurrentStream()
+    }
   }
 
   override def seek(pos: Long): Unit = synchronized {
     if (this.pos != pos) {
+      assertNotClosed()
       reopen(pos)
     }
   }

@@ -24,7 +24,7 @@ port: 8080
 # Set the url prefix for the REST APIs
 endpoint: "/delta-sharing"
 # Set the timeout of S3 presigned url in seconds
-preSignedUrlTimeoutSeconds: 900
+preSignedUrlTimeoutSeconds: 3600
 # How many tables to cache in the server
 deltaTableCacheSize: 10
 # Whether we can accept working with a stale version of the table. This is useful when sharing
