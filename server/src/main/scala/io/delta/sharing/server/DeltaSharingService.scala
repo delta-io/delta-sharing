@@ -92,7 +92,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
   private val deltaSharedTableLoader = new DeltaSharedTableLoader(serverConfig)
 
-  val logger = LoggerFactory.getLogger(classOf[DeltaSharingService])
+  private val logger = LoggerFactory.getLogger(classOf[DeltaSharingService])
   /**
    * Call `func` and catch any unhandled exception and convert it to `DeltaInternalException`. Any
    * code that processes requests should use this method to ensure that unhandled exceptions are
