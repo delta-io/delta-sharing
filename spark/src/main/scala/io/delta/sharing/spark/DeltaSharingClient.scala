@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.commons.io.IOUtils
+import org.apache.hadoop.util.VersionInfo
 import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.{HttpGet, HttpHead, HttpPost, HttpRequestBase}
@@ -29,6 +30,7 @@ import org.apache.http.client.protocol.HttpClientContext
 import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, TrustSelfSignedStrategy}
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
+import org.apache.spark.internal.Logging
 
 import io.delta.sharing.spark.model._
 import io.delta.sharing.spark.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
@@ -59,7 +61,7 @@ private[sharing] case class ListAllTablesResponse(
     nextPageToken: Option[String]) extends PaginationResponse
 
 /** A REST client to fetch Delta metadata from remote server. */
-private[sharing] class DeltaSharingRestClient(
+class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
@@ -234,6 +236,7 @@ private[sharing] class DeltaSharingRestClient(
     RetryUtils.runWithExponentialBackoff(numRetries) {
       val profile = profileProvider.getProfile
       httpRequest.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer ${profile.bearerToken}")
+      httpRequest.setHeader(HttpHeaders.USER_AGENT, DeltaSharingRestClient.USER_AGENT)
       val response =
         client.execute(getHttpHost(profile.endpoint), httpRequest, HttpClientContext.create())
       try {
@@ -273,6 +276,43 @@ private[sharing] class DeltaSharingRestClient(
   }
 }
 
-private[sharing] object DeltaSharingRestClient {
+object DeltaSharingRestClient extends Logging {
   val CURRENT = 1
+
+  lazy val USER_AGENT = {
+    try {
+      s"Delta-Sharing-Spark/$VERSION" +
+        s" $sparkVersionString" +
+        s" Hadoop/${VersionInfo.getVersion()}" +
+        s" ${spaceFreeProperty("os.name")}/${spaceFreeProperty("os.version")}" +
+        s" ${spaceFreeProperty("java.vm.name")}/${spaceFreeProperty("java.vm.version")}" +
+        s" java/${spaceFreeProperty("java.version")}" +
+        s" scala/${scala.util.Properties.versionNumberString}" +
+        s" java_vendor/${spaceFreeProperty("java.vendor")}"
+    } catch {
+      case e: Throwable =>
+        log.warn("Unable to load version information for Delta Sharing", e)
+        "Delta-Sharing-Spark/<unknown>"
+    }
+  }
+
+  /**
+   * Return the spark version. When the library is used in Databricks Runtime, it will return
+   * Databricks Runtime version.
+   */
+  def sparkVersionString: String = {
+    Option(org.apache.spark.SparkEnv.get).flatMap { env =>
+      env.conf.getOption("spark.databricks.clusterUsageTags.sparkVersion")
+    }.map(dbrVersion => s"Databricks-Runtime/$dbrVersion")
+      .getOrElse(s"Spark/${org.apache.spark.SPARK_VERSION}")
+  }
+
+  /**
+   * Return the system property using the given key. If the value contains spaces, spaces will be
+   * replaced with "_".
+   */
+  def spaceFreeProperty(key: String): String = {
+    val value = System.getProperty(key)
+    if (value == null) "<unknown>" else value.replace(' ', '_')
+  }
 }

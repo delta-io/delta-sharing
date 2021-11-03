@@ -52,7 +52,18 @@ lazy val spark = (project in file("spark")) settings(
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
     "org.scalatest" %% "scalatest" % "3.2.3" % "test"
-  )
+  ),
+  sourceGenerators in Compile += Def.task {
+    val file = (sourceManaged in Compile).value / "io" / "delta" / "sharing" / "package.scala"
+    IO.write(file,
+      s"""package io.delta.sharing
+         |
+         |package object spark {
+         |  val VERSION = "${version.value}"
+         |}
+         |""".stripMargin)
+    Seq(file)
+  }
 )
 
 lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) settings(

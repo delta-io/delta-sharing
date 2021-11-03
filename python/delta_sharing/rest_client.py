@@ -17,7 +17,7 @@ import collections
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, ClassVar, Dict, Optional, Sequence
 from urllib.parse import urlparse
 import time
 import logging
@@ -92,14 +92,40 @@ def retry_with_exponential_backoff(func):
     return func_with_retry
 
 
+def _client_user_agent() -> str:
+    try:
+        from delta_sharing.version import __version__
+        import pandas
+        import pyarrow
+        import platform
+
+        return (
+            f"Delta-Sharing-Python/{__version__}"
+            + f" pandas/{pandas.__version__}"
+            + f" PyArrow/{pyarrow.__version__}"
+            + f" Python/{platform.python_version()}"
+            + f" System/{platform.platform()}"
+        )
+    except Exception as e:
+        logging.warn(f"Unable to load version information for Delta Sharing because of error {e}")
+        return "Delta-Sharing-Python/<unknown>"
+
+
 class DataSharingRestClient:
+    USER_AGENT: ClassVar[str] = _client_user_agent()
+
     def __init__(self, profile: DeltaSharingProfile, num_retries=10):
         self._profile = profile
         self._num_retries = num_retries
         self._sleeper = lambda sleep_ms: time.sleep(sleep_ms / 1000)
 
         self._session = requests.Session()
-        self._session.headers.update({"Authorization": f"Bearer {profile.bearer_token}"})
+        self._session.headers.update(
+            {
+                "Authorization": f"Bearer {profile.bearer_token}",
+                "User-Agent": DataSharingRestClient.USER_AGENT,
+            }
+        )
         if urlparse(profile.endpoint).hostname == "localhost":
             self._session.verify = False
 
