@@ -33,7 +33,7 @@ class DeltaSharingReader:
         rest_client: DataSharingRestClient,
         *,
         predicateHints: Optional[Sequence[str]] = None,
-        limit: Optional[int] = None,
+        limit: Optional[int] = None
     ):
         self._table = table
         self._rest_client = rest_client
@@ -82,16 +82,13 @@ class DeltaSharingReader:
                 left -= len(pdf)
                 assert (
                     left >= 0
-                ), f"'_to_pandas' returns too many rows. Required: {left}, returned: {len(pdf)}"
+                ), f"'_to_pandas' returned too many rows. Required: {left}, returned: {len(pdf)}"
                 if left == 0:
                     break
 
-        return pd.concat(
-            pdfs,
-            axis=0,
-            ignore_index=True,
-            copy=False,
-        )[[field["name"] for field in schema_json["fields"]]]
+        return pd.concat(pdfs, axis=0, ignore_index=True, copy=False,)[
+            [field["name"] for field in schema_json["fields"]]
+        ]
 
     def _copy(
         self, *, predicateHints: Optional[Sequence[str]], limit: Optional[int]
