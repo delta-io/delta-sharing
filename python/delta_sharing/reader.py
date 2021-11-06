@@ -33,7 +33,7 @@ class DeltaSharingReader:
         rest_client: DataSharingRestClient,
         *,
         predicateHints: Optional[Sequence[str]] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
     ):
         self._table = table
         self._rest_client = rest_client
