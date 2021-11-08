@@ -27,7 +27,8 @@ import io.delta.sharing.spark.util.JsonUtils
 private[sharing] case class DeltaSharingProfile(
     shareCredentialsVersion: Option[Int] = Some(DeltaSharingProfile.CURRENT),
     endpoint: String = null,
-    bearerToken: String = null)
+    bearerToken: String = null,
+    expirationTime: String = null)
 
 private[sharing] object DeltaSharingProfile {
   val CURRENT = 1
