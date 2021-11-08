@@ -68,6 +68,9 @@ client.list_all_tables()
 # A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
 table_url = profile_file + "#<share-name>.<schema-name>.<table-name>"
 
+# Fetch 10 rows from a table and convert it to a Pandas DataFrame. This can be used to read sample data from a table that cannot fit in the memory.
+delta_sharing.load_as_pandas(table_url, limit=10)
+
 # Load a table as a Pandas DataFrame. This can be used to process tables that can fit in the memory.
 delta_sharing.load_as_pandas(table_url)
 
