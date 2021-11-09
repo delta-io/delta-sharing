@@ -63,7 +63,7 @@ class DeltaSharingProfile:
             share_credentials_version=int(json["shareCredentialsVersion"]),
             endpoint=endpoint,
             bearer_token=json["bearerToken"],
-            expiration_time=json["expiration_time"],
+            expiration_time=json["expirationTime"],
         )
 
 
