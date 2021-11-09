@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 from datetime import date
+from typing import Optional
 
 import pandas as pd
 import pytest
@@ -80,10 +81,11 @@ def test_list_all_tables(sharing_client: SharingClient):
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
-    "fragments,expected",
+    "fragments,limit,expected",
     [
         pytest.param(
             "share1.default.table1",
+            None,
             pd.DataFrame(
                 {
                     "eventTime": [
@@ -97,6 +99,7 @@ def test_list_all_tables(sharing_client: SharingClient):
         ),
         pytest.param(
             "share2.default.table2",
+            None,
             pd.DataFrame(
                 {
                     "eventTime": [
@@ -110,6 +113,7 @@ def test_list_all_tables(sharing_client: SharingClient):
         ),
         pytest.param(
             "share1.default.table3",
+            None,
             pd.DataFrame(
                 {
                     "eventTime": [
@@ -124,7 +128,79 @@ def test_list_all_tables(sharing_client: SharingClient):
             id="partitioned and different schemas",
         ),
         pytest.param(
+            "share1.default.table3",
+            0,
+            pd.DataFrame(
+                {
+                    "eventTime": [pd.Timestamp("2021-04-28 23:36:51.945")],
+                    "date": [date(2021, 4, 28)],
+                    "type": ["bar"],
+                }
+            ).iloc[0:0],
+            id="limit 0",
+        ),
+        pytest.param(
+            "share1.default.table3",
+            1,
+            pd.DataFrame(
+                {
+                    "eventTime": [pd.Timestamp("2021-04-28 23:36:51.945")],
+                    "date": [date(2021, 4, 28)],
+                    "type": ["bar"],
+                }
+            ),
+            id="limit 1",
+        ),
+        pytest.param(
+            "share1.default.table3",
+            2,
+            pd.DataFrame(
+                {
+                    "eventTime": [
+                        pd.Timestamp("2021-04-28 23:36:51.945"),
+                        pd.Timestamp("2021-04-28 23:36:47.599"),
+                    ],
+                    "date": [date(2021, 4, 28), date(2021, 4, 28)],
+                    "type": ["bar", "foo"],
+                }
+            ),
+            id="limit 2",
+        ),
+        pytest.param(
+            "share1.default.table3",
+            3,
+            pd.DataFrame(
+                {
+                    "eventTime": [
+                        pd.Timestamp("2021-04-28 23:36:51.945"),
+                        pd.Timestamp("2021-04-28 23:36:47.599"),
+                        pd.Timestamp("2021-04-28 23:35:53.156"),
+                    ],
+                    "date": [date(2021, 4, 28), date(2021, 4, 28), date(2021, 4, 28)],
+                    "type": ["bar", "foo", None],
+                }
+            ),
+            id="limit 3",
+        ),
+        pytest.param(
+            "share1.default.table3",
+            4,
+            pd.DataFrame(
+                {
+                    "eventTime": [
+                        pd.Timestamp("2021-04-28 23:36:51.945"),
+                        pd.Timestamp("2021-04-28 23:36:47.599"),
+                        pd.Timestamp("2021-04-28 23:35:53.156"),
+                    ],
+                    "date": [date(2021, 4, 28), date(2021, 4, 28), date(2021, 4, 28)],
+                    "type": ["bar", "foo", None],
+                }
+            ),
+            id="limit 4",
+        ),
+        pytest.param(
             "share3.default.table4",
+            None,
             pd.DataFrame(
                 {
                     "type": [None, None],
@@ -139,23 +215,26 @@ def test_list_all_tables(sharing_client: SharingClient):
         ),
         pytest.param(
             "share4.default.test_gzip",
+            None,
             pd.DataFrame({"a": [True], "b": pd.Series([1], dtype="int32"), "c": ["Hi"]}),
             id="table column order is not the same as parquet files",
         ),
         pytest.param(
             "share_azure.default.table_wasb",
+            None,
             pd.DataFrame({"c1": ["foo bar"], "c2": ["foo bar"],}),
             id="Azure Blob Storage",
         ),
         pytest.param(
             "share_azure.default.table_abfs",
+            None,
             pd.DataFrame({"c1": ["foo bar"], "c2": ["foo bar"],}),
             id="Azure Data Lake Storage Gen2",
         ),
     ],
 )
-def test_load(profile_path: str, fragments: str, expected: pd.DataFrame):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}")
+def test_load(profile_path: str, fragments: str, limit: Optional[int], expected: pd.DataFrame):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit)
     pd.testing.assert_frame_equal(pdf, expected)
 
 

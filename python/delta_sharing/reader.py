@@ -33,7 +33,7 @@ class DeltaSharingReader:
         rest_client: DataSharingRestClient,
         *,
         predicateHints: Optional[Sequence[str]] = None,
-        limitHint: Optional[int] = None
+        limit: Optional[int] = None,
     ):
         self._table = table
         self._rest_client = rest_client
@@ -43,60 +43,74 @@ class DeltaSharingReader:
             assert all(isinstance(predicateHint, str) for predicateHint in predicateHints)
         self._predicateHints = predicateHints
 
-        if limitHint is not None:
-            assert isinstance(limitHint, int)
-        self._limitHint = limitHint
+        if limit is not None:
+            assert isinstance(limit, int) and limit >= 0, "'limit' must be a non-negative int"
+        self._limit = limit
 
     @property
     def table(self) -> Table:
         return self._table
 
     def predicateHints(self, predicateHints: Optional[Sequence[str]]) -> "DeltaSharingReader":
-        return self._copy(predicateHints=predicateHints, limitHint=self._limitHint)
+        return self._copy(predicateHints=predicateHints, limit=self._limit)
 
-    def limitHint(self, limitHint: Optional[int]) -> "DeltaSharingReader":
-        return self._copy(predicateHints=self._predicateHints, limitHint=limitHint)
+    def limit(self, limit: Optional[int]) -> "DeltaSharingReader":
+        return self._copy(predicateHints=self._predicateHints, limit=limit)
 
     def to_pandas(self) -> pd.DataFrame:
         response = self._rest_client.list_files_in_table(
-            self._table, predicateHints=self._predicateHints, limitHint=self._limitHint
+            self._table, predicateHints=self._predicateHints, limitHint=self._limit
         )
 
         schema_json = loads(response.metadata.schema_string)
 
-        if len(response.add_files) == 0:
+        if len(response.add_files) == 0 or self._limit == 0:
             return get_empty_table(schema_json)
 
         converters = to_converters(schema_json)
 
-        return pd.concat(
-            [DeltaSharingReader._to_pandas(file, converters) for file in response.add_files],
-            axis=0,
-            ignore_index=True,
-            copy=False,
-        )[[field["name"] for field in schema_json["fields"]]]
+        if self._limit is None:
+            pdfs = [
+                DeltaSharingReader._to_pandas(file, converters, None) for file in response.add_files
+            ]
+        else:
+            left = self._limit
+            pdfs = []
+            for file in response.add_files:
+                pdf = DeltaSharingReader._to_pandas(file, converters, left)
+                pdfs.append(pdf)
+                left -= len(pdf)
+                assert (
+                    left >= 0
+                ), f"'_to_pandas' returned too many rows. Required: {left}, returned: {len(pdf)}"
+                if left == 0:
+                    break
+
+        return pd.concat(pdfs, axis=0, ignore_index=True, copy=False,)[
+            [field["name"] for field in schema_json["fields"]]
+        ]
 
     def _copy(
-        self, *, predicateHints: Optional[Sequence[str]], limitHint: Optional[int]
+        self, *, predicateHints: Optional[Sequence[str]], limit: Optional[int]
     ) -> "DeltaSharingReader":
         return DeltaSharingReader(
             table=self._table,
             rest_client=self._rest_client,
             predicateHints=predicateHints,
-            limitHint=limitHint,
+            limit=limit,
         )
 
     @staticmethod
-    def _to_pandas(add_file: AddFile, converters: Dict[str, Callable[[str], Any]]) -> pd.DataFrame:
+    def _to_pandas(
+        add_file: AddFile, converters: Dict[str, Callable[[str], Any]], limit: Optional[int]
+    ) -> pd.DataFrame:
         protocol = urlparse(add_file.url).scheme
         filesystem = fsspec.filesystem(protocol)
 
-        pdf = (
-            dataset(source=add_file.url, format="parquet", filesystem=filesystem)
-            .to_table()
-            .to_pandas(
-                date_as_object=True, use_threads=False, split_blocks=True, self_destruct=True
-            )
+        pa_dataset = dataset(source=add_file.url, format="parquet", filesystem=filesystem)
+        pa_table = pa_dataset.head(limit) if limit is not None else pa_dataset.to_table()
+        pdf = pa_table.to_pandas(
+            date_as_object=True, use_threads=False, split_blocks=True, self_destruct=True
         )
 
         for col, converter in converters.items():
