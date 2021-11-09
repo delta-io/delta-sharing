@@ -34,7 +34,8 @@ def test_share_profile(tmp_path):
         {
             "shareCredentialsVersion": 1,
             "endpoint": "https://localhost/delta-sharing/",
-            "bearerToken": "token"
+            "bearerToken": "token",
+            "expirationTime": "9999-12-31 23:59:59.999"
         }
         """
     profile = DeltaSharingProfile.from_json(json)
@@ -64,6 +65,7 @@ def test_share_profile(tmp_path):
             "shareCredentialsVersion": 100,
             "endpoint": "https://localhost/delta-sharing/",
             "bearerToken": "token"
+            "expirationTime": "9999-12-31 23:59:59.999"
         }
         """
     with pytest.raises(
