@@ -76,7 +76,7 @@ def test_share_profile(tmp_path):
         {
             "shareCredentialsVersion": 100,
             "endpoint": "https://localhost/delta-sharing/",
-            "bearerToken": "token"
+            "bearerToken": "token",
             "expirationTime": "9999-12-31"
         }
         """
