@@ -112,6 +112,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
         |  "shareCredentialsVersion": 1,
         |  "endpoint": "foo",
         |  "bearerToken": "bar",
+	|  "expirationTime: "9999-12-31 23:59:59.999",
         |  "futureField": "xyz"
         |}
         |""".stripMargin,
