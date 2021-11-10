@@ -47,11 +47,14 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
     return (profile, share, schema, table)
 
 
-def load_as_pandas(url: str) -> pd.DataFrame:
+def load_as_pandas(url: str, limit: Optional[int] = None) -> pd.DataFrame:
     """
     Load the shared table using the give url as a pandas DataFrame.
 
     :param url: a url under the format "<profile>#<share>.<schema>.<table>"
+    :param limit: a non-negative int. Load only the ``limit`` rows if the parameter is specified.
+      Use this optional parameter to explore the shared table without loading the entire table to
+      the memory.
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
@@ -59,6 +62,7 @@ def load_as_pandas(url: str) -> pd.DataFrame:
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
+        limit=limit,
     ).to_pandas()
 
 
