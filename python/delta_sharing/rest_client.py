@@ -21,6 +21,7 @@ from typing import Any, ClassVar, Dict, Optional, Sequence
 from urllib.parse import urlparse
 import time
 import logging
+from datetime import datetime
 
 import requests
 from requests.exceptions import HTTPError, ConnectionError
@@ -86,6 +87,8 @@ def retry_with_exponential_backoff(func):
                     logging.info(f"Sleeping {sleep_ms} to retry because of error {e}")
                     self._sleeper(sleep_ms)
                     sleep_ms *= 2
+                elif self._error_on_expired_token(e):
+                    raise HTTPError(f"Possibly because token is expired:{self._profile.expiration_time}") from e
                 else:
                     raise e
 
@@ -274,3 +277,14 @@ class DataSharingRestClient:
             return True
         else:
             return False
+
+    def _error_on_expired_token(self, error):
+        token_expired = False
+        try:
+            expiration_time = datetime.fromisotime(self._profile.expiration_time)
+            token_expired = datetime.now() > expiration_time
+        except Exception:
+            token_expired = False
+
+        # PERMISSION_ERROR
+        return isinstance(error, HTTPError) and error.response.status_code == 403 and token_expired
