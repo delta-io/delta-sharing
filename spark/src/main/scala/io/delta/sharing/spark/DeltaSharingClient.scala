@@ -18,6 +18,8 @@ package io.delta.sharing.spark
 
 import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
+import java.sql.Timestamp
+import java.time.LocalDateTime
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -228,6 +230,15 @@ class DeltaSharingRestClient(
     new HttpHost(url.getHost, port, protocol)
   }
 
+  private def tokenExpired(profile: DeltaSharingProfile): Boolean = {
+    try {
+      val expirationTime = Timestamp.valueOf(profile.expirationTime)
+      expirationTime.before(Timestamp.valueOf(LocalDateTime.now()))
+    } catch {
+      case _: Throwable => false
+    }
+  }
+
   /**
    * Send the http request and return the table version in the header if any, and the response
    * content.
@@ -255,8 +266,12 @@ class DeltaSharingRestClient(
 
         val statusCode = status.getStatusCode
         if (statusCode != HttpStatus.SC_OK) {
+          var additionalErrorInfo = ""
+          if (statusCode == HttpStatus.SC_FORBIDDEN && tokenExpired(profile)) {
+            additionalErrorInfo = s"It may be caused by expired token:${profile.expirationTime}"
+          }
           throw new UnexpectedHttpStatus(
-            s"HTTP request failed with status: $status $body",
+            s"HTTP request failed with status: $status $body. $additionalErrorInfo",
             statusCode)
         }
         Option(response.getFirstHeader("Delta-Table-Version")).map(_.getValue.toLong) -> body
