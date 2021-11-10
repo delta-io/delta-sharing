@@ -54,6 +54,22 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
     )
   }
 
+  test("expirationTime is optional") {
+    testProfile(
+      """{
+        |  "shareCredentialsVersion": 1,
+        |  "endpoint": "foo",
+        |  "bearerToken": "bar"
+        |}
+        |""".stripMargin,
+      DeltaSharingProfile(
+        shareCredentialsVersion = Some(1),
+        endpoint = "foo",
+        bearerToken = "bar"
+      )
+    )
+  }
+
   test("version is missing") {
     val e = intercept[IllegalArgumentException] {
       testProfile(

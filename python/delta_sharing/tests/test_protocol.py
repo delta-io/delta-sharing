@@ -34,6 +34,16 @@ def test_share_profile(tmp_path):
         {
             "shareCredentialsVersion": 1,
             "endpoint": "https://localhost/delta-sharing/",
+            "bearerToken": "token"
+        }
+        """
+    profile = DeltaSharingProfile.from_json(json)
+    assert profile == DeltaSharingProfile(1, "https://localhost/delta-sharing", "token")
+
+    json = """
+        {
+            "shareCredentialsVersion": 1,
+            "endpoint": "https://localhost/delta-sharing/",
             "bearerToken": "token",
             "expirationTime": "9999-12-31"
         }
