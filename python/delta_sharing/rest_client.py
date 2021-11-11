@@ -281,11 +281,13 @@ class DataSharingRestClient:
             return False
 
     def _error_on_expired_token(self, error):
-      if isinstance(error, HTTPError) and error.response.status_code == 401:
-        try:
-          expiration_time = datetime.strptime(self._profile.expiration_time,"%Y-%m-%dT%H:%M:%S.%fZ")
-          return datetime.now() > expiration_time
-        except Exception:
-          return False
-      else:
-        return False
+        if isinstance(error, HTTPError) and error.response.status_code == 401:
+            try:
+                expiration_time = datetime.strptime(
+                    self._profile.expiration_time, "%Y-%m-%dT%H:%M:%S.%fZ"
+                )
+                return datetime.now() > expiration_time
+            except Exception:
+                return False
+        else:
+            return False
