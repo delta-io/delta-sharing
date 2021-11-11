@@ -20,6 +20,7 @@ import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.sql.Timestamp
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter.ISO_DATE_TIME
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -231,8 +232,10 @@ class DeltaSharingRestClient(
   }
 
   private def tokenExpired(profile: DeltaSharingProfile): Boolean = {
+    if (profile.expirationTime == null) return false
     try {
-      val expirationTime = Timestamp.valueOf(profile.expirationTime)
+      val expirationTime = Timestamp.valueOf(
+        LocalDateTime.parse(profile.expirationTime, ISO_DATE_TIME))
       expirationTime.before(Timestamp.valueOf(LocalDateTime.now()))
     } catch {
       case _: Throwable => false
@@ -267,8 +270,9 @@ class DeltaSharingRestClient(
         val statusCode = status.getStatusCode
         if (statusCode != HttpStatus.SC_OK) {
           var additionalErrorInfo = ""
-          if (statusCode == HttpStatus.SC_FORBIDDEN && tokenExpired(profile)) {
-            additionalErrorInfo = s"It may be caused by expired token:${profile.expirationTime}"
+          if (statusCode == HttpStatus.SC_UNAUTHORIZED && tokenExpired(profile)) {
+            additionalErrorInfo = s"It may be caused by an expired token as it has expired " +
+              "at ${profile.expirationTime}"
           }
           throw new UnexpectedHttpStatus(
             s"HTTP request failed with status: $status $body. $additionalErrorInfo",

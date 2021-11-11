@@ -28,7 +28,7 @@ class DeltaSharingProfile:
     share_credentials_version: int
     endpoint: str
     bearer_token: str
-    expiration_time: str = ""
+    expiration_time: Optional[str] = None
 
     def __post_init__(self):
         if self.share_credentials_version > DeltaSharingProfile.CURRENT:
@@ -59,9 +59,7 @@ class DeltaSharingProfile:
         endpoint = json["endpoint"]
         if endpoint.endswith("/"):
             endpoint = endpoint[:-1]
-        expiration_time = ""
-        if "expirationTime" in json:
-            expiration_time = json["expirationTime"]
+        expiration_time = json.get("expirationTime")
         return DeltaSharingProfile(
             share_credentials_version=int(json["shareCredentialsVersion"]),
             endpoint=endpoint,
