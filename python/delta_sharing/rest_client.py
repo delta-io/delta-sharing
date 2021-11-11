@@ -89,7 +89,8 @@ def retry_with_exponential_backoff(func):
                     sleep_ms *= 2
                 elif self._error_on_expired_token(e):
                     raise HTTPError(
-                        f"It may be caused by an expired token as it has expired at {self._profile.expiration_time}"
+                        "It may be caused by an expired token as it has expired at "
+                        + f"{self._profile.expiration_time}"
                     ) from e
                 else:
                     raise e
