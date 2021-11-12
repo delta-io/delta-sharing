@@ -40,30 +40,54 @@ def test_share_profile(tmp_path):
     profile = DeltaSharingProfile.from_json(json)
     assert profile == DeltaSharingProfile(1, "https://localhost/delta-sharing", "token")
 
+    json = """
+        {
+            "shareCredentialsVersion": 1,
+            "endpoint": "https://localhost/delta-sharing/",
+            "bearerToken": "token",
+            "expirationTime": "2021-11-12T00:12:29.0Z"
+        }
+        """
+    profile = DeltaSharingProfile.from_json(json)
+    assert profile == DeltaSharingProfile(
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
+    )
+
     profile = DeltaSharingProfile.read_from_file(io.StringIO(json))
-    assert profile == DeltaSharingProfile(1, "https://localhost/delta-sharing", "token")
+    assert profile == DeltaSharingProfile(
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
+    )
 
     profile_path = tmp_path / "test_profile.json"
     with open(profile_path, "w") as f:
         f.write(json)
 
     profile = DeltaSharingProfile.read_from_file(str(profile_path))
-    assert profile == DeltaSharingProfile(1, "https://localhost/delta-sharing", "token")
+    assert profile == DeltaSharingProfile(
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
+    )
 
     profile = DeltaSharingProfile.read_from_file(profile_path.as_uri())
-    assert profile == DeltaSharingProfile(1, "https://localhost/delta-sharing", "token")
+    assert profile == DeltaSharingProfile(
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
+    )
 
     profile = DeltaSharingProfile.read_from_file(profile_path)
-    assert profile == DeltaSharingProfile(1, "https://localhost/delta-sharing", "token")
+    assert profile == DeltaSharingProfile(
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
+    )
 
     profile = DeltaSharingProfile.read_from_file(io.FileIO(profile_path))
-    assert profile == DeltaSharingProfile(1, "https://localhost/delta-sharing", "token")
+    assert profile == DeltaSharingProfile(
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
+    )
 
     json = """
         {
             "shareCredentialsVersion": 100,
             "endpoint": "https://localhost/delta-sharing/",
-            "bearerToken": "token"
+            "bearerToken": "token",
+            "expirationTime": "2021-11-12T00:12:29.0Z"
         }
         """
     with pytest.raises(

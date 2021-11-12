@@ -679,13 +679,14 @@ Field Name | Descrption
 shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client.
 endpoint | The url of the sharing server.
 bearerToken | The [bearer token](https://tools.ietf.org/html/rfc6750) to access the server.
-
+expirationTime | The expiration time of the bearer token in [ISO 8601 format](https://www.w3.org/TR/NOTE-datetime). This field is optional.
 Example:
 
 ```
 {
   "shareCredentialsVersion": 1,
   "endpoint": "https://sharing.delta.io/delta-sharing/",
-  "bearerToken": "<token>"
+  "bearerToken": "<token>",
+  "expirationTime": "2021-11-12T00:12:29.0Z"
 }
 ```

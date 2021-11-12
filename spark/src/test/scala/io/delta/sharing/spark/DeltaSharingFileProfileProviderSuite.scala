@@ -41,10 +41,32 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       """{
         |  "shareCredentialsVersion": 1,
         |  "endpoint": "foo",
+        |  "bearerToken": "bar",
+        |  "expirationTime": "2021-11-12T00:12:29.0Z"
+        |}
+        |""".stripMargin,
+      DeltaSharingProfile(
+        shareCredentialsVersion = Some(1),
+        endpoint = "foo",
+        bearerToken = "bar",
+        expirationTime = "2021-11-12T00:12:29.0Z"
+      )
+    )
+  }
+
+  test("expirationTime is optional") {
+    testProfile(
+      """{
+        |  "shareCredentialsVersion": 1,
+        |  "endpoint": "foo",
         |  "bearerToken": "bar"
         |}
         |""".stripMargin,
-      DeltaSharingProfile(shareCredentialsVersion = Some(1), endpoint = "foo", bearerToken = "bar")
+      DeltaSharingProfile(
+        shareCredentialsVersion = Some(1),
+        endpoint = "foo",
+        bearerToken = "bar"
+      )
     )
   }
 
@@ -111,10 +133,16 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
         |  "shareCredentialsVersion": 1,
         |  "endpoint": "foo",
         |  "bearerToken": "bar",
+        |  "expirationTime": "2021-11-12T00:12:29.0Z",
         |  "futureField": "xyz"
         |}
         |""".stripMargin,
-      DeltaSharingProfile(shareCredentialsVersion = Some(1), endpoint = "foo", bearerToken = "bar")
+      DeltaSharingProfile(
+        shareCredentialsVersion = Some(1),
+        endpoint = "foo",
+        bearerToken = "bar",
+        expirationTime = "2021-11-12T00:12:29.0Z"
+      )
     )
   }
 }
