@@ -45,17 +45,17 @@ def test_share_profile(tmp_path):
             "shareCredentialsVersion": 1,
             "endpoint": "https://localhost/delta-sharing/",
             "bearerToken": "token",
-            "expirationTime": "9999-12-31"
+            "expirationTime": "2021-11-12T00:12:29.0Z"
         }
         """
     profile = DeltaSharingProfile.from_json(json)
     assert profile == DeltaSharingProfile(
-        1, "https://localhost/delta-sharing", "token", "9999-12-31"
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
     )
 
     profile = DeltaSharingProfile.read_from_file(io.StringIO(json))
     assert profile == DeltaSharingProfile(
-        1, "https://localhost/delta-sharing", "token", "9999-12-31"
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
     )
 
     profile_path = tmp_path / "test_profile.json"
@@ -64,22 +64,22 @@ def test_share_profile(tmp_path):
 
     profile = DeltaSharingProfile.read_from_file(str(profile_path))
     assert profile == DeltaSharingProfile(
-        1, "https://localhost/delta-sharing", "token", "9999-12-31"
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
     )
 
     profile = DeltaSharingProfile.read_from_file(profile_path.as_uri())
     assert profile == DeltaSharingProfile(
-        1, "https://localhost/delta-sharing", "token", "9999-12-31"
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
     )
 
     profile = DeltaSharingProfile.read_from_file(profile_path)
     assert profile == DeltaSharingProfile(
-        1, "https://localhost/delta-sharing", "token", "9999-12-31"
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
     )
 
     profile = DeltaSharingProfile.read_from_file(io.FileIO(profile_path))
     assert profile == DeltaSharingProfile(
-        1, "https://localhost/delta-sharing", "token", "9999-12-31"
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
     )
 
     json = """
@@ -87,7 +87,7 @@ def test_share_profile(tmp_path):
             "shareCredentialsVersion": 100,
             "endpoint": "https://localhost/delta-sharing/",
             "bearerToken": "token",
-            "expirationTime": "9999-12-31"
+            "expirationTime": "2021-11-12T00:12:29.0Z"
         }
         """
     with pytest.raises(

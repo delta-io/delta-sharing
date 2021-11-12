@@ -42,14 +42,14 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
         |  "shareCredentialsVersion": 1,
         |  "endpoint": "foo",
         |  "bearerToken": "bar",
-        |  "expirationTime": "9999-12-31 23:59:59.999"
+        |  "expirationTime": "2021-11-12T00:12:29.0Z"
         |}
         |""".stripMargin,
       DeltaSharingProfile(
         shareCredentialsVersion = Some(1),
         endpoint = "foo",
         bearerToken = "bar",
-        expirationTime = "9999-12-31 23:59:59.999"
+        expirationTime = "2021-11-12T00:12:29.0Z"
       )
     )
   }
@@ -133,7 +133,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
         |  "shareCredentialsVersion": 1,
         |  "endpoint": "foo",
         |  "bearerToken": "bar",
-        |  "expirationTime": "9999-12-31 23:59:59.999",
+        |  "expirationTime": "2021-11-12T00:12:29.0Z",
         |  "futureField": "xyz"
         |}
         |""".stripMargin,
@@ -141,7 +141,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
         shareCredentialsVersion = Some(1),
         endpoint = "foo",
         bearerToken = "bar",
-        expirationTime = "9999-12-31 23:59:59.999"
+        expirationTime = "2021-11-12T00:12:29.0Z"
       )
     )
   }
