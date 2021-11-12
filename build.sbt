@@ -54,7 +54,7 @@ lazy val spark = (project in file("spark")) settings(
     "org.scalatest" %% "scalatest" % "3.2.3" % "test"
   ),
   sourceGenerators in Compile += Def.task {
-    val file = (sourceManaged in Compile).value / "io" / "delta" / "sharing" / "package.scala"
+    val file = (sourceManaged in Compile).value / "io" / "delta" / "sharing" / "spark" / "package.scala"
     IO.write(file,
       s"""package io.delta.sharing
          |
