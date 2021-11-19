@@ -4,6 +4,9 @@
 cd $( dirname $0 )
 cd ..
 
+# Clean up uncommitted files
+git clean -fdx
+
 # Clean existing artifacts
 build/sbt clean
 cd python
