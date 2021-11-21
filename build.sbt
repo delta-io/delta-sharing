@@ -54,7 +54,7 @@ lazy val spark = (project in file("spark")) settings(
     "org.scalatest" %% "scalatest" % "3.2.3" % "test"
   ),
   sourceGenerators in Compile += Def.task {
-    val file = (sourceManaged in Compile).value / "io" / "delta" / "sharing" / "package.scala"
+    val file = (sourceManaged in Compile).value / "io" / "delta" / "sharing" / "spark" / "package.scala"
     IO.write(file,
       s"""package io.delta.sharing
          |
@@ -180,18 +180,6 @@ lazy val releaseSettings = Seq(
 
   releaseCrossBuild := true,
 
-  releaseProcess := Seq[ReleaseStep](
-    checkSnapshotDependencies,
-    inquireVersions,
-    runTest,
-    setReleaseVersion,
-    commitReleaseVersion,
-    tagRelease,
-    releaseStepCommandAndRemaining("+publishLocalSigned"),
-    setNextVersion,
-    commitNextVersion
-  ),
-
   licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
 
   pomExtra :=
@@ -234,3 +222,15 @@ publishArtifact := false  // Don't release the root project
 publish := {}
 publishTo := Some("snapshots" at "https://oss.sonatype.org/content/repositories/snapshots")
 releaseCrossBuild := false
+releaseProcess := Seq[ReleaseStep](
+  checkSnapshotDependencies,
+  inquireVersions,
+  runClean,
+  runTest,
+  setReleaseVersion,
+  commitReleaseVersion,
+  tagRelease,
+  publishArtifacts,
+  setNextVersion,
+  commitNextVersion
+)

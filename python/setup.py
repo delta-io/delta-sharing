@@ -43,7 +43,7 @@ setup(
     python_requires='>=3.6,<3.10',
     install_requires=[
         'pandas',
-        'pyarrow',
+        'pyarrow>=4.0.0',
         'fsspec>=0.7.4',
         'requests',
         'aiohttp',

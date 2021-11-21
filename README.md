@@ -13,7 +13,7 @@
 With Delta Sharing, a user accessing shared data can directly connect to it through pandas, Tableau, Apache Spark, Rust, or other systems that support the open protocol, without having to deploy a specific compute platform first. Data providers can share a dataset once to reach a broad range of consumers, while consumers can begin using the data in minutes.
 
 <p align="center">
-  <img src="https://delta.io/wp-content/uploads/2021/08/sharing-hero-v3b.png" width="85%"/>
+  <img src="https://delta.io/wp-content/uploads/2021/11/sharing-hero-v5.png" width="85%"/>
 </p>
 
 This repo includes the following components:
@@ -67,6 +67,9 @@ client.list_all_tables()
 # Create a url to access a shared table.
 # A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
 table_url = profile_file + "#<share-name>.<schema-name>.<table-name>"
+
+# Fetch 10 rows from a table and convert it to a Pandas DataFrame. This can be used to read sample data from a table that cannot fit in the memory.
+delta_sharing.load_as_pandas(table_url, limit=10)
 
 # Load a table as a Pandas DataFrame. This can be used to process tables that can fit in the memory.
 delta_sharing.load_as_pandas(table_url)
