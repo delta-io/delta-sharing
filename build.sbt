@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import sbt.ExclusionRule
+import sbt.{ExclusionRule, file}
 
 ThisBuild / parallelExecution := false
 
@@ -99,6 +99,10 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
       ExclusionRule("com.fasterxml.jackson.module")
     ),
     "org.apache.hadoop" % "hadoop-azure" % "2.10.1" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module")
+    ),
+    "com.google.cloud" % "google-cloud-storage" % "2.2.1" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")
     ),

@@ -22,6 +22,10 @@ import java.util.concurrent.TimeUnit.SECONDS
 
 import com.amazonaws.HttpMethod
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest
+import com.google.cloud.storage.BlobId
+import com.google.cloud.storage.BlobInfo
+import com.google.cloud.storage.Storage
+import com.google.cloud.storage.StorageOptions
 import com.microsoft.azure.storage.{CloudStorageAccount, SharedAccessProtocols, StorageCredentialsSharedAccessSignature}
 import com.microsoft.azure.storage.blob.{SharedAccessBlobPermissions, SharedAccessBlobPolicy}
 import org.apache.hadoop.conf.Configuration
@@ -31,6 +35,7 @@ import org.apache.hadoop.fs.azurebfs.{AzureBlobFileSystem, AzureBlobFileSystemSt
 import org.apache.hadoop.fs.azurebfs.services.AuthType
 import org.apache.hadoop.fs.s3a.DefaultS3ClientFactory
 import org.apache.hadoop.util.ReflectionUtils
+
 
 trait CloudFileSigner {
   def sign(path: Path): String
@@ -186,5 +191,22 @@ object AbfsFileSigner {
       container,
       preSignedUrlTimeoutSeconds,
       getRelativePath(abfsStore, _))
+  }
+}
+
+class GCSFileSigner(
+    name: URI,
+    conf: Configuration,
+    preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner{
+
+  override def sign(path: Path): String = {
+    val absPath = path.toUri
+    val bucketName = absPath.getHost
+    val objectName = absPath.getPath.stripPrefix("/")
+    val storage = StorageOptions.newBuilder.build.getService
+    val blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, objectName)).build
+    storage.signUrl(
+      blobInfo, preSignedUrlTimeoutSeconds, SECONDS, Storage.SignUrlOption.withV4Signature())
+      .toString
   }
 }
