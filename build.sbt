@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import sbt.{ExclusionRule, file}
+import sbt.ExclusionRule
 
 ThisBuild / parallelExecution := false
 
