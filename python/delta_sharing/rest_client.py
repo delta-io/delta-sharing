@@ -234,8 +234,7 @@ class DataSharingRestClient:
             data["limitHint"] = limitHint
 
         with self._post_internal(
-            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query",
-            data=data,
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query", data=data,
         ) as lines:
             protocol_json = json.loads(next(lines))
             metadata_json = json.loads(next(lines))

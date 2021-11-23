@@ -86,12 +86,9 @@ class DeltaSharingReader:
                 if left == 0:
                     break
 
-        return pd.concat(
-            pdfs,
-            axis=0,
-            ignore_index=True,
-            copy=False,
-        )[[field["name"] for field in schema_json["fields"]]]
+        return pd.concat(pdfs, axis=0, ignore_index=True, copy=False,)[
+            [field["name"] for field in schema_json["fields"]]
+        ]
 
     def _copy(
         self, *, predicateHints: Optional[Sequence[str]], limit: Optional[int]
