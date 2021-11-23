@@ -17,7 +17,7 @@ import collections
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
-from typing import Any, ClassVar, Dict, Optional, Sequence
+from typing import Any, ClassVar, Dict, Generator, Optional, Sequence
 from urllib.parse import urlparse
 import time
 import logging
@@ -234,7 +234,8 @@ class DataSharingRestClient:
             data["limitHint"] = limitHint
 
         with self._post_internal(
-            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query", data=data,
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query",
+            data=data,
         ) as lines:
             protocol_json = json.loads(next(lines))
             metadata_json = json.loads(next(lines))
@@ -248,15 +249,15 @@ class DataSharingRestClient:
         self._session.close()
 
     def _get_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
-        return self._request_internal(request=self._session.get, target=target, data=data)
+        return self._request_internal(request=self._session.get, target=target, params=data)
 
     def _post_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
-        return self._request_internal(request=self._session.post, target=target, data=data)
+        return self._request_internal(request=self._session.post, target=target, json=data)
 
     @contextmanager
-    def _request_internal(self, request, target: str, data: Optional[Dict[str, Any]]):
+    def _request_internal(self, request, target: str, **kwargs) -> Generator[str, None, None]:
         assert target.startswith("/"), "Targets should start with '/'"
-        response = request(f"{self._profile.endpoint}{target}", json=data)
+        response = request(f"{self._profile.endpoint}{target}", **kwargs)
         try:
             response.raise_for_status()
             lines = response.iter_lines(decode_unicode=True)

@@ -132,6 +132,21 @@ def test_list_tables(rest_client: DataSharingRestClient):
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_list_tables_with_pagination(rest_client: DataSharingRestClient):
+    response = rest_client.list_tables(Schema(name="default", share="share1"), max_results=1)
+    assert response.tables == [
+        Table(name="table1", share="share1", schema="default"),
+    ]
+    response = rest_client.list_tables(
+        Schema(name="default", share="share1"), page_token=response.next_page_token
+    )
+    assert response.tables == [
+        Table(name="table3", share="share1", schema="default"),
+        Table(name="table7", share="share1", schema="default"),
+    ]
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_table_metadata_non_partitioned(rest_client: DataSharingRestClient):
     response = rest_client.query_table_metadata(
         Table(name="table1", share="share1", schema="default")
