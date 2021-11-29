@@ -49,22 +49,22 @@ message QueryTableRequest {
 
 message ListSharesResponse {
     repeated Share items = 1;
-    optional string next_page_token = 2;
+    optional string nextPageToken = 2;
 }
 
 message ListSchemasResponse {
     repeated Schema items = 1;
-    optional string next_page_token = 2;
+    optional string nextPageToken = 2;
 }
 
 message ListTablesResponse {
     repeated Table items = 1;
-    optional string next_page_token = 2;
+    optional string nextPageToken = 2;
 }
 
 message ListAllTablesResponse {
     repeated Table items = 1;
-    optional string next_page_token = 2;
+    optional string nextPageToken = 2;
 }
 
 // Define a special class to generate the page token for pagination. It includes the information we
