@@ -41,6 +41,13 @@ import io.delta.sharing.server.model.SingleAction
 import io.delta.sharing.server.protocol._
 import io.delta.sharing.server.util.JsonUtils
 
+object ErrorCode {
+  val INTERNAL_ERROR = "INTERNAL_ERROR"
+  val RESOURCE_DOES_NOT_EXIST = "RESOURCE_DOES_NOT_EXIST"
+  val INVALID_PARAMETER_VALUE = "INVALID_PARAMETER_VALUE"
+  val MALFORMED_REQUEST = "MALFORMED_REQUEST"
+}
+
 /**
  * A special handler to expose the messages of user facing exceptions to the user. By default, all
  * of exception messages will not be in the response.
@@ -55,28 +62,57 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
     cause match {
       // Handle exceptions caused by incorrect requests
       case _: DeltaSharingNoSuchElementException =>
-        HttpResponse.of(HttpStatus.NOT_FOUND, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
+        HttpResponse.of(
+          HttpStatus.NOT_FOUND,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.RESOURCE_DOES_NOT_EXIST,
+              "message" -> cause.getMessage)))
       case _: DeltaSharingIllegalArgumentException =>
-        HttpResponse.of(HttpStatus.BAD_REQUEST, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
-      // Handle potential exceptions thrown when Armeria parses the requests. These exceptions
-      // happens before `DeltaSharingService` receives the requests so these exceptions should never
-      // contain sensitive information and should be okay to return their messages to the user.
-      case _: scalapb.json4s.JsonFormatException =>
-        // valid json but may be incorrect field type
-        HttpResponse.of(HttpStatus.BAD_REQUEST, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
-      case _: com.fasterxml.jackson.databind.JsonMappingException =>
-        // invalid json
-        HttpResponse.of(HttpStatus.BAD_REQUEST, MediaType.PLAIN_TEXT_UTF_8, cause.getMessage)
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.INVALID_PARAMETER_VALUE,
+              "message" -> cause.getMessage)))
+      // Handle potential exceptions thrown when Armeria parses the requests.
+      // These exceptions happens before `DeltaSharingService` receives the
+      // requests so these exceptions should never contain sensitive information
+      // and should be okay to return their messages to the user.
+      //
+      // valid json but may not be incorect field type
+      case (_: scalapb.json4s.JsonFormatException |
+      // invalid json
+            _: com.fasterxml.jackson.databind.JsonMappingException) =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.MALFORMED_REQUEST,
+              "message" -> cause.getMessage)))
       case _: NumberFormatException =>
         // `maxResults` is not an int.
         HttpResponse.of(
           HttpStatus.BAD_REQUEST,
-          MediaType.PLAIN_TEXT_UTF_8,
-          "expected a number but the string didn't have the appropriate format")
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.INVALID_PARAMETER_VALUE,
+              "message" -> "expected a number but the string didn't have the appropriate format")))
       // Handle unhandle exceptions
       case _: DeltaInternalException =>
         logger.error(cause.getMessage, cause)
-        HttpResponse.of(HttpStatus.INTERNAL_SERVER_ERROR)
+        // Hide message in response
+        HttpResponse.of(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          MediaType.PLAIN_TEXT_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.INTERNAL_ERROR,
+              "message" -> "")))
       case _ =>
         logger.error(cause.getMessage, cause)
         ExceptionHandlerFunction.fallthrough()
