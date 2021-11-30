@@ -64,7 +64,7 @@ private[sharing] case class ListAllTablesResponse(
     nextPageToken: Option[String]) extends PaginationResponse
 
 /** A REST client to fetch Delta metadata from remote server. */
-class DeltaSharingRestClient(
+private[spark] class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
@@ -295,7 +295,7 @@ class DeltaSharingRestClient(
   }
 }
 
-object DeltaSharingRestClient extends Logging {
+private[spark] object DeltaSharingRestClient extends Logging {
   val CURRENT = 1
 
   lazy val USER_AGENT = {

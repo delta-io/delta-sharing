@@ -14,14 +14,28 @@
 # limitations under the License.
 #
 from datetime import date
-from typing import Optional
+from typing import Optional, Sequence
 
 import pandas as pd
 import pytest
 
-from delta_sharing.delta_sharing import SharingClient, load_as_pandas, load_as_spark, _parse_url
+from delta_sharing.delta_sharing import (
+    DeltaSharingProfile,
+    SharingClient,
+    load_as_pandas,
+    load_as_spark,
+    _parse_url,
+)
 from delta_sharing.protocol import Schema, Share, Table
+from delta_sharing.rest_client import (
+    DataSharingRestClient,
+    ListAllTablesResponse,
+    retry_with_exponential_backoff,
+)
 from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
+
+from requests.models import Response
+from requests.exceptions import HTTPError
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -61,9 +75,7 @@ def test_list_tables(sharing_client: SharingClient):
     assert tables == [Table(name="table2", share="share2", schema="default")]
 
 
-@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_list_all_tables(sharing_client: SharingClient):
-    tables = sharing_client.list_all_tables()
+def _verify_all_tables_result(tables: Sequence[Table]):
     assert tables == [
         Table(name="table1", share="share1", schema="default"),
         Table(name="table3", share="share1", schema="default"),
@@ -77,6 +89,43 @@ def test_list_all_tables(sharing_client: SharingClient):
         Table(name="table_wasb", share="share_azure", schema="default"),
         Table(name="table_abfs", share="share_azure", schema="default"),
     ]
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_list_all_tables(sharing_client: SharingClient):
+    tables = sharing_client.list_all_tables()
+    _verify_all_tables_result(tables)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
+    class TestDataSharingRestClient(DataSharingRestClient):
+        """
+        A special DataSharingRestClient whose list_all_tables always fails with 404. We use this to
+        test the fallback logic for old servers.
+        """
+
+        def __init__(self):
+            super().__init__(profile)
+
+        @retry_with_exponential_backoff
+        def list_all_tables(
+            self,
+            share: Share,
+            *,
+            max_results: Optional[int] = None,
+            page_token: Optional[str] = None,
+        ) -> ListAllTablesResponse:
+            http_error = HTTPError()
+            response = Response()
+            response.status_code = 404
+            http_error.response = response
+            raise http_error
+
+    sharing_client = SharingClient(profile)
+    sharing_client._rest_client = TestDataSharingRestClient()
+    tables = sharing_client.list_all_tables()
+    _verify_all_tables_result(tables)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
