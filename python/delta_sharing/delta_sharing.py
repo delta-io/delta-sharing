@@ -28,6 +28,8 @@ from delta_sharing.protocol import DeltaSharingProfile, Schema, Share, Table
 from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import DataSharingRestClient
 
+from requests.exceptions import HTTPError
+
 
 def _parse_url(url: str) -> Tuple[str, str, str, str]:
     """
@@ -163,4 +165,12 @@ class SharingClient:
         :return: all tables that can be accessed.
         """
         shares = self.list_shares()
-        return list(chain(*(self.__list_all_tables_in_share(share) for share in shares)))
+        try:
+            return list(chain(*(self.__list_all_tables_in_share(share) for share in shares)))
+        except HTTPError as e:
+            if e.response.status_code == 404:
+                # The server doesn't support all-tables API. Fallback to the old APIs instead.
+                schemas = chain(*(self.list_schemas(share) for share in shares))
+                return list(chain(*(self.list_tables(schema) for schema in schemas)))
+            else:
+                raise e
