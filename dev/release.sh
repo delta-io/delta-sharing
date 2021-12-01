@@ -1,5 +1,7 @@
 #!/bin/bash -e -pipe
 
+export GPG_TTY=$(tty)
+
 # Switch to the project root directory
 cd $( dirname $0 )
 cd ..
@@ -21,7 +23,8 @@ echo $VERSION
 # Update the Python connector version
 sed -i '' "s/__version__ = \".*\"/__version__ = \"$VERSION\"/g"  python/delta_sharing/version.py
 git add python/delta_sharing/version.py
-git commit -m "Update Python connector version to $VERSION"
+# Use --allow-empty so that we can re-run this script even if the Python connector version has been updated
+git commit -m "Update Python connector version to $VERSION" --allow-empty
 
 build/sbt "release skip-tests"
 
