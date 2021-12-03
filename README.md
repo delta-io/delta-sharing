@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://user-images.githubusercontent.com/1000778/137567793-28ba7099-66fe-4d77-be50-bcee444a2017.png" alt="Delta Sharing Logo" width="200" />
+  <img src="https://user-images.githubusercontent.com/1446829/144671151-b095e1b9-2d24-4d3b-b3c6-a7041e491077.png" alt="Delta Sharing Logo" width="200" />
 </div>
 
 # Delta Sharing: An Open Protocol for Secure Data Sharing
@@ -19,6 +19,7 @@ With Delta Sharing, a user accessing shared data can directly connect to it thro
 This repo includes the following components:
 
 - Delta Sharing [protocol specification](PROTOCOL.md).
+
 - Python Connector: A Python library that implements the Delta Sharing Protocol to read shared tables as [pandas](https://pandas.pydata.org/) DataFrame or [Apache Spark](http://spark.apache.org/) DataFrames.
 - [Apache Spark](http://spark.apache.org/) Connector: An Apache Spark connector that implements the Delta Sharing Protocol to read shared tables from a Delta Sharing Server. The tables can then be accessed in SQL, Python, Java, Scala, or R.
 - Delta Sharing Server: A reference implementation server for the Delta Sharing Protocol for development purposes. Users can deploy this server to share existing tables in Delta Lake and Apache Parquet format on modern cloud storage systems.
