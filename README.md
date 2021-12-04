@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://user-images.githubusercontent.com/1000778/137567793-28ba7099-66fe-4d77-be50-bcee444a2017.png" alt="Delta Sharing Logo" width="200" />
+  <img src="https://user-images.githubusercontent.com/1446829/144671151-b095e1b9-2d24-4d3b-b3c6-a7041e491077.png" alt="Delta Sharing Logo" width="200" />
 </div>
 
 # Delta Sharing: An Open Protocol for Secure Data Sharing
@@ -13,7 +13,7 @@
 With Delta Sharing, a user accessing shared data can directly connect to it through pandas, Tableau, Apache Spark, Rust, or other systems that support the open protocol, without having to deploy a specific compute platform first. Data providers can share a dataset once to reach a broad range of consumers, while consumers can begin using the data in minutes.
 
 <p align="center">
-  <img src="https://delta.io/wp-content/uploads/2021/11/sharing-hero-v5.png" width="85%"/>
+  <img src="https://delta.io/wp-content/uploads/2021/12/revised-sharing-hero@2x-1.png" width="85%"/>
 </p>
 
 This repo includes the following components:
