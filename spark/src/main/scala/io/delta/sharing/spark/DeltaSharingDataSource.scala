@@ -28,29 +28,15 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /** A DataSource V1 for integrating Delta into Spark SQL batch APIs. */
-private[sharing] class DeltaSharingDataSource extends TableProvider with RelationProvider
-  with DataSourceRegister {
-
-  override def inferSchema(options: CaseInsensitiveStringMap): StructType = new StructType()
-
-  override def getTable(
-      schema: StructType,
-      partitioning: Array[Transform],
-      properties: java.util.Map[String, String]): Table = {
-    // Return a Table with no capabilities so we fall back to the v1 path.
-    new Table {
-      override def name(): String = s"V1FallbackTable"
-      override def schema(): StructType = new StructType()
-      override def capabilities(): java.util.Set[TableCapability] = Collections.emptySet()
-    }
-  }
+private[sharing] class DeltaSharingDataSource extends RelationProvider with DataSourceRegister {
 
   override def createRelation(
       sqlContext: SQLContext,
       parameters: Map[String, String]): BaseRelation = {
     DeltaSharingDataSource.setupFileSystem(sqlContext)
-    val path = parameters.getOrElse(
-      "path", throw new IllegalArgumentException("'path' is not specified"))
+    val path = parameters.getOrElse("path", throw new IllegalArgumentException(
+      "'path' is not specified. If you use SQL to create a Delta Sharing table, " +
+        "LOCATION must be specified"))
     val deltaLog = RemoteDeltaLog(path)
     deltaLog.createRelation()
   }

@@ -202,4 +202,11 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       }
     }
   }
+
+  test("creating a managed table should fail") {
+    val e = intercept[IllegalArgumentException] {
+      sql("CREATE table foo USING deltaSharing")
+    }
+    assert(e.getMessage.contains("LOCATION must be specified"))
+  }
 }
