@@ -54,12 +54,16 @@ class ServerConfigSuite extends FunSuite {
         ShareConfig("share1", Arrays.asList(
           SchemaConfig("schema1", Arrays.asList(
             TableConfig("table1", "s3a://<bucket-name>/<the-table-path>"),
-            TableConfig("table2", "s3a://<bucket-name>/<the-table-path>")
+            TableConfig(
+              "table2",
+              "wasbs://<container-name>@<account-name}.blob.core.windows.net/<the-table-path>")
           ))
         )),
         ShareConfig("share2", Arrays.asList(
           SchemaConfig("schema2", Arrays.asList(
-            TableConfig("table3", "s3a://<bucket-name>/<the-table-path>")
+            TableConfig(
+              "table3",
+              "abfss://<container-name>@<account-name}.dfs.core.windows.net/<the-table-path>")
           ))
         ))
       )
