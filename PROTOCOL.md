@@ -14,7 +14,7 @@
     - [Query Table Version](#query-table-version)
     - [Query Table Metadata](#query-table-metadata)
     - [Read Data from a Table](#read-data-from-a-table)
-        - [Request Body](#request-body)
+      - [Request Body](#request-body)
   - [Table Metadata Format](#table-metadata-format)
     - [JSON Wrapper Object In Each Line](#json-wrapper-object-in-each-line)
     - [Protocol](#protocol)
