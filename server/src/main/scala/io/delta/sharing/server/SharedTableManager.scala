@@ -92,7 +92,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
     }
   }
 
-  private def getShare(share: String): ShareConfig = {
+  private def getShareInternal(share: String): ShareConfig = {
     shares.asScala.find(s => caseInsensitiveComparer(s.getName, share))
       .getOrElse(throw new DeltaSharingNoSuchElementException(s"share '$share' not found"))
   }
@@ -112,11 +112,16 @@ class SharedTableManager(serverConfig: ServerConfig) {
     }
   }
 
+  def getShare(share: String): Share = {
+    val shareConfig = getShareInternal(share)
+    Share().withName(shareConfig.getName)
+  }
+
   def listSchemas(
       share: String,
       nextPageToken: Option[String] = None,
       maxResults: Option[Int] = None): (Seq[Schema], Option[String]) = {
-    val shareConfig = getShare(share)
+    val shareConfig = getShareInternal(share)
     getPage(nextPageToken, Some(share), None, maxResults, shareConfig.getSchemas.size) {
       (start, end) =>
         shareConfig.getSchemas.asScala.map { schemaConfig =>
@@ -130,7 +135,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
       schema: String,
       nextPageToken: Option[String] = None,
       maxResults: Option[Int] = None): (Seq[Table], Option[String]) = {
-    val schemaConfig = getSchema(getShare(share), schema)
+    val schemaConfig = getSchema(getShareInternal(share), schema)
     getPage(nextPageToken, Some(share), Some(schema), maxResults, schemaConfig.getTables.size) {
       (start, end) =>
         schemaConfig.getTables.asScala.map { tableConfig =>
@@ -143,7 +148,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
       share: String,
       nextPageToken: Option[String] = None,
       maxResults: Option[Int] = None): (Seq[Table], Option[String]) = {
-    val shareConfig = getShare(share)
+    val shareConfig = getShareInternal(share)
     val totalSize = shareConfig.schemas.asScala.map(_.tables.size).sum
     getPage(nextPageToken, Some(share), None, maxResults, totalSize) {
       (start, end) =>
@@ -161,7 +166,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
   }
 
   def getTable(share: String, schema: String, table: String): TableConfig = {
-    val schemaConfig = getSchema(getShare(share), schema)
+    val schemaConfig = getSchema(getShareInternal(share), schema)
     schemaConfig.getTables.asScala.find(t => caseInsensitiveComparer(t.getName, table))
       .getOrElse(throw new DeltaSharingNoSuchElementException(s"table '$table' not found"))
   }

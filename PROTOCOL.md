@@ -7,13 +7,13 @@
   - [Concepts](#concepts)
   - [REST APIs](#rest-apis)
     - [List Shares](#list-shares)
+    - [Get Share](#get-share)
     - [List Schemas in a Share](#list-schemas-in-a-share)
     - [List Tables in a Schema](#list-tables-in-a-schema)
     - [List all Tables in a Share](#list-all-tables-in-a-share)
     - [Query Table Version](#query-table-version)
     - [Query Table Metadata](#query-table-metadata)
     - [Read Data from a Table](#read-data-from-a-table)
-      - [Request Body](#request-body)
   - [Table Metadata Format](#table-metadata-format)
     - [JSON Wrapper Object In Each Line](#json-wrapper-object-in-each-line)
     - [Protocol](#protocol)
@@ -87,6 +87,33 @@ GET {prefix}/shares?maxResults=10&pageToken=...
       }
    ],
    "nextPageToken" : "..."
+}
+```
+
+### Get Share
+
+This is the API to get the metadata of a Share.
+
+HTTP Parameters | Value
+-- | --
+HTTP Method | GET
+Header | Authorization: Bearer {token}
+URL | {prefix}/shares/{share}
+URL Parameters | {share}: The share name to query. It's case-insensitive.
+Response Header | Content-Type: application/json; charset=utf-8
+Response Body | <pre>{<br>  "share": {<br>    "name": string<br>    "id": string<br>  }<br>}</pre> Note: The `id` field is optional. If `id` is populated for a Share, its value should be unique across the sharing server and immutable through the Share's lifecycle.
+
+Example:
+
+```
+GET {prefix}/shares/{share}
+
+
+{
+    "share": {
+        "name" : "vaccine_share",
+        "id" : "edacc4a7-6600-4fbb-85f3-a62a5ce6761f"
+    }
 }
 ```
 
