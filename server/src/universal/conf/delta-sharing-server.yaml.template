@@ -7,15 +7,18 @@ shares:
   - name: "schema1"
     tables:
     - name: "table1"
+      # S3. See https://github.com/delta-io/delta-sharing#s3 for how to config the credentials
       location: "s3a://<bucket-name>/<the-table-path>"
     - name: "table2"
-      location: "s3a://<bucket-name>/<the-table-path>"
+      # Azure Blob Storage. See https://github.com/delta-io/delta-sharing#azure-blob-storage for how to config the credentials
+      location: "wasbs://<container-name>@<account-name}.blob.core.windows.net/<the-table-path>"
 - name: "share2"
   schemas:
   - name: "schema2"
     tables:
     - name: "table3"
-      location: "s3a://<bucket-name>/<the-table-path>"
+      # Azure Data Lake Storage Gen2. See https://github.com/delta-io/delta-sharing#azure-data-lake-storage-gen2 for how to config the credentials
+      location: "abfss://<container-name>@<account-name}.dfs.core.windows.net/<the-table-path>"
 # Set the host name that the server will use
 host: "localhost"
 # Set the port that the server will listen on. Note: using ports below 1024 
