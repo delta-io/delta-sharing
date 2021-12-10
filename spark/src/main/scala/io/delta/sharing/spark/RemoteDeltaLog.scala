@@ -19,6 +19,7 @@ package io.delta.sharing.spark
 import java.lang.ref.WeakReference
 import java.util.concurrent.TimeUnit
 
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.SparkException
 import org.apache.spark.delta.sharing.CachedTableManager
@@ -36,6 +37,7 @@ import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.spark.model.{AddFile, Metadata, Protocol, Table => DeltaSharingTable}
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
+
 
 /** Used to query the current state of the transaction logs of a remote shared Delta table. */
 private[sharing] class RemoteDeltaLog(
@@ -101,12 +103,21 @@ private[sharing] object RemoteDeltaLog {
   }
 
   def apply(path: String): RemoteDeltaLog = {
-    val (profileFile, share, schema, table) = parsePath(path)
-    val profileProvider = new DeltaSharingFileProfileProvider(
-      SparkSession.active.sessionState.newHadoopConf,
-      profileFile)
-    val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
     val sqlConf = SparkSession.active.sessionState.conf
+    val (profileFile, share, schema, table) = parsePath(path)
+
+    val profileProviderclass =
+      sqlConf.getConfString("spark.delta.sharing.profile.provider.class",
+        "io.delta.sharing.spark.DeltaSharingFileProfileProvider")
+
+    val profileProvider: DeltaSharingProfileProvider =
+      Class.forName(profileProviderclass)
+        .getConstructor(classOf[Configuration], classOf[String])
+        .newInstance(SparkSession.active.sessionState.newHadoopConf(),
+          profileFile)
+        .asInstanceOf[DeltaSharingProfileProvider]
+
+    val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
     // This is a flag to test the local https server. Should never be used in production.
     val sslTrustAll =
       sqlConf.getConfString("spark.delta.sharing.network.sslTrustAll", "false").toBoolean
