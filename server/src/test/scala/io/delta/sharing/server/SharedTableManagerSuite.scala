@@ -70,6 +70,20 @@ class SharedTableManagerSuite extends FunSuite {
     assert(response._2.isEmpty) // nextPageToken
   }
 
+  test("get share") {
+    val serverConfig = new ServerConfig()
+    serverConfig.shares = Arrays.asList(
+      ShareConfig("share1", Collections.emptyList())
+    )
+    val sharedTableManager = new SharedTableManager(serverConfig)
+    val response = sharedTableManager.getShare("share1")
+    assert(response.getName == "share1")
+
+    assert(intercept[DeltaSharingNoSuchElementException] {
+      sharedTableManager.getShare("share2")
+    }.getMessage.contains("share 'share2' not found"))
+  }
+
   test("list schemas") {
     val serverConfig = new ServerConfig()
     serverConfig.shares = Arrays.asList(

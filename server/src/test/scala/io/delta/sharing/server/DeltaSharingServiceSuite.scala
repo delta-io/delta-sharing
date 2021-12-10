@@ -188,6 +188,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expected == shares)
   }
 
+  integrationTest("/shares/{share}") {
+    val response = readJson(requestPath("/shares/share1"))
+    val expected = GetShareResponse(Some(Share().withName("share1")))
+    assert(expected == JsonFormat.fromJsonString[GetShareResponse](response))
+  }
+
   integrationTest("/shares/{share}/schemas") {
     val response = readJson(requestPath("/shares/share1/schemas"))
     val expected = ListSchemasResponse(
