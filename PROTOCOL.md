@@ -161,7 +161,7 @@ URL | {prefix}/shares/{share}/schemas/{schema}/tables
 URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.
 Query Parameters | **maxResults** (type: Int, optional): The maximum number of results per page that should be returned. If the number of available results is larger than `maxResults`, the response will provide a `nextPageToken` that can be used to get the next page of results in subsequent list requests. The server may return fewer than `maxResults` items even if there are more available. The client should check `nextPageToken` in the response to determine if there are more available.<br><br>**pageToken** (type: String, optional): Specifies a page token to use. Set `pageToken` to the `nextPageToken` returned by a previous list request to get the next page of results. `nextPageToken` will not be returned in a response if there are no more results available.
 Response Header | Content-Type: application/json; charset=utf-8
-Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>      "id": string<br>      "schema": string<br>      "share": string<br>    }<br>  ],<br>  "nextPageToken": string,<br>}</pre> Note: <br>1. the `items` field may be an empty array or missing when no results are found. The client must handle both cases. <br>2. The `id` field is optional. If `id` is populated for a table, its value should be unique within the share it belongs to and immutable through the table's lifecycle.
+Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>      "id": string<br>      "schema": string<br>      "share": string<br>    "shareId": string<br>      }<br>  ],<br>  "nextPageToken": string,<br>}</pre> Note: <br>1. the `items` field may be an empty array or missing when no results are found. The client must handle both cases. <br>2. The `id` field is optional. If `id` is populated for a table, its value should be unique within the share it belongs to and immutable through the table's lifecycle.
 
 Example:
 
@@ -174,6 +174,7 @@ GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables?maxResults=10
          "share" : "vaccine_share",
          "schema" : "acme_vaccine_data",
          "name" : "vaccine_ingredients",
+         "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
          "id": "dcb1e680-7da4-4041-9be8-88aff508d001"
             
       },
@@ -181,6 +182,7 @@ GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables?maxResults=10
          "share" : "vaccine_share",
          "schema" : "acme_vaccine_data",
          "name" : "vaccine_patients",
+         "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
          "id": "c48f3e19-2c29-4ea3-b6f7-3899e53338fa"
       }
    ],
@@ -200,7 +202,7 @@ URL | {prefix}/shares/{share}/all-tables
 URL Parameters | **{share}**: The share name to query. It's case-insensitive.
 Query Parameters | **maxResults** (type: Int, optional): The maximum number of results per page that should be returned. If the number of available results is larger than `maxResults`, the response will provide a `nextPageToken` that can be used to get the next page of results in subsequent list requests. The server may return fewer than `maxResults` items even if there are more available. The client should check `nextPageToken` in the response to determine if there are more available.<br><br>**pageToken** (type: String, optional): Specifies a page token to use. Set `pageToken` to the `nextPageToken` returned by a previous list request to get the next page of results. `nextPageToken` will not be returned in a response if there are no more results available.
 Response Header | Content-Type: application/json; charset=utf-8
-Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>      "id": string<br>      "schema": string<br>      "share": string<br>    }<br>  ],<br>  "nextPageToken": string,<br>}</pre> Note: <br> 1. the `items` field may be an empty array or missing when no results are found. The client must handle both cases.<br> 2. The `id` field is optional. If `id` is populated for a table, its value should be unique within the share it belongs to and immutable through the table's lifecycle.
+Response Body | <pre>{<br>  "items": [<br>    {<br>      "name": string<br>      "id": string<br>      "schema": string<br>      "share": string<br>    "shareId": string<br>      }<br>  ],<br>  "nextPageToken": string,<br>}</pre> Note: <br> 1. the `items` field may be an empty array or missing when no results are found. The client must handle both cases.<br> 2. The `id` field is optional. If `id` is populated for a table, its value should be unique within the share it belongs to and immutable through the table's lifecycle. <br> 3. The `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
 
 Example:
 
@@ -213,12 +215,14 @@ GET {prefix}/shares/vaccine_share/all-tables
          "share" : "vaccine_share",
          "schema" : "acme_vaccine_ingredient_data",
          "name" : "vaccine_ingredients",
+         "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
          "id": "2f9729e9-6fcf-4d34-96df-bf72b26dfbe9"
       },
       {
          "share" : "vaccine_share",
          "schema" : "acme_vaccine_patient_data",
          "name" : "vaccine_patients",
+         "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
          "id": "74be6365-0fc8-4a2f-8720-0de125bb5832"
       }
    ],
