@@ -96,38 +96,49 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
     ),
     "org.apache.hadoop" % "hadoop-aws" % "2.10.1" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
-      ExclusionRule("com.fasterxml.jackson.module")
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
     ),
     "org.apache.hadoop" % "hadoop-azure" % "2.10.1" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
-      ExclusionRule("com.fasterxml.jackson.module")
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
     ),
     "com.google.cloud" % "google-cloud-storage" % "2.2.1" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")
     ),
-    "org.apache.hadoop" % "hadoop-common" % "2.10.1" excludeAll(
+    "com.google.cloud.bigdataoss" % "gcs-connector" % "hadoop2-2.2.3" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")
+    ),
+    "org.apache.hadoop" % "hadoop-common" % "2.10.1" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
     ),
     "org.apache.hadoop" % "hadoop-client" % "2.10.1" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
-      ExclusionRule("com.fasterxml.jackson.module")
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
     ),
     "org.apache.parquet" % "parquet-hadoop" % "1.10.1" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
-      ExclusionRule("com.fasterxml.jackson.module")
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
     ),
     "io.delta" %% "delta-standalone" % "0.2.0" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
-      ExclusionRule("com.fasterxml.jackson.module")
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
     ),
     "org.apache.spark" %% "spark-sql" % "2.4.7" excludeAll(
       ExclusionRule("org.slf4j"),
       ExclusionRule("io.netty"),
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
-      ExclusionRule("org.json4s")
+      ExclusionRule("org.json4s"),
+      ExclusionRule("com.google.guava", "guava")
     ),
     "org.slf4j" % "slf4j-api" % "1.6.1",
     "org.slf4j" % "slf4j-simple" % "1.6.1",
