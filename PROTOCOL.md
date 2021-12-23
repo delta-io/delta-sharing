@@ -624,7 +624,6 @@ Note: the `nextPageToken` field may be an empty string or missing when there are
 </table>
 </details>
 <details>
-<details>
 <summary><b>404: The requested resource does not exist.</b></summary>
 
 <table>
