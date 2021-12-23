@@ -99,7 +99,7 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
 
 Note: the `items` field may be an empty array or missing when no results are found. The client must handle both cases.
 
-Note: the `id` field is optional. If `id` is populated for a Share, its value should be unique across the sharing server and immutable through the Share's lifecycle. 
+Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and immutable through the share's lifecycle. 
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
 </td>
@@ -112,44 +112,73 @@ Example:
 
 ```json
 {
-   "items" : [
+   "items": [
       {
-         "name" : "vaccine_share",
-         "id" : "edacc4a7-6600-4fbb-85f3-a62a5ce6761f"   
+         "name": "vaccine_share",
+         "id": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f"   
       },
       {
-         "name" : "sales_share",
-         "id" : "3e979c79-6399-4dac-bcf8-54e268f48515"
+         "name": "sales_share",
+         "id": "3e979c79-6399-4dac-bcf8-54e268f48515"
       }
    ],
-   "nextPageToken" : "..."
+   "nextPageToken": "..."
 }
 ```
 
 ### Get Share
 
-This is the API to get the metadata of a Share.
+This is the API to get the metadata of a share.
 
-HTTP Parameters | Value
+HTTP Request | Value
 -- | --
-HTTP Method | GET
-Header | Authorization: Bearer {token}
-URL | {prefix}/shares/{share}
-URL Parameters | {share}: The share name to query. It's case-insensitive.
-Response Header | Content-Type: application/json; charset=utf-8
-Response Body | <pre>{<br>  "share": {<br>    "name": string<br>    "id": string<br>  }<br>}</pre> Note: The `id` field is optional. If `id` is populated for a Share, its value should be unique across the sharing server and immutable through the Share's lifecycle.
+Method | `GET`
+Header | `Authorization: Bearer {token}`
+URL | `{prefix}/shares/{share}`
+URL Parameters | **{share}**: The share name to query. It's case-insensitive.
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json; charset=utf-8`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "share": {
+    "name": "string",
+    "id": "string"
+  }
+}
+```
+
+Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and immutable through the share's lifecycle.
+
+</td>
+</tr>
+</table>
 
 Example:
 
-```
-GET {prefix}/shares/{share}
+`GET {prefix}/shares/vaccine_share`
 
-
+```json
 {
-    "share": {
-        "name" : "vaccine_share",
-        "id" : "edacc4a7-6600-4fbb-85f3-a62a5ce6761f"
-    }
+  "share": {
+    "name": "vaccine_share",
+    "id": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f"
+  }
 }
 ```
 
@@ -208,13 +237,13 @@ Example:
 
 ```json
 {
-  "items" : [
+  "items": [
     {
-      "name" : "acme_vaccine_data",
-      "share" : "vaccine_share"
+      "name": "acme_vaccine_data",
+      "share": "vaccine_share"
     }
   ],
-  "nextPageToken" : "..."
+  "nextPageToken": "..."
 }
 ```
 
@@ -273,41 +302,29 @@ Note: the `nextPageToken` field may be an empty string or missing when there are
 </tr>
 </table>
 
-```json
-{
-  "errorCode": "string",
-  "message": "string"
-}
-```
-
-</td>
-</tr>
-</table>
-</details>
-
 Example:
 
 `GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables?maxResults=10&pageToken=...`
 
 ```json
 {
-  "items" : [
+  "items": [
     {
-      "share" : "vaccine_share",
-      "schema" : "acme_vaccine_data",
-      "name" : "vaccine_ingredients",
+      "share": "vaccine_share",
+      "schema": "acme_vaccine_data",
+      "name": "vaccine_ingredients",
       "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
       "id": "dcb1e680-7da4-4041-9be8-88aff508d001"
     },
     {
-      "share" : "vaccine_share",
-      "schema" : "acme_vaccine_data",
-      "name" : "vaccine_patients",
+      "share": "vaccine_share",
+      "schema": "acme_vaccine_data",
+      "name": "vaccine_patients",
       "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
       "id": "c48f3e19-2c29-4ea3-b6f7-3899e53338fa"
     }
   ],
-  "nextPageToken" : "..."
+  "nextPageToken": "..."
 }
 ```
 
@@ -366,41 +383,29 @@ Note: the `nextPageToken` field may be an empty string or missing when there are
 </tr>
 </table>
 
-```json
-{
-  "errorCode": "string",
-  "message": "string"
-}
-```
-
-</td>
-</tr>
-</table>
-</details>
-
 Example:
 
 `GET {prefix}/shares/vaccine_share/all-tables`
 
 ```json
 {
-  "items" : [
+  "items": [
     {
-      "share" : "vaccine_share",
-      "schema" : "acme_vaccine_ingredient_data",
-      "name" : "vaccine_ingredients",
+      "share": "vaccine_share",
+      "schema": "acme_vaccine_ingredient_data",
+      "name": "vaccine_ingredients",
       "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
       "id": "2f9729e9-6fcf-4d34-96df-bf72b26dfbe9"
     },
     {
-      "share" : "vaccine_share",
-      "schema" : "acme_vaccine_patient_data",
-      "name" : "vaccine_patients",
+      "share": "vaccine_share",
+      "schema": "acme_vaccine_patient_data",
+      "name": "vaccine_patients",
       "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
       "id": "74be6365-0fc8-4a2f-8720-0de125bb5832"
     }
   ],
-  "nextPageToken" : "..."
+  "nextPageToken": "..."
 }
 ```
 
