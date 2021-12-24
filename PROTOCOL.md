@@ -467,6 +467,18 @@ Note: the `nextPageToken` field may be an empty string or missing when there are
 <td>Body</td>
 <td>
 
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+
 Example:
 
 `GET {prefix}/shares/vaccine_share/schemas?maxResults=10&pageToken=...`
