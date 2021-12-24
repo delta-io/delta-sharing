@@ -264,6 +264,9 @@ Header | `Authorization: Bearer {token}`
 URL | `{prefix}/shares/{share}`
 URL Parameters | **{share}**: The share name to query. It's case-insensitive.
 
+<details open>
+<summary><b>200: The share's metadata was successfully returned.</b></summary>
+
 <table>
 <tr>
 <th>HTTP Response</th>
@@ -295,6 +298,161 @@ Note: the `id` field is optional. If `id` is populated for a share, its value sh
 </td>
 </tr>
 </table>
+</details>
+<details>
+<summary><b>400: The request is malformed.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>401: The request is unauthenticated. The bearer token is missing or incorrect.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>403: The request is forbidden from being fulfilled.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>404: The requested resource does not exist.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>500: The request is not handled correctly due to a server error.</b></summary>
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
 
 Example:
 
