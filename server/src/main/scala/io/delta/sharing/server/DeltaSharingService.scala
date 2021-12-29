@@ -115,6 +115,12 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     ListSharesResponse(shares, nextPageToken)
   }
 
+  @Get("/shares/{share}")
+  @ProducesJson
+  def getShare(@Param("share") share: String): GetShareResponse = processRequest {
+    GetShareResponse(share = Some(sharedTableManager.getShare(share)))
+  }
+
   @Get("/shares/{share}/schemas")
   @ProducesJson
   def listSchemas(

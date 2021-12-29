@@ -52,6 +52,10 @@ message ListSharesResponse {
     optional string next_page_token = 2;
 }
 
+message GetShareResponse {
+    optional Share share = 1;
+}
+
 message ListSchemasResponse {
     repeated Schema items = 1;
     optional string next_page_token = 2;
