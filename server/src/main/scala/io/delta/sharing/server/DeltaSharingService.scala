@@ -102,8 +102,8 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
             Map(
               "errorCode" -> ErrorCode.INVALID_PARAMETER_VALUE,
               "message" -> "expected a number but the string didn't have the appropriate format")))
-      // Handle unhandle exceptions
-      case _: DeltaInternalException =>
+      // Handle unhandled exceptions
+      case _ =>
         logger.error(cause.getMessage, cause)
         // Hide message in response
         HttpResponse.of(
@@ -113,9 +113,6 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
             Map(
               "errorCode" -> ErrorCode.INTERNAL_ERROR,
               "message" -> "")))
-      case _ =>
-        logger.error(cause.getMessage, cause)
-        ExceptionHandlerFunction.fallthrough()
     }
   }
 }
