@@ -40,6 +40,9 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
   var testProfileFile: File = _
 
   val TEST_PORT = 12345
+  val ENDPOINT = s"https://localhost:$TEST_PORT/delta-sharing"
+  val BEARER_TOKEN = "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
+  val SHARE_CREDENTIALS_VERSION = 1
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -48,9 +51,9 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
       testProfileFile = Files.createTempFile("delta-test", ".share").toFile
       FileUtils.writeStringToFile(testProfileFile,
         s"""{
-          |  "shareCredentialsVersion": 1,
-          |  "endpoint": "https://localhost:$TEST_PORT/delta-sharing",
-          |  "bearerToken": "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
+          |  "shareCredentialsVersion": $SHARE_CREDENTIALS_VERSION,
+          |  "endpoint": "$ENDPOINT",
+          |  "bearerToken": "$BEARER_TOKEN"
           |}""".stripMargin, UTF_8)
 
       val startLatch = new CountDownLatch(1)

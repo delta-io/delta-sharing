@@ -102,22 +102,44 @@ private[sharing] object RemoteDeltaLog {
     (profileFile, tableSplits(0), tableSplits(1), tableSplits(2))
   }
 
+  /**
+   * Parse the user provided path `share.schema.table` to `(share, schema, table)`.
+   */
+  def parsePathWithoutProfileFile(path: String): (String, String, String) = {
+    val tableSplits = path.split("\\.", -1)
+    if (tableSplits.length != 3) {
+      throw new IllegalArgumentException(s"path $path is not valid")
+    }
+    val (share, schema, table) = (tableSplits(0), tableSplits(1), tableSplits(2))
+    if (share.isEmpty || schema.isEmpty || table.isEmpty) {
+      throw new IllegalArgumentException(s"path $path is not valid")
+    }
+    (share, schema, table)
+  }
+
   def apply(path: String): RemoteDeltaLog = {
-    val sqlConf = SparkSession.active.sessionState.conf
     val (profileFile, share, schema, table) = parsePath(path)
-
-    val profileProviderclass =
-      sqlConf.getConfString("spark.delta.sharing.profile.provider.class",
-        "io.delta.sharing.spark.DeltaSharingFileProfileProvider")
-
-    val profileProvider: DeltaSharingProfileProvider =
-      Class.forName(profileProviderclass)
-        .getConstructor(classOf[Configuration], classOf[String])
-        .newInstance(SparkSession.active.sessionState.newHadoopConf(),
-          profileFile)
-        .asInstanceOf[DeltaSharingProfileProvider]
-
+    val profileProvider = new DeltaSharingFileProfileProvider(
+      SparkSession.active.sessionState.newHadoopConf,
+      profileFile
+    )
     val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
+    constructRemoteDeltaLog(profileProvider, deltaSharingTable, path)
+  }
+
+  def apply(path: String, profile: DeltaSharingProfile): RemoteDeltaLog = {
+    val (share, schema, table) = parsePathWithoutProfileFile(path)
+    val profileProvider = new DeltaSharingDirectProfileProvider(profile)
+    val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
+    constructRemoteDeltaLog(profileProvider, deltaSharingTable, path)
+  }
+
+  private[this] def constructRemoteDeltaLog(
+      profileProvider: DeltaSharingProfileProvider,
+      deltaSharingTable: DeltaSharingTable,
+      path: String
+  ): RemoteDeltaLog = {
+    val sqlConf = SparkSession.active.sessionState.conf
     // This is a flag to test the local https server. Should never be used in production.
     val sslTrustAll =
       sqlConf.getConfString("spark.delta.sharing.network.sslTrustAll", "false").toBoolean

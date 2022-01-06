@@ -58,6 +58,24 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     }
   }
 
+  integrationTest("table1 passing profile with read options") {
+    val tablePath = "share1.default.table1"
+    val expected = Seq(
+      Row(sqlTimestamp("2021-04-27 23:32:02.07"), sqlDate("2021-04-28")),
+      Row(sqlTimestamp("2021-04-27 23:32:22.421"), sqlDate("2021-04-28"))
+    )
+    val readOptions = Map(
+      "endpoint" -> ENDPOINT,
+      "bearerToken" -> BEARER_TOKEN,
+      "shareCredentialsVersion" -> SHARE_CREDENTIALS_VERSION.toString
+    )
+    checkAnswer(spark.read.format("deltaSharing").options(readOptions).load(tablePath), expected)
+    withTable("delta_sharing_test") {
+      sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
+      checkAnswer(sql(s"SELECT * FROM delta_sharing_test"), expected)
+    }
+  }
+
   integrationTest("table2") {
     val tablePath = testProfileFile.getCanonicalPath + "#share2.default.table2"
     val expected = Seq(

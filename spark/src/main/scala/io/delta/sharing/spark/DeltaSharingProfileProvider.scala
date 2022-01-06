@@ -38,6 +38,34 @@ private[sharing] trait DeltaSharingProfileProvider {
   def getProfile: DeltaSharingProfile
 }
 
+object DeltaSharingProfileProvider {
+  def validateProfile(
+      profile: DeltaSharingProfile, errMsgContext: String
+  ): Unit = {
+    if (profile.shareCredentialsVersion.isEmpty) {
+      throw new IllegalArgumentException(
+        s"Cannot find the 'shareCredentialsVersion' field in the $errMsgContext"
+      )
+    }
+
+    if (profile.shareCredentialsVersion.get > DeltaSharingProfile.CURRENT) {
+      throw new IllegalArgumentException(
+        s"'shareCredentialsVersion' in the profile is " +
+          s"${profile.shareCredentialsVersion.get} which is too new. The current release " +
+          s"supports version ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer " +
+          s"release.")
+    }
+    if (profile.endpoint == null) {
+      throw new IllegalArgumentException(s"Cannot find the 'endpoint' field in the $errMsgContext")
+    }
+    if (profile.bearerToken == null) {
+      throw new IllegalArgumentException(
+        s"Cannot find the 'bearerToken' field in the $errMsgContext"
+      )
+    }
+  }
+}
+
 /**
  * Load [[DeltaSharingProfile]] from a file. `conf` should be provided to load the file from remote
  * file systems.
@@ -53,26 +81,19 @@ private[sharing] class DeltaSharingFileProfileProvider(
     } finally {
       input.close()
     }
-    if (profile.shareCredentialsVersion.isEmpty) {
-      throw new IllegalArgumentException(
-        "Cannot find the 'shareCredentialsVersion' field in the profile file")
-    }
-
-    if (profile.shareCredentialsVersion.get > DeltaSharingProfile.CURRENT) {
-      throw new IllegalArgumentException(
-        s"'shareCredentialsVersion' in the profile is " +
-          s"${profile.shareCredentialsVersion.get} which is too new. The current release " +
-          s"supports version ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer " +
-          s"release.")
-    }
-    if (profile.endpoint == null) {
-      throw new IllegalArgumentException("Cannot find the 'endpoint' field in the profile file")
-    }
-    if (profile.bearerToken == null) {
-      throw new IllegalArgumentException("Cannot find the 'bearerToken' field in the profile file")
-    }
+    DeltaSharingProfileProvider.validateProfile(profile, "profile file")
     profile
   }
+
+  override def getProfile: DeltaSharingProfile = profile
+}
+
+/**
+ * Load [[DeltaSharingProfile]] from a profile object directly.
+ */
+private[sharing] class DeltaSharingDirectProfileProvider(
+    profile: DeltaSharingProfile) extends DeltaSharingProfileProvider {
+  DeltaSharingProfileProvider.validateProfile(profile, "profile")
 
   override def getProfile: DeltaSharingProfile = profile
 }

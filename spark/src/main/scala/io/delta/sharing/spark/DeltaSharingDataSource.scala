@@ -37,7 +37,22 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
     val path = parameters.getOrElse("path", throw new IllegalArgumentException(
       "'path' is not specified. If you use SQL to create a Delta Sharing table, " +
         "LOCATION must be specified"))
-    val deltaLog = RemoteDeltaLog(path)
+
+    val deltaLog = if (Seq("endpoint", "bearerToken").forall(parameters.keySet.contains(_))) {
+      val shareCredentialsVersion = parameters
+        .get("shareCredentialsVersion")
+        .map(_.toInt)
+        .getOrElse(DeltaSharingProfile.CURRENT)
+      val profile = DeltaSharingProfile(
+        Some(shareCredentialsVersion),
+        parameters("endpoint"),
+        parameters("bearerToken"),
+        parameters.getOrElse("expirationTime", null)
+      )
+      RemoteDeltaLog(path, profile)
+    } else {
+      RemoteDeltaLog(path)
+    }
     deltaLog.createRelation()
   }
 

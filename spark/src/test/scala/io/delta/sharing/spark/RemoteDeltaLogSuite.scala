@@ -30,6 +30,27 @@ import io.delta.sharing.spark.model.Table
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
+  test("parsePathWithoutProfileFile") {
+    assert(RemoteDeltaLog.parsePathWithoutProfileFile("a.b.c") == (
+      "a", "b", "c"
+    ))
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePathWithoutProfileFile("abc")
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePathWithoutProfileFile("a.b")
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePathWithoutProfileFile("a.b.c.d")
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePathWithoutProfileFile("a.b.")
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePathWithoutProfileFile("a.b.c.")
+    }
+  }
+
   test("parsePath") {
     assert(RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c") == ("file:///foo/bar", "a", "b", "c"))
     assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c") ==
