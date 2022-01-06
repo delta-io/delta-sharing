@@ -197,13 +197,15 @@ object AbfsFileSigner {
 class GCSFileSigner(
     name: URI,
     conf: Configuration,
-    preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner{
+    preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
+
+  private val storage = StorageOptions.newBuilder.build.getService
 
   override def sign(path: Path): String = {
     val absPath = path.toUri
     val bucketName = absPath.getHost
     val objectName = absPath.getPath.stripPrefix("/")
-    val storage = StorageOptions.newBuilder.build.getService
+    assert(objectName.nonEmpty, s"cannot get object key from $path")
     val blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, objectName)).build
     storage.signUrl(
       blobInfo, preSignedUrlTimeoutSeconds, SECONDS, Storage.SignUrlOption.withV4Signature())

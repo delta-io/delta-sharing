@@ -21,6 +21,7 @@
 .pydevproject
 .scala_dependencies
 .settings
+/lib/
 R-unit-tests.log
 R/unit-tests.out
 R/cran-check.out

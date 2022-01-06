@@ -552,7 +552,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(e.getMessage.contains("Server returned HTTP response code: 403")) // 403 Forbidden
   }
 
-  integrationTest("gcs support") {
+  ignore("gcs support") {
+    assume(shouldRunIntegrationTest)
     val gcsTableName = "table_gcs"
     val response = readNDJson(requestPath(s"/shares/share_gcs/schemas/default/tables/${gcsTableName}/query"), Some("POST"), Some("{}"), Some(0))
     val lines = response.split("\n")
