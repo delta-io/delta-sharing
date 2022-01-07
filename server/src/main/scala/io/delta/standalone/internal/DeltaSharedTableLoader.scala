@@ -21,6 +21,7 @@ import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.concurrent.TimeUnit
 
+import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
 import com.google.common.cache.CacheBuilder
 import com.google.common.hash.Hashing
 import io.delta.standalone.DeltaLog
@@ -31,7 +32,7 @@ import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem
 import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 
-import io.delta.sharing.server.{model, AbfsFileSigner, S3FileSigner, WasbFileSigner}
+import io.delta.sharing.server.{model, AbfsFileSigner, GCSFileSigner, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.{ServerConfig, TableConfig}
 
 /**
@@ -88,6 +89,8 @@ class DeltaSharedTable(
         WasbFileSigner(wasb, deltaLog.dataPath.toUri, conf, preSignedUrlTimeoutSeconds)
       case abfs: AzureBlobFileSystem =>
         AbfsFileSigner(abfs, deltaLog.dataPath.toUri, preSignedUrlTimeoutSeconds)
+      case gc: GoogleHadoopFileSystem =>
+        new GCSFileSigner(deltaLog.dataPath.toUri, conf, preSignedUrlTimeoutSeconds)
       case _ =>
         throw new IllegalStateException(s"File system ${fs.getClass} is not supported")
     }
