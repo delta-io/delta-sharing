@@ -557,4 +557,35 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     }
     assert(e.getMessage.contains("Server returned HTTP response code: 403")) // 403 Forbidden
   }
+
+  ignore("gcs support") {
+    assume(shouldRunIntegrationTest)
+    val gcsTableName = "table_gcs"
+    val response = readNDJson(requestPath(s"/shares/share_gcs/schemas/default/tables/${gcsTableName}/query"), Some("POST"), Some("{}"), Some(0))
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val expectedMetadata = Metadata(
+      id = "de102585-bd69-4bba-bb10-fa92c50a7f85",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"c1","type":"string","nullable":true,"metadata":{}},{"name":"c2","type":"string","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Seq("c2")).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+    val files = lines.drop(2)
+    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+    assert(actualFiles.size == 1)
+    val expectedFiles = Seq(
+      AddFile(
+        url = actualFiles(0).url,
+        id = "84f5f9e4de01e99837f77bfc2b7215b0",
+        partitionValues = Map("c2" -> "foo bar"),
+        size = 568,
+        stats = """{"numRecords":1,"minValues":{"c1":"foo bar"},"maxValues":{"c1":"foo bar"},"nullCount":{"c1":0}}"""
+      )
+    )
+    assert(expectedFiles == actualFiles.toList)
+    verifyPreSignedUrl(actualFiles(0).url, 568)
+  }
 }
