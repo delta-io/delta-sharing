@@ -38,7 +38,9 @@ import io.delta.sharing.server.util.JsonUtils
 class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   def shouldRunIntegrationTest: Boolean = {
-    sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0)
+    sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) &&
+    sys.env.get("AZURE_TEST_ACCOUNT_KEY").exists(_.length > 0) &&
+    sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
   }
 
   private var serverConfig: ServerConfig = _
@@ -63,6 +65,20 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       override def verify(s: String, sslSession: SSLSession): Boolean = true
     }
     HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid)
+  }
+
+  private def verifyPreSignedUrl(url: String, expectedLength: Int): Unit = {
+    // We should be able to read from the url
+    assert(IOUtils.toByteArray(new URL(url)).size == expectedLength)
+
+    // Modifying the file to access a different path should fail. This ensures the url is scoped
+    // down to the specific file.
+    val urlForDifferentObject = url.replaceAll("\\.parquet", ".orc")
+    assert(url != urlForDifferentObject)
+    val e = intercept[IOException] {
+      IOUtils.toByteArray(new URL(urlForDifferentObject))
+    }
+    assert(e.getMessage.contains("Server returned HTTP response code: 403")) // 403 Forbidden
   }
 
   def requestPath(path: String): String = {
@@ -160,7 +176,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Share().withName("share5"),
         Share().withName("share6"),
         Share().withName("share7"),
-        Share().withName("share_azure")
+        Share().withName("share_azure"),
+        Share().withName("share_gcp")
       )
     )
     assert(expected == JsonFormat.fromJsonString[ListSharesResponse](response))
@@ -183,7 +200,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Share().withName("share5"),
         Share().withName("share6"),
         Share().withName("share7"),
-        Share().withName("share_azure")
+        Share().withName("share_azure"),
+        Share().withName("share_gcp")
     )
     assert(expected == shares)
   }
@@ -544,24 +562,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
-  private def verifyPreSignedUrl(url: String, expectedLength: Int): Unit = {
-    // We should be able to read from the url
-    assert(IOUtils.toByteArray(new URL(url)).size == expectedLength)
-
-    // Modifying the file to access a different path should fail. This ensures the url is scoped
-    // down to the specific file.
-    val urlForDifferentObject = url.replaceAll("\\.parquet", ".orc")
-    assert(url != urlForDifferentObject)
-    val e = intercept[IOException] {
-      IOUtils.toByteArray(new URL(urlForDifferentObject))
-    }
-    assert(e.getMessage.contains("Server returned HTTP response code: 403")) // 403 Forbidden
-  }
-
-  ignore("gcs support") {
-    assume(shouldRunIntegrationTest)
+  integrationTest("gcp support") {
     val gcsTableName = "table_gcs"
-    val response = readNDJson(requestPath(s"/shares/share_gcs/schemas/default/tables/${gcsTableName}/query"), Some("POST"), Some("{}"), Some(0))
+    val response = readNDJson(requestPath(s"/shares/share_gcp/schemas/default/tables/${gcsTableName}/query"), Some("POST"), Some("{}"), Some(0))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)

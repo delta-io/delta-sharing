@@ -104,11 +104,11 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")
     ),
-    "com.google.cloud" % "google-cloud-storage" % "2.2.1" excludeAll(
+    "com.google.cloud" % "google-cloud-storage" % "2.2.2" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")
     ),
-    "com.google.cloud.bigdataoss" % "gcs-connector" % "hadoop2-2.2.3" excludeAll(
+    "com.google.cloud.bigdataoss" % "gcs-connector" % "hadoop2-2.2.4" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")
     ),

@@ -35,6 +35,10 @@ object TestResource {
     val container = "delta-sharing-test-container"
   }
 
+  object GCP {
+    val bucket = "delta-sharing-dev"
+  }
+
   val TEST_PORT = 12345
 
   val testAuthorizationToken = "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
@@ -48,9 +52,9 @@ object TestResource {
           SchemaConfig(
             "default",
             java.util.Arrays.asList(
-              TableConfig("table1", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table1"),
-              TableConfig("table3", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table3"),
-              TableConfig("table7", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table7")
+              TableConfig("table1", s"s3a://${AWS.bucket}/delta-exchange-test/table1"),
+              TableConfig("table3", s"s3a://${AWS.bucket}/delta-exchange-test/table3"),
+              TableConfig("table7", s"s3a://${AWS.bucket}/delta-exchange-test/table7")
             )
           )
         )
@@ -58,7 +62,7 @@ object TestResource {
       ShareConfig("share2",
         java.util.Arrays.asList(
           SchemaConfig("default", java.util.Arrays.asList(
-            TableConfig("table2", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table2")
+            TableConfig("table2", s"s3a://${AWS.bucket}/delta-exchange-test/table2")
           )
           )
         )),
@@ -67,8 +71,8 @@ object TestResource {
           SchemaConfig(
             "default",
             java.util.Arrays.asList(
-              TableConfig("table4", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table4"),
-              TableConfig("table5", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table5")
+              TableConfig("table4", s"s3a://${AWS.bucket}/delta-exchange-test/table4"),
+              TableConfig("table5", s"s3a://${AWS.bucket}/delta-exchange-test/table5")
             )
           )
         )
@@ -79,7 +83,7 @@ object TestResource {
             "default",
             java.util.Arrays.asList(
               // table made with spark.sql.parquet.compression.codec=gzip
-              TableConfig("test_gzip", s"s3a://${TestResource.AWS.bucket}/compress-test/table1")
+              TableConfig("test_gzip", s"s3a://${AWS.bucket}/compress-test/table1")
             )
           )
         )
@@ -100,13 +104,13 @@ object TestResource {
           SchemaConfig(
             "schema1",
             java.util.Arrays.asList(
-              TableConfig("table8", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table8")
+              TableConfig("table8", s"s3a://${AWS.bucket}/delta-exchange-test/table8")
             )
           ),
           SchemaConfig(
             "schema2",
             java.util.Arrays.asList(
-              TableConfig("table9", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table9")
+              TableConfig("table9", s"s3a://${AWS.bucket}/delta-exchange-test/table9")
             )
           )
         )
@@ -122,8 +126,18 @@ object TestResource {
             )
           )
         )
-      )
+      ),
       // scalastyle:on
+      ShareConfig("share_gcp",
+        java.util.Arrays.asList(
+          SchemaConfig(
+            "default",
+            java.util.Arrays.asList(
+              TableConfig("table_gcs", s"gs://${GCP.bucket}/delta-sharing-test/table1")
+            )
+          )
+        )
+      )
     )
 
     val serverConfig = new ServerConfig()
