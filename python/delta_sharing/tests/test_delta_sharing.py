@@ -50,7 +50,7 @@ def test_list_shares(sharing_client: SharingClient):
         Share(name="share6"),
         Share(name="share7"),
         Share(name="share_azure"),
-        Share(name="share_gcp")
+        Share(name="share_gcp"),
     ]
 
 
@@ -89,7 +89,7 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table9", share="share7", schema="schema2"),
         Table(name="table_wasb", share="share_azure", schema="default"),
         Table(name="table_abfs", share="share_azure", schema="default"),
-        Table(name ="table_gcs", share = "share_gcp", schema ="default")
+        Table(name ="table_gcs", share = "share_gcp", schema ="default"),
     ]
 
 
