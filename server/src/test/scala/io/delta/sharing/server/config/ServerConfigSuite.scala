@@ -65,6 +65,13 @@ class ServerConfigSuite extends FunSuite {
               "table3",
               "abfss://<container-name>@<account-name}.dfs.core.windows.net/<the-table-path>")
           ))
+        )),
+        ShareConfig("share3", Arrays.asList(
+          SchemaConfig("schema3", Arrays.asList(
+            TableConfig(
+              "table4",
+              "gs://<bucket-name>/<the-table-path>")
+          ))
         ))
       )
       val serverConfig = new ServerConfig()
