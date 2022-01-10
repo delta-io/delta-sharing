@@ -19,6 +19,13 @@ shares:
     - name: "table3"
       # Azure Data Lake Storage Gen2. See https://github.com/delta-io/delta-sharing#azure-data-lake-storage-gen2 for how to config the credentials
       location: "abfss://<container-name>@<account-name}.dfs.core.windows.net/<the-table-path>"
+- name: "share3"
+  schemas:
+  - name: "schema3"
+    tables:
+    - name: "table4"
+      # Google Cloud Storage (GCS). See https://github.com/delta-io/delta-sharing#google-cloud-storage for how to config the credentials
+      location: "gs://<bucket-name>/<the-table-path>"
 # Set the host name that the server will use
 host: "localhost"
 # Set the port that the server will listen on. Note: using ports below 1024 

@@ -25,6 +25,12 @@ from delta_sharing.converter import to_converters, get_empty_table
 from delta_sharing.protocol import AddFile, Table
 from delta_sharing.rest_client import DataSharingRestClient
 
+try:
+    from yarl import URL
+    from yarl._quoting import _Quoter
+    URL._PATH_REQUOTER = _Quoter(safe="@:", protected="/+=")
+except:
+    pass
 
 class DeltaSharingReader:
     def __init__(

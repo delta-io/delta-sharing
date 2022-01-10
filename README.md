@@ -285,6 +285,8 @@ The server is using `hadoop-azure` to read Azure Data Lake Storage Gen2. We supp
 
 We support using [Service Account](https://cloud.google.com/iam/docs/service-accounts) to read Google Cloud Storage. You can find more details in [GCP Authentication Doc](https://cloud.google.com/docs/authentication/getting-started).
 
+To set up the Service Account credentials, you can specify the environment GOOGLE_APPLICATION_CREDENTIALS before starting the Delta Sharing Server.
+
 ```
 export GOOGLE_APPLICATION_CREDENTIALS="KEY_PATH"
 ```
