@@ -24,17 +24,21 @@ import org.apache.hadoop.fs.Path
 
 import io.delta.sharing.spark.util.JsonUtils
 
-private[sharing] case class DeltaSharingProfile(
+case class DeltaSharingProfile(
     shareCredentialsVersion: Option[Int] = Some(DeltaSharingProfile.CURRENT),
     endpoint: String = null,
     bearerToken: String = null,
     expirationTime: String = null)
 
-private[sharing] object DeltaSharingProfile {
+object DeltaSharingProfile {
   val CURRENT = 1
 }
 
-private[sharing] trait DeltaSharingProfileProvider {
+/**
+ * A provider that provides Delta Sharing profile for data recipient to access the shared data.
+ * https://github.com/delta-io/delta-sharing/blob/main/PROTOCOL.md#profile-file-format.
+ */
+trait DeltaSharingProfileProvider {
   def getProfile: DeltaSharingProfile
 }
 
