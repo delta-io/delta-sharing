@@ -34,7 +34,11 @@ private[sharing] object DeltaSharingProfile {
   val CURRENT = 1
 }
 
-private[sharing] trait DeltaSharingProfileProvider {
+/**
+ * A provider that provides Delta Sharing profile for data recipient to access the shared data.
+ * https://github.com/delta-io/delta-sharing/blob/main/PROTOCOL.md#profile-file-format.
+ */
+trait DeltaSharingProfileProvider {
   def getProfile: DeltaSharingProfile
 }
 
