@@ -16,7 +16,7 @@
 
 package io.delta.sharing.spark
 
-import java.io.{EOFException, File, FileWriter}
+import java.io.EOFException
 
 import scala.util.Random
 
