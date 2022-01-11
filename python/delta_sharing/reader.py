@@ -29,7 +29,7 @@ try:
     from yarl import URL
     from yarl._quoting import _Quoter
 
-    URL._PATH_REQUOTER = _Quoter(safe="@:", protected="/+=")
+    URL._PATH_REQUOTER = _Quoter(safe="@:", protected="/+=") # type: ignore
 except:
     pass
 

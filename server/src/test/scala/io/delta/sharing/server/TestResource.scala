@@ -17,7 +17,10 @@
 package io.delta.sharing.server
 
 import java.io.File
+import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
+
+import org.apache.commons.io.FileUtils
 
 import io.delta.sharing.server.config._
 
@@ -43,9 +46,21 @@ object TestResource {
 
   val testAuthorizationToken = "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
 
+  def maybeSetupGoogleServiceAccountCredentials: Unit = {
+    // Only setup Google Service Account credentials when it is provided through env variable.
+    if (sys.env.get("GOOGLE_SERVICE_ACCOUNT_KEY").exists(_.length > 0)
+        && sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)) {
+      val serviceAccountKey = sys.env("GOOGLE_SERVICE_ACCOUNT_KEY")
+      val credFilePath = new File(sys.env("GOOGLE_APPLICATION_CREDENTIALS"))
+      credFilePath.deleteOnExit()
+      FileUtils.writeStringToFile(credFilePath, serviceAccountKey, UTF_8, false)
+    }
+  }
+
   def setupTestTables(): File = {
     val testConfigFile = Files.createTempFile("delta-sharing", ".yaml").toFile
     testConfigFile.deleteOnExit()
+    maybeSetupGoogleServiceAccountCredentials
     val shares = java.util.Arrays.asList(
       ShareConfig("share1",
         java.util.Arrays.asList(

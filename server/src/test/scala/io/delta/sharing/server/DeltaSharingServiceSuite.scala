@@ -44,18 +44,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
   }
 
-  private def buildGoogleServiceAccountKeyFile: Unit = {
-    // Only write tmp file if the key content is defined, otherwise the key is loaded directly from
-    // the key file path in GOOGLE_APPLICATION_CREDENTIALS.
-    if (sys.env.get("GOOGLE_SERVICE_ACCOUNT_KEY").exists(_.length > 0)) {
-      val serviceAccountKey = sys.env("GOOGLE_SERVICE_ACCOUNT_KEY")
-      val fileWriter = new FileWriter(new File("/tmp/google_service_account_key.json"))
-      fileWriter.write(serviceAccountKey)
-      fileWriter.flush()
-      fileWriter.close()
-    }
-  }
-
   private var serverConfig: ServerConfig = _
   private var server: Server = _
 
@@ -576,7 +564,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("gcp support") {
-    buildGoogleServiceAccountKeyFile
     val gcsTableName = "table_gcs"
     val response = readNDJson(requestPath(s"/shares/share_gcp/schemas/default/tables/${gcsTableName}/query"), Some("POST"), Some("{}"), Some(0))
     val lines = response.split("\n")
