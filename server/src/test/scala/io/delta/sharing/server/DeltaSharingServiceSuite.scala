@@ -16,7 +16,6 @@
 
 package io.delta.sharing.server
 
-import java.io.{File, FileWriter}
 import java.io.IOException
 import java.net.URL
 import java.nio.charset.StandardCharsets.UTF_8
