@@ -48,6 +48,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   def buildGoogleServiceAccountKeyFile: Unit = {
     // Only write tmp file if the key content is defined, otherwise the key is loaded directly from
     // the key file path in GOOGLE_APPLICATION_CREDENTIALS.
+    // scalastyle:off println
+    println("buildGoogleServiceAccountKeyFile entered")
+    // scalastyle:on println
     if (sys.env.get("GOOGLE_SERVICE_ACCOUNT_KEY").exists(_.length > 0)) {
       // scalastyle:off println
       println("buildGoogleServiceAccountKeyFile executed")
