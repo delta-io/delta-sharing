@@ -16,6 +16,8 @@
 
 package io.delta.sharing.server
 
+import java.io.File
+import java.io.FileWriter
 import java.io.IOException
 import java.net.URL
 import java.nio.charset.StandardCharsets.UTF_8
@@ -41,6 +43,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) &&
     sys.env.get("AZURE_TEST_ACCOUNT_KEY").exists(_.length > 0) &&
     sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
+  }
+
+  def buildGoogleServiceAccountKeyFile: Unit = {
+    val serviceAccountKey = sys.env("GOOGLE_SERVICE_ACCOUNT_KEY")
+    val fileWriter = new FileWriter(new File("/tmp/google_service_account_key.json"))
+    fileWriter.write(serviceAccountKey)
+    fileWriter.flush()
+    fileWriter.close()
   }
 
   private var serverConfig: ServerConfig = _
@@ -563,6 +573,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("gcp support") {
+    buildGoogleServiceAccountKeyFile
     val gcsTableName = "table_gcs"
     val response = readNDJson(requestPath(s"/shares/share_gcp/schemas/default/tables/${gcsTableName}/query"), Some("POST"), Some("{}"), Some(0))
     val lines = response.split("\n")
