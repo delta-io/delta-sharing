@@ -48,7 +48,7 @@ setup(
         'requests',
         'aiohttp',
         'dataclasses;python_version<"3.7"',
-        'yarl>=1.6.0',
+        'yarl==1.6.0',
     ],
     extras_require={
         's3': ['s3fs'],
