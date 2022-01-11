@@ -46,11 +46,15 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   def buildGoogleServiceAccountKeyFile: Unit = {
-    val serviceAccountKey = sys.env("GOOGLE_SERVICE_ACCOUNT_KEY")
-    val fileWriter = new FileWriter(new File("/tmp/google_service_account_key.json"))
-    fileWriter.write(serviceAccountKey)
-    fileWriter.flush()
-    fileWriter.close()
+    // Only write tmp file if the key content is defined, otherwise the key is loaded directly from
+    // the key file path in GOOGLE_APPLICATION_CREDENTIALS.
+    if (sys.env.get("GOOGLE_SERVICE_ACCOUNT_KEY").exists(_.length > 0)) {
+      val serviceAccountKey = sys.env("GOOGLE_SERVICE_ACCOUNT_KEY")
+      val fileWriter = new FileWriter(new File("/tmp/google_service_account_key.json"))
+      fileWriter.write(serviceAccountKey)
+      fileWriter.flush()
+      fileWriter.close()
+    }
   }
 
   private var serverConfig: ServerConfig = _
