@@ -49,6 +49,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     // Only write tmp file if the key content is defined, otherwise the key is loaded directly from
     // the key file path in GOOGLE_APPLICATION_CREDENTIALS.
     if (sys.env.get("GOOGLE_SERVICE_ACCOUNT_KEY").exists(_.length > 0)) {
+      // scalastyle:off println
+      println("buildGoogleServiceAccountKeyFile executed")
+      // scalastyle:on println
       val serviceAccountKey = sys.env("GOOGLE_SERVICE_ACCOUNT_KEY")
       val fileWriter = new FileWriter(new File("/tmp/google_service_account_key.json"))
       fileWriter.write(serviceAccountKey)
