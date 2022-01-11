@@ -106,6 +106,7 @@ def test_list_shares(rest_client: DataSharingRestClient):
         Share(name="share6"),
         Share(name="share7"),
         Share(name="share_azure"),
+        Share(name="share_gcp"),
     ]
 
 

@@ -17,7 +17,10 @@
 package io.delta.sharing.server
 
 import java.io.File
+import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
+
+import org.apache.commons.io.FileUtils
 
 import io.delta.sharing.server.config._
 
@@ -35,22 +38,38 @@ object TestResource {
     val container = "delta-sharing-test-container"
   }
 
+  object GCP {
+    val bucket = "delta-sharing-dev"
+  }
+
   val TEST_PORT = 12345
 
   val testAuthorizationToken = "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
 
+  def maybeSetupGoogleServiceAccountCredentials: Unit = {
+    // Only setup Google Service Account credentials when it is provided through env variable.
+    if (sys.env.get("GOOGLE_SERVICE_ACCOUNT_KEY").exists(_.length > 0)
+        && sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)) {
+      val serviceAccountKey = sys.env("GOOGLE_SERVICE_ACCOUNT_KEY")
+      val credFilePath = new File(sys.env("GOOGLE_APPLICATION_CREDENTIALS"))
+      credFilePath.deleteOnExit()
+      FileUtils.writeStringToFile(credFilePath, serviceAccountKey, UTF_8, false)
+    }
+  }
+
   def setupTestTables(): File = {
     val testConfigFile = Files.createTempFile("delta-sharing", ".yaml").toFile
     testConfigFile.deleteOnExit()
+    maybeSetupGoogleServiceAccountCredentials
     val shares = java.util.Arrays.asList(
       ShareConfig("share1",
         java.util.Arrays.asList(
           SchemaConfig(
             "default",
             java.util.Arrays.asList(
-              TableConfig("table1", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table1"),
-              TableConfig("table3", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table3"),
-              TableConfig("table7", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table7")
+              TableConfig("table1", s"s3a://${AWS.bucket}/delta-exchange-test/table1"),
+              TableConfig("table3", s"s3a://${AWS.bucket}/delta-exchange-test/table3"),
+              TableConfig("table7", s"s3a://${AWS.bucket}/delta-exchange-test/table7")
             )
           )
         )
@@ -58,7 +77,7 @@ object TestResource {
       ShareConfig("share2",
         java.util.Arrays.asList(
           SchemaConfig("default", java.util.Arrays.asList(
-            TableConfig("table2", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table2")
+            TableConfig("table2", s"s3a://${AWS.bucket}/delta-exchange-test/table2")
           )
           )
         )),
@@ -67,8 +86,8 @@ object TestResource {
           SchemaConfig(
             "default",
             java.util.Arrays.asList(
-              TableConfig("table4", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table4"),
-              TableConfig("table5", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table5")
+              TableConfig("table4", s"s3a://${AWS.bucket}/delta-exchange-test/table4"),
+              TableConfig("table5", s"s3a://${AWS.bucket}/delta-exchange-test/table5")
             )
           )
         )
@@ -79,7 +98,7 @@ object TestResource {
             "default",
             java.util.Arrays.asList(
               // table made with spark.sql.parquet.compression.codec=gzip
-              TableConfig("test_gzip", s"s3a://${TestResource.AWS.bucket}/compress-test/table1")
+              TableConfig("test_gzip", s"s3a://${AWS.bucket}/compress-test/table1")
             )
           )
         )
@@ -100,13 +119,13 @@ object TestResource {
           SchemaConfig(
             "schema1",
             java.util.Arrays.asList(
-              TableConfig("table8", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table8")
+              TableConfig("table8", s"s3a://${AWS.bucket}/delta-exchange-test/table8")
             )
           ),
           SchemaConfig(
             "schema2",
             java.util.Arrays.asList(
-              TableConfig("table9", s"s3a://${TestResource.AWS.bucket}/delta-exchange-test/table9")
+              TableConfig("table9", s"s3a://${AWS.bucket}/delta-exchange-test/table9")
             )
           )
         )
@@ -122,8 +141,18 @@ object TestResource {
             )
           )
         )
-      )
+      ),
       // scalastyle:on
+      ShareConfig("share_gcp",
+        java.util.Arrays.asList(
+          SchemaConfig(
+            "default",
+            java.util.Arrays.asList(
+              TableConfig("table_gcs", s"gs://${GCP.bucket}/delta-sharing-test/table1")
+            )
+          )
+        )
+      )
     )
 
     val serverConfig = new ServerConfig()

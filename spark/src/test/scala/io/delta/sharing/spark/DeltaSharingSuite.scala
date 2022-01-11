@@ -143,8 +143,17 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       val tablePath = testProfileFile.getCanonicalPath + s"#share_azure.default.${azureTableName}"
       checkAnswer(
         spark.read.format("deltaSharing").load(tablePath),
-        Row("foo bar", "foo bar") :: Nil)
+        Row("foo bar", "foo bar") :: Nil
+      )
     }
+  }
+
+  integrationTest("gcp support") {
+    val tablePath = testProfileFile.getCanonicalPath + s"#share_gcp.default.table_gcs"
+    checkAnswer(
+      spark.read.format("deltaSharing").load(tablePath),
+      Row("foo bar", "foo bar") :: Nil
+    )
   }
 
   integrationTest("random access stream") {
