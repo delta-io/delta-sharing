@@ -16,8 +16,7 @@
 
 package io.delta.sharing.server
 
-import java.io.File
-import java.io.FileWriter
+import java.io.{File, FileWriter}
 import java.io.IOException
 import java.net.URL
 import java.nio.charset.StandardCharsets.UTF_8
@@ -41,20 +40,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   def shouldRunIntegrationTest: Boolean = {
     sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) &&
-    sys.env.get("AZURE_TEST_ACCOUNT_KEY").exists(_.length > 0) &&
-    sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
+      sys.env.get("AZURE_TEST_ACCOUNT_KEY").exists(_.length > 0) &&
+      sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
   }
 
-  def buildGoogleServiceAccountKeyFile: Unit = {
+  private def buildGoogleServiceAccountKeyFile: Unit = {
     // Only write tmp file if the key content is defined, otherwise the key is loaded directly from
     // the key file path in GOOGLE_APPLICATION_CREDENTIALS.
-    // scalastyle:off println
-    println("buildGoogleServiceAccountKeyFile entered")
-    // scalastyle:on println
     if (sys.env.get("GOOGLE_SERVICE_ACCOUNT_KEY").exists(_.length > 0)) {
-      // scalastyle:off println
-      println("buildGoogleServiceAccountKeyFile executed")
-      // scalastyle:on println
       val serviceAccountKey = sys.env("GOOGLE_SERVICE_ACCOUNT_KEY")
       val fileWriter = new FileWriter(new File("/tmp/google_service_account_key.json"))
       fileWriter.write(serviceAccountKey)

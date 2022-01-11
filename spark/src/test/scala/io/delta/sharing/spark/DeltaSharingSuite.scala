@@ -16,7 +16,7 @@
 
 package io.delta.sharing.spark
 
-import java.io.EOFException
+import java.io.{EOFException, File, FileWriter}
 
 import scala.util.Random
 
@@ -32,6 +32,18 @@ import org.apache.spark.unsafe.types.UTF8String
 class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaSharingIntegrationTest {
 
   import testImplicits._
+
+  private def buildGoogleServiceAccountKeyFile: Unit = {
+    // Only write tmp file if the key content is defined, otherwise the key is loaded directly from
+    // the key file path in GOOGLE_APPLICATION_CREDENTIALS.
+    if (sys.env.get("GOOGLE_SERVICE_ACCOUNT_KEY").exists(_.length > 0)) {
+      val serviceAccountKey = sys.env("GOOGLE_SERVICE_ACCOUNT_KEY")
+      val fileWriter = new FileWriter(new File("/tmp/google_service_account_key.json"))
+      fileWriter.write(serviceAccountKey)
+      fileWriter.flush()
+      fileWriter.close()
+    }
+  }
 
   protected def sqlDate(date: String): java.sql.Date = {
     toJavaDate(stringToDate(
@@ -149,6 +161,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("gcp support") {
+    buildGoogleServiceAccountKeyFile
     val tablePath = testProfileFile.getCanonicalPath + s"#share_gcp.default.table_gcs"
     checkAnswer(
       spark.read.format("deltaSharing").load(tablePath),
