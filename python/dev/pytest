@@ -38,7 +38,9 @@ fi
 
 # Runs both doctests and unit tests by default, otherwise hands arguments over to pytest.
 if [ "$#" = 0 ]; then
-    $PYTHON_EXECUTABLE -m pytest --verbose --showlocals --color=yes --doctest-modules delta_sharing "${logopts[@]}"
+    # delta_sharing/_yarl_patch.py is a hack to support GCS pre-signed urls. Ask pytest to not
+    # import it automatically so that we can verify we are importing it on demand.
+    $PYTHON_EXECUTABLE -m pytest --ignore=delta_sharing/_yarl_patch.py --verbose --showlocals --color=yes --doctest-modules delta_sharing "${logopts[@]}"
 else
     $PYTHON_EXECUTABLE -m pytest "$@"
 fi
