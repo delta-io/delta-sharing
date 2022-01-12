@@ -25,14 +25,6 @@ from delta_sharing.converter import to_converters, get_empty_table
 from delta_sharing.protocol import AddFile, Table
 from delta_sharing.rest_client import DataSharingRestClient
 
-try:
-    from yarl import URL
-    from yarl._quoting import _Quoter
-
-    URL._PATH_REQUOTER = _Quoter(safe="@:", protected="/+=")  # type: ignore
-except:
-    pass
-
 
 class DeltaSharingReader:
     def __init__(
@@ -112,7 +104,12 @@ class DeltaSharingReader:
     def _to_pandas(
         add_file: AddFile, converters: Dict[str, Callable[[str], Any]], limit: Optional[int]
     ) -> pd.DataFrame:
-        protocol = urlparse(add_file.url).scheme
+        url = urlparse(add_file.url)
+        if "storage.googleapis.com" in (url.netloc.lower()):
+            # Apply the yarl patch for GCS pre-signed urls
+            import delta_sharing._yarl_patch  # noqa: F401
+
+        protocol = url.scheme
         filesystem = fsspec.filesystem(protocol)
 
         pa_dataset = dataset(source=add_file.url, format="parquet", filesystem=filesystem)
