@@ -25,7 +25,6 @@ from datetime import datetime
 
 import requests
 from requests.exceptions import HTTPError, ConnectionError
-from requests.structures import CaseInsensitiveDict
 
 from delta_sharing.protocol import (
     AddFile,
@@ -267,7 +266,7 @@ class DataSharingRestClient:
     def _post_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
         return self._request_internal(request=self._session.post, target=target, json=data)
 
-    def _head_internal(self, target: str) -> CaseInsensitiveDict[str]:
+    def _head_internal(self, target: str):
         assert target.startswith("/"), "Targets should start with '/'"
         response = self._session.head(f"{self._profile.endpoint}{target}")
         try:
