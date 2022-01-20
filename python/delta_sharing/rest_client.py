@@ -66,6 +66,9 @@ class QueryTableMetadataResponse:
     protocol: Protocol
     metadata: Metadata
 
+@dataclass(frozen=True)
+class QueryTableVersionResponse:
+    delta_table_version: int  
 
 @dataclass(frozen=True)
 class ListFilesInTableResponse:
@@ -220,6 +223,15 @@ class DataSharingRestClient:
             )
 
     @retry_with_exponential_backoff
+    def query_table_version(self, table: Table) -> QueryTableVersionResponse:
+        headers = self._head_internal(
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}"
+        )
+        return QueryTableVersionResponse(
+            delta_table_version=int(headers["delta-table-version"])
+        )
+
+    @retry_with_exponential_backoff
     def list_files_in_table(
         self,
         table: Table,
@@ -252,6 +264,15 @@ class DataSharingRestClient:
 
     def _post_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
         return self._request_internal(request=self._session.post, target=target, json=data)
+
+    def _head_internal(self, target: str) -> Dict[str, str]:
+        assert target.startswith("/"), "Targets should start with '/'"
+        response = self._session.head(f"{self._profile.endpoint}{target}")        
+        try:
+            headers = response.headers
+        finally:
+            response.close()           
+            return headers
 
     @contextmanager
     def _request_internal(self, request, target: str, **kwargs) -> Generator[str, None, None]:

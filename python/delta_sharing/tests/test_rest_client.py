@@ -204,6 +204,12 @@ def test_query_table_metadata_partitioned_different_schemas(rest_client: DataSha
         partition_columns=["date"],
     )
 
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_version(rest_client: DataSharingRestClient):
+    response = rest_client.query_table_version(
+        Table(name="table1", share="share1", schema="default")
+    )
+    assert response.delta_table_version == 28
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_files_in_table_non_partitioned(rest_client: DataSharingRestClient):
