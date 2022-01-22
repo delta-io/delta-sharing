@@ -229,7 +229,8 @@ class DataSharingRestClient:
         headers = self._head_internal(
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}"
         )
-        return QueryTableVersionResponse(delta_table_version=int(headers["delta-table-version"]))
+        table_version = int(headers.get("delta-table-version", None) or -1)
+        return QueryTableVersionResponse(delta_table_version=table_version)
 
     @retry_with_exponential_backoff
     def list_files_in_table(

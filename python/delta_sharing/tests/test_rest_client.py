@@ -210,7 +210,8 @@ def test_query_table_version(rest_client: DataSharingRestClient):
     response = rest_client.query_table_version(
         Table(name="table1", share="share1", schema="default")
     )
-    assert response.delta_table_version == 28
+    assert isinstance(response.delta_table_version, int)
+    assert response.delta_table_version > 0
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
