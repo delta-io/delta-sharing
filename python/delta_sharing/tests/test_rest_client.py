@@ -27,7 +27,10 @@ from delta_sharing.protocol import (
     Share,
     Table,
 )
-from delta_sharing.rest_client import DataSharingRestClient, retry_with_exponential_backoff
+from delta_sharing.rest_client import (
+    DataSharingRestClient,
+    retry_with_exponential_backoff,
+)
 from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
 
@@ -186,7 +189,9 @@ def test_query_table_metadata_partitioned(rest_client: DataSharingRestClient):
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_query_table_metadata_partitioned_different_schemas(rest_client: DataSharingRestClient):
+def test_query_table_metadata_partitioned_different_schemas(
+    rest_client: DataSharingRestClient,
+):
     response = rest_client.query_table_metadata(
         Table(name="table3", share="share1", schema="default")
     )
@@ -206,12 +211,20 @@ def test_query_table_metadata_partitioned_different_schemas(rest_client: DataSha
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_query_table_version(rest_client: DataSharingRestClient):
+def test_query_existed_table_version(rest_client: DataSharingRestClient):
     response = rest_client.query_table_version(
         Table(name="table1", share="share1", schema="default")
     )
     assert isinstance(response.delta_table_version, int)
     assert response.delta_table_version > 0
+
+
+# @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_nonexistent_table_version(rest_client: DataSharingRestClient):
+    with pytest.raises(HTTPError):
+        rest_client.query_table_version(
+            Table(name="nonexistenttable", share="share1", schema="default")
+        )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -308,7 +321,9 @@ def test_list_files_in_table_partitioned(rest_client: DataSharingRestClient):
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_list_files_in_table_partitioned_different_schemas(rest_client: DataSharingRestClient):
+def test_list_files_in_table_partitioned_different_schemas(
+    rest_client: DataSharingRestClient,
+):
     response = rest_client.list_files_in_table(
         Table(name="table3", share="share1", schema="default")
     )

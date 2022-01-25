@@ -229,7 +229,12 @@ class DataSharingRestClient:
         headers = self._head_internal(
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}"
         )
-        table_version = int(headers.get("delta-table-version", None) or -1)
+
+        # it's a bug in the server if it doesn't return delta-table-version in the header
+        if "delta-table-version" not in headers:
+            raise LookupError("Missing delta-table-version header")
+
+        table_version = int(headers.get("delta-table-version"))
         return QueryTableVersionResponse(delta_table_version=table_version)
 
     @retry_with_exponential_backoff
@@ -271,10 +276,11 @@ class DataSharingRestClient:
         assert target.startswith("/"), "Targets should start with '/'"
         response = self._session.head(f"{self._profile.endpoint}{target}")
         try:
+            response.raise_for_status()
             headers = response.headers
+            return headers
         finally:
             response.close()
-            return headers
 
     @contextmanager
     def _request_internal(self, request, target: str, **kwargs) -> Generator[str, None, None]:
