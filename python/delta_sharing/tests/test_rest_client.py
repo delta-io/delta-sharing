@@ -219,7 +219,7 @@ def test_query_existed_table_version(rest_client: DataSharingRestClient):
     assert response.delta_table_version > 0
 
 
-# @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_nonexistent_table_version(rest_client: DataSharingRestClient):
     with pytest.raises(HTTPError):
         rest_client.query_table_version(
