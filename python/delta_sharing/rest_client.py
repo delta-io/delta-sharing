@@ -68,6 +68,11 @@ class QueryTableMetadataResponse:
 
 
 @dataclass(frozen=True)
+class QueryTableVersionResponse:
+    delta_table_version: int
+
+
+@dataclass(frozen=True)
 class ListFilesInTableResponse:
     protocol: Protocol
     metadata: Metadata
@@ -220,6 +225,19 @@ class DataSharingRestClient:
             )
 
     @retry_with_exponential_backoff
+    def query_table_version(self, table: Table) -> QueryTableVersionResponse:
+        headers = self._head_internal(
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}"
+        )
+
+        # it's a bug in the server if it doesn't return delta-table-version in the header
+        if "delta-table-version" not in headers:
+            raise LookupError("Missing delta-table-version header")
+
+        table_version = int(headers.get("delta-table-version"))
+        return QueryTableVersionResponse(delta_table_version=table_version)
+
+    @retry_with_exponential_backoff
     def list_files_in_table(
         self,
         table: Table,
@@ -234,7 +252,8 @@ class DataSharingRestClient:
             data["limitHint"] = limitHint
 
         with self._post_internal(
-            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query", data=data,
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query",
+            data=data,
         ) as lines:
             protocol_json = json.loads(next(lines))
             metadata_json = json.loads(next(lines))
@@ -252,6 +271,16 @@ class DataSharingRestClient:
 
     def _post_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
         return self._request_internal(request=self._session.post, target=target, json=data)
+
+    def _head_internal(self, target: str):
+        assert target.startswith("/"), "Targets should start with '/'"
+        response = self._session.head(f"{self._profile.endpoint}{target}")
+        try:
+            response.raise_for_status()
+            headers = response.headers
+            return headers
+        finally:
+            response.close()
 
     @contextmanager
     def _request_internal(self, request, target: str, **kwargs) -> Generator[str, None, None]:

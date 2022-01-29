@@ -273,19 +273,34 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         pytest.param(
             "share_azure.default.table_wasb",
             None,
-            pd.DataFrame({"c1": ["foo bar"], "c2": ["foo bar"],}),
+            pd.DataFrame(
+                {
+                    "c1": ["foo bar"],
+                    "c2": ["foo bar"],
+                }
+            ),
             id="Azure Blob Storage",
         ),
         pytest.param(
             "share_azure.default.table_abfs",
             None,
-            pd.DataFrame({"c1": ["foo bar"], "c2": ["foo bar"],}),
+            pd.DataFrame(
+                {
+                    "c1": ["foo bar"],
+                    "c2": ["foo bar"],
+                }
+            ),
             id="Azure Data Lake Storage Gen2",
         ),
         pytest.param(
             "share_gcp.default.table_gcs",
             None,
-            pd.DataFrame({"c1": ["foo bar"], "c2": ["foo bar"],}),
+            pd.DataFrame(
+                {
+                    "c1": ["foo bar"],
+                    "c2": ["foo bar"],
+                }
+            ),
             id="Google Cloud Storage",
         ),
     ],

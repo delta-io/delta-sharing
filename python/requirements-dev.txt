@@ -11,7 +11,7 @@ mypy==0.812
 flake8
 
 # Code formatter. Only support Python 3.6+
-black==19.10b0
+black==21.12b0
 
 # Test
 pytest

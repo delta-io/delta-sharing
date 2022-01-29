@@ -106,3 +106,12 @@ spark-warehouse/
 
 # For Python
 *.egg-info
+
+# For VSCode
+*.vscode
+
+# For Metals
+*.metals
+
+# For venv
+*.venv

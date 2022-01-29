@@ -40,7 +40,7 @@ setup(
     packages=[
         'delta_sharing',
     ],
-    python_requires='>=3.6,<3.10',
+    python_requires='>=3.6',
     install_requires=[
         'pandas',
         'pyarrow>=4.0.0',
