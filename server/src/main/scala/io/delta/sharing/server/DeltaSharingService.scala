@@ -64,7 +64,7 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
       case _: DeltaSharingNoSuchElementException =>
         if (req.method().equals(HttpMethod.HEAD)) {
           HttpResponse.of(
-            ResponseHeaders.builder(404)
+            ResponseHeaders.builder(HttpStatus.NOT_FOUND)
               .set("error-code", ErrorCode.RESOURCE_DOES_NOT_EXIST)
               .set("message", cause.getMessage)
               .build())
