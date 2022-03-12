@@ -24,7 +24,7 @@ import javax.annotation.Nullable
 
 import scala.collection.JavaConverters._
 
-import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
+import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
 import com.linecorp.armeria.common.auth.OAuth2Token
 import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
@@ -62,13 +62,22 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
     cause match {
       // Handle exceptions caused by incorrect requests
       case _: DeltaSharingNoSuchElementException =>
-        HttpResponse.of(
-          HttpStatus.NOT_FOUND,
-          MediaType.JSON_UTF_8,
-          JsonUtils.toJson(
-            Map(
-              "errorCode" -> ErrorCode.RESOURCE_DOES_NOT_EXIST,
-              "message" -> cause.getMessage)))
+        if (req.method().equals(HttpMethod.HEAD)) {
+          HttpResponse.of(
+            ResponseHeaders.builder(404)
+              .set("error-code", ErrorCode.RESOURCE_DOES_NOT_EXIST)
+              .set("message", cause.getMessage)
+              .build())
+        }
+        else {
+          HttpResponse.of(
+            HttpStatus.NOT_FOUND,
+            MediaType.JSON_UTF_8,
+            JsonUtils.toJson(
+              Map(
+                "errorCode" -> ErrorCode.RESOURCE_DOES_NOT_EXIST,
+                "message" -> cause.getMessage)))
+        }
       case _: DeltaSharingIllegalArgumentException =>
         HttpResponse.of(
           HttpStatus.BAD_REQUEST,

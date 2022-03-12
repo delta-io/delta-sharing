@@ -168,6 +168,8 @@ class SharedTableManager(serverConfig: ServerConfig) {
   def getTable(share: String, schema: String, table: String): TableConfig = {
     val schemaConfig = getSchema(getShareInternal(share), schema)
     schemaConfig.getTables.asScala.find(t => caseInsensitiveComparer(t.getName, table))
-      .getOrElse(throw new DeltaSharingNoSuchElementException(s"table '$table' not found"))
+      .getOrElse(throw new DeltaSharingNoSuchElementException(
+        s"[Share/Schema/Table] '$share/$schema/$table' does not exist, " +
+          s"please contact your share provider for further information."))
   }
 }
