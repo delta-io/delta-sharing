@@ -16,7 +16,7 @@
 
 package io.delta.sharing.server
 
-import java.util.{Arrays, Collections, NoSuchElementException}
+import java.util.{Arrays, Collections}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
