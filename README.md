@@ -13,7 +13,7 @@
 With Delta Sharing, a user accessing shared data can directly connect to it through pandas, Tableau, Apache Spark, Rust, or other systems that support the open protocol, without having to deploy a specific compute platform first. Data providers can share a dataset once to reach a broad range of consumers, while consumers can begin using the data in minutes.
 
 <p align="center">
-  <img src="https://delta.io/wp-content/uploads/2021/12/revised-sharing-hero@2x-1.png" width="85%"/>
+  <img src="images/delta-sharing.png" width="85%"/>
 </p>
 
 This repo includes the following components:
@@ -65,10 +65,12 @@ client = delta_sharing.SharingClient(profile_file)
 client.list_all_tables()
 
 # Create a url to access a shared table.
-# A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
+# A table path is the profile file path following with `#` and the fully qualified name of a table 
+# (`<share-name>.<schema-name>.<table-name>`).
 table_url = profile_file + "#<share-name>.<schema-name>.<table-name>"
 
-# Fetch 10 rows from a table and convert it to a Pandas DataFrame. This can be used to read sample data from a table that cannot fit in the memory.
+# Fetch 10 rows from a table and convert it to a Pandas DataFrame. This can be used to read sample data 
+# from a table that cannot fit in the memory.
 delta_sharing.load_as_pandas(table_url, limit=10)
 
 # Load a table as a Pandas DataFrame. This can be used to process tables that can fit in the memory.
@@ -155,7 +157,8 @@ After you save the profile file and launch Spark with the connector library, you
 
 ### SQL
 ```sql
--- A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
+-- A table path is the profile file path following with `#` and the fully qualified name 
+-- of a table (`<share-name>.<schema-name>.<table-name>`).
 CREATE TABLE mytable USING deltaSharing LOCATION '<profile-file-path>#<share-name>.<schema-name>.<table-name>';
 SELECT * FROM mytable;
 ```
@@ -163,7 +166,8 @@ SELECT * FROM mytable;
 ### Python
 
 ```python
-# A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
+# A table path is the profile file path following with `#` and the fully qualified name 
+# of a table (`<share-name>.<schema-name>.<table-name>`).
 table_path = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 df = spark.read.format("deltaSharing").load(table_path)
 ```
@@ -171,7 +175,8 @@ df = spark.read.format("deltaSharing").load(table_path)
 ### Scala
 
 ```scala
-// A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
+// A table path is the profile file path following with `#` and the fully qualified name 
+// of a table (`<share-name>.<schema-name>.<table-name>`).
 val tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 val df = spark.read.format("deltaSharing").load(tablePath)
 ```
@@ -179,14 +184,16 @@ val df = spark.read.format("deltaSharing").load(tablePath)
 ### Java
 
 ```java
-// A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
+// A table path is the profile file path following with `#` and the fully qualified name 
+// of a table (`<share-name>.<schema-name>.<table-name>`).
 String tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>";
 Dataset<Row> df = spark.read.format("deltaSharing").load(tablePath);
 ```
 
 ### R
 ```r
-# A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
+# A table path is the profile file path following with `#` and the fully qualified name 
+# of a table (`<share-name>.<schema-name>.<table-name>`).
 table_path <- "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 df <- read.df(table_path, "deltaSharing")
 ```
@@ -323,7 +330,9 @@ bin/delta-sharing-server -- --config <the-server-config-yaml-file>
 You can use the pre-built docker image from https://hub.docker.com/r/deltaio/delta-sharing-server by running the following command
 
 ```
-docker run -p <host-port>:<container-port> --mount type=bind,source=<the-server-config-yaml-file>,target=/config/delta-sharing-server-config.yaml deltaio/delta-sharing-server:0.2.0 -- --config /config/delta-sharing-server-config.yaml
+docker run -p <host-port>:<container-port> \
+  --mount type=bind,source=<the-server-config-yaml-file>,target=/config/delta-sharing-server-config.yaml \
+  deltaio/delta-sharing-server:0.2.0 -- --config /config/delta-sharing-server-config.yaml
 ```
 
 Note that `<container-port>` should be the same as the port defined inside the config file.
@@ -412,7 +421,9 @@ build/sbt server/docker:publishLocal
 This will build a Docker image tagged `delta-sharing-server:x.y.z`, which you can run with:
 
 ```
-docker run -p <host-port>:<container-port> --mount type=bind,source=<the-server-config-yaml-file>,target=/config/delta-sharing-server-config.yaml delta-sharing-server:x.y.z -- --config /config/delta-sharing-server-config.yaml
+docker run -p <host-port>:<container-port> \
+  --mount type=bind,source=<the-server-config-yaml-file>,target=/config/delta-sharing-server-config.yaml \
+  delta-sharing-server:x.y.z -- --config /config/delta-sharing-server-config.yaml
 ```
 
 Note that `<container-port>` should be the same as the port defined inside the config file.
