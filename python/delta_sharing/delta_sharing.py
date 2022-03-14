@@ -16,7 +16,6 @@
 from itertools import chain
 from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
 from pathlib import Path
-from urllib import response
 
 import pandas as pd
 
