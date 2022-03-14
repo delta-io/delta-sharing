@@ -13,9 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from importlib.metadata import metadata
 from itertools import chain
 from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
 from pathlib import Path
+from urllib import response
 
 import pandas as pd
 
@@ -23,10 +25,9 @@ try:
     from pyspark.sql import DataFrame as PySparkDataFrame
 except ImportError:
     pass
-
 from delta_sharing.protocol import DeltaSharingProfile, Schema, Share, Table
 from delta_sharing.reader import DeltaSharingReader
-from delta_sharing.rest_client import DataSharingRestClient
+from delta_sharing.rest_client import DataSharingRestClient, QueryTableMetadataResponse
 
 from requests.exceptions import HTTPError
 
@@ -174,3 +175,22 @@ class SharingClient:
                 return list(chain(*(self.list_tables(schema) for schema in schemas)))
             else:
                 raise e
+
+    def query_table_metadata(self, table: Table) -> QueryTableMetadataResponse:
+        """
+        List all metadata for a specified table in a Delta Sharing Server.
+
+        :return: all metadata in a specified table.
+        """
+        return self._rest_client.query_table_metadata(table=table)
+
+    def query_all_table_metadata(self) -> Sequence[QueryTableMetadataResponse]:
+        """
+        List all metadata in all tables that can be accessed by you in a Delta Sharing Server.
+
+        :return: all metadata that can be accessed.
+        """
+        tables = self.list_all_tables()
+        querytablesmetadata = [self.query_table_metadata(table=table) for table in tables]
+
+        return querytablesmetadata

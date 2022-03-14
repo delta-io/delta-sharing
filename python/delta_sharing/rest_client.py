@@ -63,17 +63,20 @@ class ListAllTablesResponse:
 
 @dataclass(frozen=True)
 class QueryTableMetadataResponse:
+    table: Table
     protocol: Protocol
     metadata: Metadata
 
 
 @dataclass(frozen=True)
 class QueryTableVersionResponse:
+    table: Table
     delta_table_version: int
 
 
 @dataclass(frozen=True)
 class ListFilesInTableResponse:
+    table: Table
     protocol: Protocol
     metadata: Metadata
     add_files: Sequence[AddFile]
@@ -220,6 +223,7 @@ class DataSharingRestClient:
             protocol_json = json.loads(next(lines))
             metadata_json = json.loads(next(lines))
             return QueryTableMetadataResponse(
+                table=table,
                 protocol=Protocol.from_json(protocol_json["protocol"]),
                 metadata=Metadata.from_json(metadata_json["metaData"]),
             )
@@ -235,7 +239,7 @@ class DataSharingRestClient:
             raise LookupError("Missing delta-table-version header")
 
         table_version = int(headers.get("delta-table-version"))
-        return QueryTableVersionResponse(delta_table_version=table_version)
+        return QueryTableVersionResponse(table=table, delta_table_version=table_version)
 
     @retry_with_exponential_backoff
     def list_files_in_table(
