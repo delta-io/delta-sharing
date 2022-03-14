@@ -262,6 +262,7 @@ class DataSharingRestClient:
             protocol_json = json.loads(next(lines))
             metadata_json = json.loads(next(lines))
             return ListFilesInTableResponse(
+                table=table,
                 protocol=Protocol.from_json(protocol_json["protocol"]),
                 metadata=Metadata.from_json(metadata_json["metaData"]),
                 add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
