@@ -192,3 +192,10 @@ class SharingClient:
         querytablesmetadata = [self.query_table_metadata(table=table) for table in tables]
 
         return querytablesmetadata
+
+    def query_table_version(self, table: Table) -> QueryTableMetadataResponse:
+        """
+        List the version of a specified table in a Delta Sharing Server.
+        :return: version of a specified table.
+        """
+        return self._rest_client.query_table_version(table=table)
