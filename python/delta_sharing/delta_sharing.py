@@ -25,7 +25,7 @@ except ImportError:
     pass
 from delta_sharing.protocol import DeltaSharingProfile, Schema, Share, Table
 from delta_sharing.reader import DeltaSharingReader
-from delta_sharing.rest_client import DataSharingRestClient, QueryTableMetadataResponse
+from delta_sharing.rest_client import DataSharingRestClient, QueryTableMetadataResponse, QueryTableVersionResponse
 
 from requests.exceptions import HTTPError
 
@@ -193,7 +193,7 @@ class SharingClient:
 
         return querytablesmetadata
 
-    def query_table_version(self, table: Table) -> QueryTableMetadataResponse:
+    def query_table_version(self, table: Table) -> QueryTableVersionResponse:
         """
         List the version of a specified table in a Delta Sharing Server.
         :return: version of a specified table.
