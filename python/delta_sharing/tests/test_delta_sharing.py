@@ -151,6 +151,15 @@ def test_query_table_metadata(sharing_client: SharingClient):
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_version(sharing_client: SharingClient):
+    response = sharing_client.query_table_version(
+        Table(name="table1", share="share1", schema="default")
+    )
+    assert response.table == Table(name="table1", share="share1", schema="default")
+    assert response.delta_table_version == 0
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
     "fragments,limit,expected",
     [
