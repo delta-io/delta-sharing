@@ -298,7 +298,7 @@ class DataSharingRestClient:
             message = e.args[0]
             try:
                 reason = pprint.pformat(json.loads(response.text), indent=2)
-                message += '\n Response from server: \n {}'.format(reason)
+                message += "\n Response from server: \n {}".format(reason)
             except ValueError:
                 pass
             raise HTTPError(message, response=e.response) from None
