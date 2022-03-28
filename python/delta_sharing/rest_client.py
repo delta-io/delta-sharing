@@ -21,6 +21,7 @@ from typing import Any, ClassVar, Dict, Generator, Optional, Sequence
 from urllib.parse import urlparse
 import time
 import logging
+import pprint
 from datetime import datetime
 
 import requests
@@ -293,6 +294,14 @@ class DataSharingRestClient:
                 yield lines
             finally:
                 collections.deque(lines, maxlen=0)
+        except HTTPError as e:
+            message = e.args[0]
+            try:
+                reason = pprint.pformat(json.loads(response.text), indent=2)
+                message += '\n Response from server: \n {}'.format(reason)
+            except ValueError:
+                pass
+            raise HTTPError(message, response=e.response) from None
         finally:
             response.close()
 
