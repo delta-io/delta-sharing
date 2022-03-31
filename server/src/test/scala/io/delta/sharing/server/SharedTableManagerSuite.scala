@@ -198,13 +198,16 @@ class SharedTableManagerSuite extends FunSuite {
 
     assert(intercept[DeltaSharingNoSuchElementException] {
       sharedTableManager.getTable("share2", "schema1", "table1")
-    }.getMessage.contains("share 'share2' not found"))
+    }.getMessage.contains("share2/schema1/table1' does not exist, " +
+    "please contact your share provider for further information."))
     assert(intercept[DeltaSharingNoSuchElementException] {
       sharedTableManager.getTable("share1", "schema2", "table1")
-    }.getMessage.contains("schema 'schema2' not found"))
+    }.getMessage.contains("share1/schema2/table1' does not exist, " +
+      "please contact your share provider for further information."))
     assert(intercept[DeltaSharingNoSuchElementException] {
       sharedTableManager.getTable("share1", "schema1", "table2")
-    }.getMessage.contains("table 'table2' not found"))
+    }.getMessage.contains("share1/schema1/table2' does not exist, " +
+      "please contact your share provider for further information."))
   }
 
   test("empty share list") {
