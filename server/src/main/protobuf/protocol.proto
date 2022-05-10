@@ -45,6 +45,10 @@ message Table {
 message QueryTableRequest {
     repeated string predicateHints = 1;
     optional int64 limitHint = 2;
+
+    // The table version being queried.
+    // If not specified, the query is assumed to be for the latest version.
+    optional int64 tableVersion = 3;
 }
 
 message ListSharesResponse {
