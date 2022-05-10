@@ -21,6 +21,7 @@
     - [Protocol](#protocol)
     - [Metadata](#metadata)
     - [File](#file)
+    - [CDF Files](#cdf-files)
     - [Format](#format)
     - [Schema Object](#schema-object)
       - [Struct Type](#struct-type)
@@ -1655,7 +1656,7 @@ This is the API for clients to read data from a table.
   "predicateHints": [
     "string"
   ],
-  "limitHint": 0
+  "limitHint": 0,
   "version": 0
 }
 
@@ -1885,7 +1886,8 @@ Example (See [Table Metadata Format](#table-metadata-format) for more details ab
     "date >= '2021-01-01'",
     "date <= '2021-01-31'"
   ],
-  "limitHint": 1000
+  "limitHint": 1000,
+  "version": 1
 }
 ```
 
@@ -1940,7 +1942,7 @@ delta-table-version: 123
 ### Read Change Data Feed from a Table
 This is the API for clients to read change data feed from a table. You can provide either version or timestamp for the start and end. The start and end versions and timestamps are inclusive in the queries. To read the changes from a particular start version to the latest version of the table, specify only the starting version or timestamp.
 
-You specify a version as an integer and a timestamps as a string in the format yyyyMMddHHmmssSSS.
+You specify a version as an integer and a timestamps as a string in the format "yyyy-mm-dd hh:mm:ss[.fffffffff]".
 
 
 HTTP Request | Value
@@ -1980,7 +1982,7 @@ A sequence of JSON strings delimited by newline. Each line is a JSON object defi
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
-- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [CDF files](#cdf-file) of the change data feed.
+- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [CDF files](#cdf-files) of the change data feed.
 
 </td>
 </tr>
@@ -2236,7 +2238,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 }
 ```
 
-### CDF-File
+### CDF Files
 
 #### Add File
 Field Name | Data Type | Description | Optional/Required
@@ -2254,7 +2256,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 ```json
 {
   "add": {
-    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
     "id": "591723a8-6a27-4240-a90e-57426f4736d2",
     "size": 573,
     "partitionValues": {
@@ -2282,7 +2284,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 ```json
 {
   "cdf": {
-    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/_change_data/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
     "id": "591723a8-6a27-4240-a90e-57426f4736d2",
     "size": 573,
     "partitionValues": {
@@ -2309,7 +2311,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 ```json
 {
   "remove": {
-    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
     "id": "591723a8-6a27-4240-a90e-57426f4736d2",
     "size": 573,
     "partitionValues": {
