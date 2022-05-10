@@ -69,7 +69,8 @@ object TestResource {
             java.util.Arrays.asList(
               TableConfig("table1", s"s3a://${AWS.bucket}/delta-exchange-test/table1"),
               TableConfig("table3", s"s3a://${AWS.bucket}/delta-exchange-test/table3"),
-              TableConfig("table7", s"s3a://${AWS.bucket}/delta-exchange-test/table7")
+              TableConfig("table7", s"s3a://${AWS.bucket}/delta-exchange-test/table7"),
+              TableConfig("table_cdf", s"s3a://${AWS.bucket}/delta-exchange-test/table_cdf", true)
             )
           )
         )
