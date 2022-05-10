@@ -129,11 +129,13 @@ class DeltaSharedTable(
 
   def query(
       includeFiles: Boolean,
-      predicateHits: Seq[String],
-      limitHint: Option[Long]): (Long, Seq[model.SingleAction]) = withClassLoader {
+      predicateHints: Seq[String],
+      limitHint: Option[Long],
+      version: Option[Long]): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
-    val snapshot = deltaLog.snapshot
-    validateDeltaTable(snapshot)
+    val snapshot = if (version.isEmpty) deltaLog.snapshot else {
+      deltaLog.getSnapshotForVersionAsOf(version.get)
+    }
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
@@ -154,7 +156,7 @@ class DeltaSharedTable(
             PartitionFilterUtils.evaluatePredicate(
               modelMetadata.schemaString,
               modelMetadata.partitionColumns,
-              predicateHits,
+              predicateHints,
               selectedFiles
             )
           } else {

@@ -219,6 +219,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = false,
       Nil,
+      None,
       None)
     streamingOutput(version, actions)
   }
@@ -230,12 +231,17 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("schema") schema: String,
       @Param("table") table: String,
       queryTableRequest: QueryTableRequest): HttpResponse = processRequest {
+    if (queryTableRequest.version.isDefined && queryTableRequest.version.get < 0) {
+      throw new DeltaSharingIllegalArgumentException("table version cannot be negative.")
+    }
+
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
       queryTableRequest.predicateHints,
-      queryTableRequest.limitHint)
+      queryTableRequest.limitHint,
+      queryTableRequest.version)
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
     streamingOutput(version, actions)
