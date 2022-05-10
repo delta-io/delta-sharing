@@ -346,7 +346,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         |  "predicateHints": [
         |    "date = CAST('2021-04-28' AS DATE)"
         |  ],
-        | "tableVersion": 1
+        | "version": 1
         |}
         |""".stripMargin
     val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table1/query"), Some("POST"), Some(p), Some(1))
@@ -559,24 +559,24 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-  integrationTest("tableVersion negative") {
+  integrationTest("version negative") {
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
       method = "POST",
       data = Some("""
-        {"tableVersion": -2}
+        {"version": -2}
       """),
       expectedErrorCode = 400,
       expectedErrorMessage = "table version cannot be negative"
     )
   }
 
-   integrationTest("tableVersion needs to be numeric") {
+   integrationTest("version needs to be numeric") {
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
       method = "POST",
       data = Some("""
-        {"tableVersion": "x3"}
+        {"version": "x3"}
       """),
       expectedErrorCode = 400,
       expectedErrorMessage = "Not a numeric value: x3"

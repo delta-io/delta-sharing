@@ -48,7 +48,7 @@ message QueryTableRequest {
 
     // The table version being queried.
     // If not specified, the query is assumed to be for the latest version.
-    optional int64 tableVersion = 3;
+    optional int64 version = 3;
 }
 
 message ListSharesResponse {

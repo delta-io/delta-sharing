@@ -231,7 +231,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("schema") schema: String,
       @Param("table") table: String,
       queryTableRequest: QueryTableRequest): HttpResponse = processRequest {
-    if (queryTableRequest.tableVersion.isDefined && queryTableRequest.tableVersion.get < 0) {
+    if (queryTableRequest.version.isDefined && queryTableRequest.version.get < 0) {
       throw new DeltaSharingIllegalArgumentException("table version cannot be negative.")
     }
 
@@ -241,7 +241,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       includeFiles = true,
       queryTableRequest.predicateHints,
       queryTableRequest.limitHint,
-      queryTableRequest.tableVersion)
+      queryTableRequest.version)
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
     streamingOutput(version, actions)

@@ -131,10 +131,10 @@ class DeltaSharedTable(
       includeFiles: Boolean,
       predicateHints: Seq[String],
       limitHint: Option[Long],
-      tableVersion: Option[Long]): (Long, Seq[model.SingleAction]) = withClassLoader {
+      version: Option[Long]): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
-    val snapshot = if (tableVersion.isEmpty) deltaLog.snapshot else {
-      deltaLog.getSnapshotForVersionAsOf(tableVersion.get)
+    val snapshot = if (version.isEmpty) deltaLog.snapshot else {
+      deltaLog.getSnapshotForVersionAsOf(version.get)
     }
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
