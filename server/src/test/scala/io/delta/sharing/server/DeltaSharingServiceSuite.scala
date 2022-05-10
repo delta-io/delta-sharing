@@ -571,7 +571,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-   integrationTest("tableVersion needs to be long") {
+   integrationTest("tableVersion needs to be numeric") {
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
       method = "POST",
