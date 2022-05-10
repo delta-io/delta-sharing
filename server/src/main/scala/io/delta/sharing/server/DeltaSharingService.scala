@@ -261,7 +261,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         s"$share.$schema.$table")
     }
 
-    val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).queryCdf(
+    val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
       includeFiles = true,
       getCdfOptionsMap(
         Option(startingVersion),
