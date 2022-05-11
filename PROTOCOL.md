@@ -1887,7 +1887,7 @@ Example (See [Table Metadata Format](#table-metadata-format) for more details ab
     "date <= '2021-01-31'"
   ],
   "limitHint": 1000,
-  "version": 1
+  "version": 123
 }
 ```
 
@@ -1940,7 +1940,9 @@ delta-table-version: 123
 ```
 
 ### Read Change Data Feed from a Table
-This is the API for clients to read change data feed from a table. You can provide either version or timestamp for the start and end. The start and end versions and timestamps are inclusive in the queries. To read the changes from a particular start version to the latest version of the table, specify only the starting version or timestamp.
+This is the API for clients to read change data feed from a table.
+
+You can provide either version or timestamp for the start and end. The start and end versions and timestamps are inclusive in the queries. To read the changes from a particular start version to the latest version of the table, specify only the starting version or timestamp.
 
 You specify a version as an integer and a timestamps as a string in the format "yyyy-mm-dd hh:mm:ss[.fffffffff]".
 
@@ -2143,6 +2145,76 @@ The response contains multiple lines:
 </table>
 </details>
 
+Example (See [Table Metadata Format](#table-metadata-format) for more details about the format):
+
+`GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/changes?startingVersion=0&endingVersion=2`
+
+
+```
+HTTP/2 200 
+content-type: application/x-ndjson; charset=utf-8
+delta-table-version: 123
+```
+
+```json
+{
+  "protocol": {
+    "minReaderVersion": 1
+  }
+}
+{
+  "metaData": {
+    "id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+    "format": {
+      "provider": "parquet"
+    },
+    "schemaString": "{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}",
+    "partitionColumns": [
+      "date"
+    ],
+    "configuration": {
+      "enableChangeDataFeed": "true"
+    }
+  }
+}
+{
+  "add": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e",
+    "id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640",
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "size":573,
+    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}",
+    "timestamp": 1652140000000,
+    "version": 0
+  }
+}
+{
+  "cdf": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/_change_data/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=899&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=0f7acecba5df7652457164533a58004936586186c56425d9d53c52db574f6b62",
+    "id": "591723a8-6a27-4240-a90e-57426f4736d2",
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "size": 689,
+    "timestamp": 1652141000000,
+    "version": 1
+  }
+}
+{
+  "remove": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e",
+    "id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640",
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "size": 573,
+    "timestamp": 1652142000000,
+    "version": 2
+  }
+}
+```
 
 ## Table Metadata Format
 
@@ -2205,7 +2277,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
     },
     "schemaString": "{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}",
     "id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
-    "configuration":{
+    "configuration": {
       "enableChangeDataFeed": "true"
     }
   }
@@ -2291,7 +2363,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
       "date": "2021-04-28"
     },
     "timestamp": 1652140800000,
-    "version": 1,
+    "version": 1
   }
 }
 ```
@@ -2318,7 +2390,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
       "date": "2021-04-28"
     },
     "timestamp": 1652140800000,
-    "version": 1,
+    "version": 1
   }
 }
 ```
