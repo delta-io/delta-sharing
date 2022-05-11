@@ -146,6 +146,7 @@ class DeltaSharedTable(
       description = state.metadata.description,
       format = model.Format(),
       schemaString = cleanUpTableSchema(state.metadata.schemaString),
+      configuration = getMetadataConfiguration,
       partitionColumns = state.metadata.partitionColumns
     )
     val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
@@ -181,6 +182,14 @@ class DeltaSharedTable(
 
   def update(): Unit = withClassLoader {
     deltaLog.update()
+  }
+
+  private def getMetadataConfiguration: Map[String, String ] = {
+    if (tableConfig.cdfEnabled) {
+      Map("enableChangeDataFeed" -> "true")
+    } else {
+      Map.empty
+    }
   }
 
   private def cleanUpTableSchema(schemaString: String): String = {
