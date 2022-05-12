@@ -1942,9 +1942,11 @@ delta-table-version: 123
 ### Read Change Data Feed from a Table
 This is the API for clients to read change data feed from a table.
 
-You can provide either version or timestamp for the start and end of change data feed. The start and end versions and timestamps are inclusive in the queries. To read the changes from a particular start version to the latest version of the table, specify only the starting version or timestamp. Either startingVersion or startingTimestamp must be provided. For either starting or ending parameter, only one parameter (version or timestamp) is supported.
+The API supports a start parameter and and an end parameter. The start/end parameter can either be a version or a timestamp. The start parameter must be provided. If the end parameter is not provided, the API will use the latest table version for it. The parameter range is inclusive in the query.
 
-You specify a version as an long and a timestamps as a string in the format "yyyy-mm-dd hh:mm:ss[.fffffffff]".
+You specify a version as a long and a timestamps as a string in the format "yyyy-mm-dd hh:mm:ss[.fffffffff]".
+
+More related info can be found in [Delta Change Data Feed](https://docs.databricks.com/delta/delta-change-data-feed.html).
 
 
 HTTP Request | Value
@@ -1956,7 +1958,7 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br
 Query Parameters | **startingVersion** (type: Int64, optional): The starting version of the query, inclusive. <br> **startingTimestamp** (type: String, optional): The starting timestamp of the query, will be converted to a version created greater or equal to this timestamp. <br> **endingVersion** (type: Int64, optional): The ending version of the query, inclusive. <br> **endingTimestamp** (type: String, optional): The ending timestamp of the query, will be converted to a version created earlier or equal to this timestamp.
 
 <details open>
-<summary><b>200: The change data feed were successfully returned.</b></summary>
+<summary><b>200: The change data feed was successfully returned.</b></summary>
 
 <table>
 <tr>
@@ -1971,7 +1973,7 @@ Query Parameters | **startingVersion** (type: Int64, optional): The starting ver
 
 `Delta-Table-Version: {version}`
 
-**{version}** is a long value which represents the current table version.
+**{version}** is a Long which represents the current table version.
 
 </td>
 </tr>
