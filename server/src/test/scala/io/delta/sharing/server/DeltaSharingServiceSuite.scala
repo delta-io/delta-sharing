@@ -377,6 +377,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(0).url, 781)
   }
 
+
   integrationTest("table2 - partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val response = readNDJson(requestPath("/shares/share2/schemas/default/tables/table2/metadata"), expectedTableVersion = Some(2))
     val Array(protocol, metadata) = response.split("\n")
@@ -388,6 +389,16 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
       partitionColumns = Seq("date")).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+  }
+
+  integrationTest("table2 - version 1 : cdfEnabled is false") {
+    assertHttpError(
+      url = requestPath("/shares/share2/schemas/default/tables/table2/query"),
+      method = "POST",
+      data = Some("""{"version": 1}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "reading table by version is not enabled on table share2.default.table2"
+    )
   }
 
   integrationTest("table2 - partitioned - /shares/{share}/schemas/{schema}/tables/{table}/query") {

@@ -67,7 +67,7 @@ object TestResource {
           SchemaConfig(
             "default",
             java.util.Arrays.asList(
-              TableConfig("table1", s"s3a://${AWS.bucket}/delta-exchange-test/table1"),
+              TableConfig("table1", s"s3a://${AWS.bucket}/delta-exchange-test/table1", true),
               TableConfig("table3", s"s3a://${AWS.bucket}/delta-exchange-test/table3"),
               TableConfig("table7", s"s3a://${AWS.bucket}/delta-exchange-test/table7")
             )
