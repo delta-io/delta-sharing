@@ -139,19 +139,19 @@ class DeltaSharedTable(
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
-    val modelProtocol = model.Protocol(state.protocol.minReaderVersion)
+    val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
     val modelMetadata = model.Metadata(
-      id = state.metadata.id,
-      name = state.metadata.name,
-      description = state.metadata.description,
+      id = snapshot.metadataScala.id,
+      name = snapshot.metadataScala.name,
+      description = snapshot.metadataScala.description,
       format = model.Format(),
-      schemaString = cleanUpTableSchema(state.metadata.schemaString),
+      schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
       configuration = getMetadataConfiguration,
-      partitionColumns = state.metadata.partitionColumns
+      partitionColumns = snapshot.metadataScala.partitionColumns
     )
     val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
       if (includeFiles) {
-        val selectedFiles = state.activeFiles.values.toSeq
+        val selectedFiles = state.activeFiles.toSeq
         val filteredFilters =
           if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
             PartitionFilterUtils.evaluatePredicate(
