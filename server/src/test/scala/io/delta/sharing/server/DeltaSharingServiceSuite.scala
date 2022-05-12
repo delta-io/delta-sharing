@@ -369,6 +369,44 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(1).url, 781)
   }
 
+  integrationTest("table1 - version 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
+    val p =
+      """
+        |{
+        |  "predicateHints": [
+        |    "date = CAST('2021-04-28' AS DATE)"
+        |  ],
+        | "version": 1
+        |}
+        |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table1/query"), Some("POST"), Some(p), Some(1))
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val expectedMetadata = Metadata(
+      id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Nil).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+    val files = lines.drop(2)
+    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+    assert(actualFiles.size == 1)
+    val expectedFiles = Seq(
+      AddFile(
+        url = actualFiles(0).url,
+        id = "e268cbf70dbaa6143e7e9fa3e2d3b00e",
+        partitionValues = Map.empty,
+        size = 781,
+        stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
+      )
+    )
+    assert(expectedFiles == actualFiles.toList)
+    verifyPreSignedUrl(actualFiles(0).url, 781)
+  }
+
   integrationTest("table2 - partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val response = readNDJson(requestPath("/shares/share2/schemas/default/tables/table2/metadata"), expectedTableVersion = Some(2))
     val Array(protocol, metadata) = response.split("\n")
@@ -548,6 +586,30 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       data = Some(""),
       expectedErrorCode = 400,
       expectedErrorMessage = "No content to map due to end-of-input"
+    )
+  }
+
+  integrationTest("version negative") {
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some("""
+        {"version": -2}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "table version cannot be negative"
+    )
+  }
+
+   integrationTest("version needs to be numeric") {
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some("""
+        {"version": "x3"}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Not a numeric value: x3"
     )
   }
 

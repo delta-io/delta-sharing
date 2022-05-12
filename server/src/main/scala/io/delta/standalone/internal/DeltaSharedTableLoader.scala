@@ -129,32 +129,34 @@ class DeltaSharedTable(
 
   def query(
       includeFiles: Boolean,
-      predicateHits: Seq[String],
-      limitHint: Option[Long]): (Long, Seq[model.SingleAction]) = withClassLoader {
+      predicateHints: Seq[String],
+      limitHint: Option[Long],
+      version: Option[Long]): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
-    val snapshot = deltaLog.snapshot
-    validateDeltaTable(snapshot)
+    val snapshot = if (version.isEmpty) deltaLog.snapshot else {
+      deltaLog.getSnapshotForVersionAsOf(version.get)
+    }
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
-    val modelProtocol = model.Protocol(state.protocol.minReaderVersion)
+    val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
     val modelMetadata = model.Metadata(
-      id = state.metadata.id,
-      name = state.metadata.name,
-      description = state.metadata.description,
+      id = snapshot.metadataScala.id,
+      name = snapshot.metadataScala.name,
+      description = snapshot.metadataScala.description,
       format = model.Format(),
-      schemaString = cleanUpTableSchema(state.metadata.schemaString),
-      partitionColumns = state.metadata.partitionColumns
+      schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
+      partitionColumns = snapshot.metadataScala.partitionColumns
     )
     val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
       if (includeFiles) {
-        val selectedFiles = state.activeFiles.values.toSeq
+        val selectedFiles = state.activeFiles.toSeq
         val filteredFilters =
           if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
             PartitionFilterUtils.evaluatePredicate(
               modelMetadata.schemaString,
               modelMetadata.partitionColumns,
-              predicateHits,
+              predicateHints,
               selectedFiles
             )
           } else {
