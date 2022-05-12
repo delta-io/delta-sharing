@@ -676,7 +676,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "GET",
       data = None,
       expectedErrorCode = 500,
-      expectedErrorMessage = "" // message is hiden: queryCDF is not supported yet
+      expectedErrorMessage = "" // message is hidden: queryCDF is not supported yet
     )
   }
 

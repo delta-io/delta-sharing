@@ -272,7 +272,6 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
 
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
-      includeFiles = true,
       getCdfOptionsMap(
         Option(startingVersion),
         Option(endingVersion),
@@ -417,31 +416,21 @@ object DeltaSharingService {
     startingTimestamp: Option[String],
     endingTimestamp: Option[String]): Map[String, String] = {
     checkCDFOptionsValidity(startingVersion, endingVersion, startingTimestamp, endingTimestamp)
-    (if (startingVersion.isDefined) {
-       Map(
-         DeltaDataSource.CDF_START_VERSION_KEY -> startingVersion.get
-       )
-     } else {
-       Map.empty
-     }) ++ (if (startingTimestamp.isDefined) {
-              Map(
-                DeltaDataSource.CDF_START_TIMESTAMP_KEY -> startingTimestamp.get
-              )
-            } else {
-              Map.empty
-            }) ++ (if (endingVersion.isDefined) {
-                     Map(
-                       DeltaDataSource.CDF_END_VERSION_KEY -> endingVersion.get
-                     )
-                   } else {
-                     Map.empty
-                   }) ++ (if (endingTimestamp.isDefined) {
-                            Map(
-                              DeltaDataSource.CDF_END_TIMESTAMP_KEY -> endingTimestamp.get
-                            )
-                          } else {
-                            Map.empty
-                          })
+
+    val startingVersionOption = if (startingVersion.isDefined) {
+      Map(DeltaDataSource.CDF_START_VERSION_KEY -> startingVersion.get)
+     } else { Map.empty }
+    val startingTimestampOption = if (startingTimestamp.isDefined) {
+      Map(DeltaDataSource.CDF_START_TIMESTAMP_KEY -> startingTimestamp.get)
+    } else { Map.empty }
+    val endingVersionOption = if (endingVersion.isDefined) {
+      Map(DeltaDataSource.CDF_END_VERSION_KEY -> endingVersion.get)
+    } else { Map.empty }
+    val endingTimestampOption = if (endingTimestamp.isDefined) {
+      Map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> endingTimestamp.get)
+    } else { Map.empty }
+
+    startingVersionOption ++ startingTimestampOption ++ endingVersionOption ++ endingTimestampOption
   }
 
   def main(args: Array[String]): Unit = {

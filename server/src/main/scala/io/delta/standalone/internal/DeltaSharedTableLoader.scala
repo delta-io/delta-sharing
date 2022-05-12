@@ -181,8 +181,8 @@ class DeltaSharedTable(
   }
 
   def queryCDF(
-      includeFiles: Boolean,
-      cdfOptions: Map[String, String]): (Long, Seq[model.SingleAction]) = withClassLoader {
+    cdfOptions: Map[String, String]
+  ): (Long, Seq[model.SingleAction]) = withClassLoader {
     throw new IllegalStateException("queryCDF is not supported yet")
   }
 
