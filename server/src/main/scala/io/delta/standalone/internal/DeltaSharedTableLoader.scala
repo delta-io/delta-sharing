@@ -139,14 +139,14 @@ class DeltaSharedTable(
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
-    val modelProtocol = model.Protocol(state.protocol.minReaderVersion)
+    val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
     val modelMetadata = model.Metadata(
-      id = state.metadata.id,
-      name = state.metadata.name,
-      description = state.metadata.description,
+      id = snapshot.metadataScala.id,
+      name = snapshot.metadataScala.name,
+      description = snapshot.metadataScala.description,
       format = model.Format(),
-      schemaString = cleanUpTableSchema(state.metadata.schemaString),
-      partitionColumns = state.metadata.partitionColumns
+      schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
+      partitionColumns = snapshot.metadataScala.partitionColumns
     )
     val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
       if (includeFiles) {
@@ -176,6 +176,26 @@ class DeltaSharedTable(
         Nil
       }
     }
+    snapshot.version -> actions
+  }
+
+  def queryCDF(cdfOptions: Map[String, String]): Seq[model.SingleAction] = withClassLoader {
+    val cdcReader = DeltaSharingCDCReader(deltaLog)
+    val (changeFiles, addFiles, removeFiles)  = cdcReader.replay(cdfOptions)
+    changeFiles.map {cdcDataSpec =>
+      val addCDCFile = cdcDataSpec.asInstanceOf[AddCDCFile]
+      val cloudPath = absolutePath(deltaLog.dataPath, addCDCFile.path)
+      val signedUrl = fileSigner.sign(cloudPath)
+      val modelAddFile = model.AddCDCFile(url = signedUrl,
+        id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+        partitionValues = addFile.partitionValues,
+        size = addFile.size,
+        version = cdcDataSpec.version,
+        timestamp = cdcDataSpec.timestamp.getTime
+      )
+      modelAddFile.wrap
+    }
+    // TODO: Do the same for remove file and add file
     snapshot.version -> actions
   }
 
