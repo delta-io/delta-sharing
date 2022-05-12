@@ -30,10 +30,9 @@ import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
 import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
 import com.linecorp.armeria.server.auth.AuthService
+import io.delta.standalone.internal.DeltaCDFErrors
 import io.delta.standalone.internal.DeltaDataSource
 import io.delta.standalone.internal.DeltaSharedTableLoader
-import io.delta.standalone.internal.MultipleCDFBoundaryException
-import io.delta.standalone.internal.NoStartVersionForCDFException
 import net.sourceforge.argparse4j.ArgumentParsers
 import org.apache.commons.io.FileUtils
 import org.slf4j.LoggerFactory
@@ -384,13 +383,13 @@ object DeltaSharingService {
     endingTimestamp: Option[String]): Unit = {
     // check if we have both version and timestamp parameters
     if (startingVersion.isDefined && startingTimestamp.isDefined) {
-      throw new MultipleCDFBoundaryException("starting")
+      throw DeltaCDFErrors.multipleCDFBoundary("starting")
     }
     if (endingVersion.isDefined && endingTimestamp.isDefined) {
-      throw new MultipleCDFBoundaryException("ending")
+      throw DeltaCDFErrors.multipleCDFBoundary("ending")
     }
     if (startingVersion.isEmpty && startingTimestamp.isEmpty) {
-      throw new NoStartVersionForCDFException()
+      throw DeltaCDFErrors.noStartVersionForCDF
     }
     if (startingVersion.isDefined) {
       try {

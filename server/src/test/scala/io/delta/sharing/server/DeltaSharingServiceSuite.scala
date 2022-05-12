@@ -25,8 +25,7 @@ import javax.net.ssl._
 import scala.collection.mutable.ArrayBuffer
 
 import com.linecorp.armeria.server.Server
-import io.delta.standalone.internal.MultipleCDFBoundaryException
-import io.delta.standalone.internal.NoStartVersionForCDFException
+import io.delta.standalone.internal.DeltaCDFErrors
 import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import scalapb.json4s.JsonFormat
@@ -149,19 +148,19 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   test("getCdfOptionsMap") {
-    intercept[NoStartVersionForCDFException] {
+    intercept[IllegalArgumentException] {
       DeltaSharingService.getCdfOptionsMap(None, None, None, None)
     }.getMessage.contains("No startingVersion or startingTimestamp provided for CDF read")
 
-    intercept[NoStartVersionForCDFException] {
+    intercept[IllegalArgumentException] {
       DeltaSharingService.getCdfOptionsMap(None, None, None, Some("endingTimestamp"))
     }.getMessage.contains("No startingVersion or startingTimestamp provided for CDF read")
 
-    intercept[MultipleCDFBoundaryException] {
+    intercept[IllegalArgumentException] {
       DeltaSharingService.getCdfOptionsMap(Some("startingV"), None, Some("startingT"), None)
     }.getMessage.contains("Multiple starting arguments provided for CDF read")
 
-    intercept[MultipleCDFBoundaryException] {
+    intercept[IllegalArgumentException] {
       DeltaSharingService.getCdfOptionsMap(Some("startV"), Some("endV"), None, Some("endT"))
     }.getMessage.contains("Multiple ending arguments provided for CDF read")
 
