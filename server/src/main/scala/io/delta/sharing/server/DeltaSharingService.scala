@@ -238,8 +238,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     if (queryTableRequest.version.isDefined && !tableConfig.cdfEnabled) {
-      throw new DeltaSharingIllegalArgumentException("reading table by version is not enabled " +
-        s"on table $share.$schema.$table")
+      throw new DeltaSharingIllegalArgumentException("reading table by version is not supported" +
+        s" because change data feed is not enabled on table: $share.$schema.$table")
     }
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
