@@ -22,7 +22,7 @@ import pandas as pd
 from pyarrow.dataset import dataset
 
 from delta_sharing.converter import to_converters, get_empty_table
-from delta_sharing.protocol import AddFile, Table, CdfOptions, FileAction
+from delta_sharing.protocol import CdfOptions, FileAction, Table
 from delta_sharing.rest_client import DataSharingRestClient
 
 
