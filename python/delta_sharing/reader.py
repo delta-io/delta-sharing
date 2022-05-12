@@ -22,7 +22,7 @@ import pandas as pd
 from pyarrow.dataset import dataset
 
 from delta_sharing.converter import to_converters, get_empty_table
-from delta_sharing.protocol import AddFile, Table
+from delta_sharing.protocol import AddFile, Table, CdfOptions, FileAction
 from delta_sharing.rest_client import DataSharingRestClient
 
 
@@ -93,6 +93,22 @@ class DeltaSharingReader:
             copy=False,
         )[[field["name"] for field in schema_json["fields"]]]
 
+    def table_changes_to_pandas(self, cdfOptions: CdfOptions) -> pd.DataFrame:
+        response = self._rest_client.list_table_changes(self._table, cdfOptions)
+
+        schema_json = loads(response.metadata.schema_string)
+
+        if len(response.actions) == 0 or self._limit == 0:
+            return get_empty_table(schema_json)
+
+        converters = to_converters(schema_json)
+        pdfs = []
+        for action in response.actions:
+            pdf = DeltaSharingReader._to_pandas(action, converters, None)
+            pdfs.append(pdf)
+
+        return pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+
     def _copy(
         self, *, predicateHints: Optional[Sequence[str]], limit: Optional[int]
     ) -> "DeltaSharingReader":
@@ -105,9 +121,9 @@ class DeltaSharingReader:
 
     @staticmethod
     def _to_pandas(
-        add_file: AddFile, converters: Dict[str, Callable[[str], Any]], limit: Optional[int]
+        action: FileAction, converters: Dict[str, Callable[[str], Any]], limit: Optional[int]
     ) -> pd.DataFrame:
-        url = urlparse(add_file.url)
+        url = urlparse(action.url)
         if "storage.googleapis.com" in (url.netloc.lower()):
             # Apply the yarl patch for GCS pre-signed urls
             import delta_sharing._yarl_patch  # noqa: F401
@@ -115,7 +131,7 @@ class DeltaSharingReader:
         protocol = url.scheme
         filesystem = fsspec.filesystem(protocol)
 
-        pa_dataset = dataset(source=add_file.url, format="parquet", filesystem=filesystem)
+        pa_dataset = dataset(source=action.url, format="parquet", filesystem=filesystem)
         pa_table = pa_dataset.head(limit) if limit is not None else pa_dataset.to_table()
         pdf = pa_table.to_pandas(
             date_as_object=True, use_threads=False, split_blocks=True, self_destruct=True
@@ -123,12 +139,30 @@ class DeltaSharingReader:
 
         for col, converter in converters.items():
             if col not in pdf.columns:
-                if col in add_file.partition_values:
+                if col in action.partition_values:
                     if converter is not None:
-                        pdf[col] = converter(add_file.partition_values[col])
+                        pdf[col] = converter(action.partition_values[col])
                     else:
                         raise ValueError("Cannot partition on binary or complex columns")
                 else:
                     pdf[col] = None
 
+        # If available, add timestamp and version columns from the action.
+        # All rows of the dataframe will get the same value.
+        if action.timestamp is not None:
+            assert DeltaSharingReader._current_timestamp_col_name() not in pdf.columns
+            pdf[DeltaSharingReader._current_timestamp_col_name()] = action.timestamp
+
+        if action.version is not None:
+            assert DeltaSharingReader._current_version_col_name() not in pdf.columns
+            pdf[DeltaSharingReader._current_version_col_name()] = action.version
+
         return pdf
+
+    @staticmethod
+    def _current_timestamp_col_name():
+        return "_current_timestamp"
+
+    @staticmethod
+    def _current_version_col_name():
+        return "_current_version"

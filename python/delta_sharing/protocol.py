@@ -161,11 +161,17 @@ class Metadata:
 
 
 @dataclass(frozen=True)
-class AddFile:
+class FileAction:
     url: str
     id: str
     partition_values: Dict[str, str]
     size: int
+    timestamp: Optional[str] = None
+    version: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class AddFile(FileAction):
     stats: Optional[str] = None
 
     @staticmethod
@@ -178,4 +184,46 @@ class AddFile:
             partition_values=json["partitionValues"],
             size=int(json["size"]),
             stats=json.get("stats", None),
+            timestamp=json.get("timestamp", None),
+            version=json.get("version", None),
         )
+
+
+@dataclass(frozen=True)
+class AddCdcFile(FileAction):
+    @staticmethod
+    def from_json(json) -> "AddCdcFile":
+        if isinstance(json, (str, bytes, bytearray)):
+            json = loads(json)
+        return AddCdcFile(
+            url=json["url"],
+            id=json["id"],
+            partition_values=json["partitionValues"],
+            size=int(json["size"]),
+            timestamp=json["timestamp"],
+            version=json["version"],
+        )
+
+
+@dataclass(frozen=True)
+class RemoveFile(FileAction):
+    @staticmethod
+    def from_json(json) -> "RemoveFile":
+        if isinstance(json, (str, bytes, bytearray)):
+            json = loads(json)
+        return RemoveFile(
+            url=json["url"],
+            id=json["id"],
+            partition_values=json["partitionValues"],
+            size=int(json["size"]),
+            timestamp=json.get("timestamp", None),
+            version=json.get("version", None),
+        )
+
+
+@dataclass(frozen=True)
+class CdfOptions:
+    starting_version: Optional[int] = None
+    ending_version: Optional[int] = None
+    starting_timestamp: Optional[str] = None
+    ending_timestamp: Optional[str] = None
