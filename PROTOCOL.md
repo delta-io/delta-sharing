@@ -1872,7 +1872,7 @@ The request body should be a JSON string containing the following two optional f
 - **limitHint** (type: Int32, optional): an optional limit number. It’s a hint from the client to tell the server how many rows in the table the client plans to read. The server can use this hint to return only some files by using the file stats. For example, when running `SELECT * FROM table LIMIT 1000`, the client can set `limitHint` to `1000`.
   - Applying `limitHint` is **BEST EFFORT**. The server may return files containing more rows than the client requests.
 
-- **version** (type: Int32, optional): an optional version number. If set, will return files as of the specified version of the table. This is only supported on tables with change data feed (cdf) enabled. 
+- **version** (type: Int64, optional): an optional version number. If set, will return files as of the specified version of the table. This is only supported on tables with change data feed (cdf) enabled. 
 
 When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
@@ -1942,9 +1942,9 @@ delta-table-version: 123
 ### Read Change Data Feed from a Table
 This is the API for clients to read change data feed from a table.
 
-You can provide either version or timestamp for the start and end. The start and end versions and timestamps are inclusive in the queries. To read the changes from a particular start version to the latest version of the table, specify only the starting version or timestamp.
+You can provide either version or timestamp for the start and end of change data feed. The start and end versions and timestamps are inclusive in the queries. To read the changes from a particular start version to the latest version of the table, specify only the starting version or timestamp. Either startingVersion or startingTimestamp must be provided. For either starting or ending parameter, only one parameter (version or timestamp) is supported.
 
-You specify a version as an integer and a timestamps as a string in the format "yyyy-mm-dd hh:mm:ss[.fffffffff]".
+You specify a version as an long and a timestamps as a string in the format "yyyy-mm-dd hh:mm:ss[.fffffffff]".
 
 
 HTTP Request | Value
@@ -1953,7 +1953,7 @@ Method | `GET`
 Header | `Authorization: Bearer {token}`
 URL | `{prefix}/shares/{share}/schemas/{schema}/tables/{table}/changes`
 URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.<br>**{table}**: The table name to query. It's case-insensitive.
-Query Parameters | **startingVersion** (type: Int32, optional): The starting version of the query, inclusive. <br> **startingTimestamp** (type: String, optional): The starting timestamp of the query, will be converted to a version created greater or equal to this timestamp. <br> **endingVersion** (type: Int32, optional): The ending version of the query, inclusive. <br> **endingTimestamp** (type: String, optional): The ending timestamp of the query, will be converted to a version created earlier or equal to this timestamp.
+Query Parameters | **startingVersion** (type: Int64, optional): The starting version of the query, inclusive. <br> **startingTimestamp** (type: String, optional): The starting timestamp of the query, will be converted to a version created greater or equal to this timestamp. <br> **endingVersion** (type: Int64, optional): The ending version of the query, inclusive. <br> **endingTimestamp** (type: String, optional): The ending timestamp of the query, will be converted to a version created earlier or equal to this timestamp.
 
 <details open>
 <summary><b>200: The change data feed were successfully returned.</b></summary>
@@ -2153,7 +2153,6 @@ Example (See [Table Metadata Format](#table-metadata-format) for more details ab
 ```
 HTTP/2 200 
 content-type: application/x-ndjson; charset=utf-8
-delta-table-version: 123
 ```
 
 ```json
