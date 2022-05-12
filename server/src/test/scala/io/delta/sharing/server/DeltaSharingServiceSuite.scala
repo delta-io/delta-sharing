@@ -253,7 +253,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       Table().withName("table1").withSchema("default").withShare("share1") ::
         Table().withName("table3").withSchema("default").withShare("share1") ::
         Table().withName("table7").withSchema("default").withShare("share1") ::
-        Table().withName("table_cdf").withSchema("default").withShare("share1") :: Nil)
+        Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") :: Nil)
     assert(expected == JsonFormat.fromJsonString[ListTablesResponse](response))
   }
 
@@ -269,7 +269,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       Table().withName("table1").withSchema("default").withShare("share1") ::
         Table().withName("table3").withSchema("default").withShare("share1") ::
         Table().withName("table7").withSchema("default").withShare("share1") ::
-        Table().withName("table_cdf").withSchema("default").withShare("share1") :: Nil
+        Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") :: Nil
     assert(expected == tables)
   }
 
@@ -571,7 +571,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/table_cdf/changes"),
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes"),
       method = "GET",
       data = None,
       expectedErrorCode = 500,
