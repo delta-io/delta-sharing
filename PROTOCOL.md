@@ -15,11 +15,13 @@
     - [Query Table Metadata](#query-table-metadata)
     - [Read Data from a Table](#read-data-from-a-table)
       - [Request Body](#request-body)
+    - [Read Change Data Feed from a Table](#read-change-data-feed-from-a-table)
   - [Table Metadata Format](#table-metadata-format)
     - [JSON Wrapper Object In Each Line](#json-wrapper-object-in-each-line)
     - [Protocol](#protocol)
     - [Metadata](#metadata)
     - [File](#file)
+    - [CDF Files](#cdf-files)
     - [Format](#format)
     - [Schema Object](#schema-object)
       - [Struct Type](#struct-type)
@@ -1654,7 +1656,8 @@ This is the API for clients to read data from a table.
   "predicateHints": [
     "string"
   ],
-  "limitHint": 0
+  "limitHint": 0,
+  "version": 0
 }
 
 ```
@@ -1869,6 +1872,8 @@ The request body should be a JSON string containing the following two optional f
 - **limitHint** (type: Int32, optional): an optional limit number. It’s a hint from the client to tell the server how many rows in the table the client plans to read. The server can use this hint to return only some files by using the file stats. For example, when running `SELECT * FROM table LIMIT 1000`, the client can set `limitHint` to `1000`.
   - Applying `limitHint` is **BEST EFFORT**. The server may return files containing more rows than the client requests.
 
+- **version** (type: Int64, optional): an optional version number. If set, will return files as of the specified version of the table. This is only supported on tables with change data feed (cdf) enabled. 
+
 When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
 Example (See [Table Metadata Format](#table-metadata-format) for more details about the format):
@@ -1881,7 +1886,8 @@ Example (See [Table Metadata Format](#table-metadata-format) for more details ab
     "date >= '2021-01-01'",
     "date <= '2021-01-31'"
   ],
-  "limitHint": 1000
+  "limitHint": 1000,
+  "version": 123
 }
 ```
 
@@ -1933,6 +1939,287 @@ delta-table-version: 123
 }
 ```
 
+### Read Change Data Feed from a Table
+This is the API for clients to read change data feed from a table.
+
+The API supports a start parameter and and an end parameter. The start/end parameter can either be a version or a timestamp. The start parameter must be provided. If the end parameter is not provided, the API will use the latest table version for it. The parameter range is inclusive in the query.
+
+You specify a version as a Long and a timestamps as a string in the format "yyyy-mm-dd hh:mm:ss[.fffffffff]".
+
+The change data feed represents row-level changes between versions of a Delta table. It records change data for UPDATE, DELETE, and MERGE operations. If you leveage the connectors provided by this library to read chagne data feed, it results in three metadata columns that identify the type of change event, in addition to the data columns:
+- _change_type (type: String): There are four values: insert, update_preimage, update_postimage, delete. preimage is the value before the udpate, postimage is the value after the update.
+- _commit_version (type: Long): The table version containing the change.
+- _commit_timestamp (type: String): The timestap associated when the commit of the change was created, in the format "yyyy-mm-dd hh:mm:ss".
+
+
+HTTP Request | Value
+-|-
+Method | `GET`
+Header | `Authorization: Bearer {token}`
+URL | `{prefix}/shares/{share}/schemas/{schema}/tables/{table}/changes`
+URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.<br>**{table}**: The table name to query. It's case-insensitive.
+Query Parameters | **startingVersion** (type: Int64, optional): The starting version of the query, inclusive. <br> **startingTimestamp** (type: String, optional): The starting timestamp of the query, will be converted to a version created greater or equal to this timestamp. <br> **endingVersion** (type: Int64, optional): The ending version of the query, inclusive. <br> **endingTimestamp** (type: String, optional): The ending timestamp of the query, will be converted to a version created earlier or equal to this timestamp.
+
+<details open>
+<summary><b>200: The change data feed was successfully returned.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Headers</td>
+<td>
+
+`Content-Type: application/x-ndjson; charset=utf-8`
+
+`Delta-Table-Version: {version}`
+
+**{version}** is a Long which represents the current table version.
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [Table Metadata Format](#table-metadata-format).
+
+The response contains multiple lines:
+- The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
+- The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
+- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [CDF files](#cdf-files) of the change data feed.
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>400: The request is malformed.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>401: The request is unauthenticated. The bearer token is missing or incorrect.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>403: The request is forbidden from being fulfilled.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>404: The requested resource does not exist.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>500: The request is not handled correctly due to a server error.</b></summary>
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+
+Example (See [Table Metadata Format](#table-metadata-format) for more details about the format):
+
+`GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/changes?startingVersion=0&endingVersion=2`
+
+
+```
+HTTP/2 200 
+content-type: application/x-ndjson; charset=utf-8
+```
+
+```json
+{
+  "protocol": {
+    "minReaderVersion": 1
+  }
+}
+{
+  "metaData": {
+    "id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+    "format": {
+      "provider": "parquet"
+    },
+    "schemaString": "{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}",
+    "partitionColumns": [
+      "date"
+    ],
+    "configuration": {
+      "enableChangeDataFeed": "true"
+    }
+  }
+}
+{
+  "add": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e",
+    "id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640",
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "size":573,
+    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}",
+    "timestamp": 1652140000000,
+    "version": 0
+  }
+}
+{
+  "cdf": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/_change_data/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=899&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=0f7acecba5df7652457164533a58004936586186c56425d9d53c52db574f6b62",
+    "id": "591723a8-6a27-4240-a90e-57426f4736d2",
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "size": 689,
+    "timestamp": 1652141000000,
+    "version": 1
+  }
+}
+{
+  "remove": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e",
+    "id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640",
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "size": 573,
+    "timestamp": 1652142000000,
+    "version": 2
+  }
+}
+```
+
 ## Table Metadata Format
 
 This section discusses the table metadata format returned by the server.
@@ -1979,6 +2266,7 @@ description | String | User-provided description for this table | Optional
 format | [Format](#format) Object | Specification of the encoding for the files stored in the table. | Required
 schemaString | String | Schema of the table. This is a serialized JSON string which can be deserialized to a [Schema](#schema-object) Object. | Required
 partitionColumns | Array<String> | An array containing the names of columns by which the data should be partitioned. When a table doesn’t have partition columns, this will be an **empty** array. | Required
+configuration | Map[String, String] | A map containing configuration options for the table
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -1992,7 +2280,10 @@ Example (for illustration purposes; each JSON object must be a single line in th
       "provider": "parquet"
     },
     "schemaString": "{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}",
-    "id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2"
+    "id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+    "configuration": {
+      "enableChangeDataFeed": "true"
+    }
   }
 }
 ```
@@ -2019,6 +2310,91 @@ Example (for illustration purposes; each JSON object must be a single line in th
       "date": "2021-04-28"
     },
     "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}"
+  }
+}
+```
+
+### CDF Files
+
+#### Add File
+Field Name | Data Type | Description | Optional/Required
+-|-|-|-
+url | String | A https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
+partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
+size | Long | The size of this file in bytes. | Required
+timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
+version | Int32 | The table version of this file. | Required
+stats | String | Contains statistics (e.g., count, min/max values for columns) about the data in this file. This field may be missing. A file may or may not have stats. This is a serialized JSON string which can be deserialized to a [Statistics Struct](#per-file-statistics). A client can decide whether to use stats or drop it. | Optional
+
+Example (for illustration purposes; each JSON object must be a single line in the response):
+
+```json
+{
+  "add": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
+    "id": "591723a8-6a27-4240-a90e-57426f4736d2",
+    "size": 573,
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "timestamp": 1652140800000,
+    "version": 1,
+    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}"
+  }
+}
+```
+
+#### CDF File
+Field Name | Data Type | Description | Optional/Required
+-|-|-|-
+url | String | A https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
+partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
+size | Long | The size of this file in bytes. | Required
+timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
+version | Int32 | The table version of this file. | Required
+
+Example (for illustration purposes; each JSON object must be a single line in the response):
+
+```json
+{
+  "cdf": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/_change_data/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
+    "id": "591723a8-6a27-4240-a90e-57426f4736d2",
+    "size": 573,
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "timestamp": 1652140800000,
+    "version": 1
+  }
+}
+```
+
+#### Remove File
+Field Name | Data Type | Description | Optional/Required
+-|-|-|-
+url | String | A https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
+partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
+size | Long | The size of this file in bytes. | Required
+timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
+version | Int32 | The table version of this file. | Required
+
+Example (for illustration purposes; each JSON object must be a single line in the response):
+
+```json
+{
+  "remove": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
+    "id": "591723a8-6a27-4240-a90e-57426f4736d2",
+    "size": 573,
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "timestamp": 1652140800000,
+    "version": 1
   }
 }
 ```
