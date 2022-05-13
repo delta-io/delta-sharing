@@ -180,6 +180,12 @@ class DeltaSharedTable(
     snapshot.version -> actions
   }
 
+  def queryCDF(
+    cdfOptions: Map[String, String]
+  ): (Long, Seq[model.SingleAction]) = withClassLoader {
+    throw new IllegalStateException("queryCDF is not supported yet")
+  }
+
   def update(): Unit = withClassLoader {
     deltaLog.update()
   }

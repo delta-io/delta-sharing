@@ -25,6 +25,7 @@ import javax.net.ssl._
 import scala.collection.mutable.ArrayBuffer
 
 import com.linecorp.armeria.server.Server
+import io.delta.standalone.internal.DeltaCDFErrors
 import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import scalapb.json4s.JsonFormat
@@ -144,6 +145,32 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       assume(shouldRunIntegrationTest)
       func
     }
+  }
+
+  test("getCdfOptionsMap") {
+    intercept[IllegalArgumentException] {
+      DeltaSharingService.getCdfOptionsMap(None, None, None, None)
+    }.getMessage.contains("No startingVersion or startingTimestamp provided for CDF read")
+
+    intercept[IllegalArgumentException] {
+      DeltaSharingService.getCdfOptionsMap(None, None, None, Some("endingTimestamp"))
+    }.getMessage.contains("No startingVersion or startingTimestamp provided for CDF read")
+
+    intercept[IllegalArgumentException] {
+      DeltaSharingService.getCdfOptionsMap(Some("startingV"), None, Some("startingT"), None)
+    }.getMessage.contains("Multiple starting arguments provided for CDF read")
+
+    intercept[IllegalArgumentException] {
+      DeltaSharingService.getCdfOptionsMap(Some("startV"), Some("endV"), None, Some("endT"))
+    }.getMessage.contains("Multiple ending arguments provided for CDF read")
+
+    intercept[IllegalArgumentException] {
+      DeltaSharingService.getCdfOptionsMap(Some("startV"), Some("3"), None, None)
+    }.getMessage.contains("startingVersion is not a valid number")
+
+    intercept[IllegalArgumentException] {
+      DeltaSharingService.getCdfOptionsMap(Some("2"), Some("endV"), None, None)
+    }.getMessage.contains("endingVersion is not a valid number")
   }
 
   integrationTest("401 Unauthorized Error: incorrect token") {
@@ -631,6 +658,24 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       data = None,
       expectedErrorCode = 400,
       expectedErrorMessage = "expected a number but the string didn't have the appropriate format"
+    )
+  }
+
+  integrationTest("table changes: exceptions") {
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/changes"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "cdf is not enabled on table share1.default.table1"
+    )
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 500,
+      expectedErrorMessage = "" // message is hidden: queryCDF is not supported yet
     )
   }
 
