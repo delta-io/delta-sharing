@@ -1944,9 +1944,12 @@ This is the API for clients to read change data feed from a table.
 
 The API supports a start parameter and and an end parameter. The start/end parameter can either be a version or a timestamp. The start parameter must be provided. If the end parameter is not provided, the API will use the latest table version for it. The parameter range is inclusive in the query.
 
-You specify a version as a long and a timestamps as a string in the format "yyyy-mm-dd hh:mm:ss[.fffffffff]".
+You specify a version as a Long and a timestamps as a string in the format "yyyy-mm-dd hh:mm:ss[.fffffffff]".
 
-More related info can be found in [Delta Change Data Feed](https://docs.databricks.com/delta/delta-change-data-feed.html).
+The change data feed represents row-level changes between versions of a Delta table. It records change data for UPDATE, DELETE, and MERGE operations. If you leveage this OSS connector to read chagne data feed, it contains three metadata columns that identify the type of change event, in addition to the data columns:
+- _change_type (type: String): There are four values: insert, update_preimage, update_postimage, delete. preimage is the value before the udpate, postimage is the value after the update.
+- _commit_version (type: Long): The table version containing the change.
+- _commit_timestamp (type: String): The timestap associated when the commit of the change was created, in the format "yyyy-mm-dd hh:mm:ss".
 
 
 HTTP Request | Value
