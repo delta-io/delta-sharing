@@ -1946,7 +1946,7 @@ The API supports a start parameter and and an end parameter. The start/end param
 
 You specify a version as a Long and a timestamps as a string in the format "yyyy-mm-dd hh:mm:ss[.fffffffff]".
 
-The change data feed represents row-level changes between versions of a Delta table. It records change data for UPDATE, DELETE, and MERGE operations. If you leveage this OSS connector to read chagne data feed, it contains three metadata columns that identify the type of change event, in addition to the data columns:
+The change data feed represents row-level changes between versions of a Delta table. It records change data for UPDATE, DELETE, and MERGE operations. If you leveage the connectors provided by this library to read chagne data feed, it results in three metadata columns that identify the type of change event, in addition to the data columns:
 - _change_type (type: String): There are four values: insert, update_preimage, update_postimage, delete. preimage is the value before the udpate, postimage is the value after the update.
 - _commit_version (type: Long): The table version containing the change.
 - _commit_timestamp (type: String): The timestap associated when the commit of the change was created, in the format "yyyy-mm-dd hh:mm:ss".
