@@ -407,6 +407,7 @@ object DeltaSharingService {
           throw new IllegalArgumentException("endingVersion is not a valid number.")
       }
     }
+    // startingTimestamp and endingTimestamp are validated in the delta sharing cdc reader.
   }
 
   private[server] def getCdfOptionsMap(
