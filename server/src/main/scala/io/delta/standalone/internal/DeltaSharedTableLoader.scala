@@ -25,12 +25,14 @@ import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
 import com.google.common.cache.CacheBuilder
 import com.google.common.hash.Hashing
 import io.delta.standalone.DeltaLog
+import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, RemoveFile}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.azure.NativeAzureFileSystem
 import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem
 import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
+import scala.collection.mutable.ListBuffer
 
 import io.delta.sharing.server.{model, AbfsFileSigner, GCSFileSigner, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.{ServerConfig, TableConfig}
@@ -146,11 +148,12 @@ class DeltaSharedTable(
       description = snapshot.metadataScala.description,
       format = model.Format(),
       schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
+      configuration = getMetadataConfiguration(snapshot.metadataScala.configuration),
       partitionColumns = snapshot.metadataScala.partitionColumns
     )
     val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
       if (includeFiles) {
-        val selectedFiles = state.activeFiles.values.toSeq
+        val selectedFiles = state.activeFiles.toSeq
         val filteredFilters =
           if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
             PartitionFilterUtils.evaluatePredicate(
@@ -180,27 +183,39 @@ class DeltaSharedTable(
   }
 
   def queryCDF(cdfOptions: Map[String, String]): Seq[model.SingleAction] = withClassLoader {
-    val cdcReader = DeltaSharingCDCReader(deltaLog)
-    val (changeFiles, addFiles, removeFiles)  = cdcReader.replay(cdfOptions)
-    changeFiles.map {cdcDataSpec =>
-      val addCDCFile = cdcDataSpec.asInstanceOf[AddCDCFile]
-      val cloudPath = absolutePath(deltaLog.dataPath, addCDCFile.path)
-      val signedUrl = fileSigner.sign(cloudPath)
-      val modelAddFile = model.AddCDCFile(url = signedUrl,
-        id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
-        partitionValues = addFile.partitionValues,
-        size = addFile.size,
-        version = cdcDataSpec.version,
-        timestamp = cdcDataSpec.timestamp.getTime
-      )
-      modelAddFile.wrap
+    val cdcReader = new DeltaSharingCDCReader(deltaLog, conf)
+    val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(cdfOptions, tableVersion)
+    val actions = ListBuffer[model.SingleAction]()
+    changeFiles.foreach{cdcDataSpec =>
+      cdcDataSpec.actions.foreach{action =>
+        val addCDCFile = action.asInstanceOf[AddCDCFile]
+        val cloudPath = absolutePath(deltaLog.dataPath, addCDCFile.path)
+        val signedUrl = fileSigner.sign(cloudPath)
+        val modelAddFile = model.AddCDCFile(url = signedUrl,
+          id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
+          partitionValues = addCDCFile.partitionValues,
+          size = addCDCFile.size,
+          version = cdcDataSpec.version,
+          timestamp = cdcDataSpec.timestamp.getTime
+        )
+        actions.append(modelAddFile.wrap)
+      }
     }
     // TODO: Do the same for remove file and add file
-    snapshot.version -> actions
+    actions.toSeq
   }
 
   def update(): Unit = withClassLoader {
     deltaLog.update()
+  }
+
+  private def getMetadataConfiguration(tableConf: Map[String, String]): Map[String, String ] = {
+    if (tableConfig.cdfEnabled &&
+      tableConf.getOrElse("delta.enableChangeDataFeed", "false") == "true") {
+      Map("enableChangeDataFeed" -> "true")
+    } else {
+      Map.empty
+    }
   }
 
   private def cleanUpTableSchema(schemaString: String): String = {

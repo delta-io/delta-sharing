@@ -17,47 +17,50 @@
 // Putting these classes in this package to access Delta Standalone internal APIs
 package io.delta.standalone.internal
 
-import java.net.URI
-import java.nio.charset.StandardCharsets.UTF_8
-import java.util.concurrent.TimeUnit
+import java.sql.Timestamp
+import java.util.TimeZone
 
-import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
-import com.google.common.cache.CacheBuilder
-import com.google.common.hash.Hashing
 import io.delta.standalone.DeltaLog
+import io.delta.standalone.internal.DeltaHistoryManager
+import io.delta.standalone.internal.actions.{
+  AddCDCFile,
+  AddFile,
+  CommitInfo,
+  CommitMarker,
+  FileAction,
+  Metadata,
+  RemoveFile
+}
+import io.delta.standalone.internal.exception.DeltaErrors
+import io.delta.standalone.internal.util.FileNames
+import io.delta.standalone.storage.LogStore
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
-import org.apache.hadoop.fs.azure.NativeAzureFileSystem
-import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem
-import org.apache.hadoop.fs.s3a.S3AFileSystem
-import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
-
-import io.delta.sharing.server.{model, AbfsFileSigner, GCSFileSigner, S3FileSigner, WasbFileSigner}
-import io.delta.sharing.server.config.{ServerConfig, TableConfig}
+import scala.collection.JavaConverters._
+import scala.collection.mutable.ListBuffer
 
 /**
  * A class to load Delta tables from `TableConfig`. It also caches the loaded tables internally
  * to speed up the loading.
  */
-class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl) {
+class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration) {
 
   private lazy val snapshot = deltaLog.snapshot
   lazy val protocol = snapshot.protocolScala
   lazy val metadata = snapshot.metadataScala
   private lazy val history = DeltaHistoryManager(deltaLog)
 
-  @VisibleForTesting
   private[internal] def getCDCVersions(
-      CdfOptions: Map[String, String],
+      cdfOptions: Map[String, String],
       latestVersion: Long): (Long, Long) = {
     val startingVersion = getVersionForCDC(
-      CdfOptions,
+      cdfOptions,
       DeltaDataSource.CDF_START_VERSION_KEY,
       DeltaDataSource.CDF_START_TIMESTAMP_KEY,
       latestVersion
     )
     if (startingVersion.isEmpty) {
-      throw DeltaCDFErrors.noStartVersionForCDF()
+      throw DeltaCDFErrors.noStartVersionForCDF
     }
     // add a version check here that is cheap instead of after trying to list a large version
     // that doesn't exist
@@ -66,7 +69,7 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl) {
     }
 
     val endingVersion = getVersionForCDC(
-      CdfOptions,
+      cdfOptions,
       DeltaDataSource.CDF_END_VERSION_KEY,
       DeltaDataSource.CDF_END_TIMESTAMP_KEY,
       latestVersion
@@ -79,9 +82,9 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl) {
     (startingVersion.get, endingVersion.getOrElse(latestVersion))
   }
 
-  // Convert timestamp string in CdfOptions to Timestamp
+  // Convert timestamp string in cdfOptions to Timestamp
   private def getTimestamp(paramName: String, timeStampStr: String): Timestamp = {
-    TimeZone.setDefault(snapshot.readTimeZone)
+    // TimeZone.setDefault(snapshot.readTimeZone)
     try {
       Timestamp.valueOf(timeStampStr)
     } catch {
@@ -152,16 +155,17 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl) {
   /**
    * Replay Delta transaction logs and return cdf files
    *
-   * @param CdfOptions to indicate the starting and ending version of the change data feed.
+   * @param cdfOptions to indicate the starting and ending version of the change data feed.
    * @param latestVersion the latest version of the delta table, which is used to validate the
    *                      starting and ending versions, and may be used as default ending version.
-   * @param fileListener a listener that processes `version, timestamp, fileAction`s. Delta sharing
-   *                     server process these to return pre-sign urls for cdf files. Timestamp is
-   *                     number of milliseconds from epoch
    */
-  def replay(CdfOptions: Map[String, String], latestVersion: Long): Unit = {
-    val (start, end) = getCDCVersions(CdfOptions, latestVersion)
-    val changes = deltaLog.getChanges(start, false).takeWhile(_._1 <= end)
+  def queryCDF(cdfOptions: Map[String, String], latestVersion: Long): (
+    Seq[CDCDataSpec[AddCDCFile]],
+    Seq[CDCDataSpec[AddFile]],
+    Seq[CDCDataSpec[RemoveFile]]
+  ) = {
+    val (start, end) = getCDCVersions(cdfOptions, latestVersion)
+    val changes = deltaLog.getChanges(start, false).asScala.takeWhile(_.getVersion <= end)
 
     // Correct timestamp values are only available through DeltaHistoryManager.getCommits(). Commit
     // info timestamps are wrong, and file modification times are wrong because they need to be
@@ -184,12 +188,13 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl) {
     val addFiles = ListBuffer[CDCDataSpec[AddFile]]()
     val removeFiles = ListBuffer[CDCDataSpec[RemoveFile]]()
 
-    if (!isCDCEnabledOnTable(deltaLog.getSnapshotForVersionAsOf(start).metadata)) {
+    if (!isCDCEnabledOnTable(deltaLog.getSnapshotForVersionAsOf(start).metadataScala)) {
       throw DeltaCDFErrors.changeDataNotRecordedException(start, start, end)
     }
 
-    changes.foreach {
-      case (v, actions) =>
+    changes.foreach {versionLog =>
+        val v = versionLog.getVersion
+        val actions = versionLog.getActions.asScala
         // Check whether CDC was newly disabled in this version. (We should have already checked
         // that it's enabled for the starting version, so checking this for each version
         // incrementally is sufficient to ensure that it's enabled for the entire range.)
@@ -267,7 +272,7 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl) {
         }
     }
 
-    changeFiles, addFiles, removeFiles
+    (changeFiles.toSeq, addFiles.toSeq, removeFiles.toSeq)
   }
 
   case class CDCDataSpec[T <: FileAction](version: Long, timestamp: Timestamp, actions: Seq[T])
@@ -281,18 +286,18 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl) {
 
 
   /**
-   * DeltaHistoryManager.getCommits is not a public method, so we need to make local copies here
+   * DeltaHistoryManager.getCommits is not a public method, so we need to make local copies here.
    * When calling getCommits, the initial few timestamp values may be wrong because they are not
    * properly monotonized. getCommitsSafe uses this to update the start value
    * far behind the first timestamp they care about to get correct values.
    */
   private val POTENTIALLY_UNMONOTONIZED_TIMESTAMPS = 100
 
-  private[internal] def getCommitsSafe(
-      logStore: ReadOnlyLogStore,
+  private def getCommitsSafe(
+      logStore: LogStore,
       logPath: Path,
       start: Long,
-      end: Long): Array[Commit] = {
+      end: Long): Array[DeltaHistoryManager.Commit] = {
     val monotonizationStart =
       Seq(start - POTENTIALLY_UNMONOTONIZED_TIMESTAMPS, 0).max
     getCommits(logStore, logPath, monotonizationStart, end)
@@ -304,13 +309,14 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl) {
    * returned will have both monotonically increasing versions as well as timestamps.
    * Exposed for tests.
    */
-  private[internal] def getCommits(
-      logStore: ReadOnlyLogStore,
+  private def getCommits(
+      logStore: LogStore,
       logPath: Path,
       start: Long,
-      end: Long): Array[Commit] = {
+      end: Long): Array[DeltaHistoryManager.Commit] = {
     val commits = logStore
-      .listFrom(FileNames.deltaFile(logPath, start))
+      .listFrom(FileNames.deltaFile(logPath, start), conf)
+      .asScala
       .filter(f => FileNames.isDeltaFile(f.getPath))
       .map { fileStatus =>
         Commit(FileNames.deltaVersion(fileStatus.getPath), fileStatus.getModificationTime)
@@ -324,7 +330,7 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl) {
    * Makes sure that the commit timestamps are monotonically increasing with respect to commit
    * versions. Requires the input commits to be sorted by the commit version.
    */
-  private[internal] def monotonizeCommitTimestamps[T <: CommitMarker](
+  private def monotonizeCommitTimestamps[T <: CommitMarker](
       commits: Array[T]): Array[T] = {
     var i = 0
     val length = commits.length

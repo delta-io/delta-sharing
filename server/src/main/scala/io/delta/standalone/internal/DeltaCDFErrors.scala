@@ -17,16 +17,16 @@
 package io.delta.standalone.internal
 
 object DeltaCDFErrors {
-  def MultipleCDFBoundary(position: String): Throwable = {
+  def multipleCDFBoundary(position: String): Throwable = {
     new IllegalArgumentException(s"Multiple $position arguments provided for CDF read. Please " +
       s"provide one of either ${position}Timestamp or ${position}Version."
     )
   }
 
-  def NoStartVersionForCDF: Throwable = {
+  def noStartVersionForCDF: Throwable = {
     new IllegalArgumentException("No startingVersion or startingTimestamp provided for CDF read.")
   }
-  
+
   def startVersionAfterLatestVersion(start: Long, latest: Long): Throwable = {
     new IllegalArgumentException(s"Provided Start version($start) for reading change data is " +
       s"invalid. Start version cannot be greater than the latest version of the table($latest)."
