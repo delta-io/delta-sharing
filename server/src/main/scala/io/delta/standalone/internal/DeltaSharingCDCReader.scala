@@ -21,21 +21,16 @@ import java.sql.Timestamp
 import java.util.TimeZone
 
 import io.delta.standalone.DeltaLog
-import io.delta.standalone.internal.DeltaHistoryManager
 import io.delta.standalone.internal.actions.{
   AddCDCFile,
   AddFile,
   CommitInfo,
-  CommitMarker,
   FileAction,
   Metadata,
   RemoveFile
 }
 import io.delta.standalone.internal.exception.DeltaErrors
-import io.delta.standalone.internal.util.FileNames
-import io.delta.standalone.storage.LogStore
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.Path
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
 
@@ -172,11 +167,12 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
     // monotonized first. This just performs a list (we don't read the contents of the files in
     // getCommits()) so it's not a big deal.
     val timestampsByVersion: Map[Long, Timestamp] = {
-      val commits = getCommitsSafe(
+      val commits = DeltaSharingHistoryManager.getCommitsSafe(
         deltaLog.store,
         deltaLog.logPath,
         start,
-        end + 1
+        end + 1,
+        conf
       )
 
       // Note that the timestamps come from filesystem modification timestamps, so they're
@@ -282,66 +278,5 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
    */
   def isCDCEnabledOnTable(metadata: Metadata): Boolean = {
     metadata.configuration.getOrElse("delta.enableChangeDataFeed", "false") == "true"
-  }
-
-
-  /**
-   * DeltaHistoryManager.getCommits is not a public method, so we need to make local copies here.
-   * When calling getCommits, the initial few timestamp values may be wrong because they are not
-   * properly monotonized. getCommitsSafe uses this to update the start value
-   * far behind the first timestamp they care about to get correct values.
-   */
-  private val POTENTIALLY_UNMONOTONIZED_TIMESTAMPS = 100
-
-  private def getCommitsSafe(
-      logStore: LogStore,
-      logPath: Path,
-      start: Long,
-      end: Long): Array[DeltaHistoryManager.Commit] = {
-    val monotonizationStart =
-      Seq(start - POTENTIALLY_UNMONOTONIZED_TIMESTAMPS, 0).max
-    getCommits(logStore, logPath, monotonizationStart, end)
-  }
-
-  /**
-   * Returns the commit version and timestamps of all commits in `[start, end)`. If `end` is not
-   * specified, will return all commits that exist after `start`. Will guarantee that the commits
-   * returned will have both monotonically increasing versions as well as timestamps.
-   * Exposed for tests.
-   */
-  private def getCommits(
-      logStore: LogStore,
-      logPath: Path,
-      start: Long,
-      end: Long): Array[DeltaHistoryManager.Commit] = {
-    val commits = logStore
-      .listFrom(FileNames.deltaFile(logPath, start), conf)
-      .asScala
-      .filter(f => FileNames.isDeltaFile(f.getPath))
-      .map { fileStatus =>
-        Commit(FileNames.deltaVersion(fileStatus.getPath), fileStatus.getModificationTime)
-      }
-      .takeWhile(_.version < end)
-
-    monotonizeCommitTimestamps(commits.toArray)
-  }
-
-  /**
-   * Makes sure that the commit timestamps are monotonically increasing with respect to commit
-   * versions. Requires the input commits to be sorted by the commit version.
-   */
-  private def monotonizeCommitTimestamps[T <: CommitMarker](
-      commits: Array[T]): Array[T] = {
-    var i = 0
-    val length = commits.length
-    while (i < length - 1) {
-      val prevTimestamp = commits(i).getTimestamp
-      assert(commits(i).getVersion < commits(i + 1).getVersion, "Unordered commits provided.")
-      if (prevTimestamp >= commits(i + 1).getTimestamp) {
-        commits(i + 1) = commits(i + 1).withTimestamp(prevTimestamp + 1).asInstanceOf[T]
-      }
-      i += 1
-    }
-    commits
   }
 }
