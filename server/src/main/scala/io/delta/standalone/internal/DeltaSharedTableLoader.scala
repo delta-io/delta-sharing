@@ -182,26 +182,77 @@ class DeltaSharedTable(
     snapshot.version -> actions
   }
 
+
   def queryCDF(cdfOptions: Map[String, String]): Seq[model.SingleAction] = withClassLoader {
+    val actions = ListBuffer[model.SingleAction]()
+
+    // First: get Protocol and Metadata
+    val snapshot = deltaLog.snapshot
+    val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
+    val modelMetadata = model.Metadata(
+      id = snapshot.metadataScala.id,
+      name = snapshot.metadataScala.name,
+      description = snapshot.metadataScala.description,
+      format = model.Format(),
+      schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
+      configuration = getMetadataConfiguration(snapshot.metadataScala.configuration),
+      partitionColumns = snapshot.metadataScala.partitionColumns
+    )
+    actions.append(modelProtocol.wrap)
+    actions.append(modelMetadata.wrap)
+
+    // Second: get files
     val cdcReader = new DeltaSharingCDCReader(deltaLog, conf)
     val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(cdfOptions, tableVersion)
-    val actions = ListBuffer[model.SingleAction]()
     changeFiles.foreach{cdcDataSpec =>
       cdcDataSpec.actions.foreach{action =>
         val addCDCFile = action.asInstanceOf[AddCDCFile]
         val cloudPath = absolutePath(deltaLog.dataPath, addCDCFile.path)
         val signedUrl = fileSigner.sign(cloudPath)
-        val modelAddFile = model.AddCDCFile(url = signedUrl,
+        val modelCDCFile = model.AddCDCFile(
+          url = signedUrl,
           id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
           partitionValues = addCDCFile.partitionValues,
           size = addCDCFile.size,
           version = cdcDataSpec.version,
           timestamp = cdcDataSpec.timestamp.getTime
         )
+        actions.append(modelCDCFile.wrap)
+      }
+    }
+    addFiles.foreach{cdcDataSpec =>
+      cdcDataSpec.actions.foreach{action =>
+        val addFile = action.asInstanceOf[AddFile]
+        val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
+        val signedUrl = fileSigner.sign(cloudPath)
+        val modelAddFile = model.AddFileForCDF(
+          url = signedUrl,
+          id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+          partitionValues = addFile.partitionValues,
+          size = addFile.size,
+          stats = addFile.stats,
+          version = cdcDataSpec.version,
+          timestamp = cdcDataSpec.timestamp.getTime
+        )
         actions.append(modelAddFile.wrap)
       }
     }
-    // TODO: Do the same for remove file and add file
+    removeFiles.foreach{cdcDataSpec =>
+      cdcDataSpec.actions.foreach{action =>
+        val removeFile = action.asInstanceOf[RemoveFile]
+        val cloudPath = absolutePath(deltaLog.dataPath, removeFile.path)
+        val signedUrl = fileSigner.sign(cloudPath)
+        val modelRemoveFile = model.RemoveFile(
+          url = signedUrl,
+          id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
+          partitionValues = removeFile.partitionValues,
+          size = removeFile.size.get,
+          version = cdcDataSpec.version,
+          timestamp = cdcDataSpec.timestamp.getTime
+        )
+        actions.append(modelRemoveFile.wrap)
+      }
+    }
     actions.toSeq
   }
 

@@ -63,7 +63,8 @@ class ServerConfigSuite extends FunSuite {
           SchemaConfig("schema2", Arrays.asList(
             TableConfig(
               "table3",
-              "abfss://<container-name>@<account-name}.dfs.core.windows.net/<the-table-path>")
+              "abfss://<container-name>@<account-name}.dfs.core.windows.net/<the-table-path>",
+              true)
           ))
         )),
         ShareConfig("share3", Arrays.asList(

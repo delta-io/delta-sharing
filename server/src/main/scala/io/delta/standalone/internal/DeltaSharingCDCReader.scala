@@ -18,7 +18,6 @@
 package io.delta.standalone.internal
 
 import java.sql.Timestamp
-import java.util.TimeZone
 
 import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{
@@ -30,6 +29,7 @@ import io.delta.standalone.internal.actions.{
   RemoveFile
 }
 import io.delta.standalone.internal.exception.DeltaErrors
+import io.delta.standalone.internal.util.ConversionUtils
 import org.apache.hadoop.conf.Configuration
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
@@ -79,7 +79,6 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
 
   // Convert timestamp string in cdfOptions to Timestamp
   private def getTimestamp(paramName: String, timeStampStr: String): Timestamp = {
-    // TimeZone.setDefault(snapshot.readTimeZone)
     try {
       Timestamp.valueOf(timeStampStr)
     } catch {
@@ -190,7 +189,7 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
 
     changes.foreach {versionLog =>
         val v = versionLog.getVersion
-        val actions = versionLog.getActions.asScala
+        val actions = versionLog.getActions.asScala.map(x => ConversionUtils.convertActionJ(x))
         // Check whether CDC was newly disabled in this version. (We should have already checked
         // that it's enabled for the starting version, so checking this for each version
         // incrementally is sufficient to ensure that it's enabled for the entire range.)

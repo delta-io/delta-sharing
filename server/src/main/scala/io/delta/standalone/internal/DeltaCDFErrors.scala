@@ -16,36 +16,41 @@
 
 package io.delta.standalone.internal
 
+class DeltaCDFIllegalArgumentException(message: String)
+  extends IllegalArgumentException(message)
+
 object DeltaCDFErrors {
   def multipleCDFBoundary(position: String): Throwable = {
-    new IllegalArgumentException(s"Multiple $position arguments provided for CDF read. Please " +
-      s"provide one of either ${position}Timestamp or ${position}Version."
+    new DeltaCDFIllegalArgumentException(s"Multiple $position arguments provided for CDF read. " +
+      s"Please provide one of either ${position}Timestamp or ${position}Version."
     )
   }
 
   def noStartVersionForCDF: Throwable = {
-    new IllegalArgumentException("No startingVersion or startingTimestamp provided for CDF read.")
+    new DeltaCDFIllegalArgumentException("No startingVersion or startingTimestamp provided for " +
+      "CDF read.")
   }
 
   def startVersionAfterLatestVersion(start: Long, latest: Long): Throwable = {
-    new IllegalArgumentException(s"Provided Start version($start) for reading change data is " +
-      s"invalid. Start version cannot be greater than the latest version of the table($latest)."
+    new DeltaCDFIllegalArgumentException(s"Provided Start version($start) for reading change " +
+      "data is invalid. Start version cannot be greater than the latest version of the " +
+      s"table($latest)."
     )
   }
 
   def endBeforeStartVersionInCDF(start: Long, end: Long): Throwable = {
-    new IllegalArgumentException(
+    new DeltaCDFIllegalArgumentException(
       s"CDF range from start $start to end $end was invalid. End cannot be before start."
     )
   }
 
   def invalidTimestamp(field: String, message: String): Throwable = {
-    new IllegalArgumentException(s"Invalid $field: $message")
+    new DeltaCDFIllegalArgumentException(s"Invalid $field: $message")
   }
 
   def changeDataNotRecordedException(version: Long, start: Long, end: Long): Throwable = {
-    new IllegalArgumentException(s"Error getting change data for range [$start , $end] as " +
-      s"change data was not recorded for version [$version]"
+    new DeltaCDFIllegalArgumentException(s"Error getting change data for range [$start, $end] " +
+      s"as change data was not recorded for version [$version]"
     )
   }
 }

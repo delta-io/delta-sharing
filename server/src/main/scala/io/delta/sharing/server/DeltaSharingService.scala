@@ -30,6 +30,9 @@ import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
 import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
 import com.linecorp.armeria.server.auth.AuthService
+import io.delta.standalone.internal.DeltaCDFErrors
+import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
+import io.delta.standalone.internal.DeltaDataSource
 import io.delta.standalone.internal.DeltaSharedTableLoader
 import net.sourceforge.argparse4j.ArgumentParsers
 import org.apache.commons.io.FileUtils
@@ -83,6 +86,14 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
             Map(
               "errorCode" -> ErrorCode.INVALID_PARAMETER_VALUE,
               "message" -> cause.getMessage)))
+      case _: DeltaCDFIllegalArgumentException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.INVALID_PARAMETER_VALUE,
+              "message" -> cause.getMessage)))
       // Handle potential exceptions thrown when Armeria parses the requests.
       // These exceptions happens before `DeltaSharingService` receives the
       // requests so these exceptions should never contain sensitive information
@@ -125,7 +136,7 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
 
 @ExceptionHandler(classOf[DeltaSharingServiceExceptionHandler])
 class DeltaSharingService(serverConfig: ServerConfig) {
-  import DeltaSharingService.{DELTA_TABLE_VERSION_HEADER, DELTA_TABLE_METADATA_CONTENT_TYPE}
+  import DeltaSharingService._
 
   private val sharedTableManager = new SharedTableManager(serverConfig)
 
@@ -141,6 +152,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     try func catch {
       case e: DeltaSharingNoSuchElementException => throw e
       case e: DeltaSharingIllegalArgumentException => throw e
+      case e: DeltaCDFIllegalArgumentException => throw e
       case e: Throwable => throw new DeltaInternalException(e)
     }
   }
@@ -221,7 +233,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       Nil,
       None,
       None)
-    streamingOutput(version, actions)
+    streamingOutput(Some(version), actions)
   }
 
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/query")
@@ -248,13 +260,48 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       queryTableRequest.version)
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(version, actions)
+    streamingOutput(Some(version), actions)
   }
 
-  private def streamingOutput(version: Long, actions: Seq[SingleAction]): HttpResponse = {
-    val headers = createHeadersBuilderForTableVersion(version)
+  @Get("/shares/{share}/schemas/{schema}/tables/{table}/changes")
+  @ConsumesJson
+  def listCdfFiles(
+      @Param("share") share: String,
+      @Param("schema") schema: String,
+      @Param("table") table: String,
+      @Param("startingVersion") @Nullable startingVersion: String,
+      @Param("endingVersion") @Nullable endingVersion: String,
+      @Param("startingTimestamp") @Nullable startingTimestamp: String,
+      @Param("endingTimestamp") @Nullable endingTimestamp: String): HttpResponse = processRequest {
+    val start = System.currentTimeMillis
+    val tableConfig = sharedTableManager.getTable(share, schema, table)
+    if (!tableConfig.cdfEnabled) {
+      throw new DeltaSharingIllegalArgumentException("cdf is not enabled on table " +
+        s"$share.$schema.$table")
+    }
+    val actions = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
+      getCdfOptionsMap(
+        Option(startingVersion),
+        Option(endingVersion),
+        Option(startingTimestamp),
+        Option(endingTimestamp)
+      )
+    )
+    logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
+      s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
+    streamingOutput(None, actions)
+  }
+
+  private def streamingOutput(version: Option[Long], actions: Seq[SingleAction]): HttpResponse = {
+    val headers = if (version.isDefined) {
+      createHeadersBuilderForTableVersion(version.get)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
       .build()
+    } else {
+      ResponseHeaders.builder(200)
+      .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
+      .build()
+    }
     ResponseConversionUtil.streamingFrom(
       actions.asJava.stream(),
       headers,
@@ -268,6 +315,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       ServiceRequestContext.current().blockingTaskExecutor())
   }
 }
+
 
 object DeltaSharingService {
   val DELTA_TABLE_VERSION_HEADER = "Delta-Table-Version"
@@ -341,6 +389,63 @@ object DeltaSharingService {
     }
     server.start().get()
     server
+  }
+
+  private def checkCDFOptionsValidity(
+    startingVersion: Option[String],
+    endingVersion: Option[String],
+    startingTimestamp: Option[String],
+    endingTimestamp: Option[String]): Unit = {
+    // check if we have both version and timestamp parameters
+    if (startingVersion.isDefined && startingTimestamp.isDefined) {
+      throw DeltaCDFErrors.multipleCDFBoundary("starting")
+    }
+    if (endingVersion.isDefined && endingTimestamp.isDefined) {
+      throw DeltaCDFErrors.multipleCDFBoundary("ending")
+    }
+    if (startingVersion.isEmpty && startingTimestamp.isEmpty) {
+      throw DeltaCDFErrors.noStartVersionForCDF
+    }
+    if (startingVersion.isDefined) {
+      try {
+        startingVersion.get.toLong
+      } catch {
+        case _: NumberFormatException =>
+          throw new DeltaCDFIllegalArgumentException("startingVersion is not a valid number.")
+      }
+    }
+    if (endingVersion.isDefined) {
+      try {
+        endingVersion.get.toLong
+      } catch {
+        case _: NumberFormatException =>
+          throw new DeltaCDFIllegalArgumentException("endingVersion is not a valid number.")
+      }
+    }
+    // startingTimestamp and endingTimestamp are validated in the delta sharing cdc reader.
+  }
+
+  private[server] def getCdfOptionsMap(
+    startingVersion: Option[String],
+    endingVersion: Option[String],
+    startingTimestamp: Option[String],
+    endingTimestamp: Option[String]): Map[String, String] = {
+    checkCDFOptionsValidity(startingVersion, endingVersion, startingTimestamp, endingTimestamp)
+
+    val startingVersionOption = if (startingVersion.isDefined) {
+      Map(DeltaDataSource.CDF_START_VERSION_KEY -> startingVersion.get)
+     } else { Map.empty }
+    val startingTimestampOption = if (startingTimestamp.isDefined) {
+      Map(DeltaDataSource.CDF_START_TIMESTAMP_KEY -> startingTimestamp.get)
+    } else { Map.empty }
+    val endingVersionOption = if (endingVersion.isDefined) {
+      Map(DeltaDataSource.CDF_END_VERSION_KEY -> endingVersion.get)
+    } else { Map.empty }
+    val endingTimestampOption = if (endingTimestamp.isDefined) {
+      Map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> endingTimestamp.get)
+    } else { Map.empty }
+
+    startingVersionOption ++ startingTimestampOption ++ endingVersionOption ++ endingTimestampOption
   }
 
   def main(args: Array[String]): Unit = {
