@@ -18,6 +18,7 @@
 package io.delta.standalone.internal
 
 import java.sql.Timestamp
+import java.util.TimeZone
 
 import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{
@@ -79,8 +80,16 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
 
   // Convert timestamp string in cdfOptions to Timestamp
   private def getTimestamp(paramName: String, timeStampStr: String): Timestamp = {
+    // scalastyle:off println
+    val timezone = TimeZone.getDefault
+    Console.println(s"----[linzhou]----Timezone:${timezone}")
+    Console.println(s"----[linzhou]----Timezone-Offset:${timezone.getRawOffset}")
     try {
-      Timestamp.valueOf(timeStampStr)
+      val a = Timestamp.valueOf(timeStampStr)
+      Console.println(s"----[linzhou]----Offset:${a.getTimezoneOffset}")
+      Console.println(s"----[linzhou]----Timestamp:${a.getTime}")
+      a
+      // scalastyle:on println
     } catch {
       case e: IllegalArgumentException =>
         throw DeltaCDFErrors.invalidTimestamp(paramName, e.getMessage)
