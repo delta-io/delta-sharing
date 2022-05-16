@@ -20,6 +20,7 @@ import java.io.IOException
 import java.net.URL
 import java.nio.charset.StandardCharsets.UTF_8
 import java.security.cert.X509Certificate
+import java.sql.Timestamp
 import javax.net.ssl._
 
 import scala.collection.mutable.ArrayBuffer
@@ -635,8 +636,23 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
+
   integrationTest("cdf_table_cdf_enabled_changes: timestamp works") {
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=2022-04-29%2015:50:16.0&endingTimestamp=2022-04-29%2015:51:00.0"), Some("GET"), None, None)
+    // scalastyle:off println
+    // 1651272616000, PST: 2022-04-29 15:50:16.0
+    val startTimestamp = new Timestamp(1651272616000L)
+    Console.println(s"----[linzhou]----startTimestamp:${startTimestamp.getTime}")
+    val startStr = startTimestamp.toString.replace(" ", "%20")
+    Console.println(s"----[linzhou]----Str:${startStr}")
+
+    // 1651272660000, PST: 2022-04-29 15:51:00.0
+    val endTimestamp = new Timestamp(1651272660000L)
+    Console.println(s"----[linzhou]----endTimestamp:${endTimestamp.getTime}")
+    val endStr = endTimestamp.toString.replace(" ", "%20")
+    Console.println(s"----[linzhou]----Str:${endStr}")
+    // scalastyle:on println
+
+    val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, None)
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
