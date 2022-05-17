@@ -275,15 +275,15 @@ def test_table_changes_to_pandas_non_partitioned(tmp_path):
     pdf1[DeltaSharingReader._change_type_col_name()] = "insert"
     pdf2[DeltaSharingReader._change_type_col_name()] = "delete"
 
-    pdf1[DeltaSharingReader._current_timestamp_col_name()] = timestamp1
-    pdf2[DeltaSharingReader._current_timestamp_col_name()] = timestamp2
-    pdf3[DeltaSharingReader._current_timestamp_col_name()] = timestamp3
-    pdf4[DeltaSharingReader._current_timestamp_col_name()] = timestamp4
+    pdf1[DeltaSharingReader._commit_timestamp_col_name()] = timestamp1
+    pdf2[DeltaSharingReader._commit_timestamp_col_name()] = timestamp2
+    pdf3[DeltaSharingReader._commit_timestamp_col_name()] = timestamp3
+    pdf4[DeltaSharingReader._commit_timestamp_col_name()] = timestamp4
 
-    pdf1[DeltaSharingReader._current_version_col_name()] = version1
-    pdf2[DeltaSharingReader._current_version_col_name()] = version2
-    pdf3[DeltaSharingReader._current_version_col_name()] = version3
-    pdf4[DeltaSharingReader._current_version_col_name()] = version4
+    pdf1[DeltaSharingReader._commit_version_col_name()] = version1
+    pdf2[DeltaSharingReader._commit_version_col_name()] = version2
+    pdf3[DeltaSharingReader._commit_version_col_name()] = version3
+    pdf4[DeltaSharingReader._commit_version_col_name()] = version4
 
     class RestClientMock:
         def list_table_changes(
@@ -358,10 +358,10 @@ def test_table_changes_to_pandas_partitioned(tmp_path):
     version = 10
     pdf1["b"] = "x"
     pdf2["b"] = "x"
-    pdf1[DeltaSharingReader._current_timestamp_col_name()] = timestamp
-    pdf2[DeltaSharingReader._current_timestamp_col_name()] = timestamp
-    pdf1[DeltaSharingReader._current_version_col_name()] = version
-    pdf2[DeltaSharingReader._current_version_col_name()] = version
+    pdf1[DeltaSharingReader._commit_timestamp_col_name()] = timestamp
+    pdf2[DeltaSharingReader._commit_timestamp_col_name()] = timestamp
+    pdf1[DeltaSharingReader._commit_version_col_name()] = version
+    pdf2[DeltaSharingReader._commit_version_col_name()] = version
 
     class RestClientMock:
         def list_table_changes(
@@ -404,3 +404,31 @@ def test_table_changes_to_pandas_partitioned(tmp_path):
 
     expected = pd.concat([pdf1, pdf2]).reset_index(drop=True)
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+def test_table_changes_empty(tmp_path):
+    class RestClientMock:
+        def list_table_changes(
+            self, table: Table, cdfOptions: CdfOptions
+        ) -> ListTableChangesResponse:
+            assert table == Table("table_name", "share_name", "schema_name")
+
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
+                    '],"type":"struct"}'
+                )
+            )
+            return ListTableChangesResponse(protocol=None, metadata=metadata, actions=[])
+
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    pdf = reader.table_changes_to_pandas(CdfOptions())
+    assert pdf.empty
+    assert pdf.columns.values.size == 5
+    assert pdf.columns.values[0] == "a"
+    assert pdf.columns.values[1] == "b"
+    assert pdf.columns.values[2] == DeltaSharingReader._change_type_col_name()
+    assert pdf.columns.values[3] == DeltaSharingReader._commit_version_col_name()
+    assert pdf.columns.values[4] == DeltaSharingReader._commit_timestamp_col_name()
