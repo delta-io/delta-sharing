@@ -638,19 +638,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
 
   integrationTest("cdf_table_cdf_enabled_changes: timestamp works") {
-    // scalastyle:off println
     // 1651272616000, PST: 2022-04-29 15:50:16.0
-    val startTimestamp = new Timestamp(1651272616000L)
-    Console.println(s"----[linzhou]----startTimestamp:${startTimestamp.getTime}")
-    val startStr = startTimestamp.toString.replace(" ", "%20")
-    Console.println(s"----[linzhou]----Str:${startStr}")
-
+    val startStr = new Timestamp(1651272616000L).toString.replace(" ", "%20")
     // 1651272660000, PST: 2022-04-29 15:51:00.0
-    val endTimestamp = new Timestamp(1651272660000L)
-    Console.println(s"----[linzhou]----endTimestamp:${endTimestamp.getTime}")
-    val endStr = endTimestamp.toString.replace(" ", "%20")
-    Console.println(s"----[linzhou]----Str:${endStr}")
-    // scalastyle:on println
+    val endStr = new Timestamp(1651272660000L).toString.replace(" ", "%20")
 
     val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, None)
     val lines = response.split("\n")
