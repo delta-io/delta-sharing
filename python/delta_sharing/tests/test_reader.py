@@ -251,10 +251,8 @@ def test_table_changes_to_pandas_non_partitioned(tmp_path):
     pdf4 = pd.DataFrame({"a": [7, 8, 9], "b": ["x", "y", "z"]})
 
     # Add change type (which is present in the parquet files).
-    pdf1["_change_type"] = "Insert"
-    pdf2["_change_type"] = "Delete"
-    pdf3["_change_type"] = "update_preimage"
-    pdf4["_change_type"] = "update_postimage"
+    pdf3[DeltaSharingReader._change_type_col_name()] = "update_preimage"
+    pdf4[DeltaSharingReader._change_type_col_name()] = "update_postimage"
 
     # Save.
     pdf1.to_parquet(tmp_path / "pdf1.parquet")
@@ -263,15 +261,19 @@ def test_table_changes_to_pandas_non_partitioned(tmp_path):
     pdf4.to_parquet(tmp_path / "pdf4.parquet")
 
     # Version and timestamp are not in the parquet files; but are expected by the conversion.
-    timestamp1 = "2022-04-27T15:32:21.000-0800"
-    timestamp2 = "2022-04-28T15:32:21.000-0800"
-    timestamp3 = "2022-04-29T15:32:21.000-0800"
-    timestamp4 = "2022-04-29T15:32:21.000-0800"
+    timestamp1 = 1652110000000
+    timestamp2 = 1652120000000
+    timestamp3 = 1652130000000
+    timestamp4 = 1652140000000
 
     version1 = 1
     version2 = 2
     version3 = 3
     version4 = 4
+
+    # The change type is also expected for add/remove actions.
+    pdf1[DeltaSharingReader._change_type_col_name()] = "insert"
+    pdf2[DeltaSharingReader._change_type_col_name()] = "delete"
 
     pdf1[DeltaSharingReader._current_timestamp_col_name()] = timestamp1
     pdf2[DeltaSharingReader._current_timestamp_col_name()] = timestamp2
@@ -345,14 +347,14 @@ def test_table_changes_to_pandas_partitioned(tmp_path):
     pdf1 = pd.DataFrame({"a": [1, 2, 3]})
     pdf2 = pd.DataFrame({"a": [4, 5, 6]})
 
-    pdf1["_change_type"] = "update_preimage"
-    pdf2["_change_type"] = "update_postimage"
+    pdf1[DeltaSharingReader._change_type_col_name()] = "update_preimage"
+    pdf2[DeltaSharingReader._change_type_col_name()] = "update_postimage"
 
     pdf1.to_parquet(tmp_path / "pdf1.parquet")
     pdf2.to_parquet(tmp_path / "pdf2.parquet")
 
     # Version, timestamp, and partition are not in the parquet files; but will be populated.
-    timestamp = "2022-04-27T15:32:21.000-0800"
+    timestamp = 1652140000000
     version = 10
     pdf1["b"] = "x"
     pdf2["b"] = "x"

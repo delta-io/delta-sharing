@@ -166,8 +166,11 @@ class FileAction:
     id: str
     partition_values: Dict[str, str]
     size: int
-    timestamp: Optional[str] = None
+    timestamp: Optional[int] = None
     version: Optional[int] = None
+
+    def get_change_type_col_value(self) -> str:
+        raise ValueError(f"_change_type not supported for {url}")
 
 
 @dataclass(frozen=True)
@@ -187,6 +190,9 @@ class AddFile(FileAction):
             timestamp=json.get("timestamp", None),
             version=json.get("version", None),
         )
+
+    def get_change_type_col_value(self) -> str:
+        return "insert"
 
 
 @dataclass(frozen=True)
@@ -219,6 +225,9 @@ class RemoveFile(FileAction):
             timestamp=json.get("timestamp", None),
             version=json.get("version", None),
         )
+
+    def get_change_type_col_value(self) -> str:
+        return "delete"
 
 
 @dataclass(frozen=True)

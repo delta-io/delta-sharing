@@ -22,7 +22,7 @@ import pandas as pd
 from pyarrow.dataset import dataset
 
 from delta_sharing.converter import to_converters, get_empty_table
-from delta_sharing.protocol import CdfOptions, FileAction, Table
+from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, Table
 from delta_sharing.rest_client import DataSharingRestClient
 
 
@@ -98,7 +98,7 @@ class DeltaSharingReader:
 
         schema_json = loads(response.metadata.schema_string)
 
-        if len(response.actions) == 0 or self._limit == 0:
+        if len(response.actions) == 0:
             return get_empty_table(schema_json)
 
         converters = to_converters(schema_json)
@@ -147,6 +147,10 @@ class DeltaSharingReader:
                 else:
                     pdf[col] = None
 
+        # Add the change type col name to non cdc actions.
+        if type(action) != AddCdcFile:
+            pdf[DeltaSharingReader._change_type_col_name()] = action.get_change_type_col_value()
+
         # If available, add timestamp and version columns from the action.
         # All rows of the dataframe will get the same value.
         if action.timestamp is not None:
@@ -158,6 +162,12 @@ class DeltaSharingReader:
             pdf[DeltaSharingReader._current_version_col_name()] = action.version
 
         return pdf
+
+    # The names of special delta columns for cdf.
+
+    @staticmethod
+    def _change_type_col_name():
+        return "_change_type"
 
     @staticmethod
     def _current_timestamp_col_name():
