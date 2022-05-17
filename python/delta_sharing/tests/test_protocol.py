@@ -242,7 +242,7 @@ def test_metadata():
                 "partitionValues" : {"b": "x"},
                 "size" : 120,
                 "stats" : "{\\"numRecords\\":2}",
-                "timestamp" : "2022-04-27T15:32:21.000-0800",
+                "timestamp" : 1652110000000,
                 "version" : 2
             }
             """,
@@ -252,7 +252,7 @@ def test_metadata():
                 partition_values={"b": "x"},
                 size=120,
                 stats=r'{"numRecords":2}',
-                timestamp="2022-04-27T15:32:21.000-0800",
+                timestamp=1652110000000,
                 version=2,
             ),
             id="timestamp and version",
@@ -273,7 +273,7 @@ def test_add_file(json: str, expected: AddFile):
                 "id" : "id",
                 "partitionValues" : {"b": "x"},
                 "size" : 120,
-                "timestamp" : "2022-04-27T15:32:21.000-0800",
+                "timestamp" : 1652110000000,
                 "version" : 2
             }
             """,
@@ -282,7 +282,7 @@ def test_add_file(json: str, expected: AddFile):
                 id="id",
                 partition_values={"b": "x"},
                 size=120,
-                timestamp="2022-04-27T15:32:21.000-0800",
+                timestamp=1652110000000,
                 version=2,
             ),
             id="partitioned",
@@ -294,7 +294,7 @@ def test_add_file(json: str, expected: AddFile):
                 "id" : "id",
                 "partitionValues" : {},
                 "size" : 120,
-                "timestamp" : "2022-04-27T15:32:21.000-0800",
+                "timestamp" : 1652110000000,
                 "version" : 2
             }
             """,
@@ -303,7 +303,7 @@ def test_add_file(json: str, expected: AddFile):
                 id="id",
                 partition_values={},
                 size=120,
-                timestamp="2022-04-27T15:32:21.000-0800",
+                timestamp=1652110000000,
                 version=2,
             ),
             id="no partitions",
@@ -324,7 +324,7 @@ def test_add_cdc_file(json: str, expected: AddCdcFile):
                 "id" : "id",
                 "partitionValues" : {"b": "x"},
                 "size" : 120,
-                "timestamp" : "2022-04-27T15:32:21.000-0800",
+                "timestamp" : 1652110000000,
                 "version" : 2
             }
             """,
@@ -333,7 +333,7 @@ def test_add_cdc_file(json: str, expected: AddCdcFile):
                 id="id",
                 partition_values={"b": "x"},
                 size=120,
-                timestamp="2022-04-27T15:32:21.000-0800",
+                timestamp=1652110000000,
                 version=2,
             ),
             id="partitioned",
@@ -345,7 +345,7 @@ def test_add_cdc_file(json: str, expected: AddCdcFile):
                 "id" : "id",
                 "partitionValues" : {},
                 "size" : 120,
-                "timestamp" : "2022-04-27T15:32:21.000-0800",
+                "timestamp" : 1652110000000,
                 "version" : 2
             }
             """,
@@ -354,7 +354,7 @@ def test_add_cdc_file(json: str, expected: AddCdcFile):
                 id="id",
                 partition_values={},
                 size=120,
-                timestamp="2022-04-27T15:32:21.000-0800",
+                timestamp=1652110000000,
                 version=2,
             ),
             id="no partitions",

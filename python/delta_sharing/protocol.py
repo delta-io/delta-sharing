@@ -170,7 +170,7 @@ class FileAction:
     version: Optional[int] = None
 
     def get_change_type_col_value(self) -> str:
-        raise ValueError(f"_change_type not supported for {url}")
+        raise ValueError(f"_change_type not supported for {self.url}")
 
 
 @dataclass(frozen=True)
