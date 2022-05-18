@@ -20,6 +20,7 @@ from requests.exceptions import HTTPError, ConnectionError
 
 from delta_sharing.protocol import (
     AddFile,
+    CdfOptions,
     Format,
     Metadata,
     Protocol,
@@ -380,3 +381,13 @@ def test_list_files_in_table_partitioned_different_schemas(
             ),
         ),
     ]
+
+
+def test_list_table_changes(
+    rest_client: DataSharingRestClient,
+):
+    try:
+        rest_client.list_table_changes(Table(name="x", share="y", schema="z"), CdfOptions())
+        assert False
+    except Exception as e:
+        assert isinstance(e, HTTPError)

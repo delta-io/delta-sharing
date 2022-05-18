@@ -18,11 +18,13 @@ import io
 import pytest
 
 from delta_sharing.protocol import (
+    AddCdcFile,
     AddFile,
     DeltaSharingProfile,
     Format,
     Metadata,
     Protocol,
+    RemoveFile,
     Schema,
     Share,
     Table,
@@ -232,7 +234,132 @@ def test_metadata():
             ),
             id="no stats",
         ),
+        pytest.param(
+            """
+            {
+                "url" : "https://localhost/path/to/file.parquet",
+                "id" : "id",
+                "partitionValues" : {"b": "x"},
+                "size" : 120,
+                "stats" : "{\\"numRecords\\":2}",
+                "timestamp" : 1652110000000,
+                "version" : 2
+            }
+            """,
+            AddFile(
+                url="https://localhost/path/to/file.parquet",
+                id="id",
+                partition_values={"b": "x"},
+                size=120,
+                stats=r'{"numRecords":2}',
+                timestamp=1652110000000,
+                version=2,
+            ),
+            id="timestamp and version",
+        ),
     ],
 )
 def test_add_file(json: str, expected: AddFile):
     assert AddFile.from_json(json) == expected
+
+
+@pytest.mark.parametrize(
+    "json,expected",
+    [
+        pytest.param(
+            """
+            {
+                "url" : "https://localhost/path/to/file.parquet",
+                "id" : "id",
+                "partitionValues" : {"b": "x"},
+                "size" : 120,
+                "timestamp" : 1652110000000,
+                "version" : 2
+            }
+            """,
+            AddCdcFile(
+                url="https://localhost/path/to/file.parquet",
+                id="id",
+                partition_values={"b": "x"},
+                size=120,
+                timestamp=1652110000000,
+                version=2,
+            ),
+            id="partitioned",
+        ),
+        pytest.param(
+            """
+            {
+                "url" : "https://localhost/path/to/file.parquet",
+                "id" : "id",
+                "partitionValues" : {},
+                "size" : 120,
+                "timestamp" : 1652110000000,
+                "version" : 2
+            }
+            """,
+            AddCdcFile(
+                url="https://localhost/path/to/file.parquet",
+                id="id",
+                partition_values={},
+                size=120,
+                timestamp=1652110000000,
+                version=2,
+            ),
+            id="no partitions",
+        ),
+    ],
+)
+def test_add_cdc_file(json: str, expected: AddCdcFile):
+    assert AddCdcFile.from_json(json) == expected
+
+
+@pytest.mark.parametrize(
+    "json,expected",
+    [
+        pytest.param(
+            """
+            {
+                "url" : "https://localhost/path/to/file.parquet",
+                "id" : "id",
+                "partitionValues" : {"b": "x"},
+                "size" : 120,
+                "timestamp" : 1652110000000,
+                "version" : 2
+            }
+            """,
+            RemoveFile(
+                url="https://localhost/path/to/file.parquet",
+                id="id",
+                partition_values={"b": "x"},
+                size=120,
+                timestamp=1652110000000,
+                version=2,
+            ),
+            id="partitioned",
+        ),
+        pytest.param(
+            """
+            {
+                "url" : "https://localhost/path/to/file.parquet",
+                "id" : "id",
+                "partitionValues" : {},
+                "size" : 120,
+                "timestamp" : 1652110000000,
+                "version" : 2
+            }
+            """,
+            RemoveFile(
+                url="https://localhost/path/to/file.parquet",
+                id="id",
+                partition_values={},
+                size=120,
+                timestamp=1652110000000,
+                version=2,
+            ),
+            id="no partitions",
+        ),
+    ],
+)
+def test_remove_file(json: str, expected: RemoveFile):
+    assert RemoveFile.from_json(json) == expected

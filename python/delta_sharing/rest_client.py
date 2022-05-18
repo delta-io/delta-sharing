@@ -29,6 +29,8 @@ from requests.exceptions import HTTPError, ConnectionError
 
 from delta_sharing.protocol import (
     AddFile,
+    FileAction,
+    CdfOptions,
     DeltaSharingProfile,
     Metadata,
     Protocol,
@@ -78,6 +80,13 @@ class ListFilesInTableResponse:
     protocol: Protocol
     metadata: Metadata
     add_files: Sequence[AddFile]
+
+
+@dataclass(frozen=True)
+class ListTableChangesResponse:
+    protocol: Protocol
+    metadata: Metadata
+    actions: Sequence[FileAction]
 
 
 def retry_with_exponential_backoff(func):
@@ -263,6 +272,9 @@ class DataSharingRestClient:
                 metadata=Metadata.from_json(metadata_json["metaData"]),
                 add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
             )
+
+    def list_table_changes(self, table: Table, cdfOptions: CdfOptions) -> ListTableChangesResponse:
+        raise HTTPError("API not implemented yet!")
 
     def close(self):
         self._session.close()

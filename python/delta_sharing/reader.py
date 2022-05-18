@@ -22,7 +22,7 @@ import pandas as pd
 from pyarrow.dataset import dataset
 
 from delta_sharing.converter import to_converters, get_empty_table
-from delta_sharing.protocol import AddFile, Table
+from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, Table
 from delta_sharing.rest_client import DataSharingRestClient
 
 
@@ -71,13 +71,14 @@ class DeltaSharingReader:
 
         if self._limit is None:
             pdfs = [
-                DeltaSharingReader._to_pandas(file, converters, None) for file in response.add_files
+                DeltaSharingReader._to_pandas(
+                    file, converters, False, None) for file in response.add_files
             ]
         else:
             left = self._limit
             pdfs = []
             for file in response.add_files:
-                pdf = DeltaSharingReader._to_pandas(file, converters, left)
+                pdf = DeltaSharingReader._to_pandas(file, converters, False, left)
                 pdfs.append(pdf)
                 left -= len(pdf)
                 assert (
@@ -93,6 +94,22 @@ class DeltaSharingReader:
             copy=False,
         )[[field["name"] for field in schema_json["fields"]]]
 
+    def table_changes_to_pandas(self, cdfOptions: CdfOptions) -> pd.DataFrame:
+        response = self._rest_client.list_table_changes(self._table, cdfOptions)
+
+        schema_json = loads(response.metadata.schema_string)
+
+        if len(response.actions) == 0:
+            return get_empty_table(self._add_special_cdf_schema(schema_json))
+
+        converters = to_converters(schema_json)
+        pdfs = []
+        for action in response.actions:
+            pdf = DeltaSharingReader._to_pandas(action, converters, True, None)
+            pdfs.append(pdf)
+
+        return pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+
     def _copy(
         self, *, predicateHints: Optional[Sequence[str]], limit: Optional[int]
     ) -> "DeltaSharingReader":
@@ -105,9 +122,12 @@ class DeltaSharingReader:
 
     @staticmethod
     def _to_pandas(
-        add_file: AddFile, converters: Dict[str, Callable[[str], Any]], limit: Optional[int]
+        action: FileAction,
+        converters: Dict[str, Callable[[str], Any]],
+        for_cdf: bool,
+        limit: Optional[int],
     ) -> pd.DataFrame:
-        url = urlparse(add_file.url)
+        url = urlparse(action.url)
         if "storage.googleapis.com" in (url.netloc.lower()):
             # Apply the yarl patch for GCS pre-signed urls
             import delta_sharing._yarl_patch  # noqa: F401
@@ -115,7 +135,7 @@ class DeltaSharingReader:
         protocol = url.scheme
         filesystem = fsspec.filesystem(protocol)
 
-        pa_dataset = dataset(source=add_file.url, format="parquet", filesystem=filesystem)
+        pa_dataset = dataset(source=action.url, format="parquet", filesystem=filesystem)
         pa_table = pa_dataset.head(limit) if limit is not None else pa_dataset.to_table()
         pdf = pa_table.to_pandas(
             date_as_object=True, use_threads=False, split_blocks=True, self_destruct=True
@@ -123,12 +143,49 @@ class DeltaSharingReader:
 
         for col, converter in converters.items():
             if col not in pdf.columns:
-                if col in add_file.partition_values:
+                if col in action.partition_values:
                     if converter is not None:
-                        pdf[col] = converter(add_file.partition_values[col])
+                        pdf[col] = converter(action.partition_values[col])
                     else:
                         raise ValueError("Cannot partition on binary or complex columns")
                 else:
                     pdf[col] = None
 
+        if for_cdf:
+            # Add the change type col name to non cdc actions.
+            if type(action) != AddCdcFile:
+                pdf[DeltaSharingReader._change_type_col_name()] = action.get_change_type_col_value()
+
+            # If available, add timestamp and version columns from the action.
+            # All rows of the dataframe will get the same value.
+            if action.timestamp is not None:
+                assert DeltaSharingReader._commit_timestamp_col_name() not in pdf.columns
+                pdf[DeltaSharingReader._commit_timestamp_col_name()] = action.timestamp
+
+            if action.version is not None:
+                assert DeltaSharingReader._commit_version_col_name() not in pdf.columns
+                pdf[DeltaSharingReader._commit_version_col_name()] = action.version
+
         return pdf
+
+    # The names of special delta columns for cdf.
+
+    @staticmethod
+    def _change_type_col_name():
+        return "_change_type"
+
+    @staticmethod
+    def _commit_timestamp_col_name():
+        return "_commit_timestamp"
+
+    @staticmethod
+    def _commit_version_col_name():
+        return "_commit_version"
+
+    @staticmethod
+    def _add_special_cdf_schema(schema_json: dict) -> dict:
+        fields = schema_json["fields"]
+        fields.append({"name" : DeltaSharingReader._change_type_col_name(), "type" : "string"})
+        fields.append({"name" : DeltaSharingReader._commit_version_col_name(), "type" : "long"})
+        fields.append({"name" : DeltaSharingReader._commit_timestamp_col_name(), "type" : "long"})
+        return schema_json
