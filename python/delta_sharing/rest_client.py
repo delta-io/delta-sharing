@@ -17,7 +17,7 @@ import collections
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
-from typing import Any, ClassVar, Dict, Generator, Optional, Sequence
+from typing import Any, ClassVar, Dict, Generator, List, Optional, Sequence
 from urllib.parse import urlparse
 import time
 import logging
@@ -273,8 +273,34 @@ class DataSharingRestClient:
                 add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
             )
 
+    @retry_with_exponential_backoff
     def list_table_changes(self, table: Table, cdfOptions: CdfOptions) -> ListTableChangesResponse:
-        raise HTTPError("API not implemented yet!")
+        query_str = f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/changes?"
+
+        # Add cdf options.
+        # We do not validate the CDF options here since the server will perform validations anyways.
+        if cdfOptions.starting_version is not None:
+            query_str += f"startingVersion={cdfOptions.starting_version}"
+        elif cdfOptions.starting_timestamp is not None:
+            query_str += f"startingTimestamp={cdfOptions.starting_timestamp}"
+
+        if cdfOptions.ending_version is not None:
+            query_str += f"&endingVersion={cdfOptions.ending_version}"
+        elif cdfOptions.ending_timestamp is not None:
+            query_str += f"&endingTimestamp={cdfOptions.ending_timestamp}"
+
+        with self._get_internal(query_str) as lines:
+            protocol_json = json.loads(next(lines))
+            metadata_json = json.loads(next(lines))
+            actions: List[FileAction] = []
+            for line in lines:
+                actions.append(FileAction.from_json(json.loads(line)))
+
+            return ListTableChangesResponse(
+                protocol=Protocol.from_json(protocol_json["protocol"]),
+                metadata=Metadata.from_json(metadata_json["metaData"]),
+                actions=actions,
+            )
 
     def close(self):
         self._session.close()
