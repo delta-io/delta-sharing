@@ -124,7 +124,7 @@ class DeltaSharingReader:
     def _to_pandas(
         action: FileAction,
         converters: Dict[str, Callable[[str], Any]],
-        for_cdc: bool,
+        for_cdf: bool,
         limit: Optional[int],
     ) -> pd.DataFrame:
         url = urlparse(action.url)
@@ -151,7 +151,7 @@ class DeltaSharingReader:
                 else:
                     pdf[col] = None
 
-        if for_cdc:
+        if for_cdf:
             # Add the change type col name to non cdc actions.
             if type(action) != AddCdcFile:
                 pdf[DeltaSharingReader._change_type_col_name()] = action.get_change_type_col_value()
