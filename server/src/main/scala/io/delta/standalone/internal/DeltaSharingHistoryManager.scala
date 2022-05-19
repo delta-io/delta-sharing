@@ -30,6 +30,8 @@ object DeltaSharingHistoryManager {
    * When calling getCommits, the initial few timestamp values may be wrong because they are not
    * properly monotonized. getCommitsSafe uses this to update the start value
    * far behind the first timestamp they care about to get correct values.
+   * TODO(https://github.com/delta-io/delta-sharing/issues/144): Cleans this up once 
+   *   DeltaHistoryManager.getCommits is public
    */
   private val POTENTIALLY_UNMONOTONIZED_TIMESTAMPS = 100
 
