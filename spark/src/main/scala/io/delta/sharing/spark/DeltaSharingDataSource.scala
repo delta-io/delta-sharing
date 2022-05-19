@@ -18,6 +18,9 @@ package io.delta.sharing.spark
 
 import java.util.Collections
 
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+
 import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.PreSignedUrlCache
 import org.apache.spark.sql.{SparkSession, SQLContext}
@@ -26,7 +29,6 @@ import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
-import io.delta.standalone.internal.DeltaDataSource
 
 /** A DataSource V1 for integrating Delta into Spark SQL batch APIs. */
 private[sharing] class DeltaSharingDataSource extends RelationProvider with DataSourceRegister {
@@ -41,40 +43,33 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
 
     var cdfOptions: mutable.Map[String, String] = mutable.Map.empty
     val caseInsensitiveParams = new CaseInsensitiveStringMap(parameters.asJava)
-    if (isCDCRead(caseInsensitiveParams)) {
-      cdfOptions = mutable.Map[String, String](DeltaDataSource.CDF_ENABLED_KEY -> "true")
-      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDF_START_VERSION_KEY)) {
-        cdfOptions(DeltaDataSource.CDF_START_VERSION_KEY) = caseInsensitiveParams.get(
-          DeltaDataSource.CDF_START_VERSION_KEY)
+    if (DeltaSharingDataSource.isCDFRead(caseInsensitiveParams)) {
+      cdfOptions = mutable.Map[String, String](DeltaSharingDataSource.CDF_ENABLED_KEY -> "true")
+      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_START_VERSION_KEY)) {
+        cdfOptions(DeltaSharingDataSource.CDF_START_VERSION_KEY) = caseInsensitiveParams.get(
+          DeltaSharingDataSource.CDF_START_VERSION_KEY)
       }
-      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDF_START_TIMESTAMP_KEY)) {
-        cdfOptions(DeltaDataSource.CDF_START_TIMESTAMP_KEY) = caseInsensitiveParams.get(
-          DeltaDataSource.CDF_START_TIMESTAMP_KEY)
+      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY)) {
+        cdfOptions(DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY) = caseInsensitiveParams.get(
+          DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY)
       }
-      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDF_END_VERSION_KEY)) {
-        cdfOptions(DeltaDataSource.CDF_END_VERSION_KEY) = caseInsensitiveParams.get(
-          DeltaDataSource.CDF_END_VERSION_KEY)
+      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_END_VERSION_KEY)) {
+        cdfOptions(DeltaSharingDataSource.CDF_END_VERSION_KEY) = caseInsensitiveParams.get(
+          DeltaSharingDataSource.CDF_END_VERSION_KEY)
       }
-      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDF_END_TIMESTAMP_KEY)) {
-        cdfOptions(DeltaDataSource.CDF_END_TIMESTAMP_KEY) = caseInsensitiveParams.get(
-          DeltaDataSource.CDF_END_TIMESTAMP_KEY)
+      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY)) {
+        cdfOptions(DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY) = caseInsensitiveParams.get(
+          DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY)
       }
-    }  
+    }
 
     val deltaLog = RemoteDeltaLog(path)
-    deltaLog.createRelation()
+    deltaLog.createRelation(cdfOptions = new CaseInsensitiveStringMap(cdfOptions.asJava))
   }
 
   override def shortName: String = "deltaSharing"
 }
 
-/**
-   * Based on the read options passed it indicates whether the read was a cdc read or not.
-   */
-private def isCDCRead(options: CaseInsensitiveStringMap): Boolean = {
-  options.containsKey(DeltaDataSource.CDF_ENABLED_KEY) &&
-    options.get(DeltaDataSource.CDF_ENABLED_KEY) == "true"
-}
 
 private[sharing] object DeltaSharingDataSource {
 
@@ -87,4 +82,21 @@ private[sharing] object DeltaSharingDataSource {
       .setIfUnset("fs.delta-sharing.impl", "io.delta.sharing.spark.DeltaSharingFileSystem")
     PreSignedUrlCache.registerIfNeeded(SparkEnv.get)
   }
+
+  // Based on the read options passed it indicates whether the read was a cdf read or not.
+  def isCDFRead(options: CaseInsensitiveStringMap): Boolean = {
+    options.containsKey(DeltaSharingDataSource.CDF_ENABLED_KEY) &&
+      options.get(DeltaSharingDataSource.CDF_ENABLED_KEY) == "true"
+  }
+
+    // Constants for cdf parameters
+  final val CDF_ENABLED_KEY = "readChangeFeed"
+
+  final val CDF_START_VERSION_KEY = "startingVersion"
+
+  final val CDF_START_TIMESTAMP_KEY = "startingTimestamp"
+
+  final val CDF_END_VERSION_KEY = "endingVersion"
+
+  final val CDF_END_TIMESTAMP_KEY = "endingTimestamp"
 }

@@ -18,8 +18,6 @@ package io.delta.standalone.internal
 /** DeltaDataSource constants. */
 object DeltaDataSource {
   // Constants for cdf parameters
-  final val CDC_ENABLED_KEY = "readChangeFeed"
-
   final val CDF_START_VERSION_KEY = "startingVersion"
 
   final val CDF_START_TIMESTAMP_KEY = "startingTimestamp"

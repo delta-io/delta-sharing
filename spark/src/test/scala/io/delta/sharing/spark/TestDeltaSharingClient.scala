@@ -16,6 +16,8 @@
 
 package io.delta.sharing.spark
 
+import org.apache.spark.sql.util.CaseInsensitiveStringMap
+
 import io.delta.sharing.spark.model.{DeltaTableFiles, DeltaTableMetadata, Metadata, Protocol, SingleAction, Table}
 import io.delta.sharing.spark.util.JsonUtils
 
@@ -49,6 +51,10 @@ class TestDeltaSharingClient(
     limit.foreach(lim => TestDeltaSharingClient.limits = TestDeltaSharingClient.limits :+ lim)
 
     DeltaTableFiles(0, Protocol(0), metadata, Nil)
+  }
+
+  override def getCDFFiles(table: Table, cdfOptions: CaseInsensitiveStringMap): DeltaTableFiles = {
+    throw new IllegalStateException("getCDFFiles is not supported in test")
   }
 
   def clear(): Unit = {
