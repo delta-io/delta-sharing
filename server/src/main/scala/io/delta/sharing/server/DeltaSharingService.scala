@@ -31,6 +31,7 @@ import com.linecorp.armeria.server.{Server, ServiceRequestContext}
 import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
 import com.linecorp.armeria.server.auth.AuthService
 import io.delta.standalone.internal.DeltaCDFErrors
+import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
 import io.delta.standalone.internal.DeltaDataSource
 import io.delta.standalone.internal.DeltaSharedTableLoader
 import net.sourceforge.argparse4j.ArgumentParsers
@@ -78,6 +79,14 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
                 "message" -> cause.getMessage)))
         }
       case _: DeltaSharingIllegalArgumentException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.INVALID_PARAMETER_VALUE,
+              "message" -> cause.getMessage)))
+      case _: DeltaCDFIllegalArgumentException =>
         HttpResponse.of(
           HttpStatus.BAD_REQUEST,
           MediaType.JSON_UTF_8,
@@ -143,6 +152,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     try func catch {
       case e: DeltaSharingNoSuchElementException => throw e
       case e: DeltaSharingIllegalArgumentException => throw e
+      case e: DeltaCDFIllegalArgumentException => throw e
       case e: Throwable => throw new DeltaInternalException(e)
     }
   }
@@ -223,7 +233,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       Nil,
       None,
       None)
-    streamingOutput(version, actions)
+    streamingOutput(Some(version), actions)
   }
 
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/query")
@@ -250,7 +260,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       queryTableRequest.version)
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(version, actions)
+    streamingOutput(Some(version), actions)
   }
 
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/changes")
@@ -269,8 +279,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       throw new DeltaSharingIllegalArgumentException("cdf is not enabled on table " +
         s"$share.$schema.$table")
     }
-
-    val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
+    val actions = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
       getCdfOptionsMap(
         Option(startingVersion),
         Option(endingVersion),
@@ -280,13 +289,19 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(version, actions)
+    streamingOutput(None, actions)
   }
 
-  private def streamingOutput(version: Long, actions: Seq[SingleAction]): HttpResponse = {
-    val headers = createHeadersBuilderForTableVersion(version)
+  private def streamingOutput(version: Option[Long], actions: Seq[SingleAction]): HttpResponse = {
+    val headers = if (version.isDefined) {
+      createHeadersBuilderForTableVersion(version.get)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
       .build()
+    } else {
+      ResponseHeaders.builder(200)
+      .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
+      .build()
+    }
     ResponseConversionUtil.streamingFrom(
       actions.asJava.stream(),
       headers,
@@ -396,7 +411,7 @@ object DeltaSharingService {
         startingVersion.get.toLong
       } catch {
         case _: NumberFormatException =>
-          throw new IllegalArgumentException("startingVersion is not a valid number.")
+          throw new DeltaCDFIllegalArgumentException("startingVersion is not a valid number.")
       }
     }
     if (endingVersion.isDefined) {
@@ -404,7 +419,7 @@ object DeltaSharingService {
         endingVersion.get.toLong
       } catch {
         case _: NumberFormatException =>
-          throw new IllegalArgumentException("endingVersion is not a valid number.")
+          throw new DeltaCDFIllegalArgumentException("endingVersion is not a valid number.")
       }
     }
     // startingTimestamp and endingTimestamp are validated in the delta sharing cdc reader.
