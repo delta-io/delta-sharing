@@ -37,6 +37,28 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
     val path = parameters.getOrElse("path", throw new IllegalArgumentException(
       "'path' is not specified. If you use SQL to create a Delta Sharing table, " +
         "LOCATION must be specified"))
+
+    val caseInsensitiveParams = new CaseInsensitiveStringMap(parameters.asJava)
+      if (CDCReader.isCDCRead(caseInsensitiveParams)) {
+        cdcOptions = mutable.Map[String, String](DeltaDataSource.CDC_ENABLED_KEY -> "true")
+        if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_START_VERSION_KEY)) {
+          cdcOptions(DeltaDataSource.CDC_START_VERSION_KEY) = caseInsensitiveParams.get(
+            DeltaDataSource.CDC_START_VERSION_KEY)
+        }
+        if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_START_TIMESTAMP_KEY)) {
+          cdcOptions(DeltaDataSource.CDC_START_TIMESTAMP_KEY) = caseInsensitiveParams.get(
+            DeltaDataSource.CDC_START_TIMESTAMP_KEY)
+        }
+        if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_END_VERSION_KEY)) {
+          cdcOptions(DeltaDataSource.CDC_END_VERSION_KEY) = caseInsensitiveParams.get(
+            DeltaDataSource.CDC_END_VERSION_KEY)
+        }
+        if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_END_TIMESTAMP_KEY)) {
+          cdcOptions(DeltaDataSource.CDC_END_TIMESTAMP_KEY) = caseInsensitiveParams.get(
+            DeltaDataSource.CDC_END_TIMESTAMP_KEY)
+        }
+      }
+
     val deltaLog = RemoteDeltaLog(path)
     deltaLog.createRelation()
   }
