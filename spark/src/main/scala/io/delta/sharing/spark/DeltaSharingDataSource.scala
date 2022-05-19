@@ -42,22 +42,22 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
     var cdfOptions: mutable.Map[String, String] = mutable.Map.empty
     val caseInsensitiveParams = new CaseInsensitiveStringMap(parameters.asJava)
     if (isCDCRead(caseInsensitiveParams)) {
-      cdfOptions = mutable.Map[String, String](DeltaDataSource.CDC_ENABLED_KEY -> "true")
-      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_START_VERSION_KEY)) {
-        cdfOptions(DeltaDataSource.CDC_START_VERSION_KEY) = caseInsensitiveParams.get(
-          DeltaDataSource.CDC_START_VERSION_KEY)
+      cdfOptions = mutable.Map[String, String](DeltaDataSource.CDF_ENABLED_KEY -> "true")
+      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDF_START_VERSION_KEY)) {
+        cdfOptions(DeltaDataSource.CDF_START_VERSION_KEY) = caseInsensitiveParams.get(
+          DeltaDataSource.CDF_START_VERSION_KEY)
       }
-      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_START_TIMESTAMP_KEY)) {
-        cdfOptions(DeltaDataSource.CDC_START_TIMESTAMP_KEY) = caseInsensitiveParams.get(
-          DeltaDataSource.CDC_START_TIMESTAMP_KEY)
+      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDF_START_TIMESTAMP_KEY)) {
+        cdfOptions(DeltaDataSource.CDF_START_TIMESTAMP_KEY) = caseInsensitiveParams.get(
+          DeltaDataSource.CDF_START_TIMESTAMP_KEY)
       }
-      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_END_VERSION_KEY)) {
-        cdfOptions(DeltaDataSource.CDC_END_VERSION_KEY) = caseInsensitiveParams.get(
-          DeltaDataSource.CDC_END_VERSION_KEY)
+      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDF_END_VERSION_KEY)) {
+        cdfOptions(DeltaDataSource.CDF_END_VERSION_KEY) = caseInsensitiveParams.get(
+          DeltaDataSource.CDF_END_VERSION_KEY)
       }
-      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_END_TIMESTAMP_KEY)) {
-        cdfOptions(DeltaDataSource.CDC_END_TIMESTAMP_KEY) = caseInsensitiveParams.get(
-          DeltaDataSource.CDC_END_TIMESTAMP_KEY)
+      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDF_END_TIMESTAMP_KEY)) {
+        cdfOptions(DeltaDataSource.CDF_END_TIMESTAMP_KEY) = caseInsensitiveParams.get(
+          DeltaDataSource.CDF_END_TIMESTAMP_KEY)
       }
     }  
 
@@ -72,8 +72,8 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
    * Based on the read options passed it indicates whether the read was a cdc read or not.
    */
 private def isCDCRead(options: CaseInsensitiveStringMap): Boolean = {
-  options.containsKey(DeltaDataSource.CDC_ENABLED_KEY) &&
-    options.get(DeltaDataSource.CDC_ENABLED_KEY) == "true"
+  options.containsKey(DeltaDataSource.CDF_ENABLED_KEY) &&
+    options.get(DeltaDataSource.CDF_ENABLED_KEY) == "true"
 }
 
 private[sharing] object DeltaSharingDataSource {
