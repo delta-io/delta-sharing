@@ -33,7 +33,7 @@ object DeltaSharingHistoryManager {
    */
   private val POTENTIALLY_UNMONOTONIZED_TIMESTAMPS = 100
 
-  private[internal] def getCommitsSafe(
+  def getCommitsSafe(
       logStore: LogStore,
       logPath: Path,
       start: Long,

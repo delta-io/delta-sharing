@@ -35,8 +35,9 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
 
 /**
- * A class to load Delta tables from `TableConfig`. It also caches the loaded tables internally
- * to speed up the loading.
+ * This is a special CDCReader that is optimized for delta sharing server usage.
+ * It provides a `queryCDF` method to return all cdf actions in a table: `AddFile`s,
+ * `AddCDCFile`s and `RemoveFile`s.
  */
 class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration) {
 
@@ -129,16 +130,15 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
     if (options.contains(versionKey)) {
       Some(options(versionKey).toLong)
     } else if (options.contains(timestampKey)) {
-      val tsStr = options(timestampKey)
+      val ts = getTimestamp(timestampKey, options(timestampKey))
       if (timestampKey == DeltaDataSource.CDF_START_TIMESTAMP_KEY) {
         // For the starting timestamp we need to find a version after the provided timestamp
         // we can use the same semantics as streaming.
-        val ts = getTimestamp("startingTimestamp", tsStr)
         val resolvedVersion = getStartingVersionFromTimestamp(ts, latestVersion)
         Some(resolvedVersion)
       } else {
+        require(timestampKey == DeltaDataSource.CDF_END_TIMESTAMP_KEY)
         // For ending timestamp the version should be before the provided timestamp.
-        val ts = getTimestamp("endingTimestamp", tsStr)
         Some(history.getActiveCommitAtTime(ts).version)
       }
     } else {
@@ -149,7 +149,7 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
   /**
    * Replay Delta transaction logs and return cdf files
    *
-   * @param cdfOptions to indicate the starting and ending version of the change data feed.
+   * @param cdfOptions to indicate the starting and ending parameters of the change data feed.
    * @param latestVersion the latest version of the delta table, which is used to validate the
    *                      starting and ending versions, and may be used as default ending version.
    */
@@ -159,6 +159,11 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
     Seq[CDCDataSpec[RemoveFile]]
   ) = {
     val (start, end) = getCDCVersions(cdfOptions, latestVersion)
+
+    if (!isCDCEnabledOnTable(deltaLog.getSnapshotForVersionAsOf(start).metadataScala)) {
+      throw DeltaCDFErrors.changeDataNotRecordedException(start, start, end)
+    }
+
     val changes = deltaLog.getChanges(start, false).asScala.takeWhile(_.getVersion <= end)
 
     // Correct timestamp values are only available through DeltaHistoryManager.getCommits(). Commit
@@ -182,10 +187,6 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
     val changeFiles = ListBuffer[CDCDataSpec[AddCDCFile]]()
     val addFiles = ListBuffer[CDCDataSpec[AddFile]]()
     val removeFiles = ListBuffer[CDCDataSpec[RemoveFile]]()
-
-    if (!isCDCEnabledOnTable(deltaLog.getSnapshotForVersionAsOf(start).metadataScala)) {
-      throw DeltaCDFErrors.changeDataNotRecordedException(start, start, end)
-    }
 
     changes.foreach {versionLog =>
         val v = versionLog.getVersion

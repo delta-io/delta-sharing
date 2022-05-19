@@ -204,8 +204,8 @@ class DeltaSharedTable(
     // Second: get files
     val cdcReader = new DeltaSharingCDCReader(deltaLog, conf)
     val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(cdfOptions, tableVersion)
-    changeFiles.foreach{cdcDataSpec =>
-      cdcDataSpec.actions.foreach{action =>
+    changeFiles.foreach { cdcDataSpec =>
+      cdcDataSpec.actions.foreach { action =>
         val addCDCFile = action.asInstanceOf[AddCDCFile]
         val cloudPath = absolutePath(deltaLog.dataPath, addCDCFile.path)
         val signedUrl = fileSigner.sign(cloudPath)
@@ -220,8 +220,8 @@ class DeltaSharedTable(
         actions.append(modelCDCFile.wrap)
       }
     }
-    addFiles.foreach{cdcDataSpec =>
-      cdcDataSpec.actions.foreach{action =>
+    addFiles.foreach { cdcDataSpec =>
+      cdcDataSpec.actions.foreach { action =>
         val addFile = action.asInstanceOf[AddFile]
         val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
         val signedUrl = fileSigner.sign(cloudPath)
@@ -237,8 +237,8 @@ class DeltaSharedTable(
         actions.append(modelAddFile.wrap)
       }
     }
-    removeFiles.foreach{cdcDataSpec =>
-      cdcDataSpec.actions.foreach{action =>
+    removeFiles.foreach { cdcDataSpec =>
+      cdcDataSpec.actions.foreach { action =>
         val removeFile = action.asInstanceOf[RemoveFile]
         val cloudPath = absolutePath(deltaLog.dataPath, removeFile.path)
         val signedUrl = fileSigner.sign(cloudPath)
