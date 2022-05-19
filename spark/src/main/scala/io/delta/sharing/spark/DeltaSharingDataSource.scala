@@ -26,6 +26,7 @@ import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
+import io.delta.standalone.internal.DeltaDataSource
 
 /** A DataSource V1 for integrating Delta into Spark SQL batch APIs. */
 private[sharing] class DeltaSharingDataSource extends RelationProvider with DataSourceRegister {
@@ -38,32 +39,41 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
       "'path' is not specified. If you use SQL to create a Delta Sharing table, " +
         "LOCATION must be specified"))
 
+    var cdfOptions: mutable.Map[String, String] = mutable.Map.empty
     val caseInsensitiveParams = new CaseInsensitiveStringMap(parameters.asJava)
-      if (CDCReader.isCDCRead(caseInsensitiveParams)) {
-        cdcOptions = mutable.Map[String, String](DeltaDataSource.CDC_ENABLED_KEY -> "true")
-        if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_START_VERSION_KEY)) {
-          cdcOptions(DeltaDataSource.CDC_START_VERSION_KEY) = caseInsensitiveParams.get(
-            DeltaDataSource.CDC_START_VERSION_KEY)
-        }
-        if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_START_TIMESTAMP_KEY)) {
-          cdcOptions(DeltaDataSource.CDC_START_TIMESTAMP_KEY) = caseInsensitiveParams.get(
-            DeltaDataSource.CDC_START_TIMESTAMP_KEY)
-        }
-        if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_END_VERSION_KEY)) {
-          cdcOptions(DeltaDataSource.CDC_END_VERSION_KEY) = caseInsensitiveParams.get(
-            DeltaDataSource.CDC_END_VERSION_KEY)
-        }
-        if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_END_TIMESTAMP_KEY)) {
-          cdcOptions(DeltaDataSource.CDC_END_TIMESTAMP_KEY) = caseInsensitiveParams.get(
-            DeltaDataSource.CDC_END_TIMESTAMP_KEY)
-        }
+    if (isCDCRead(caseInsensitiveParams)) {
+      cdfOptions = mutable.Map[String, String](DeltaDataSource.CDC_ENABLED_KEY -> "true")
+      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_START_VERSION_KEY)) {
+        cdfOptions(DeltaDataSource.CDC_START_VERSION_KEY) = caseInsensitiveParams.get(
+          DeltaDataSource.CDC_START_VERSION_KEY)
       }
+      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_START_TIMESTAMP_KEY)) {
+        cdfOptions(DeltaDataSource.CDC_START_TIMESTAMP_KEY) = caseInsensitiveParams.get(
+          DeltaDataSource.CDC_START_TIMESTAMP_KEY)
+      }
+      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_END_VERSION_KEY)) {
+        cdfOptions(DeltaDataSource.CDC_END_VERSION_KEY) = caseInsensitiveParams.get(
+          DeltaDataSource.CDC_END_VERSION_KEY)
+      }
+      if (caseInsensitiveParams.containsKey(DeltaDataSource.CDC_END_TIMESTAMP_KEY)) {
+        cdfOptions(DeltaDataSource.CDC_END_TIMESTAMP_KEY) = caseInsensitiveParams.get(
+          DeltaDataSource.CDC_END_TIMESTAMP_KEY)
+      }
+    }  
 
     val deltaLog = RemoteDeltaLog(path)
     deltaLog.createRelation()
   }
 
   override def shortName: String = "deltaSharing"
+}
+
+/**
+   * Based on the read options passed it indicates whether the read was a cdc read or not.
+   */
+private def isCDCRead(options: CaseInsensitiveStringMap): Boolean = {
+  options.containsKey(DeltaDataSource.CDC_ENABLED_KEY) &&
+    options.get(DeltaDataSource.CDC_ENABLED_KEY) == "true"
 }
 
 private[sharing] object DeltaSharingDataSource {
