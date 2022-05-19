@@ -71,6 +71,7 @@ def test_list_tables(sharing_client: SharingClient):
         Table(name="table3", share="share1", schema="default"),
         Table(name="table7", share="share1", schema="default"),
         Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
+        Table(name="cdf_table_with_partition", share="share1", schema="default"),
     ]
 
     tables = sharing_client.list_tables(Schema(name="default", share="share2"))
@@ -83,6 +84,7 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table3", share="share1", schema="default"),
         Table(name="table7", share="share1", schema="default"),
         Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
+        Table(name="cdf_table_with_partition", share="share1", schema="default"),
         Table(name="table2", share="share2", schema="default"),
         Table(name="table4", share="share3", schema="default"),
         Table(name="table5", share="share3", schema="default"),

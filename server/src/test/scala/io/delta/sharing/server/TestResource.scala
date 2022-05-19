@@ -74,6 +74,11 @@ object TestResource {
                 "cdf_table_cdf_enabled",
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_cdf_enabled",
                 true
+              ),
+              TableConfig(
+                "cdf_table_with_partition",
+                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_partition",
+                true
               )
             )
           )

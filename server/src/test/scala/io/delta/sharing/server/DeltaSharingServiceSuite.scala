@@ -20,6 +20,7 @@ import java.io.IOException
 import java.net.URL
 import java.nio.charset.StandardCharsets.UTF_8
 import java.security.cert.X509Certificate
+import java.sql.Timestamp
 import javax.net.ssl._
 
 import scala.collection.mutable.ArrayBuffer
@@ -252,7 +253,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       Table().withName("table1").withSchema("default").withShare("share1") ::
         Table().withName("table3").withSchema("default").withShare("share1") ::
         Table().withName("table7").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") :: Nil)
+        Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") ::
+        Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") :: Nil)
     assert(expected == JsonFormat.fromJsonString[ListTablesResponse](response))
   }
 
@@ -268,7 +270,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       Table().withName("table1").withSchema("default").withShare("share1") ::
         Table().withName("table3").withSchema("default").withShare("share1") ::
         Table().withName("table7").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") :: Nil
+        Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") ::
+        Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") :: Nil
     assert(expected == tables)
   }
 
@@ -367,7 +370,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(0).url, 781)
     verifyPreSignedUrl(actualFiles(1).url, 781)
   }
-
 
   integrationTest("table2 - partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val response = readNDJson(requestPath("/shares/share2/schemas/default/tables/table2/metadata"), expectedTableVersion = Some(2))
@@ -509,6 +511,20 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
   }
 
+  integrationTest("cdf_table_cdf_enabled - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/metadata"), expectedTableVersion = Some(5))
+    val Array(protocol, metadata) = response.split("\n")
+    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val expectedMetadata = Metadata(
+      id = "16736144-3306-4577-807a-d3f899b77670",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      partitionColumns = Nil).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+  }
+
   integrationTest("cdf_table_cdf_enabled - version 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
     val p =
       """
@@ -561,9 +577,11 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(2).url, 1030)
   }
 
-  integrationTest("cdf_table_cdf_enabled - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/metadata"), expectedTableVersion = Some(5))
-    val Array(protocol, metadata) = response.split("\n")
+  integrationTest("cdf_table_cdf_enabled_changes: query table changes") {
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, None)
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
     val expectedProtocol = Protocol(minReaderVersion = 1).wrap
     assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
     val expectedMetadata = Metadata(
@@ -573,6 +591,177 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       configuration = Map("enableChangeDataFeed" -> "true"),
       partitionColumns = Nil).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+    val files = lines.drop(2)
+    assert(files.size == 5)
+    verifyAddCDCFile(
+      files(0),
+      size = 1301,
+      partitionValues = Map.empty,
+      version = 2,
+      timestamp = 1651272655000L
+    )
+    verifyAddCDCFile(
+      files(1),
+      size = 1416,
+      partitionValues = Map.empty,
+      version = 3,
+      timestamp = 1651272660000L
+    )
+    verifyAddFile(
+      files(2),
+      size = 1030,
+      stats =
+        """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+      partitionValues = Map.empty,
+      version = 1,
+      timestamp = 1651272635000L
+    )
+    verifyAddFile(
+      files(3),
+      size = 1030,
+      stats =
+        """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+      partitionValues = Map.empty,
+      version = 1,
+      timestamp = 1651272635000L
+    )
+    verifyAddFile(
+      files(4),
+      size = 1030,
+      stats =
+        """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+      partitionValues = Map.empty,
+      version = 1,
+      timestamp = 1651272635000L
+    )
+  }
+
+
+  integrationTest("cdf_table_cdf_enabled_changes: timestamp works") {
+    // 1651272616000, PST: 2022-04-29 15:50:16.0
+    val startStr = new Timestamp(1651272616000L).toString.replace(" ", "%20")
+    // 1651272660000, PST: 2022-04-29 15:51:00.0
+    val endStr = new Timestamp(1651272660000L).toString.replace(" ", "%20")
+
+    val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, None)
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val expectedMetadata = Metadata(
+      id = "16736144-3306-4577-807a-d3f899b77670",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      partitionColumns = Nil).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+    val files = lines.drop(2)
+    assert(files.size == 5)
+  }
+
+  integrationTest("cdf_table_with_partition: query table changes") {
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, None)
+    val lines = response.split("\n")
+    val files = lines.drop(2)
+    assert(files.size == 6)
+    // In version 2, birthday is updated from 2020-01-01 to 2020-02-02 for one row, which result in
+    // 2 cdc files below.
+    verifyAddCDCFile(
+      files(0),
+      size = 1125,
+      partitionValues = Map("birthday" -> "2020-01-01"),
+      version = 2,
+      timestamp = 1651614986000L
+    )
+    verifyAddCDCFile(
+      files(1),
+      size = 1132,
+      partitionValues = Map("birthday" -> "2020-02-02"),
+      version = 2,
+      timestamp = 1651614986000L
+    )
+    verifyAddFile(
+      files(2),
+      size = 791,
+      stats =
+        """{"numRecords":1,"minValues":{"name":"1","age":1},"maxValues":{"name":"1","age":1},"nullCount":{"name":0,"age":0}}""",
+      partitionValues = Map("birthday" -> "2020-01-01"),
+      version = 1,
+      timestamp = 1651614980000L
+    )
+    verifyAddFile(
+      files(3),
+      size = 791,
+      stats =
+        """{"numRecords":1,"minValues":{"name":"2","age":2},"maxValues":{"name":"2","age":2},"nullCount":{"name":0,"age":0}}""",
+      partitionValues = Map("birthday" -> "2020-01-01"),
+      version = 1,
+      timestamp = 1651614980000L
+    )
+    verifyAddFile(
+      files(4),
+      size = 791,
+      stats =
+        """{"numRecords":1,"minValues":{"name":"3","age":3},"maxValues":{"name":"3","age":3},"nullCount":{"name":0,"age":0}}""",
+      partitionValues = Map("birthday" -> "2020-03-03"),
+      version = 1,
+      timestamp = 1651614980000L
+    )
+    verifyRemove(
+      files(5),
+      size = 791,
+      partitionValues = Map("birthday" -> "2020-03-03"),
+      version = 3,
+      timestamp = 1651614994000L
+    )
+  }
+
+  private def verifyAddFile(
+      actionStr: String,
+      size: Long,
+      stats: String,
+      partitionValues: Map[String, String],
+      version: Long,
+      timestamp: Long): Unit = {
+    assert(actionStr.startsWith("{\"add\":{"))
+    val addFile = JsonUtils.fromJson[SingleAction](actionStr).add
+    assert(addFile.size == size)
+    assert(addFile.stats == stats)
+    assert(addFile.partitionValues == partitionValues)
+    assert(addFile.version == version)
+    assert(addFile.timestamp == timestamp)
+    verifyPreSignedUrl(addFile.url, size.toInt)
+  }
+
+  private def verifyAddCDCFile(
+      actionStr: String,
+      size: Long,
+      partitionValues: Map[String, String],
+      version: Long,
+      timestamp: Long): Unit = {
+    assert(actionStr.startsWith("{\"cdf\":{"))
+    val addCDCFile = JsonUtils.fromJson[SingleAction](actionStr).cdf
+    assert(addCDCFile.size == size)
+    assert(addCDCFile.partitionValues == partitionValues)
+    assert(addCDCFile.version == version)
+    assert(addCDCFile.timestamp == timestamp)
+    verifyPreSignedUrl(addCDCFile.url, size.toInt)
+  }
+
+  private def verifyRemove(
+      actionStr: String,
+      size: Long,
+      partitionValues: Map[String, String],
+      version: Long,
+      timestamp: Long): Unit = {
+    assert(actionStr.startsWith("{\"remove\":{"))
+    val removeFile = JsonUtils.fromJson[SingleAction](actionStr).remove
+    assert(removeFile.size == size)
+    assert(removeFile.partitionValues == partitionValues)
+    assert(removeFile.version == version)
+    assert(removeFile.timestamp == timestamp)
+    verifyPreSignedUrl(removeFile.url, size.toInt)
   }
 
   def assertHttpError(
@@ -661,7 +850,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-  integrationTest("table changes: exceptions") {
+  integrationTest("table1 - cannot query table changes") {
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/table1/changes"),
       method = "GET",
@@ -669,13 +858,71 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       expectedErrorCode = 400,
       expectedErrorMessage = "cdf is not enabled on table share1.default.table1"
     )
+  }
 
+  integrationTest("cdf_table_cdf_enabled_changes - exceptions") {
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes"),
       method = "GET",
       data = None,
-      expectedErrorCode = 500,
-      expectedErrorMessage = "" // message is hidden: queryCDF is not supported yet
+      expectedErrorCode = 400,
+      expectedErrorMessage = "No startingVersion or startingTimestamp provided for CDF read"
+    )
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=1&startingTimestamp=2022-02-02%2000:00:00"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Multiple starting arguments provided for CDF read"
+    )
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=1&endingVersion=3&endingTimestamp=randomString"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Multiple ending arguments provided for CDF read"
+    )
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=2022-04-29"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Invalid startingTimestamp"
+    )
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=2&endingVersion=1"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "CDF range from start 2 to end 1 was invalid. End cannot be before start"
+    )
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=6"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Provided Start version(6) for reading change data is invalid. Start version cannot be greater than the latest version of the table(5)"
+    )
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=5"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Error getting change data for range [0, 5] as change data was not recorded for version [4]"
+    )
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=4"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Error getting change data for range [4, 5] as change data was not recorded for version [4]"
     )
   }
 
