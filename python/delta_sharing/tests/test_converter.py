@@ -15,13 +15,14 @@
 #
 from datetime import date
 from decimal import Decimal
+from json import loads
 from typing import Any
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from delta_sharing.converter import to_converter
+from delta_sharing.converter import to_converter, get_empty_table
 
 
 def test_to_converter_boolean():
@@ -70,3 +71,18 @@ def test_to_converter_timestamp():
     converter = to_converter("timestamp")
     assert converter("2021-04-28 23:36:47.599") == pd.Timestamp("2021-04-28 23:36:47.599")
     assert converter("") is pd.NaT
+
+
+def test_get_empty_table():
+    schema_string = (
+        '{"fields": ['
+        '{"metadata": {},"name": "a","nullable": true,"type": "long"},'
+        '{"metadata": {},"name": "b","nullable": true,"type": "string"}'
+        '],"type":"struct"}'
+    )
+    schema_json = loads(schema_string)
+    pdf = get_empty_table(schema_json)
+    assert pdf.empty
+    assert pdf.columns.values.size == 2
+    assert pdf.columns.values[0] == "a"
+    assert pdf.columns.values[1] == "b"
