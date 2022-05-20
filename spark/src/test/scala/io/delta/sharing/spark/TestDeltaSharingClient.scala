@@ -45,7 +45,8 @@ class TestDeltaSharingClient(
   override def getFiles(
     table: Table,
     predicates: Seq[String],
-    limit: Option[Long]): DeltaTableFiles = {
+    limit: Option[Long],
+    requestVersion: Option[Long]): DeltaTableFiles = {
     limit.foreach(lim => TestDeltaSharingClient.limits = TestDeltaSharingClient.limits :+ lim)
 
     DeltaTableFiles(0, Protocol(0), metadata, Nil)

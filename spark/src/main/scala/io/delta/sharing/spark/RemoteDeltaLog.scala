@@ -182,7 +182,7 @@ class RemoteSnapshot(
   lazy val (allFiles, sizeInBytes) = {
     val implicits = spark.implicits
     import implicits._
-    val tableFiles = client.getFiles(table, Nil, None)
+    val tableFiles = client.getFiles(table, Nil, None, None)
     checkProtocolNotChange(tableFiles.protocol)
     checkSchemaNotChange(tableFiles.metadata)
     tableFiles.files.toDS() -> tableFiles.files.map(_.size).sum
@@ -228,13 +228,13 @@ class RemoteSnapshot(
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
-      val tableFiles = client.getFiles(table, predicates, limitHint)
+      val tableFiles = client.getFiles(table, predicates, limitHint, None)
       val idToUrl = tableFiles.files.map { add =>
         add.id -> add.url
       }.toMap
       CachedTableManager.INSTANCE
         .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
-          client.getFiles(table, Nil, None).files.map { add =>
+          client.getFiles(table, Nil, None, None).files.map { add =>
             add.id -> add.url
           }.toMap
         })
