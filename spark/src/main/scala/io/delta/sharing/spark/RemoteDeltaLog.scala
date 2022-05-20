@@ -56,10 +56,10 @@ private[sharing] class RemoteDeltaLog(
     }
   }
 
-  def createRelation(): BaseRelation = {
+  def createRelation(versionOf: Option[Long]): BaseRelation = {
     val spark = SparkSession.active
     val snapshotToUse = snapshot
-    val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse, None)
+    val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse, None, versionOf)
     if (spark.sessionState.conf.getConfString(
       "spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
       DeltaSharingLimitPushDown.setup(spark)
