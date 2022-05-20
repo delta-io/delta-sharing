@@ -17,7 +17,6 @@
 package io.delta.sharing.spark
 
 import java.sql.Timestamp
-import java.util.TimeZone
 
 import io.delta.sharing.spark.model.{
   AddCDCFile,
@@ -214,30 +213,19 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   integrationTest("getCDFFiles with Timestamp") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
-      // 1651272616000, PST: 2022-04-29 15:50:16.0
-      val startStr = new Timestamp(1651272616000L).toString
-      // scalastyle:off println
-      Console.println(s"---[linzhou]---client timezone:${TimeZone.getDefault}")
-      Console.println(s"---[linzhou]---startStr:$startStr")
-      // 1651272660000, PST: 2022-04-29 15:51:00.0
-      val endStr = new Timestamp(1651272660000L).toString
-      Console.println(s"---[linzhou]---endStr:$endStr")
-      // scalastyle:on println
-      val cdfOptions = Map("startingTimestamp" -> startStr, "endingTimestamp" -> endStr)
-      val tableFiles = client.getCDFFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
-        cdfOptions
-      )
-      assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
-      val expectedMetadata = Metadata(
-        id = "16736144-3306-4577-807a-d3f899b77670",
-        format = Format(),
-        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
-        configuration = Map("enableChangeDataFeed" -> "true"),
-        partitionColumns = Nil)
-      assert(expectedMetadata == tableFiles.metadata)
-      assert(tableFiles.cdfFiles.size == 2)
-      assert(tableFiles.addFiles.size == 3)
+      // This is to test that timestamp is correctly passed to the server and parsed.
+      // The error message is expected as we are using a timestamp much larger than the latest
+      // version of the table.
+      // 1651359060000L, PST: 2022-04-30 15:51:00.0
+      val endStr = new Timestamp(1651359060000L).toString
+      val cdfOptions = Map("startingVersion" -> "0", "endingTimestamp" -> endStr)
+      val errorMessage = intercept[UnexpectedHttpStatus] {
+        val tableFiles = client.getCDFFiles(
+          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+          cdfOptions
+        )
+      }.getMessage
+      assert(errorMessage.contains("Please use a timestamp less than or equal to"))
     } finally {
       client.close()
     }
