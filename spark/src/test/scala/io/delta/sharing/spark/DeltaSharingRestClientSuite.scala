@@ -16,6 +16,8 @@
 
 package io.delta.sharing.spark
 
+import java.sql.Timestamp
+
 import io.delta.sharing.spark.model.{
   AddCDCFile,
   AddFile,
@@ -211,7 +213,11 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   integrationTest("getCDFFiles with Timestamp") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
-      val cdfOptions = Map("startingTimestamp" -> "2022-04-29 15:50:16.0", "endingVersion" -> "3")
+      // 1651272616000, PST: 2022-04-29 15:50:16.0
+      val startStr = new Timestamp(1651272616000L).toString
+      // 1651272660000, PST: 2022-04-29 15:51:00.0
+      val endStr = new Timestamp(1651272660000L).toString
+      val cdfOptions = Map("startingTimestamp" -> startStr, "endingTimestamp" -> endStr)
       val tableFiles = client.getCDFFiles(
         Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
         cdfOptions
