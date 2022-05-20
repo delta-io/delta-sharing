@@ -215,8 +215,12 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     try {
       // 1651272616000, PST: 2022-04-29 15:50:16.0
       val startStr = new Timestamp(1651272616000L).toString
+      // scalastyle:off println
+      Console.println(s"---[linzhou]---startStr:$startStr")
       // 1651272660000, PST: 2022-04-29 15:51:00.0
       val endStr = new Timestamp(1651272660000L).toString
+      Console.println(s"---[linzhou]---endStr:$endStr")
+      // scalastyle:on println
       val cdfOptions = Map("startingTimestamp" -> startStr, "endingTimestamp" -> endStr)
       val tableFiles = client.getCDFFiles(
         Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),

@@ -81,7 +81,11 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
   // Convert timestamp string in cdfOptions to Timestamp
   private def getTimestamp(paramName: String, timeStampStr: String): Timestamp = {
     try {
-      Timestamp.valueOf(timeStampStr)
+      val a = Timestamp.valueOf(timeStampStr)
+      // scalastyle:off println
+      Console.println(s"---[linzhou]---a:${a.getTime}")
+      // scalastyle:on println
+      a
     } catch {
       case e: IllegalArgumentException =>
         throw DeltaCDFErrors.invalidTimestamp(paramName, e.getMessage)
