@@ -17,6 +17,7 @@
 package io.delta.sharing.spark
 
 import java.sql.Timestamp
+import java.util.TimeZone
 
 import io.delta.sharing.spark.model.{
   AddCDCFile,
@@ -216,6 +217,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       // 1651272616000, PST: 2022-04-29 15:50:16.0
       val startStr = new Timestamp(1651272616000L).toString
       // scalastyle:off println
+      Console.println(s"---[linzhou]---client timezone:${TimeZone.getDefault}")
       Console.println(s"---[linzhou]---startStr:$startStr")
       // 1651272660000, PST: 2022-04-29 15:51:00.0
       val endStr = new Timestamp(1651272660000L).toString
