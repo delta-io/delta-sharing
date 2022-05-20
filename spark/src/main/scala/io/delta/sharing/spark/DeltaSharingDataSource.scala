@@ -55,4 +55,13 @@ private[sharing] object DeltaSharingDataSource {
       .setIfUnset("fs.delta-sharing.impl", "io.delta.sharing.spark.DeltaSharingFileSystem")
     PreSignedUrlCache.registerIfNeeded(SparkEnv.get)
   }
+
+  // Constants for cdf parameters
+  final val CDF_START_VERSION_KEY = "startingVersion"
+
+  final val CDF_START_TIMESTAMP_KEY = "startingTimestamp"
+
+  final val CDF_END_VERSION_KEY = "endingVersion"
+
+  final val CDF_END_TIMESTAMP_KEY = "endingTimestamp"
 }

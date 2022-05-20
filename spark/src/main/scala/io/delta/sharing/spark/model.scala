@@ -28,7 +28,11 @@ private[sharing] case class DeltaTableFiles(
     version: Long,
     protocol: Protocol,
     metadata: Metadata,
-    files: Seq[AddFile])
+    files: Seq[AddFile] = Nil,
+    addFiles: Seq[AddFileForCDF] = Nil,
+    cdfFiles: Seq[AddCDCFile] = Nil,
+    removeFiles: Seq[RemoveFile] = Nil
+  )
 
 private[sharing] case class Share(name: String)
 
@@ -38,12 +42,21 @@ private[sharing] case class Table(name: String, schema: String, share: String)
 
 private[sharing] case class SingleAction(
     file: AddFile = null,
+    add: AddFileForCDF = null,
+    cdf: AddCDCFile = null,
+    remove: RemoveFile = null,
     metaData: Metadata = null,
     protocol: Protocol = null) {
 
   def unwrap: Action = {
     if (file != null) {
       file
+    } else if (add != null) {
+      add
+    } else if (cdf != null) {
+      cdf
+    } else if (remove != null) {
+      remove
     } else if (metaData != null) {
       metaData
     } else if (protocol != null) {
@@ -62,6 +75,7 @@ private[sharing] case class Metadata(
     description: String = null,
     format: Format = Format(),
     schemaString: String = null,
+    configuration: Map[String, String] = Map.empty,
     partitionColumns: Seq[String] = Nil) extends Action {
   override def wrap: SingleAction = SingleAction(metaData = this)
 }
@@ -75,6 +89,16 @@ private[sharing] case class Protocol(minReaderVersion: Int) extends Action {
   override def wrap: SingleAction = SingleAction(protocol = this)
 }
 
+sealed abstract class AddFileBase(
+    url: String,
+    id: String,
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    partitionValues: Map[String, String],
+    size: Long,
+    @JsonRawValue
+    stats: String = null)
+    extends Action {}
+
 private[sharing] case class AddFile(
     url: String,
     id: String,
@@ -82,7 +106,48 @@ private[sharing] case class AddFile(
     partitionValues: Map[String, String],
     size: Long,
     @JsonRawValue
-    stats: String = null) extends Action {
+    stats: String = null) extends AddFileBase(url, id, partitionValues, size, stats) {
 
   override def wrap: SingleAction = SingleAction(file = this)
+}
+
+private[sharing] case class AddFileForCDF(
+    url: String,
+    id: String,
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    partitionValues: Map[String, String],
+    size: Long,
+    version: Long,
+    timestamp: Long,
+    @JsonRawValue
+    stats: String = null)
+    extends AddFileBase(url, id, partitionValues, size, stats) {
+
+  override def wrap: SingleAction = SingleAction(add = this)
+}
+
+case class AddCDCFile(
+    url: String,
+    id: String,
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    partitionValues: Map[String, String],
+    size: Long,
+    timestamp: Long,
+    version: Long)
+    extends Action {
+
+  override def wrap: SingleAction = SingleAction(cdf = this)
+}
+
+case class RemoveFile(
+    url: String,
+    id: String,
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    partitionValues: Map[String, String],
+    size: Long,
+    timestamp: Long,
+    version: Long)
+    extends Action {
+
+  override def wrap: SingleAction = SingleAction(remove = this)
 }

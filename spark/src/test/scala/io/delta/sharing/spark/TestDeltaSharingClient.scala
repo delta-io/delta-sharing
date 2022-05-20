@@ -51,6 +51,9 @@ class TestDeltaSharingClient(
     DeltaTableFiles(0, Protocol(0), metadata, Nil)
   }
 
+  override def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles = {
+    throw new IllegalStateException("getCDFFiles is not supported in test")
+  }
   def clear(): Unit = {
     TestDeltaSharingClient.limits = Nil
   }

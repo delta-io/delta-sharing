@@ -16,7 +16,16 @@
 
 package io.delta.sharing.spark
 
-import io.delta.sharing.spark.model.{AddFile, Format, Metadata, Protocol, Table}
+import io.delta.sharing.spark.model.{
+  AddCDCFile,
+  AddFile,
+  AddFileForCDF,
+  Format,
+  Metadata,
+  Protocol,
+  Table
+}
+import io.delta.sharing.spark.util.UnexpectedHttpStatus
 
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
@@ -74,6 +83,24 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
+  integrationTest("getMetadata with configuration") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val tableMatadata =
+        client.getMetadata(Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"))
+      assert(Protocol(minReaderVersion = 1) == tableMatadata.protocol)
+      val expectedMetadata = Metadata(
+        id = "16736144-3306-4577-807a-d3f899b77670",
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+        configuration = Map("enableChangeDataFeed" -> "true"),
+        partitionColumns = Nil)
+      assert(expectedMetadata == tableMatadata.metadata)
+    } finally {
+      client.close()
+    }
+  }
+
   integrationTest("getFiles") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
@@ -104,6 +131,117 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedFiles == tableFiles.files.toList)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getCDFFiles") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val cdfOptions = Map("startingVersion" -> "0", "endingVersion" -> "3")
+      val tableFiles = client.getCDFFiles(
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+        cdfOptions
+      )
+      assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
+      val expectedMetadata = Metadata(
+        id = "16736144-3306-4577-807a-d3f899b77670",
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+        configuration = Map("enableChangeDataFeed" -> "true"),
+        partitionColumns = Nil)
+      assert(expectedMetadata == tableFiles.metadata)
+      assert(tableFiles.cdfFiles.size == 2)
+      val expectedCdfFiles = Seq(
+        AddCDCFile(
+          url = tableFiles.cdfFiles(0).url,
+          id = tableFiles.cdfFiles(0).id,
+          partitionValues = Map.empty,
+          size = 1301,
+          version = 2,
+          timestamp = 1651272655000L
+        ),
+        AddCDCFile(
+          url = tableFiles.cdfFiles(1).url,
+          id = tableFiles.cdfFiles(1).id,
+          partitionValues = Map.empty,
+          size = 1416,
+          version = 3,
+          timestamp = 1651272660000L
+        )
+      )
+      assert(expectedCdfFiles == tableFiles.cdfFiles.toList)
+      assert(tableFiles.addFiles.size == 3)
+      val expectedAddFiles = Seq(
+        AddFileForCDF(
+          url = tableFiles.addFiles(0).url,
+          id = tableFiles.addFiles(0).id,
+          partitionValues = Map.empty,
+          size = 1030,
+          stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+          version = 1,
+          timestamp = 1651272635000L
+        ),
+        AddFileForCDF(
+          url = tableFiles.addFiles(1).url,
+          id = tableFiles.addFiles(1).id,
+          partitionValues = Map.empty,
+          size = 1030,
+          stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+          version = 1,
+          timestamp = 1651272635000L
+        ),
+        AddFileForCDF(
+          url = tableFiles.addFiles(2).url,
+          id = tableFiles.addFiles(2).id,
+          partitionValues = Map.empty,
+          size = 1030,
+          stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+          version = 1,
+          timestamp = 1651272635000L
+        )
+      )
+      assert(expectedAddFiles == tableFiles.addFiles.toList)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getCDFFiles with Timestamp") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val cdfOptions = Map("startingTimestamp" -> "2022-04-29 15:50:16.0", "endingVersion" -> "3")
+      val tableFiles = client.getCDFFiles(
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+        cdfOptions
+      )
+      assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
+      val expectedMetadata = Metadata(
+        id = "16736144-3306-4577-807a-d3f899b77670",
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+        configuration = Map("enableChangeDataFeed" -> "true"),
+        partitionColumns = Nil)
+      assert(expectedMetadata == tableFiles.metadata)
+      assert(tableFiles.cdfFiles.size == 2)
+      assert(tableFiles.addFiles.size == 3)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getCDFFiles_exceptions") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val cdfOptions = Map("startingVersion" -> "0")
+      val errorMessage = intercept[UnexpectedHttpStatus] {
+        client.getCDFFiles(
+          Table(name = "table1", schema = "default", share = "share1"),
+          cdfOptions
+        )
+      }.getMessage
+      assert(errorMessage.contains("cdf is not enabled on table share1.default.table1"))
     } finally {
       client.close()
     }
