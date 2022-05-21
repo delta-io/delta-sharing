@@ -140,7 +140,8 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
     val expected = Seq()
     val errorMessage = intercept[IllegalArgumentException] {
-      checkAnswer(spark.read.format("deltaSharing").option("versionOf", "3x").load(tablePath), expected)
+      checkAnswer(
+        spark.read.format("deltaSharing").option("versionOf", "3x").load(tablePath), expected)
     }.getMessage
     assert(errorMessage.contains("versionOf is not a valid number"))
   }
