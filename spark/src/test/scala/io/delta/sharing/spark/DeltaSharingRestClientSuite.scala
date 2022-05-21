@@ -78,7 +78,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       val tableFiles =
-        client.getFiles(Table(name = "table2", schema = "default", share = "share2"), Nil, None)
+        client.getFiles(Table(name = "table2", schema = "default", share = "share2"), Nil, None, None)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       val expectedMetadata = Metadata(
         id = "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",

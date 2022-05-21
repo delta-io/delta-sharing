@@ -38,7 +38,16 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
       "'path' is not specified. If you use SQL to create a Delta Sharing table, " +
         "LOCATION must be specified"))
     val deltaLog = RemoteDeltaLog(path)
-    deltaLog.createRelation(parameters.get("versionOf"))
+    var versionOf: Option[Long] = None
+    if (parameters.get("versionOf").isDefined) {
+      try {
+        versionOf = Some(parameters.get("versionOf").get.toLong)
+      } catch {
+        case _: NumberFormatException =>
+          throw new IllegalArgumentException("versionOf is not a valid number.")
+      }
+    }
+    deltaLog.createRelation(versionOf)
   }
 
   override def shortName: String = "deltaSharing"

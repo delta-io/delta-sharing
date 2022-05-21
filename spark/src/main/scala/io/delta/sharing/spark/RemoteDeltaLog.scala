@@ -47,7 +47,13 @@ private[sharing] class RemoteDeltaLog(
 
   @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(path, client, table)
 
-  def snapshot: RemoteSnapshot = currentSnapshot
+  def snapshot(versionOf: Option[Long]): RemoteSnapshot = {
+    if (versionOf.isEmpty) {
+      currentSnapshot
+    } else {
+      new RemoteSnapshot(path, client, table, versionOf)
+    }
+  }
 
   /** Update the current snapshot to the latest version. */
   def update(): Unit = synchronized {
@@ -58,8 +64,8 @@ private[sharing] class RemoteDeltaLog(
 
   def createRelation(versionOf: Option[Long]): BaseRelation = {
     val spark = SparkSession.active
-    val snapshotToUse = snapshot
-    val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse, None, versionOf)
+    val snapshotToUse = snapshot(versionOf)
+    val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse, None)
     if (spark.sessionState.conf.getConfString(
       "spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
       DeltaSharingLimitPushDown.setup(spark)
@@ -161,13 +167,19 @@ private[sharing] object RemoteDeltaLog {
 class RemoteSnapshot(
     tablePath: Path,
     client: DeltaSharingClient,
-    table: DeltaSharingTable) extends Logging {
+    table: DeltaSharingTable,
+    versionOf: Option[Long] = None) extends Logging {
 
   protected def spark = SparkSession.active
 
   lazy val (metadata, protocol, version) = {
-    val tableMetadata = client.getMetadata(table)
-    (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
+    if (versionOf.isEmpty) {
+      val tableMetadata = client.getMetadata(table)
+      (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
+    } else {
+      val tableFiles = client.getFiles(table, Nil, Some(1L), versionOf)
+      (tableFiles.metadata, tableFiles.protocol, tableFiles.version)
+    }
   }
 
   lazy val schema: StructType =
@@ -182,7 +194,7 @@ class RemoteSnapshot(
   lazy val (allFiles, sizeInBytes) = {
     val implicits = spark.implicits
     import implicits._
-    val tableFiles = client.getFiles(table, Nil, None)
+    val tableFiles = client.getFiles(table, Nil, None, versionOf)
     checkProtocolNotChange(tableFiles.protocol)
     checkSchemaNotChange(tableFiles.metadata)
     tableFiles.files.toDS() -> tableFiles.files.map(_.size).sum
@@ -228,13 +240,13 @@ class RemoteSnapshot(
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
-      val tableFiles = client.getFiles(table, predicates, limitHint)
+      val tableFiles = client.getFiles(table, predicates, limitHint, versionOf)
       val idToUrl = tableFiles.files.map { add =>
         add.id -> add.url
       }.toMap
       CachedTableManager.INSTANCE
         .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
-          client.getFiles(table, Nil, None).files.map { add =>
+          client.getFiles(table, Nil, None, versionOf).files.map { add =>
             add.id -> add.url
           }.toMap
         })
@@ -293,7 +305,7 @@ private[sharing] case class RemoteDeltaFileIndex(
 
   override def refresh(): Unit = {}
 
-  override def sizeInBytes: Long = deltaLog.snapshot.sizeInBytes
+  override def sizeInBytes: Long = snapshotAtAnalysis.sizeInBytes
 
   override def partitionSchema: StructType = snapshotAtAnalysis.partitionSchema
 
