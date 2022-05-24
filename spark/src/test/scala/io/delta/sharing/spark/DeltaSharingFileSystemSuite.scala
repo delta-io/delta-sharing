@@ -20,28 +20,42 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkFunSuite
 
-import io.delta.sharing.spark.model.AddFile
+import io.delta.sharing.spark.model.{AddCDCFile, AddFile, AddFileForCDF, FileAction, RemoveFile}
 
 class DeltaSharingFileSystemSuite extends SparkFunSuite {
   import DeltaSharingFileSystem._
 
   test("encode and decode") {
     val tablePath = new Path("https://delta.io/foo")
-    val addFile = AddFile("unused", "id", Map.empty, 100)
-    assert(decode(encode(tablePath, addFile)) ==
-      DeltaSharingPath("https://delta.io/foo", "id", 100))
-    // Converting the encoded string to a string and re-create Path should still work
-    assert(decode(new Path(encode(tablePath, addFile).toString)) ==
-      DeltaSharingPath("https://delta.io/foo", "id", 100))
+
+    val actions: Seq[FileAction] = Seq(
+      AddFile("unused", "id", Map.empty, 100),
+      AddFileForCDF("unused_cdf", "id_cdf", Map.empty, 200, 1, 2),
+      AddCDCFile("unused_cdc", "id_cdc", Map.empty, 300, 1, 2),
+      RemoveFile("unused_rem", "id_rem", Map.empty, 400, 1, 2)
+    )
+
+    actions.foreach ( action => {
+      assert(decode(encode(tablePath, action)) ==
+        DeltaSharingPath("https://delta.io/foo", action.id, action.size))
+    })
   }
 
   test("file system should be cached") {
     val tablePath = new Path("https://delta.io/foo")
-    val addFile = AddFile("unused", "id", Map.empty, 100)
-    val path = encode(tablePath, addFile)
-    val conf = new Configuration
-    val fs = path.getFileSystem(conf)
-    assert(fs.isInstanceOf[DeltaSharingFileSystem])
-    assert(fs eq path.getFileSystem(conf))
+    val actions: Seq[FileAction] = Seq(
+      AddFile("unused", "id", Map.empty, 100),
+      AddFileForCDF("unused_cdf", "id_cdf", Map.empty, 200, 1, 2),
+      AddCDCFile("unused_cdc", "id_cdc", Map.empty, 300, 1, 2),
+      RemoveFile("unused_rem", "id_rem", Map.empty, 400, 1, 2)
+    )
+
+    actions.foreach( action => {
+      val path = encode(tablePath, action)
+      val conf = new Configuration
+      val fs = path.getFileSystem(conf)
+      assert(fs.isInstanceOf[DeltaSharingFileSystem])
+      assert(fs eq path.getFileSystem(conf))
+    })
   }
 }

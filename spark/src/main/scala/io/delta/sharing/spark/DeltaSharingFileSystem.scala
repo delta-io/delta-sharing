@@ -28,7 +28,7 @@ import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.{PreSignedUrlCache, PreSignedUrlFetcher}
 import org.apache.spark.network.util.JavaUtils
 
-import io.delta.sharing.spark.model.AddFile
+import io.delta.sharing.spark.model.FileAction
 
 /** Read-only file system for delta paths. */
 private[sharing] class DeltaSharingFileSystem extends FileSystem {
@@ -167,8 +167,8 @@ private[sharing] object DeltaSharingFileSystem {
     }
   }
 
-  def encode(tablePath: Path, addFile: AddFile): Path = {
-    DeltaSharingPath(tablePath.toString, addFile.id, addFile.size).toPath
+  def encode(tablePath: Path, action: FileAction): Path = {
+    DeltaSharingPath(tablePath.toString, action.id, action.size).toPath
   }
 
   def decode(path: Path): DeltaSharingPath = {
