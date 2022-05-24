@@ -18,7 +18,18 @@ package io.delta.sharing.spark
 
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
-import io.delta.sharing.spark.model.{DeltaTableFiles, DeltaTableMetadata, Metadata, Protocol, SingleAction, Table}
+import io.delta.sharing.spark.model.{
+  AddCDCFile,
+  AddFile,
+  AddFileForCDF,
+  DeltaTableFiles,
+  DeltaTableMetadata,
+  Metadata,
+  Protocol,
+  RemoveFile,
+  SingleAction,
+  Table
+}
 import io.delta.sharing.spark.util.JsonUtils
 
 class TestDeltaSharingClient(
@@ -51,11 +62,34 @@ class TestDeltaSharingClient(
     versionOf: Option[Long]): DeltaTableFiles = {
     limit.foreach(lim => TestDeltaSharingClient.limits = TestDeltaSharingClient.limits :+ lim)
 
-    DeltaTableFiles(0, Protocol(0), metadata, Nil)
+    val addFiles: Seq[AddFile] = Seq(
+      AddFile("f1.parquet", "f1", Map.empty, 0),
+      AddFile("f2.parquet", "f2", Map.empty, 0),
+      AddFile("f3.parquet", "f3", Map.empty, 0),
+      AddFile("f4.parquet", "f4", Map.empty, 0)
+    ).take(limit.getOrElse(4L).toInt)
+
+    DeltaTableFiles(0, Protocol(0), metadata, addFiles)
   }
 
   override def getCDFFiles(table: Table, cdfOptions: CaseInsensitiveStringMap): DeltaTableFiles = {
-    throw new IllegalStateException("getCDFFiles is not supported in test")
+    val addFiles: Seq[AddFileForCDF] = Seq(
+      AddFileForCDF("cdf_add1.parquet", "cdf_add1", Map.empty, 100, 1, 1000)
+    )
+    val cdcFiles: Seq[AddCDCFile] = Seq(
+      // Return one cdc file from version 2, and two files with version 3.
+      // This should result in two partition directories.
+      AddCDCFile("cdf_cdc1.parquet", "cdf_cdc1", Map.empty, 200, 2, 2000),
+      AddCDCFile("cdf_cdc2.parquet", "cdf_cdc2", Map.empty, 300, 3, 3000),
+      AddCDCFile("cdf_cdc2.parquet", "cdf_cdc3", Map.empty, 310, 3, 3000)
+    )
+    val removeFiles: Seq[RemoveFile] = Seq(
+      // Return files with same version but different timestamps.
+      // This should result in two partition directories.
+      RemoveFile("cdf_rem1.parquet", "cdf_rem1", Map.empty, 400, 4, 4000),
+      RemoveFile("cdf_rem2.parquet", "cdf_rem2", Map.empty, 420, 4, 4200)
+    )
+    DeltaTableFiles(0, Protocol(0), metadata, Nil, addFiles, cdcFiles, removeFiles)
   }
 
   def clear(): Unit = {
