@@ -138,6 +138,17 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     }
   }
 
+  integrationTest("table_changes: cdf_table_cdf_enabled") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+
+    intercept[IllegalStateException] {
+      checkAnswer(
+        spark.read.format("deltaSharing").option("readChangeFeed", "true").load(tablePath),
+        Nil
+      )
+    }.getMessage.contains("getCDFFiles is not supported yet")
+  }
+
   integrationTest("azure support") {
     for (azureTableName <- "table_wasb" :: "table_abfs" :: Nil) {
       val tablePath = testProfileFile.getCanonicalPath + s"#share_azure.default.${azureTableName}"

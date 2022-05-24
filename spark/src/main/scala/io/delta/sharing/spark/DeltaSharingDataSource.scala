@@ -18,6 +18,9 @@ package io.delta.sharing.spark
 
 import java.util.Collections
 
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+
 import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.PreSignedUrlCache
 import org.apache.spark.sql.{SparkSession, SQLContext}
@@ -37,12 +40,36 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
     val path = parameters.getOrElse("path", throw new IllegalArgumentException(
       "'path' is not specified. If you use SQL to create a Delta Sharing table, " +
         "LOCATION must be specified"))
+
+    var cdfOptions: mutable.Map[String, String] = mutable.Map.empty
+    val caseInsensitiveParams = new CaseInsensitiveStringMap(parameters.asJava)
+    if (DeltaSharingDataSource.isCDFRead(caseInsensitiveParams)) {
+      cdfOptions = mutable.Map[String, String](DeltaSharingDataSource.CDF_ENABLED_KEY -> "true")
+      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_START_VERSION_KEY)) {
+        cdfOptions(DeltaSharingDataSource.CDF_START_VERSION_KEY) = caseInsensitiveParams.get(
+          DeltaSharingDataSource.CDF_START_VERSION_KEY)
+      }
+      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY)) {
+        cdfOptions(DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY) = caseInsensitiveParams.get(
+          DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY)
+      }
+      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_END_VERSION_KEY)) {
+        cdfOptions(DeltaSharingDataSource.CDF_END_VERSION_KEY) = caseInsensitiveParams.get(
+          DeltaSharingDataSource.CDF_END_VERSION_KEY)
+      }
+      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY)) {
+        cdfOptions(DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY) = caseInsensitiveParams.get(
+          DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY)
+      }
+    }
+
     val deltaLog = RemoteDeltaLog(path)
-    deltaLog.createRelation()
+    deltaLog.createRelation(cdfOptions = new CaseInsensitiveStringMap(cdfOptions.asJava))
   }
 
   override def shortName: String = "deltaSharing"
 }
+
 
 private[sharing] object DeltaSharingDataSource {
 
@@ -55,4 +82,21 @@ private[sharing] object DeltaSharingDataSource {
       .setIfUnset("fs.delta-sharing.impl", "io.delta.sharing.spark.DeltaSharingFileSystem")
     PreSignedUrlCache.registerIfNeeded(SparkEnv.get)
   }
+
+  // Based on the read options passed it indicates whether the read was a cdf read or not.
+  def isCDFRead(options: CaseInsensitiveStringMap): Boolean = {
+    options.containsKey(DeltaSharingDataSource.CDF_ENABLED_KEY) &&
+      options.get(DeltaSharingDataSource.CDF_ENABLED_KEY) == "true"
+  }
+
+    // Constants for cdf parameters
+  final val CDF_ENABLED_KEY = "readChangeFeed"
+
+  final val CDF_START_VERSION_KEY = "startingVersion"
+
+  final val CDF_START_TIMESTAMP_KEY = "startingTimestamp"
+
+  final val CDF_END_VERSION_KEY = "endingVersion"
+
+  final val CDF_END_TIMESTAMP_KEY = "endingTimestamp"
 }
