@@ -202,6 +202,7 @@ private[spark] class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val (version, lines) = getNDJson(target, QueryTableRequest(predicates, limit, versionOf))
+    require(versionOf.isEmpty || versionOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData

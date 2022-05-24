@@ -17,6 +17,7 @@
 package io.delta.sharing.spark
 
 import io.delta.sharing.spark.model.{AddFile, Format, Metadata, Protocol, Table}
+import io.delta.sharing.spark.util.UnexpectedHttpStatus
 
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
@@ -104,6 +105,69 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedFiles == tableFiles.files.toList)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getFiles with version") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val tableFiles = client.getFiles(
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+        Nil,
+        None,
+        Some(1L))
+      assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
+      val expectedMetadata = Metadata(
+        id = "16736144-3306-4577-807a-d3f899b77670",
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+        configuration = Map("enableChangeDataFeed" -> "true"),
+        partitionColumns = Nil)
+      assert(expectedMetadata == tableFiles.metadata)
+      assert(tableFiles.files.size == 3)
+      val expectedFiles = Seq(
+        AddFile(
+          url = tableFiles.files(0).url,
+          id = "60d0cf57f3e4367db154aa2c36152a1f",
+          partitionValues = Map.empty,
+          size = 1030,
+          stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
+        ),
+        AddFile(
+          url = tableFiles.files(1).url,
+          id = "d7ed708546dd70fdff9191b3e3d6448b",
+          partitionValues = Map.empty,
+          size = 1030,
+          stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
+        ),
+        AddFile(
+          url = tableFiles.files(2).url,
+          id = "a6dc5694a4ebcc9a067b19c348526ad6",
+          partitionValues = Map.empty,
+          size = 1030,
+          stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
+        )
+      )
+      assert(expectedFiles == tableFiles.files.toList)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getFiles with version exception") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val errorMessage = intercept[UnexpectedHttpStatus] {
+        client.getFiles(
+          Table(name = "table1", schema = "default", share = "share1"),
+          Nil,
+          None,
+          Some(1L)
+        )
+      }.getMessage
+      assert(errorMessage.contains("reading table by version is not supported because change data feed is not enabled on table: share1.default.table1"))
     } finally {
       client.close()
     }
