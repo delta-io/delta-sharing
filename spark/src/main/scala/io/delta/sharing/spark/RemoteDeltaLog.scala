@@ -34,6 +34,7 @@ import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, Hadoop
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
+import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 import io.delta.sharing.spark.model.{AddFile, Metadata, Protocol, Table => DeltaSharingTable}
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
@@ -62,9 +63,21 @@ private[sharing] class RemoteDeltaLog(
     }
   }
 
-  def createRelation(versionOf: Option[Long]): BaseRelation = {
+  def createRelation(
+      versionOf: Option[Long],
+      cdfOptions: CaseInsensitiveStringMap = CaseInsensitiveStringMap.empty): BaseRelation = {
     val spark = SparkSession.active
     val snapshotToUse = snapshot(versionOf)
+    if (!cdfOptions.isEmpty) {
+      return RemoteDeltaCDFRelation(
+        snapshotToUse.schema,
+        spark.sqlContext,
+        client,
+        table,
+        cdfOptions
+      )
+    }
+
     val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse, None)
     if (spark.sessionState.conf.getConfString(
       "spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
@@ -177,6 +190,8 @@ class RemoteSnapshot(
       val tableMetadata = client.getMetadata(table)
       (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
     } else {
+      // getMetadata doesn't support the parameter: versionOf
+      // Leveraging getFiles to get the metadata, so setting the limitHint to 1 for efficiency.
       val tableFiles = client.getFiles(table, Nil, Some(1L), versionOf)
       (tableFiles.metadata, tableFiles.protocol, tableFiles.version)
     }

@@ -113,7 +113,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     }
   }
 
-  integrationTest("cdf_table_cdf_enabled") {
+  integrationTest("cdf_table_cdf_enabled query without version") {
     val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
     val expected = Seq(
       Row("1", 1, sqlDate("2020-01-01")),
@@ -126,7 +126,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     }
   }
 
-  integrationTest("cdf_table_cdf_enabled version") {
+  integrationTest("cdf_table_cdf_enabled query with valid version") {
     val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
     val expected = Seq(
       Row("1", 1, sqlDate("2020-01-01")),
@@ -169,6 +169,17 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
       checkAnswer(sql(s"SELECT * FROM delta_sharing_test WHERE date = '2021-04-28'"), expected)
     }
+  }
+
+  integrationTest("table_changes: cdf_table_cdf_enabled") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+
+    intercept[IllegalStateException] {
+      checkAnswer(
+        spark.read.format("deltaSharing").option("readChangeFeed", "true").load(tablePath),
+        Nil
+      )
+    }.getMessage.contains("getCDFFiles is not supported yet")
   }
 
   integrationTest("azure support") {

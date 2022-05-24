@@ -34,6 +34,7 @@ import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, 
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.spark.internal.Logging
+import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 import io.delta.sharing.spark.model._
 import io.delta.sharing.spark.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
@@ -51,6 +52,8 @@ private[sharing] trait DeltaSharingClient {
     predicates: Seq[String],
     limit: Option[Long],
     versionOf: Option[Long]): DeltaTableFiles
+
+  def getCDFFiles(table: Table, cdfOptions: CaseInsensitiveStringMap): DeltaTableFiles
 }
 
 private[sharing] trait PaginationResponse {
@@ -204,6 +207,10 @@ private[spark] class DeltaSharingRestClient(
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
     val files = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
     DeltaTableFiles(version, protocol, metadata, files)
+  }
+
+  override def getCDFFiles(table: Table, cdfOptions: CaseInsensitiveStringMap): DeltaTableFiles = {
+    throw new IllegalStateException("getCDFFiles is not supported yet")
   }
 
   private def getNDJson(target: String): (Long, Seq[String]) = {
