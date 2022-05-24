@@ -17,7 +17,24 @@
 package io.delta.sharing.spark.model
 
 import com.fasterxml.jackson.annotation.JsonInclude
+import org.apache.spark.sql.types.{DataType, LongType, StringType}
 import org.codehaus.jackson.annotate.JsonRawValue
+
+// Information about CDF columns.
+private[sharing] object CDFColumnInfo {
+  // Internal CDF column names.
+  val commit_version_col_name = "_commit_version"
+  val commit_timestamp_col_name = "_commit_timestamp"
+  val change_type_col_name = "_change_type"
+
+  // Returns internal partition schema for internal columns for CDC actions.
+  def getInternalPartitonSchemaForCDC(): Map[String, DataType] =
+    Map(commit_version_col_name -> LongType, commit_timestamp_col_name -> LongType)
+
+  // Returns internal partition schema for internal columns for CDF add/remove actions.
+  def getInternalPartitonSchemaForCDFAddRemoveFile(): Map[String, DataType] =
+    getInternalPartitonSchemaForCDC() + (change_type_col_name -> StringType)
+}
 
 private[sharing] case class DeltaTableMetadata(
     version: Long,
@@ -29,10 +46,9 @@ private[sharing] case class DeltaTableFiles(
     protocol: Protocol,
     metadata: Metadata,
     files: Seq[AddFile] = Nil,
-    addFiles: Seq[AddFileForCDF] = Nil,
+    addFilesForCdf: Seq[AddFileForCDF] = Nil,
     cdfFiles: Seq[AddCDCFile] = Nil,
-    removeFiles: Seq[RemoveFile] = Nil
-  )
+    removeFiles: Seq[RemoveFile] = Nil)
 
 private[sharing] case class Share(name: String)
 
@@ -89,65 +105,87 @@ private[sharing] case class Protocol(minReaderVersion: Int) extends Action {
   override def wrap: SingleAction = SingleAction(protocol = this)
 }
 
-sealed abstract class AddFileBase(
-    url: String,
-    id: String,
+// A common base class for all file actions.
+private[sharing] sealed abstract class FileAction(
+    val url: String,
+    val id: String,
     @JsonInclude(JsonInclude.Include.ALWAYS)
-    partitionValues: Map[String, String],
-    size: Long,
-    @JsonRawValue
-    stats: String = null)
-    extends Action {}
+    val partitionValues: Map[String, String],
+    val size: Long) extends Action {
+
+  // Returns the partition values to be used in a data frame.
+  // By default, we return the input partition values.
+  // Derived class can override this and add internal partitions values as needed.
+  // For example, internal CDF columns such as commit version are modeled as partitions.
+  def getPartitionValuesInDF(): Map[String, String] = partitionValues
+}
 
 private[sharing] case class AddFile(
-    url: String,
-    id: String,
+    override val url: String,
+    override val id: String,
     @JsonInclude(JsonInclude.Include.ALWAYS)
-    partitionValues: Map[String, String],
-    size: Long,
+    override val partitionValues: Map[String, String],
+    override val size: Long,
     @JsonRawValue
-    stats: String = null) extends AddFileBase(url, id, partitionValues, size, stats) {
+    stats: String = null) extends FileAction(url, id, partitionValues, size) {
 
   override def wrap: SingleAction = SingleAction(file = this)
 }
 
 private[sharing] case class AddFileForCDF(
-    url: String,
-    id: String,
+    override val url: String,
+    override val id: String,
     @JsonInclude(JsonInclude.Include.ALWAYS)
-    partitionValues: Map[String, String],
-    size: Long,
+    override val partitionValues: Map[String, String],
+    override val size: Long,
     version: Long,
     timestamp: Long,
     @JsonRawValue
-    stats: String = null)
-    extends AddFileBase(url, id, partitionValues, size, stats) {
+    stats: String = null) extends FileAction(url, id, partitionValues, size) {
 
   override def wrap: SingleAction = SingleAction(add = this)
+
+  override def getPartitionValuesInDF(): Map[String, String] = {
+    partitionValues +
+    (CDFColumnInfo.commit_version_col_name -> version.toString) +
+    (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString) +
+    (CDFColumnInfo.change_type_col_name -> "insert")
+  }
 }
 
-case class AddCDCFile(
-    url: String,
-    id: String,
+private[sharing] case class AddCDCFile(
+    override val url: String,
+    override val id: String,
     @JsonInclude(JsonInclude.Include.ALWAYS)
-    partitionValues: Map[String, String],
-    size: Long,
-    timestamp: Long,
-    version: Long)
-    extends Action {
+    override val partitionValues: Map[String, String],
+    override val size: Long,
+    version: Long,
+    timestamp: Long) extends FileAction(url, id, partitionValues, size) {
 
   override def wrap: SingleAction = SingleAction(cdf = this)
+
+  override def getPartitionValuesInDF(): Map[String, String] = {
+    partitionValues +
+    (CDFColumnInfo.commit_version_col_name -> version.toString) +
+    (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString)
+  }
 }
 
-case class RemoveFile(
-    url: String,
-    id: String,
+private[sharing] case class RemoveFile(
+    override val url: String,
+    override val id: String,
     @JsonInclude(JsonInclude.Include.ALWAYS)
-    partitionValues: Map[String, String],
-    size: Long,
-    timestamp: Long,
-    version: Long)
-    extends Action {
+    override val partitionValues: Map[String, String],
+    override val size: Long,
+    version: Long,
+    timestamp: Long) extends FileAction(url, id, partitionValues, size) {
 
   override def wrap: SingleAction = SingleAction(remove = this)
+
+  override def getPartitionValuesInDF(): Map[String, String] = {
+    partitionValues +
+    (CDFColumnInfo.commit_version_col_name -> version.toString) +
+    (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString) +
+    (CDFColumnInfo.change_type_col_name -> "delete")
+  }
 }

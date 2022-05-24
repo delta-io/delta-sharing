@@ -22,7 +22,7 @@ import org.apache.spark.sql.catalyst.plans.logical.{LocalLimit, LogicalPlan}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 
-import io.delta.sharing.spark.RemoteDeltaFileIndex
+import io.delta.sharing.spark.RemoteDeltaSnapshotFileIndex
 
 object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
 
@@ -38,7 +38,7 @@ object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
         case localLimit @ LocalLimit(
         literalExpr @ IntegerLiteral(limit),
         l @ LogicalRelation(
-        r @ HadoopFsRelation(remoteIndex: RemoteDeltaFileIndex, _, _, _, _, _),
+        r @ HadoopFsRelation(remoteIndex: RemoteDeltaSnapshotFileIndex, _, _, _, _, _),
         _, _, _)
         ) =>
           if (remoteIndex.limitHint.isEmpty) {

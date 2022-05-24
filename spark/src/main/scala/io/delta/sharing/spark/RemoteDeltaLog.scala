@@ -56,10 +56,22 @@ private[sharing] class RemoteDeltaLog(
     }
   }
 
-  def createRelation(): BaseRelation = {
+  def createRelation(
+      cdfOptions: Map[String, String]): BaseRelation = {
     val spark = SparkSession.active
     val snapshotToUse = snapshot
-    val fileIndex = new RemoteDeltaFileIndex(spark, this, path, snapshotToUse, None)
+    if (!cdfOptions.isEmpty) {
+      return RemoteDeltaCDFRelation(
+        snapshotToUse.schema,
+        spark.sqlContext,
+        client,
+        table,
+        cdfOptions
+      )
+    }
+
+    val params = new RemoteDeltaFileIndexParams(spark, path, snapshotToUse)
+    val fileIndex = new RemoteDeltaSnapshotFileIndex(params, None)
     if (spark.sessionState.conf.getConfString(
       "spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
       DeltaSharingLimitPushDown.setup(spark)
@@ -182,7 +194,7 @@ class RemoteSnapshot(
   lazy val (allFiles, sizeInBytes) = {
     val implicits = spark.implicits
     import implicits._
-    val tableFiles = client.getFiles(table, Nil, None)
+    val tableFiles = client.getFiles(table, Nil, None, None)
     checkProtocolNotChange(tableFiles.protocol)
     checkSchemaNotChange(tableFiles.metadata)
     tableFiles.files.toDS() -> tableFiles.files.map(_.size).sum
@@ -208,7 +220,7 @@ class RemoteSnapshot(
   def filesForScan(
       filters: Seq[Expression],
       limitHint: Option[Long],
-      fileIndex: RemoteDeltaFileIndex): Seq[AddFile] = {
+      fileIndex: RemoteDeltaSnapshotFileIndex): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
@@ -228,13 +240,13 @@ class RemoteSnapshot(
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
-      val tableFiles = client.getFiles(table, predicates, limitHint)
+      val tableFiles = client.getFiles(table, predicates, limitHint, None)
       val idToUrl = tableFiles.files.map { add =>
         add.id -> add.url
       }.toMap
       CachedTableManager.INSTANCE
         .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
-          client.getFiles(table, Nil, None).files.map { add =>
+          client.getFiles(table, Nil, None, None).files.map { add =>
             add.id -> add.url
           }.toMap
         })
@@ -276,69 +288,6 @@ class RemoteSnapshot(
     })
   }
 }
-
-/** A [[FileIndex]] that generates the list of files from the remote transaction logs. */
-private[sharing] case class RemoteDeltaFileIndex(
-    spark: SparkSession,
-    deltaLog: RemoteDeltaLog,
-    path: Path,
-    snapshotAtAnalysis: RemoteSnapshot,
-    limitHint: Option[Long]) extends FileIndex {
-
-  override def inputFiles: Array[String] = {
-    snapshotAtAnalysis.filesForScan(Nil, None, this)
-      .map(f => toDeltaSharingPath(f).toString)
-      .toArray
-  }
-
-  override def refresh(): Unit = {}
-
-  override def sizeInBytes: Long = deltaLog.snapshot.sizeInBytes
-
-  override def partitionSchema: StructType = snapshotAtAnalysis.partitionSchema
-
-  override def rootPaths: Seq[Path] = path :: Nil
-
-  private def toDeltaSharingPath(f: AddFile): Path = {
-    DeltaSharingFileSystem.encode(path, f)
-  }
-
-  override def listFiles(
-      partitionFilters: Seq[Expression],
-      dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
-    val timeZone = spark.sessionState.conf.sessionLocalTimeZone
-    snapshotAtAnalysis.filesForScan(partitionFilters ++ dataFilters, limitHint, this)
-      .groupBy(_.partitionValues).map {
-        case (partitionValues, files) =>
-          val rowValues: Array[Any] = partitionSchema.map { p =>
-            Cast(Literal(partitionValues(p.name)), p.dataType, Option(timeZone)).eval()
-          }.toArray
-
-          val fileStats = files.map { f =>
-            new FileStatus(
-              /* length */ f.size,
-              /* isDir */ false,
-              /* blockReplication */ 0,
-              /* blockSize */ 1,
-              /* modificationTime */ 0,
-              toDeltaSharingPath(f))
-          }.toArray
-
-          try {
-            // Databricks Runtime has a different `PartitionDirectory.apply` method. We need to use
-            // Java Reflection to call it.
-            classOf[PartitionDirectory].getMethod("apply", classOf[InternalRow], fileStats.getClass)
-              .invoke(null, new GenericInternalRow(rowValues), fileStats)
-              .asInstanceOf[PartitionDirectory]
-          } catch {
-            case _: NoSuchMethodException =>
-              // This is not in Databricks Runtime. We can call Spark's PartitionDirectory directly.
-              PartitionDirectory(new GenericInternalRow(rowValues), fileStats)
-          }
-      }.toSeq
-  }
-}
-
 
 // scalastyle:off
 /** Fork from Delta Lake: https://github.com/delta-io/delta/blob/v0.8.0/src/main/scala/org/apache/spark/sql/delta/DeltaTable.scala#L76 */
