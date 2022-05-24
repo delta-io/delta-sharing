@@ -25,6 +25,7 @@ import org.apache.spark.SparkFunSuite
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{LongType, StringType, StructField, StructType}
+import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 import io.delta.sharing.spark.model.Table
 
@@ -154,7 +155,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val snapshot = new RemoteSnapshot(path, client, table)
     val params = RemoteDeltaFileIndexParams(spark, path, snapshot)
 
-    val deltaTableFiles = client.getCDFFiles(table, Map.empty)
+    val deltaTableFiles = client.getCDFFiles(table, CaseInsensitiveStringMap.empty)
 
     val addFilesIndex = new RemoteDeltaCDFAddFileIndex(params, deltaTableFiles)
 

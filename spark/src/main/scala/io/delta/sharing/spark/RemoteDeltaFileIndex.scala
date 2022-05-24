@@ -16,9 +16,7 @@
 
 package io.delta.sharing.spark
 
-// scalastyle:off import.ordering.noEmptyLine
 import org.apache.hadoop.fs.{FileStatus, Path}
-
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder

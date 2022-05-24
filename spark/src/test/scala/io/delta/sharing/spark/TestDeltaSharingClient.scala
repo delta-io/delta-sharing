@@ -72,7 +72,7 @@ class TestDeltaSharingClient(
     DeltaTableFiles(0, Protocol(0), metadata, addFiles)
   }
 
-  override def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles = {
+  override def getCDFFiles(table: Table, cdfOptions: CaseInsensitiveStringMap): DeltaTableFiles = {
     val addFiles: Seq[AddFileForCDF] = Seq(
       AddFileForCDF("cdf_add1.parquet", "cdf_add1", Map.empty, 100, 1, 1000)
     )
@@ -90,10 +90,6 @@ class TestDeltaSharingClient(
       RemoveFile("cdf_rem2.parquet", "cdf_rem2", Map.empty, 420, 4, 4200)
     )
     DeltaTableFiles(0, Protocol(0), metadata, Nil, addFiles, cdcFiles, removeFiles)
-  }
-
-  override def getCDFFiles(table: Table, cdfOptions: CaseInsensitiveStringMap): DeltaTableFiles = {
-    throw new IllegalStateException("getCDFFiles is not supported in test")
   }
 
   def clear(): Unit = {
