@@ -62,6 +62,7 @@ private[sharing] case class Metadata(
     description: String = null,
     format: Format = Format(),
     schemaString: String = null,
+    configuration: Map[String, String] = Map.empty,
     partitionColumns: Seq[String] = Nil) extends Action {
   override def wrap: SingleAction = SingleAction(metaData = this)
 }
