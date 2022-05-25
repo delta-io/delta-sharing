@@ -30,6 +30,7 @@ import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
 import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
 import com.linecorp.armeria.server.auth.AuthService
+import io.delta.standalone.exceptions.DeltaStandaloneException
 import io.delta.standalone.internal.DeltaCDFErrors
 import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
 import io.delta.standalone.internal.DeltaDataSource
@@ -87,6 +88,14 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
               "errorCode" -> ErrorCode.INVALID_PARAMETER_VALUE,
               "message" -> cause.getMessage)))
       case _: DeltaCDFIllegalArgumentException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.INVALID_PARAMETER_VALUE,
+              "message" -> cause.getMessage)))
+      case _: DeltaStandaloneException =>
         HttpResponse.of(
           HttpStatus.BAD_REQUEST,
           MediaType.JSON_UTF_8,
@@ -153,6 +162,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       case e: DeltaSharingNoSuchElementException => throw e
       case e: DeltaSharingIllegalArgumentException => throw e
       case e: DeltaCDFIllegalArgumentException => throw e
+      case e: DeltaStandaloneException => throw e
       case e: Throwable => throw new DeltaInternalException(e)
     }
   }

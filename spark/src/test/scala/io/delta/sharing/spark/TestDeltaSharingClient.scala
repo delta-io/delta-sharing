@@ -16,8 +16,6 @@
 
 package io.delta.sharing.spark
 
-import org.apache.spark.sql.util.CaseInsensitiveStringMap
-
 import io.delta.sharing.spark.model.{
   AddCDCFile,
   AddFile,
@@ -72,7 +70,7 @@ class TestDeltaSharingClient(
     DeltaTableFiles(0, Protocol(0), metadata, addFiles)
   }
 
-  override def getCDFFiles(table: Table, cdfOptions: CaseInsensitiveStringMap): DeltaTableFiles = {
+  override def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles = {
     val addFiles: Seq[AddFileForCDF] = Seq(
       AddFileForCDF("cdf_add1.parquet", "cdf_add1", Map.empty, 100, 1, 1000)
     )

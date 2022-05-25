@@ -168,7 +168,7 @@ private[sharing] case class RemoteDeltaCDCFileIndex(
     deltaTableFiles: DeltaTableFiles)
     extends RemoteDeltaCDFFileIndexBase(
       params,
-      deltaTableFiles.cdcFiles,
+      deltaTableFiles.cdfFiles,
       CDFColumnInfo.getInternalPartitonSchemaForCDC) {}
 
 private[sharing] case class RemoteDeltaCDFRemoveFileIndex(

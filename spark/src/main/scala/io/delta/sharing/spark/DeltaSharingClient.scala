@@ -22,6 +22,7 @@ import java.sql.Timestamp
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter.ISO_DATE_TIME
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.commons.io.IOUtils
@@ -53,7 +54,7 @@ private[sharing] trait DeltaSharingClient {
     limit: Option[Long],
     versionOf: Option[Long]): DeltaTableFiles
 
-  def getCDFFiles(table: Table, cdfOptions: CaseInsensitiveStringMap): DeltaTableFiles
+  def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles
 }
 
 private[sharing] trait PaginationResponse {
@@ -210,14 +211,53 @@ private[spark] class DeltaSharingRestClient(
     DeltaTableFiles(version, protocol, metadata, files)
   }
 
-  override def getCDFFiles(table: Table, cdfOptions: CaseInsensitiveStringMap): DeltaTableFiles = {
-    throw new IllegalStateException("getCDFFiles is not supported yet")
+  override def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles = {
+    val encodedShare = URLEncoder.encode(table.share, "UTF-8")
+    val encodedSchema = URLEncoder.encode(table.schema, "UTF-8")
+    val encodedTable = URLEncoder.encode(table.name, "UTF-8")
+    val encodedParams = getEncodedCDFParams(cdfOptions)
+
+    val target = getTargetUrl(
+      s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
+    val (_, lines) = getNDJson(target, requireVersion = false)
+    val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
+    checkProtocol(protocol)
+    val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
+
+    val addFiles = ArrayBuffer[AddFileForCDF]()
+    val cdfFiles = ArrayBuffer[AddCDCFile]()
+    val removeFiles = ArrayBuffer[RemoveFile]()
+    lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).unwrap).foreach{
+      case c: AddCDCFile => cdfFiles.append(c)
+      case a: AddFileForCDF => addFiles.append(a)
+      case r: RemoveFile => removeFiles.append(r)
+      case f => throw new IllegalStateException(s"Unexpected File:${f}")
+    }
+    DeltaTableFiles(
+      0L,
+      protocol,
+      metadata,
+      addFilesForCdf = addFiles,
+      cdfFiles = cdfFiles,
+      removeFiles = removeFiles
+    )
   }
 
-  private def getNDJson(target: String): (Long, Seq[String]) = {
+  private def getEncodedCDFParams(cdfOptions: Map[String, String]): String = {
+    val params = cdfOptions.map{
+      case (cdfKey, cdfValue) => s"$cdfKey=${URLEncoder.encode(cdfValue)}"
+    }.mkString("&")
+    params
+  }
+
+  private def getNDJson(target: String, requireVersion: Boolean = true): (Long, Seq[String]) = {
     val (version, response) = getResponse(new HttpGet(target))
     version.getOrElse {
-      throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
+      if (requireVersion) {
+        throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
+      } else {
+        0L
+      }
     } -> response.split("[\n\r]+")
   }
 

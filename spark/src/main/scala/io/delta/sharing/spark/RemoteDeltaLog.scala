@@ -34,7 +34,6 @@ import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, Hadoop
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
-import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 import io.delta.sharing.spark.model.{AddFile, Metadata, Protocol, Table => DeltaSharingTable}
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
@@ -65,7 +64,7 @@ private[sharing] class RemoteDeltaLog(
 
   def createRelation(
       versionOf: Option[Long],
-      cdfOptions: CaseInsensitiveStringMap = CaseInsensitiveStringMap.empty): BaseRelation = {
+      cdfOptions: Map[String, String]): BaseRelation = {
     val spark = SparkSession.active
     val snapshotToUse = snapshot(versionOf)
     if (!cdfOptions.isEmpty) {

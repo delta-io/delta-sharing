@@ -22,7 +22,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan}
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 import io.delta.sharing.spark.model.{Table => DeltaSharingTable}
 
@@ -31,7 +30,7 @@ case class RemoteDeltaCDFRelation(
     sqlContext: SQLContext,
     client: DeltaSharingClient,
     table: DeltaSharingTable,
-    cdfOptions: CaseInsensitiveStringMap) extends BaseRelation with PrunedFilteredScan {
+    cdfOptions: Map[String, String]) extends BaseRelation with PrunedFilteredScan {
 
   override def buildScan(
     requiredColumns: Array[String],
