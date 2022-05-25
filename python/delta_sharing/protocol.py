@@ -245,5 +245,5 @@ class RemoveFile(FileAction):
 class CdfOptions:
     starting_version: Optional[int] = None
     ending_version: Optional[int] = None
-    starting_timestamp: Optional[int] = None
-    ending_timestamp: Optional[int] = None
+    starting_timestamp: Optional[str] = None
+    ending_timestamp: Optional[str] = None

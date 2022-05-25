@@ -479,3 +479,9 @@ def test_list_table_changes(
             version=3
         ),
     ]
+
+    # Make sure the timestamps are correctly parsed.
+    rest_client.list_table_changes(
+        cdf_table,
+        CdfOptions(starting_timestamp="2022-05-03 14:56:05.0")
+    )

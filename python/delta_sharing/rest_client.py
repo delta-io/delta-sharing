@@ -281,12 +281,11 @@ class DataSharingRestClient:
         # We do not validate the CDF options here since the server will perform validations anyways.
         if cdfOptions.starting_version is not None:
             query_str += f"startingVersion={cdfOptions.starting_version}"
-        elif cdfOptions.starting_timestamp is not None:
+        if cdfOptions.starting_timestamp is not None:
             query_str += f"startingTimestamp={cdfOptions.starting_timestamp}"
-
         if cdfOptions.ending_version is not None:
             query_str += f"&endingVersion={cdfOptions.ending_version}"
-        elif cdfOptions.ending_timestamp is not None:
+        if cdfOptions.ending_timestamp is not None:
             query_str += f"&endingTimestamp={cdfOptions.ending_timestamp}"
 
         with self._get_internal(query_str) as lines:
