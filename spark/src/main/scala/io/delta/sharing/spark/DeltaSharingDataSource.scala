@@ -64,7 +64,7 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
     }
 
     val deltaLog = RemoteDeltaLog(path)
-    deltaLog.createRelation(cdfOptions = new CaseInsensitiveStringMap(cdfOptions.asJava))
+    deltaLog.createRelation(cdfOptions = cdfOptions.toMap)
   }
 
   override def shortName: String = "deltaSharing"
@@ -89,7 +89,7 @@ private[sharing] object DeltaSharingDataSource {
       options.get(DeltaSharingDataSource.CDF_ENABLED_KEY) == "true"
   }
 
-    // Constants for cdf parameters
+  // Constants for cdf parameters
   final val CDF_ENABLED_KEY = "readChangeFeed"
 
   final val CDF_START_VERSION_KEY = "startingVersion"

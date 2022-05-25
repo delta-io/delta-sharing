@@ -17,7 +17,7 @@
 package io.delta.sharing.server
 
 import java.io.IOException
-import java.net.URL
+import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.security.cert.X509Certificate
 import java.sql.Timestamp
@@ -639,9 +639,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("cdf_table_cdf_enabled_changes: timestamp works") {
     // 1651272616000, PST: 2022-04-29 15:50:16.0
-    val startStr = new Timestamp(1651272616000L).toString.replace(" ", "%20")
+    val startStr = URLEncoder.encode(new Timestamp(1651272616000L).toString)
     // 1651272660000, PST: 2022-04-29 15:51:00.0
-    val endStr = new Timestamp(1651272660000L).toString.replace(" ", "%20")
+    val endStr = URLEncoder.encode(new Timestamp(1651272660000L).toString)
 
     val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, None)
     val lines = response.split("\n")

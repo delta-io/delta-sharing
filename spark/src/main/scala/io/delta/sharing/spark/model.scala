@@ -47,7 +47,7 @@ private[sharing] case class DeltaTableFiles(
     metadata: Metadata,
     files: Seq[AddFile] = Nil,
     addFilesForCdf: Seq[AddFileForCDF] = Nil,
-    cdcFiles: Seq[AddCDCFile] = Nil,
+    cdfFiles: Seq[AddCDCFile] = Nil,
     removeFiles: Seq[RemoveFile] = Nil)
 
 private[sharing] case class Share(name: String)
@@ -69,6 +69,8 @@ private[sharing] case class SingleAction(
       file
     } else if (add != null) {
       add
+    } else if (cdf != null) {
+      cdf
     } else if (remove != null) {
       remove
     } else if (metaData != null) {
@@ -137,7 +139,9 @@ private[sharing] case class AddFileForCDF(
     override val partitionValues: Map[String, String],
     override val size: Long,
     version: Long,
-    timestamp: Long) extends FileAction(url, id, partitionValues, size) {
+    timestamp: Long,
+    @JsonRawValue
+    stats: String = null) extends FileAction(url, id, partitionValues, size) {
 
   override def wrap: SingleAction = SingleAction(add = this)
 
