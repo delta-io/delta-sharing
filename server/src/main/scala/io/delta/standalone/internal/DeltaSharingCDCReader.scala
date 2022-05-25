@@ -33,6 +33,7 @@ import io.delta.standalone.internal.util.ConversionUtils
 import org.apache.hadoop.conf.Configuration
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
+import scala.util.control.NonFatal
 
 /**
  * This is a special CDCReader that is optimized for delta sharing server usage.
@@ -100,7 +101,7 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
    * @return - corresponding version number for timestamp
    */
   private def getStartingVersionFromTimestamp(timestamp: Timestamp, latestVersion: Long): Long = {
-    val commit = history.getActiveCommitAtTime(timestamp)
+    val commit = getActiveCommitAtTime(timestamp)
     if (commit.timestamp >= timestamp.getTime) {
       // Find the commit at the `timestamp` or the earliest commit
       commit.version
@@ -139,12 +140,27 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
       } else {
         require(timestampKey == DeltaDataSource.CDF_END_TIMESTAMP_KEY)
         // For ending timestamp the version should be before the provided timestamp.
-        Some(history.getActiveCommitAtTime(ts).version)
+        Some(getActiveCommitAtTime(ts).version)
       }
     } else {
       None
     }
   }
+
+  /**
+   * A wrapper around DeltaHistory manager method.
+   * The method implicitly validates the timestamp arg, so we remap its exception to CDF
+   * illegal arg exception.
+   */
+   private def getActiveCommitAtTime(ts: Timestamp): DeltaSharingHistoryManager.Commit = {
+     val commit = try {
+       history.getActiveCommitAtTime(ts)
+     } catch {
+       case NonFatal(e) =>
+         throw new DeltaCDFIllegalArgumentException(e.getMessage())
+     }
+     DeltaSharingHistoryManager.Commit(commit.version, commit.timestamp)
+   }
 
   /**
    * Replay Delta transaction logs and return cdf files

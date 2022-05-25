@@ -172,6 +172,17 @@ class FileAction:
     def get_change_type_col_value(self) -> str:
         raise ValueError(f"_change_type not supported for {self.url}")
 
+    @staticmethod
+    def from_json(action_json) -> "FileAction":
+        if "add" in action_json:
+            return AddFile.from_json(action_json["add"])
+        elif "cdf" in action_json:
+            return AddCdcFile.from_json(action_json["cdf"])
+        elif "remove" in action_json:
+            return RemoveFile.from_json(action_json["remove"])
+        else:
+            return None
+
 
 @dataclass(frozen=True)
 class AddFile(FileAction):

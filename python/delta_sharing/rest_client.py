@@ -17,8 +17,8 @@ import collections
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
-from typing import Any, ClassVar, Dict, Generator, Optional, Sequence
-from urllib.parse import urlparse
+from typing import Any, ClassVar, Dict, Generator, List, Optional, Sequence
+from urllib.parse import quote, urlparse
 import time
 import logging
 import pprint
@@ -273,8 +273,35 @@ class DataSharingRestClient:
                 add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
             )
 
+    @retry_with_exponential_backoff
     def list_table_changes(self, table: Table, cdfOptions: CdfOptions) -> ListTableChangesResponse:
-        raise HTTPError("API not implemented yet!")
+        query_str = f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/changes?"
+
+        # Add cdf options.
+        # We do not validate the CDF options here since the server will perform validations anyways.
+        params = []
+        if cdfOptions.starting_version is not None:
+            params.append(f"startingVersion={cdfOptions.starting_version}")
+        if cdfOptions.starting_timestamp is not None:
+            params.append(f"startingTimestamp={quote(cdfOptions.starting_timestamp)}")
+        if cdfOptions.ending_version is not None:
+            params.append(f"endingVersion={cdfOptions.ending_version}")
+        if cdfOptions.ending_timestamp is not None:
+            params.append(f"endingTimestamp={quote(cdfOptions.ending_timestamp)}")
+        query_str += "&".join(params)
+
+        with self._get_internal(query_str) as lines:
+            protocol_json = json.loads(next(lines))
+            metadata_json = json.loads(next(lines))
+            actions: List[FileAction] = []
+            for line in lines:
+                actions.append(FileAction.from_json(json.loads(line)))
+
+            return ListTableChangesResponse(
+                protocol=Protocol.from_json(protocol_json["protocol"]),
+                metadata=Metadata.from_json(metadata_json["metaData"]),
+                actions=actions,
+            )
 
     def close(self):
         self._session.close()
