@@ -480,8 +480,32 @@ def test_list_table_changes(
         ),
     ]
 
-    # Make sure the timestamps are correctly parsed.
-    rest_client.list_table_changes(
-        cdf_table,
-        CdfOptions(starting_timestamp="2022-05-03 14:56:05.0")
-    )
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_list_table_changes_with_timestamp(
+    rest_client: DataSharingRestClient
+):
+    cdf_table = Table(name="cdf_table_with_partition", share="share1", schema="default")
+
+    # Use a really old start time, and look for an appropriate error.
+    # This will ensure that the timestamps are parsed correctly.
+    try:
+        rest_client.list_table_changes(
+            cdf_table,
+            CdfOptions(starting_timestamp="2000-05-03 00:00:00")
+        )
+        assert False
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+        assert "Please use a timestamp greater" in str(e)
+
+    # Use an end time far away, and look for an appropriate error.
+    try:
+        rest_client.list_table_changes(
+            cdf_table,
+            CdfOptions(starting_version=0, ending_timestamp="2100-05-03 00:00:00")
+        )
+        assert False
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+        assert "Please use a timestamp less" in str(e)
