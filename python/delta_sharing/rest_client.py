@@ -18,7 +18,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import json
 from typing import Any, ClassVar, Dict, Generator, List, Optional, Sequence
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 import time
 import logging
 import pprint
@@ -279,14 +279,16 @@ class DataSharingRestClient:
 
         # Add cdf options.
         # We do not validate the CDF options here since the server will perform validations anyways.
+        params = []
         if cdfOptions.starting_version is not None:
-            query_str += f"startingVersion={cdfOptions.starting_version}"
+            params.append(f"startingVersion={cdfOptions.starting_version}")
         if cdfOptions.starting_timestamp is not None:
-            query_str += f"startingTimestamp={cdfOptions.starting_timestamp}"
+            params.append(f"startingTimestamp={quote(cdfOptions.starting_timestamp)}")
         if cdfOptions.ending_version is not None:
-            query_str += f"&endingVersion={cdfOptions.ending_version}"
+            params.append(f"endingVersion={cdfOptions.ending_version}")
         if cdfOptions.ending_timestamp is not None:
-            query_str += f"&endingTimestamp={cdfOptions.ending_timestamp}"
+            params.append(f"endingTimestamp={quote(cdfOptions.ending_timestamp)}")
+        query_str += "&".join(params)
 
         with self._get_internal(query_str) as lines:
             protocol_json = json.loads(next(lines))
