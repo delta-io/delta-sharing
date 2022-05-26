@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-PYTHON_EXECUTABLE="${PYTHON_EXECUTABLE:-python3}"
+PYTHON_EXECUTABLE="${PYTHON_EXECUTABLE:-python}"
 
 set -o pipefail
 set -e
