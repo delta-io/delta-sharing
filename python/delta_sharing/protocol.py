@@ -144,18 +144,24 @@ class Metadata:
     description: Optional[str] = None
     format: Format = field(default_factory=Format)
     schema_string: Optional[str] = None
+    configuration: Dict[str, str] = field(default_factory=dict)
     partition_columns: Sequence[str] = field(default_factory=list)
 
     @staticmethod
     def from_json(json) -> "Metadata":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
+        if "configuration" in json:
+            configuration = json["configuration"]
+        else:
+            configuration = {}
         return Metadata(
             id=json["id"],
             name=json.get("name", None),
             description=json.get("description", None),
             format=Format.from_json(json["format"]),
             schema_string=json["schemaString"],
+            configuration=configuration,
             partition_columns=json["partitionColumns"],
         )
 

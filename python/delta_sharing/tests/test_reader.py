@@ -44,6 +44,7 @@ def test_to_pandas_non_partitioned(tmp_path):
             *,
             predicateHints: Optional[Sequence[str]] = None,
             limitHint: Optional[int] = None,
+            version: Optional[int] = None,
         ) -> ListFilesInTableResponse:
             assert table == Table("table_name", "share_name", "schema_name")
 
@@ -95,6 +96,7 @@ def test_to_pandas_partitioned(tmp_path):
             *,
             predicateHints: Optional[Sequence[str]] = None,
             limitHint: Optional[int] = None,
+            version: Optional[int] = None,
         ) -> ListFilesInTableResponse:
             assert table == Table("table_name", "share_name", "schema_name")
 
@@ -150,6 +152,7 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
             *,
             predicateHints: Optional[Sequence[str]] = None,
             limitHint: Optional[int] = None,
+            version: Optional[int] = None,
         ) -> ListFilesInTableResponse:
             assert table == Table("table_name", "share_name", "schema_name")
 
@@ -201,6 +204,7 @@ def test_to_pandas_empty(rest_client: DataSharingRestClient):
             *,
             predicateHints: Optional[Sequence[str]] = None,
             limitHint: Optional[int] = None,
+            version: Optional[int] = None,
         ) -> ListFilesInTableResponse:
             assert table == Table("table_name", "share_name", "schema_name")
 

@@ -16,7 +16,10 @@
 
 package io.delta.sharing.spark
 
+import java.lang.ref.WeakReference
+
 import org.apache.hadoop.fs.{FileStatus, Path}
+import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
@@ -50,8 +53,9 @@ import io.delta.sharing.spark.model.{
 
 private[sharing] case class RemoteDeltaFileIndexParams(
     val spark: SparkSession,
-    val path: Path,
-    val snapshotAtAnalysis: RemoteSnapshot)
+    val snapshotAtAnalysis: RemoteSnapshot) {
+  def path: Path = snapshotAtAnalysis.getTablePath
+}
 
 // A base class for all file indices for remote delta log.
 private[sharing] abstract class RemoteDeltaFileIndexBase(
@@ -132,12 +136,7 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
     extends RemoteDeltaFileIndexBase(params) {
 
   override def partitionSchema: StructType = {
-    var schema: StructType = params.snapshotAtAnalysis.partitionSchema
-    auxPartitionSchema.forall(s => {
-      schema = schema.add(s._1, s._2)
-      true
-    })
-    schema
+    DeltaTableUtils.updateSchema(params.snapshotAtAnalysis.partitionSchema, auxPartitionSchema)
   }
 
   override def inputFiles: Array[String] = {
@@ -147,9 +146,21 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
   override def listFiles(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    // Register the files with the pre-signed url fetcher.
+    CachedTableManager.INSTANCE
+      .register(params.path.toString, getIdToUrlMap, new WeakReference(this), () => {
+        getIdToUrlMap
+      })
+
     // We ignore partition filters for list files, since the server already
     // parforms this filtering for CDF.
     makePartitionDirectories(actions)
+  }
+
+  private[sharing] def getIdToUrlMap : Map[String, String] = {
+    actions.map { action =>
+      action.id -> action.url
+    }.toMap
   }
 }
 

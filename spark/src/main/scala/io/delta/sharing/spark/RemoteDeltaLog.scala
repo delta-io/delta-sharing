@@ -35,7 +35,7 @@ import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
-import io.delta.sharing.spark.model.{AddFile, Metadata, Protocol, Table => DeltaSharingTable}
+import io.delta.sharing.spark.model.{AddFile, CDFColumnInfo, Metadata, Protocol, Table => DeltaSharingTable}
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 
 
@@ -69,15 +69,15 @@ private[sharing] class RemoteDeltaLog(
     val snapshotToUse = snapshot(versionOf)
     if (!cdfOptions.isEmpty) {
       return RemoteDeltaCDFRelation(
-        snapshotToUse.schema,
-        spark.sqlContext,
+        spark,
+        snapshotToUse,
         client,
         table,
         cdfOptions
       )
     }
 
-    val params = new RemoteDeltaFileIndexParams(spark, path, snapshotToUse)
+    val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse)
     val fileIndex = new RemoteDeltaSnapshotFileIndex(params, None)
     if (spark.sessionState.conf.getConfString(
       "spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
@@ -197,14 +197,13 @@ class RemoteSnapshot(
     }
   }
 
-  lazy val schema: StructType =
-    Option(metadata.schemaString).map { s =>
-      DataType.fromJson(s).asInstanceOf[StructType]
-    }.getOrElse(StructType.apply(Nil))
+  lazy val schema: StructType = DeltaTableUtils.toSchema(metadata.schemaString)
 
   lazy val partitionSchema = new StructType(metadata.partitionColumns.map(c => schema(c)).toArray)
 
   def fileFormat: FileFormat = new ParquetFileFormat()
+
+  def getTablePath: Path = tablePath
 
   lazy val (allFiles, sizeInBytes) = {
     val implicits = spark.implicits
@@ -360,5 +359,35 @@ private[sharing] object DeltaTableUtils {
       spark: SparkSession): Boolean = {
     isPredicatePartitionColumnsOnly(condition, partitionColumns, spark) &&
       !containsSubquery(condition)
+  }
+
+  // Converts schema string to schema struct.
+  def toSchema(schemaString: String): StructType = {
+    Option(schemaString).map { s =>
+      DataType.fromJson(s).asInstanceOf[StructType]
+    }.getOrElse(StructType.apply(Nil))
+  }
+
+  // Updates input schema with the new fields.
+  def updateSchema(origSchema: StructType, newFields: Map[String, DataType]): StructType = {
+    var schema: StructType = origSchema
+    newFields.forall(s => {
+      schema = schema.add(s._1, s._2)
+      true
+    })
+    schema
+  }
+
+  // Adds cdc schema to the table schema.
+  def addCdcSchema(tableSchema: StructType): StructType = {
+    updateSchema(tableSchema, CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile())
+  }
+
+  // Adds cdc schema to the table schema string.
+  def addCdcSchema(tableSchemaStr: String): StructType = {
+    updateSchema(
+      toSchema(tableSchemaStr),
+      CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile()
+    )
   }
 }
