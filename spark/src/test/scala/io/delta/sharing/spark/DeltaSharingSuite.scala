@@ -141,12 +141,51 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   integrationTest("table_changes: cdf_table_cdf_enabled") {
     val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
 
-    intercept[IllegalStateException] {
-      checkAnswer(
-        spark.read.format("deltaSharing").option("readChangeFeed", "true").load(tablePath),
-        Nil
-      )
-    }.getMessage.contains("getCDFFiles is not supported yet")
+    val expected = Seq(
+      Row("1", 1, sqlDate("2020-01-01"), 1L, 1651272635000L, "insert"),
+      Row("2", 2, sqlDate("2020-01-01"), 1L, 1651272635000L, "insert"),
+      Row("3", 3, sqlDate("2020-01-01"), 1L, 1651272635000L, "insert"),
+      Row("2", 2, sqlDate("2020-01-01"), 3L, 1651272660000L, "update_preimage"),
+      Row("2", 2, sqlDate("2020-02-02"), 3L, 1651272660000L, "update_postimage"),
+      Row("3", 3, sqlDate("2020-01-01"), 2L, 1651272655000L, "delete")
+    )
+    val result = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 0)
+      .option("endingVersion", 3).load(tablePath)
+    checkAnswer(result, expected)
+  }
+
+  integrationTest("table_changes_empty: cdf_table_cdf_enabled") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+
+    val result = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 5).load(tablePath)
+    checkAnswer(result, Seq.empty)
+  }
+
+  integrationTest("table_changes_with_timestamp: cdf_table_cdf_enabled") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+
+    // Use a start timestamp in the past, and expect an error.
+    val result1 = intercept[IllegalStateException] {
+      val df = spark.read.format("deltaSharing")
+        .option("readChangeFeed", "true")
+        .option("startingTimestamp", "2000-01-01 00:00:00").load(tablePath)
+      checkAnswer(df, Nil)
+    }
+    assert (result1.getMessage.contains("Please use a timestamp greater"))
+
+    // Use an end timestamp in the future, and expect an error.
+    val result2 = intercept[IllegalStateException] {
+      val df = spark.read.format("deltaSharing")
+        .option("readChangeFeed", "true")
+        .option("startingVersion", 0)
+        .option("endingTimestamp", "2100-01-01 00:00:00").load(tablePath)
+      checkAnswer(df, Nil)
+    }
+    assert (result2.getMessage.contains("Please use a timestamp less"))
   }
 
   integrationTest("azure support") {
