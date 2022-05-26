@@ -47,7 +47,7 @@ private[sharing] class RemoteDeltaLog(
 
   @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(path, client, table)
 
-  def snapshot(versionOf: Option[Long]): RemoteSnapshot = {
+  def snapshot(versionOf: Option[Long] = None): RemoteSnapshot = {
     if (versionOf.isEmpty) {
       currentSnapshot
     } else {
