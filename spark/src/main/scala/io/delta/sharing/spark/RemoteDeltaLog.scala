@@ -185,17 +185,7 @@ class RemoteSnapshot(
 
   protected def spark = SparkSession.active
 
-  lazy val (metadata, protocol, version) = {
-    if (versionOf.isEmpty) {
-      val tableMetadata = client.getMetadata(table)
-      (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
-    } else {
-      // getMetadata doesn't support the parameter: versionOf
-      // Leveraging getFiles to get the metadata, so setting the limitHint to 1 for efficiency.
-      val tableFiles = client.getFiles(table, Nil, Some(1L), versionOf)
-      (tableFiles.metadata, tableFiles.protocol, tableFiles.version)
-    }
-  }
+  lazy val (metadata, protocol, version) = getTableMetadata
 
   lazy val schema: StructType = DeltaTableUtils.toSchema(metadata.schemaString)
 
@@ -212,6 +202,18 @@ class RemoteSnapshot(
     checkProtocolNotChange(tableFiles.protocol)
     checkSchemaNotChange(tableFiles.metadata)
     tableFiles.files.toDS() -> tableFiles.files.map(_.size).sum
+  }
+
+  private def getTableMetadata: (Metadata, Protocol, Long) = {
+    if (versionOf.isEmpty) {
+      val tableMetadata = client.getMetadata(table)
+      (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
+    } else {
+      // getMetadata doesn't support the parameter: versionOf
+      // Leveraging getFiles to get the metadata, so setting the limitHint to 1 for efficiency.
+      val tableFiles = client.getFiles(table, Nil, Some(1L), versionOf)
+      (tableFiles.metadata, tableFiles.protocol, tableFiles.version)
+    }
   }
 
   private def checkProtocolNotChange(newProtocol: Protocol): Unit = {
