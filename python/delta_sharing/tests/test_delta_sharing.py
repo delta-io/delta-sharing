@@ -24,6 +24,7 @@ from delta_sharing.delta_sharing import (
     SharingClient,
     load_as_pandas,
     load_as_spark,
+    load_table_changes_as_pandas,
     _parse_url,
 )
 from delta_sharing.protocol import Schema, Share, Table
@@ -312,6 +313,135 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
 def test_load(profile_path: str, fragments: str, limit: Optional[int], expected: pd.DataFrame):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit)
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,starting_version,ending_version,starting_timestamp,ending_timestamp,error,expected",
+    [
+        pytest.param(
+            "share1.default.cdf_table_cdf_enabled",
+            0,
+            3,
+            None,
+            None,
+            None,
+            pd.DataFrame(
+                {
+                    "name": ["3", "2", "2", "1", "2", "3"],
+                    "age": pd.Series([3, 2, 2, 1, 2, 3], dtype="int32"),
+                    "birthday": [
+                        date(2020, 1, 1),
+                        date(2020, 1, 1),
+                        date(2020, 2, 2),
+                        date(2020, 1, 1),
+                        date(2020, 1, 1),
+                        date(2020, 1, 1),
+                    ],
+                    "_change_type": [
+                        "delete",
+                        "update_preimage",
+                        "update_postimage",
+                        "insert",
+                        "insert",
+                        "insert",
+                    ],
+                    "_commit_version": [2, 3, 3, 1, 1, 1],
+                    "_commit_timestamp": [
+                        1651272655000,
+                        1651272660000,
+                        1651272660000,
+                        1651272635000,
+                        1651272635000,
+                        1651272635000,
+                    ],
+                }
+            ),
+            id="cdf_table_cdf_enabled table changes:[0, 3]",
+        ),
+        pytest.param(
+            "share1.default.cdf_table_cdf_enabled",
+            5,
+            None,
+            None,
+            None,
+            None,
+            pd.DataFrame(
+                {
+                    "name": pd.Series([], dtype="object"),
+                    "age": pd.Series([], dtype="int32"),
+                    "birthday": pd.Series([], dtype="object"),
+                    "_change_type": pd.Series([], dtype="object"),
+                    "_commit_version": pd.Series([], dtype="long"),
+                    "_commit_timestamp": pd.Series([], dtype="long"),
+                }
+            ),
+            id="cdf_table_cdf_enabled table changes:[5, ]",
+        ),
+        pytest.param(
+            "share1.default.cdf_table_cdf_enabled",
+            None,
+            None,
+            "2000-01-01 00:00:00",
+            None,
+            "Please use a timestamp greater",
+            pd.DataFrame({"not_used": []}),
+            id="cdf_table_cdf_enabled table changes with starting_timestamp",
+        ),
+        pytest.param(
+            "share1.default.cdf_table_cdf_enabled",
+            0,
+            None,
+            None,
+            "2100-01-01 00:00:00",
+            "Please use a timestamp less",
+            pd.DataFrame({"not_used": []}),
+            id="cdf_table_cdf_enabled table changes with ending_timestamp",
+        ),
+        pytest.param(
+            "share1.default.table1",
+            0,
+            1,
+            None,
+            None,
+            "cdf is not enabled on table share1.default.table1",
+            pd.DataFrame({"not_used": []}),
+            id="table1 table changes not supported",
+        ),
+    ],
+)
+def test_load_table_changes(
+    profile_path: str,
+    fragments: str,
+    starting_version: Optional[int],
+    ending_version: Optional[int],
+    starting_timestamp: Optional[str],
+    ending_timestamp: Optional[str],
+    error: Optional[str],
+    expected: pd.DataFrame
+):
+    if error is None:
+        pdf = load_table_changes_as_pandas(
+            f"{profile_path}#{fragments}",
+            starting_version,
+            ending_version,
+            starting_timestamp,
+            ending_timestamp
+        )
+        pd.testing.assert_frame_equal(pdf, expected)
+    else:
+        try:
+            load_table_changes_as_pandas(
+                f"{profile_path}#{fragments}",
+                starting_version,
+                ending_version,
+                starting_timestamp,
+                ending_timestamp
+            )
+            assert False
+        except Exception as e:
+            assert isinstance(e, HTTPError)
+            assert error in str(e)
 
 
 def test_parse_url():

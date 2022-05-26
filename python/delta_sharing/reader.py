@@ -158,14 +158,13 @@ class DeltaSharingReader:
 
             # If available, add timestamp and version columns from the action.
             # All rows of the dataframe will get the same value.
-            if action.timestamp is not None:
-                assert DeltaSharingReader._commit_timestamp_col_name() not in pdf.columns
-                pdf[DeltaSharingReader._commit_timestamp_col_name()] = action.timestamp
-
             if action.version is not None:
                 assert DeltaSharingReader._commit_version_col_name() not in pdf.columns
                 pdf[DeltaSharingReader._commit_version_col_name()] = action.version
 
+            if action.timestamp is not None:
+                assert DeltaSharingReader._commit_timestamp_col_name() not in pdf.columns
+                pdf[DeltaSharingReader._commit_timestamp_col_name()] = action.timestamp
         return pdf
 
     # The names of special delta columns for cdf.
