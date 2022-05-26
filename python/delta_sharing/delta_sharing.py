@@ -70,6 +70,7 @@ def load_as_pandas(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
         limit=limit,
+        version_of=version_of,
     ).to_pandas()
 
 
