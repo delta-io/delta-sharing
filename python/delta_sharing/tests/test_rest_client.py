@@ -19,11 +19,13 @@ from requests.models import Response
 from requests.exceptions import HTTPError, ConnectionError
 
 from delta_sharing.protocol import (
+    AddCdcFile,
     AddFile,
     CdfOptions,
     Format,
     Metadata,
     Protocol,
+    RemoveFile,
     Schema,
     Share,
     Table,
@@ -385,11 +387,125 @@ def test_list_files_in_table_partitioned_different_schemas(
     ]
 
 
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_table_changes(
     rest_client: DataSharingRestClient,
 ):
+    # The following table query will return all types of actions.
+    cdf_table = Table(name="cdf_table_with_partition", share="share1", schema="default")
+    response = rest_client.list_table_changes(
+        cdf_table,
+        CdfOptions(starting_version=0, ending_version=3)
+    )
+
+    assert response.protocol == Protocol(min_reader_version=1)
+    assert response.metadata == Metadata(
+        id="e21eb083-6976-4159-90f2-ad88d06b7c7f",
+        format=Format(provider="parquet", options={}),
+        schema_string=(
+            '{"type":"struct","fields":['
+            '{"name":"name","type":"string","nullable":true,"metadata":{}},'
+            '{"name":"age","type":"integer","nullable":true,"metadata":{}},'
+            '{"name":"birthday","type":"date","nullable":true,"metadata":{}}'
+            "]}"
+        ),
+        partition_columns=["birthday"],
+    )
+    assert response.actions == [
+        AddCdcFile(
+            url=response.actions[0].url,
+            id="d5fc796b3c044f7061702525435e43b7",
+            partition_values={"birthday": "2020-01-01"},
+            size=1125,
+            timestamp=1651614986000,
+            version=2,
+        ),
+        AddCdcFile(
+            url=response.actions[1].url,
+            id="6f8084143b699c5b808eb00db211c85c",
+            partition_values={"birthday": "2020-02-02"},
+            size=1132,
+            timestamp=1651614986000,
+            version=2,
+        ),
+        AddFile(
+            url=response.actions[2].url,
+            id='a04d61f17541fac1f9b5df5b8d26fff8',
+            partition_values={'birthday': '2020-01-01'},
+            size=791,
+            timestamp=1651614980000,
+            version=1,
+            stats=(
+                r'{"numRecords":1,'
+                r'"minValues":{"name":"1","age":1},'
+                r'"maxValues":{"name":"1","age":1},'
+                r'"nullCount":{"name":0,"age":0}}'
+            ),
+        ),
+        AddFile(
+            url=response.actions[3].url,
+            id='f206a7168597c4db5956b2b11ed5cbb2',
+            partition_values={'birthday': '2020-01-01'},
+            size=791,
+            timestamp=1651614980000,
+            version=1,
+            stats=(
+                r'{"numRecords":1,'
+                r'"minValues":{"name":"2","age":2},'
+                r'"maxValues":{"name":"2","age":2},'
+                r'"nullCount":{"name":0,"age":0}}'
+            ),
+        ),
+        AddFile(
+            url=response.actions[4].url,
+            id='9410d65d7571842eb7fb6b1ac01af372',
+            partition_values={'birthday': '2020-03-03'},
+            size=791,
+            timestamp=1651614980000,
+            version=1,
+            stats=(
+                r'{"numRecords":1,'
+                r'"minValues":{"name":"3","age":3},'
+                r'"maxValues":{"name":"3","age":3},'
+                r'"nullCount":{"name":0,"age":0}}'
+            ),
+        ),
+        RemoveFile(
+            url=response.actions[5].url,
+            id='9410d65d7571842eb7fb6b1ac01af372',
+            partition_values={'birthday': '2020-03-03'},
+            size=791,
+            timestamp=1651614994000,
+            version=3
+        ),
+    ]
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_list_table_changes_with_timestamp(
+    rest_client: DataSharingRestClient
+):
+    cdf_table = Table(name="cdf_table_with_partition", share="share1", schema="default")
+
+    # Use a really old start time, and look for an appropriate error.
+    # This will ensure that the timestamps are parsed correctly.
     try:
-        rest_client.list_table_changes(Table(name="x", share="y", schema="z"), CdfOptions())
+        rest_client.list_table_changes(
+            cdf_table,
+            CdfOptions(starting_timestamp="2000-05-03 00:00:00")
+        )
         assert False
     except Exception as e:
         assert isinstance(e, HTTPError)
+        assert "Please use a timestamp greater" in str(e)
+
+    # Use an end time far away, and look for an appropriate error.
+    try:
+        rest_client.list_table_changes(
+            cdf_table,
+            CdfOptions(starting_version=0, ending_timestamp="2100-05-03 00:00:00")
+        )
+        assert False
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+        assert "Please use a timestamp less" in str(e)
