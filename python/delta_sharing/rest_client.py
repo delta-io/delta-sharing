@@ -254,12 +254,15 @@ class DataSharingRestClient:
         *,
         predicateHints: Optional[Sequence[str]] = None,
         limitHint: Optional[int] = None,
+        version_of: Optional[int] = None,
     ) -> ListFilesInTableResponse:
         data: Dict = {}
         if predicateHints is not None:
             data["predicateHints"] = predicateHints
         if limitHint is not None:
             data["limitHint"] = limitHint
+        if version_of is not None:
+            data["version"] = version_of
 
         with self._post_internal(
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query",

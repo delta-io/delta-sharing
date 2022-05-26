@@ -388,6 +388,82 @@ def test_list_files_in_table_partitioned_different_schemas(
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_list_files_in_table_version_of(
+    rest_client: DataSharingRestClient,
+):
+    response = rest_client.list_files_in_table(
+        Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
+        version_of = 1
+    )
+    assert response.protocol == Protocol(min_reader_version=1)
+    assert response.metadata == Metadata(
+        id="16736144-3306-4577-807a-d3f899b77670",
+        format=Format(provider="parquet", options={}),
+        schema_string=(
+            '{"type":"struct","fields":['
+            '{"name":"name","type":"string","nullable":true,"metadata":{}},'
+            '{"name":"age","type":"integer","nullable":true,"metadata":{}},'
+            '{"name":"birthday","type":"date","nullable":true,"metadata":{}}'
+            "]}"
+        ),
+        configuration={"enableChangeDataFeed": "true"},
+        partition_columns=[],
+    )
+    assert response.add_files == [
+        AddFile(
+            url=response.add_files[0].url,
+            id="60d0cf57f3e4367db154aa2c36152a1f",
+            partition_values={},
+            size=1030,
+            stats=(
+                r'{"numRecords":1,'
+                r'"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},'
+                r'"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},'
+                r'"nullCount":{"name":0,"age":0,"birthday":0}}'
+            ),
+        ),
+        AddFile(
+            url=response.add_files[1].url,
+            id="d7ed708546dd70fdff9191b3e3d6448b",
+           partition_values={},
+            size=1030,
+            stats=(
+                r'{"numRecords":1,'
+                r'"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},'
+                r'"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},'
+                r'"nullCount":{"name":0,"age":0,"birthday":0}}'
+            ),
+        ),
+        AddFile(
+            url=response.add_files[2].url,
+            id="a6dc5694a4ebcc9a067b19c348526ad6",
+            partition_values={},
+            size=1030,
+            stats=(
+                r'{"numRecords":1,'
+                r'"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},'
+                r'"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},'
+                r'"nullCount":{"name":0,"age":0,"birthday":0}}'
+            ),
+        ),
+    ]
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_list_files_in_table_version_of_exception(
+    rest_client: DataSharingRestClient,
+):
+    try:
+        rest_client.list_files_in_table(
+            Table(name="table1", share="share1", schema="default"),
+            version_of = 1
+        )
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+        assert "reading table by version is not supported because change data" in (str(e))
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_table_changes(
     rest_client: DataSharingRestClient,
 ):
@@ -409,6 +485,7 @@ def test_list_table_changes(
             '{"name":"birthday","type":"date","nullable":true,"metadata":{}}'
             "]}"
         ),
+        configuration={"enableChangeDataFeed": "true"},
         partition_columns=["birthday"],
     )
     assert response.actions == [

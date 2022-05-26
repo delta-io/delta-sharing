@@ -163,6 +163,7 @@ def test_metadata():
                 "options" : {{}}
             }},
             "schemaString" : "{schema_string}",
+            "configuration": {{}},
             "partitionColumns" : []
         }}
         """
@@ -173,6 +174,28 @@ def test_metadata():
         schema_string=schema_string.replace(r"\"", '"'),
         partition_columns=[],
     )
+
+    json_two = f"""
+        {{
+            "id" : "testId",
+            "format" : {{
+                "provider" : "parquet",
+                "options" : {{}}
+            }},
+            "schemaString" : "{schema_string}",
+            "configuration": {{"enableChangeDataFeed": "true"}},
+            "partitionColumns" : []
+        }}
+        """
+    metadata_two = Metadata.from_json(json_two)
+    assert metadata_two == Metadata(
+        id="testId",
+        format=Format(),
+        schema_string=schema_string.replace(r"\"", '"'),
+        configuration={"enableChangeDataFeed": "true"},
+        partition_columns=[],
+    )
+
 
 
 @pytest.mark.parametrize(

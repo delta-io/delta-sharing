@@ -144,6 +144,7 @@ class Metadata:
     description: Optional[str] = None
     format: Format = field(default_factory=Format)
     schema_string: Optional[str] = None
+    configuration: Dict[str, str] = field(default_factory=dict)
     partition_columns: Sequence[str] = field(default_factory=list)
 
     @staticmethod
@@ -156,6 +157,7 @@ class Metadata:
             description=json.get("description", None),
             format=Format.from_json(json["format"]),
             schema_string=json["schemaString"],
+            configuration=json["configuration"],
             partition_columns=json["partitionColumns"],
         )
 

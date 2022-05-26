@@ -49,7 +49,7 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
     return (profile, share, schema, table)
 
 
-def load_as_pandas(url: str, limit: Optional[int] = None) -> pd.DataFrame:
+def load_as_pandas(url: str, limit: Optional[int] = None, version_of: Optional[int] = None) -> pd.DataFrame:
     """
     Load the shared table using the give url as a pandas DataFrame.
 
@@ -57,6 +57,7 @@ def load_as_pandas(url: str, limit: Optional[int] = None) -> pd.DataFrame:
     :param limit: a non-negative int. Load only the ``limit`` rows if the parameter is specified.
       Use this optional parameter to explore the shared table without loading the entire table to
       the memory.
+    :param version_of: a optional non-negative in. Load the snapshot of table at version_of
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
@@ -68,7 +69,7 @@ def load_as_pandas(url: str, limit: Optional[int] = None) -> pd.DataFrame:
     ).to_pandas()
 
 
-def load_as_spark(url: str) -> "PySparkDataFrame":  # noqa: F821
+def load_as_spark(url: str, version_of: Optional[int] = None) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the shared table using the give url as a Spark DataFrame. `PySpark` must be installed, and
     the application must be a PySpark application with the Apache Spark Connector for Delta Sharing
