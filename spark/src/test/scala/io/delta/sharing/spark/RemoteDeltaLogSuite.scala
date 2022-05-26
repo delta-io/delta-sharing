@@ -76,7 +76,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     // check RemoteDeltaSnapshotFileIndex
     val remoteDeltaLog = new RemoteDeltaLog(Table("fe", "fi", "fo"), new Path("test"), client)
     val fileIndex = {
-      val params = RemoteDeltaFileIndexParams(spark, new Path("test"), snapshot)
+      val params = RemoteDeltaFileIndexParams(spark, snapshot)
       RemoteDeltaSnapshotFileIndex(params, Some(2L))
     }
     fileIndex.listFiles(Seq.empty, Seq.empty)
@@ -91,7 +91,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
     // Create an index without limits.
     val fileIndex = {
-      val params = RemoteDeltaFileIndexParams(spark, new Path("test"), snapshot)
+      val params = RemoteDeltaFileIndexParams(spark, snapshot)
       RemoteDeltaSnapshotFileIndex(params, None)
     }
     assert(fileIndex.partitionSchema.isEmpty)
@@ -115,7 +115,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     // Test indices with limits.
 
     val fileIndexLimit1 = {
-      val params = RemoteDeltaFileIndexParams(spark, new Path("test"), snapshot)
+      val params = RemoteDeltaFileIndexParams(spark, snapshot)
       RemoteDeltaSnapshotFileIndex(params, Some(1L))
     }
     val listFilesResult1 = fileIndexLimit1.listFiles(Seq.empty, Seq.empty)
@@ -133,7 +133,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(inputFileList1(3) == "delta-sharing:/test/f4/0")
 
     val fileIndexLimit2 = {
-      val params = RemoteDeltaFileIndexParams(spark, new Path("test"), snapshot)
+      val params = RemoteDeltaFileIndexParams(spark, snapshot)
       RemoteDeltaSnapshotFileIndex(params, Some(2L))
     }
     val listFilesResult2 = fileIndexLimit2.listFiles(Seq.empty, Seq.empty)
@@ -152,7 +152,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val client = new TestDeltaSharingClient()
     val remoteDeltaLog = new RemoteDeltaLog(table, path, client)
     val snapshot = new RemoteSnapshot(path, client, table)
-    val params = RemoteDeltaFileIndexParams(spark, path, snapshot)
+    val params = RemoteDeltaFileIndexParams(spark, snapshot)
 
     val deltaTableFiles = client.getCDFFiles(table, Map.empty)
 

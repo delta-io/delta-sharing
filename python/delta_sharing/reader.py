@@ -34,6 +34,7 @@ class DeltaSharingReader:
         *,
         predicateHints: Optional[Sequence[str]] = None,
         limit: Optional[int] = None,
+        version: Optional[int] = None,
     ):
         self._table = table
         self._rest_client = rest_client
@@ -46,20 +47,32 @@ class DeltaSharingReader:
         if limit is not None:
             assert isinstance(limit, int) and limit >= 0, "'limit' must be a non-negative int"
         self._limit = limit
+        self._version = version
 
     @property
     def table(self) -> Table:
         return self._table
 
     def predicateHints(self, predicateHints: Optional[Sequence[str]]) -> "DeltaSharingReader":
-        return self._copy(predicateHints=predicateHints, limit=self._limit)
+        return self._copy(
+            predicateHints=predicateHints,
+            limit=self._limit,
+            version=self._version
+        )
 
     def limit(self, limit: Optional[int]) -> "DeltaSharingReader":
-        return self._copy(predicateHints=self._predicateHints, limit=limit)
+        return self._copy(
+            predicateHints=self._predicateHints,
+            limit=limit,
+            version=self._version
+        )
 
     def to_pandas(self) -> pd.DataFrame:
         response = self._rest_client.list_files_in_table(
-            self._table, predicateHints=self._predicateHints, limitHint=self._limit
+            self._table,
+            predicateHints=self._predicateHints,
+            limitHint=self._limit,
+            version=self._version
         )
 
         schema_json = loads(response.metadata.schema_string)
@@ -111,13 +124,18 @@ class DeltaSharingReader:
         return pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
 
     def _copy(
-        self, *, predicateHints: Optional[Sequence[str]], limit: Optional[int]
+        self,
+        *,
+        predicateHints: Optional[Sequence[str]],
+        limit: Optional[int],
+        version: Optional[int]
     ) -> "DeltaSharingReader":
         return DeltaSharingReader(
             table=self._table,
             rest_client=self._rest_client,
             predicateHints=predicateHints,
             limit=limit,
+            version=version
         )
 
     @staticmethod
@@ -125,7 +143,7 @@ class DeltaSharingReader:
         action: FileAction,
         converters: Dict[str, Callable[[str], Any]],
         for_cdf: bool,
-        limit: Optional[int],
+        limit: Optional[int]
     ) -> pd.DataFrame:
         url = urlparse(action.url)
         if "storage.googleapis.com" in (url.netloc.lower()):
