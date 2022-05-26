@@ -393,7 +393,7 @@ def test_list_files_in_table_version_of(
 ):
     response = rest_client.list_files_in_table(
         Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
-        version_of = 1
+        version_of=1
     )
     assert response.protocol == Protocol(min_reader_version=1)
     assert response.metadata == Metadata(
@@ -425,7 +425,7 @@ def test_list_files_in_table_version_of(
         AddFile(
             url=response.add_files[1].url,
             id="d7ed708546dd70fdff9191b3e3d6448b",
-           partition_values={},
+            partition_values={},
             size=1030,
             stats=(
                 r'{"numRecords":1,'
@@ -456,7 +456,7 @@ def test_list_files_in_table_version_of_exception(
     try:
         rest_client.list_files_in_table(
             Table(name="table1", share="share1", schema="default"),
-            version_of = 1
+            version_of=1
         )
     except Exception as e:
         assert isinstance(e, HTTPError)

@@ -151,7 +151,7 @@ class Metadata:
     def from_json(json) -> "Metadata":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        if  "configuration" in json:
+        if "configuration" in json:
             configuration = json["configuration"]
         else:
             configuration = {}

@@ -49,7 +49,11 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
     return (profile, share, schema, table)
 
 
-def load_as_pandas(url: str, limit: Optional[int] = None, version_of: Optional[int] = None) -> pd.DataFrame:
+def load_as_pandas(
+    url: str,
+    limit: Optional[int] = None,
+    version_of: Optional[int] = None
+) -> pd.DataFrame:
     """
     Load the shared table using the give url as a pandas DataFrame.
 

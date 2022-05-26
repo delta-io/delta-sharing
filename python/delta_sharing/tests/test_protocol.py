@@ -217,7 +217,6 @@ def test_metadata():
     )
 
 
-
 @pytest.mark.parametrize(
     "json,expected",
     [
