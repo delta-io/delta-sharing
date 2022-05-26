@@ -113,6 +113,39 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     }
   }
 
+  integrationTest("cdf_table_cdf_enabled query without version") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+    val expected = Seq(
+      Row("1", 1, sqlDate("2020-01-01")),
+      Row("2", 2, sqlDate("2020-02-02"))
+    )
+    checkAnswer(spark.read.format("deltaSharing").load(tablePath), expected)
+    withTable("delta_sharing_test") {
+      sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
+      checkAnswer(sql(s"SELECT * FROM delta_sharing_test"), expected)
+    }
+  }
+
+  integrationTest("cdf_table_cdf_enabled query with valid version") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+    val expected = Seq(
+      Row("1", 1, sqlDate("2020-01-01")),
+      Row("2", 2, sqlDate("2020-01-01")),
+      Row("3", 3, sqlDate("2020-01-01"))
+    )
+    checkAnswer(spark.read.format("deltaSharing").option("versionOf", 1).load(tablePath), expected)
+  }
+
+  integrationTest("cdf_table_cdf_enabled version exception") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+    val expected = Seq()
+    val errorMessage = intercept[IllegalArgumentException] {
+      checkAnswer(
+        spark.read.format("deltaSharing").option("versionOf", "3x").load(tablePath), expected)
+    }.getMessage
+    assert(errorMessage.contains("versionOf is not a valid number"))
+  }
+
   integrationTest("test_gzip: non-default compression codec") {
     val tablePath = testProfileFile.getCanonicalPath + "#share4.default.test_gzip"
     val expected = Seq(Row(true, 1, "Hi"))

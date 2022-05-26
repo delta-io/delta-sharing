@@ -47,7 +47,13 @@ private[sharing] class RemoteDeltaLog(
 
   @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(path, client, table)
 
-  def snapshot: RemoteSnapshot = currentSnapshot
+  def snapshot(versionOf: Option[Long] = None): RemoteSnapshot = {
+    if (versionOf.isEmpty) {
+      currentSnapshot
+    } else {
+      new RemoteSnapshot(path, client, table, versionOf)
+    }
+  }
 
   /** Update the current snapshot to the latest version. */
   def update(): Unit = synchronized {
@@ -57,9 +63,10 @@ private[sharing] class RemoteDeltaLog(
   }
 
   def createRelation(
+      versionOf: Option[Long],
       cdfOptions: Map[String, String]): BaseRelation = {
     val spark = SparkSession.active
-    val snapshotToUse = snapshot
+    val snapshotToUse = snapshot(versionOf)
     if (!cdfOptions.isEmpty) {
       return RemoteDeltaCDFRelation(
         spark,
@@ -173,14 +180,12 @@ private[sharing] object RemoteDeltaLog {
 class RemoteSnapshot(
     tablePath: Path,
     client: DeltaSharingClient,
-    table: DeltaSharingTable) extends Logging {
+    table: DeltaSharingTable,
+    versionOf: Option[Long] = None) extends Logging {
 
   protected def spark = SparkSession.active
 
-  lazy val (metadata, protocol, version) = {
-    val tableMetadata = client.getMetadata(table)
-    (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
-  }
+  lazy val (metadata, protocol, version) = getTableMetadata
 
   lazy val schema: StructType = DeltaTableUtils.toSchema(metadata.schemaString)
 
@@ -193,10 +198,22 @@ class RemoteSnapshot(
   lazy val (allFiles, sizeInBytes) = {
     val implicits = spark.implicits
     import implicits._
-    val tableFiles = client.getFiles(table, Nil, None, None)
+    val tableFiles = client.getFiles(table, Nil, None, versionOf)
     checkProtocolNotChange(tableFiles.protocol)
     checkSchemaNotChange(tableFiles.metadata)
     tableFiles.files.toDS() -> tableFiles.files.map(_.size).sum
+  }
+
+  private def getTableMetadata: (Metadata, Protocol, Long) = {
+    if (versionOf.isEmpty) {
+      val tableMetadata = client.getMetadata(table)
+      (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
+    } else {
+      // getMetadata doesn't support the parameter: versionOf
+      // Leveraging getFiles to get the metadata, so setting the limitHint to 1 for efficiency.
+      val tableFiles = client.getFiles(table, Nil, Some(1L), versionOf)
+      (tableFiles.metadata, tableFiles.protocol, tableFiles.version)
+    }
   }
 
   private def checkProtocolNotChange(newProtocol: Protocol): Unit = {
@@ -239,13 +256,13 @@ class RemoteSnapshot(
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
-      val tableFiles = client.getFiles(table, predicates, limitHint, None)
+      val tableFiles = client.getFiles(table, predicates, limitHint, versionOf)
       val idToUrl = tableFiles.files.map { add =>
         add.id -> add.url
       }.toMap
       CachedTableManager.INSTANCE
         .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
-          client.getFiles(table, Nil, None, None).files.map { add =>
+          client.getFiles(table, Nil, None, versionOf).files.map { add =>
             add.id -> add.url
           }.toMap
         })
