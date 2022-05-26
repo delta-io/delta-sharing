@@ -34,7 +34,7 @@ class DeltaSharingReader:
         *,
         predicateHints: Optional[Sequence[str]] = None,
         limit: Optional[int] = None,
-        version_of: Optional[int] = None,
+        version: Optional[int] = None,
     ):
         self._table = table
         self._rest_client = rest_client
@@ -47,7 +47,7 @@ class DeltaSharingReader:
         if limit is not None:
             assert isinstance(limit, int) and limit >= 0, "'limit' must be a non-negative int"
         self._limit = limit
-        self._version_of = version_of
+        self._version = version
 
     @property
     def table(self) -> Table:
@@ -57,14 +57,14 @@ class DeltaSharingReader:
         return self._copy(
             predicateHints=predicateHints,
             limit=self._limit,
-            version_of=self._version_of
+            version=self._version
         )
 
     def limit(self, limit: Optional[int]) -> "DeltaSharingReader":
         return self._copy(
             predicateHints=self._predicateHints,
             limit=limit,
-            version_of=self._version_of
+            version=self._version
         )
 
     def to_pandas(self) -> pd.DataFrame:
@@ -72,7 +72,7 @@ class DeltaSharingReader:
             self._table,
             predicateHints=self._predicateHints,
             limitHint=self._limit,
-            version_of=self._version_of
+            version=self._version
         )
 
         schema_json = loads(response.metadata.schema_string)
@@ -128,14 +128,14 @@ class DeltaSharingReader:
         *,
         predicateHints: Optional[Sequence[str]],
         limit: Optional[int],
-        version_of: Optional[int]
+        version: Optional[int]
     ) -> "DeltaSharingReader":
         return DeltaSharingReader(
             table=self._table,
             rest_client=self._rest_client,
             predicateHints=predicateHints,
             limit=limit,
-            version_of=version_of
+            version=version
         )
 
     @staticmethod

@@ -136,7 +136,7 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
-    "fragments,limit,version_of,expected",
+    "fragments,limit,version,expected",
     [
         pytest.param(
             "share1.default.table1",
@@ -352,10 +352,10 @@ def test_load(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
-    version_of: Optional[int],
+    version: Optional[int],
     expected: pd.DataFrame
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version_of)
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version)
     pd.testing.assert_frame_equal(pdf, expected)
 
 

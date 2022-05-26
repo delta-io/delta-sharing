@@ -388,12 +388,12 @@ def test_list_files_in_table_partitioned_different_schemas(
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_list_files_in_table_version_of(
+def test_list_files_in_table_version(
     rest_client: DataSharingRestClient,
 ):
     response = rest_client.list_files_in_table(
         Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
-        version_of=1
+        version=1
     )
     assert response.protocol == Protocol(min_reader_version=1)
     assert response.metadata == Metadata(
@@ -450,13 +450,13 @@ def test_list_files_in_table_version_of(
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_list_files_in_table_version_of_exception(
+def test_list_files_in_table_version_exception(
     rest_client: DataSharingRestClient,
 ):
     try:
         rest_client.list_files_in_table(
             Table(name="table1", share="share1", schema="default"),
-            version_of=1
+            version=1
         )
     except Exception as e:
         assert isinstance(e, HTTPError)
