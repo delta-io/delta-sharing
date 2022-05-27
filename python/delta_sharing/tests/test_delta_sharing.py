@@ -360,6 +360,23 @@ def test_load(
     pd.testing.assert_frame_equal(pdf, expected)
 
 
+def test_parse_url():
+    def check_invalid_url(url: str):
+        with pytest.raises(ValueError, match=f"Invalid 'url': {url}"):
+            _parse_url(url)
+
+    check_invalid_url("")
+    check_invalid_url("#")
+    check_invalid_url("foo")
+    check_invalid_url("foo#")
+    check_invalid_url("foo#share")
+    check_invalid_url("foo#share.schema")
+    check_invalid_url("foo#share.schema.")
+
+    assert _parse_url("profile#share.schema.table") == ("profile", "share", "schema", "table")
+    assert _parse_url("foo#bar#share.schema.table") == ("foo#bar", "share", "schema", "table")
+
+
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
     "fragments,version,error,expected_data,expected_schema_str",
@@ -457,6 +474,28 @@ def test_load_as_spark(
             id="cdf_table_cdf_enabled table changes",
         ),
         pytest.param(
+            "share1.default.cdf_table_cdf_enabled",
+            None,
+            None,
+            "2000-01-01 00:00:00",
+            None,
+            "Please use a timestamp greater",
+            [],
+            "unused-schema-str",
+            id="cdf_table_cdf_enabled starting_timestamp correctly passed",
+        ),
+        pytest.param(
+            "share1.default.cdf_table_cdf_enabled",
+            0,
+            None,
+            None,
+            "2100-01-01 00:00:00",
+            "Please use a timestamp less than",
+            [],
+            "unused-schema-str",
+            id="cdf_table_cdf_enabled ending_timestamp correctly passed",
+        ),
+        pytest.param(
             "share1.default.table1",
             0,
             3,
@@ -499,9 +538,9 @@ def test_load_table_changes_as_spark(
 
         if error is None:
             expected_df = spark.createDataFrame(expected_data, expected_schema_str)
-            
+
             actual_df = load_table_changes_as_spark(
-                f"{profile_path}#{fragments}", 
+                f"{profile_path}#{fragments}",
                 starting_version=starting_version,
                 ending_version=ending_version,
                 starting_timestamp=starting_timestamp,
@@ -512,7 +551,7 @@ def test_load_table_changes_as_spark(
         else:
             try:
                 load_table_changes_as_spark(
-                    f"{profile_path}#{fragments}", 
+                    f"{profile_path}#{fragments}",
                     starting_version=starting_version,
                     ending_version=ending_version,
                     starting_timestamp=starting_timestamp,
@@ -524,23 +563,7 @@ def test_load_table_changes_as_spark(
 
     except ImportError:
         with pytest.raises(
-            ImportError, match="Unable to import pyspark. `load_table_changes_as_spark` requires PySpark."
+            ImportError, match="Unable to import pyspark. `load_table_changes_as_spark` requires" +
+            " PySpark."
         ):
             load_table_changes_as_spark("not-used")
-
-
-def test_parse_url():
-    def check_invalid_url(url: str):
-        with pytest.raises(ValueError, match=f"Invalid 'url': {url}"):
-            _parse_url(url)
-
-    check_invalid_url("")
-    check_invalid_url("#")
-    check_invalid_url("foo")
-    check_invalid_url("foo#")
-    check_invalid_url("foo#share")
-    check_invalid_url("foo#share.schema")
-    check_invalid_url("foo#share.schema.")
-
-    assert _parse_url("profile#share.schema.table") == ("profile", "share", "schema", "table")
-    assert _parse_url("foo#bar#share.schema.table") == ("foo#bar", "share", "schema", "table")

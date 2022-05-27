@@ -107,7 +107,7 @@ def load_table_changes_as_spark(
     ending_timestamp: Optional[str] = None
 ) -> "PySparkDataFrame":  # noqa: F821
     """
-    Load the table changes of a shared table using the give url as a Spark DataFrame.
+    Load the table changes of a shared table as a Spark DataFrame using the give url.
     `PySpark` must be installed, and the application must be a PySpark application with
     the Apache Spark Connector for Delta Sharing installed.
 
@@ -116,17 +116,18 @@ def load_table_changes_as_spark(
     :param ending_version: The ending version of table changes
     :param starting_timestamp: The starting timestamp of table changes
     :param ending_timestamp: The ending timestamp of table changes
-    :return: A Spark DataFrame representing the shared table.
+    :return: A Spark DataFrame representing the table changes.
     """
     try:
         from pyspark.sql import SparkSession
     except ImportError:
-        raise ImportError("Unable to import pyspark. `load_table_changes_as_spark` requires PySpark.")
+        raise ImportError("Unable to import pyspark. `load_table_changes_as_spark` requires " +
+            "PySpark.")
 
     spark = SparkSession.getActiveSession()
     assert spark is not None, (
         "No active SparkSession was found. "
-        "`load_as_spark` requires running in a PySpark application."
+        "`load_table_changes_as_spark` requires running in a PySpark application."
     )
     df = spark.read.format("deltaSharing").option("readChangeFeed", "true")
     if starting_version is not None:
