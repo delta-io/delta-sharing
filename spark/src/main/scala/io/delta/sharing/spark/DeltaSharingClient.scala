@@ -52,8 +52,7 @@ private[sharing] trait DeltaSharingClient {
     table: Table,
     predicates: Seq[String],
     limit: Option[Long],
-    versionOf: Option[Long]
-  ): DeltaTableFiles
+    versionOf: Option[Long]): DeltaTableFiles
 
   def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles
 }

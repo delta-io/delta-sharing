@@ -63,8 +63,17 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
       }
     }
 
+    var versionOf: Option[Long] = None
+    if (parameters.get("versionOf").isDefined) {
+      try {
+        versionOf = Some(parameters.get("versionOf").get.toLong)
+      } catch {
+        case _: NumberFormatException =>
+          throw new IllegalArgumentException("versionOf is not a valid number.")
+      }
+    }
     val deltaLog = RemoteDeltaLog(path)
-    deltaLog.createRelation(cdfOptions = cdfOptions.toMap)
+    deltaLog.createRelation(versionOf, cdfOptions = cdfOptions.toMap)
   }
 
   override def shortName: String = "deltaSharing"
