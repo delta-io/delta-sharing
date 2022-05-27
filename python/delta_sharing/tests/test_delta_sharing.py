@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, Sequence
 
 import pandas as pd
@@ -24,6 +24,7 @@ from delta_sharing.delta_sharing import (
     SharingClient,
     load_as_pandas,
     load_as_spark,
+    load_table_changes_as_spark,
     _parse_url,
 )
 from delta_sharing.protocol import Schema, Share, Table
@@ -359,6 +360,175 @@ def test_load(
     pd.testing.assert_frame_equal(pdf, expected)
 
 
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,version,error,expected_data,expected_schema_str",
+    [
+        pytest.param(
+            "share1.default.table1",
+            None,
+            None,
+            [
+                (datetime(2021, 4, 27, 23, 32, 22, 421000), date(2021, 4, 28)),
+                (datetime(2021, 4, 27, 23, 32, 2, 70000), date(2021, 4, 28)),
+            ],
+            "eventTime: timestamp, date: date",
+            id="table1 spark",
+        ),
+        pytest.param(
+            "share1.default.table1",
+            1,
+            "not supported",
+            [],
+            "not-used-schema-str",
+            id="table1 version not supported",
+        ),
+        pytest.param(
+            "share1.default.cdf_table_cdf_enabled",
+            1,
+            None,
+            [
+                ("1", 1, date(2020, 1, 1)),
+                ("3", 3, date(2020, 1, 1)),
+                ("2", 2, date(2020, 1, 1)),
+            ],
+            "name: string, age: int, birthday: date",
+            id="cdf_table_cdf_enabled version 1 spark",
+        ),
+    ],
+)
+def test_load_as_spark(
+    profile_path: str,
+    fragments: str,
+    version: Optional[int],
+    error: Optional[str],
+    expected_data: list,
+    expected_schema_str: str,
+):
+    try:
+        from pyspark.sql import SparkSession
+        spark = SparkSession.builder \
+            .appName("delta-sharing-test") \
+            .master("local[*]") \
+            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:0.5.0-SNAPSHOT") \
+            .config("spark.delta.sharing.network.sslTrustAll", "true") \
+            .getOrCreate()
+
+        if error is None:
+            expected_df = spark.createDataFrame(expected_data, expected_schema_str)
+            actual_df = load_as_spark(f"{profile_path}#{fragments}", version=version)
+            assert expected_df.schema == actual_df.schema
+            assert expected_df.collect() == actual_df.collect()
+        else:
+            try:
+                load_as_spark(f"{profile_path}#{fragments}", version=version)
+                assert False
+            except Exception as e:
+                assert error in str(e)
+    except ImportError:
+        with pytest.raises(
+            ImportError, match="Unable to import pyspark. `load_as_spark` requires PySpark."
+        ):
+            load_as_spark("not-used")
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,starting_version,ending_version,starting_timestamp,ending_timestamp,error," +
+    "expected_data,expected_schema_str",
+    [
+        pytest.param(
+            "share1.default.cdf_table_cdf_enabled",
+            0,
+            3,
+            None,
+            None,
+            None,
+            [
+                ("1", 1, date(2020, 1, 1), 1, 1651272635000, "insert"),
+                ("2", 2, date(2020, 1, 1), 1, 1651272635000, "insert"),
+                ("3", 3, date(2020, 1, 1), 1, 1651272635000, "insert"),
+                ("2", 2, date(2020, 1, 1), 3, 1651272660000, "update_preimage"),
+                ("2", 2, date(2020, 2, 2), 3, 1651272660000, "update_postimage"),
+                ("3", 3, date(2020, 1, 1), 2, 1651272655000, "delete"),
+            ],
+            "name: string, age: int, birthday:date, _commit_version: long, _commit_timestamp" +
+            ": long, _change_type: string",
+            id="cdf_table_cdf_enabled table changes",
+        ),
+        pytest.param(
+            "share1.default.table1",
+            0,
+            3,
+            None,
+            None,
+            "cdf is not enabled on table share1.default.table1",
+            [
+                ("1", 1, date(2020, 1, 1), 1, 1651272635000, "insert"),
+                ("2", 2, date(2020, 1, 1), 1, 1651272635000, "insert"),
+                ("3", 3, date(2020, 1, 1), 1, 1651272635000, "insert"),
+                ("2", 2, date(2020, 1, 1), 3, 1651272660000, "update_preimage"),
+                ("2", 2, date(2020, 2, 2), 3, 1651272660000, "update_postimage"),
+                ("3", 3, date(2020, 1, 1), 2, 1651272655000, "delete"),
+            ],
+            "name: string, age: int, birthday:date, _commit_version: long, _commit_timestamp" +
+            ": long, _change_type: string",
+            id="table1 table changes not enabled",
+        ),
+    ],
+)
+def test_load_table_changes_as_spark(
+    profile_path: str,
+    fragments: str,
+    starting_version: Optional[int],
+    ending_version: Optional[int],
+    starting_timestamp: Optional[str],
+    ending_timestamp: Optional[str],
+    error: Optional[str],
+    expected_data: list,
+    expected_schema_str: str
+):
+    try:
+        from pyspark.sql import SparkSession
+        spark = SparkSession.builder \
+            .appName("delta-sharing-test") \
+            .master("local[*]") \
+            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:0.5.0-SNAPSHOT") \
+            .config("spark.delta.sharing.network.sslTrustAll", "true") \
+            .getOrCreate()
+
+        if error is None:
+            expected_df = spark.createDataFrame(expected_data, expected_schema_str)
+            
+            actual_df = load_table_changes_as_spark(
+                f"{profile_path}#{fragments}", 
+                starting_version=starting_version,
+                ending_version=ending_version,
+                starting_timestamp=starting_timestamp,
+                ending_timestamp=ending_timestamp
+            )
+            assert expected_df.schema == actual_df.schema
+            assert expected_df.collect() == actual_df.collect()
+        else:
+            try:
+                load_table_changes_as_spark(
+                    f"{profile_path}#{fragments}", 
+                    starting_version=starting_version,
+                    ending_version=ending_version,
+                    starting_timestamp=starting_timestamp,
+                    ending_timestamp=ending_timestamp
+                )
+            except Exception as e:
+                assert isinstance(e, HTTPError)
+                assert error in str(e)
+
+    except ImportError:
+        with pytest.raises(
+            ImportError, match="Unable to import pyspark. `load_table_changes_as_spark` requires PySpark."
+        ):
+            load_table_changes_as_spark("not-used")
+
+
 def test_parse_url():
     def check_invalid_url(url: str):
         with pytest.raises(ValueError, match=f"Invalid 'url': {url}"):
@@ -374,20 +544,3 @@ def test_parse_url():
 
     assert _parse_url("profile#share.schema.table") == ("profile", "share", "schema", "table")
     assert _parse_url("foo#bar#share.schema.table") == ("foo#bar", "share", "schema", "table")
-
-
-def test_load_as_spark():
-    try:
-        import pyspark  # noqa: F401
-
-        with pytest.raises(
-            AssertionError,
-            match="No active SparkSession was found. "
-            "`load_as_spark` requires running in a PySpark application.",
-        ):
-            load_as_spark("not-used")
-    except ImportError:
-        with pytest.raises(
-            ImportError, match="Unable to import pyspark. `load_as_spark` requires PySpark."
-        ):
-            load_as_spark("not-used")
