@@ -121,8 +121,8 @@ def load_table_changes_as_spark(
     try:
         from pyspark.sql import SparkSession
     except ImportError:
-        raise ImportError("Unable to import pyspark. `load_table_changes_as_spark` requires " +
-            "PySpark.")
+        raise ImportError(
+            "Unable to import pyspark. `load_table_changes_as_spark` requires PySpark.")
 
     spark = SparkSession.getActiveSession()
     assert spark is not None, (
