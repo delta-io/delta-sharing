@@ -106,12 +106,13 @@ def load_table_changes_as_pandas(
     ending_timestamp: Optional[str] = None
 ) -> pd.DataFrame:
     """
-    Load the shared table using the give url as a pandas DataFrame.
+    Load the table changes of shared table as a pandas DataFrame using the give url.
 
     :param url: a url under the format "<profile>#<share>.<schema>.<table>"
-    :param limit: a non-negative int. Load only the ``limit`` rows if the parameter is specified.
-      Use this optional parameter to explore the shared table without loading the entire table to
-      the memory.
+    :param starting_version: The starting version of table changes
+    :param ending_version: The ending version of table changes
+    :param starting_timestamp: The starting timestamp of table changes
+    :param ending_timestamp: The ending timestamp of table changes
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
