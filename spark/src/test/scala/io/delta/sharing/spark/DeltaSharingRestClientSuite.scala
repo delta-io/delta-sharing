@@ -265,15 +265,32 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getCDFFiles with Timestamp") {
+  integrationTest("getCDFFiles with startingTimestamp") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       // This is to test that timestamp is correctly passed to the server and parsed.
       // The error message is expected as we are using a timestamp much larger than the latest
       // version of the table.
-      // 1651359060000L, PST: 2022-04-30 15:51:00.0
-      val endStr = new Timestamp(1651359060000L).toString
-      val cdfOptions = Map("startingVersion" -> "0", "endingTimestamp" -> endStr)
+      val cdfOptions = Map("startingTimestamp" -> "2000-01-01 00:00:00")
+      val errorMessage = intercept[UnexpectedHttpStatus] {
+        val tableFiles = client.getCDFFiles(
+          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+          cdfOptions
+        )
+      }.getMessage
+      assert(errorMessage.contains("Please use a timestamp greater"))
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getCDFFiles with endingTimestamp") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      // This is to test that timestamp is correctly passed to the server and parsed.
+      // The error message is expected as we are using a timestamp much larger than the latest
+      // version of the table.
+      val cdfOptions = Map("startingVersion" -> "0", "endingTimestamp" -> "2100-01-01 00:00:00")
       val errorMessage = intercept[UnexpectedHttpStatus] {
         val tableFiles = client.getCDFFiles(
           Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
