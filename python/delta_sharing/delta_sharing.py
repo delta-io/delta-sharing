@@ -63,7 +63,7 @@ def load_as_pandas(
     :param limit: a non-negative int. Load only the ``limit`` rows if the parameter is specified.
       Use this optional parameter to explore the shared table without loading the entire table to
       the memory.
-    :param version: a optional non-negative int. Load the snapshot of table at version
+    :param version: an optional non-negative int. Load the snapshot of table at version
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
@@ -111,11 +111,11 @@ def load_table_changes_as_pandas(
     parameter is accepted by the server. If the end parameter is not provided, the API will use the
     latest table version for it. The parameter range is inclusive in the query.
 
-    :param url: a url under the format "<profile>#<share>.<schema>.<table>"
-    :param starting_version: The starting version of table changes
-    :param ending_version: The ending version of table changes
-    :param starting_timestamp: The starting timestamp of table changes
-    :param ending_timestamp: The ending timestamp of table changes
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>".
+    :param starting_version: The starting version of table changes.
+    :param ending_version: The ending version of table changes.
+    :param starting_timestamp: The starting timestamp of table changes.
+    :param ending_timestamp: The ending timestamp of table changes.
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
