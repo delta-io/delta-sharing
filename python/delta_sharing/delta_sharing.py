@@ -55,13 +55,13 @@ def load_as_pandas(
     version: Optional[int] = None
 ) -> pd.DataFrame:
     """
-    Load the shared table using the give url as a pandas DataFrame.
+    Load the shared table using the given url as a pandas DataFrame.
 
     :param url: a url under the format "<profile>#<share>.<schema>.<table>"
     :param limit: a non-negative int. Load only the ``limit`` rows if the parameter is specified.
       Use this optional parameter to explore the shared table without loading the entire table to
       the memory.
-    :param version: a optional non-negative int. Load the snapshot of table at version
+    :param version: an optional non-negative int. Load the snapshot of table at version
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
@@ -76,11 +76,12 @@ def load_as_pandas(
 
 def load_as_spark(url: str, version: Optional[int] = None) -> "PySparkDataFrame":  # noqa: F821
     """
-    Load the shared table using the give url as a Spark DataFrame. `PySpark` must be installed, and
-    the application must be a PySpark application with the Apache Spark Connector for Delta Sharing
-    installed.
+    Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed,
+    and the application must be a PySpark application with the Apache Spark Connector for Delta
+    Sharing installed.
 
-    :param url: a url under the format "<profile>#<share>.<schema>.<table>"
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>".
+    :param version: an optional non-negative int. Load the snapshot of table at version.
     :return: A Spark DataFrame representing the shared table.
     """
     try:
@@ -107,15 +108,18 @@ def load_table_changes_as_spark(
     ending_timestamp: Optional[str] = None
 ) -> "PySparkDataFrame":  # noqa: F821
     """
-    Load the table changes of a shared table as a Spark DataFrame using the give url.
+    Load the table changes of a shared table as a Spark DataFrame using the given url.
     `PySpark` must be installed, and the application must be a PySpark application with
     the Apache Spark Connector for Delta Sharing installed.
+    Either starting_version or starting_timestamp need to be provided. And only one starting/ending
+    parameter is accepted by the server. If the end parameter is not provided, the API will use the
+    latest table version for it. The parameter range is inclusive in the query.
 
-    :param url: a url under the format "<profile>#<share>.<schema>.<table>"
-    :param starting_version: The starting version of table changes
-    :param ending_version: The ending version of table changes
-    :param starting_timestamp: The starting timestamp of table changes
-    :param ending_timestamp: The ending timestamp of table changes
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>".
+    :param starting_version: The starting version of table changes.
+    :param ending_version: The ending version of table changes.
+    :param starting_timestamp: The starting timestamp of table changes.
+    :param ending_timestamp: The ending timestamp of table changes.
     :return: A Spark DataFrame representing the table changes.
     """
     try:
