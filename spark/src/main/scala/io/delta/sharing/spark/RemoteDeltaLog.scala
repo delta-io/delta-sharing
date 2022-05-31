@@ -47,11 +47,11 @@ private[sharing] class RemoteDeltaLog(
 
   @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(path, client, table)
 
-  def snapshot(versionOf: Option[Long] = None): RemoteSnapshot = {
-    if (versionOf.isEmpty) {
+  def snapshot(versionAsOf: Option[Long] = None): RemoteSnapshot = {
+    if (versionAsOf.isEmpty) {
       currentSnapshot
     } else {
-      new RemoteSnapshot(path, client, table, versionOf)
+      new RemoteSnapshot(path, client, table, versionAsOf)
     }
   }
 
@@ -63,10 +63,10 @@ private[sharing] class RemoteDeltaLog(
   }
 
   def createRelation(
-      versionOf: Option[Long],
+      versionAsOf: Option[Long],
       cdfOptions: Map[String, String]): BaseRelation = {
     val spark = SparkSession.active
-    val snapshotToUse = snapshot(versionOf)
+    val snapshotToUse = snapshot(versionAsOf)
     if (!cdfOptions.isEmpty) {
       return RemoteDeltaCDFRelation(
         spark,
@@ -181,7 +181,7 @@ class RemoteSnapshot(
     tablePath: Path,
     client: DeltaSharingClient,
     table: DeltaSharingTable,
-    versionOf: Option[Long] = None) extends Logging {
+    versionAsOf: Option[Long] = None) extends Logging {
 
   protected def spark = SparkSession.active
 
@@ -198,20 +198,20 @@ class RemoteSnapshot(
   lazy val (allFiles, sizeInBytes) = {
     val implicits = spark.implicits
     import implicits._
-    val tableFiles = client.getFiles(table, Nil, None, versionOf)
+    val tableFiles = client.getFiles(table, Nil, None, versionAsOf)
     checkProtocolNotChange(tableFiles.protocol)
     checkSchemaNotChange(tableFiles.metadata)
     tableFiles.files.toDS() -> tableFiles.files.map(_.size).sum
   }
 
   private def getTableMetadata: (Metadata, Protocol, Long) = {
-    if (versionOf.isEmpty) {
+    if (versionAsOf.isEmpty) {
       val tableMetadata = client.getMetadata(table)
       (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
     } else {
-      // getMetadata doesn't support the parameter: versionOf
+      // getMetadata doesn't support the parameter: versionAsOf
       // Leveraging getFiles to get the metadata, so setting the limitHint to 1 for efficiency.
-      val tableFiles = client.getFiles(table, Nil, Some(1L), versionOf)
+      val tableFiles = client.getFiles(table, Nil, Some(1L), versionAsOf)
       (tableFiles.metadata, tableFiles.protocol, tableFiles.version)
     }
   }
@@ -256,13 +256,13 @@ class RemoteSnapshot(
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
-      val tableFiles = client.getFiles(table, predicates, limitHint, versionOf)
+      val tableFiles = client.getFiles(table, predicates, limitHint, versionAsOf)
       val idToUrl = tableFiles.files.map { add =>
         add.id -> add.url
       }.toMap
       CachedTableManager.INSTANCE
         .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
-          client.getFiles(table, Nil, None, versionOf).files.map { add =>
+          client.getFiles(table, Nil, None, versionAsOf).files.map { add =>
             add.id -> add.url
           }.toMap
         })

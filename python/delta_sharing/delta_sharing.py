@@ -76,13 +76,14 @@ def load_as_pandas(
     ).to_pandas()
 
 
-def load_as_spark(url: str) -> "PySparkDataFrame":  # noqa: F821
+def load_as_spark(url: str, version: Optional[int] = None) -> "PySparkDataFrame":  # noqa: F821
     """
-    Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed, and
-    the application must be a PySpark application with the Apache Spark Connector for Delta Sharing
-    installed.
+    Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed,
+    and the application must be a PySpark application with the Apache Spark Connector for Delta
+    Sharing installed.
 
-    :param url: a url under the format "<profile>#<share>.<schema>.<table>"
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>".
+    :param version: an optional non-negative int. Load the snapshot of table at version.
     :return: A Spark DataFrame representing the shared table.
     """
     try:
@@ -95,7 +96,55 @@ def load_as_spark(url: str) -> "PySparkDataFrame":  # noqa: F821
         "No active SparkSession was found. "
         "`load_as_spark` requires running in a PySpark application."
     )
-    return spark.read.format("deltaSharing").load(url)
+    df = spark.read.format("deltaSharing")
+    if version is not None:
+        df.option("versionAsOf", version)
+    return df.load(url)
+
+
+def load_table_changes_as_spark(
+    url: str,
+    starting_version: Optional[int] = None,
+    ending_version: Optional[int] = None,
+    starting_timestamp: Optional[str] = None,
+    ending_timestamp: Optional[str] = None
+) -> "PySparkDataFrame":  # noqa: F821
+    """
+    Load the table changes of a shared table as a Spark DataFrame using the given url.
+    `PySpark` must be installed, and the application must be a PySpark application with
+    the Apache Spark Connector for Delta Sharing installed.
+    Either starting_version or starting_timestamp need to be provided. And only one starting/ending
+    parameter is accepted by the server. If the end parameter is not provided, the API will use the
+    latest table version for it. The parameter range is inclusive in the query.
+
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>".
+    :param starting_version: The starting version of table changes.
+    :param ending_version: The ending version of table changes.
+    :param starting_timestamp: The starting timestamp of table changes.
+    :param ending_timestamp: The ending timestamp of table changes.
+    :return: A Spark DataFrame representing the table changes.
+    """
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError:
+        raise ImportError(
+            "Unable to import pyspark. `load_table_changes_as_spark` requires PySpark.")
+
+    spark = SparkSession.getActiveSession()
+    assert spark is not None, (
+        "No active SparkSession was found. "
+        "`load_table_changes_as_spark` requires running in a PySpark application."
+    )
+    df = spark.read.format("deltaSharing").option("readChangeFeed", "true")
+    if starting_version is not None:
+        df.option("startingVersion", starting_version)
+    if ending_version is not None:
+        df.option("endingVersion", ending_version)
+    if starting_timestamp is not None:
+        df.option("startingTimestamp", starting_timestamp)
+    if ending_timestamp is not None:
+        df.option("endingTimestamp", ending_timestamp)
+    return df.load(url)
 
 
 def load_table_changes_as_pandas(
