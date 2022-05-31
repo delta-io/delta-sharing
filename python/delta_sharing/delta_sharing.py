@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from delta_sharing.protocol import CdfOptions
+
 try:
     from pyspark.sql import DataFrame as PySparkDataFrame
 except ImportError:
@@ -55,13 +57,13 @@ def load_as_pandas(
     version: Optional[int] = None
 ) -> pd.DataFrame:
     """
-    Load the shared table using the give url as a pandas DataFrame.
+    Load the shared table using the given url as a pandas DataFrame.
 
     :param url: a url under the format "<profile>#<share>.<schema>.<table>"
     :param limit: a non-negative int. Load only the ``limit`` rows if the parameter is specified.
       Use this optional parameter to explore the shared table without loading the entire table to
       the memory.
-    :param version: a optional non-negative int. Load the snapshot of table at version
+    :param version: an optional non-negative int. Load the snapshot of table at version
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
@@ -76,7 +78,7 @@ def load_as_pandas(
 
 def load_as_spark(url: str) -> "PySparkDataFrame":  # noqa: F821
     """
-    Load the shared table using the give url as a Spark DataFrame. `PySpark` must be installed, and
+    Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed, and
     the application must be a PySpark application with the Apache Spark Connector for Delta Sharing
     installed.
 
@@ -94,6 +96,39 @@ def load_as_spark(url: str) -> "PySparkDataFrame":  # noqa: F821
         "`load_as_spark` requires running in a PySpark application."
     )
     return spark.read.format("deltaSharing").load(url)
+
+
+def load_table_changes_as_pandas(
+    url: str,
+    starting_version: Optional[int] = None,
+    ending_version: Optional[int] = None,
+    starting_timestamp: Optional[str] = None,
+    ending_timestamp: Optional[str] = None
+) -> pd.DataFrame:
+    """
+    Load the table changes of shared table as a pandas DataFrame using the given url.
+    Either starting_version or starting_timestamp need to be provided. And only one starting/ending
+    parameter is accepted by the server. If the end parameter is not provided, the API will use the
+    latest table version for it. The parameter range is inclusive in the query.
+
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>".
+    :param starting_version: The starting version of table changes.
+    :param ending_version: The ending version of table changes.
+    :param starting_timestamp: The starting timestamp of table changes.
+    :param ending_timestamp: The ending timestamp of table changes.
+    :return: A pandas DataFrame representing the shared table.
+    """
+    profile_json, share, schema, table = _parse_url(url)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
+    return DeltaSharingReader(
+        table=Table(name=table, share=share, schema=schema),
+        rest_client=DataSharingRestClient(profile),
+    ).table_changes_to_pandas(CdfOptions(
+        starting_version=starting_version,
+        ending_version=ending_version,
+        starting_timestamp=starting_timestamp,
+        ending_timestamp=ending_timestamp,
+    ))
 
 
 class SharingClient:
