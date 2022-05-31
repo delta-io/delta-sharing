@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from delta_sharing.protocol import CdfOptions
+
 try:
     from pyspark.sql import DataFrame as PySparkDataFrame
 except ImportError:
@@ -143,6 +145,39 @@ def load_table_changes_as_spark(
     if ending_timestamp is not None:
         df.option("endingTimestamp", ending_timestamp)
     return df.load(url)
+
+
+def load_table_changes_as_pandas(
+    url: str,
+    starting_version: Optional[int] = None,
+    ending_version: Optional[int] = None,
+    starting_timestamp: Optional[str] = None,
+    ending_timestamp: Optional[str] = None
+) -> pd.DataFrame:
+    """
+    Load the table changes of shared table as a pandas DataFrame using the given url.
+    Either starting_version or starting_timestamp need to be provided. And only one starting/ending
+    parameter is accepted by the server. If the end parameter is not provided, the API will use the
+    latest table version for it. The parameter range is inclusive in the query.
+
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>".
+    :param starting_version: The starting version of table changes.
+    :param ending_version: The ending version of table changes.
+    :param starting_timestamp: The starting timestamp of table changes.
+    :param ending_timestamp: The ending timestamp of table changes.
+    :return: A pandas DataFrame representing the shared table.
+    """
+    profile_json, share, schema, table = _parse_url(url)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
+    return DeltaSharingReader(
+        table=Table(name=table, share=share, schema=schema),
+        rest_client=DataSharingRestClient(profile),
+    ).table_changes_to_pandas(CdfOptions(
+        starting_version=starting_version,
+        ending_version=ending_version,
+        starting_timestamp=starting_timestamp,
+        ending_timestamp=ending_timestamp,
+    ))
 
 
 class SharingClient:
