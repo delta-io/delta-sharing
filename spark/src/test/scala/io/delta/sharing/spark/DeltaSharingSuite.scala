@@ -133,7 +133,10 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       Row("2", 2, sqlDate("2020-01-01")),
       Row("3", 3, sqlDate("2020-01-01"))
     )
-    checkAnswer(spark.read.format("deltaSharing").option("versionOf", 1).load(tablePath), expected)
+    checkAnswer(
+      spark.read.format("deltaSharing").option("versionAsOf", 1).load(tablePath),
+      expected
+    )
   }
 
   integrationTest("cdf_table_cdf_enabled version exception") {
@@ -141,9 +144,9 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     val expected = Seq()
     val errorMessage = intercept[IllegalArgumentException] {
       checkAnswer(
-        spark.read.format("deltaSharing").option("versionOf", "3x").load(tablePath), expected)
+        spark.read.format("deltaSharing").option("versionAsOf", "3x").load(tablePath), expected)
     }.getMessage
-    assert(errorMessage.contains("versionOf is not a valid number"))
+    assert(errorMessage.contains("versionAsOf is not a valid number"))
   }
 
   integrationTest("test_gzip: non-default compression codec") {

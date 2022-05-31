@@ -57,7 +57,7 @@ class TestDeltaSharingClient(
     table: Table,
     predicates: Seq[String],
     limit: Option[Long],
-    versionOf: Option[Long]): DeltaTableFiles = {
+    versionAsOf: Option[Long]): DeltaTableFiles = {
     limit.foreach(lim => TestDeltaSharingClient.limits = TestDeltaSharingClient.limits :+ lim)
 
     val addFiles: Seq[AddFile] = Seq(

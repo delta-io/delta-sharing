@@ -96,7 +96,7 @@ def load_as_spark(url: str, version: Optional[int] = None) -> "PySparkDataFrame"
     )
     df = spark.read.format("deltaSharing")
     if version is not None:
-        df.option("versionOf", version)
+        df.option("versionAsOf", version)
     return df.load(url)
 
 
