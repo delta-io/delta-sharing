@@ -23,7 +23,7 @@ class RemoteLogicalRelationSuite extends SharedSparkSession with DeltaSharingInt
   integrationTest("RemoteLogicalRelation test") {
     val cdfOptions = Map("startingVersion" -> "0", "endingVersion" -> "3")
     val path = s"${testProfileFile.getCanonicalPath}#share1.default.cdf_table_cdf_enabled"
-    val relation = RemoteLogicalRelation(path, cdfOptions, isStreaming = false)
+    val relation = RemoteLogicalRelation(path, cdfOptions)
     assert(relation.relation.isInstanceOf[RemoteDeltaCDFRelation])
     assert(relation.relation.asInstanceOf[RemoteDeltaCDFRelation].cdfOptions == cdfOptions)
     assert(relation.output.size == 6)
@@ -33,11 +33,5 @@ class RemoteLogicalRelationSuite extends SharedSparkSession with DeltaSharingInt
     assert(relation.output(3).name == "_commit_version")
     assert(relation.output(4).name == "_commit_timestamp")
     assert(relation.output(5).name == "_change_type")
-    assert(relation.doCanonicalize.isInstanceOf[RemoteLogicalRelation])
-    assert(relation.computeStats.sizeInBytes == Long.MaxValue)
-    assert(relation.attributeMap.size == 6)
-    assert(relation.newInstance.isInstanceOf[RemoteLogicalRelation])
-    assert(relation.simpleString(3).contains("default.cdf_table_cdf_enabled[name#0"))
-    assert(relation.metadataOutput.isEmpty)
   }
 }
