@@ -186,7 +186,11 @@ class DeltaSharedTable(
   def queryCDF(cdfOptions: Map[String, String]): Seq[model.SingleAction] = withClassLoader {
     val actions = ListBuffer[model.SingleAction]()
 
-    // First: get Protocol and Metadata
+    val cdcReader = new DeltaSharingCDCReader(deltaLog, conf)
+    val (start, end) = cdcReader.validateCdfOptions(
+      cdfOptions, tableVersion, tableConfig.startVersion)
+
+    // Second: get Protocol and Metadata
     val snapshot = deltaLog.snapshot
     val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
     val modelMetadata = model.Metadata(
@@ -201,9 +205,8 @@ class DeltaSharedTable(
     actions.append(modelProtocol.wrap)
     actions.append(modelMetadata.wrap)
 
-    // Second: get files
-    val cdcReader = new DeltaSharingCDCReader(deltaLog, conf)
-    val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(cdfOptions, tableVersion)
+    // Third: get files
+    val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(start, end)
     changeFiles.foreach { cdcDataSpec =>
       cdcDataSpec.actions.foreach { action =>
         val addCDCFile = action.asInstanceOf[AddCDCFile]

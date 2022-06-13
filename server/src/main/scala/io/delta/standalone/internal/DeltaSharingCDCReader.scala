@@ -168,14 +168,33 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
    * @param cdfOptions to indicate the starting and ending parameters of the change data feed.
    * @param latestVersion the latest version of the delta table, which is used to validate the
    *                      starting and ending versions, and may be used as default ending version.
+   * @param validStartVersion indicates the valid start version of the query
+   * @return - start and end version parsed from cdfOptions if they are valid, otherwise throws
+   *           exception
    */
-  def queryCDF(cdfOptions: Map[String, String], latestVersion: Long): (
+  def validateCdfOptions(
+    cdfOptions: Map[String, String],
+    latestVersion: Long,
+    validStartVersion: Long): (Long, Long) = {
+    val (start, end) = getCDCVersions(cdfOptions, latestVersion)
+    if (validStartVersion > start) {
+      throw new DeltaCDFIllegalArgumentException(
+        s"You can only query table changes since version ${validStartVersion}.")
+    }
+    (start, end)
+  }
+
+  /**
+   * Replay Delta transaction logs and return cdf files
+   *
+   * @param start The start version of cdf
+   * @param end The end version of cdf
+   */
+  def queryCDF(start: Long, end: Long): (
     Seq[CDCDataSpec[AddCDCFile]],
     Seq[CDCDataSpec[AddFile]],
     Seq[CDCDataSpec[RemoveFile]]
   ) = {
-    val (start, end) = getCDCVersions(cdfOptions, latestVersion)
-
     if (!isCDCEnabledOnTable(deltaLog.getSnapshotForVersionAsOf(start).metadataScala)) {
       throw DeltaCDFErrors.changeDataNotRecordedException(start, start, end)
     }
