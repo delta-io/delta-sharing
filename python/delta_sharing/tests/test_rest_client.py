@@ -471,7 +471,7 @@ def test_list_table_changes(
     cdf_table = Table(name="cdf_table_with_partition", share="share1", schema="default")
     response = rest_client.list_table_changes(
         cdf_table,
-        CdfOptions(starting_version=0, ending_version=3)
+        CdfOptions(starting_version=1, ending_version=3)
     )
 
     assert response.protocol == Protocol(min_reader_version=1)
