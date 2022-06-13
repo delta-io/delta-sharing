@@ -186,6 +186,7 @@ class DeltaSharedTable(
   def queryCDF(cdfOptions: Map[String, String]): Seq[model.SingleAction] = withClassLoader {
     val actions = ListBuffer[model.SingleAction]()
 
+    // First: validate cdf options are greater than startVersion
     val cdcReader = new DeltaSharingCDCReader(deltaLog, conf)
     val (start, end) = cdcReader.validateCdfOptions(
       cdfOptions, tableVersion, tableConfig.startVersion)
