@@ -207,7 +207,7 @@ class DeltaSharedTable(
     actions.append(modelMetadata.wrap)
 
     // Third: get files
-    val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(start, end)
+    val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(start, end, tableVersion)
     changeFiles.foreach { cdcDataSpec =>
       cdcDataSpec.actions.foreach { action =>
         val addCDCFile = action.asInstanceOf[AddCDCFile]

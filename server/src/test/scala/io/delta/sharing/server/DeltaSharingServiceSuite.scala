@@ -390,7 +390,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "POST",
       data = Some("""{"version": 1}"""),
       expectedErrorCode = 400,
-      expectedErrorMessage = "reading table by version is not supported because change data feed is not enabled on table: share2.default.table2"
+      expectedErrorMessage = "Reading table by version is not supported because change data feed is not enabled on table: share2.default.table2"
     )
   }
 
