@@ -79,6 +79,11 @@ class ServerConfigSuite extends FunSuite {
       serverConfig.setVersion(1)
       serverConfig.setShares(sharesInTemplate)
       serverConfig.setPort(8080)
+      serverConfig.setAuthorization(Authorization("<change-me-universal-token>", true,
+        Arrays.asList(
+          ShareAuth("share1", "<change-me-share1-token>"),
+          ShareAuth("share2", "<change-me-share2-token>")
+        )))
       assert(loaded == serverConfig)
     } finally {
       tempFile.delete()
@@ -101,7 +106,7 @@ class ServerConfigSuite extends FunSuite {
     testConfig(
       """version: 1
         |authorization:
-        |  bearerToken: <token>
+        |  universalBearerToken: <token>
         |""".stripMargin, serverConfig)
   }
 
@@ -133,9 +138,61 @@ class ServerConfigSuite extends FunSuite {
     }
   }
 
-  test("Authorization") {
-    assertInvalidConfig("'bearerToken' in 'authorization' must be provided") {
-      new Authorization().checkConfig()
+  test("duplicate share names") {
+    assertInvalidConfig(
+      "name 'dupe_share' cannot appear in more than one 'shares[]' item") {
+      testConfig(
+        """version: 1
+          |shares:
+          |  - name: dupe_share
+          |  - name: unique_share
+          |  - name: dupe_share
+          |""".stripMargin, null)
+    }
+  }
+
+  test("duplicate share names in authorization") {
+    assertInvalidConfig(
+      "name 'dupe_share' cannot appear in more than one 'authorization.shares[]' item") {
+      testConfig(
+        """version: 1
+          |authorization:
+          |  shares:
+          |  - name: dupe_share
+          |    bearerToken: token
+          |  - name: unique_share
+          |    bearerToken: token
+          |  - name: dupe_share
+          |    bearerToken: token
+          |""".stripMargin, null)
+    }
+  }
+
+  test("bearer token hash collision") {
+    assertInvalidConfig(
+      "Bearer token hash collision between 'BB' and 'Aa'. " +
+        "Please change one of the bearer tokens in the authorization share config.") {
+      testConfig(
+        """version: 1
+          |authorization:
+          |  shares:
+          |  - name: share1
+          |    bearerToken: Aa
+          |  - name: share2
+          |    bearerToken: BB
+          |""".stripMargin, null)
+    }
+  }
+
+  test("ShareAuth") {
+    assertInvalidConfig("'name' in a share authorization config must be provided") {
+      new ShareAuth().checkConfig()
+    }
+
+    assertInvalidConfig("'bearerToken' in a share authorization config must be provided") {
+      val s = new ShareAuth()
+      s.setName("name")
+      s.checkConfig()
     }
   }
 

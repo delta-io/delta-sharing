@@ -22,6 +22,7 @@ import java.util.Base64
 
 import scala.collection.JavaConverters._
 
+import io.delta.sharing.server.auth.AuthManager
 import io.delta.sharing.server.config.{SchemaConfig, ServerConfig, ShareConfig, TableConfig}
 import io.delta.sharing.server.protocol.{PageToken, Schema, Share, Table}
 
@@ -33,7 +34,13 @@ class SharedTableManager(serverConfig: ServerConfig) {
 
   private val caseInsensitiveComparer = (a: String, b: String) => a.equalsIgnoreCase(b)
 
-  private val shares = serverConfig.getShares
+  // Read the share list into a map of lowercase share name -> share
+  private val shares = Map[String, ShareConfig](
+    serverConfig.getShares.asScala.map(s => s.getName.toLowerCase() -> s).toArray: _*
+  )
+
+  // Read the server config into a usable AuthManager
+  private val authManager = AuthManager(serverConfig)
 
   private val defaultMaxResults = 500
 
@@ -93,8 +100,8 @@ class SharedTableManager(serverConfig: ServerConfig) {
   }
 
   private def getShareInternal(share: String): ShareConfig = {
-    shares.asScala.find(s => caseInsensitiveComparer(s.getName, share))
-      .getOrElse(throw new DeltaSharingNoSuchElementException(s"share '$share' not found"))
+    shares.getOrElse(share.toLowerCase(),
+      throw new DeltaSharingNoSuchElementException(s"share '$share' not found"))
   }
 
   private def getSchema(shareConfig: ShareConfig, schema: String): SchemaConfig = {
@@ -102,13 +109,28 @@ class SharedTableManager(serverConfig: ServerConfig) {
       .getOrElse(throw new DeltaSharingNoSuchElementException(s"schema '$schema' not found"))
   }
 
+  private def parseBearerToken(authHeader: Option[String]): Option[String] = {
+    // Per the REST spec (PROTOCOL.md#rest-apis), we're expecting an authorization
+    // header in the format "Bearer: <token>".
+    try {
+      authHeader.map(_.split("Bearer ", 2)(1))
+    } catch {
+      case _: Throwable => None
+    }
+  }
+
   def listShares(
+      authHeader: Option[String] = None,
       nextPageToken: Option[String] = None,
       maxResults: Option[Int] = None): (Seq[Share], Option[String]) = {
+    val bearerToken = parseBearerToken(authHeader)
+
     getPage(nextPageToken, None, None, maxResults, shares.size) { (start, end) =>
-      shares.asScala.map { share =>
-        Share().withName(share.getName)
-      }.slice(start, end)
+      val allowedShares = authManager.getAuthorizedShares(bearerToken).sorted.map(s =>
+        Share().withName(shares(s).getName)
+      )
+
+      allowedShares.slice(start, end)
     }
   }
 

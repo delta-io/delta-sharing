@@ -17,6 +17,7 @@
 package io.delta.sharing.server
 
 import java.io.{ByteArrayOutputStream, File}
+import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 import java.security.MessageDigest
 import java.util.concurrent.CompletableFuture
@@ -28,7 +29,7 @@ import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, Http
 import com.linecorp.armeria.common.auth.OAuth2Token
 import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
-import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
+import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Header, Param, Post, ProducesJson}
 import com.linecorp.armeria.server.auth.AuthService
 import io.delta.standalone.internal.DeltaCDFErrors
 import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
@@ -39,6 +40,7 @@ import org.apache.commons.io.FileUtils
 import org.slf4j.LoggerFactory
 import scalapb.json4s.Printer
 
+import io.delta.sharing.server.auth.AuthManager
 import io.delta.sharing.server.config.ServerConfig
 import io.delta.sharing.server.model.SingleAction
 import io.delta.sharing.server.protocol._
@@ -160,9 +162,12 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   @Get("/shares")
   @ProducesJson
   def listShares(
+      @Header("Authorization") @Nullable auth: String,
       @Param("maxResults") @Default("500") maxResults: Int,
       @Param("pageToken") @Nullable pageToken: String): ListSharesResponse = processRequest {
-    val (shares, nextPageToken) = sharedTableManager.listShares(Option(pageToken), Some(maxResults))
+    val (shares, nextPageToken) = sharedTableManager.listShares(
+      Option(auth), Option(pageToken), Some(maxResults)
+    )
     ListSharesResponse(shares, nextPageToken)
   }
 
@@ -374,13 +379,30 @@ object DeltaSharingService {
         }
       }
       if (serverConfig.getAuthorization != null) {
-        // Authorization is set. Set up the authorization using the token in the server config.
+        // Authorization is set. Configure authorization using the bearer token(s) in the
+        // server config
+
+        // Reuse the same instance we know that DeltaSharingService has already created
+        val authManager = AuthManager.getInstance()
+
+        // Determine the "mapped path" for the list shares endpoint for comparison later
+        val listSharesPath = URI.create(serverConfig.getEndpoint).normalize().toString + "/shares"
+
         val authServiceBuilder =
-          AuthService.builder.addOAuth2((_: ServiceRequestContext, token: OAuth2Token) => {
-            // Use `MessageDigest.isEqual` to do a time-constant comparison to avoid timing attacks
-            val authorized = MessageDigest.isEqual(
-              token.accessToken.getBytes(UTF_8),
-              serverConfig.getAuthorization.getBearerToken.getBytes(UTF_8))
+          AuthService.builder.addOAuth2((c: ServiceRequestContext, token: OAuth2Token) => {
+            val authorized = Option(c.pathParam("share")) match {
+              // If a share ID is in the path, check if the provided bearer token has access to
+              // the given share
+              case Some(share) => authManager.hasShareAccess(
+                Option(token).map(_.accessToken), share)
+              // Allow all requests to the list shares endpoint, as access will be checked within
+              // the endpoint logic
+              case None if c.mappedPath == listSharesPath => true
+              // This last case doesn't occur within the API today, but return false to prevent
+              // unauthorized access with potential future API changes
+              case _ => false
+            }
+
             CompletableFuture.completedFuture(authorized)
           })
         builder.decorator(authServiceBuilder.newDecorator)

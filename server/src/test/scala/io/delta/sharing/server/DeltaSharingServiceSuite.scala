@@ -110,9 +110,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     readHttpContent(url, method, data, expectedTableVersion, "application/x-ndjson; charset=utf-8")
   }
 
-  def readHttpContent(url: String, method: Option[String], data: Option[String] = None, expectedTableVersion: Option[Long] = None, expectedContentType: String): String = {
+  def readHttpContent(url: String, method: Option[String], data: Option[String] = None, expectedTableVersion: Option[Long] = None, expectedContentType: String, bearerToken: Option[String] = None): String = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
-    connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    connection.setRequestProperty("Authorization", s"Bearer ${bearerToken.getOrElse(TestResource.testUniversalAuthorizationToken)}")
     method.foreach(connection.setRequestMethod)
     data.foreach { d =>
       connection.setDoOutput(true)
@@ -191,6 +191,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       connection.getInputStream()
     }
     assert(e.getMessage.contains("Server returned HTTP response code: 401"))
+  }
+
+  integrationTest("share bearer token - /shares/{share}") {
+    val url = requestPath("/shares/share1")
+    val response = readHttpContent(url, None, None, None, "application/json; charset=utf-8", Some(TestResource.testShareAuthorizationToken))
+
+    val expected = GetShareResponse(Some(Share().withName("share1")))
+    assert(expected == JsonFormat.fromJsonString[GetShareResponse](response))
   }
 
   integrationTest("/shares") {
@@ -302,7 +310,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val url = requestPath("/shares/share1/schemas/default/tables/table1")
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestMethod("HEAD")
-    connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testUniversalAuthorizationToken}")
     val input = connection.getInputStream()
     try {
       IOUtils.toString(input)
@@ -771,7 +779,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     expectedErrorCode: Int,
     expectedErrorMessage: String): Unit = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
-    connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testUniversalAuthorizationToken}")
     connection.setRequestMethod(method)
     data.foreach { d =>
       connection.setDoOutput(true)

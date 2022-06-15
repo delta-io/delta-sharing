@@ -20,6 +20,7 @@ import java.io.{File, IOException}
 import java.util.Collections
 
 import scala.beans.BeanProperty
+import scala.collection.mutable
 
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
@@ -94,6 +95,16 @@ case class ServerConfig(
 
   override def checkConfig(): Unit = {
     checkVersion()
+    // Ensure share names are not duplicated
+    val shareNames = mutable.Map[String, Int]()
+    shares.forEach(s => {
+      if (shareNames.contains(s.name.toLowerCase())) {
+        throw new IllegalArgumentException(
+          s"name '${s.name}' cannot appear in more than one 'shares[]' item")
+      }
+
+      shareNames(s.name.toLowerCase()) = 1
+    })
     shares.forEach(_.checkConfig())
     if (authorization != null) {
       authorization.checkConfig()
@@ -142,15 +153,65 @@ object ServerConfig{
   }
 }
 
-case class Authorization(@BeanProperty var bearerToken: String) extends ConfigItem {
+case class Authorization(
+    @BeanProperty var universalBearerToken: String,
+    @BeanProperty var requireForAllShares: Boolean = true,
+    @BeanProperty var shares: java.util.List[ShareAuth] = Collections.emptyList()
+  ) extends ConfigItem {
 
   def this() {
-    this(null)
+    this(null, true, Collections.emptyList())
   }
 
   override def checkConfig(): Unit = {
+    if (shares != null) {
+      val shareNames = mutable.Set[String]()
+      val hashToBearer = scala.collection.mutable.Map[Int, String]()
+      shares.forEach(s => {
+
+        // Ensure share names are not duplicated
+        if (shareNames.contains(s.name.toLowerCase())) {
+          throw new IllegalArgumentException(
+            s"name '${s.name}' cannot appear in more than one 'authorization.shares[]' item")
+        }
+
+        // Try to prevent bearer token hash collisions which could lead to timing attack on
+        // reverse lookup. These tokens are used as HashMap key, therefore collisions
+        // will be handled by a linked list or binary tree lookup, which could lead to a timing
+        // attack vulnerability.
+        val existingBearer = hashToBearer.get(s.bearerToken.##)
+        if (existingBearer.exists(_ != s.bearerToken) ) {
+          throw new IllegalArgumentException(
+            s"Bearer token hash collision between '${s.bearerToken}' and " +
+              s"'${existingBearer.get}'. Please change one of the bearer tokens in the " +
+              s"authorization share config."
+          )
+        }
+
+        hashToBearer(s.bearerToken.##) = s.bearerToken
+        shareNames.add(s.name.toLowerCase())
+      })
+
+      shares.forEach(_.checkConfig())
+    }
+  }
+}
+
+case class ShareAuth (
+    @BeanProperty var name: String,
+    @BeanProperty var bearerToken: String) extends ConfigItem {
+
+  def this() {
+    this(null, null)
+  }
+
+  override def checkConfig(): Unit = {
+    if (name == null) {
+      throw new IllegalArgumentException("'name' in a share authorization config must be provided")
+    }
     if (bearerToken == null) {
-      throw new IllegalArgumentException("'bearerToken' in 'authorization' must be provided")
+      throw new IllegalArgumentException(
+        "'bearerToken' in a share authorization config must be provided")
     }
   }
 }

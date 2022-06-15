@@ -19,6 +19,7 @@ package io.delta.sharing.server
 import java.io.File
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
+import java.util.{Arrays}
 
 import org.apache.commons.io.FileUtils
 
@@ -44,7 +45,8 @@ object TestResource {
 
   val TEST_PORT = 12345
 
-  val testAuthorizationToken = "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
+  val testUniversalAuthorizationToken = "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
+  val testShareAuthorizationToken = "agdq3xsqpt01ggysegjv8dd86j08ohq5hmq9"
 
   def maybeSetupGoogleServiceAccountCredentials: Unit = {
     // Only setup Google Service Account credentials when it is provided through env variable.
@@ -168,7 +170,9 @@ object TestResource {
     val serverConfig = new ServerConfig()
     serverConfig.setVersion(1)
     serverConfig.setShares(shares)
-    serverConfig.setAuthorization(Authorization(testAuthorizationToken))
+    serverConfig.setAuthorization(Authorization(testUniversalAuthorizationToken, true, Arrays.asList(
+      ShareAuth("share1", testShareAuthorizationToken)
+    )))
     serverConfig.setPort(TEST_PORT)
     serverConfig.setSsl(SSLConfig(selfSigned = true, null, null, null))
     serverConfig.setEvaluatePredicateHints(true)
