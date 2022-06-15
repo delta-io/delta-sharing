@@ -187,7 +187,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           Some(1L)
         )
       }.getMessage
-      assert(errorMessage.contains("reading table by version is not supported because change data feed is not enabled on table: share1.default.table1"))
+      assert(errorMessage.contains("Reading table by version is not supported because change data feed is not enabled on table: share1.default.table1"))
     } finally {
       client.close()
     }
