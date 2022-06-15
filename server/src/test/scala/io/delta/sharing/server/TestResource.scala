@@ -78,7 +78,8 @@ object TestResource {
               TableConfig(
                 "cdf_table_with_partition",
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_partition",
-                true
+                true,
+                1
               )
             )
           )

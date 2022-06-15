@@ -249,9 +249,16 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
-    if (queryTableRequest.version.isDefined && !tableConfig.cdfEnabled) {
-      throw new DeltaSharingIllegalArgumentException("reading table by version is not supported" +
-        s" because change data feed is not enabled on table: $share.$schema.$table")
+    if (queryTableRequest.version.isDefined) {
+      if (!tableConfig.cdfEnabled) {
+        throw new DeltaSharingIllegalArgumentException("Reading table by version is not supported" +
+          s" because change data feed is not enabled on table: $share.$schema.$table")
+      }
+      if (tableConfig.startVersion > queryTableRequest.version.get) {
+        throw new DeltaSharingIllegalArgumentException(
+          s"You can only query table data since version ${tableConfig.startVersion}."
+        )
+      }
     }
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
@@ -432,20 +439,10 @@ object DeltaSharingService {
     endingTimestamp: Option[String]): Map[String, String] = {
     checkCDFOptionsValidity(startingVersion, endingVersion, startingTimestamp, endingTimestamp)
 
-    val startingVersionOption = if (startingVersion.isDefined) {
-      Map(DeltaDataSource.CDF_START_VERSION_KEY -> startingVersion.get)
-     } else { Map.empty }
-    val startingTimestampOption = if (startingTimestamp.isDefined) {
-      Map(DeltaDataSource.CDF_START_TIMESTAMP_KEY -> startingTimestamp.get)
-    } else { Map.empty }
-    val endingVersionOption = if (endingVersion.isDefined) {
-      Map(DeltaDataSource.CDF_END_VERSION_KEY -> endingVersion.get)
-    } else { Map.empty }
-    val endingTimestampOption = if (endingTimestamp.isDefined) {
-      Map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> endingTimestamp.get)
-    } else { Map.empty }
-
-    startingVersionOption ++ startingTimestampOption ++ endingVersionOption ++ endingTimestampOption
+    (startingVersion.map(DeltaDataSource.CDF_START_VERSION_KEY -> _) ++
+    endingVersion.map(DeltaDataSource.CDF_END_VERSION_KEY -> _) ++
+    startingTimestamp.map(DeltaDataSource.CDF_START_TIMESTAMP_KEY -> _) ++
+    endingTimestamp.map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> _)).toMap
   }
 
   def main(args: Array[String]): Unit = {

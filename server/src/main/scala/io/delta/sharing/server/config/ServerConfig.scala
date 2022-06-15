@@ -215,7 +215,8 @@ case class SchemaConfig(
 case class TableConfig(
     @BeanProperty var name: String,
     @BeanProperty var location: String,
-    @BeanProperty var cdfEnabled: Boolean = false) extends ConfigItem {
+    @BeanProperty var cdfEnabled: Boolean = false,
+    @BeanProperty var startVersion: Long = 0) extends ConfigItem {
 
   def this() {
     this(null, null)
