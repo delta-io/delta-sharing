@@ -288,6 +288,7 @@ object DeltaSharingService {
         .defaultHostname(serverConfig.getHost)
         .disableDateHeader()
         .disableServerHeader()
+        .requestTimeout(java.time.Duration.ofSeconds(serverConfig.requestTimeoutSeconds))
         .annotatedService(serverConfig.endpoint, new DeltaSharingService(serverConfig): Any)
       if (serverConfig.ssl == null) {
         builder.http(serverConfig.getPort)
