@@ -46,6 +46,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "table9", schema = "schema2", share = "share7"),
         Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
         Table(name = "cdf_table_with_partition", schema = "default", share = "share1"),
+        Table(name = "cdf_table_with_vacuum", schema = "default", share = "share1"),
+        Table(name = "cdf_table_missing_log", schema = "default", share = "share1"),
         Table(name = "test_gzip", schema = "default", share = "share4"),
         Table(name = "table_wasb", schema = "default", share = "share_azure"),
         Table(name = "table_abfs", schema = "default", share = "share_azure"),
@@ -260,6 +262,40 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedAddFiles == tableFiles.addFilesForCdf.toList)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getCDFFiles: cdf_table_with_vacuum") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val cdfOptions = Map("startingVersion" -> "0")
+      val tableFiles = client.getCDFFiles(
+        Table(name = "cdf_table_with_vacuum", schema = "default", share = "share1"),
+        cdfOptions
+      )
+      assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
+      assert(tableFiles.addFilesForCdf.size == 4)
+      assert(tableFiles.cdfFiles.size == 2)
+      assert(tableFiles.removeFiles.size == 0)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getCDFFiles: cdf_table_missing_log") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val errorMessage = intercept[UnexpectedHttpStatus] {
+        val cdfOptions = Map("startingVersion" -> "1")
+        client.getCDFFiles(
+          Table(name = "cdf_table_missing_log", schema = "default", share = "share1"),
+          cdfOptions
+        )
+      }.getMessage
+      assert(errorMessage.contains("""400 Bad Request {"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
+      assert(errorMessage.contains("s3a://delta-exchange-test/"))
     } finally {
       client.close()
     }
