@@ -295,7 +295,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       }.getMessage
       assert(errorMessage.contains("""400 Bad Request {"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
-      assert(errorMessage.contains("s3a://delta-exchange-test/"))
+      assert(errorMessage.contains("table files missing"))
     } finally {
       client.close()
     }

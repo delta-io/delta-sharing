@@ -18,6 +18,7 @@ package io.delta.sharing.server
 
 import java.io.{ByteArrayOutputStream, File, FileNotFoundException}
 import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.AccessDeniedException
 import java.security.MessageDigest
 import java.util.concurrent.CompletableFuture
 import javax.annotation.Nullable
@@ -101,7 +102,15 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
           JsonUtils.toJson(
             Map(
               "errorCode" -> ErrorCode.RESOURCE_DOES_NOT_EXIST,
-              "message" -> cause.getMessage)))
+              "message" -> "table files missing")))
+      case _: AccessDeniedException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.RESOURCE_DOES_NOT_EXIST,
+              "message" -> "permission denied")))
       // Handle potential exceptions thrown when Armeria parses the requests.
       // These exceptions happens before `DeltaSharingService` receives the
       // requests so these exceptions should never contain sensitive information
@@ -162,6 +171,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       case e: DeltaSharingIllegalArgumentException => throw e
       case e: DeltaCDFIllegalArgumentException => throw e
       case e: FileNotFoundException => throw e
+      case e: AccessDeniedException => throw e
       case e: Throwable => throw new DeltaInternalException(e)
     }
   }
