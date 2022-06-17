@@ -224,6 +224,50 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     assert (result2.getMessage.contains("Please use a timestamp less"))
   }
 
+  integrationTest("table_changes: cdf_table_with_vacuum") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_with_vacuum"
+
+    val expected = Seq(
+      Row(11, 2L, 1655410824000L, "update_preimage"),
+      Row(21, 2L, 1655410824000L, "update_postimage"),
+      Row(31, 3L, 1655410829000L, "insert"),
+      Row(31, 4L, 1655410847000L, "delete"),
+      Row(32, 3L, 1655410829000L, "insert")
+    )
+    val result = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 2)
+      .option("endingVersion", 4).load(tablePath)
+    checkAnswer(result, expected)
+  }
+
+  integrationTest("table_changes_exception: cdf_table_with_vacuum") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_with_vacuum"
+
+    // parquet file is vacuumed, will see 404 error when requsting the presigned url
+    val ex = intercept[org.apache.spark.SparkException] {
+      val df = spark.read.format("deltaSharing")
+        .option("readChangeFeed", "true")
+        .option("startingVersion", 0).load(tablePath)
+      checkAnswer(df, Nil)
+    }
+    assert (ex.getMessage.contains("404 Not Found"))
+    assert (ex.getMessage.contains("c000.snappy.parquet"))
+  }
+
+  integrationTest("table_changes_exception: cdf_table_missing_log") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_missing_log"
+
+    // log file is missing
+    val ex = intercept[io.delta.sharing.spark.util.UnexpectedHttpStatus] {
+      val df = spark.read.format("deltaSharing")
+        .option("readChangeFeed", "true")
+        .option("startingVersion", 0).load(tablePath)
+      checkAnswer(df, Nil)
+    }
+    assert (ex.getMessage.contains("""400 Bad Request {"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
+  }
+
   integrationTest("azure support") {
     for (azureTableName <- "table_wasb" :: "table_abfs" :: Nil) {
       val tablePath = testProfileFile.getCanonicalPath + s"#share_azure.default.${azureTableName}"
