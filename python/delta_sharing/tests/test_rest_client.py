@@ -134,6 +134,8 @@ def test_list_tables(rest_client: DataSharingRestClient):
         Table(name="table7", share="share1", schema="default"),
         Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
         Table(name="cdf_table_with_partition", share="share1", schema="default"),
+        Table(name="cdf_table_with_vacuum", share="share1", schema="default"),
+        Table(name="cdf_table_missing_log", share="share1", schema="default"),
     ]
 
     response = rest_client.list_tables(Schema(name="default", share="share2"))
@@ -154,6 +156,8 @@ def test_list_tables_with_pagination(rest_client: DataSharingRestClient):
         Table(name="table7", share="share1", schema="default"),
         Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
         Table(name="cdf_table_with_partition", share="share1", schema="default"),
+        Table(name="cdf_table_with_vacuum", share="share1", schema="default"),
+        Table(name="cdf_table_missing_log", share="share1", schema="default"),
     ]
 
 
@@ -460,7 +464,7 @@ def test_list_files_in_table_version_exception(
         )
     except Exception as e:
         assert isinstance(e, HTTPError)
-        assert "reading table by version is not supported because change data" in (str(e))
+        assert "Reading table by version is not supported because change data" in (str(e))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -471,7 +475,7 @@ def test_list_table_changes(
     cdf_table = Table(name="cdf_table_with_partition", share="share1", schema="default")
     response = rest_client.list_table_changes(
         cdf_table,
-        CdfOptions(starting_version=0, ending_version=3)
+        CdfOptions(starting_version=1, ending_version=3)
     )
 
     assert response.protocol == Protocol(min_reader_version=1)

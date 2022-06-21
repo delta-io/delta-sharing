@@ -262,7 +262,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Table().withName("table3").withSchema("default").withShare("share1") ::
         Table().withName("table7").withSchema("default").withShare("share1") ::
         Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") :: Nil)
+        Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") ::
+        Table().withName("cdf_table_with_vacuum").withSchema("default").withShare("share1") ::
+        Table().withName("cdf_table_missing_log").withSchema("default").withShare("share1") :: Nil)
     assert(expected == JsonFormat.fromJsonString[ListTablesResponse](response))
   }
 
@@ -279,7 +281,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Table().withName("table3").withSchema("default").withShare("share1") ::
         Table().withName("table7").withSchema("default").withShare("share1") ::
         Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") :: Nil
+        Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") ::
+        Table().withName("cdf_table_with_vacuum").withSchema("default").withShare("share1") ::
+        Table().withName("cdf_table_missing_log").withSchema("default").withShare("share1") :: Nil
     assert(expected == tables)
   }
 
@@ -398,7 +402,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "POST",
       data = Some("""{"version": 1}"""),
       expectedErrorCode = 400,
-      expectedErrorMessage = "reading table by version is not supported because change data feed is not enabled on table: share2.default.table2"
+      expectedErrorMessage = "Reading table by version is not supported because change data feed is not enabled on table: share2.default.table2"
     )
   }
 
@@ -669,7 +673,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_with_partition: query table changes") {
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, None)
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3"), Some("GET"), None, None)
     val lines = response.split("\n")
     val files = lines.drop(2)
     assert(files.size == 6)
@@ -931,6 +935,26 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       data = None,
       expectedErrorCode = 400,
       expectedErrorMessage = "Error getting change data for range [4, 5] as change data was not recorded for version [4]"
+    )
+  }
+
+  integrationTest("cdf_table_with_partition - exceptions") {
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=0"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "You can only query table changes since version 1"
+    )
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/query"),
+      method = "POST",
+      data = Some("""
+        {"version": "0"}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "You can only query table data since version 1"
     )
   }
 

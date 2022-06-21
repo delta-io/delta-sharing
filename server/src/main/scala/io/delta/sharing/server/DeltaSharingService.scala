@@ -16,9 +16,10 @@
 
 package io.delta.sharing.server
 
-import java.io.{ByteArrayOutputStream, File}
+import java.io.{ByteArrayOutputStream, File, FileNotFoundException}
 import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.AccessDeniedException
 import java.security.MessageDigest
 import java.util.concurrent.CompletableFuture
 import javax.annotation.Nullable
@@ -96,6 +97,22 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
             Map(
               "errorCode" -> ErrorCode.INVALID_PARAMETER_VALUE,
               "message" -> cause.getMessage)))
+      case _: FileNotFoundException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.RESOURCE_DOES_NOT_EXIST,
+              "message" -> "table files missing")))
+      case _: AccessDeniedException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.RESOURCE_DOES_NOT_EXIST,
+              "message" -> "permission denied")))
       // Handle potential exceptions thrown when Armeria parses the requests.
       // These exceptions happens before `DeltaSharingService` receives the
       // requests so these exceptions should never contain sensitive information
@@ -155,6 +172,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       case e: DeltaSharingNoSuchElementException => throw e
       case e: DeltaSharingIllegalArgumentException => throw e
       case e: DeltaCDFIllegalArgumentException => throw e
+      case e: FileNotFoundException => throw e
+      case e: AccessDeniedException => throw e
       case e: Throwable => throw new DeltaInternalException(e)
     }
   }
@@ -254,9 +273,16 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
-    if (queryTableRequest.version.isDefined && !tableConfig.cdfEnabled) {
-      throw new DeltaSharingIllegalArgumentException("reading table by version is not supported" +
-        s" because change data feed is not enabled on table: $share.$schema.$table")
+    if (queryTableRequest.version.isDefined) {
+      if (!tableConfig.cdfEnabled) {
+        throw new DeltaSharingIllegalArgumentException("Reading table by version is not supported" +
+          s" because change data feed is not enabled on table: $share.$schema.$table")
+      }
+      if (tableConfig.startVersion > queryTableRequest.version.get) {
+        throw new DeltaSharingIllegalArgumentException(
+          s"You can only query table data since version ${tableConfig.startVersion}."
+        )
+      }
     }
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
@@ -357,6 +383,7 @@ object DeltaSharingService {
         .defaultHostname(serverConfig.getHost)
         .disableDateHeader()
         .disableServerHeader()
+        .requestTimeout(java.time.Duration.ofSeconds(serverConfig.requestTimeoutSeconds))
         .annotatedService(serverConfig.endpoint, new DeltaSharingService(serverConfig): Any)
       if (serverConfig.ssl == null) {
         builder.http(serverConfig.getPort)
@@ -454,20 +481,10 @@ object DeltaSharingService {
     endingTimestamp: Option[String]): Map[String, String] = {
     checkCDFOptionsValidity(startingVersion, endingVersion, startingTimestamp, endingTimestamp)
 
-    val startingVersionOption = if (startingVersion.isDefined) {
-      Map(DeltaDataSource.CDF_START_VERSION_KEY -> startingVersion.get)
-     } else { Map.empty }
-    val startingTimestampOption = if (startingTimestamp.isDefined) {
-      Map(DeltaDataSource.CDF_START_TIMESTAMP_KEY -> startingTimestamp.get)
-    } else { Map.empty }
-    val endingVersionOption = if (endingVersion.isDefined) {
-      Map(DeltaDataSource.CDF_END_VERSION_KEY -> endingVersion.get)
-    } else { Map.empty }
-    val endingTimestampOption = if (endingTimestamp.isDefined) {
-      Map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> endingTimestamp.get)
-    } else { Map.empty }
-
-    startingVersionOption ++ startingTimestampOption ++ endingVersionOption ++ endingTimestampOption
+    (startingVersion.map(DeltaDataSource.CDF_START_VERSION_KEY -> _) ++
+    endingVersion.map(DeltaDataSource.CDF_END_VERSION_KEY -> _) ++
+    startingTimestamp.map(DeltaDataSource.CDF_START_TIMESTAMP_KEY -> _) ++
+    endingTimestamp.map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> _)).toMap
   }
 
   def main(args: Array[String]): Unit = {
