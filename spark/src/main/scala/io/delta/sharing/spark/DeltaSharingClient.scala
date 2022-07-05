@@ -79,7 +79,7 @@ private[sharing] case class ListAllTablesResponse(
 private[spark] class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
     timeoutInSeconds: Int =
-    scala.util.Properties.envOrElse("SPARK_DELTA_SHARING_NETWORK_TIMEOUT_SECONDS", "120").toInt,
+      scala.util.Properties.envOrElse("SPARK_DELTA_SHARING_NETWORK_TIMEOUT_SECONDS", "120").toInt,
     numRetries: Int = 10,
     sslTrustAll: Boolean = false) extends DeltaSharingClient {
 
