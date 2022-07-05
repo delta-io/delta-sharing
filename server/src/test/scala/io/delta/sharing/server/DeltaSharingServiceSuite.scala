@@ -254,7 +254,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Table().withName("table3").withSchema("default").withShare("share1") ::
         Table().withName("table7").withSchema("default").withShare("share1") ::
         Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") :: Nil)
+        Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") ::
+        Table().withName("cdf_table_with_vacuum").withSchema("default").withShare("share1") ::
+        Table().withName("cdf_table_missing_log").withSchema("default").withShare("share1") :: Nil)
     assert(expected == JsonFormat.fromJsonString[ListTablesResponse](response))
   }
 
@@ -271,7 +273,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Table().withName("table3").withSchema("default").withShare("share1") ::
         Table().withName("table7").withSchema("default").withShare("share1") ::
         Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") :: Nil
+        Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") ::
+        Table().withName("cdf_table_with_vacuum").withSchema("default").withShare("share1") ::
+        Table().withName("cdf_table_missing_log").withSchema("default").withShare("share1") :: Nil
     assert(expected == tables)
   }
 

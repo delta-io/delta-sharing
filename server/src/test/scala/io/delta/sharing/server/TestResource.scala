@@ -80,6 +80,16 @@ object TestResource {
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_partition",
                 true,
                 1
+              ),
+              TableConfig(
+                "cdf_table_with_vacuum",
+                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_vacuum",
+                true
+              ),
+              TableConfig(
+                "cdf_table_missing_log",
+                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_missing_log",
+                true
               )
             )
           )

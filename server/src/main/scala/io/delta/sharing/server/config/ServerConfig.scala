@@ -53,7 +53,9 @@ case class ServerConfig(
     // static tables that will never be changed.
     @BeanProperty var stalenessAcceptable: Boolean,
     // Whether to evaluate user provided `predicateHints`
-    @BeanProperty var evaluatePredicateHints: Boolean
+    @BeanProperty var evaluatePredicateHints: Boolean,
+    // The timeout of an incoming web request in seconds. Set to 0 for no timeout
+    @BeanProperty var requestTimeoutSeconds: Long
 ) extends ConfigItem {
   import ServerConfig._
 
@@ -70,7 +72,8 @@ case class ServerConfig(
       preSignedUrlTimeoutSeconds = 3600,
       deltaTableCacheSize = 10,
       stalenessAcceptable = false,
-      evaluatePredicateHints = false
+      evaluatePredicateHints = false,
+      requestTimeoutSeconds = 30
     )
   }
 
