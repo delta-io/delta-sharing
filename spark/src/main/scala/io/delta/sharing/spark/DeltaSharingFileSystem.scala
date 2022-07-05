@@ -44,7 +44,8 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
   }
 
   lazy private val timeoutInSeconds = {
-    val timeoutStr = getConf.get("spark.delta.sharing.network.timeout", "120s")
+    val timeoutStr = getConf.get("spark.delta.sharing.network.timeout",
+      scala.util.Properties.envOrElse("SPARK_DELTA_SHARING_NETWORK_TIMEOUT_SECONDS", "120") + "s")
     val timeoutInSeconds = JavaUtils.timeStringAs(timeoutStr, TimeUnit.SECONDS)
     if (timeoutInSeconds < 0) {
       throw new IllegalArgumentException(

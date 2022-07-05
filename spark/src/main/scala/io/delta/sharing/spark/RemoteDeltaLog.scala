@@ -146,7 +146,9 @@ private[sharing] object RemoteDeltaLog {
         "spark.delta.sharing.network.numRetries must not be negative")
     }
     val timeoutInSeconds = {
-      val timeoutStr = sqlConf.getConfString("spark.delta.sharing.network.timeout", "120s")
+      val timeoutStr = sqlConf.getConfString("spark.delta.sharing.network.timeout",
+        scala.util.Properties.envOrElse("SPARK_DELTA_SHARING_NETWORK_TIMEOUT_SECONDS", "120") + "s")
+
       val timeoutInSeconds = JavaUtils.timeStringAs(timeoutStr, TimeUnit.SECONDS)
       if (timeoutInSeconds < 0) {
         throw new IllegalArgumentException(
