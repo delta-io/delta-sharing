@@ -97,8 +97,10 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
     "org.apache.hadoop" % "hadoop-aws" % "2.10.1" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
-      ExclusionRule("com.google.guava", "guava")
+      ExclusionRule("com.google.guava", "guava"),
+      ExclusionRule("com.amazonaws", "aws-java-sdk-bundle")
     ),
+    "com.amazonaws" % "aws-java-sdk-bundle" % "1.12.189",
     "org.apache.hadoop" % "hadoop-azure" % "2.10.1" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
