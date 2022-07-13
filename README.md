@@ -448,7 +448,7 @@ We also adhere to the [Delta Lake Code of Conduct](https://github.com/delta-io/d
 We use the same community resources as the Delta Lake project:
 
 - Public Slack Channel
-  - [Register here](https://dbricks.co/delta-users-slack)
+  - [Register here](https://go.delta.io/slack)
   - [Login here](https://delta-users.slack.com/)
 
 - Public [Mailing list](https://groups.google.com/forum/#!forum/delta-users)
