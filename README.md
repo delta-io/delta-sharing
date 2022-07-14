@@ -45,7 +45,7 @@ If you are using [Databricks Runtime](https://docs.databricks.com/runtime/dbr.ht
 The connector accesses shared tables based on [profile files](PROTOCOL.md#profile-file-format), which are JSON files containing a user's credentials to access a Delta Sharing Server. We have several ways to get started:
 
 - Download the profile file to access an open, example Delta Sharing Server that we're hosting [here](https://databricks-datasets-oregon.s3-us-west-2.amazonaws.com/delta-sharing/share/open-datasets.share). You can try the connectors with this sample data.
-- Start your own [Delta Sharing Server](#delta-sharing-server) and create your own profile file following [profile file format](PROTOCOL.md#profile-file-format) to connect to this server.
+- Start your own [Delta Sharing Server](#delta-sharing-reference-server) and create your own profile file following [profile file format](PROTOCOL.md#profile-file-format) to connect to this server.
 - Download a profile file from your data provider.
 
 ## Quick Start
