@@ -28,7 +28,7 @@ from delta_sharing.delta_sharing import (
     load_table_changes_as_pandas,
     _parse_url,
 )
-from delta_sharing.protocol import Schema, Share, Table
+from delta_sharing.protocol import Schema, Share, Table, Metadata, Protocol, Format
 from delta_sharing.rest_client import (
     DataSharingRestClient,
     ListAllTablesResponse,
@@ -138,6 +138,35 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
     sharing_client._rest_client = TestDataSharingRestClient()
     tables = sharing_client.list_all_tables()
     _verify_all_tables_result(tables)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_metadata(sharing_client: SharingClient):
+    response = sharing_client.query_table_metadata(
+        Table(name="table1", share="share1", schema="default")
+    )
+    assert response.table == Table(name="table1", share="share1", schema="default")
+    assert response.protocol == Protocol(min_reader_version=1)
+    assert response.metadata == Metadata(
+        id="ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
+        format=Format(provider="parquet", options={}),
+        schema_string=(
+            '{"type":"struct","fields":['
+            '{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},'
+            '{"name":"date","type":"date","nullable":true,"metadata":{}}'
+            "]}"
+        ),
+        partition_columns=[],
+    )
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_version(sharing_client: SharingClient):
+    response = sharing_client.query_table_version(
+        Table(name="table1", share="share1", schema="default")
+    )
+    assert response.table == Table(name="table1", share="share1", schema="default")
+    assert response.delta_table_version == 0
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
