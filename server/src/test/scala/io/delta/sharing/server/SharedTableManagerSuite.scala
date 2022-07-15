@@ -23,7 +23,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.scalatest.FunSuite
 
-import io.delta.sharing.server.config.{SchemaConfig, ServerConfig, ShareConfig, TableConfig}
+import io.delta.sharing.server.config.{Authorization, SchemaConfig, ServerConfig, ShareAuth, ShareConfig, TableConfig}
 import io.delta.sharing.server.protocol.{Schema, Share, Table}
 
 class SharedTableManagerSuite extends FunSuite {
@@ -67,6 +67,125 @@ class SharedTableManagerSuite extends FunSuite {
 
     response = sharedTableManager.listShares(nextPageToken = None, maxResults = None)
     assert(response._1.map(_.getName) == serverConfig.shares.asScala.map(_.getName)) // shares
+    assert(response._2.isEmpty) // nextPageToken
+  }
+
+  test("list shares using universal bearer token") {
+    val serverConfig = new ServerConfig()
+    serverConfig.shares = Arrays.asList(
+      ShareConfig("Share1", Collections.emptyList()),
+      ShareConfig("Share2", Collections.emptyList()),
+      ShareConfig("Share3", Collections.emptyList()),
+      ShareConfig("Share4", Collections.emptyList()),
+      ShareConfig("Share5", Collections.emptyList())
+    )
+    serverConfig.authorization = Authorization("universal-token")
+    val sharedTableManager = new SharedTableManager(serverConfig)
+
+    val response = sharedTableManager.listShares(Some("Bearer universal-token"))
+    // response includes all shares
+    assert(response._1.map(_.getName) == serverConfig.shares.asScala.map(_.getName))
+    assert(response._2.isEmpty) // nextPageToken
+  }
+
+  test("list shares using no token") {
+    val serverConfig = new ServerConfig()
+    serverConfig.shares = Arrays.asList(
+      ShareConfig("Share1", Collections.emptyList()),
+      ShareConfig("Share2", Collections.emptyList()),
+      ShareConfig("Share3", Collections.emptyList()),
+      ShareConfig("Share4", Collections.emptyList()),
+      ShareConfig("Share5", Collections.emptyList())
+    )
+    serverConfig.authorization = Authorization("universal-token")
+    val sharedTableManager = new SharedTableManager(serverConfig)
+
+    val response = sharedTableManager.listShares()
+    // no access to shares
+    assert(response._1.isEmpty)
+    assert(response._2.isEmpty) // nextPageToken
+  }
+
+  test("list shares using incorrect token") {
+    val serverConfig = new ServerConfig()
+    serverConfig.shares = Arrays.asList(
+      ShareConfig("Share1", Collections.emptyList()),
+      ShareConfig("Share2", Collections.emptyList()),
+      ShareConfig("Share3", Collections.emptyList()),
+      ShareConfig("Share4", Collections.emptyList()),
+      ShareConfig("Share5", Collections.emptyList())
+    )
+    serverConfig.authorization = Authorization("universal-token")
+    val sharedTableManager = new SharedTableManager(serverConfig)
+
+    val response = sharedTableManager.listShares(Some("Bearer incorrect-token"))
+    // no access to shares
+    assert(response._1.isEmpty)
+    assert(response._2.isEmpty) // nextPageToken
+  }
+
+  test("list shares using bearer token") {
+    val serverConfig = new ServerConfig()
+    serverConfig.shares = Arrays.asList(
+      ShareConfig("Share1", Collections.emptyList()),
+      ShareConfig("Share2", Collections.emptyList()),
+      ShareConfig("Share3", Collections.emptyList()),
+      ShareConfig("Share4", Collections.emptyList()),
+      ShareConfig("Share5", Collections.emptyList())
+    )
+    serverConfig.authorization = Authorization("universal-token", true,
+      Collections.singletonList(ShareAuth("share2", "share-token")))
+    val sharedTableManager = new SharedTableManager(serverConfig)
+
+    val response = sharedTableManager.listShares(Some("Bearer share-token"))
+    // response list only includes share with matching bearer token config
+    assert(response._1.size == 1)
+    assert(response._1.map(_.getName) == List("Share2"))
+    assert(response._2.isEmpty) // nextPageToken
+  }
+
+  test("list shares using shared bearer token") {
+    val serverConfig = new ServerConfig()
+    serverConfig.shares = Arrays.asList(
+      ShareConfig("Share1", Collections.emptyList()),
+      ShareConfig("Share2", Collections.emptyList()),
+      ShareConfig("Share3", Collections.emptyList()),
+      ShareConfig("Share4", Collections.emptyList()),
+      ShareConfig("Share5", Collections.emptyList())
+    )
+    serverConfig.authorization = Authorization("universal-token", true,
+      Arrays.asList(
+        ShareAuth("share2", "share-token"),
+        ShareAuth("share4", "share-token")
+      ))
+    val sharedTableManager = new SharedTableManager(serverConfig)
+
+    val response = sharedTableManager.listShares(Some("Bearer share-token"))
+    // response list only includes share with matching bearer token config
+    assert(response._1.size == 2)
+    assert(response._1.map(_.getName) == List("Share2", "Share4"))
+    assert(response._2.isEmpty) // nextPageToken
+  }
+
+  test("list unprotected shares") {
+    val serverConfig = new ServerConfig()
+    serverConfig.shares = Arrays.asList(
+      ShareConfig("Share1", Collections.emptyList()),
+      ShareConfig("Share2", Collections.emptyList()),
+      ShareConfig("Share3", Collections.emptyList()),
+      ShareConfig("Share4", Collections.emptyList()),
+      ShareConfig("Share5", Collections.emptyList())
+    )
+    serverConfig.authorization = Authorization("universal-token", false, Arrays.asList(
+      ShareAuth("Share1", "share1-token"),
+      ShareAuth("Share3", "share3-token"),
+      ShareAuth("Share4", "share4-token")
+    ))
+    val sharedTableManager = new SharedTableManager(serverConfig)
+
+    val response = sharedTableManager.listShares()
+    // response list contains only unsecured shares
+    assert(response._1.map(_.getName) == List("Share2", "Share5"))
     assert(response._2.isEmpty) // nextPageToken
   }
 
