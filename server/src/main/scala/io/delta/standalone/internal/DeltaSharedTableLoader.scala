@@ -79,13 +79,15 @@ class DeltaSharedTable(
   private val deltaLog = withClassLoader {
     val tablePath = new Path(tableConfig.getLocation)
       
-    // For S3 regions that only support Signature Version 4, a protocol for authenticating inbound API requests to AWS services, 
-    // the the default S3 service endpoint will not work, the S3A client needs to be given the endpoint to use via the 
-    // fs.s3a.endpoint property. Any new Regions after January 30, 2014 will support only Signature Version 4 and therefore
-    // all requests to those Regions must be made with Signature Version 4. Older regions will still support Version 2.
-    // Example regions include (S3 Frankfurt, Seoul, GovCloud); Example given below:
-     
-    // conf.set("fs.s3a.endpoint", "s3.us-gov-west-1.amazonaws.com")
+    /* 
+     For S3 regions that only support Signature Version 4, a protocol for authenticating inbound API requests to AWS services, 
+     the the default S3 service endpoint will not work, the S3A client needs to be given the endpoint to use via the 
+     fs.s3a.endpoint property. Any new Regions after January 30, 2014 will support only Signature Version 4 and therefore
+     all requests to those Regions must be made with Signature Version 4. Older regions will still support Version 2.
+     Example regions include (S3 Frankfurt, Seoul, GovCloud); Example given below:
+    */ 
+    
+    //conf.set("fs.s3a.endpoint", "s3.us-gov-west-1.amazonaws.com") 
     DeltaLog.forTable(conf, tablePath).asInstanceOf[DeltaLogImpl]
   }
 
