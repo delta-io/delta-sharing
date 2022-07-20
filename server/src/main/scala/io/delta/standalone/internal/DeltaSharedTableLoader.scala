@@ -78,6 +78,7 @@ class DeltaSharedTable(
 
   private val deltaLog = withClassLoader {
     val tablePath = new Path(tableConfig.getLocation)
+    //conf.set("fs.s3a.endpoint", "s3.us-gov-west-1.amazonaws.com") 
     DeltaLog.forTable(conf, tablePath).asInstanceOf[DeltaLogImpl]
   }
 
