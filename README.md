@@ -229,7 +229,7 @@ We support sharing Delta Lake tables on S3, Azure Blob Storage and Azure Data La
 
 ### S3
 
-There are multiple ways to config the server to access S3.
+The server is using `hadoop-aws` to access S3. Table paths in the server config file should use `s3a://` paths rather than `s3://` paths. There are multiple ways to config S3 authentication.
 
 #### EC2 IAM Metadata Authentication (Recommended)
 
@@ -245,7 +245,7 @@ export AWS_SECRET_ACCESS_KEY=my.secret.key
 
 #### Other S3 authentication methods
 
-The server is using `hadooop-aws` to read S3. You can find other approaches in [hadoop-aws doc](https://hadoop.apache.org/docs/r2.10.1/hadoop-aws/tools/hadoop-aws/index.html#S3A_Authentication_methods).
+You can find other approaches in [hadoop-aws doc](https://hadoop.apache.org/docs/r2.10.1/hadoop-aws/tools/hadoop-aws/index.html#S3A_Authentication_methods).
 
 ### Azure Blob Storage
 
