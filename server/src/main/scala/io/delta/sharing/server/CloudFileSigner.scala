@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit.SECONDS
 
 import com.amazonaws.HttpMethod
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest
+import com.google.cloud.hadoop.gcsio.StorageResourceId
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
@@ -202,13 +203,18 @@ class GCSFileSigner(
   private val storage = StorageOptions.newBuilder.build.getService
 
   override def sign(path: Path): String = {
-    val absPath = path.toUri
-    val bucketName = absPath.getHost
-    val objectName = absPath.getPath.stripPrefix("/")
+    val (bucketName, objectName) = GCSFileSigner.getBucketAndObjectNames(path)
     assert(objectName.nonEmpty, s"cannot get object key from $path")
     val blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, objectName)).build
     storage.signUrl(
       blobInfo, preSignedUrlTimeoutSeconds, SECONDS, Storage.SignUrlOption.withV4Signature())
       .toString
+  }
+}
+
+object GCSFileSigner {
+  def getBucketAndObjectNames(path: Path): (String, String) = {
+    val resourceId = StorageResourceId.fromUriPath(path.toUri, false /* = allowEmptyObjectName */)
+    (resourceId.getBucketName, resourceId.getObjectName)
   }
 }
