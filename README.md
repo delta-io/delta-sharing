@@ -300,6 +300,37 @@ export GOOGLE_APPLICATION_CREDENTIALS="KEY_PATH"
 
 Replace `KEY_PATH` with path of the JSON file that contains your service account key.
 
+### Aliyun Object Storage Service
+
+The server is using `hadoop-aliyun` to read Aliyun OSS, find other approaches in [hadoop-aliyun doc](https://hadoop.apache.org/docs/current/hadoop-aliyun/tools/hadoop-aliyun/index.html). You can create a Hadoop configuration file named `core-site.xml` and add it to the server's `conf` directory. Then add the following content to the xml file:
+
+```xml
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>fs.oss.impl</name>
+    <value>org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem</value>
+  </property>
+  <property>
+    <name>fs.oss.accessKeyId</name>
+    <value>YOUR-ACCESS-KEY</value>
+  </property>
+  <property>
+    <name>fs.oss.accessKeySecret</name>
+    <value>YOUR-ACCESS-KEY-SECRET</value>
+  </property>
+  <property>
+    <name>fs.oss.endpoint</name>
+    <value>YOUR-ENDPOINT</value>
+    <description>Aliyun OSS endpoint to connect to. An up-to-date list is provided
+      in the Aliyun OSS Documentation. Example: http://oss-cn-beijing.aliyuncs.com
+    </description>
+  </property>
+</configuration>
+```
+`YOUR-ACCESS-KEY` is your Aliyun access key ID and `YOUR-ACCESS-KEY-SECRET` is Aliyun access key secre.
+
 ## Authorization
 
 The server supports a basic authorization with pre-configed bearer token. You can add the following config to your server yaml file:
