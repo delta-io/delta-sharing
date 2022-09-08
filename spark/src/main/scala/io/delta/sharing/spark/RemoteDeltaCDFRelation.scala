@@ -22,6 +22,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, Row, SparkSession, SQLContext}
 import org.apache.spark.sql.execution.LogicalRDD
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan}
 import org.apache.spark.sql.types.StructType
 
@@ -52,8 +53,12 @@ case class RemoteDeltaCDFRelation(
     dfs.append(scanIndex(new RemoteDeltaCDCFileIndex(params, deltaTabelFiles), metadata))
     dfs.append(scanIndex(new RemoteDeltaCDFRemoveFileIndex(params, deltaTabelFiles), metadata))
 
-    dfs.reduce((df1, df2) => df1.unionAll(df2)).rdd
+    dfs.reduce((df1, df2) => df1.unionAll(df2))
+      .select(requiredColumns.map(c => col(quoteIdentifier(c))): _*)
+      .rdd
   }
+
+  private def quoteIdentifier(part: String): String = s"`${part.replace("`", "``")}`"
 
   /**
    * Build a dataframe from the specified file index. We can't use a DataFrame scan directly on the
