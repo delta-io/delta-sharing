@@ -190,6 +190,19 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       .option("startingVersion", 0)
       .option("endingVersion", 3).load(tablePath)
     checkAnswer(result, expected)
+
+    // should work when selecting some columns in a different order
+    checkAnswer(
+      result.select("_change_type", "birthday", "age"),
+      Seq(
+        Row("insert", sqlDate("2020-01-01"), 1),
+        Row("insert", sqlDate("2020-01-01"), 2),
+        Row("insert", sqlDate("2020-01-01"), 3),
+        Row("update_preimage", sqlDate("2020-01-01"), 2),
+        Row("update_postimage", sqlDate("2020-02-02"), 2),
+        Row("delete", sqlDate("2020-01-01"), 3)
+      )
+    )
   }
 
   integrationTest("table_changes_empty: cdf_table_cdf_enabled") {
