@@ -128,7 +128,9 @@ def _client_user_agent() -> str:
             + f" System/{platform.platform()}"
         )
     except Exception as e:
-        logging.warn(f"Unable to load version information for Delta Sharing because of error {e}")
+        logging.warning(
+            f"Unable to load version information for Delta Sharing because of error {e}"
+        )
         return "Delta-Sharing-Python/<unknown>"
 
 
