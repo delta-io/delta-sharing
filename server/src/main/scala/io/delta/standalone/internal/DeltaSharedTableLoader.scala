@@ -28,13 +28,14 @@ import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, RemoveFile}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.aliyun.oss.AliyunOSSFileSystem
 import org.apache.hadoop.fs.azure.NativeAzureFileSystem
 import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem
 import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scala.collection.mutable.ListBuffer
 
-import io.delta.sharing.server.{model, AbfsFileSigner, GCSFileSigner, S3FileSigner, WasbFileSigner}
+import io.delta.sharing.server.{model, AbfsFileSigner, GCSFileSigner, OSSFileSigner, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.{ServerConfig, TableConfig}
 
 /**
@@ -93,6 +94,8 @@ class DeltaSharedTable(
         AbfsFileSigner(abfs, deltaLog.dataPath.toUri, preSignedUrlTimeoutSeconds)
       case gc: GoogleHadoopFileSystem =>
         new GCSFileSigner(deltaLog.dataPath.toUri, conf, preSignedUrlTimeoutSeconds)
+      case oss: AliyunOSSFileSystem =>
+        new OSSFileSigner(deltaLog.dataPath.toUri, conf, preSignedUrlTimeoutSeconds)
       case _ =>
         throw new IllegalStateException(s"File system ${fs.getClass} is not supported")
     }

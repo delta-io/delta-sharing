@@ -20,6 +20,8 @@ import java.net.URI
 import java.util.Date
 import java.util.concurrent.TimeUnit.SECONDS
 
+import com.aliyun.oss.ClientConfiguration
+import com.aliyun.oss.OSSClient
 import com.amazonaws.HttpMethod
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest
 import com.google.cloud.hadoop.gcsio.StorageResourceId
@@ -31,6 +33,8 @@ import com.microsoft.azure.storage.{CloudStorageAccount, SharedAccessProtocols, 
 import com.microsoft.azure.storage.blob.{SharedAccessBlobPermissions, SharedAccessBlobPolicy}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.aliyun.oss.AliyunOSSUtils
+import org.apache.hadoop.fs.aliyun.oss.Constants._
 import org.apache.hadoop.fs.azure.{AzureNativeFileSystemStore, NativeAzureFileSystem}
 import org.apache.hadoop.fs.azurebfs.{AzureBlobFileSystem, AzureBlobFileSystemStore}
 import org.apache.hadoop.fs.azurebfs.services.AuthType
@@ -216,5 +220,30 @@ object GCSFileSigner {
   def getBucketAndObjectNames(path: Path): (String, String) = {
     val resourceId = StorageResourceId.fromUriPath(path.toUri, false /* = allowEmptyObjectName */)
     (resourceId.getBucketName, resourceId.getObjectName)
+  }
+}
+
+class OSSFileSigner(
+    name: URI,
+    conf: Configuration,
+    preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
+
+  private val clientConf = new ClientConfiguration()
+  clientConf.setMaxConnections(conf.getInt(MAXIMUM_CONNECTIONS_KEY, MAXIMUM_CONNECTIONS_DEFAULT))
+  private val endPoint: String = conf.getTrimmed(ENDPOINT_KEY, "")
+  private val provider = AliyunOSSUtils.getCredentialsProvider(name, conf)
+  private val ossClient = new OSSClient(endPoint, provider, clientConf)
+
+  override def sign(path: Path): String = {
+    val absPath = path.toUri
+    val bucketName = absPath.getHost
+    val objectKey = absPath.getPath.stripPrefix("/")
+    val expiration =
+      new Date(System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds))
+    assert(objectKey.nonEmpty, s"cannot get object key from $path")
+    val request = new com.aliyun.oss.model.GeneratePresignedUrlRequest(bucketName, objectKey)
+    request.setMethod(com.aliyun.oss.HttpMethod.GET)
+    request.setExpiration(expiration)
+    ossClient.generatePresignedUrl(request).toString
   }
 }
