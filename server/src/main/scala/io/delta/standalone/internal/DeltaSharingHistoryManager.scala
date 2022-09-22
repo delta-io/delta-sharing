@@ -17,6 +17,8 @@
 // Putting these classes in this package to access Delta Standalone internal APIs
 package io.delta.standalone.internal
 
+import java.sql.Timestamp
+
 import io.delta.standalone.internal.actions.CommitMarker
 import io.delta.standalone.internal.util.FileNames
 import io.delta.standalone.storage.LogStore
@@ -44,6 +46,16 @@ object DeltaSharingHistoryManager {
     val monotonizationStart =
       Seq(start - POTENTIALLY_UNMONOTONIZED_TIMESTAMPS, 0).max
     getCommits(logStore, logPath, monotonizationStart, end, conf)
+  }
+
+  // Convert timestamp string to Timestamp
+  private[internal] def getTimestamp(paramName: String, timeStampStr: String): Timestamp = {
+    try {
+      Timestamp.valueOf(timeStampStr)
+    } catch {
+      case e: IllegalArgumentException =>
+        throw DeltaCDFErrors.invalidTimestamp(paramName, e.getMessage)
+    }
   }
 
   /**
