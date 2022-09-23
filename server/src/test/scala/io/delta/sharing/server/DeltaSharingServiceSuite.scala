@@ -601,7 +601,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       expectedErrorCode = 400,
       expectedErrorMessage = "Please either provide '<version>' or '<timestamp>'"
     )
-  
+
     // timestamp before the earliest version
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
