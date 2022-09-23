@@ -464,7 +464,7 @@ def test_list_files_in_table_version_exception(
         )
     except Exception as e:
         assert isinstance(e, HTTPError)
-        assert "Reading table by version is not supported because change data" in (str(e))
+        assert "Reading table by version or timestamp is not supported" in (str(e))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
