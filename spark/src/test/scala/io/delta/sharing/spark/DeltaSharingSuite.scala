@@ -149,6 +149,33 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     assert(errorMessage.contains("versionAsOf is not a valid number"))
   }
 
+  integrationTest("cdf_table_cdf_enabled timestamp exception") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+    val expected = Seq()
+    var errorMessage = intercept[io.delta.sharing.spark.util.UnexpectedHttpStatus] {
+      checkAnswer(
+        spark.read
+          .format("deltaSharing")
+          .option("timestampAsOf", "2000-01-01 00:00:00")
+          .load(tablePath),
+        expected
+      )
+    }.getMessage
+    assert(errorMessage.contains("The provided timestamp (2000-01-01 00:00:00.0) is before"))
+
+    errorMessage = intercept[IllegalArgumentException] {
+      checkAnswer(
+        spark.read
+          .format("deltaSharing")
+          .option("versionAsOf", "3x")
+          .option("timestampAsOf", "2000-01-01 00:00:00")
+          .load(tablePath),
+        expected
+      )
+    }.getMessage
+    assert(errorMessage.contains("Please either provide 'versionAsOf' or 'timestampAsOf'"))
+  }
+
   integrationTest("test_gzip: non-default compression codec") {
     val tablePath = testProfileFile.getCanonicalPath + "#share4.default.test_gzip"
     val expected = Seq(Row(true, 1, "Hi"))

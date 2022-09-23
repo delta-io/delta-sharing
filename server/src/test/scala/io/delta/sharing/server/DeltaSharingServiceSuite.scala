@@ -592,6 +592,26 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(2).url, 1030)
   }
 
+  integrationTest("cdf_table_cdf_enabled - timestamp before or after range") {
+    // timestamp before the earliest version
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""{"timestamp": "2000-01-01 00:00:00"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "The provided timestamp (2000-01-01 00:00:00.0) is before the earliest version"
+    )
+
+    // timestamp after the latest version
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""{"timestamp": "9999-01-01 00:00:00"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "The provided timestamp (9999-01-01 00:00:00.0) is after the latest version available"
+    )
+  }
+
   integrationTest("cdf_table_cdf_enabled - timestamp on version 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
     // 1651272635000, PST: 2022-04-29 15:50:35.0 -> version 1
     val tsStr = new Timestamp(1651272635000L).toString
@@ -930,6 +950,22 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_cdf_enabled_changes - exceptions") {
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=2000-01-01%2000:00:00"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "The provided timestamp (2000-01-01 00:00:00.0) is before the earliest version available"
+    )
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=9999-01-01%2000:00:00"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "The provided timestamp (9999-01-01 00:00:00.0) is after the latest version available"
+    )
+
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes"),
       method = "GET",

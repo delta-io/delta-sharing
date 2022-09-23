@@ -34,7 +34,14 @@ import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scala.collection.mutable.ListBuffer
 
-import io.delta.sharing.server.{model, AbfsFileSigner, GCSFileSigner, S3FileSigner, WasbFileSigner}
+import io.delta.sharing.server.{
+  model,
+  AbfsFileSigner,
+  DeltaSharingIllegalArgumentException,
+  GCSFileSigner,
+  S3FileSigner,
+  WasbFileSigner
+}
 import io.delta.sharing.server.config.{ServerConfig, TableConfig}
 
 /**
@@ -137,13 +144,21 @@ class DeltaSharedTable(
       timestamp: Option[String]): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
     if (version.isDefined && timestamp.isDefined) {
-      throw new IllegalArgumentException("Please either provide '<version>' or '<timestamp>'")
+      throw new DeltaSharingIllegalArgumentException(
+        "Please either provide '<version>' or '<timestamp>'")
     }
     val snapshot = if (version.isDefined) {
       deltaLog.getSnapshotForVersionAsOf(version.get)
     } else if (timestamp.isDefined) {
       val ts = DeltaSharingHistoryManager.getTimestamp("timestamp", timestamp.get)
-      deltaLog.getSnapshotForTimestampAsOf(ts.getTime())
+      try {
+        deltaLog.getSnapshotForTimestampAsOf(ts.getTime())
+      } catch {
+        // Convert to DeltaSharingIllegalArgumentException to return 4xx instead of 5xx error code
+        // Only convert known exceptions around timestamp too late or too early
+        case e: IllegalArgumentException =>
+          throw new DeltaSharingIllegalArgumentException(e.getMessage)
+      }
     } else {
       deltaLog.snapshot
     }

@@ -21,7 +21,7 @@ import java.sql.Timestamp
 
 import io.delta.standalone.internal.actions.CommitMarker
 import io.delta.standalone.internal.util.FileNames
-import io.delta.standalone.storage.LogStore
+import io.delta.storage.LogStore
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import scala.collection.JavaConverters._
