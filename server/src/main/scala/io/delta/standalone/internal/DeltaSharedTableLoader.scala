@@ -133,10 +133,19 @@ class DeltaSharedTable(
       includeFiles: Boolean,
       predicateHints: Seq[String],
       limitHint: Option[Long],
-      version: Option[Long]): (Long, Seq[model.SingleAction]) = withClassLoader {
+      version: Option[Long],
+      timestamp: Option[String]): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
-    val snapshot = if (version.isEmpty) deltaLog.snapshot else {
+    if (version.isDefined && timestamp.isDefined) {
+      throw new IllegalArgumentException("Please either provide '<version>' or '<timestamp>'")
+    }
+    val snapshot = if (version.isDefined) {
       deltaLog.getSnapshotForVersionAsOf(version.get)
+    } else if (timestamp.isDefined) {
+      val ts = DeltaSharingHistoryManager.getTimestamp("timestamp", timestamp.get)
+      deltaLog.getSnapshotForTimestampAsOf(ts.getTime())
+    } else {
+      deltaLog.snapshot
     }
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")

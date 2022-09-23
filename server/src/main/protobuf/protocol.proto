@@ -46,9 +46,12 @@ message QueryTableRequest {
     repeated string predicateHints = 1;
     optional int64 limitHint = 2;
 
+    // If neither version nor timestamp is specified, the query is for the latest version.
+    // Only one of the two parameters can be supported in a single query.
     // The table version being queried.
-    // If not specified, the query is assumed to be for the latest version.
     optional int64 version = 3;
+    // The table version corresponding to the timestamp being queried.
+    optional string timestamp = 4;
 }
 
 message ListSharesResponse {

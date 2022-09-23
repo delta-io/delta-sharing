@@ -251,6 +251,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       includeFiles = false,
       Nil,
       None,
+      None,
       None)
     streamingOutput(Some(version), actions)
   }
@@ -268,12 +269,13 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
-    if (queryTableRequest.version.isDefined) {
+    if (queryTableRequest.version.isDefined || queryTableRequest.timestamp.isDefined) {
       if (!tableConfig.cdfEnabled) {
-        throw new DeltaSharingIllegalArgumentException("Reading table by version is not supported" +
-          s" because change data feed is not enabled on table: $share.$schema.$table")
+        throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +
+          " not supported because change data feed is not enabled on table: " +
+          s"$share.$schema.$table")
       }
-      if (tableConfig.startVersion > queryTableRequest.version.get) {
+      if (queryTableRequest.version.exists(_ < tableConfig.startVersion)) {
         throw new DeltaSharingIllegalArgumentException(
           s"You can only query table data since version ${tableConfig.startVersion}."
         )
@@ -283,7 +285,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       includeFiles = true,
       queryTableRequest.predicateHints,
       queryTableRequest.limitHint,
-      queryTableRequest.version)
+      queryTableRequest.version,
+      queryTableRequest.timestamp)
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
     streamingOutput(Some(version), actions)

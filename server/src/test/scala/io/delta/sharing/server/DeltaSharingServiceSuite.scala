@@ -394,7 +394,18 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "POST",
       data = Some("""{"version": 1}"""),
       expectedErrorCode = 400,
-      expectedErrorMessage = "Reading table by version is not supported because change data feed is not enabled on table: share2.default.table2"
+      expectedErrorMessage = "Reading table by version or timestamp is not supported because change data feed is not enabled on table: share2.default.table2"
+    )
+  }
+
+  integrationTest("table2 - timestamp not supported: cdfEnabled is false") {
+    // timestamp can be any string here, it's resolved in DeltaSharedTableLoader
+    assertHttpError(
+      url = requestPath("/shares/share2/schemas/default/tables/table2/query"),
+      method = "POST",
+      data = Some("""{"timestamp": "abc"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Reading table by version or timestamp is not supported because change data feed is not enabled on table: share2.default.table2"
     )
   }
 
@@ -581,6 +592,60 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(2).url, 1030)
   }
 
+  integrationTest("cdf_table_cdf_enabled - timestamp on version 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
+    // 1651272635000, PST: 2022-04-29 15:50:35.0 -> version 1
+    val tsStr = new Timestamp(1651272635000L).toString
+    val p =
+      s"""
+        |{
+        | "timestamp": "$tsStr"
+        |}
+        |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"), Some("POST"), Some(p), Some(1))
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val expectedMetadata = Metadata(
+      id = "16736144-3306-4577-807a-d3f899b77670",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      partitionColumns = Nil).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+    val files = lines.drop(2)
+    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+    assert(actualFiles.size == 3)
+    val expectedFiles = Seq(
+      AddFile(
+        url = actualFiles(0).url,
+        id = "60d0cf57f3e4367db154aa2c36152a1f",
+        partitionValues = Map.empty,
+        size = 1030,
+        stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
+      ),
+      AddFile(
+        url = actualFiles(1).url,
+        id = "d7ed708546dd70fdff9191b3e3d6448b",
+        partitionValues = Map.empty,
+        size = 1030,
+        stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
+      ),
+      AddFile(
+        url = actualFiles(2).url,
+        id = "a6dc5694a4ebcc9a067b19c348526ad6",
+        partitionValues = Map.empty,
+        size = 1030,
+        stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
+      )
+    )
+    assert(expectedFiles == actualFiles.toList)
+    verifyPreSignedUrl(actualFiles(0).url, 1030)
+    verifyPreSignedUrl(actualFiles(1).url, 1030)
+    verifyPreSignedUrl(actualFiles(2).url, 1030)
+  }
+
   integrationTest("cdf_table_cdf_enabled_changes: query table changes") {
     val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, None)
     val lines = response.split("\n")
@@ -642,9 +707,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
 
   integrationTest("cdf_table_cdf_enabled_changes: timestamp works") {
-    // 1651272616000, PST: 2022-04-29 15:50:16.0
+    // 1651272616000, PST: 2022-04-29 15:50:16.0 -> version 0
     val startStr = URLEncoder.encode(new Timestamp(1651272616000L).toString)
-    // 1651272660000, PST: 2022-04-29 15:51:00.0
+    // 1651272660000, PST: 2022-04-29 15:51:00.0 -> version 3
     val endStr = URLEncoder.encode(new Timestamp(1651272660000L).toString)
 
     val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, None)

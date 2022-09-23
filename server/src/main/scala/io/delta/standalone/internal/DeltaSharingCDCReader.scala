@@ -79,15 +79,6 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
     (startingVersion.get, endingVersion.getOrElse(latestVersion))
   }
 
-  // Convert timestamp string in cdfOptions to Timestamp
-  private def getTimestamp(paramName: String, timeStampStr: String): Timestamp = {
-    try {
-      Timestamp.valueOf(timeStampStr)
-    } catch {
-      case e: IllegalArgumentException =>
-        throw DeltaCDFErrors.invalidTimestamp(paramName, e.getMessage)
-    }
-  }
 
   /**
    * - If a commit version exactly matches the provided timestamp, we return it.
@@ -131,7 +122,7 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
     if (options.contains(versionKey)) {
       Some(options(versionKey).toLong)
     } else if (options.contains(timestampKey)) {
-      val ts = getTimestamp(timestampKey, options(timestampKey))
+      val ts = DeltaSharingHistoryManager.getTimestamp(timestampKey, options(timestampKey))
       if (timestampKey == DeltaDataSource.CDF_START_TIMESTAMP_KEY) {
         // For the starting timestamp we need to find a version after the provided timestamp
         // we can use the same semantics as streaming.
