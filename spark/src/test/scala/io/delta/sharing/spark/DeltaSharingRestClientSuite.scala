@@ -197,7 +197,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getFiles with timestamp parsed") {
+  integrationTest("getFiles with timestamp parsed, but too early") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       // This is to test that timestamp is correctly passed to the server and parsed.
@@ -218,7 +218,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getFiles with timestamp not allowed") {
+  integrationTest("getFiles with timestamp not supported on table1") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       val errorMessage = intercept[UnexpectedHttpStatus] {
