@@ -592,6 +592,17 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(2).url, 1030)
   }
 
+integrationTest("cdf_table_cdf_enabled - both version and timestamp not supported") {
+    // timestamp can be any string here, it's resolved in DeltaSharedTableLoader
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""{"timestamp": "abc", "version": "3"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Please either provide '<version>' or '<timestamp>'"
+    )
+  }
+
   integrationTest("cdf_table_cdf_enabled - timestamp before or after range") {
     // timestamp before the earliest version
     assertHttpError(
