@@ -47,11 +47,13 @@ private[sharing] class RemoteDeltaLog(
 
   @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(path, client, table)
 
-  def snapshot(versionAsOf: Option[Long] = None): RemoteSnapshot = {
-    if (versionAsOf.isEmpty) {
+  def snapshot(
+      versionAsOf: Option[Long] = None,
+      timestampAsOf: Option[String] = None): RemoteSnapshot = {
+    if (versionAsOf.isEmpty && timestampAsOf.isEmpty) {
       currentSnapshot
     } else {
-      new RemoteSnapshot(path, client, table, versionAsOf)
+      new RemoteSnapshot(path, client, table, versionAsOf, timestampAsOf)
     }
   }
 
@@ -64,9 +66,10 @@ private[sharing] class RemoteDeltaLog(
 
   def createRelation(
       versionAsOf: Option[Long],
+      timestampAsOf: Option[String],
       cdfOptions: Map[String, String]): BaseRelation = {
     val spark = SparkSession.active
-    val snapshotToUse = snapshot(versionAsOf)
+    val snapshotToUse = snapshot(versionAsOf, timestampAsOf)
     if (!cdfOptions.isEmpty) {
       return RemoteDeltaCDFRelation(
         spark,
@@ -181,7 +184,8 @@ class RemoteSnapshot(
     tablePath: Path,
     client: DeltaSharingClient,
     table: DeltaSharingTable,
-    versionAsOf: Option[Long] = None) extends Logging {
+    versionAsOf: Option[Long] = None,
+    timestampAsOf: Option[String] = None) extends Logging {
 
   protected def spark = SparkSession.active
 
@@ -198,7 +202,7 @@ class RemoteSnapshot(
   lazy val (allFiles, sizeInBytes) = {
     val implicits = spark.implicits
     import implicits._
-    val tableFiles = client.getFiles(table, Nil, None, versionAsOf)
+    val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf)
     checkProtocolNotChange(tableFiles.protocol)
     checkSchemaNotChange(tableFiles.metadata)
     tableFiles.files.toDS() -> tableFiles.files.map(_.size).sum
@@ -211,7 +215,7 @@ class RemoteSnapshot(
     } else {
       // getMetadata doesn't support the parameter: versionAsOf
       // Leveraging getFiles to get the metadata, so setting the limitHint to 1 for efficiency.
-      val tableFiles = client.getFiles(table, Nil, Some(1L), versionAsOf)
+      val tableFiles = client.getFiles(table, Nil, Some(1L), versionAsOf, timestampAsOf)
       (tableFiles.metadata, tableFiles.protocol, tableFiles.version)
     }
   }
@@ -256,13 +260,13 @@ class RemoteSnapshot(
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
-      val tableFiles = client.getFiles(table, predicates, limitHint, versionAsOf)
+      val tableFiles = client.getFiles(table, predicates, limitHint, versionAsOf, timestampAsOf)
       val idToUrl = tableFiles.files.map { add =>
         add.id -> add.url
       }.toMap
       CachedTableManager.INSTANCE
         .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
-          client.getFiles(table, Nil, None, versionAsOf).files.map { add =>
+          client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
             add.id -> add.url
           }.toMap
         })

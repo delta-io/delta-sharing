@@ -63,6 +63,10 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
       }
     }
 
+    if (parameters.get("versionAsOf").isDefined && parameters.get("timestampAsOf").isDefined) {
+      throw new IllegalArgumentException("Please either provide 'versionAsOf' or 'timestampAsOf'.")
+    }
+
     var versionAsOf: Option[Long] = None
     if (parameters.get("versionAsOf").isDefined) {
       try {
@@ -72,8 +76,9 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
           throw new IllegalArgumentException("versionAsOf is not a valid number.")
       }
     }
+
     val deltaLog = RemoteDeltaLog(path)
-    deltaLog.createRelation(versionAsOf, cdfOptions = cdfOptions.toMap)
+    deltaLog.createRelation(versionAsOf, parameters.get("timestampAsOf"), cdfOptions.toMap)
   }
 
   override def shortName: String = "deltaSharing"

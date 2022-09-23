@@ -109,7 +109,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       val tableFiles =
-        client.getFiles(Table(name = "table2", schema = "default", share = "share2"), Nil, None, None)
+        client.getFiles(Table(name = "table2", schema = "default", share = "share2"), Nil, None, None, None)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       val expectedMetadata = Metadata(
         id = "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
@@ -147,7 +147,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
         Nil,
         None,
-        Some(1L))
+        Some(1L),
+        None)
       assert(tableFiles.files.size == 3)
       val expectedFiles = Seq(
         AddFile(
@@ -186,7 +187,47 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           Table(name = "table1", schema = "default", share = "share1"),
           Nil,
           None,
-          Some(1L)
+          Some(1L),
+          None
+        )
+      }.getMessage
+      assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getFiles with timestamp parsed, but too early") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      // This is to test that timestamp is correctly passed to the server and parsed.
+      // The error message is expected as we are using a timestamp much smaller than the earliest
+      // version of the table.
+      // Because with undecided timezone, the timestamp string can be mapped to different versions
+      val errorMessage = intercept[UnexpectedHttpStatus] {
+        client.getFiles(
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+        Nil,
+        None,
+        None,
+        Some("2000-01-01 00:00:00"))
+      }.getMessage
+      assert(errorMessage.contains("The provided timestamp"))
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getFiles with timestamp not supported on table1") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val errorMessage = intercept[UnexpectedHttpStatus] {
+        client.getFiles(
+          Table(name = "table1", schema = "default", share = "share1"),
+          Nil,
+          None,
+          None,
+          Some("abc")
         )
       }.getMessage
       assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
@@ -305,7 +346,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       // This is to test that timestamp is correctly passed to the server and parsed.
-      // The error message is expected as we are using a timestamp much larger than the latest
+      // The error message is expected as we are using a timestamp much smaller than the earliest
       // version of the table.
       val cdfOptions = Map("startingTimestamp" -> "2000-01-01 00:00:00")
       val errorMessage = intercept[UnexpectedHttpStatus] {
