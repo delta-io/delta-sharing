@@ -354,16 +354,63 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         ),
     ],
 )
-def test_load(
+def test_load_as_pandas_success(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version)
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
     pd.testing.assert_frame_equal(pdf, expected)
 
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,version,timestamp,error",
+    [
+        pytest.param(
+            "share1.default.table1",
+            1,
+            None,
+            "Reading table by version or timestamp is not supported",
+            id="version not supported",
+        ),
+        pytest.param(
+            "share1.default.table1",
+            None,
+            "random_timestamp",
+            "Reading table by version or timestamp is not supported",
+            id="timestamp not supported",
+        ),
+        pytest.param(
+            "share1.default.cdf_table_cdf_enabled",
+            1,
+            "random_timestamp",
+            "Please either provide",
+            id="only one is supported",
+        ),
+        pytest.param(
+            "share1.default.cdf_table_cdf_enabled",
+            None,
+            "2000-01-01 00:00:00",
+            "Please use a timestamp greater",
+            id="timestap too early ",
+        ),
+    ],
+)
+def test_load_as_pandas_exception(
+    profile_path: str,
+    fragments: str,
+    version: Optional[int],
+    timestamp: Optional[str],
+    error: Optional[str]
+):
+    try:
+        load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp)
+        assert False
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+        assert error in str(e)
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
@@ -513,10 +560,11 @@ def test_parse_url():
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
-    "fragments,version,error,expected_data,expected_schema_str",
+    "fragments,version,timestamp,error,expected_data,expected_schema_str",
     [
         pytest.param(
             "share1.default.table1",
+            None,
             None,
             None,
             [
@@ -529,14 +577,25 @@ def test_parse_url():
         pytest.param(
             "share1.default.table1",
             1,
+            None,
             "not supported",
             [],
             "not-used-schema-str",
             id="table1 version not supported",
         ),
+        # pytest.param(
+        #     "share1.default.table1",
+        #     None,
+        #     "random_timestamp",
+        #     "not supported",
+        #     [],
+        #     "not-used-schema-str",
+        #     id="table1 timestamp not supported",
+        # ),
         pytest.param(
             "share1.default.cdf_table_cdf_enabled",
             1,
+            None,
             None,
             [
                 ("1", 1, date(2020, 1, 1)),
@@ -546,12 +605,22 @@ def test_parse_url():
             "name: string, age: int, birthday: date",
             id="cdf_table_cdf_enabled version 1 spark",
         ),
+        # pytest.param(
+        #     "share1.default.cdf_table_cdf_enabled",
+        #     None,
+        #     "2000-01-01 00:00:00",
+        #     "Please use a timestamp greater",
+        #     [],
+        #     "not-used-schema-str",
+        #     id="cdf_table_cdf_enabled timestamp too early",
+        # ),
     ],
 )
 def test_load_as_spark(
     profile_path: str,
     fragments: str,
     version: Optional[int],
+    timestamp: Optional[str],
     error: Optional[str],
     expected_data: list,
     expected_schema_str: str,
@@ -567,12 +636,12 @@ def test_load_as_spark(
 
         if error is None:
             expected_df = spark.createDataFrame(expected_data, expected_schema_str)
-            actual_df = load_as_spark(f"{profile_path}#{fragments}", version=version)
+            actual_df = load_as_spark(f"{profile_path}#{fragments}", version=version, timestamp=timestamp)
             assert expected_df.schema == actual_df.schema
             assert expected_df.collect() == actual_df.collect()
         else:
             try:
-                load_as_spark(f"{profile_path}#{fragments}", version=version)
+                load_as_spark(f"{profile_path}#{fragments}", version=version, timestamp=timestamp)
                 assert False
             except Exception as e:
                 assert error in str(e)
@@ -636,14 +705,7 @@ def test_load_as_spark(
             None,
             None,
             "cdf is not enabled on table share1.default.table1",
-            [
-                ("1", 1, date(2020, 1, 1), 1, 1651272635000, "insert"),
-                ("2", 2, date(2020, 1, 1), 1, 1651272635000, "insert"),
-                ("3", 3, date(2020, 1, 1), 1, 1651272635000, "insert"),
-                ("2", 2, date(2020, 1, 1), 3, 1651272660000, "update_preimage"),
-                ("2", 2, date(2020, 2, 2), 3, 1651272660000, "update_postimage"),
-                ("3", 3, date(2020, 1, 1), 2, 1651272655000, "delete"),
-            ],
+            [],
             "name: string, age: int, birthday:date, _commit_version: long, _commit_timestamp" +
             ": long, _change_type: string",
             id="table1 table changes not enabled",

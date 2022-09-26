@@ -466,6 +466,54 @@ def test_list_files_in_table_version_exception(
         assert isinstance(e, HTTPError)
         assert "Reading table by version or timestamp is not supported" in (str(e))
 
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_list_files_in_table_timestamp(
+    rest_client: DataSharingRestClient
+):
+    try:
+        rest_client.list_files_in_table(
+            Table(name="table1", share="share1", schema="default"),
+            timestamp="random_str"
+        )
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+        assert "Reading table by version or timestamp is not supported" in (str(e))
+
+    cdf_table = Table(name="cdf_table_with_partition", share="share1", schema="default")
+
+    # Only one of version and timestamp is supported
+    try:
+        rest_client.list_files_in_table(cdf_table, version=1, timestamp="random_str")
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+        assert "Please either provide" in (str(e))
+
+    # Use a random string, and look for an appropriate error.
+    # This will ensure that the timestamp is pass to server.
+    try:
+        rest_client.list_files_in_table(cdf_table, timestamp="random")
+        assert False
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+        assert "Invalid timestamp: Timestamp format must be" in (str(e))
+
+    # Use a really old start time, and look for an appropriate error.
+    # This will ensure that the timestamp is parsed correctly.
+    try:
+        rest_client.list_files_in_table(cdf_table, timestamp="2000-01-01 00:00:00")
+        assert False
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+        assert "Please use a timestamp greater" in (str(e))
+
+    # Use an end time far away, and look for an appropriate error.
+    try:
+        rest_client.list_files_in_table(cdf_table, timestamp="9000-01-01 00:00:00")
+        assert False
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+        assert "Please use a timestamp less" in str(e)
+
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_table_changes(
