@@ -55,7 +55,7 @@ def test_retry(rest_client: DataSharingRestClient):
 
         @retry_with_exponential_backoff
         def success(self):
-            return True
+            return Trued
 
         @retry_with_exponential_backoff
         def all_fail_http(self):
@@ -466,6 +466,7 @@ def test_list_files_in_table_version_exception(
         assert isinstance(e, HTTPError)
         assert "Reading table by version or timestamp is not supported" in (str(e))
 
+
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_files_in_table_timestamp(
     rest_client: DataSharingRestClient
@@ -513,7 +514,6 @@ def test_list_files_in_table_timestamp(
     except Exception as e:
         assert isinstance(e, HTTPError)
         assert "Please use a timestamp less" in str(e)
-
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_table_changes(

@@ -364,6 +364,7 @@ def test_load_as_pandas_success(
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
     pd.testing.assert_frame_equal(pdf, expected)
 
+
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
     "fragments,version,timestamp,error",
@@ -411,6 +412,7 @@ def test_load_as_pandas_exception(
     except Exception as e:
         assert isinstance(e, HTTPError)
         assert error in str(e)
+
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
@@ -645,7 +647,7 @@ def test_load_as_spark(
 
         if error is None:
             expected_df = spark.createDataFrame(expected_data, expected_schema_str)
-            actual_df = load_as_spark(f"{profile_path}#{fragments}", version=version, timestamp=timestamp)
+            actual_df = load_as_spark(f"{profile_path}#{fragments}", version, timestamp)
             assert expected_df.schema == actual_df.schema
             assert expected_df.collect() == actual_df.collect()
         else:
