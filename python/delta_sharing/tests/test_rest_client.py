@@ -515,6 +515,7 @@ def test_list_files_in_table_timestamp(
         assert isinstance(e, HTTPError)
         assert "Please use a timestamp less" in str(e)
 
+
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_table_changes(
     rest_client: DataSharingRestClient,
