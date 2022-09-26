@@ -583,15 +583,15 @@ def test_parse_url():
             "not-used-schema-str",
             id="table1 version not supported",
         ),
-        # pytest.param(
-        #     "share1.default.table1",
-        #     None,
-        #     "random_timestamp",
-        #     "not supported",
-        #     [],
-        #     "not-used-schema-str",
-        #     id="table1 timestamp not supported",
-        # ),
+        pytest.param(
+            "share1.default.table1",
+            None,
+            "random_timestamp",
+            "not supported",
+            [],
+            "not-used-schema-str",
+            id="table1 timestamp not supported",
+        ),
         pytest.param(
             "share1.default.cdf_table_cdf_enabled",
             1,
@@ -605,15 +605,15 @@ def test_parse_url():
             "name: string, age: int, birthday: date",
             id="cdf_table_cdf_enabled version 1 spark",
         ),
-        # pytest.param(
-        #     "share1.default.cdf_table_cdf_enabled",
-        #     None,
-        #     "2000-01-01 00:00:00",
-        #     "Please use a timestamp greater",
-        #     [],
-        #     "not-used-schema-str",
-        #     id="cdf_table_cdf_enabled timestamp too early",
-        # ),
+        pytest.param(
+            "share1.default.cdf_table_cdf_enabled",
+            None,
+            "2000-01-01 00:00:00",
+            "Please use a timestamp greater",
+            [],
+            "not-used-schema-str",
+            id="cdf_table_cdf_enabled timestamp too early",
+        ),
     ],
 )
 def test_load_as_spark(
@@ -630,7 +630,7 @@ def test_load_as_spark(
         spark = SparkSession.builder \
             .appName("delta-sharing-test") \
             .master("local[*]") \
-            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:0.5.0-SNAPSHOT") \
+            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:1.0.0-SNAPSHOT") \
             .config("spark.delta.sharing.network.sslTrustAll", "true") \
             .getOrCreate()
 
@@ -641,7 +641,7 @@ def test_load_as_spark(
             assert expected_df.collect() == actual_df.collect()
         else:
             try:
-                load_as_spark(f"{profile_path}#{fragments}", version=version, timestamp=timestamp)
+                load_as_spark(f"{profile_path}#{fragments}", version, timestamp).collect()
                 assert False
             except Exception as e:
                 assert error in str(e)
@@ -728,7 +728,7 @@ def test_load_table_changes_as_spark(
         spark = SparkSession.builder \
             .appName("delta-sharing-test") \
             .master("local[*]") \
-            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:0.5.0-SNAPSHOT") \
+            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:1.0.0-SNAPSHOT") \
             .config("spark.delta.sharing.network.sslTrustAll", "true") \
             .getOrCreate()
 
