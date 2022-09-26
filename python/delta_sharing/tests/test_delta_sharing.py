@@ -614,6 +614,15 @@ def test_parse_url():
             "not-used-schema-str",
             id="cdf_table_cdf_enabled timestamp too early",
         ),
+        pytest.param(
+            "share1.default.cdf_table_cdf_enabled",
+            1,
+            "2000-01-01 00:00:00",
+            "Please either provide 'versionAsOf' or 'timestampAsOf'",
+            [],
+            "not-used-schema-str",
+            id="cdf_table_cdf_enabled timestamp too early",
+        ),
     ],
 )
 def test_load_as_spark(
