@@ -143,9 +143,9 @@ class DeltaSharedTable(
       version: Option[Long],
       timestamp: Option[String]): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
-    if (version.isDefined && timestamp.isDefined) {
+    if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
-        "Please either provide '<version>' or '<timestamp>'")
+        "Please only provide one of: version,timestamp,startingVersion")
     }
     val snapshot = if (version.isDefined) {
       deltaLog.getSnapshotForVersionAsOf(version.get)
@@ -176,44 +176,98 @@ class DeltaSharedTable(
       partitionColumns = snapshot.metadataScala.partitionColumns
     )
     val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
-      if (includeFiles) {
-        val selectedFiles = state.activeFiles.toSeq
-        val filteredFilters =
-          if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
-            PartitionFilterUtils.evaluatePredicate(
-              modelMetadata.schemaString,
-              modelMetadata.partitionColumns,
-              predicateHints,
-              selectedFiles
-            )
-          } else {
+      // Only read changes up to snapshot.version, and ignore changes that are committed during
+      // queryDataChangeSinceStartVersion.
+      queryDataChangeSinceStartVersion(startingVersion.get, snapshot.version)
+    } else if (includeFiles) {
+      val selectedFiles = state.activeFiles.toSeq
+      val filteredFilters =
+        if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
+          PartitionFilterUtils.evaluatePredicate(
+            modelMetadata.schemaString,
+            modelMetadata.partitionColumns,
+            predicateHints,
             selectedFiles
-          }
-        filteredFilters.map { addFile =>
-          val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
-          val signedUrl = fileSigner.sign(cloudPath)
-          val modelAddFile = model.AddFile(url = signedUrl,
-            id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
-            partitionValues = addFile.partitionValues,
-            size = addFile.size,
-            stats = addFile.stats)
-          modelAddFile.wrap
+          )
+        } else {
+          selectedFiles
         }
-      } else {
-        Nil
+      filteredFilters.map { addFile =>
+        val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
+        val signedUrl = fileSigner.sign(cloudPath)
+        val modelAddFile = model.AddFile(url = signedUrl,
+          id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+          partitionValues = addFile.partitionValues,
+          size = addFile.size,
+          stats = addFile.stats)
+        modelAddFile.wrap
       }
+    } else {
+      Nil
     }
+
     snapshot.version -> actions
   }
 
+  private def queryDataChangeSinceStartVersion(
+    startingVersion: Long,
+    latestVersion: Long): Seq[model.SingleAction] = {
+    if (startingVersion > latestVersion) {
+      throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
+    }
+    val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
+      deltaLog.store,
+      deltaLog.logPath,
+      startingVersion,
+      latestVersion + 1,
+      conf
+    )
+
+    val actions = ListBuffer[model.SingleAction]()
+    deltaLog.getChanges(startingVersion).foreach{
+      case (v, versionActions) =>
+        val ts = timestampsByVersion.get(v).orNull
+        versionActions.foreach {
+          case a: AddFile if a.dataChange =>
+            val modelAddFile = model.AddFileForCDF(
+              url = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path)),
+              id = Hashing.md5().hashString(a.path, UTF_8).toString,
+              partitionValues = a.partitionValues,
+              size = a.size,
+              stats = a.stats,
+              version = v,
+              timestamp = ts.getTime
+            )
+            actions.append(modelAddFile.wrap)
+          case r: RemoveFile if r.dataChange =>
+            val modelRemoveFile = model.RemoveFile(
+              url = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path)),
+              id = Hashing.md5().hashString(r.path, UTF_8).toString,
+              partitionValues = r.partitionValues,
+              size = r.size.get,
+              version = v,
+              timestamp = ts.getTime
+            )
+            actions.append(modelRemoveFile.wrap)
+          case p: Protocol =>
+            // TODO: implement this check
+            assertProtocolRead(p)
+          case m: Metadata =>
+          // TODO(lin.zhou) make a copy of SchemaUtils.isReadCompatible in another PR
+          case _ => ()
+        }
+    }
+    actions.toSeq
+  }
 
   def queryCDF(cdfOptions: Map[String, String]): Seq[model.SingleAction] = withClassLoader {
     val actions = ListBuffer[model.SingleAction]()
 
     // First: validate cdf options are greater than startVersion
     val cdcReader = new DeltaSharingCDCReader(deltaLog, conf)
+    val latestVersion = tableVersion
     val (start, end) = cdcReader.validateCdfOptions(
-      cdfOptions, tableVersion, tableConfig.startVersion)
+      cdfOptions, latestVersion, tableConfig.startVersion)
 
     // Second: get Protocol and Metadata
     val snapshot = deltaLog.snapshot
@@ -231,7 +285,7 @@ class DeltaSharedTable(
     actions.append(modelMetadata.wrap)
 
     // Third: get files
-    val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(start, end, tableVersion)
+    val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(start, end, latestVersion)
     changeFiles.foreach { cdcDataSpec =>
       cdcDataSpec.actions.foreach { action =>
         val addCDCFile = action.asInstanceOf[AddCDCFile]
