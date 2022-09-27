@@ -55,7 +55,7 @@ def test_retry(rest_client: DataSharingRestClient):
 
         @retry_with_exponential_backoff
         def success(self):
-            return Trued
+            return True
 
         @retry_with_exponential_backoff
         def all_fail_http(self):
