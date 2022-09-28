@@ -136,6 +136,8 @@ def test_list_tables(rest_client: DataSharingRestClient):
         Table(name="cdf_table_with_partition", share="share1", schema="default"),
         Table(name="cdf_table_with_vacuum", share="share1", schema="default"),
         Table(name="cdf_table_missing_log", share="share1", schema="default"),
+        Table(name="streaming_table_with_optimize", share="share1", schema="default"),
+        Table(name="table_reader_version_increased", share="share1", schema="default"),
     ]
 
     response = rest_client.list_tables(Schema(name="default", share="share2"))
@@ -158,6 +160,8 @@ def test_list_tables_with_pagination(rest_client: DataSharingRestClient):
         Table(name="cdf_table_with_partition", share="share1", schema="default"),
         Table(name="cdf_table_with_vacuum", share="share1", schema="default"),
         Table(name="cdf_table_missing_log", share="share1", schema="default"),
+        Table(name="streaming_table_with_optimize", share="share1", schema="default"),
+        Table(name="table_reader_version_increased", share="share1", schema="default"),
     ]
 
 

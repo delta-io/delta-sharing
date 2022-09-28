@@ -46,12 +46,18 @@ message QueryTableRequest {
     repeated string predicateHints = 1;
     optional int64 limitHint = 2;
 
-    // If neither version nor timestamp is specified, the query is for the latest version.
-    // Only one of the two parameters can be supported in a single query.
+    // Only one of the three parameters can be supported in a single query.
+    // If none of them is specified, the query is for the latest version.
+    //
+    // - If either version or timestamp is specified, the query is for the snapshot at the version.
+    // - If startingVersion is specified, the query is for all dataChange files until the
+    //   current version.
     // The table version being queried.
     optional int64 version = 3;
     // The table version corresponding to the timestamp being queried.
     optional string timestamp = 4;
+    // Query all data change files since startingVersion
+    optional int64 startingVersion = 5;
 }
 
 message ListSharesResponse {

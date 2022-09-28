@@ -76,6 +76,8 @@ def test_list_tables(sharing_client: SharingClient):
         Table(name="cdf_table_with_partition", share="share1", schema="default"),
         Table(name="cdf_table_with_vacuum", share="share1", schema="default"),
         Table(name="cdf_table_missing_log", share="share1", schema="default"),
+        Table(name="streaming_table_with_optimize", share="share1", schema="default"),
+        Table(name="table_reader_version_increased", share="share1", schema="default"),
     ]
 
     tables = sharing_client.list_tables(Schema(name="default", share="share2"))
@@ -91,6 +93,8 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="cdf_table_with_partition", share="share1", schema="default"),
         Table(name="cdf_table_with_vacuum", share="share1", schema="default"),
         Table(name="cdf_table_missing_log", share="share1", schema="default"),
+        Table(name="streaming_table_with_optimize", share="share1", schema="default"),
+        Table(name="table_reader_version_increased", share="share1", schema="default"),
         Table(name="table2", share="share2", schema="default"),
         Table(name="table4", share="share3", schema="default"),
         Table(name="table5", share="share3", schema="default"),
