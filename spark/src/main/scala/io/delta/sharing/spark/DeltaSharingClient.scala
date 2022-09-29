@@ -55,6 +55,8 @@ private[sharing] trait DeltaSharingClient {
     versionAsOf: Option[Long],
     timestampAsOf: Option[String]): DeltaTableFiles
 
+  def getFiles(table: Table, startingVersion: Long): DeltaTableFiles
+
   def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles
 }
 
@@ -66,7 +68,8 @@ private[sharing] case class QueryTableRequest(
   predicateHints: Seq[String],
   limitHint: Option[Long],
   version: Option[Long],
-  timestamp: Option[String]
+  timestamp: Option[String],
+  startingVersion: Option[Long]
 )
 
 private[sharing] case class ListSharesResponse(
@@ -206,13 +209,40 @@ private[spark] class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val (version, lines) = getNDJson(
-      target, QueryTableRequest(predicates, limit, versionAsOf, timestampAsOf))
+      target, QueryTableRequest(predicates, limit, versionAsOf, timestampAsOf, None))
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
     val files = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
     DeltaTableFiles(version, protocol, metadata, files)
+  }
+
+  override def getFiles(table: Table, startingVersion: Long): DeltaTableFiles = {
+    val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
+    val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
+    val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
+    val target = getTargetUrl(
+      s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
+    val (version, lines) = getNDJson(
+      target, QueryTableRequest(Nil, None, None, None, Some(startingVersion)))
+    val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
+    checkProtocol(protocol)
+    val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
+    val addFiles = ArrayBuffer[AddFileForCDF]()
+    val removeFiles = ArrayBuffer[RemoveFile]()
+    lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).unwrap).foreach{
+      case a: AddFileForCDF => addFiles.append(a)
+      case r: RemoveFile => removeFiles.append(r)
+      case f => throw new IllegalStateException(s"Unexpected File:${f}")
+    }
+    DeltaTableFiles(
+      0L,
+      protocol,
+      metadata,
+      addFiles = addFiles,
+      removeFiles = removeFiles
+    )
   }
 
   override def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles = {
@@ -241,7 +271,7 @@ private[spark] class DeltaSharingRestClient(
       0L,
       protocol,
       metadata,
-      addFilesForCdf = addFiles,
+      addFiles = addFiles,
       cdfFiles = cdfFiles,
       removeFiles = removeFiles
     )

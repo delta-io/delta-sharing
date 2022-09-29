@@ -599,7 +599,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "POST",
       data = Some("""{"timestamp": "abc", "version": "3"}"""),
       expectedErrorCode = 400,
-      expectedErrorMessage = "Please either provide '<version>' or '<timestamp>'"
+      expectedErrorMessage = "Please only provide one of: version,timestamp,startingVersion"
     )
 
     // timestamp before the earliest version

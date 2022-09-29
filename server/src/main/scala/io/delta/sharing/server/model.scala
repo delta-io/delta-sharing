@@ -131,3 +131,8 @@ case class RemoveFile(
 
   override def wrap: SingleAction = SingleAction(remove = this)
 }
+
+object Action {
+  /** The maximum version of the protocol that this version of Delta Standalone understands. */
+  val readerVersion = 1
+}

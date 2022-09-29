@@ -200,23 +200,15 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
 
     val changes = deltaLog.getChanges(start, false).asScala.takeWhile(_.getVersion <= end)
 
-    // Correct timestamp values are only available through DeltaHistoryManager.getCommits(). Commit
-    // info timestamps are wrong, and file modification times are wrong because they need to be
-    // monotonized first. This just performs a list (we don't read the contents of the files in
-    // getCommits()) so it's not a big deal.
-    val timestampsByVersion: Map[Long, Timestamp] = {
-      val commits = DeltaSharingHistoryManager.getCommitsSafe(
-        deltaLog.store,
-        deltaLog.logPath,
-        start,
-        end + 1,
-        conf
-      )
-
-      // Note that the timestamps come from filesystem modification timestamps, so they're
-      // milliseconds since epoch and we don't need to deal with timezones.
-      commits.map(f => (f.version -> new Timestamp(f.timestamp))).toMap
-    }
+    // Correct timestamp values are only available through
+    // DeltaHistoryManager.getTimestampsByVersion
+    val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
+      deltaLog.store,
+      deltaLog.logPath,
+      start,
+      end + 1,
+      conf
+    )
 
     val changeFiles = ListBuffer[CDCDataSpec[AddCDCFile]]()
     val addFiles = ListBuffer[CDCDataSpec[AddFile]]()

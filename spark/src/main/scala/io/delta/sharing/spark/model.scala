@@ -46,7 +46,7 @@ private[sharing] case class DeltaTableFiles(
     protocol: Protocol,
     metadata: Metadata,
     files: Seq[AddFile] = Nil,
-    addFilesForCdf: Seq[AddFileForCDF] = Nil,
+    addFiles: Seq[AddFileForCDF] = Nil,
     cdfFiles: Seq[AddCDCFile] = Nil,
     removeFiles: Seq[RemoveFile] = Nil)
 

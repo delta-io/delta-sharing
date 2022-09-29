@@ -21,11 +21,16 @@ import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.concurrent.TimeUnit
 
+import scala.collection.JavaConverters._
+
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
 import com.google.common.cache.CacheBuilder
 import com.google.common.hash.Hashing
+import com.google.common.util.concurrent.UncheckedExecutionException
 import io.delta.standalone.DeltaLog
-import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, RemoveFile}
+import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, Metadata, Protocol, RemoveFile}
+import io.delta.standalone.internal.exception.DeltaErrors
+import io.delta.standalone.internal.util.ConversionUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.azure.NativeAzureFileSystem
@@ -37,7 +42,10 @@ import scala.collection.mutable.ListBuffer
 import io.delta.sharing.server.{
   model,
   AbfsFileSigner,
+  CausedBy,
   DeltaSharingIllegalArgumentException,
+  DeltaSharingUnsupportedOperationException,
+  ErrorStrings,
   GCSFileSigner,
   S3FileSigner,
   WasbFileSigner
@@ -57,17 +65,23 @@ class DeltaSharedTableLoader(serverConfig: ServerConfig) {
   }
 
   def loadTable(tableConfig: TableConfig): DeltaSharedTable = {
-    val deltaSharedTable =
-      deltaSharedTableCache.get(tableConfig.location, () => {
-        new DeltaSharedTable(
-          tableConfig,
-          serverConfig.preSignedUrlTimeoutSeconds,
-          serverConfig.evaluatePredicateHints)
-      })
-    if (!serverConfig.stalenessAcceptable) {
-      deltaSharedTable.update()
+    try {
+      val deltaSharedTable =
+        deltaSharedTableCache.get(tableConfig.location, () => {
+          new DeltaSharedTable(
+            tableConfig,
+            serverConfig.preSignedUrlTimeoutSeconds,
+            serverConfig.evaluatePredicateHints)
+        })
+      if (!serverConfig.stalenessAcceptable) {
+        deltaSharedTable.update()
+      }
+      deltaSharedTable
     }
-    deltaSharedTable
+    catch {
+      case CausedBy(e: DeltaSharingUnsupportedOperationException) => throw e
+      case e: Throwable => throw e
+    }
   }
 }
 
@@ -85,7 +99,14 @@ class DeltaSharedTable(
 
   private val deltaLog = withClassLoader {
     val tablePath = new Path(tableConfig.getLocation)
-    DeltaLog.forTable(conf, tablePath).asInstanceOf[DeltaLogImpl]
+    try {
+      DeltaLog.forTable(conf, tablePath).asInstanceOf[DeltaLogImpl]
+    } catch {
+      // convert InvalidProtocolVersionException to client error(400)
+      case e: DeltaErrors.InvalidProtocolVersionException =>
+        throw new DeltaSharingUnsupportedOperationException(e.getMessage)
+      case e: Throwable => throw e
+    }
   }
 
   private val fileSigner = withClassLoader {
@@ -141,11 +162,13 @@ class DeltaSharedTable(
       predicateHints: Seq[String],
       limitHint: Option[Long],
       version: Option[Long],
-      timestamp: Option[String]): (Long, Seq[model.SingleAction]) = withClassLoader {
+      timestamp: Option[String],
+      startingVersion: Option[Long]): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
-    if (version.isDefined && timestamp.isDefined) {
+    if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
-        "Please either provide '<version>' or '<timestamp>'")
+        ErrorStrings.multipleParametersSetErrorMsg(Seq("version", "timestamp", "startingVersion"))
+      )
     }
     val snapshot = if (version.isDefined) {
       deltaLog.getSnapshotForVersionAsOf(version.get)
@@ -176,7 +199,11 @@ class DeltaSharedTable(
       partitionColumns = snapshot.metadataScala.partitionColumns
     )
     val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
-      if (includeFiles) {
+      if (startingVersion.isDefined) {
+        // Only read changes up to snapshot.version, and ignore changes that are committed during
+        // queryDataChangeSinceStartVersion.
+        queryDataChangeSinceStartVersion(startingVersion.get, snapshot.version)
+      } else if (includeFiles) {
         val selectedFiles = state.activeFiles.toSeq
         val filteredFilters =
           if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
@@ -206,6 +233,56 @@ class DeltaSharedTable(
     snapshot.version -> actions
   }
 
+  private def queryDataChangeSinceStartVersion(
+    startingVersion: Long,
+    latestVersion: Long): Seq[model.SingleAction] = {
+    if (startingVersion > latestVersion) {
+      throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
+    }
+    val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
+      deltaLog.store,
+      deltaLog.logPath,
+      startingVersion,
+      latestVersion + 1,
+      conf
+    )
+
+    val actions = ListBuffer[model.SingleAction]()
+    deltaLog.getChanges(startingVersion, true).asScala.toSeq.foreach{versionLog =>
+      val v = versionLog.getVersion
+      val versionActions = versionLog.getActions.asScala.map(x => ConversionUtils.convertActionJ(x))
+      val ts = timestampsByVersion.get(v).orNull
+      versionActions.foreach {
+        case a: AddFile if a.dataChange =>
+          val modelAddFile = model.AddFileForCDF(
+            url = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path)),
+            id = Hashing.md5().hashString(a.path, UTF_8).toString,
+            partitionValues = a.partitionValues,
+            size = a.size,
+            stats = a.stats,
+            version = v,
+            timestamp = ts.getTime
+          )
+          actions.append(modelAddFile.wrap)
+        case r: RemoveFile if r.dataChange =>
+          val modelRemoveFile = model.RemoveFile(
+            url = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path)),
+            id = Hashing.md5().hashString(r.path, UTF_8).toString,
+            partitionValues = r.partitionValues,
+            size = r.size.get,
+            version = v,
+            timestamp = ts.getTime
+          )
+          actions.append(modelRemoveFile.wrap)
+        case p: Protocol =>
+          protocolRead(p)
+        case m: Metadata =>
+        // TODO(lin.zhou) make a copy of SchemaUtils.isReadCompatible in another PR
+        case _ => ()
+      }
+    }
+    actions.toSeq
+  }
 
   def queryCDF(cdfOptions: Map[String, String]): Seq[model.SingleAction] = withClassLoader {
     val actions = ListBuffer[model.SingleAction]()
@@ -286,6 +363,13 @@ class DeltaSharedTable(
 
   def update(): Unit = withClassLoader {
     deltaLog.update()
+  }
+
+  private def protocolRead(protocol: Protocol): Unit = {
+    if (protocol.minReaderVersion > model.Action.readerVersion) {
+      val e = new DeltaErrors.InvalidProtocolVersionException(Protocol(1, 2), protocol)
+      throw new DeltaSharingUnsupportedOperationException(e.getMessage)
+    }
   }
 
   private def getMetadataConfiguration(tableConf: Map[String, String]): Map[String, String ] = {

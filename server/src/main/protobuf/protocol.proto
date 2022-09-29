@@ -52,6 +52,8 @@ message QueryTableRequest {
     optional int64 version = 3;
     // The table version corresponding to the timestamp being queried.
     optional string timestamp = 4;
+    // Query all data change files since startingVersion
+    optional int64 startingVersion = 5;
 }
 
 message ListSharesResponse {
