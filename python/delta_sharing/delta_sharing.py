@@ -54,7 +54,8 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
 def load_as_pandas(
     url: str,
     limit: Optional[int] = None,
-    version: Optional[int] = None
+    version: Optional[int] = None,
+    timestamp: Optional[str] = None
 ) -> pd.DataFrame:
     """
     Load the shared table using the given url as a pandas DataFrame.
@@ -73,17 +74,24 @@ def load_as_pandas(
         rest_client=DataSharingRestClient(profile),
         limit=limit,
         version=version,
+        timestamp=timestamp
     ).to_pandas()
 
 
-def load_as_spark(url: str, version: Optional[int] = None) -> "PySparkDataFrame":  # noqa: F821
+def load_as_spark(
+    url: str,
+    version: Optional[int] = None,
+    timestamp: Optional[str] = None
+) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed,
     and the application must be a PySpark application with the Apache Spark Connector for Delta
-    Sharing installed.
+    Sharing installed. Only one of version/timestamp is supported at one time.
 
     :param url: a url under the format "<profile>#<share>.<schema>.<table>".
     :param version: an optional non-negative int. Load the snapshot of table at version.
+    :param timestamp: an optional string. Load the snapshot of table at version corresponding
+      to the timestamp.
     :return: A Spark DataFrame representing the shared table.
     """
     try:
@@ -99,6 +107,8 @@ def load_as_spark(url: str, version: Optional[int] = None) -> "PySparkDataFrame"
     df = spark.read.format("deltaSharing")
     if version is not None:
         df.option("versionAsOf", version)
+    if timestamp is not None:
+        df.option("timestampAsOf", timestamp)
     return df.load(url)
 
 
