@@ -86,7 +86,7 @@ def load_as_spark(
     """
     Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed,
     and the application must be a PySpark application with the Apache Spark Connector for Delta
-    Sharing installed.
+    Sharing installed. Only one of version/timestamp is supported at one time.
 
     :param url: a url under the format "<profile>#<share>.<schema>.<table>".
     :param version: an optional non-negative int. Load the snapshot of table at version.
