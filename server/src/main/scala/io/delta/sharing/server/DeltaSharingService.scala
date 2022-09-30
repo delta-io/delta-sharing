@@ -276,7 +276,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request: QueryTableRequest): HttpResponse = processRequest {
     val numVersionParams = Seq(request.version, request.timestamp, request.startingVersion)
       .filter(_.isDefined).size
-    if (numVersionParams >= 2) {
+    if (numVersionParams > 1) {
       throw new DeltaSharingIllegalArgumentException(ErrorStrings.multipleParametersSetErrorMsg(
         Seq("version", "timestamp", "startingVersion"))
       )
