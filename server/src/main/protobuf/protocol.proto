@@ -50,8 +50,8 @@ message QueryTableRequest {
     // If none of them is specified, the query is for the latest version.
     //
     // - If either version or timestamp is specified, the query is for the snapshot at the version.
-    // - If startingVersion is specified, the query is for all dataChange files until the
-    //   current version.
+    // - If startingVersion is specified, the query is for all dataChange files from startingVersion
+    //   until the current version.
     // The table version being queried.
     optional int64 version = 3;
     // The table version corresponding to the timestamp being queried.

@@ -276,7 +276,7 @@ class DeltaSharedTable(
           )
           actions.append(modelRemoveFile.wrap)
         case p: Protocol =>
-          protocolRead(p)
+          assertProtocolRead(p)
         case m: Metadata =>
         // TODO(lin.zhou) make a copy of SchemaUtils.isReadCompatible in another PR
         case _ => ()
@@ -367,9 +367,10 @@ class DeltaSharedTable(
     deltaLog.update()
   }
 
-  private def protocolRead(protocol: Protocol): Unit = {
-    if (protocol.minReaderVersion > model.Action.readerVersion) {
-      val e = new DeltaErrors.InvalidProtocolVersionException(Protocol(1, 2), protocol)
+  private def assertProtocolRead(protocol: Protocol): Unit = {
+    if (protocol.minReaderVersion > model.Action.maxReaderVersion) {
+      val e = new DeltaErrors.InvalidProtocolVersionException(Protocol(
+        model.Action.maxReaderVersion, model.Action.maxWriterVersion), protocol)
       throw new DeltaSharingUnsupportedOperationException(e.getMessage)
     }
   }
