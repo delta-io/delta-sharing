@@ -491,7 +491,7 @@ def test_list_files_in_table_timestamp(
         rest_client.list_files_in_table(cdf_table, version=1, timestamp="random_str")
     except Exception as e:
         assert isinstance(e, HTTPError)
-        assert "Please either provide" in (str(e))
+        assert "Please only provide one of" in (str(e))
 
     # Use a random string, and look for an appropriate error.
     # This will ensure that the timestamp is pass to server.

@@ -391,7 +391,7 @@ def test_load_as_pandas_success(
             "share1.default.cdf_table_cdf_enabled",
             1,
             "random_timestamp",
-            "Please either provide",
+            "Please only provide one of",
             id="only one is supported",
         ),
         pytest.param(
@@ -624,7 +624,7 @@ def test_parse_url():
             "share1.default.cdf_table_cdf_enabled",
             1,
             "2000-01-01 00:00:00",
-            "Please either provide 'versionAsOf' or 'timestampAsOf'",
+            "Please either provide",
             [],
             "not-used-schema-str",
             id="cdf_table_cdf_enabled timestamp too early",
