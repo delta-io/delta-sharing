@@ -48,6 +48,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "cdf_table_with_partition", schema = "default", share = "share1"),
         Table(name = "cdf_table_with_vacuum", schema = "default", share = "share1"),
         Table(name = "cdf_table_missing_log", schema = "default", share = "share1"),
+        Table(name = "streaming_table_with_optimize", schema = "default", share = "share1"),
+        Table(name = "table_reader_version_increased", schema = "default", share = "share1"),
         Table(name = "test_gzip", schema = "default", share = "share4"),
         Table(name = "table_wasb", schema = "default", share = "share_azure"),
         Table(name = "table_abfs", schema = "default", share = "share_azure"),

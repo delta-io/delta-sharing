@@ -46,6 +46,7 @@ import io.delta.sharing.server.protocol._
 import io.delta.sharing.server.util.JsonUtils
 
 object ErrorCode {
+  val UNSUPPORTED_OPERATION = "UNSUPPORTED_OPERATION"
   val INTERNAL_ERROR = "INTERNAL_ERROR"
   val RESOURCE_DOES_NOT_EXIST = "RESOURCE_DOES_NOT_EXIST"
   val INVALID_PARAMETER_VALUE = "INVALID_PARAMETER_VALUE"
@@ -79,6 +80,14 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
                 "errorCode" -> ErrorCode.RESOURCE_DOES_NOT_EXIST,
                 "message" -> cause.getMessage)))
         }
+      case _: DeltaSharingUnsupportedOperationException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.UNSUPPORTED_OPERATION,
+              "message" -> cause.getMessage)))
       case _: DeltaSharingIllegalArgumentException =>
         HttpResponse.of(
           HttpStatus.BAD_REQUEST,
@@ -167,8 +176,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
    */
   private def processRequest[T](func: => T): T = {
     try func catch {
-      case e: DeltaSharingNoSuchElementException => throw e
+      case e: DeltaSharingUnsupportedOperationException => throw e
       case e: DeltaSharingIllegalArgumentException => throw e
+      case e: DeltaSharingNoSuchElementException => throw e
       case e: DeltaCDFIllegalArgumentException => throw e
       case e: FileNotFoundException => throw e
       case e: AccessDeniedException => throw e
@@ -247,13 +257,14 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("table") table: String): HttpResponse = processRequest {
     import scala.collection.JavaConverters._
     val tableConfig = sharedTableManager.getTable(share, schema, table)
-    val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
+    val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = false,
-      Nil,
-      None,
-      None,
-      None)
-    streamingOutput(Some(version), actions)
+      predicateHints = Nil,
+      limitHint = None,
+      version = None,
+      timestamp = None,
+      startingVersion = None)
+    streamingOutput(Some(v), actions)
   }
 
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/query")
@@ -262,20 +273,31 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
-      queryTableRequest: QueryTableRequest): HttpResponse = processRequest {
-    if (queryTableRequest.version.isDefined && queryTableRequest.version.get < 0) {
+      request: QueryTableRequest): HttpResponse = processRequest {
+    val numVersionParams = Seq(request.version, request.timestamp, request.startingVersion)
+      .filter(_.isDefined).size
+    if (numVersionParams > 1) {
+      throw new DeltaSharingIllegalArgumentException(ErrorStrings.multipleParametersSetErrorMsg(
+        Seq("version", "timestamp", "startingVersion"))
+      )
+    }
+    if (request.version.isDefined && request.version.get < 0) {
       throw new DeltaSharingIllegalArgumentException("table version cannot be negative.")
+    }
+    if (request.startingVersion.isDefined && request.startingVersion.get < 0) {
+      throw new DeltaSharingIllegalArgumentException("startingVersion cannot be negative.")
     }
 
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
-    if (queryTableRequest.version.isDefined || queryTableRequest.timestamp.isDefined) {
+    if (numVersionParams > 0) {
       if (!tableConfig.cdfEnabled) {
         throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +
           " not supported because change data feed is not enabled on table: " +
           s"$share.$schema.$table")
       }
-      if (queryTableRequest.version.exists(_ < tableConfig.startVersion)) {
+      if (request.version.exists(_ < tableConfig.startVersion) ||
+        request.startingVersion.exists(_ < tableConfig.startVersion)) {
         throw new DeltaSharingIllegalArgumentException(
           s"You can only query table data since version ${tableConfig.startVersion}."
         )
@@ -283,10 +305,11 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
-      queryTableRequest.predicateHints,
-      queryTableRequest.limitHint,
-      queryTableRequest.version,
-      queryTableRequest.timestamp)
+      request.predicateHints,
+      request.limitHint,
+      request.version,
+      request.timestamp,
+      request.startingVersion)
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
     streamingOutput(Some(version), actions)

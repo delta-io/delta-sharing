@@ -36,6 +36,15 @@ class DeltaSharingIllegalArgumentException(message: String)
 class DeltaSharingNoSuchElementException(message: String)
   extends NoSuchElementException(message)
 
+/**
+ * A special exception for invalid requests happening in Delta Sharing Server. We define a special
+ * class rather than reusing `UnsupportedOperationException` so that we can ensure that the message
+ * in `UnsupportedOperationException` thrown from other libraries won't be returned to users.
+ *
+ * @note `message` will be in the response. Please make sure it doesn't contain any sensitive info.
+ */
+class DeltaSharingUnsupportedOperationException(message: String)
+  extends UnsupportedOperationException(message)
 
 /**
  * A special exception that wraps an unhandled exception when processing a request.
@@ -43,3 +52,13 @@ class DeltaSharingNoSuchElementException(message: String)
  * sensitive information.
  */
 class DeltaInternalException(e: Throwable) extends RuntimeException(e)
+
+object ErrorStrings {
+  def multipleParametersSetErrorMsg(params: Seq[String]): String = {
+    s"Please only provide one of: ${params.mkString(",")}"
+  }
+}
+
+object CausedBy {
+  def unapply(e: Throwable): Option[Throwable] = Option(e.getCause)
+}

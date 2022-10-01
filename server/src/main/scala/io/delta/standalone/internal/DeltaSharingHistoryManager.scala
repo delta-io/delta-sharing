@@ -37,15 +37,23 @@ object DeltaSharingHistoryManager {
    */
   private val POTENTIALLY_UNMONOTONIZED_TIMESTAMPS = 100
 
-  private[internal] def getCommitsSafe(
+  // Correct timestamp values are only available through getCommits(). Commit
+  // info timestamps are wrong, and file modification times are wrong because they need to be
+  // monotonized first. This just performs a list (we don't read the contents of the files in
+  // getCommits()) so it's not a big deal.
+  private[internal] def getTimestampsByVersion(
       logStore: LogStore,
       logPath: Path,
       start: Long,
       end: Long,
-      conf: Configuration): Array[Commit] = {
+      conf: Configuration): Map[Long, Timestamp] = {
     val monotonizationStart =
       Seq(start - POTENTIALLY_UNMONOTONIZED_TIMESTAMPS, 0).max
-    getCommits(logStore, logPath, monotonizationStart, end, conf)
+    val commits = getCommits(logStore, logPath, monotonizationStart, end, conf)
+
+    // Note that the timestamps come from filesystem modification timestamps, so they're
+    // milliseconds since epoch and we don't need to deal with timezones.
+    commits.map(f => (f.version -> new Timestamp(f.timestamp))).toMap
   }
 
   // Convert timestamp string to Timestamp

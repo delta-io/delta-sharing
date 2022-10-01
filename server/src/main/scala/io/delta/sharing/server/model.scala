@@ -131,3 +131,11 @@ case class RemoveFile(
 
   override def wrap: SingleAction = SingleAction(remove = this)
 }
+
+object Action {
+  // The maximum version of the protocol that this version of Delta Standalone understands.
+  val maxReaderVersion = 1
+  // The maximum writer version that this version of Delta Sharing Standalone supports.
+  // Basically delta sharing doesn't support write for now.
+  val maxWriterVersion = 0
+}

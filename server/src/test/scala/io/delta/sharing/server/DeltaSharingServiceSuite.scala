@@ -256,7 +256,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") ::
         Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") ::
         Table().withName("cdf_table_with_vacuum").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_missing_log").withSchema("default").withShare("share1") :: Nil)
+        Table().withName("cdf_table_missing_log").withSchema("default").withShare("share1") ::
+        Table().withName("streaming_table_with_optimize").withSchema("default").withShare("share1") ::
+        Table().withName("table_reader_version_increased").withSchema("default").withShare("share1") :: Nil)
     assert(expected == JsonFormat.fromJsonString[ListTablesResponse](response))
   }
 
@@ -275,7 +277,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") ::
         Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") ::
         Table().withName("cdf_table_with_vacuum").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_missing_log").withSchema("default").withShare("share1") :: Nil
+        Table().withName("cdf_table_missing_log").withSchema("default").withShare("share1") ::
+        Table().withName("streaming_table_with_optimize").withSchema("default").withShare("share1") ::
+        Table().withName("table_reader_version_increased").withSchema("default").withShare("share1") :: Nil
     assert(expected == tables)
   }
 
@@ -592,14 +596,77 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(2).url, 1030)
   }
 
-  integrationTest("cdf_table_cdf_enabled - exceptions") {
-    // only one of version and timestamp is supported
+  integrationTest("query table with version/tiemstamp/startingVersion - exceptions") {
+    // only one of version/timestamp/startingVersion is supported
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
       method = "POST",
       data = Some("""{"timestamp": "abc", "version": "3"}"""),
       expectedErrorCode = 400,
-      expectedErrorMessage = "Please either provide '<version>' or '<timestamp>'"
+      expectedErrorMessage = ErrorStrings.multipleParametersSetErrorMsg(
+        Seq("version", "timestamp", "startingVersion"))
+    )
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""{"timestamp": "abc", "startingVersion": "3"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = ErrorStrings.multipleParametersSetErrorMsg(
+        Seq("version", "timestamp", "startingVersion"))
+    )
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""{"startingVersion": 2, "version": "3"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = ErrorStrings.multipleParametersSetErrorMsg(
+        Seq("version", "timestamp", "startingVersion"))
+    )
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""{"timestamp": "abc", "version": "3", "startingVersion": "2"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = ErrorStrings.multipleParametersSetErrorMsg(
+        Seq("version", "timestamp", "startingVersion"))
+    )
+
+    // version/startVersion cannot be negative, and needs to be numeric
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some("""
+        {"version": -2}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "table version cannot be negative"
+    )
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some("""
+        {"startingVersion": -2}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "startingVersion cannot be negative"
+    )
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some("""
+        {"version": "x3"}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Not a numeric value: x3"
+    )
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some("""
+        {"startingVersion": "x3"}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Not a numeric value: x3"
     )
 
     // timestamp before the earliest version
@@ -675,7 +742,106 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(2).url, 1030)
   }
 
-  integrationTest("cdf_table_cdf_enabled_changes: query table changes") {
+  integrationTest("streaming_table_with_optimize - startingVersion success") {
+    val p =
+      s"""
+         |{
+         | "startingVersion": 0
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(6))
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val expectedMetadata = Metadata(
+      id = "4929d09e-b085-4d22-a95e-7416fb2f78ab",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      partitionColumns = Nil).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+    val files = lines.drop(2)
+    assert(files.size == 7)
+    // version 1: INSERT
+    // version 2: INSERT
+    // version 3: INSERT
+    // version 4: OPTIMIZE
+    // version 5: REMOVE
+    // version 6: REMOVE
+    verifyAddFile(
+      files(0),
+      size = 1030,
+      stats =
+        """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+      partitionValues = Map.empty,
+      version = 1,
+      timestamp = 1664325366000L
+    )
+    verifyAddFile(
+      files(1),
+      size = 1030,
+      stats =
+        """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+      partitionValues = Map.empty,
+      version = 2,
+      timestamp = 1664325372000L
+    )
+    verifyAddFile(
+      files(2),
+      size = 1030,
+      stats =
+        """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+      partitionValues = Map.empty,
+      version = 3,
+      timestamp = 1664325375000L
+    )
+    verifyRemove(
+      files(3),
+      size = 1075,
+      partitionValues = Map.empty,
+      version = 5,
+      timestamp = 1664325546000L
+    )
+    verifyAddFile(
+      files(4),
+      size = 1283,
+      stats =
+        """{"numRecords":2,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0,"_change_type":2}}""",
+      partitionValues = Map.empty,
+      version = 5,
+      timestamp = 1664325546000L
+    )
+    verifyRemove(
+      files(5),
+      size = 1283,
+      partitionValues = Map.empty,
+      version = 6,
+      timestamp = 1664325549000L
+    )
+    verifyAddFile(
+      files(6),
+      size = 1247,
+      stats =
+        """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0,"_change_type":1}}""",
+      partitionValues = Map.empty,
+      version = 6,
+      timestamp = 1664325549000L
+    )
+  }
+
+  integrationTest("table_reader_version_increased - exception") {
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table_reader_version_increased/query"),
+      method = "POST",
+      data = Some("""{"startingVersion": 0}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Delta protocol version (2,2) is too new for this version of Delta"
+    )
+  }
+
+  integrationTest("cdf_table_cdf_enabled_changes - query table changes") {
     val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, None)
     val lines = response.split("\n")
     val protocol = lines(0)
@@ -735,7 +901,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
 
-  integrationTest("cdf_table_cdf_enabled_changes: timestamp works") {
+  integrationTest("cdf_table_cdf_enabled_changes - timestamp works") {
     // 1651272616000, PST: 2022-04-29 15:50:16.0 -> version 0
     val startStr = URLEncoder.encode(new Timestamp(1651272616000L).toString)
     // 1651272660000, PST: 2022-04-29 15:51:00.0 -> version 3
@@ -914,30 +1080,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-  integrationTest("version negative") {
-    assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
-      method = "POST",
-      data = Some("""
-        {"version": -2}
-      """),
-      expectedErrorCode = 400,
-      expectedErrorMessage = "table version cannot be negative"
-    )
-  }
-
-   integrationTest("version needs to be numeric") {
-    assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
-      method = "POST",
-      data = Some("""
-        {"version": "x3"}
-      """),
-      expectedErrorCode = 400,
-      expectedErrorMessage = "Not a numeric value: x3"
-    )
-  }
-
   integrationTest("wrong 'maxResults' type") {
     assertHttpError(
       url = requestPath("/shares?maxResults=string"),
@@ -1040,7 +1182,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-  integrationTest("cdf_table_with_partition - exceptions") {
+  integrationTest("cdf_table_with_partition - exceptions on startVersion") {
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=0"),
       method = "GET",
@@ -1054,6 +1196,16 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "POST",
       data = Some("""
         {"version": "0"}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "You can only query table data since version 1"
+    )
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/query"),
+      method = "POST",
+      data = Some("""
+        {"startingVersion": "0"}
       """),
       expectedErrorCode = 400,
       expectedErrorMessage = "You can only query table data since version 1"
