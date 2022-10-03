@@ -90,6 +90,16 @@ object TestResource {
                 "cdf_table_missing_log",
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_missing_log",
                 true
+              ),
+              TableConfig(
+                "streaming_table_with_optimize",
+                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_table_with_optimize",
+                true
+              ),
+              TableConfig(
+                "table_reader_version_increased",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table_reader_version_increased",
+                true
               )
             )
           )

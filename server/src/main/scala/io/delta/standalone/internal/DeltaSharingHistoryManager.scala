@@ -42,11 +42,11 @@ object DeltaSharingHistoryManager {
   // monotonized first. This just performs a list (we don't read the contents of the files in
   // getCommits()) so it's not a big deal.
   private[internal] def getTimestampsByVersion(
-    logStore: LogStore,
-    logPath: Path,
-    start: Long,
-    end: Long,
-    conf: Configuration): Map[Long, Timestamp] = {
+      logStore: LogStore,
+      logPath: Path,
+      start: Long,
+      end: Long,
+      conf: Configuration): Map[Long, Timestamp] = {
     val monotonizationStart =
       Seq(start - POTENTIALLY_UNMONOTONIZED_TIMESTAMPS, 0).max
     val commits = getCommits(logStore, logPath, monotonizationStart, end, conf)

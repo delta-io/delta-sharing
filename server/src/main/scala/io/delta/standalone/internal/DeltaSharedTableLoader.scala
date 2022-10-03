@@ -230,6 +230,7 @@ class DeltaSharedTable(
         Nil
       }
     }
+
     snapshot.version -> actions
   }
 
@@ -275,7 +276,7 @@ class DeltaSharedTable(
           )
           actions.append(modelRemoveFile.wrap)
         case p: Protocol =>
-          protocolRead(p)
+          assertProtocolRead(p)
         case m: Metadata =>
         // TODO(lin.zhou) make a copy of SchemaUtils.isReadCompatible in another PR
         case _ => ()
@@ -289,8 +290,9 @@ class DeltaSharedTable(
 
     // First: validate cdf options are greater than startVersion
     val cdcReader = new DeltaSharingCDCReader(deltaLog, conf)
+    val latestVersion = tableVersion
     val (start, end) = cdcReader.validateCdfOptions(
-      cdfOptions, tableVersion, tableConfig.startVersion)
+      cdfOptions, latestVersion, tableConfig.startVersion)
 
     // Second: get Protocol and Metadata
     val snapshot = deltaLog.snapshot
@@ -308,7 +310,7 @@ class DeltaSharedTable(
     actions.append(modelMetadata.wrap)
 
     // Third: get files
-    val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(start, end, tableVersion)
+    val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(start, end, latestVersion)
     changeFiles.foreach { cdcDataSpec =>
       cdcDataSpec.actions.foreach { action =>
         val addCDCFile = action.asInstanceOf[AddCDCFile]
@@ -365,9 +367,10 @@ class DeltaSharedTable(
     deltaLog.update()
   }
 
-  private def protocolRead(protocol: Protocol): Unit = {
-    if (protocol.minReaderVersion > model.Action.readerVersion) {
-      val e = new DeltaErrors.InvalidProtocolVersionException(Protocol(1, 2), protocol)
+  private def assertProtocolRead(protocol: Protocol): Unit = {
+    if (protocol.minReaderVersion > model.Action.maxReaderVersion) {
+      val e = new DeltaErrors.InvalidProtocolVersionException(Protocol(
+        model.Action.maxReaderVersion, model.Action.maxWriterVersion), protocol)
       throw new DeltaSharingUnsupportedOperationException(e.getMessage)
     }
   }

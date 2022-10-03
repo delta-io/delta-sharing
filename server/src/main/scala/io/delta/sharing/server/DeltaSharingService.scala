@@ -46,6 +46,7 @@ import io.delta.sharing.server.protocol._
 import io.delta.sharing.server.util.JsonUtils
 
 object ErrorCode {
+  val UNSUPPORTED_OPERATION = "UNSUPPORTED_OPERATION"
   val INTERNAL_ERROR = "INTERNAL_ERROR"
   val RESOURCE_DOES_NOT_EXIST = "RESOURCE_DOES_NOT_EXIST"
   val INVALID_PARAMETER_VALUE = "INVALID_PARAMETER_VALUE"
@@ -79,6 +80,14 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
                 "errorCode" -> ErrorCode.RESOURCE_DOES_NOT_EXIST,
                 "message" -> cause.getMessage)))
         }
+      case _: DeltaSharingUnsupportedOperationException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.UNSUPPORTED_OPERATION,
+              "message" -> cause.getMessage)))
       case _: DeltaSharingIllegalArgumentException =>
         HttpResponse.of(
           HttpStatus.BAD_REQUEST,
@@ -167,8 +176,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
    */
   private def processRequest[T](func: => T): T = {
     try func catch {
-      case e: DeltaSharingNoSuchElementException => throw e
+      case e: DeltaSharingUnsupportedOperationException => throw e
       case e: DeltaSharingIllegalArgumentException => throw e
+      case e: DeltaSharingNoSuchElementException => throw e
       case e: DeltaCDFIllegalArgumentException => throw e
       case e: FileNotFoundException => throw e
       case e: AccessDeniedException => throw e
@@ -263,10 +273,10 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
-    request: QueryTableRequest): HttpResponse = processRequest {
+      request: QueryTableRequest): HttpResponse = processRequest {
     val numVersionParams = Seq(request.version, request.timestamp, request.startingVersion)
       .filter(_.isDefined).size
-    if (numVersionParams >= 2) {
+    if (numVersionParams > 1) {
       throw new DeltaSharingIllegalArgumentException(ErrorStrings.multipleParametersSetErrorMsg(
         Seq("version", "timestamp", "startingVersion"))
       )
