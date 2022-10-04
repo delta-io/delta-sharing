@@ -25,6 +25,7 @@ import io.delta.sharing.spark.model.{
   Format,
   Metadata,
   Protocol,
+  RemoveFile,
   Table
 }
 import io.delta.sharing.spark.util.UnexpectedHttpStatus
@@ -238,6 +239,101 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
+  integrationTest("getFiles with startingVersion - success") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val tableFiles = client.getFiles(
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"), 1L
+      )
+      assert(tableFiles.addFiles.size == 4)
+      val expectedAddFiles = Seq(
+        AddFileForCDF(
+          url = tableFiles.addFiles(0).url,
+          id = tableFiles.addFiles(0).id,
+          partitionValues = Map.empty,
+          size = 1030,
+          stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+          version = 1,
+          timestamp = 1651272635000L
+        ),
+        AddFileForCDF(
+          url = tableFiles.addFiles(1).url,
+          id = tableFiles.addFiles(1).id,
+          partitionValues = Map.empty,
+          size = 1030,
+          stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+          version = 1,
+          timestamp = 1651272635000L
+        ),
+        AddFileForCDF(
+          url = tableFiles.addFiles(2).url,
+          id = tableFiles.addFiles(2).id,
+          partitionValues = Map.empty,
+          size = 1030,
+          stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+          version = 1,
+          timestamp = 1651272635000L
+        ),
+        AddFileForCDF(
+          url = tableFiles.addFiles(3).url,
+          id = tableFiles.addFiles(3).id,
+          partitionValues = Map.empty,
+          size = 1247,
+          stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-02-02"},"maxValues":{"name":"2","age":2,"birthday":"2020-02-02"},"nullCount":{"name":0,"age":0,"birthday":0,"_change_type":1}}""",
+          version = 3,
+          timestamp = 1651272660000L
+        )
+      )
+      assert(expectedAddFiles == tableFiles.addFiles.toList)
+
+      assert(tableFiles.removeFiles.size == 2)
+      val expectedRemoveFiles = Seq(
+        RemoveFile(
+          url = tableFiles.removeFiles(0).url,
+          id = tableFiles.removeFiles(0).id,
+          partitionValues = Map.empty,
+          size = 1030,
+          version = 2,
+          timestamp = 1651272655000L
+        ),
+        RemoveFile(
+          url = tableFiles.removeFiles(1).url,
+          id = tableFiles.removeFiles(1).id,
+          partitionValues = Map.empty,
+          size = 1030,
+          version = 3,
+          timestamp = 1651272660000L
+        )
+      )
+      assert(expectedRemoveFiles == tableFiles.removeFiles.toList)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getFiles with startingVersion - exception") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      var errorMessage = intercept[UnexpectedHttpStatus] {
+        client.getFiles(
+          Table(name = "table1", schema = "default", share = "share1"),
+          1
+        )
+      }.getMessage
+      assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
+
+      errorMessage = intercept[UnexpectedHttpStatus] {
+        client.getFiles(
+          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+          -1
+        )
+      }.getMessage
+      assert(errorMessage.contains("startingVersion cannot be negative"))
+    } finally {
+      client.close()
+    }
+  }
+
   integrationTest("getCDFFiles") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
@@ -274,11 +370,11 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedCdfFiles == tableFiles.cdfFiles.toList)
-      assert(tableFiles.addFilesForCdf.size == 3)
+      assert(tableFiles.addFiles.size == 3)
       val expectedAddFiles = Seq(
         AddFileForCDF(
-          url = tableFiles.addFilesForCdf(0).url,
-          id = tableFiles.addFilesForCdf(0).id,
+          url = tableFiles.addFiles(0).url,
+          id = tableFiles.addFiles(0).id,
           partitionValues = Map.empty,
           size = 1030,
           stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -286,8 +382,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           timestamp = 1651272635000L
         ),
         AddFileForCDF(
-          url = tableFiles.addFilesForCdf(1).url,
-          id = tableFiles.addFilesForCdf(1).id,
+          url = tableFiles.addFiles(1).url,
+          id = tableFiles.addFiles(1).id,
           partitionValues = Map.empty,
           size = 1030,
           stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -295,8 +391,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           timestamp = 1651272635000L
         ),
         AddFileForCDF(
-          url = tableFiles.addFilesForCdf(2).url,
-          id = tableFiles.addFilesForCdf(2).id,
+          url = tableFiles.addFiles(2).url,
+          id = tableFiles.addFiles(2).id,
           partitionValues = Map.empty,
           size = 1030,
           stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -304,7 +400,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           timestamp = 1651272635000L
         )
       )
-      assert(expectedAddFiles == tableFiles.addFilesForCdf.toList)
+      assert(expectedAddFiles == tableFiles.addFiles.toList)
     } finally {
       client.close()
     }
@@ -319,7 +415,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         cdfOptions
       )
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
-      assert(tableFiles.addFilesForCdf.size == 4)
+      assert(tableFiles.addFiles.size == 4)
       assert(tableFiles.cdfFiles.size == 2)
       assert(tableFiles.removeFiles.size == 0)
     } finally {
