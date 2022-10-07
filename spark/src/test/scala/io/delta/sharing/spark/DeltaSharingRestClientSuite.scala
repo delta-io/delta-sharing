@@ -18,8 +18,6 @@ package io.delta.sharing.spark
 
 import java.sql.Timestamp
 
-import org.apache.http.HttpHeaders
-
 import io.delta.sharing.spark.model.{
   AddCDCFile,
   AddFile,
