@@ -306,8 +306,19 @@ private[spark] class DeltaSharingRestClient(
   private def getResponse(httpRequest: HttpRequestBase): (Option[Long], String) =
     RetryUtils.runWithExponentialBackoff(numRetries) {
       val profile = profileProvider.getProfile
-      httpRequest.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer ${profile.bearerToken}")
-      httpRequest.setHeader(HttpHeaders.USER_AGENT, DeltaSharingRestClient.USER_AGENT)
+      val customeHeaders = profileProvider.getCustomHeaders
+      if (customeHeaders.contains(HttpHeaders.AUTHORIZATION)
+          || customeHeaders.contains(HttpHeaders.USER_AGENT)) {
+        throw new IllegalArgumentException(
+          s"HTTP header ${HttpHeaders.AUTHORIZATION} and ${HttpHeaders.USER_AGENT} cannot be"
+            + "overriden."
+        )
+      }
+      val headers = Map(
+        HttpHeaders.AUTHORIZATION -> s"Bearer ${profile.bearerToken}",
+        HttpHeaders.USER_AGENT -> DeltaSharingRestClient.USER_AGENT
+      ) ++ customeHeaders
+      headers.foreach(header => httpRequest.setHeader(header._1, header._2))
       val response =
         client.execute(getHttpHost(profile.endpoint), httpRequest, HttpClientContext.create())
       try {
