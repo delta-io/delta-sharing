@@ -40,6 +40,10 @@ object DeltaSharingProfile {
  */
 trait DeltaSharingProfileProvider {
   def getProfile: DeltaSharingProfile
+
+  // A set of custom HTTP headers to get included in the HTTP requests sent to the delta sharing
+  // server. This can be used to add extra information to the requests.
+  def getCustomHeaders: Map[String, String] = Map.empty
 }
 
 /**
