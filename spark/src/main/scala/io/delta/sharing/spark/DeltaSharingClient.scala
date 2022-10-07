@@ -34,7 +34,9 @@ import org.apache.http.client.protocol.HttpClientContext
 import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, TrustSelfSignedStrategy}
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
+import org.apache.http.message.BasicHeader
 import org.apache.spark.internal.Logging
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 import io.delta.sharing.spark.model._
@@ -62,6 +64,20 @@ private[sharing] trait DeltaSharingClient {
 
 private[sharing] trait PaginationResponse {
   def nextPageToken: Option[String]
+}
+
+/**
+ * A provider that provides an custom set of HTTP headers to be sent as part of the HTTP request.
+ *
+ * Extend this interface to specify extra HTTP headers for the Delta Sharing server.
+ */
+trait CustomHttpHeadersProvider {
+  def getHeaders: Map[String, String]
+}
+
+private [sharing] class BaseCustomHttpHeadersProvider extends CustomHttpHeadersProvider {
+  // By default there are not custom headers to be set.
+  override def getHeaders: Map[String, String] = Map.empty
 }
 
 private[sharing] case class QueryTableRequest(
@@ -333,6 +349,23 @@ private[spark] class DeltaSharingRestClient(
     }
   }
 
+  private[sharing] def getHttpHeaders(profile: DeltaSharingProfile): Map[String, String] = {
+    // Load the custom http header provider and get custom headers if there are any.
+    val customHttpHeadersProviderClass =
+      SparkSession.active.sessionState.conf
+        .getConfString("spark.delta.sharing.customhttpheaders.provider.class",
+        "io.delta.sharing.spark.BaseCustomHttpHeadersProvider")
+    val customeHttpHeadersProvider =
+      Class.forName(customHttpHeadersProviderClass)
+        .getConstructor()
+        .newInstance()
+        .asInstanceOf[CustomHttpHeadersProvider]
+    Map(
+      HttpHeaders.AUTHORIZATION -> s"Bearer ${profile.bearerToken}",
+      HttpHeaders.USER_AGENT -> DeltaSharingRestClient.USER_AGENT
+    ) ++ customeHttpHeadersProvider.getHeaders
+  }
+
   /**
    * Send the http request and return the table version in the header if any, and the response
    * content.
@@ -340,8 +373,7 @@ private[spark] class DeltaSharingRestClient(
   private def getResponse(httpRequest: HttpRequestBase): (Option[Long], String) =
     RetryUtils.runWithExponentialBackoff(numRetries) {
       val profile = profileProvider.getProfile
-      httpRequest.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer ${profile.bearerToken}")
-      httpRequest.setHeader(HttpHeaders.USER_AGENT, DeltaSharingRestClient.USER_AGENT)
+      getHttpHeaders(profile).foreach(header => httpRequest.setHeader(header._1, header._2))
       val response =
         client.execute(getHttpHost(profile.endpoint), httpRequest, HttpClientContext.create())
       try {
