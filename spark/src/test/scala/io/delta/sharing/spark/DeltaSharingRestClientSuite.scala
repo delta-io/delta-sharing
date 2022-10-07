@@ -35,17 +35,6 @@ import io.delta.sharing.spark.util.UnexpectedHttpStatus
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
-  test("no custom headers are provided by default") {
-    assert(new BaseCustomHttpHeadersProvider().getHeaders == Map.empty)
-  }
-
-  integrationTest("authorization and user agent headers are set") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    val headers = client.getHttpHeaders(testProfileProvider.getProfile)
-    assert(headers.contains(HttpHeaders.AUTHORIZATION))
-    assert(headers.contains(HttpHeaders.USER_AGENT))
-  }
-
   integrationTest("listAllTables") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
