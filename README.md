@@ -302,18 +302,43 @@ Replace `KEY_PATH` with path of the JSON file that contains your service account
 
 ## Authorization
 
-The server supports a basic authorization with pre-configed bearer token. You can add the following config to your server yaml file:
-
+The server supports authorization with bearer tokens. For basic authorization, you can add the following config to your server yaml file:
 ```yaml
 authorization:
-  bearerToken: <token>
+  universalBearerToken: <token>
 ```
 
-Then any request should send with the above token, otherwise, the server will refuse the request.
+Then any request should be sent with the above token, otherwise, the server will refuse the request.
 
-If you don't config the bearer token in the server yaml file, all requests will be accepted without authorization.
-
+If you don't configure the `authorization` section in the server yaml file, all requests will be accepted without authorization.
 To be more secure, you recommend you to put the server behind a secure proxy such as [NGINX](https://www.nginx.com/) to set up [JWT Authentication](https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-jwt-authentication/).
+
+### Share based authorization
+
+For more fine-grained control, a unique bearer token can be specified for each share.
+
+ ```yaml
+ authorization:
+   universalBearerToken: <token>
+   shares:
+   - name: <share-name>
+     bearerToken: <token>
+ ```
+
+Any shares omitted from this list will require the `universalBearerToken` for access.
+
+To allow access without authorization to any unlisted share, you can change the `requireForAllShares` property.
+
+ ```yaml
+ authorization:
+   universalBearerToken: <token>
+   requireForAllShares: false
+   shares:
+   - name: <share-name>
+     bearerToken: <token>
+ ```
+
+In this configuration, any share other than the one listed will allow access without any form of authorization.
 
 ## Start the server
 
