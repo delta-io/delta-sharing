@@ -37,48 +37,13 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
       sqlContext: SQLContext,
       parameters: Map[String, String]): BaseRelation = {
     DeltaSharingDataSource.setupFileSystem(sqlContext)
-    val path = parameters.getOrElse("path", throw new IllegalArgumentException(
+    val options = new DeltaSharingOptions(parameters)
+    val path = options.options.getOrElse("path", throw new IllegalArgumentException(
       "'path' is not specified. If you use SQL to create a Delta Sharing table, " +
         "LOCATION must be specified"))
 
-    var cdfOptions: mutable.Map[String, String] = mutable.Map.empty
-    val caseInsensitiveParams = new CaseInsensitiveStringMap(parameters.asJava)
-    if (DeltaSharingDataSource.isCDFRead(caseInsensitiveParams)) {
-      cdfOptions = mutable.Map[String, String](DeltaSharingDataSource.CDF_ENABLED_KEY -> "true")
-      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_START_VERSION_KEY)) {
-        cdfOptions(DeltaSharingDataSource.CDF_START_VERSION_KEY) = caseInsensitiveParams.get(
-          DeltaSharingDataSource.CDF_START_VERSION_KEY)
-      }
-      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY)) {
-        cdfOptions(DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY) = caseInsensitiveParams.get(
-          DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY)
-      }
-      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_END_VERSION_KEY)) {
-        cdfOptions(DeltaSharingDataSource.CDF_END_VERSION_KEY) = caseInsensitiveParams.get(
-          DeltaSharingDataSource.CDF_END_VERSION_KEY)
-      }
-      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY)) {
-        cdfOptions(DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY) = caseInsensitiveParams.get(
-          DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY)
-      }
-    }
-
-    if (parameters.get("versionAsOf").isDefined && parameters.get("timestampAsOf").isDefined) {
-      throw new IllegalArgumentException("Please either provide 'versionAsOf' or 'timestampAsOf'.")
-    }
-
-    var versionAsOf: Option[Long] = None
-    if (parameters.get("versionAsOf").isDefined) {
-      try {
-        versionAsOf = Some(parameters.get("versionAsOf").get.toLong)
-      } catch {
-        case _: NumberFormatException =>
-          throw new IllegalArgumentException("versionAsOf is not a valid number.")
-      }
-    }
-
     val deltaLog = RemoteDeltaLog(path)
-    deltaLog.createRelation(versionAsOf, parameters.get("timestampAsOf"), cdfOptions.toMap)
+    deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
   }
 
   override def shortName: String = "deltaSharing"
