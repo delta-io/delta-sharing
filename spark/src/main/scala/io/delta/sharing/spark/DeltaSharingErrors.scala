@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark.util
+package io.delta.sharing.spark
 
 object DeltaSharingErrors {
-  def nonExistentDeltaTable(tabldId: String): Throwable = {
+  def nonExistentDeltaTable(tableId: String): Throwable = {
     new IllegalStateException(s"Delta table ${tableId} doesn't exist. " +
       s"Please delete your streaming query checkpoint and restart.")
   }
@@ -40,7 +40,7 @@ object DeltaSharingErrors {
     new IllegalArgumentException(s"Invalid value '$input' for option '$name', $explain")
   }
 
-  def startingVersionAndTimestampBothSetException(
+  def versionAndTimestampBothSetException(
     versionOptKey: String,
     timestampOptKey: String): Throwable = {
     new IllegalArgumentException(s"Please either provide '$versionOptKey' or '$timestampOptKey'")
@@ -48,5 +48,39 @@ object DeltaSharingErrors {
 
   def CDFNotSupportedInStreaming: Throwable = {
     new UnsupportedOperationException("Delta Sharing Streaming CDF is not supported yet.")
+  }
+
+  def deltaSourceIgnoreDeleteError(version: Long): Throwable = {
+    new UnsupportedOperationException("Detected deleted data from streaming source at version " +
+      s"$version. This is currently not supported. If you'd like to ignore deletes, set the " +
+      s"option 'ignoreDeletes' to 'true'.")
+  }
+
+  def deltaSourceIgnoreChangesError(version: Long): Throwable = {
+    new UnsupportedOperationException("Detected a data update in the source table at version " +
+      s"$version. This is currently not supported. If you'd like to ignore updates, set the " +
+      s"option 'ignoreChanges' to 'true'. If you would like the data update to be reflected, " +
+      s"please restart the query from latest snapshot with a fresh checkpoint directory.")
+  }
+
+  def unknownReadLimit(limit: String): Throwable = {
+    new UnsupportedOperationException(s"Unknown ReadLimit: $limit")
+  }
+
+  def specifySchemaAtReadTimeException: Throwable = {
+    new IllegalStateException("Delta sharing does not support specifying the schema at read time.")
+  }
+
+  def pathNotSpecifiedException: Throwable = {
+    new IllegalArgumentException("'path' is not specified. If you use SQL to create a Delta " +
+      "Sharing table, LOCATION must be specified")
+  }
+
+  def timeTravelNotSupportedException: Throwable = {
+    new UnsupportedOperationException("Cannot time travel streams.")
+  }
+
+  def schemaNotSetException: Throwable = {
+    new IllegalStateException("Shared table schema is not set. Please contact your data provider.")
   }
 }

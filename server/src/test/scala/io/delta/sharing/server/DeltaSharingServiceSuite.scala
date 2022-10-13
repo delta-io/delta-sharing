@@ -749,7 +749,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
          | "startingVersion": 0
          |}
          |""".stripMargin
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(6))
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(0))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)

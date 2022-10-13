@@ -245,6 +245,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val tableFiles = client.getFiles(
         Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"), 1L
       )
+      assert(tableFiles.version == 1)
       assert(tableFiles.addFiles.size == 4)
       val expectedAddFiles = Seq(
         AddFileForCDF(

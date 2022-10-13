@@ -237,7 +237,7 @@ private[spark] class DeltaSharingRestClient(
       case f => throw new IllegalStateException(s"Unexpected File:${f}")
     }
     DeltaTableFiles(
-      0L,
+      version,
       protocol,
       metadata,
       addFiles = addFiles,
@@ -253,7 +253,7 @@ private[spark] class DeltaSharingRestClient(
 
     val target = getTargetUrl(
       s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
-    val (_, lines) = getNDJson(target, requireVersion = false)
+    val (version, lines) = getNDJson(target, requireVersion = false)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
@@ -268,7 +268,7 @@ private[spark] class DeltaSharingRestClient(
       case f => throw new IllegalStateException(s"Unexpected File:${f}")
     }
     DeltaTableFiles(
-      0L,
+      version,
       protocol,
       metadata,
       addFiles = addFiles,

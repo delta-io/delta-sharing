@@ -56,8 +56,8 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
 
   val ignoreDeletes = options.get(IGNORE_DELETES_OPTION).exists(toBoolean(_, IGNORE_DELETES_OPTION))
 
-  val readChangeFeed = options.get(CDC_READ_OPTION).exists(toBoolean(_, CDC_READ_OPTION)) ||
-    options.get(CDC_READ_OPTION_LEGACY).exists(toBoolean(_, CDC_READ_OPTION_LEGACY))
+  val readChangeFeed = options.get(CDF_READ_OPTION).exists(toBoolean(_, CDF_READ_OPTION)) ||
+    options.get(CDF_READ_OPTION_LEGACY).exists(toBoolean(_, CDF_READ_OPTION_LEGACY))
 
   val startingVersion: Option[DeltaStartingVersion] = options.get(STARTING_VERSION_OPTION).map {
     case "latest" => StartingVersionLatest
@@ -70,23 +70,55 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
 
   val startingTimestamp = options.get(STARTING_TIMESTAMP_OPTION)
 
+  val cdfOptions: Map[String, String] = prepareCdfOptions()
+
+  val versionAsOf = options.get(TIME_TRAVEL_VERSION).map { str =>
+    Try(str.toLong).toOption.filter(_ > 0).getOrElse {
+      throw DeltaSharingErrors.illegalDeltaOptionException(
+        TIME_TRAVEL_VERSION, str, "must be a positive integer")
+    }
+  }
+
+  val timestampAsOf = options.get(TIME_TRAVEL_TIMESTAMP)
+
+  def isTimeTravel: Boolean = versionAsOf.isDefined || timestampAsOf.isDefined
+
+  private def prepareCdfOptions(): Map[String, String] = {
+    if (readChangeFeed) {
+      validCdfOptions.filter(option => options.contains(option._1)).map(option =>
+        option._1 -> options.get(option._1).get
+      )
+    } else {
+      Map.empty[String, String]
+    }
+  }
+
   private def provideOneStartingOption(): Unit = {
     if (startingTimestamp.isDefined && startingVersion.isDefined) {
-      throw DeltaSharingErrors.startingVersionAndTimestampBothSetException(
+      throw DeltaSharingErrors.versionAndTimestampBothSetException(
         STARTING_VERSION_OPTION,
         STARTING_TIMESTAMP_OPTION)
     }
   }
 
+  private def provideOneTimeTravelOption(): Unit = {
+    if (versionAsOf.isDefined && timestampAsOf.isDefined) {
+      throw DeltaSharingErrors.versionAndTimestampBothSetException(
+        TIME_TRAVEL_VERSION,
+        TIME_TRAVEL_TIMESTAMP)
+    }
+  }
+
   provideOneStartingOption()
+  provideOneTimeTravelOption()
 }
 
 
 /**
- * Options for the Delta data source.
+ * Options for the Delta Sharing data source.
  */
 class DeltaSharingOptions(
-  @transient protected[delta] val options: CaseInsensitiveMap[String])
+  @transient protected[spark] val options: CaseInsensitiveMap[String])
   extends DeltaSharingReadOptions with Serializable {
 
   // skipping verifyOptions(options) as delta sharing client doesn't support log yet.
@@ -104,29 +136,41 @@ object DeltaSharingOptions extends Logging {
 
   val STARTING_VERSION_OPTION = "startingVersion"
   val STARTING_TIMESTAMP_OPTION = "startingTimestamp"
-  val CDC_START_VERSION = "startingVersion"
-  val CDC_START_TIMESTAMP = "startingTimestamp"
-  val CDC_END_VERSION = "endingVersion"
-  val CDC_END_TIMESTAMP = "endingTimestamp"
-  val CDC_READ_OPTION = "readChangeFeed"
-  val CDC_READ_OPTION_LEGACY = "readChangeData"
+  val CDF_START_VERSION = "startingVersion"
+  val CDF_START_TIMESTAMP = "startingTimestamp"
+  val CDF_END_VERSION = "endingVersion"
+  val CDF_END_TIMESTAMP = "endingTimestamp"
+  val CDF_READ_OPTION = "readChangeFeed"
+  val CDF_READ_OPTION_LEGACY = "readChangeData"
+
+  val TIME_TRAVEL_VERSION = "versionAsOf"
+  val TIME_TRAVEL_TIMESTAMP = "timestampAsOf"
 
   val validOptionKeys : Set[String] = Set(
     IGNORE_CHANGES_OPTION,
     IGNORE_DELETES_OPTION,
     STARTING_TIMESTAMP_OPTION,
     STARTING_VERSION_OPTION,
-    CDC_READ_OPTION,
-    CDC_READ_OPTION_LEGACY,
-    CDC_START_TIMESTAMP,
-    CDC_END_TIMESTAMP,
-    CDC_START_VERSION,
-    CDC_END_VERSION,
+    CDF_READ_OPTION,
+    CDF_READ_OPTION_LEGACY,
+    CDF_START_TIMESTAMP,
+    CDF_END_TIMESTAMP,
+    CDF_START_VERSION,
+    CDF_END_VERSION,
     "queryName",
     "checkpointLocation",
     "path",
     "timestampAsOf",
     "versionAsOf"
+  )
+
+  val validCdfOptions = Map(
+    CDF_READ_OPTION -> "",
+    CDF_READ_OPTION_LEGACY -> "",
+    CDF_START_TIMESTAMP -> "",
+    CDF_END_TIMESTAMP -> "",
+    CDF_START_VERSION -> "",
+    CDF_END_VERSION -> ""
   )
 }
 

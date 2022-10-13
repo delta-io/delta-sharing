@@ -152,8 +152,8 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
         getIdToUrlMap
       })
 
-    // We ignore partition filters for list files, since the server already
-    // parforms this filtering for CDF.
+    // We ignore partition filters for list files, since the delta sharing server already
+    // parforms this.
     makePartitionDirectories(actions)
   }
 
@@ -189,3 +189,27 @@ private[sharing] case class RemoteDeltaCDFRemoveFileIndex(
       params,
       deltaTableFiles.removeFiles,
       CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile) {}
+
+// The index classes for batch files
+private[sharing] case class RemoteDeltaBatchFileIndex(
+  override val params: RemoteDeltaFileIndexParams,
+  val addFiles: Seq[AddFile]) extends RemoteDeltaFileIndexBase(params) {
+
+  override def sizeInBytes: Long = {
+    addFiles.map(_.size).sum
+  }
+
+  override def inputFiles: Array[String] = {
+    addFiles.map(a => toDeltaSharingPath(a).toString).toArray
+  }
+
+  override def listFiles(
+    partitionFilters: Seq[Expression],
+    dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    // TODO(lin.zhou): Register the files with the pre-signed url fetcher.
+
+    // We ignore partition filters for list files, since the delta sharing server already
+    // parforms this.
+    makePartitionDirectories(addFiles)
+  }
+}

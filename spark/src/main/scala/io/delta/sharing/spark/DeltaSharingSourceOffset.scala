@@ -17,12 +17,12 @@
 package io.delta.sharing.spark
 
 // scalastyle:off import.ordering.noEmptyLine
-import io.delta.sharing.spark.util.JsonUtils
+import org.apache.spark.sql.connector.read.streaming.{Offset => OffsetV2}
+import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset}
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
 
-import org.apache.spark.sql.connector.read.streaming.{Offset => OffsetV2}
-import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset}
+import io.delta.sharing.spark.util.JsonUtils
 
 /**
  * Tracks how far we processed in when reading changes from the [[Delta Sharing Server]].

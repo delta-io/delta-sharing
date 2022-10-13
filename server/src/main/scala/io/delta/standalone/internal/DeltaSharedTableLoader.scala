@@ -170,8 +170,8 @@ class DeltaSharedTable(
         ErrorStrings.multipleParametersSetErrorMsg(Seq("version", "timestamp", "startingVersion"))
       )
     }
-    val snapshot = if (version.isDefined) {
-      deltaLog.getSnapshotForVersionAsOf(version.get)
+    val snapshot = if (version.orElse(startingVersion).isDefined) {
+      deltaLog.getSnapshotForVersionAsOf(version.orElse(startingVersion).get)
     } else if (timestamp.isDefined) {
       val ts = DeltaSharingHistoryManager.getTimestamp("timestamp", timestamp.get)
       try {
@@ -202,7 +202,7 @@ class DeltaSharedTable(
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
-        queryDataChangeSinceStartVersion(startingVersion.get, snapshot.version)
+        queryDataChangeSinceStartVersion(startingVersion.get)
       } else if (includeFiles) {
         val selectedFiles = state.activeFiles.toSeq
         val filteredFilters =
@@ -234,9 +234,8 @@ class DeltaSharedTable(
     snapshot.version -> actions
   }
 
-  private def queryDataChangeSinceStartVersion(
-    startingVersion: Long,
-    latestVersion: Long): Seq[model.SingleAction] = {
+  private def queryDataChangeSinceStartVersion(startingVersion: Long): Seq[model.SingleAction] = {
+    val latestVersion = tableVersion
     if (startingVersion > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
     }
