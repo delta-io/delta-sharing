@@ -393,6 +393,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   import java.time.LocalDateTime
   import org.apache.spark.sql.execution.streaming.StreamingQueryWrapper
   import org.apache.spark.sql.streaming.StreamingQuery
+  import org.apache.spark.sql.streaming.OutputMode
   def printQuery(query: StreamingQuery): Unit = {
 //    Console.println(s"--------[linzhou]--------[query][${query}]")
 //    Console.println(s"--------[linzhou]--------[query.id][${query.id}]")
@@ -405,8 +406,6 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("stream query test - exceptions") {
-    Console.println(s"--------[linzhou]-----------[test-start][${LocalDateTime.now()}]")
-
     val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
     var query = spark.readStream.format("deltaSharing").option("path", tablePath)
       .option("startingVersion", "0")
@@ -423,9 +422,23 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     errorMessage = intercept[StreamingQueryException] {
       query.awaitTermination()   // block until query is terminated, with stop() or with error
     }.getMessage
-    Console.println(s"--------[linzhou]-----------[error][${errorMessage}]")
     assert(errorMessage.contains("Detected a data update in the source table at version 3"))
-    Console.println(s"--------[linzhou]-----------[test-end][${LocalDateTime.now()}]")
+
+    errorMessage = intercept[UnsupportedOperationException] {
+      query = spark.readStream.format("deltaSharing").option("path", tablePath)
+        .option("startingVersion", "0")
+        .option("readChangeFeed", "true")
+        .load().writeStream.format("console").start()
+    }.getMessage
+    assert(errorMessage.contains("CDF is not supported in Delta Sharing Streaming yet"))
+
+    errorMessage = intercept[UnsupportedOperationException] {
+      query = spark.readStream.format("deltaSharing").option("path", tablePath)
+        .option("startingVersion", "0")
+        .option("readChangeData", "true")
+        .load().writeStream.format("console").start()
+    }.getMessage
+    assert(errorMessage.contains("CDF is not supported in Delta Sharing Streaming yet"))
   }
 
   integrationTest("stream query test - test") {
@@ -436,18 +449,25 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       .option("startingVersion", "0")
       .option("ignoreDeletes", "true")
       .option("ignoreChanges", "true")
-      .load().writeStream.format("console").start()
+      .load().writeStream
+      .queryName("ds_stream_test")
+      .outputMode(OutputMode.Update)
+      .format("memory").start()
 
-    var i = 0
-    while (i < 10 && !spark.streams.active.isEmpty) {
-      Console.println(s"--------[linzhou]-----------[test-i][${i}]")
-      printQuery(query)
-      i += 1
-      Thread.sleep(10000)
+    val error = intercept[StreamingQueryException] {
+      query.awaitTermination()   // block until query is terminated, with stop() or with error
     }
-    Console.println(s"--------[linzhou]-----------[test-i][${i}]")
-    printQuery(query)
-    query.stop()
-    Console.println(s"--------[linzhou]-----------[test-end][${LocalDateTime.now()}]")
+    Console.println(s"--------[linzhou]----[error][${error.printStackTrace}]")
+//    var i = 0
+//    while (i < 10 && !spark.streams.active.isEmpty) {
+//      Console.println(s"--------[linzhou]-----------[test-i][${i}]")
+//      printQuery(query)
+//      i += 1
+//      Thread.sleep(10000)
+//    }
+//    Console.println(s"--------[linzhou]-----------[test-i][${i}]")
+//    printQuery(query)
+//    query.stop()
+//    Console.println(s"--------[linzhou]-----------[test-end][${LocalDateTime.now()}]")
   }
 }

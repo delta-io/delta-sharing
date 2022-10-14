@@ -254,7 +254,7 @@ trait DeltaSharingSourceBase extends Source
       Map.empty)(spark)
 
     Console.println(s"--------[linzhou]--------[createDF-relation]")
-    DeltaSharingScanUtils.ofRows(spark, LogicalRelation(relation, isStreaming = true))
+    DeltaSharingScanUtils.ofRows(spark, LogicalRelation(relation, isStreaming = false))
   }
 
   /**
@@ -407,7 +407,7 @@ case class DeltaSharingSource(
   override def latestOffset(startOffset: streaming.Offset, limit: ReadLimit): streaming.Offset = {
     // scalastyle:off println
     import java.time.LocalDateTime
-    Console.println(s"--------[linzhou]-----------[latestoffset-start][${LocalDateTime.now()}]")
+    Console.println(s"--------[linzhou]-----------[latestoffset-start][${startOffset}]")
     Console.println(s"--------[linzhou]-----------[latestoffset-limit][${limit}]")
     // scalastyle:on println
     val limits = AdmissionLimits(limit)
@@ -485,7 +485,7 @@ case class DeltaSharingSource(
       startVersion, startIndex, isStartingVersion, endOffset
     )
 
-    Console.println(s"--------[linzhou]--------[getbatch-createdDF][${createdDf.show()}]")
+    Console.println(s"--------[linzhou]--------[getbatch-createdDF][${createdDf}]")
     // scalastyle:on println
     createdDf
   }
