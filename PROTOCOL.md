@@ -1683,7 +1683,9 @@ See [below](#request-body) for more details.
 
 `Delta-Table-Version: {version}`
 
-**{version}** is a long value which represents the current table version.
+**{version}** is a long value, it represents the current table version when no time travel 
+parameters are provided in the request, it represents the starting version of files returned in the
+response when there are time travel parameters provided.
 
 </td>
 </tr>
@@ -1976,7 +1978,7 @@ Query Parameters | **startingVersion** (type: Int64, optional): The starting ver
 
 `Delta-Table-Version: {version}`
 
-**{version}** is a Long which represents the current table version.
+**{version}** is a long value which represents the starting version of files in the response.
 
 </td>
 </tr>
