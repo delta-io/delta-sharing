@@ -206,23 +206,20 @@ private[sharing] case class RemoteDeltaBatchFileIndex(
   override def listFiles(
     partitionFilters: Seq[Expression],
     dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
-    // TODO(lin.zhou): Register the files with the pre-signed url fetcher.
-    // scalastyle:off println
-    Console.println(s"-----[linzhou]------[listFiles.path][${params.path.toString}]")
+    // TODO(lin.zhou): Actually refresh the presigned url in the cache instead of just using
+    // getIdToUrlMap
     CachedTableManager.INSTANCE
       .register(params.path.toString, getIdToUrlMap, new WeakReference(this), () => {
         getIdToUrlMap
       })
 
     // We ignore partition filters for list files, since the delta sharing server already
-    // parforms this.
+    // parforms the filters.
     makePartitionDirectories(addFiles)
   }
 
   private[sharing] def getIdToUrlMap : Map[String, String] = {
     addFiles.map { add =>
-      // scalastyle:off println
-      Console.println(s"-----[linzhou]------[id-to-map][${add.id}][${add.url}]")
       add.id -> add.url
     }.toMap
   }

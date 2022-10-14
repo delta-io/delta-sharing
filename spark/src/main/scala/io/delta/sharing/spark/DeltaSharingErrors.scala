@@ -68,7 +68,8 @@ object DeltaSharingErrors {
   }
 
   def specifySchemaAtReadTimeException: Throwable = {
-    new IllegalStateException("Delta sharing does not support specifying the schema at read time.")
+    new UnsupportedOperationException("Delta sharing does not support specifying the schema at " +
+      "read time.")
   }
 
   def pathNotSpecifiedException: Throwable = {

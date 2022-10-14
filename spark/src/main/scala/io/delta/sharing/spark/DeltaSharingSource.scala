@@ -17,6 +17,7 @@
 package io.delta.sharing.spark
 
 // scalastyle:off import.ordering.noEmptyLine
+// scalastyle:off println
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, SparkSession}
 
@@ -92,12 +93,10 @@ trait DeltaSharingSourceBase extends Source
     fromVersion: Long,
     fromIndex: Long,
     isStartingVersion: Boolean): Unit = {
-    // scalastyle:off println
-    Console.println(s"--------[linzhou]--------[getFileChanges-start]")
     if (!sortedFetchedFiles.isEmpty) { return }
 
-    Console.println(s"--------[linzhou]--------[getFileChanges-empty][fv:${fromVersion}]")
     if (fromVersion > deltaLog.client.getTableVersion(deltaLog.table)) {
+      Console.println(s"--------[linzhou]--------[getFileChanges-no-new-data]")
       return
     }
 
@@ -112,29 +111,22 @@ trait DeltaSharingSourceBase extends Source
     }
 
     if (isStartingVersion) {
-      Console.println(s"--------[linzhou]------[isStartingVersion]")
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, Nil, None, Some(fromVersion), None)
-      var tmpIndex = 0
       val numFiles = tableFiles.files.size
-      Console.println(s"--------[linzhou]------[numFiles][${numFiles}]")
       tableFiles.files.sortWith(sortAddFile).zipWithIndex.foreach{
         case (file, index) if (index > fromIndex) =>
-          Console.println(s"--------[linzhou]------[index][$index]")
           if (sortedFetchedFiles.isEmpty) {
-            Console.println(s"--------[linzhou]------[appendfirst]")
+            // TODO(check if -1 is necessary)
             appendToSortedFetchedFiles(IndexedFile(fromVersion, -1, null))
           }
           appendToSortedFetchedFiles(
-            IndexedFile(fromVersion, tmpIndex, file, isLast = (index + 1 == numFiles)))
+            IndexedFile(fromVersion, index, file, isLast = (index + 1 == numFiles)))
       }
     } else {
-      Console.println(s"--------[linzhou]------[not-isStartingVersion]")
-      var tmpIndex = 0
       // TODO(lin.zhou) return metadata for each version, and check schema read compatibility
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)
       val addFiles = verifyStreamHygieneAndFilterAddFiles(tableFiles)
       var firstFileForVersion = true
-      Console.println(s"--------[linzhou]------[addFiles.size][${addFiles.size}]")
       addFiles.groupBy(a => a.version).toSeq.sortWith(_._1 < _._1).foreach{
         case (v, adds) =>
           firstFileForVersion = true
@@ -147,7 +139,7 @@ trait DeltaSharingSourceBase extends Source
               }
               appendToSortedFetchedFiles(IndexedFile(
                 add.version,
-                tmpIndex,
+                index,
                 AddFile(add.url, add.id, add.partitionValues, add.size, add.stats),
                 isLast = (index + 1 == numFiles))
               )
@@ -155,7 +147,6 @@ trait DeltaSharingSourceBase extends Source
       }
     }
     Console.println(s"--------[linzhou]------[final-size][${sortedFetchedFiles.size}]")
-    // scalastyle:on println
   }
 
   protected def getLastFileChangeWithRateLimit(
@@ -166,11 +157,7 @@ trait DeltaSharingSourceBase extends Source
     if (options.readChangeFeed) {
       throw DeltaSharingErrors.CDFNotSupportedInStreaming
     } else {
-      // scalastyle:off println
-      Console.println(s"--------[linzhou]--------[getLastFileChange-start]")
       getFileChanges(fromVersion, fromIndex, isStartingVersion)
-      Console.println(s"--------[linzhou]--------[getLastFileChange-limits][$limits]")
-      // scalastyle:on println
 
       if (limits.isEmpty) return sortedFetchedFiles.lastOption
 
@@ -208,16 +195,15 @@ trait DeltaSharingSourceBase extends Source
     } else {
       getFileChanges(startVersion, startIndex, isStartingVersion)
 
-      // scalastyle:off println
       Console.println(s"--------[linzhou]--------[sorted.size][${sortedFetchedFiles.size}]")
       val fileActions = sortedFetchedFiles.takeWhile {
         case IndexedFile(version, index, _, _) =>
           version < endOffset.reservoirVersion ||
             (version == endOffset.reservoirVersion && index <= endOffset.index)
       }
-      Console.println(s"--------[linzhou]--------[took.size][${fileActions.size}]")
-      sortedFetchedFiles.drop(fileActions.size)
-      Console.println(s"--------[linzhou]--------[sorted.size][${sortedFetchedFiles.size}]")
+      sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
+      Console.println(s"--------[linzhou]--------[took/sorted.size]" +
+        s"[${fileActions.size}, ${sortedFetchedFiles.size}]")
 
       // filter out the first indexedFile of each version, where index = -1 and add = null
       // TODO(check if it's necessary to add a starter file)
@@ -225,7 +211,6 @@ trait DeltaSharingSourceBase extends Source
         indexedFile.getFileAction != null
       }
       Console.println(s"--------[linzhou]--------[filtered.size][${filteredIndexedFiles.size}]")
-      // scalastyle:on println
 
       createDataFrame(filteredIndexedFiles)
     }
@@ -237,13 +222,10 @@ trait DeltaSharingSourceBase extends Source
    * @param indexedFiles actions list from which to generate the DataFrame.
    */
   protected def createDataFrame(indexedFiles: Seq[IndexedFile]): DataFrame = {
-    // scalastyle:off println
-    Console.println(s"--------[linzhou]--------[createDF-start]")
     val addFilesList = indexedFiles.map(_.getFileAction)
 
     val params = new RemoteDeltaFileIndexParams(spark, snapshot)
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
-    Console.println(s"--------[linzhou]--------[createDF-params-index]")
 
     val relation = HadoopFsRelation(
       fileIndex,
@@ -253,8 +235,7 @@ trait DeltaSharingSourceBase extends Source
       snapshot.fileFormat,
       Map.empty)(spark)
 
-    Console.println(s"--------[linzhou]--------[createDF-relation]")
-    DeltaSharingScanUtils.ofRows(spark, LogicalRelation(relation, isStreaming = false))
+    DeltaSharingScanUtils.ofRows(spark, LogicalRelation(relation, isStreaming = true))
   }
 
   /**
@@ -268,15 +249,12 @@ trait DeltaSharingSourceBase extends Source
     fromVersion: Long,
     isStartingVersion: Boolean,
     limits: Option[AdmissionLimits]): Option[Offset] = {
-    // scalastyle:off println
-    Console.println(s"--------[linzhou]--------[getStartingFSDV-start]")
     val lastFileChange = getLastFileChangeWithRateLimit(
       fromVersion,
       fromIndex = -1L,
       isStartingVersion = isStartingVersion,
       limits)
     Console.println(s"--------[linzhou]--------[lastFileChange][${lastFileChange}]")
-    // scalastyle:on println
     if (lastFileChange.isEmpty) {
       None
     } else {
@@ -365,7 +343,6 @@ case class DeltaSharingSource(
 
   protected def verifyStreamHygieneAndFilterAddFiles(
     tableFiles: DeltaTableFiles): Seq[AddFileForCDF] = {
-    // scalastyle:off println
     if (!tableFiles.removeFiles.isEmpty) {
       val groupedRemoveFiles = tableFiles.removeFiles.groupBy(r => r.version)
       val groupedAddFiles = tableFiles.addFiles.groupBy(a => a.version)
@@ -389,10 +366,6 @@ case class DeltaSharingSource(
       case Some(v) => (v, false)
       case None => (deltaLog.client.getTableVersion(deltaLog.table), true)
     }
-    // scalastyle:off println
-    Console.println(s"--------[linzhou]--------[getStarting-v][${version}]")
-    Console.println(s"--------[linzhou]--------[getStarting-isStarting][${isStartingVersion}]")
-    // scalastyle:on println
     if (version < 0) {
       return None
     }
@@ -405,11 +378,9 @@ case class DeltaSharingSource(
   }
 
   override def latestOffset(startOffset: streaming.Offset, limit: ReadLimit): streaming.Offset = {
-    // scalastyle:off println
     import java.time.LocalDateTime
-    Console.println(s"--------[linzhou]-----------[latestoffset-start][${startOffset}]")
-    Console.println(s"--------[linzhou]-----------[latestoffset-limit][${limit}]")
-    // scalastyle:on println
+    Console.println(s"--------[linzhou]-----------[latestoffset-start]" +
+      s"[${LocalDateTime.now()},${startOffset},${limit}]")
     val limits = AdmissionLimits(limit)
 
     // TODO(lin.zhou) check when to call this
@@ -423,9 +394,7 @@ case class DeltaSharingSource(
       getNextOffsetFromPreviousOffset(previousOffset, limits)
     }
     logDebug(s"previousOffset -> currentOffset: $previousOffset -> $currentOffset")
-    // scalastyle:off println
     Console.println(s"--------[linzhou]--------[latestoffset-currentOffset][${currentOffset}]")
-    // scalastyle:on println
     currentOffset.orNull
   }
 
@@ -435,11 +404,7 @@ case class DeltaSharingSource(
   }
 
   override def getBatch(startOffsetOption: Option[Offset], end: Offset): DataFrame = {
-    // scalastyle:off println
-    Console.println(s"--------[linzhou]-----------[getbatch-start]")
-    Console.println(s"--------[linzhou]--------[getbatch-soo][$startOffsetOption]")
-    Console.println(s"--------[linzhou]--------[getbatch-end][$end]")
-    // scalastyle:on println
+    Console.println(s"--------[linzhou]--------[getbatch-start-params][$startOffsetOption,$end]")
     val endOffset = DeltaSharingSourceOffset(tableId, end)
     previousOffset = endOffset // Proceed the offset, and for recovery,
 
@@ -477,16 +442,10 @@ case class DeltaSharingSource(
         Some(startOffset.sourceVersion))
     }
     logDebug(s"start: $startOffsetOption end: $end")
-
-    // scalastyle:off println
-    Console.println(s"--------[linzhou]--------[getbatch-sv,si,isv]" +
-      s"[${startVersion}, $startIndex, $isStartingVersion]")
     val createdDf = getFileChangesAndCreateDataFrame(
       startVersion, startIndex, isStartingVersion, endOffset
     )
 
-    Console.println(s"--------[linzhou]--------[getbatch-createdDF][${createdDf}]")
-    // scalastyle:on println
     createdDf
   }
 

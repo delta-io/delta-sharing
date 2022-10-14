@@ -25,7 +25,6 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{QueryTest, Row}
 import org.apache.spark.sql.catalyst.util.DateTimeUtils._
 import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.streaming.StreamingQueryException
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{DateType, StringType, StructField, StructType, TimestampType}
 import org.apache.spark.unsafe.types.UTF8String
@@ -388,86 +387,5 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       sql("CREATE table foo USING deltaSharing")
     }
     assert(e.getMessage.contains("LOCATION must be specified"))
-  }
-
-  import java.time.LocalDateTime
-  import org.apache.spark.sql.execution.streaming.StreamingQueryWrapper
-  import org.apache.spark.sql.streaming.StreamingQuery
-  import org.apache.spark.sql.streaming.OutputMode
-  def printQuery(query: StreamingQuery): Unit = {
-//    Console.println(s"--------[linzhou]--------[query][${query}]")
-//    Console.println(s"--------[linzhou]--------[query.id][${query.id}]")
-//    Console.println(s"--------[linzhou]--------[query.runId][${query.runId}]")
-//    Console.println(s"--------[linzhou]--------[query.name][${query.name}]")
-//    Console.println(s"--------[linzhou]--------[query.explain][${query.explain}]")
-    Console.println(s"--------[linzhou]--------[query.exception][${query.exception}]")
-    Console.println(s"--------[linzhou]--------[query.recentProgress][${query.recentProgress}]")
-    Console.println(s"--------[linzhou]--------[query.lastProgress][${query.lastProgress}]")
-  }
-
-  integrationTest("stream query test - exceptions") {
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
-    var query = spark.readStream.format("deltaSharing").option("path", tablePath)
-      .option("startingVersion", "0")
-      .load().writeStream.format("console").start()
-    var errorMessage = intercept[StreamingQueryException] {
-      query.awaitTermination()   // block until query is terminated, with stop() or with error
-    }.getMessage
-    assert(errorMessage.contains("Detected deleted data from streaming source at version 2"))
-
-    query = spark.readStream.format("deltaSharing").option("path", tablePath)
-      .option("startingVersion", "0")
-      .option("ignoreDeletes", "true")
-      .load().writeStream.format("console").start()
-    errorMessage = intercept[StreamingQueryException] {
-      query.awaitTermination()   // block until query is terminated, with stop() or with error
-    }.getMessage
-    assert(errorMessage.contains("Detected a data update in the source table at version 3"))
-
-    errorMessage = intercept[UnsupportedOperationException] {
-      query = spark.readStream.format("deltaSharing").option("path", tablePath)
-        .option("startingVersion", "0")
-        .option("readChangeFeed", "true")
-        .load().writeStream.format("console").start()
-    }.getMessage
-    assert(errorMessage.contains("CDF is not supported in Delta Sharing Streaming yet"))
-
-    errorMessage = intercept[UnsupportedOperationException] {
-      query = spark.readStream.format("deltaSharing").option("path", tablePath)
-        .option("startingVersion", "0")
-        .option("readChangeData", "true")
-        .load().writeStream.format("console").start()
-    }.getMessage
-    assert(errorMessage.contains("CDF is not supported in Delta Sharing Streaming yet"))
-  }
-
-  integrationTest("stream query test - test") {
-    Console.println(s"--------[linzhou]-----------[test-start][${LocalDateTime.now()}]")
-
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
-    val query = spark.readStream.format("deltaSharing").option("path", tablePath)
-      .option("startingVersion", "0")
-      .option("ignoreDeletes", "true")
-      .option("ignoreChanges", "true")
-      .load().writeStream
-      .queryName("ds_stream_test")
-      .outputMode(OutputMode.Update)
-      .format("memory").start()
-
-    val error = intercept[StreamingQueryException] {
-      query.awaitTermination()   // block until query is terminated, with stop() or with error
-    }
-    Console.println(s"--------[linzhou]----[error][${error.printStackTrace}]")
-//    var i = 0
-//    while (i < 10 && !spark.streams.active.isEmpty) {
-//      Console.println(s"--------[linzhou]-----------[test-i][${i}]")
-//      printQuery(query)
-//      i += 1
-//      Thread.sleep(10000)
-//    }
-//    Console.println(s"--------[linzhou]-----------[test-i][${i}]")
-//    printQuery(query)
-//    query.stop()
-//    Console.println(s"--------[linzhou]-----------[test-end][${LocalDateTime.now()}]")
   }
 }

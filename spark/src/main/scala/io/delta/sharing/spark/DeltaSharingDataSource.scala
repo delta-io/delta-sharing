@@ -87,20 +87,15 @@ private[sharing] class DeltaSharingDataSource
     schema: Option[StructType],
     providerName: String,
     parameters: Map[String, String]): Source = {
-    // scalastyle:off println
-    Console.println(s"--------[linzhou]-----------[createsource-start]")
-    // scalastyle:on println
+    DeltaSharingDataSource.setupFileSystem(sqlContext)
     if (schema.nonEmpty && schema.get.nonEmpty) {
       throw DeltaSharingErrors.specifySchemaAtReadTimeException
     }
     val options = new DeltaSharingOptions(parameters)
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
     val deltaLog = RemoteDeltaLog(path)
-
-    // scalastyle:off println
-    Console.println(s"--------[linzhou]-----------[createsource-source]")
-    // scalastyle:on println
-    DeltaSharingSource(sqlContext.sparkSession, deltaLog, options)
+    
+    DeltaSharingSource(SparkSession.active, deltaLog, options)
   }
 
   override def shortName: String = "deltaSharing"
