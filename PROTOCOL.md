@@ -1683,9 +1683,11 @@ See [below](#request-body) for more details.
 
 `Delta-Table-Version: {version}`
 
-**{version}** is a long value, it represents the current table version when no time travel 
-parameters are provided in the request, it represents the starting version of files returned in the
-response when there are time travel parameters provided.
+**{version}** is a long value:
+- when no time travel parameters are provided in the request, it 
+represents the current table version.
+- otherwise, it represents the starting version of files 
+returned in the response.
 
 </td>
 </tr>
