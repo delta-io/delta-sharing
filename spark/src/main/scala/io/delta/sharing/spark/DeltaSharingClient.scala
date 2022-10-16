@@ -44,7 +44,7 @@ import io.delta.sharing.spark.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
 private[sharing] trait DeltaSharingClient {
   def listAllTables(): Seq[Table]
 
-  def getTableVersion(table: Table): Long
+  def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long
 
   def getMetadata(table: Table): DeltaTableMetadata
 
@@ -161,12 +161,19 @@ private[spark] class DeltaSharingRestClient(
     tables
   }
 
-  override def getTableVersion(table: Table): Long = {
+  override def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
+
+    val encodedParam = if (startingTimestamp.isDefined) {
+      s"?startingTimestamp=${URLEncoder.encode(startingTimestamp.get)}"
+    } else {
+      ""
+    }
     val target =
-      getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName")
+      getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/" +
+        s"$encodedTableName$encodedParam")
     val (version, _) = getResponse(new HttpHead(target))
     version.getOrElse {
       throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
