@@ -69,7 +69,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(client.getTableVersion(Table(name = "table1", schema = "default", share = "share1")) == 2)
       assert(client.getTableVersion(Table(name = "table3", schema = "default", share = "share1")) == 4)
       assert(client.getTableVersion(Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
-        startingTimestamp=Some("2020-01-01 00:00:00")) == 0)
+        startingTimestamp = Some("2020-01-01 00:00:00")) == 0)
     } finally {
       client.close()
     }
@@ -80,7 +80,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     try {
       val errorMessage = intercept[UnexpectedHttpStatus] {
         client.getTableVersion(Table(name = "table1", schema = "default", share = "share1"),
-          startingTimestamp=Some("2020-01-01 00:00:00"))
+          startingTimestamp = Some("2020-01-01 00:00:00"))
       }.getMessage
       assert(errorMessage.contains("400 Bad Request"))
     } finally {
