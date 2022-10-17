@@ -94,7 +94,7 @@ private[sharing] class DeltaSharingDataSource
     val options = new DeltaSharingOptions(parameters)
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
     val deltaLog = RemoteDeltaLog(path)
-    
+
     DeltaSharingSource(SparkSession.active, deltaLog, options)
   }
 

@@ -16,9 +16,12 @@
 
 package io.delta.sharing.spark
 
+import java.util.UUID
+
 import org.apache.spark.sql.QueryTest
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles
+import org.apache.spark.sql.execution.streaming.SerializedOffset
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{StringType, StructField, StructType, TimestampType}
@@ -49,19 +52,6 @@ class DeltaSharingSourceSuite extends QueryTest
       .option("ignoreChanges", "true")
   }
 
-  // TODO: add test on a shared table without schema
-  // TODO: support dir so we can test checkpoint
-  // TODO: test TriggerAvailableNow
-
-  integrationTest("disallow user specified schema") {
-    var message = intercept[UnsupportedOperationException] {
-      val query = spark.readStream.format("deltaSharing").option("path", tablePath)
-        .schema(StructType(Array(StructField("a", TimestampType), StructField("b", StringType))))
-        .load()
-    }.getMessage
-    assert(message.contains("Delta sharing does not support specifying the schema at read time"))
-  }
-
   import java.time.LocalDateTime
   import org.apache.spark.sql.execution.streaming.StreamingQueryWrapper
   import org.apache.spark.sql.streaming.StreamingQuery
@@ -77,6 +67,90 @@ class DeltaSharingSourceSuite extends QueryTest
     Console.println(s"--------[linzhou]--------[query.lastProgress][${query.lastProgress}]")
   }
 
+  // TODO: add test on a shared table without schema
+  // TODO: support dir so we can test checkpoint, restart the stream, etc.
+  // TODO: test TriggerAvailableNow
+
+  /**
+   * Test defaultReadLimit
+   */
+  integrationTest("DeltaSharingSource - defaultLimit") {
+    val source = getSource(Map.empty[String, String])
+
+    val defaultLimit = source.getDefaultReadLimit
+    assert(defaultLimit.isInstanceOf[ReadMaxFiles])
+    assert(defaultLimit.asInstanceOf[ReadMaxFiles].maxFiles ==
+      DeltaSharingOptions.MAX_FILES_PER_TRIGGER_OPTION_DEFAULT)
+  }
+
+  /**
+   * Test latestOffset
+   */
+  integrationTest("DeltaSharingSource.latestOffset - startingVersion 0") {
+    val source = getSource(Map(
+      "ignoreChanges" -> "true",
+      "ignoreDeletes" -> "true",
+      "startingVersion" -> "0"
+    ))
+    val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
+
+    assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
+    val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
+    assert(offset.sourceVersion == 1)
+    assert(offset.reservoirId == deltaLog.snapshot(Some(0)).metadata.id)
+    assert(offset.reservoirVersion == 4)
+    assert(offset.index == -1)
+    assert(!offset.isStartingVersion)
+  }
+
+  integrationTest("DeltaSharingSource.lastestOffset - startingVersion latest") {
+    val source = getSource(Map(
+      "ignoreChanges" -> "true",
+      "ignoreDeletes" -> "true",
+      "startingVersion" -> "latest"
+    ))
+    val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
+    assert(latestOffset == null)
+  }
+
+  integrationTest("DeltaSharingSource.latestOffset - no startingVersion") {
+    val source = getSource(Map(
+      "ignoreChanges" -> "true",
+      "ignoreDeletes" -> "true"
+    ))
+    val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
+
+    assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
+    val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
+    assert(offset.sourceVersion == 1)
+    assert(offset.reservoirId == deltaLog.snapshot().metadata.id)
+    assert(offset.reservoirVersion == 6)
+    assert(offset.index == -1)
+    assert(!offset.isStartingVersion)
+  }
+
+  /**
+   * Test getBatch
+   */
+  integrationTest("DeltaSharingSource.getBatch - exception") {
+    // getBatch cannot be called without writestream
+  }
+
+  /**
+   * Test schema exception
+   */
+  integrationTest("disallow user specified schema") {
+    var message = intercept[UnsupportedOperationException] {
+      val query = spark.readStream.format("deltaSharing").option("path", tablePath)
+        .schema(StructType(Array(StructField("a", TimestampType), StructField("b", StringType))))
+        .load()
+    }.getMessage
+    assert(message.contains("Delta sharing does not support specifying the schema at read time"))
+  }
+
+  /**
+   * Test basic streaming functionality
+   */
   integrationTest("basic") {
     val query = getDataStreamReader
       .load().writeStream.format("console").start()
@@ -93,6 +167,9 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
+  /**
+   * Test maxFilesPerTrigger and maxBytesPerTrigger
+   */
   integrationTest("maxFilesPerTrigger - success") {
     val query = getDataStreamReader
       .option("maxFilesPerTrigger", "1")
@@ -152,10 +229,8 @@ class DeltaSharingSourceSuite extends QueryTest
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 4)
       progress.foreach { p =>
-        Console.println(s"--------[linzhou]-----------[p][$p]")
         assert(p.numInputRows === 1)
       }
-      Console.println(s"--------[linzhou]-----------[here]")
     } finally {
       query.stop()
     }
@@ -225,58 +300,9 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-  integrationTest("deltasharingsource - defaultLimit") {
-    val source = getSource(Map.empty[String, String])
-
-    val defaultLimit = source.getDefaultReadLimit
-    assert(defaultLimit.isInstanceOf[ReadMaxFiles])
-    assert(defaultLimit.asInstanceOf[ReadMaxFiles].maxFiles ==
-      DeltaSharingOptions.MAX_FILES_PER_TRIGGER_OPTION_DEFAULT)
-  }
-
-  integrationTest("deltasharingsource - startingVersion 0") {
-    val source = getSource(Map(
-      "ignoreChanges" -> "true",
-      "ignoreDeletes" -> "true",
-      "startingVersion" -> "0"
-    ))
-    val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
-
-    assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
-    val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
-    assert(offset.sourceVersion == 1)
-    assert(offset.reservoirId == deltaLog.snapshot(Some(0)).metadata.id)
-    assert(offset.reservoirVersion == 4)
-    assert(offset.index == -1)
-    assert(!offset.isStartingVersion)
-  }
-
-  integrationTest("deltasharingsource - latest") {
-    val source = getSource(Map(
-      "ignoreChanges" -> "true",
-      "ignoreDeletes" -> "true",
-      "startingVersion" -> "latest"
-    ))
-    val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
-    assert(latestOffset == null)
-  }
-
-  integrationTest("deltasharingsource - no startingVersion") {
-    val source = getSource(Map(
-      "ignoreChanges" -> "true",
-      "ignoreDeletes" -> "true"
-    ))
-    val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
-
-    assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
-    val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
-    assert(offset.sourceVersion == 1)
-    assert(offset.reservoirId == deltaLog.snapshot().metadata.id)
-    assert(offset.reservoirVersion == 6)
-    assert(offset.index == -1)
-    assert(!offset.isStartingVersion)
-  }
-
+  /**
+   * Test ignoreChanges/ignoreDeletes
+   */
   integrationTest("stream query - exceptions - ignoreDeletes/ignoreChanges") {
     val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
     var query = spark.readStream.format("deltaSharing").option("path", tablePath)
@@ -315,11 +341,90 @@ class DeltaSharingSourceSuite extends QueryTest
     assert(errorMessage.contains("CDF is not supported in Delta Sharing Streaming yet"))
   }
 
+  /**
+   * Test startingVersion/startingTimestamp
+   */
   integrationTest("stream query - exceptions - startingVersion/startingTimestamp") {
 
   }
 
   integrationTest("stream query - succeeds - startingVersion/startingTimestamp") {
 
+  }
+
+  /**
+   * Test DeltaSharingSourceOffset
+   */
+  test("DeltaSharingSourceOffset sourceVersion - unknown value") {
+    // Set unknown sourceVersion as the max allowed version plus 1.
+    var unknownVersion = 2
+
+    val json =
+      s"""
+         |{
+         |  "sourceVersion": $unknownVersion,
+         |  "reservoirVersion": 1,
+         |  "index": 1,
+         |  "isStartingVersion": true
+         |}
+      """.stripMargin
+    val e = intercept[IllegalStateException] {
+      DeltaSharingSourceOffset(UUID.randomUUID().toString, SerializedOffset(json))
+    }
+    assert(e.getMessage.contains("Please upgrade to a new release"))
+  }
+
+  test("DeltaSharingSourceOffset sourceVersion - invalid value") {
+    val json =
+      """
+        |{
+        |  "sourceVersion": "foo",
+        |  "reservoirVersion": 1,
+        |  "index": 1,
+        |  "isStartingVersion": true
+        |}
+      """.stripMargin
+    val e = intercept[IllegalStateException] {
+      DeltaSharingSourceOffset(UUID.randomUUID().toString, SerializedOffset(json))
+    }
+    for (msg <- Seq("foo", "invalid")) {
+      assert(e.getMessage.contains(msg))
+    }
+  }
+
+  test("DeltaSharingSourceOffset sourceVersion - missing ") {
+    val json =
+      """
+        |{
+        |  "reservoirVersion": 1,
+        |  "index": 1,
+        |  "isStartingVersion": true
+        |}
+      """.stripMargin
+    val e = intercept[IllegalStateException] {
+      DeltaSharingSourceOffset(UUID.randomUUID().toString, SerializedOffset(json))
+    }
+    for (msg <- Seq("Cannot find", "sourceVersion")) {
+      assert(e.getMessage.contains(msg))
+    }
+  }
+
+  test("DeltaSharingSourceOffset - unmatched reservoir id") {
+    val json =
+      s"""
+         |{
+         |  "reservoirId": "${UUID.randomUUID().toString}",
+         |  "sourceVersion": 1,
+         |  "reservoirVersion": 1,
+         |  "index": 1,
+         |  "isStartingVersion": true
+         |}
+      """.stripMargin
+    val e = intercept[IllegalStateException] {
+      DeltaSharingSourceOffset(UUID.randomUUID().toString, SerializedOffset(json))
+    }
+    for (msg <- Seq("delete", "checkpoint", "restart")) {
+      assert(e.getMessage.contains(msg))
+    }
   }
 }
