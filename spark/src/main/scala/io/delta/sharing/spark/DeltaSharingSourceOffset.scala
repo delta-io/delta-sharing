@@ -76,7 +76,6 @@ object DeltaSharingSourceOffset {
     index: Long,
     isStartingVersion: Boolean
   ): DeltaSharingSourceOffset = {
-    // TODO should we detect `reservoirId` changes when a query is running?
     new DeltaSharingSourceOffset(
       sourceVersion,
       reservoirId,

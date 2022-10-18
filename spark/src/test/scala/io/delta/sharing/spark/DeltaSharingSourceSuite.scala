@@ -45,9 +45,9 @@ class DeltaSharingSourceSuite extends QueryTest
     DeltaSharingSource(SparkSession.active, deltaLog, options)
   }
 
-  def getDataStreamReader: DataStreamReader = {
+  def withStreamReaderAtVersion(startingVersion: String = "0"): DataStreamReader = {
     spark.readStream.format("deltaSharing").option("path", tablePath)
-      .option("startingVersion", "0")
+      .option("startingVersion", startingVersion)
       .option("ignoreDeletes", "true")
       .option("ignoreChanges", "true")
   }
@@ -151,8 +151,8 @@ class DeltaSharingSourceSuite extends QueryTest
   /**
    * Test basic streaming functionality
    */
-  integrationTest("basic") {
-    val query = getDataStreamReader
+  integrationTest("basic - success") {
+    val query = withStreamReaderAtVersion()
       .load().writeStream.format("console").start()
 
     try {
@@ -171,7 +171,7 @@ class DeltaSharingSourceSuite extends QueryTest
    * Test maxFilesPerTrigger and maxBytesPerTrigger
    */
   integrationTest("maxFilesPerTrigger - success") {
-    val query = getDataStreamReader
+    val query = withStreamReaderAtVersion()
       .option("maxFilesPerTrigger", "1")
       .load().writeStream.format("console").start()
 
@@ -190,7 +190,7 @@ class DeltaSharingSourceSuite extends QueryTest
   testQuietly("maxFilesPerTrigger - invalid parameter") {
     Seq("0", "-1", "string").foreach { invalidMaxFilesPerTrigger =>
       val e = intercept[IllegalArgumentException] {
-        val query = getDataStreamReader
+        val query = withStreamReaderAtVersion()
           .option("maxFilesPerTrigger", invalidMaxFilesPerTrigger)
           .load().writeStream.format("console").start()
       }
@@ -201,7 +201,7 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   test("maxFilesPerTrigger - ignored when using Trigger.Once") {
-    val query = getDataStreamReader
+    val query = withStreamReaderAtVersion()
       .option("maxFilesPerTrigger", "1")
       .load().writeStream.format("console")
       .trigger(Trigger.Once)
@@ -220,7 +220,7 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   integrationTest("maxBytesPerTrigger - at least one file") {
-    val query = getDataStreamReader
+    val query = withStreamReaderAtVersion()
       .option("maxBytesPerTrigger", "1b")
       .load().writeStream.format("console").start()
 
@@ -239,7 +239,7 @@ class DeltaSharingSourceSuite extends QueryTest
   testQuietly("maxBytesPerTrigger - invalid parameter") {
     Seq("0", "-1", "string").foreach { invalidMaxFilesPerTrigger =>
       val e = intercept[IllegalArgumentException] {
-        val query = getDataStreamReader
+        val query = withStreamReaderAtVersion()
           .option("maxBytesPerTrigger", invalidMaxFilesPerTrigger)
           .load().writeStream.format("console").start()
       }
@@ -250,7 +250,7 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   test("maxBytesPerTrigger - ignored when using Trigger.Once") {
-    val query = getDataStreamReader
+    val query = withStreamReaderAtVersion()
       .option("maxBytesPerTrigger", "1b")
       .load().writeStream.format("console")
       .trigger(Trigger.Once)
@@ -269,7 +269,7 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   test("maxBytesPerTrigger - max bytes and max files together") {
-    val q = getDataStreamReader
+    val q = withStreamReaderAtVersion()
       .option(DeltaSharingOptions.MAX_FILES_PER_TRIGGER_OPTION, "1") // should process a file at a time
       .option(DeltaSharingOptions.MAX_BYTES_PER_TRIGGER_OPTION, "100gb")
       .load().writeStream.format("console").start()
@@ -284,7 +284,7 @@ class DeltaSharingSourceSuite extends QueryTest
       q.stop()
     }
 
-    val q2 = getDataStreamReader
+    val q2 = withStreamReaderAtVersion()
       .option(DeltaSharingOptions.MAX_FILES_PER_TRIGGER_OPTION, "2")
       .option(DeltaSharingOptions.MAX_BYTES_PER_TRIGGER_OPTION, "1b")
       .load().writeStream.format("console").start()
@@ -303,7 +303,8 @@ class DeltaSharingSourceSuite extends QueryTest
   /**
    * Test ignoreChanges/ignoreDeletes
    */
-  integrationTest("stream query - exceptions - ignoreDeletes/ignoreChanges") {
+  integrationTest("ignoreDeletes/ignoreChanges - are needed to process deletes/updates") {
+    // There are deletes at version 2 of cdf_table_cdf_enabled
     val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
     var query = spark.readStream.format("deltaSharing").option("path", tablePath)
       .option("startingVersion", "0")
@@ -313,6 +314,7 @@ class DeltaSharingSourceSuite extends QueryTest
     }.getMessage
     assert(errorMessage.contains("Detected deleted data from streaming source at version 2"))
 
+    // There are updates at version 3 of cdf_table_cdf_enabled
     query = spark.readStream.format("deltaSharing").option("path", tablePath)
       .option("startingVersion", "0")
       .option("ignoreDeletes", "true")
@@ -323,7 +325,10 @@ class DeltaSharingSourceSuite extends QueryTest
     assert(errorMessage.contains("Detected a data update in the source table at version 3"))
   }
 
-  integrationTest("stream query - exceptions - readChangeFeed/readchangeData") {
+  /**
+   * Test readChangeFeed/readchangeData
+   */
+  integrationTest("readChangeFeed/readchangeData - not supported yet") {
     var errorMessage = intercept[UnsupportedOperationException] {
       val query = spark.readStream.format("deltaSharing").option("path", tablePath)
         .option("startingVersion", "0")
@@ -344,87 +349,77 @@ class DeltaSharingSourceSuite extends QueryTest
   /**
    * Test startingVersion/startingTimestamp
    */
-  integrationTest("stream query - exceptions - startingVersion/startingTimestamp") {
+  integrationTest("startingVersion/startingTimestamp - exceptions") {
+    Seq("-1", "string").foreach { invalidStartingVersion =>
+      val errorMessage = intercept[IllegalArgumentException] {
+        val query = spark.readStream.format("deltaSharing").option("path", tablePath)
+          .option("startingVersion", invalidStartingVersion)
+          .load().writeStream.format("console").start()
+      }.getMessage
+      for (msg <- Seq("Invalid", DeltaSharingOptions.STARTING_VERSION_OPTION, "greater")) {
+        assert(errorMessage.contains(msg))
+      }
+    }
 
+
+    var errorMessage = intercept[StreamingQueryException] {
+     val query = spark.readStream.format("deltaSharing").option("path", tablePath)
+        .option("startingTimestamp", "-1")
+        .load().writeStream.format("console").start()
+      query.awaitTermination(streamingTimeout.toMillis)
+    }.getMessage
+    assert(errorMessage.contains("startingTimestamp is not supported yet"))
   }
 
-  integrationTest("stream query - succeeds - startingVersion/startingTimestamp") {
-
-  }
-
-  /**
-   * Test DeltaSharingSourceOffset
-   */
-  test("DeltaSharingSourceOffset sourceVersion - unknown value") {
-    // Set unknown sourceVersion as the max allowed version plus 1.
-    var unknownVersion = 2
-
-    val json =
-      s"""
-         |{
-         |  "sourceVersion": $unknownVersion,
-         |  "reservoirVersion": 1,
-         |  "index": 1,
-         |  "isStartingVersion": true
-         |}
-      """.stripMargin
-    val e = intercept[IllegalStateException] {
-      DeltaSharingSourceOffset(UUID.randomUUID().toString, SerializedOffset(json))
+  integrationTest("startingVersion - succeeds") {
+    var query = withStreamReaderAtVersion("1")
+      .load().writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 4)
+      }
+    } finally {
+      query.stop()
     }
-    assert(e.getMessage.contains("Please upgrade to a new release"))
-  }
 
-  test("DeltaSharingSourceOffset sourceVersion - invalid value") {
-    val json =
-      """
-        |{
-        |  "sourceVersion": "foo",
-        |  "reservoirVersion": 1,
-        |  "index": 1,
-        |  "isStartingVersion": true
-        |}
-      """.stripMargin
-    val e = intercept[IllegalStateException] {
-      DeltaSharingSourceOffset(UUID.randomUUID().toString, SerializedOffset(json))
+    query = withStreamReaderAtVersion("2")
+      .load().writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 1)
+      }
+    } finally {
+      query.stop()
     }
-    for (msg <- Seq("foo", "invalid")) {
-      assert(e.getMessage.contains(msg))
-    }
-  }
 
-  test("DeltaSharingSourceOffset sourceVersion - missing ") {
-    val json =
-      """
-        |{
-        |  "reservoirVersion": 1,
-        |  "index": 1,
-        |  "isStartingVersion": true
-        |}
-      """.stripMargin
-    val e = intercept[IllegalStateException] {
-      DeltaSharingSourceOffset(UUID.randomUUID().toString, SerializedOffset(json))
+    query = withStreamReaderAtVersion("3")
+      .load().writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 1)
+      }
+    } finally {
+      query.stop()
     }
-    for (msg <- Seq("Cannot find", "sourceVersion")) {
-      assert(e.getMessage.contains(msg))
-    }
-  }
 
-  test("DeltaSharingSourceOffset - unmatched reservoir id") {
-    val json =
-      s"""
-         |{
-         |  "reservoirId": "${UUID.randomUUID().toString}",
-         |  "sourceVersion": 1,
-         |  "reservoirVersion": 1,
-         |  "index": 1,
-         |  "isStartingVersion": true
-         |}
-      """.stripMargin
-    val e = intercept[IllegalStateException] {
-      DeltaSharingSourceOffset(UUID.randomUUID().toString, SerializedOffset(json))
-    }
-    for (msg <- Seq("delete", "checkpoint", "restart")) {
-      assert(e.getMessage.contains(msg))
+    // there are 3 versions in total
+    query = withStreamReaderAtVersion("4")
+      .load().writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 0)
+    } finally {
+      query.stop()
     }
   }
 }
