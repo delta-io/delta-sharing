@@ -54,7 +54,9 @@ private[sharing] case class Share(name: String)
 
 private[sharing] case class Schema(name: String, share: String)
 
-private[sharing] case class Table(name: String, schema: String, share: String)
+private[sharing] case class Table(name: String, schema: String, share: String) {
+  override def toString(): String = { s"$share.$schema.$name" }
+}
 
 private[sharing] case class SingleAction(
     file: AddFile = null,

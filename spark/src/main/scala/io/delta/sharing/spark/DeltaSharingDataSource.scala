@@ -26,67 +26,82 @@ import org.apache.spark.delta.sharing.PreSignedUrlCache
 import org.apache.spark.sql.{SparkSession, SQLContext}
 import org.apache.spark.sql.connector.catalog.{Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.expressions.Transform
-import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
+import org.apache.spark.sql.execution.streaming.Source
+import org.apache.spark.sql.sources.{
+  BaseRelation,
+  DataSourceRegister,
+  RelationProvider,
+  StreamSourceProvider
+}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /** A DataSource V1 for integrating Delta into Spark SQL batch APIs. */
-private[sharing] class DeltaSharingDataSource extends RelationProvider with DataSourceRegister {
+private[sharing] class DeltaSharingDataSource
+  extends RelationProvider
+    with StreamSourceProvider
+    with DataSourceRegister {
 
   override def createRelation(
-      sqlContext: SQLContext,
-      parameters: Map[String, String]): BaseRelation = {
+    sqlContext: SQLContext,
+    parameters: Map[String, String]): BaseRelation = {
     DeltaSharingDataSource.setupFileSystem(sqlContext)
-    val path = parameters.getOrElse("path", throw new IllegalArgumentException(
-      "'path' is not specified. If you use SQL to create a Delta Sharing table, " +
-        "LOCATION must be specified"))
-
-    var cdfOptions: mutable.Map[String, String] = mutable.Map.empty
-    val caseInsensitiveParams = new CaseInsensitiveStringMap(parameters.asJava)
-    if (DeltaSharingDataSource.isCDFRead(caseInsensitiveParams)) {
-      cdfOptions = mutable.Map[String, String](DeltaSharingDataSource.CDF_ENABLED_KEY -> "true")
-      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_START_VERSION_KEY)) {
-        cdfOptions(DeltaSharingDataSource.CDF_START_VERSION_KEY) = caseInsensitiveParams.get(
-          DeltaSharingDataSource.CDF_START_VERSION_KEY)
-      }
-      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY)) {
-        cdfOptions(DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY) = caseInsensitiveParams.get(
-          DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY)
-      }
-      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_END_VERSION_KEY)) {
-        cdfOptions(DeltaSharingDataSource.CDF_END_VERSION_KEY) = caseInsensitiveParams.get(
-          DeltaSharingDataSource.CDF_END_VERSION_KEY)
-      }
-      if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY)) {
-        cdfOptions(DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY) = caseInsensitiveParams.get(
-          DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY)
-      }
-    }
-
-    if (parameters.get("versionAsOf").isDefined && parameters.get("timestampAsOf").isDefined) {
-      throw new IllegalArgumentException("Please either provide 'versionAsOf' or 'timestampAsOf'.")
-    }
-
-    var versionAsOf: Option[Long] = None
-    if (parameters.get("versionAsOf").isDefined) {
-      try {
-        versionAsOf = Some(parameters.get("versionAsOf").get.toLong)
-      } catch {
-        case _: NumberFormatException =>
-          throw new IllegalArgumentException("versionAsOf is not a valid number.")
-      }
-    }
+    val options = new DeltaSharingOptions(parameters)
+    val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
 
     val deltaLog = RemoteDeltaLog(path)
-    deltaLog.createRelation(versionAsOf, parameters.get("timestampAsOf"), cdfOptions.toMap)
+    deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
+  }
+
+  override def sourceSchema(
+    sqlContext: SQLContext,
+    schema: Option[StructType],
+    providerName: String,
+    parameters: Map[String, String]): (String, StructType) = {
+    if (schema.nonEmpty && schema.get.nonEmpty) {
+      throw DeltaSharingErrors.specifySchemaAtReadTimeException
+    }
+    val options = new DeltaSharingOptions(parameters)
+    val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
+
+    val deltaLog = RemoteDeltaLog(path)
+
+    if (options.isTimeTravel) {
+      throw DeltaSharingErrors.timeTravelNotSupportedException
+    }
+
+    val schemaToUse = deltaLog.snapshot().schema
+    if (schemaToUse.isEmpty) {
+      throw DeltaSharingErrors.schemaNotSetException
+    }
+    if (options.readChangeFeed) {
+      throw DeltaSharingErrors.CDFNotSupportedInStreaming
+    } else {
+      (shortName(), schemaToUse)
+    }
+  }
+
+  override def createSource(
+    sqlContext: SQLContext,
+    metadataPath: String,
+    schema: Option[StructType],
+    providerName: String,
+    parameters: Map[String, String]): Source = {
+    DeltaSharingDataSource.setupFileSystem(sqlContext)
+    if (schema.nonEmpty && schema.get.nonEmpty) {
+      throw DeltaSharingErrors.specifySchemaAtReadTimeException
+    }
+    val options = new DeltaSharingOptions(parameters)
+    val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
+    val deltaLog = RemoteDeltaLog(path)
+
+    DeltaSharingSource(SparkSession.active, deltaLog, options)
   }
 
   override def shortName: String = "deltaSharing"
 }
 
-
 private[sharing] object DeltaSharingDataSource {
-
   def setupFileSystem(sqlContext: SQLContext): Unit = {
     // We have put our class name in the `org.apache.hadoop.fs.FileSystem` resource file. However,
     // this file will be loaded only if the class `FileSystem` is loaded. Hence, it won't work when
@@ -96,21 +111,4 @@ private[sharing] object DeltaSharingDataSource {
       .setIfUnset("fs.delta-sharing.impl", "io.delta.sharing.spark.DeltaSharingFileSystem")
     PreSignedUrlCache.registerIfNeeded(SparkEnv.get)
   }
-
-  // Based on the read options passed it indicates whether the read was a cdf read or not.
-  def isCDFRead(options: CaseInsensitiveStringMap): Boolean = {
-    options.containsKey(DeltaSharingDataSource.CDF_ENABLED_KEY) &&
-      options.get(DeltaSharingDataSource.CDF_ENABLED_KEY) == "true"
-  }
-
-  // Constants for cdf parameters
-  final val CDF_ENABLED_KEY = "readChangeFeed"
-
-  final val CDF_START_VERSION_KEY = "startingVersion"
-
-  final val CDF_START_TIMESTAMP_KEY = "startingTimestamp"
-
-  final val CDF_END_VERSION_KEY = "endingVersion"
-
-  final val CDF_END_TIMESTAMP_KEY = "endingTimestamp"
 }
