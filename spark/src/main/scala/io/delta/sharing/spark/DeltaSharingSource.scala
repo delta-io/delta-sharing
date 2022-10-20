@@ -81,6 +81,20 @@ trait DeltaSharingSourceBase extends Source
 
   protected var sortedFetchedFiles: Seq[IndexedFile] = Seq.empty
 
+  protected var lastGetVersionTimestamp: Long = -1
+  protected var lastQueriedTableVersion: Long = -1
+  private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 30000
+
+  protected def intervalGetTableVersion: Long = {
+    val currentTimeMillis = System.currentTimeMillis()
+    if (lastGetVersionTimestamp == -1 || lastQueriedTableVersion == -1 ||
+      (currentTimeMillis - lastGetVersionTimestamp) >= QUERY_TABLE_VERSION_INTERVAL_MILLIS) {
+      lastQueriedTableVersion = deltaLog.client.getTableVersion(deltaLog.table)
+      lastGetVersionTimestamp = currentTimeMillis
+    }
+    lastQueriedTableVersion
+  }
+
   /**
    * Fetch the changes from delta sharing server starting from (fromVersion, fromIndex).
    * The start point should not be included in the result, it should be consumed in the last batch.
@@ -94,7 +108,7 @@ trait DeltaSharingSourceBase extends Source
     isStartingVersion: Boolean): Unit = {
     if (!sortedFetchedFiles.isEmpty) { return }
 
-    if (fromVersion > deltaLog.client.getTableVersion(deltaLog.table)) {
+    if (fromVersion > intervalGetTableVersion) {
       return
     }
 
@@ -113,10 +127,6 @@ trait DeltaSharingSourceBase extends Source
       val numFiles = tableFiles.files.size
       tableFiles.files.sortWith(sortAddFile).zipWithIndex.foreach{
         case (file, index) if (index > fromIndex) =>
-          if (sortedFetchedFiles.isEmpty) {
-            // TODO(check if -1 is necessary)
-            appendToSortedFetchedFiles(IndexedFile(fromVersion, -1, null))
-          }
           appendToSortedFetchedFiles(
             IndexedFile(fromVersion, index, file, isLast = (index + 1 == numFiles)))
       }
@@ -124,17 +134,11 @@ trait DeltaSharingSourceBase extends Source
       // TODO(lin.zhou) return metadata for each version, and check schema read compatibility
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)
       val addFiles = verifyStreamHygieneAndFilterAddFiles(tableFiles)
-      var firstFileForVersion = true
       addFiles.groupBy(a => a.version).toSeq.sortWith(_._1 < _._1).foreach{
         case (v, adds) =>
-          firstFileForVersion = true
           val numFiles = adds.size
           adds.sortWith(sortAddFileForCDF).zipWithIndex.foreach{
             case (add, index) if (v > fromVersion || index > fromIndex) =>
-              if (firstFileForVersion) {
-                appendToSortedFetchedFiles(IndexedFile(v, -1, null))
-                firstFileForVersion = false
-              }
               appendToSortedFetchedFiles(IndexedFile(
                 add.version,
                 index,
@@ -199,13 +203,7 @@ trait DeltaSharingSourceBase extends Source
       }
       sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
 
-      // filter out the first indexedFile of each version, where index = -1 and add = null
-      // TODO(check if it's necessary to add a starter file)
-      val filteredIndexedFiles = fileActions.filter { indexedFile =>
-        indexedFile.getFileAction != null
-      }
-
-      createDataFrame(filteredIndexedFiles)
+      createDataFrame(fileActions)
     }
   }
 
@@ -356,7 +354,7 @@ case class DeltaSharingSource(
 
     val (version, isStartingVersion) = getStartingVersion match {
       case Some(v) => (v, false)
-      case None => (deltaLog.client.getTableVersion(deltaLog.table), true)
+      case None => (intervalGetTableVersion, true)
     }
     if (version < 0) {
       return None
@@ -498,7 +496,7 @@ case class DeltaSharingSource(
     if (options.startingVersion.isDefined) {
       val v = options.startingVersion.get match {
         case StartingVersionLatest =>
-          deltaLog.client.getTableVersion(deltaLog.table) + 1
+          intervalGetTableVersion + 1
         case StartingVersion(version) =>
           version
       }

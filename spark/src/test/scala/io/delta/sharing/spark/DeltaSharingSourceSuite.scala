@@ -25,6 +25,8 @@ import org.apache.spark.sql.execution.streaming.SerializedOffset
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{StringType, StructField, StructType, TimestampType}
+import org.apache.spark.sql.AnalysisException
+
 import org.scalatest.time.SpanSugar._
 
 class DeltaSharingSourceSuite extends QueryTest
@@ -39,9 +41,7 @@ class DeltaSharingSourceSuite extends QueryTest
   val streamingTimeout = 60.seconds
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
-
     val options = new DeltaSharingOptions(parameters)
-
     DeltaSharingSource(SparkSession.active, deltaLog, options)
   }
 
@@ -99,10 +99,7 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   integrationTest("DeltaSharingSource.latestOffset - no startingVersion") {
-    val source = getSource(Map(
-      "ignoreChanges" -> "true",
-      "ignoreDeletes" -> "true"
-    ))
+    val source = getSource(Map("ignoreChanges" -> "true", "ignoreDeletes" -> "true"))
     val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
 
     assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
@@ -119,6 +116,16 @@ class DeltaSharingSourceSuite extends QueryTest
    */
   integrationTest("DeltaSharingSource.getBatch - exception") {
     // getBatch cannot be called without writestream
+    val source = getSource(Map(
+      "ignoreChanges" -> "true",
+      "ignoreDeletes" -> "true",
+      "startingVersion" -> "0"))
+    val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
+    val message = intercept[AnalysisException] {
+      source.getBatch(None, latestOffset.asInstanceOf[DeltaSharingSourceOffset]).show()
+    }.getMessage
+    assert(message.contains("Queries with streaming sources must be executed with " +
+      "writeStream.start()"))
   }
 
   /**
@@ -174,13 +181,13 @@ class DeltaSharingSourceSuite extends QueryTest
 
   testQuietly("maxFilesPerTrigger - invalid parameter") {
     Seq("0", "-1", "string").foreach { invalidMaxFilesPerTrigger =>
-      val e = intercept[IllegalArgumentException] {
+      val message = intercept[IllegalArgumentException] {
         val query = withStreamReaderAtVersion()
           .option("maxFilesPerTrigger", invalidMaxFilesPerTrigger)
           .load().writeStream.format("console").start()
-      }
+      }.getMessage
       for (msg <- Seq("Invalid", DeltaSharingOptions.MAX_FILES_PER_TRIGGER_OPTION, "positive")) {
-        assert(e.getMessage.contains(msg))
+        assert(message.contains(msg))
       }
     }
   }
@@ -223,13 +230,13 @@ class DeltaSharingSourceSuite extends QueryTest
 
   testQuietly("maxBytesPerTrigger - invalid parameter") {
     Seq("0", "-1", "string").foreach { invalidMaxFilesPerTrigger =>
-      val e = intercept[IllegalArgumentException] {
+      val message = intercept[IllegalArgumentException] {
         val query = withStreamReaderAtVersion()
           .option("maxBytesPerTrigger", invalidMaxFilesPerTrigger)
           .load().writeStream.format("console").start()
-      }
+      }.getMessage
       for (msg <- Seq("Invalid", DeltaSharingOptions.MAX_BYTES_PER_TRIGGER_OPTION, "size")) {
-        assert(e.getMessage.contains(msg))
+        assert(message.contains(msg))
       }
     }
   }
@@ -290,45 +297,44 @@ class DeltaSharingSourceSuite extends QueryTest
    */
   integrationTest("ignoreDeletes/ignoreChanges - are needed to process deletes/updates") {
     // There are deletes at version 2 of cdf_table_cdf_enabled
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
     var query = spark.readStream.format("deltaSharing").option("path", tablePath)
       .option("startingVersion", "0")
       .load().writeStream.format("console").start()
-    var errorMessage = intercept[StreamingQueryException] {
+    var message = intercept[StreamingQueryException] {
       query.awaitTermination() // block until query is terminated, with stop() or with error
     }.getMessage
-    assert(errorMessage.contains("Detected deleted data from streaming source at version 2"))
+    assert(message.contains("Detected deleted data from streaming source at version 2"))
 
     // There are updates at version 3 of cdf_table_cdf_enabled
     query = spark.readStream.format("deltaSharing").option("path", tablePath)
       .option("startingVersion", "0")
       .option("ignoreDeletes", "true")
       .load().writeStream.format("console").start()
-    errorMessage = intercept[StreamingQueryException] {
+    message = intercept[StreamingQueryException] {
       query.awaitTermination() // block until query is terminated, with stop() or with error
     }.getMessage
-    assert(errorMessage.contains("Detected a data update in the source table at version 3"))
+    assert(message.contains("Detected a data update in the source table at version 3"))
   }
 
   /**
    * Test readChangeFeed/readchangeData
    */
   integrationTest("readChangeFeed/readchangeData - not supported yet") {
-    var errorMessage = intercept[UnsupportedOperationException] {
+    var message = intercept[UnsupportedOperationException] {
       val query = spark.readStream.format("deltaSharing").option("path", tablePath)
         .option("startingVersion", "0")
         .option("readChangeFeed", "true")
         .load().writeStream.format("console").start()
     }.getMessage
-    assert(errorMessage.contains("CDF is not supported in Delta Sharing Streaming yet"))
+    assert(message.contains("CDF is not supported in Delta Sharing Streaming yet"))
 
-    errorMessage = intercept[UnsupportedOperationException] {
+    message = intercept[UnsupportedOperationException] {
       val query = spark.readStream.format("deltaSharing").option("path", tablePath)
         .option("startingVersion", "0")
         .option("readChangeData", "true")
         .load().writeStream.format("console").start()
     }.getMessage
-    assert(errorMessage.contains("CDF is not supported in Delta Sharing Streaming yet"))
+    assert(message.contains("CDF is not supported in Delta Sharing Streaming yet"))
   }
 
   /**
@@ -336,24 +342,24 @@ class DeltaSharingSourceSuite extends QueryTest
    */
   integrationTest("startingVersion/startingTimestamp - exceptions") {
     Seq("-1", "string").foreach { invalidStartingVersion =>
-      val errorMessage = intercept[IllegalArgumentException] {
+      val message = intercept[IllegalArgumentException] {
         val query = spark.readStream.format("deltaSharing").option("path", tablePath)
           .option("startingVersion", invalidStartingVersion)
           .load().writeStream.format("console").start()
       }.getMessage
       for (msg <- Seq("Invalid", DeltaSharingOptions.STARTING_VERSION_OPTION, "greater")) {
-        assert(errorMessage.contains(msg))
+        assert(message.contains(msg))
       }
     }
 
 
-    var errorMessage = intercept[StreamingQueryException] {
+    var message = intercept[StreamingQueryException] {
       val query = spark.readStream.format("deltaSharing").option("path", tablePath)
         .option("startingTimestamp", "-1")
         .load().writeStream.format("console").start()
       query.awaitTermination(streamingTimeout.toMillis)
     }.getMessage
-    assert(errorMessage.contains("startingTimestamp is not supported yet"))
+    assert(message.contains("startingTimestamp is not supported yet"))
   }
 
   integrationTest("startingVersion - succeeds") {
