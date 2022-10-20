@@ -104,4 +104,84 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
       assert(e.getMessage.contains(msg))
     }
   }
+
+  test("DeltaSharingSourceOffset - validateOffsets") {
+    DeltaSharingSourceOffset.validateOffsets(
+      previousOffset = DeltaSharingSourceOffset(
+        sourceVersion = 1,
+        reservoirId = "foo",
+        reservoirVersion = 4,
+        index = 10,
+        isStartingVersion = false),
+      currentOffset = DeltaSharingSourceOffset(
+        sourceVersion = 1,
+        reservoirId = "foo",
+        reservoirVersion = 4,
+        index = 10,
+        isStartingVersion = false)
+    )
+    DeltaSharingSourceOffset.validateOffsets(
+      previousOffset = DeltaSharingSourceOffset(
+        sourceVersion = 1,
+        reservoirId = "foo",
+        reservoirVersion = 4,
+        index = 10,
+        isStartingVersion = false),
+      currentOffset = DeltaSharingSourceOffset(
+        sourceVersion = 1,
+        reservoirId = "foo",
+        reservoirVersion = 5,
+        index = 1,
+        isStartingVersion = false)
+    )
+
+    assert(intercept[IllegalStateException] {
+      DeltaSharingSourceOffset.validateOffsets(
+        previousOffset = DeltaSharingSourceOffset(
+          sourceVersion = 1,
+          reservoirId = "foo",
+          reservoirVersion = 4,
+          index = 10,
+          isStartingVersion = false),
+        currentOffset = DeltaSharingSourceOffset(
+          sourceVersion = 1,
+          reservoirId = "foo",
+          reservoirVersion = 4,
+          index = 10,
+          isStartingVersion = true)
+      )
+    }.getMessage.contains("Found invalid offsets: 'isStartingVersion' fliped incorrectly."))
+    assert(intercept[IllegalStateException] {
+      DeltaSharingSourceOffset.validateOffsets(
+        previousOffset = DeltaSharingSourceOffset(
+          sourceVersion = 1,
+          reservoirId = "foo",
+          reservoirVersion = 4,
+          index = 10,
+          isStartingVersion = false),
+        currentOffset = DeltaSharingSourceOffset(
+          sourceVersion = 1,
+          reservoirId = "foo",
+          reservoirVersion = 1,
+          index = 10,
+          isStartingVersion = false)
+      )
+    }.getMessage.contains("Found invalid offsets: 'reservoirVersion' moved back."))
+    assert(intercept[IllegalStateException] {
+      DeltaSharingSourceOffset.validateOffsets(
+        previousOffset = DeltaSharingSourceOffset(
+          sourceVersion = 1,
+          reservoirId = "foo",
+          reservoirVersion = 4,
+          index = 10,
+          isStartingVersion = false),
+        currentOffset = DeltaSharingSourceOffset(
+          sourceVersion = 1,
+          reservoirId = "foo",
+          reservoirVersion = 4,
+          index = 9,
+          isStartingVersion = false)
+      )
+    }.getMessage.contains("Found invalid offsets. 'index' moved back."))
+  }
 }
