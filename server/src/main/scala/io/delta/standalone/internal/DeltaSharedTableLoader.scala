@@ -188,8 +188,8 @@ class DeltaSharedTable(
         ErrorStrings.multipleParametersSetErrorMsg(Seq("version", "timestamp", "startingVersion"))
       )
     }
-    val snapshot = if (version.isDefined) {
-      deltaLog.getSnapshotForVersionAsOf(version.get)
+    val snapshot = if (version.orElse(startingVersion).isDefined) {
+      deltaLog.getSnapshotForVersionAsOf(version.orElse(startingVersion).get)
     } else if (timestamp.isDefined) {
       val ts = DeltaSharingHistoryManager.getTimestamp("timestamp", timestamp.get)
       try {
@@ -220,7 +220,7 @@ class DeltaSharedTable(
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
-        queryDataChangeSinceStartVersion(startingVersion.get, snapshot.version)
+        queryDataChangeSinceStartVersion(startingVersion.get)
       } else if (includeFiles) {
         val selectedFiles = state.activeFiles.toSeq
         val filteredFilters =
@@ -252,9 +252,8 @@ class DeltaSharedTable(
     snapshot.version -> actions
   }
 
-  private def queryDataChangeSinceStartVersion(
-    startingVersion: Long,
-    latestVersion: Long): Seq[model.SingleAction] = {
+  private def queryDataChangeSinceStartVersion(startingVersion: Long): Seq[model.SingleAction] = {
+    val latestVersion = tableVersion
     if (startingVersion > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
     }
@@ -303,7 +302,7 @@ class DeltaSharedTable(
     actions.toSeq
   }
 
-  def queryCDF(cdfOptions: Map[String, String]): Seq[model.SingleAction] = withClassLoader {
+  def queryCDF(cdfOptions: Map[String, String]): (Long, Seq[model.SingleAction]) = withClassLoader {
     val actions = ListBuffer[model.SingleAction]()
 
     // First: validate cdf options are greater than startVersion
@@ -313,7 +312,7 @@ class DeltaSharedTable(
       cdfOptions, latestVersion, tableConfig.startVersion)
 
     // Second: get Protocol and Metadata
-    val snapshot = deltaLog.snapshot
+    val snapshot = deltaLog.getSnapshotForVersionAsOf(start)
     val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
     val modelMetadata = model.Metadata(
       id = snapshot.metadataScala.id,
@@ -378,7 +377,7 @@ class DeltaSharedTable(
         actions.append(modelRemoveFile.wrap)
       }
     }
-    actions.toSeq
+    snapshot.version -> actions.toSeq
   }
 
   def update(): Unit = withClassLoader {

@@ -128,6 +128,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     try {
       val tableFiles =
         client.getFiles(Table(name = "table2", schema = "default", share = "share2"), Nil, None, None, None)
+      assert(tableFiles.version == 2)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       val expectedMetadata = Metadata(
         id = "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
@@ -167,6 +168,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         None,
         Some(1L),
         None)
+      assert(tableFiles.version == 1)
       assert(tableFiles.files.size == 3)
       val expectedFiles = Seq(
         AddFile(
@@ -260,6 +262,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val tableFiles = client.getFiles(
         Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"), 1L
       )
+      assert(tableFiles.version == 1)
       assert(tableFiles.addFiles.size == 4)
       val expectedAddFiles = Seq(
         AddFileForCDF(
@@ -357,6 +360,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
         cdfOptions
       )
+      assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       val expectedMetadata = Metadata(
         id = "16736144-3306-4577-807a-d3f899b77670",
@@ -429,6 +433,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "cdf_table_with_vacuum", schema = "default", share = "share1"),
         cdfOptions
       )
+      assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       assert(tableFiles.addFiles.size == 4)
       assert(tableFiles.cdfFiles.size == 2)

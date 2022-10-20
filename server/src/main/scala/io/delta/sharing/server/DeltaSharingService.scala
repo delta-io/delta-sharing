@@ -350,7 +350,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       throw new DeltaSharingIllegalArgumentException("cdf is not enabled on table " +
         s"$share.$schema.$table")
     }
-    val actions = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
+    val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
       getCdfOptionsMap(
         Option(startingVersion),
         Option(endingVersion),
@@ -360,7 +360,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(None, actions)
+    streamingOutput(Some(v), actions)
   }
 
   private def streamingOutput(version: Option[Long], actions: Seq[SingleAction]): HttpResponse = {
