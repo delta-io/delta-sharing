@@ -144,24 +144,6 @@ object DeltaSharingOptions extends Logging {
   val TIME_TRAVEL_VERSION = "versionAsOf"
   val TIME_TRAVEL_TIMESTAMP = "timestampAsOf"
 
-  val validOptionKeys : Set[String] = Set(
-    IGNORE_CHANGES_OPTION,
-    IGNORE_DELETES_OPTION,
-    STARTING_TIMESTAMP_OPTION,
-    STARTING_VERSION_OPTION,
-    CDF_READ_OPTION,
-    CDF_READ_OPTION_LEGACY,
-    CDF_START_TIMESTAMP,
-    CDF_END_TIMESTAMP,
-    CDF_START_VERSION,
-    CDF_END_VERSION,
-    "queryName",
-    "checkpointLocation",
-    "path",
-    "timestampAsOf",
-    "versionAsOf"
-  )
-
   val validCdfOptions = Map(
     CDF_READ_OPTION -> "",
     CDF_READ_OPTION_LEGACY -> "",
