@@ -749,7 +749,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
          | "startingVersion": 0
          |}
          |""".stripMargin
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(6))
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(0))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
@@ -842,7 +842,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_cdf_enabled_changes - query table changes") {
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, None)
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, Some(0))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
@@ -907,7 +907,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     // 1651272660000, PST: 2022-04-29 15:51:00.0 -> version 3
     val endStr = URLEncoder.encode(new Timestamp(1651272660000L).toString)
 
-    val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, None)
+    val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, Some(0))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
@@ -925,7 +925,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_with_partition: query table changes") {
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3"), Some("GET"), None, None)
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3"), Some("GET"), None, Some(1))
     val lines = response.split("\n")
     val files = lines.drop(2)
     assert(files.size == 6)
