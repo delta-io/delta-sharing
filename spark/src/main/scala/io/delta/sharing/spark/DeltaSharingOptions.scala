@@ -91,7 +91,7 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
     }
   }
 
-  private def provideOneStartingOption(): Unit = {
+  private def validateOneStartingOption(): Unit = {
     if (startingTimestamp.isDefined && startingVersion.isDefined) {
       throw DeltaSharingErrors.versionAndTimestampBothSetException(
         STARTING_VERSION_OPTION,
@@ -99,7 +99,7 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
     }
   }
 
-  private def provideOneTimeTravelOption(): Unit = {
+  private def validateOneTimeTravelOption(): Unit = {
     if (versionAsOf.isDefined && timestampAsOf.isDefined) {
       throw DeltaSharingErrors.versionAndTimestampBothSetException(
         TIME_TRAVEL_VERSION,
@@ -107,8 +107,8 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
     }
   }
 
-  provideOneStartingOption()
-  provideOneTimeTravelOption()
+  validateOneStartingOption()
+  validateOneTimeTravelOption()
 }
 
 
