@@ -35,4 +35,19 @@ object DeltaSharingErrors {
       s"supported reader version $supportedVersion. Please upgrade to a new release."
     )
   }
+
+  def illegalDeltaOptionException(name: String, input: String, explain: String): Throwable = {
+    new IllegalArgumentException(s"Invalid value '$input' for option '$name', $explain")
+  }
+
+  def versionAndTimestampBothSetException(
+    versionOptKey: String,
+    timestampOptKey: String): Throwable = {
+    new IllegalArgumentException(s"Please either provide '$versionOptKey' or '$timestampOptKey'")
+  }
+
+  def CDFNotSupportedInStreaming: Throwable = {
+    new UnsupportedOperationException("Delta Sharing Streaming CDF is not supported yet.")
+  }
+
 }
