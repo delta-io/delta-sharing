@@ -27,13 +27,10 @@ import io.delta.sharing.spark.util.JsonUtils
 /**
  * Tracks how far we processed in when reading changes from the [[Delta Sharing Server]].
  *
- * Note this class retains the naming of `Reservoir` to maintain compatibility
- * with serialized offsets from the beta period.
- *
  * @param sourceVersion     The version of serialization that this offset is encoded with.
- * @param reservoirId       The id of the table we are reading from. Used to detect
+ * @param tableId           The id of the table we are reading from. Used to detect
  *                          misconfiguration when restarting a query.
- * @param reservoirVersion  The version of the table that we are currently processing.
+ * @param tableVersion      The version of the table that we are currently processing.
  * @param index             The index in the sequence of AddFiles in this version. Used to
  *                          break large commits into multiple batches. This index is created by
  *                          sorting on url.
@@ -44,8 +41,8 @@ import io.delta.sharing.spark.util.JsonUtils
  */
 case class DeltaSharingSourceOffset(
   sourceVersion: Long,
-  reservoirId: String,
-  reservoirVersion: Long,
+  tableId: String,
+  tableVersion: Long,
   index: Long,
   isStartingVersion: Boolean
 ) extends Offset {
@@ -58,10 +55,10 @@ case class DeltaSharingSourceOffset(
    *         if this offset is greater than `otherOffset`
    */
   def compare(otherOffset: DeltaSharingSourceOffset): Int = {
-    assert(reservoirId == otherOffset.reservoirId, "Comparing offsets that do not refer to the" +
+    assert(tableId == otherOffset.tableId, "Comparing offsets that do not refer to the" +
       " same table is disallowed.")
-    implicitly[Ordering[(Long, Long)]].compare((reservoirVersion, index),
-      (otherOffset.reservoirVersion, otherOffset.index))
+    implicitly[Ordering[(Long, Long)]].compare((tableVersion, index),
+      (otherOffset.tableVersion, otherOffset.index))
   }
 }
 
@@ -71,28 +68,28 @@ object DeltaSharingSourceOffset {
 
   def apply(
     sourceVersion: Long,
-    reservoirId: String,
-    reservoirVersion: Long,
+    tableId: String,
+    tableVersion: Long,
     index: Long,
     isStartingVersion: Boolean
   ): DeltaSharingSourceOffset = {
     new DeltaSharingSourceOffset(
       sourceVersion,
-      reservoirId,
-      reservoirVersion,
+      tableId,
+      tableVersion,
       index,
       isStartingVersion
     )
   }
 
-  def apply(reservoirId: String, offset: OffsetV2): DeltaSharingSourceOffset = {
+  def apply(tableId: String, offset: OffsetV2): DeltaSharingSourceOffset = {
     offset match {
       case o: DeltaSharingSourceOffset => o
       case s =>
         validateSourceVersion(s.json)
         val o = JsonUtils.fromJson[DeltaSharingSourceOffset](s.json)
-        if (o.reservoirId != reservoirId) {
-          throw DeltaSharingErrors.nonExistentDeltaTable(o.reservoirId)
+        if (o.tableId != tableId) {
+          throw DeltaSharingErrors.nonExistentDeltaTable(o.tableId)
         }
         o
     }
@@ -135,16 +132,9 @@ object DeltaSharingSourceOffset {
         s"Found invalid offsets: 'isStartingVersion' fliped incorrectly. " +
           s"Previous: $previousOffset, Current: $currentOffset")
     }
-    if (previousOffset.reservoirVersion > currentOffset.reservoirVersion) {
+    if (previousOffset.compare(currentOffset) > 0) {
       throw new IllegalStateException(
-        s"Found invalid offsets: 'reservoirVersion' moved back. " +
-          s"Previous: $previousOffset, Current: $currentOffset")
-    }
-    if (previousOffset.reservoirVersion == currentOffset.reservoirVersion &&
-      previousOffset.index > currentOffset.index) {
-      throw new IllegalStateException(
-        s"Found invalid offsets. 'index' moved back. " +
-          s"Previous: $previousOffset, Current: $currentOffset")
+        s"Found invalid offsets. Previous: $previousOffset, Current: $currentOffset")
     }
   }
 }

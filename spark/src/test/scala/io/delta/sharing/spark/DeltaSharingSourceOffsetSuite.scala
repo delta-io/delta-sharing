@@ -40,7 +40,7 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
       s"""
          |{
          |  "sourceVersion": $unknownVersion,
-         |  "reservoirVersion": 1,
+         |  "tableVersion": 1,
          |  "index": 1,
          |  "isStartingVersion": true
          |}
@@ -56,7 +56,7 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
       """
         |{
         |  "sourceVersion": "foo",
-        |  "reservoirVersion": 1,
+        |  "tableVersion": 1,
         |  "index": 1,
         |  "isStartingVersion": true
         |}
@@ -73,7 +73,7 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
     val json =
       """
         |{
-        |  "reservoirVersion": 1,
+        |  "tableVersion": 1,
         |  "index": 1,
         |  "isStartingVersion": true
         |}
@@ -90,9 +90,9 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
     val json =
       s"""
          |{
-         |  "reservoirId": "${UUID.randomUUID().toString}",
+         |  "tableId": "${UUID.randomUUID().toString}",
          |  "sourceVersion": 1,
-         |  "reservoirVersion": 1,
+         |  "tableVersion": 1,
          |  "index": 1,
          |  "isStartingVersion": true
          |}
@@ -109,28 +109,28 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
     DeltaSharingSourceOffset.validateOffsets(
       previousOffset = DeltaSharingSourceOffset(
         sourceVersion = 1,
-        reservoirId = "foo",
-        reservoirVersion = 4,
+        tableId = "foo",
+        tableVersion = 4,
         index = 10,
         isStartingVersion = false),
       currentOffset = DeltaSharingSourceOffset(
         sourceVersion = 1,
-        reservoirId = "foo",
-        reservoirVersion = 4,
+        tableId = "foo",
+        tableVersion = 4,
         index = 10,
         isStartingVersion = false)
     )
     DeltaSharingSourceOffset.validateOffsets(
       previousOffset = DeltaSharingSourceOffset(
         sourceVersion = 1,
-        reservoirId = "foo",
-        reservoirVersion = 4,
+        tableId = "foo",
+        tableVersion = 4,
         index = 10,
         isStartingVersion = false),
       currentOffset = DeltaSharingSourceOffset(
         sourceVersion = 1,
-        reservoirId = "foo",
-        reservoirVersion = 5,
+        tableId = "foo",
+        tableVersion = 5,
         index = 1,
         isStartingVersion = false)
     )
@@ -139,14 +139,14 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
       DeltaSharingSourceOffset.validateOffsets(
         previousOffset = DeltaSharingSourceOffset(
           sourceVersion = 1,
-          reservoirId = "foo",
-          reservoirVersion = 4,
+          tableId = "foo",
+          tableVersion = 4,
           index = 10,
           isStartingVersion = false),
         currentOffset = DeltaSharingSourceOffset(
           sourceVersion = 1,
-          reservoirId = "foo",
-          reservoirVersion = 4,
+          tableId = "foo",
+          tableVersion = 4,
           index = 10,
           isStartingVersion = true)
       )
@@ -155,33 +155,33 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
       DeltaSharingSourceOffset.validateOffsets(
         previousOffset = DeltaSharingSourceOffset(
           sourceVersion = 1,
-          reservoirId = "foo",
-          reservoirVersion = 4,
+          tableId = "foo",
+          tableVersion = 4,
           index = 10,
           isStartingVersion = false),
         currentOffset = DeltaSharingSourceOffset(
           sourceVersion = 1,
-          reservoirId = "foo",
-          reservoirVersion = 1,
+          tableId = "foo",
+          tableVersion = 1,
           index = 10,
           isStartingVersion = false)
       )
-    }.getMessage.contains("Found invalid offsets: 'reservoirVersion' moved back."))
+    }.getMessage.contains("Found invalid offsets. Previous:"))
     assert(intercept[IllegalStateException] {
       DeltaSharingSourceOffset.validateOffsets(
         previousOffset = DeltaSharingSourceOffset(
           sourceVersion = 1,
-          reservoirId = "foo",
-          reservoirVersion = 4,
+          tableId = "foo",
+          tableVersion = 4,
           index = 10,
           isStartingVersion = false),
         currentOffset = DeltaSharingSourceOffset(
           sourceVersion = 1,
-          reservoirId = "foo",
-          reservoirVersion = 4,
+          tableId = "foo",
+          tableVersion = 4,
           index = 9,
           isStartingVersion = false)
       )
-    }.getMessage.contains("Found invalid offsets. 'index' moved back."))
+    }.getMessage.contains("Found invalid offsets. Previous:"))
   }
 }
