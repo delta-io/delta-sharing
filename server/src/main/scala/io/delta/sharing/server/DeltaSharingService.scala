@@ -257,7 +257,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     )
     if (startingTimestamp != null && version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(
-        s"You can only query table data since version ${tableConfig.startVersion}."
+        s"You can only query table data since version ${tableConfig.startVersion}." +
+        s"The provided timestamp($startingTimestamp) corresponds to $version."
       )
     }
     val headers = createHeadersBuilderForTableVersion(version).build()

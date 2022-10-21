@@ -150,6 +150,9 @@ class DeltaSharedTable(
     }
   }
 
+  /** Get table version at or after startingTimestamp if it's provided, otherwise return
+   *  the latest table version.
+   */
   def getTableVersion(startingTimestamp: Option[String]): Long = withClassLoader {
     if (startingTimestamp.isEmpty) {
       tableVersion

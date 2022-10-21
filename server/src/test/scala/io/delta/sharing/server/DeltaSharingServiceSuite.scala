@@ -1108,6 +1108,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       connection.getInputStream()
     }
     assert(e.getMessage.contains(s"Server returned HTTP response code: $expectedErrorCode"))
+    // If the http method is HEAD, error message is not returned from the server.
     assert(method == "HEAD" || IOUtils.toString(connection.getErrorStream()).contains(expectedErrorMessage))
   }
 
