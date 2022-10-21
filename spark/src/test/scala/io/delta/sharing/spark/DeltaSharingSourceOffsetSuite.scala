@@ -153,6 +153,7 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
     // isStartingVersion flipping from true to false: ok
     testValidateOffset(4, 10, true, 4, 10, false, None)
     // isStartingVersion flipping from false to true: error
-    testValidateOffset(4, 10, false, 4, 10, true, Some("Found invalid offsets: 'isStartingVersion' fliped incorrectly."))
+    testValidateOffset(4, 10, false, 4, 10, true, Some(
+      "Found invalid offsets: 'isStartingVersion' fliped incorrectly."))
   }
 }
