@@ -146,7 +146,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       checkAnswer(
         spark.read.format("deltaSharing").option("versionAsOf", "3x").load(tablePath), expected)
     }.getMessage
-    assert(errorMessage.contains("versionAsOf is not a valid number"))
+    assert(errorMessage.contains("Invalid value '3x' for option 'versionAsOf'"))
   }
 
   integrationTest("cdf_table_cdf_enabled timestamp exception") {
@@ -167,7 +167,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       checkAnswer(
         spark.read
           .format("deltaSharing")
-          .option("versionAsOf", "3x")
+          .option("versionAsOf", "3")
           .option("timestampAsOf", "2000-01-01 00:00:00")
           .load(tablePath),
         expected
