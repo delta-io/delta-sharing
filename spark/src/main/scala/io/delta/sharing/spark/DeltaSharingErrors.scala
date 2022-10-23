@@ -17,6 +17,25 @@
 package io.delta.sharing.spark
 
 object DeltaSharingErrors {
+  def nonExistentDeltaTable(tableId: String): Throwable = {
+    new IllegalStateException(s"Delta table ${tableId} doesn't exist. " +
+      s"Please delete your streaming query checkpoint and restart.")
+  }
+
+  def invalidSourceVersion(version: String): Throwable = {
+    new IllegalStateException(s"sourceVersion($version) is invalid.")
+  }
+
+  def cannotFindSourceVersionException(json: String): Throwable = {
+    new IllegalStateException(s"Cannot find 'sourceVersion' in $json")
+  }
+
+  def unsupportedTableReaderVersion(supportedVersion: Long, tableVersion: Long): Throwable = {
+    new IllegalStateException(s"The table reader version ${tableVersion} is larger than " +
+      s"supported reader version $supportedVersion. Please upgrade to a new release."
+    )
+  }
+
   def illegalDeltaOptionException(name: String, input: String, explain: String): Throwable = {
     new IllegalArgumentException(s"Invalid value '$input' for option '$name', $explain")
   }
