@@ -336,7 +336,37 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(deltaTableVersion == "0")
   }
 
-  integrationTest("getTableVersion - exceptions") {
+  integrationTest("table1 - get - /shares/{share}/schemas/{schema}/tables/{table}") {
+    // getTableVersion succeeds without parameters
+    var url = requestPath("/shares/share1/schemas/default/tables/table1")
+    var connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
+    connection.setRequestMethod("GET")
+    connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    var input = connection.getInputStream()
+    try {
+      IOUtils.toString(input)
+    } finally {
+      input.close()
+    }
+    var deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
+    assert(deltaTableVersion == "2")
+
+    // getTableVersion succeeds with parameters
+    url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=2000-01-01%2000:00:00")
+    connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
+    connection.setRequestMethod("GET")
+    connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    input = connection.getInputStream()
+    try {
+      IOUtils.toString(input)
+    } finally {
+      input.close()
+    }
+    deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
+    assert(deltaTableVersion == "0")
+  }
+
+  integrationTest("getTableVersion - head exceptions") {
     // timestamp can be any string here, it's resolved in DeltaSharedTableLoader
     assertHttpError(
       url = requestPath("/shares/share2/schemas/default/tables/table2?startingTimestamp=abc"),
@@ -361,6 +391,37 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=9999-01-01%2000:00:00"),
       method = "HEAD",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "The provided timestamp (9999-01-01 00:00:00.0) is after the latest version available"
+    )
+  }
+
+  integrationTest("getTableVersion - get exceptions") {
+    // timestamp can be any string here, it's resolved in DeltaSharedTableLoader
+    assertHttpError(
+      url = requestPath("/shares/share2/schemas/default/tables/table2?startingTimestamp=abc"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Reading table by version or timestamp is not supported because "
+    )
+
+    // invalid startingTimestamp format
+    assertHttpError(
+      url = requestPath(
+        "/shares/share1/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=abc"
+      ),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Invalid startingTimestamp"
+    )
+
+    // timestamp after the latest version
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=9999-01-01%2000:00:00"),
+      method = "GET",
       data = None,
       expectedErrorCode = 400,
       expectedErrorMessage = "The provided timestamp (9999-01-01 00:00:00.0) is after the latest version available"

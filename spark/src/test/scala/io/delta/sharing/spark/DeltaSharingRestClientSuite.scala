@@ -83,6 +83,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           startingTimestamp = Some("2020-01-01 00:00:00"))
       }.getMessage
       assert(errorMessage.contains("400 Bad Request"))
+      assert(errorMessage.contains("Reading table by version or timestamp is not supported"))
     } finally {
       client.close()
     }

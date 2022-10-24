@@ -240,6 +240,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   }
 
   @Head("/shares/{share}/schemas/{schema}/tables/{table}")
+  @Get("/shares/{share}/schemas/{schema}/tables/{table}")
   def getTableVersion(
     @Param("share") share: String,
     @Param("schema") schema: String,

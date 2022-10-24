@@ -174,7 +174,7 @@ private[spark] class DeltaSharingRestClient(
     val target =
       getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/" +
         s"$encodedTableName$encodedParam")
-    val (version, _) = getResponse(new HttpHead(target))
+    val (version, _) = getResponse(new HttpGet(target))
     version.getOrElse {
       throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
     }
