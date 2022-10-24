@@ -374,6 +374,25 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   /**
+   * Test versionAsOf/timestampAsOf
+   */
+  integrationTest("versionAsOf/timestampAsOf - not supported") {
+    var message = intercept[UnsupportedOperationException] {
+      val query = spark.readStream.format("deltaSharing").option("path", tablePath)
+        .option("versionAsOf", "1")
+        .load().writeStream.format("console").start()
+    }.getMessage
+    assert(message.contains("Cannot time travel streams"))
+
+    message = intercept[UnsupportedOperationException] {
+      val query = spark.readStream.format("deltaSharing").option("path", tablePath)
+        .option("timestampAsOf", "2022-10-01 00:00:00.0")
+        .load().writeStream.format("console").start()
+    }.getMessage
+    assert(message.contains("Cannot time travel streams"))
+  }
+
+  /**
    * Test startingVersion/startingTimestamp
    */
   integrationTest("startingVersion/startingTimestamp - exceptions") {
