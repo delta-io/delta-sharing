@@ -18,6 +18,7 @@ package io.delta.sharing.spark
 
 import java.util.UUID
 
+import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.QueryTest
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles
@@ -25,8 +26,6 @@ import org.apache.spark.sql.execution.streaming.SerializedOffset
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{StringType, StructField, StructType, TimestampType}
-import org.apache.spark.sql.AnalysisException
-
 import org.scalatest.time.SpanSugar._
 
 class DeltaSharingSourceSuite extends QueryTest
@@ -297,8 +296,9 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   test("maxBytesPerTrigger - max bytes and max files together") {
+    // should process one file at a time
     val q = withStreamReaderAtVersion()
-      .option(DeltaSharingOptions.MAX_FILES_PER_TRIGGER_OPTION, "1") // should process a file at a time
+      .option(DeltaSharingOptions.MAX_FILES_PER_TRIGGER_OPTION, "1")
       .option(DeltaSharingOptions.MAX_BYTES_PER_TRIGGER_OPTION, "100gb")
       .load().writeStream.format("console").start()
     try {
