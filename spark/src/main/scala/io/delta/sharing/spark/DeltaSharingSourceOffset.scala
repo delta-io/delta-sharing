@@ -27,16 +27,13 @@ import io.delta.sharing.spark.util.JsonUtils
 /**
  * Tracks how far we processed in when reading changes from the [[Delta Sharing Server]].
  *
- * Note this class retains the naming of `Reservoir` to maintain compatibility
- * with serialized offsets from the beta period.
- *
  * @param sourceVersion     The version of serialization that this offset is encoded with.
- * @param reservoirId       The id of the table we are reading from. Used to detect
+ * @param tableId           The id of the table we are reading from. Used to detect
  *                          misconfiguration when restarting a query.
- * @param reservoirVersion  The version of the table that we are current processing.
+ * @param tableVersion      The version of the table that we are currently processing.
  * @param index             The index in the sequence of AddFiles in this version. Used to
  *                          break large commits into multiple batches. This index is created by
- *                          sorting on modificationTimestamp and path.
+ *                          sorting on url.
  * @param isStartingVersion Whether this offset denotes a query that is starting rather than
  *                          processing changes. When starting a new query, we first process
  *                          all data present in the table at the start and then move on to
@@ -44,8 +41,8 @@ import io.delta.sharing.spark.util.JsonUtils
  */
 case class DeltaSharingSourceOffset(
   sourceVersion: Long,
-  reservoirId: String,
-  reservoirVersion: Long,
+  tableId: String,
+  tableVersion: Long,
   index: Long,
   isStartingVersion: Boolean
 ) extends Offset {
@@ -58,10 +55,10 @@ case class DeltaSharingSourceOffset(
    *         if this offset is greater than `otherOffset`
    */
   def compare(otherOffset: DeltaSharingSourceOffset): Int = {
-    assert(reservoirId == otherOffset.reservoirId, "Comparing offsets that do not refer to the" +
+    assert(tableId == otherOffset.tableId, "Comparing offsets that do not refer to the" +
       " same table is disallowed.")
-    implicitly[Ordering[(Long, Long)]].compare((reservoirVersion, index),
-      (otherOffset.reservoirVersion, otherOffset.index))
+    implicitly[Ordering[(Long, Long)]].compare((tableVersion, index),
+      (otherOffset.tableVersion, otherOffset.index))
   }
 }
 
@@ -71,28 +68,28 @@ object DeltaSharingSourceOffset {
 
   def apply(
     sourceVersion: Long,
-    reservoirId: String,
-    reservoirVersion: Long,
+    tableId: String,
+    tableVersion: Long,
     index: Long,
     isStartingVersion: Boolean
   ): DeltaSharingSourceOffset = {
     new DeltaSharingSourceOffset(
       sourceVersion,
-      reservoirId,
-      reservoirVersion,
+      tableId,
+      tableVersion,
       index,
       isStartingVersion
     )
   }
 
-  def apply(reservoirId: String, offset: OffsetV2): DeltaSharingSourceOffset = {
+  def apply(tableId: String, offset: OffsetV2): DeltaSharingSourceOffset = {
     offset match {
       case o: DeltaSharingSourceOffset => o
       case s =>
         validateSourceVersion(s.json)
         val o = JsonUtils.fromJson[DeltaSharingSourceOffset](s.json)
-        if (o.reservoirId != reservoirId) {
-          throw DeltaSharingErrors.nonExistentDeltaTable(o.reservoirId)
+        if (o.tableId != tableId) {
+          throw DeltaSharingErrors.nonExistentDeltaTable(o.tableId)
         }
         o
     }
@@ -120,6 +117,24 @@ object DeltaSharingSourceOffset {
     json match {
       case JNothing => None
       case value: JValue => Some(value)
+    }
+  }
+
+  /**
+   * Validate offsets to make sure we always move forward. Moving backward may make the query
+   * re-process data and cause data duplication.
+   */
+  def validateOffsets(
+    previousOffset: DeltaSharingSourceOffset,
+    currentOffset: DeltaSharingSourceOffset): Unit = {
+    if (previousOffset.isStartingVersion == false && currentOffset.isStartingVersion == true) {
+      throw new IllegalStateException(
+        s"Found invalid offsets: 'isStartingVersion' fliped incorrectly. " +
+          s"Previous: $previousOffset, Current: $currentOffset")
+    }
+    if (previousOffset.compare(currentOffset) > 0) {
+      throw new IllegalStateException(
+        s"Found invalid offsets. Previous: $previousOffset, Current: $currentOffset")
     }
   }
 }

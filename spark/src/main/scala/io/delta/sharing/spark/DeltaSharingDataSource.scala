@@ -43,11 +43,13 @@ private[sharing] class DeltaSharingDataSource
     with DataSourceRegister {
 
   override def createRelation(
-    sqlContext: SQLContext,
-    parameters: Map[String, String]): BaseRelation = {
+      sqlContext: SQLContext,
+      parameters: Map[String, String]): BaseRelation = {
     DeltaSharingDataSource.setupFileSystem(sqlContext)
     val options = new DeltaSharingOptions(parameters)
-    val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
+    val path = options.options.getOrElse("path", throw new IllegalArgumentException(
+      "'path' is not specified. If you use SQL to create a Delta Sharing table, " +
+        "LOCATION must be specified"))
 
     val deltaLog = RemoteDeltaLog(path)
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)

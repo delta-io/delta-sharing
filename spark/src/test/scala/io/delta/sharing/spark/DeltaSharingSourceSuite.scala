@@ -82,8 +82,8 @@ class DeltaSharingSourceSuite extends QueryTest
     assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
     val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
     assert(offset.sourceVersion == 1)
-    assert(offset.reservoirId == deltaLog.snapshot(Some(0)).metadata.id)
-    assert(offset.reservoirVersion == 4)
+    assert(offset.tableId == deltaLog.snapshot(Some(0)).metadata.id)
+    assert(offset.tableVersion == 4)
     assert(offset.index == -1)
     assert(!offset.isStartingVersion)
   }
@@ -98,6 +98,23 @@ class DeltaSharingSourceSuite extends QueryTest
     assert(latestOffset == null)
   }
 
+  integrationTest("DeltaSharingSource.lastestOffset - no startingVersion") {
+    val source = getSource(Map(
+      "ignoreChanges" -> "true",
+      "ignoreDeletes" -> "true"
+    ))
+    val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
+
+    assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
+    val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
+    assert(offset.sourceVersion == 1)
+    assert(offset.tableId == deltaLog.snapshot(Some(0)).metadata.id)
+    assert(offset.tableVersion == 6)
+    assert(offset.index == -1)
+    assert(!offset.isStartingVersion)
+  }
+
+
   integrationTest("DeltaSharingSource.latestOffset - no startingVersion") {
     val source = getSource(Map("ignoreChanges" -> "true", "ignoreDeletes" -> "true"))
     val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
@@ -105,8 +122,8 @@ class DeltaSharingSourceSuite extends QueryTest
     assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
     val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
     assert(offset.sourceVersion == 1)
-    assert(offset.reservoirId == deltaLog.snapshot().metadata.id)
-    assert(offset.reservoirVersion == 6)
+    assert(offset.tableId == deltaLog.snapshot().metadata.id)
+    assert(offset.tableVersion == 6)
     assert(offset.index == -1)
     assert(!offset.isStartingVersion)
   }
@@ -153,6 +170,25 @@ class DeltaSharingSourceSuite extends QueryTest
       assert(progress.length === 1)
       progress.foreach { p =>
         assert(p.numInputRows === 4)
+      }
+    } finally {
+      query.stop()
+    }
+  }
+
+  integrationTest("no startingVersion - success") {
+    // cdf_table_cdf_enabled snapshot at version 5 is queried, with 2 files and 2 rows of data
+    val query = spark.readStream.format("deltaSharing").option("path", tablePath)
+      .option("ignoreDeletes", "true")
+      .option("ignoreChanges", "true")
+      .load().writeStream.format("console").start()
+
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 2)
       }
     } finally {
       query.stop()
@@ -326,7 +362,7 @@ class DeltaSharingSourceSuite extends QueryTest
         .option("readChangeFeed", "true")
         .load().writeStream.format("console").start()
     }.getMessage
-    assert(message.contains("CDF is not supported in Delta Sharing Streaming yet"))
+    assert(message.contains("Delta Sharing Streaming CDF is not supported yet"))
 
     message = intercept[UnsupportedOperationException] {
       val query = spark.readStream.format("deltaSharing").option("path", tablePath)
@@ -334,7 +370,7 @@ class DeltaSharingSourceSuite extends QueryTest
         .option("readChangeData", "true")
         .load().writeStream.format("console").start()
     }.getMessage
-    assert(message.contains("CDF is not supported in Delta Sharing Streaming yet"))
+    assert(message.contains("Delta Sharing Streaming CDF is not supported yet"))
   }
 
   /**
