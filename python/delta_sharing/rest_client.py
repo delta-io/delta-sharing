@@ -17,7 +17,7 @@ import collections
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
-from typing import Any, ClassVar, Dict, Generator, List, Optional, Sequence
+from typing import Any, ClassVar, Dict, List, Optional, Sequence
 from urllib.parse import quote, urlparse
 import time
 import logging
