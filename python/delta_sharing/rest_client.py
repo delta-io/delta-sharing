@@ -365,7 +365,7 @@ class DataSharingRestClient:
         return_headers,
         target: str,
         **kwargs,
-    ) -> Generator[str, None, None]:
+    ):
         assert target.startswith("/"), "Targets should start with '/'"
         response = request(f"{self._profile.endpoint}{target}", **kwargs)
         try:
