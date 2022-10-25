@@ -249,7 +249,8 @@ class DataSharingRestClient:
     def query_table_version(
         self,
         table: Table,
-        starting_timestamp: Optional[str] = None) -> QueryTableVersionResponse:
+        starting_timestamp: Optional[str] = None,
+    ) -> QueryTableVersionResponse:
         query_str = f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}"
         if starting_timestamp is not None:
             query_str += f"?startingTimestamp={quote(starting_timestamp)}"
@@ -343,20 +344,28 @@ class DataSharingRestClient:
         self,
         target: str,
         data: Optional[Dict[str, Any]] = None,
-        return_headers: bool = False):
+        return_headers: bool = False,
+    ):
         return self._request_internal(
-        request=self._session.get, return_headers=return_headers, target=target, params=data)
+            request=self._session.get, return_headers=return_headers, target=target, params=data)
 
     def _post_internal(
         self,
         target: str,
         data: Optional[Dict[str, Any]] = None,
-        return_headers: bool = False):
+        return_headers: bool = False,
+    ):
         return self._request_internal(
-        request=self._session.post, return_headers=return_headers, target=target, json=data)
+            request=self._session.post, return_headers=return_headers, target=target, json=data)
 
     @contextmanager
-    def _request_internal(self, request, return_headers, target: str, **kwargs) -> Generator[str, None, None]:
+    def _request_internal(
+        self,
+        request,
+        return_headers,
+        target: str,
+        **kwargs,
+    ) -> Generator[str, None, None]:
         assert target.startswith("/"), "Targets should start with '/'"
         response = request(f"{self._profile.endpoint}{target}", **kwargs)
         try:
