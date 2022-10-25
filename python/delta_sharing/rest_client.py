@@ -66,6 +66,7 @@ class ListAllTablesResponse:
 
 @dataclass(frozen=True)
 class QueryTableMetadataResponse:
+    delta_table_version: int
     protocol: Protocol
     metadata: Metadata
 
@@ -77,6 +78,7 @@ class QueryTableVersionResponse:
 
 @dataclass(frozen=True)
 class ListFilesInTableResponse:
+    delta_table_version: int
     protocol: Protocol
     metadata: Metadata
     add_files: Sequence[AddFile]
@@ -227,27 +229,42 @@ class DataSharingRestClient:
     @retry_with_exponential_backoff
     def query_table_metadata(self, table: Table) -> QueryTableMetadataResponse:
         with self._get_internal(
-            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata"
-        ) as lines:
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
+            return_headers=True
+        ) as values:
+            headers = values[0]
+            # it's a bug in the server if it doesn't return delta-table-version in the header
+            if "delta-table-version" not in headers:
+                raise LookupError("Missing delta-table-version header")
+            lines = values[1]
             protocol_json = json.loads(next(lines))
             metadata_json = json.loads(next(lines))
             return QueryTableMetadataResponse(
+                delta_table_version=int(headers.get("delta-table-version")),
                 protocol=Protocol.from_json(protocol_json["protocol"]),
                 metadata=Metadata.from_json(metadata_json["metaData"]),
             )
 
     @retry_with_exponential_backoff
-    def query_table_version(self, table: Table) -> QueryTableVersionResponse:
-        headers = self._head_internal(
-            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}"
-        )
+    def query_table_version(
+        self,
+        table: Table,
+        starting_timestamp: Optional[str] = None) -> QueryTableVersionResponse:
+        query_str = f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}"
+        if starting_timestamp is not None:
+            query_str += f"?startingTimestamp={quote(starting_timestamp)}"
+        with self._get_internal(
+            query_str,
+            return_headers=True
+        ) as values:
+            headers = values[0]
 
-        # it's a bug in the server if it doesn't return delta-table-version in the header
-        if "delta-table-version" not in headers:
-            raise LookupError("Missing delta-table-version header")
+            # it's a bug in the server if it doesn't return delta-table-version in the header
+            if "delta-table-version" not in headers:
+                raise LookupError("Missing delta-table-version header")
 
-        table_version = int(headers.get("delta-table-version"))
-        return QueryTableVersionResponse(delta_table_version=table_version)
+            table_version = int(headers.get("delta-table-version"))
+            return QueryTableVersionResponse(delta_table_version=table_version)
 
     @retry_with_exponential_backoff
     def list_files_in_table(
@@ -272,10 +289,18 @@ class DataSharingRestClient:
         with self._post_internal(
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query",
             data=data,
-        ) as lines:
+            return_headers=True
+        ) as values:
+            headers = values[0]
+            # it's a bug in the server if it doesn't return delta-table-version in the header
+            if "delta-table-version" not in headers:
+                raise LookupError("Missing delta-table-version header")
+
+            lines = values[1]
             protocol_json = json.loads(next(lines))
             metadata_json = json.loads(next(lines))
             return ListFilesInTableResponse(
+                delta_table_version=int(headers.get("delta-table-version")),
                 protocol=Protocol.from_json(protocol_json["protocol"]),
                 metadata=Metadata.from_json(metadata_json["metaData"]),
                 add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
@@ -314,31 +339,34 @@ class DataSharingRestClient:
     def close(self):
         self._session.close()
 
-    def _get_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
-        return self._request_internal(request=self._session.get, target=target, params=data)
+    def _get_internal(
+        self,
+        target: str,
+        data: Optional[Dict[str, Any]] = None,
+        return_headers: bool = False):
+        return self._request_internal(
+        request=self._session.get, return_headers=return_headers, target=target, params=data)
 
-    def _post_internal(self, target: str, data: Optional[Dict[str, Any]] = None):
-        return self._request_internal(request=self._session.post, target=target, json=data)
-
-    def _head_internal(self, target: str):
-        assert target.startswith("/"), "Targets should start with '/'"
-        response = self._session.head(f"{self._profile.endpoint}{target}")
-        try:
-            response.raise_for_status()
-            headers = response.headers
-            return headers
-        finally:
-            response.close()
+    def _post_internal(
+        self,
+        target: str,
+        data: Optional[Dict[str, Any]] = None,
+        return_headers: bool = False):
+        return self._request_internal(
+        request=self._session.post, return_headers=return_headers, target=target, json=data)
 
     @contextmanager
-    def _request_internal(self, request, target: str, **kwargs) -> Generator[str, None, None]:
+    def _request_internal(self, request, return_headers, target: str, **kwargs) -> Generator[str, None, None]:
         assert target.startswith("/"), "Targets should start with '/'"
         response = request(f"{self._profile.endpoint}{target}", **kwargs)
         try:
             response.raise_for_status()
             lines = response.iter_lines(decode_unicode=True)
             try:
-                yield lines
+                if return_headers:
+                    yield response.headers, lines
+                else:
+                    yield lines
             finally:
                 collections.deque(lines, maxlen=0)
         except HTTPError as e:

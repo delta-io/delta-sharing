@@ -170,6 +170,7 @@ def test_query_table_metadata_non_partitioned(rest_client: DataSharingRestClient
     response = rest_client.query_table_metadata(
         Table(name="table1", share="share1", schema="default")
     )
+    assert response.delta_table_version > 1
     assert response.protocol == Protocol(min_reader_version=1)
     assert response.metadata == Metadata(
         id="ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
@@ -189,6 +190,7 @@ def test_query_table_metadata_partitioned(rest_client: DataSharingRestClient):
     response = rest_client.query_table_metadata(
         Table(name="table2", share="share2", schema="default")
     )
+    assert response.delta_table_version > 1
     assert response.protocol == Protocol(min_reader_version=1)
     assert response.metadata == Metadata(
         id="f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
@@ -210,6 +212,7 @@ def test_query_table_metadata_partitioned_different_schemas(
     response = rest_client.query_table_metadata(
         Table(name="table3", share="share1", schema="default")
     )
+    assert response.delta_table_version > 1
     assert response.protocol == Protocol(min_reader_version=1)
     assert response.metadata == Metadata(
         id="7ba6d727-a578-4234-a138-953f790b427c",
@@ -235,6 +238,28 @@ def test_query_existed_table_version(rest_client: DataSharingRestClient):
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_version_with_timestamp(rest_client: DataSharingRestClient):
+    response = rest_client.query_table_version(
+        Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
+        starting_timestamp="2020-01-01 00:00:00.0"
+    )
+    assert isinstance(response.delta_table_version, int)
+    assert response.delta_table_version == 0
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_version_with_timestamp_exception(rest_client: DataSharingRestClient):
+    try:
+        rest_client.query_table_version(
+            Table(name="table1", share="share1", schema="default"),
+            starting_timestamp="2020-01-1 00:00:00.0"
+        )
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+        assert "Reading table by version or timestamp is not supported" in (str(e))
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_nonexistent_table_version(rest_client: DataSharingRestClient):
     with pytest.raises(HTTPError):
         rest_client.query_table_version(
@@ -248,6 +273,7 @@ def test_list_files_in_table_non_partitioned(rest_client: DataSharingRestClient)
         Table(name="table1", share="share1", schema="default"),
         predicateHints=["date = '2021-01-31'"],
     )
+    assert response.delta_table_version > 1
     assert response.protocol == Protocol(min_reader_version=1)
     assert response.metadata == Metadata(
         id="ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
@@ -295,6 +321,7 @@ def test_list_files_in_table_partitioned(rest_client: DataSharingRestClient):
         predicateHints=["date = '2021-01-31'"],
         limitHint=123,
     )
+    assert response.delta_table_version > 1
     assert response.protocol == Protocol(min_reader_version=1)
     assert response.metadata == Metadata(
         id="f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
@@ -342,6 +369,7 @@ def test_list_files_in_table_partitioned_different_schemas(
     response = rest_client.list_files_in_table(
         Table(name="table3", share="share1", schema="default")
     )
+    assert response.delta_table_version > 1
     assert response.protocol == Protocol(min_reader_version=1)
     assert response.metadata == Metadata(
         id="7ba6d727-a578-4234-a138-953f790b427c",
@@ -403,6 +431,7 @@ def test_list_files_in_table_version(
         Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
         version=1
     )
+    assert response.delta_table_version == 1
     assert response.protocol == Protocol(min_reader_version=1)
     assert response.metadata == Metadata(
         id="16736144-3306-4577-807a-d3f899b77670",
