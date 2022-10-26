@@ -310,6 +310,23 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedRemoveFiles == tableFiles.removeFiles.toList)
+
+      assert(tableFiles.additionalProtocols.size == 0)
+      assert(tableFiles.additionalMetadatas.size == 2)
+      val v4Metadata = Metadata(
+        id = "16736144-3306-4577-807a-d3f899b77670",
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+        configuration = Map.empty,
+        partitionColumns = Nil,
+        version = 4)
+      assert(v4Metadata == tableFiles.additionalMetadatas(0))
+
+      val v5Metadata = v4Metadata.copy(
+        configuration = Map("enableChangeDataFeed" -> "true"),
+        version = 5
+      )
+      assert(v5Metadata == tableFiles.additionalMetadatas(1))
     } finally {
       client.close()
     }

@@ -822,7 +822,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-  integrationTest("streaming_table_metadata_protocol - startingVersion success") {
+  integrationTest("streaming_table_metadata_protocol - startingVersion 0 success") {
     val p =
       s"""
          |{
@@ -867,6 +867,43 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedMetadata == actions(6).metaData)
 
     assert(actions(7).add != null)
+  }
+
+  integrationTest("streaming_table_metadata_protocol - startingVersion 2 success") {
+    val p =
+      s"""
+         |{
+         | "startingVersion": 2
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"), Some("POST"), Some(p), Some(2))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 5)
+
+    // version 2: ALTER TABLE, protocol/metadata
+    // version 3: ALTER TABLE, protocol/metadata
+    // version 4: INSERT
+    // check protocol and metadata for version 2.
+    var expectedProtocol = Protocol(minReaderVersion = 1, version = 2)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "eaca659e-28ac-4c68-8c72-0c96205c8160",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Nil,
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      version = 2)
+    assert(expectedMetadata == actions(1).metaData)
+
+    // check protocol and metadata for version 3.
+    expectedProtocol = Protocol(minReaderVersion = 1, version = 3)
+    assert(expectedProtocol == actions(2).protocol)
+    expectedMetadata = expectedMetadata.copy(
+      configuration = Map.empty,
+      version = 3)
+    assert(expectedMetadata == actions(3).metaData)
+
+    assert(actions(4).add != null)
   }
 
   integrationTest("table_reader_version_increased - exception") {
