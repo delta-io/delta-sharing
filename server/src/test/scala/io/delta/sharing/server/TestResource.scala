@@ -69,38 +69,7 @@ object TestResource {
             java.util.Arrays.asList(
               TableConfig("table1", s"s3a://${AWS.bucket}/delta-exchange-test/table1"),
               TableConfig("table3", s"s3a://${AWS.bucket}/delta-exchange-test/table3"),
-              TableConfig("table7", s"s3a://${AWS.bucket}/delta-exchange-test/table7"),
-              TableConfig(
-                "cdf_table_cdf_enabled",
-                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_cdf_enabled",
-                true
-              ),
-              TableConfig(
-                "cdf_table_with_partition",
-                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_partition",
-                true,
-                1
-              ),
-              TableConfig(
-                "cdf_table_with_vacuum",
-                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_vacuum",
-                true
-              ),
-              TableConfig(
-                "cdf_table_missing_log",
-                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_missing_log",
-                true
-              ),
-              TableConfig(
-                "streaming_table_with_optimize",
-                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_table_with_optimize",
-                true
-              ),
-              TableConfig(
-                "table_reader_version_increased",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table_reader_version_increased",
-                true
-              )
+              TableConfig("table7", s"s3a://${AWS.bucket}/delta-exchange-test/table7")
             )
           )
         )
@@ -180,6 +149,51 @@ object TestResource {
             "default",
             java.util.Arrays.asList(
               TableConfig("table_gcs", s"gs://${GCP.bucket}/delta-sharing-test/table1")
+            )
+          )
+        )
+      ),
+      ShareConfig("share8",
+        java.util.Arrays.asList(
+          SchemaConfig(
+            "default",
+            java.util.Arrays.asList(
+              TableConfig(
+                "cdf_table_cdf_enabled",
+                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_cdf_enabled",
+                true
+              ),
+              TableConfig(
+                "cdf_table_with_partition",
+                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_partition",
+                true,
+                1
+              ),
+              TableConfig(
+                "cdf_table_with_vacuum",
+                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_vacuum",
+                true
+              ),
+              TableConfig(
+                "cdf_table_missing_log",
+                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_missing_log",
+                true
+              ),
+              TableConfig(
+                "streaming_table_with_optimize",
+                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_table_with_optimize",
+                true
+              ),
+              TableConfig(
+                "streaming_table_metadata_protocol",
+                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_table_metadata_protocol",
+                true
+              ),
+              TableConfig(
+                "table_reader_version_increased",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table_reader_version_increased",
+                true
+              )
             )
           )
         )

@@ -205,7 +205,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Share().withName("share6"),
         Share().withName("share7"),
         Share().withName("share_azure"),
-        Share().withName("share_gcp")
+        Share().withName("share_gcp"),
+        Share().withName("share8")
       )
     )
     assert(expected == JsonFormat.fromJsonString[ListSharesResponse](response))
@@ -229,7 +230,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Share().withName("share6"),
         Share().withName("share7"),
         Share().withName("share_azure"),
-        Share().withName("share_gcp")
+        Share().withName("share_gcp"),
+        Share().withName("share8")
     )
     assert(expected == shares)
   }
@@ -252,13 +254,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expected = ListTablesResponse(
       Table().withName("table1").withSchema("default").withShare("share1") ::
         Table().withName("table3").withSchema("default").withShare("share1") ::
-        Table().withName("table7").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_with_vacuum").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_missing_log").withSchema("default").withShare("share1") ::
-        Table().withName("streaming_table_with_optimize").withSchema("default").withShare("share1") ::
-        Table().withName("table_reader_version_increased").withSchema("default").withShare("share1") :: Nil)
+        Table().withName("table7").withSchema("default").withShare("share1") :: Nil)
     assert(expected == JsonFormat.fromJsonString[ListTablesResponse](response))
   }
 
@@ -273,13 +269,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expected =
       Table().withName("table1").withSchema("default").withShare("share1") ::
         Table().withName("table3").withSchema("default").withShare("share1") ::
-        Table().withName("table7").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_cdf_enabled").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_with_partition").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_with_vacuum").withSchema("default").withShare("share1") ::
-        Table().withName("cdf_table_missing_log").withSchema("default").withShare("share1") ::
-        Table().withName("streaming_table_with_optimize").withSchema("default").withShare("share1") ::
-        Table().withName("table_reader_version_increased").withSchema("default").withShare("share1") :: Nil
+        Table().withName("table7").withSchema("default").withShare("share1") :: Nil
     assert(expected == tables)
   }
 
@@ -531,7 +521,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_cdf_enabled - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/metadata"), expectedTableVersion = Some(5))
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/metadata"), expectedTableVersion = Some(5))
     val Array(protocol, metadata) = response.split("\n")
     val expectedProtocol = Protocol(minReaderVersion = 1).wrap
     assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
@@ -551,7 +541,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         | "version": 1
         |}
         |""".stripMargin
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"), Some("POST"), Some(p), Some(1))
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"), Some("POST"), Some(p), Some(1))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
@@ -599,7 +589,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   integrationTest("query table with version/tiemstamp/startingVersion - exceptions") {
     // only one of version/timestamp/startingVersion is supported
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
       method = "POST",
       data = Some("""{"timestamp": "abc", "version": "3"}"""),
       expectedErrorCode = 400,
@@ -607,7 +597,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Seq("version", "timestamp", "startingVersion"))
     )
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
       method = "POST",
       data = Some("""{"timestamp": "abc", "startingVersion": "3"}"""),
       expectedErrorCode = 400,
@@ -615,7 +605,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Seq("version", "timestamp", "startingVersion"))
     )
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
       method = "POST",
       data = Some("""{"startingVersion": 2, "version": "3"}"""),
       expectedErrorCode = 400,
@@ -623,7 +613,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Seq("version", "timestamp", "startingVersion"))
     )
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
       method = "POST",
       data = Some("""{"timestamp": "abc", "version": "3", "startingVersion": "2"}"""),
       expectedErrorCode = 400,
@@ -671,7 +661,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
     // timestamp before the earliest version
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
       method = "POST",
       data = Some("""{"timestamp": "2000-01-01 00:00:00"}"""),
       expectedErrorCode = 400,
@@ -680,7 +670,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
     // timestamp after the latest version
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
       method = "POST",
       data = Some("""{"timestamp": "9999-01-01 00:00:00"}"""),
       expectedErrorCode = 400,
@@ -697,7 +687,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         | "timestamp": "$tsStr"
         |}
         |""".stripMargin
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/query"), Some("POST"), Some(p), Some(1))
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"), Some("POST"), Some(p), Some(1))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
@@ -749,18 +739,19 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
          | "startingVersion": 0
          |}
          |""".stripMargin
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(0))
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(0))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+    val expectedProtocol = Protocol(minReaderVersion = 1, version = 0).wrap
     assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
     val expectedMetadata = Metadata(
       id = "4929d09e-b085-4d22-a95e-7416fb2f78ab",
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil).wrap
+      partitionColumns = Nil,
+      version = 0).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
     val files = lines.drop(2)
     assert(files.size == 7)
@@ -831,9 +822,56 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
+  integrationTest("streaming_table_metadata_protocol - startingVersion success") {
+    val p =
+      s"""
+         |{
+         | "startingVersion": 0
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"), Some("POST"), Some(p), Some(0))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 8)
+
+    // version 0: CREATE TABLE, protocol/metadata
+    // version 1: INSERT
+    // version 2: ALTER TABLE, protocol/metadata
+    // version 3: ALTER TABLE, protocol/metadata
+    // version 4: INSERT
+    var expectedProtocol = Protocol(minReaderVersion = 1, version = 0)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "eaca659e-28ac-4c68-8c72-0c96205c8160",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Nil,
+      version = 0)
+    assert(expectedMetadata == actions(1).metaData)
+
+    assert(actions(2).add != null)
+
+    // check protocol and metadata for version 2.
+    expectedProtocol = Protocol(minReaderVersion = 1, version = 2)
+    assert(expectedProtocol == actions(3).protocol)
+    expectedMetadata = expectedMetadata.copy(
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      version = 2)
+    assert(expectedMetadata == actions(4).metaData)
+
+    // check protocol and metadata for version 3.
+    expectedProtocol = Protocol(minReaderVersion = 1, version = 3)
+    assert(expectedProtocol == actions(5).protocol)
+    expectedMetadata = expectedMetadata.copy(
+      configuration = Map.empty,
+      version = 3)
+    assert(expectedMetadata == actions(6).metaData)
+
+    assert(actions(7).add != null)
+  }
+
   integrationTest("table_reader_version_increased - exception") {
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/table_reader_version_increased/query"),
+      url = requestPath("/shares/share8/schemas/default/tables/table_reader_version_increased/query"),
       method = "POST",
       data = Some("""{"startingVersion": 0}"""),
       expectedErrorCode = 400,
@@ -842,7 +880,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_cdf_enabled_changes - query table changes") {
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, Some(0))
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, Some(0))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
@@ -907,7 +945,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     // 1651272660000, PST: 2022-04-29 15:51:00.0 -> version 3
     val endStr = URLEncoder.encode(new Timestamp(1651272660000L).toString)
 
-    val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, Some(0))
+    val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, Some(0))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
@@ -925,7 +963,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_with_partition: query table changes") {
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3"), Some("GET"), None, Some(1))
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3"), Some("GET"), None, Some(1))
     val lines = response.split("\n")
     val files = lines.drop(2)
     assert(files.size == 6)
@@ -1102,7 +1140,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("cdf_table_cdf_enabled_changes - exceptions") {
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=2000-01-01%2000:00:00"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=2000-01-01%2000:00:00"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1110,7 +1148,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=9999-01-01%2000:00:00"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=9999-01-01%2000:00:00"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1118,7 +1156,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1126,7 +1164,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=1&startingTimestamp=2022-02-02%2000:00:00"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=1&startingTimestamp=2022-02-02%2000:00:00"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1134,7 +1172,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=1&endingVersion=3&endingTimestamp=randomString"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=1&endingVersion=3&endingTimestamp=randomString"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1142,7 +1180,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=2022-04-29"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=2022-04-29"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1150,7 +1188,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=2&endingVersion=1"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=2&endingVersion=1"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1158,7 +1196,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=6"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=6"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1166,7 +1204,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=5"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=5"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1174,7 +1212,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=4"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=4"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1184,7 +1222,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("cdf_table_with_partition - exceptions on startVersion") {
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=0"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=0"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1192,7 +1230,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/query"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_with_partition/query"),
       method = "POST",
       data = Some("""
         {"version": "0"}
@@ -1202,7 +1240,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/query"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_with_partition/query"),
       method = "POST",
       data = Some("""
         {"startingVersion": "0"}
