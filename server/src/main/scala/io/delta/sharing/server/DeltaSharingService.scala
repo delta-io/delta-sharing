@@ -50,6 +50,7 @@ object ErrorCode {
   val INTERNAL_ERROR = "INTERNAL_ERROR"
   val RESOURCE_DOES_NOT_EXIST = "RESOURCE_DOES_NOT_EXIST"
   val INVALID_PARAMETER_VALUE = "INVALID_PARAMETER_VALUE"
+  val ILLEGAL_STATE = "ILLEGAL_STATE"
   val MALFORMED_REQUEST = "MALFORMED_REQUEST"
 }
 
@@ -95,6 +96,14 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
           JsonUtils.toJson(
             Map(
               "errorCode" -> ErrorCode.INVALID_PARAMETER_VALUE,
+              "message" -> cause.getMessage)))
+      case _: DeltaSharingIllegalStateException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.ILLEGAL_STATE,
               "message" -> cause.getMessage)))
       case _: DeltaCDFIllegalArgumentException =>
         HttpResponse.of(
@@ -178,6 +187,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     try func catch {
       case e: DeltaSharingUnsupportedOperationException => throw e
       case e: DeltaSharingIllegalArgumentException => throw e
+      case e: DeltaSharingIllegalStateException => throw e
       case e: DeltaSharingNoSuchElementException => throw e
       case e: DeltaCDFIllegalArgumentException => throw e
       case e: FileNotFoundException => throw e

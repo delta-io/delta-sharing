@@ -841,6 +841,24 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
+  integrationTest("streaming_table_read_incompatible - exception") {
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/streaming_table_read_incompatible/query"),
+      method = "POST",
+      data = Some("""{"startingVersion": 0}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Detected incompatible schema change"
+    )
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/streaming_table_read_incompatible/query"),
+      method = "POST",
+      data = Some("""{"startingVersion": 1}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Detected incompatible schema change"
+    )
+  }
+
   integrationTest("cdf_table_cdf_enabled_changes - query table changes") {
     val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, Some(0))
     val lines = response.split("\n")

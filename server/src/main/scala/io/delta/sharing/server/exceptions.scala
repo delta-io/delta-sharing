@@ -47,6 +47,16 @@ class DeltaSharingUnsupportedOperationException(message: String)
   extends UnsupportedOperationException(message)
 
 /**
+ * A special exception for invalid requests happening in Delta Sharing Server. We define a special
+ * class rather than reusing `IllegalStateException` so that we can ensure that the message
+ * in `IllegalStateException` thrown from other libraries won't be returned to users.
+ *
+ * @note `message` will be in the response. Please make sure it doesn't contain any sensitive info.
+ */
+class DeltaSharingIllegalStateException(message: String)
+  extends IllegalStateException(message)
+
+/**
  * A special exception that wraps an unhandled exception when processing a request.
  * `DeltaInternalException` should never be exposed to users as an unhandled exception may contain
  * sensitive information.

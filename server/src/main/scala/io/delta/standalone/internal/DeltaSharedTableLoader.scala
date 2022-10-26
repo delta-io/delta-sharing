@@ -28,9 +28,11 @@ import com.google.common.cache.CacheBuilder
 import com.google.common.hash.Hashing
 import com.google.common.util.concurrent.UncheckedExecutionException
 import io.delta.standalone.DeltaLog
+import io.delta.standalone.internal.SchemaUtils
 import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, Metadata, Protocol, RemoveFile}
 import io.delta.standalone.internal.exception.DeltaErrors
 import io.delta.standalone.internal.util.ConversionUtils
+import io.delta.standalone.types.{StructType => deltaStructType}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.azure.NativeAzureFileSystem
@@ -44,6 +46,7 @@ import io.delta.sharing.server.{
   AbfsFileSigner,
   CausedBy,
   DeltaSharingIllegalArgumentException,
+  DeltaSharingIllegalStateException,
   DeltaSharingUnsupportedOperationException,
   ErrorStrings,
   GCSFileSigner,
@@ -185,9 +188,7 @@ class DeltaSharedTable(
     } else {
       deltaLog.snapshot
     }
-    // TODO Open the `state` field in Delta Standalone library.
-    val stateMethod = snapshot.getClass.getMethod("state")
-    val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
+
     val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
     val modelMetadata = model.Metadata(
       id = snapshot.metadataScala.id,
@@ -202,8 +203,11 @@ class DeltaSharedTable(
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
-        queryDataChangeSinceStartVersion(startingVersion.get)
+        queryDataChangeSinceStartVersion(startingVersion.get, snapshot.metadataScala.schema)
       } else if (includeFiles) {
+        // TODO Open the `state` field in Delta Standalone library.
+        val stateMethod = snapshot.getClass.getMethod("state")
+        val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
         val selectedFiles = state.activeFiles.toSeq
         val filteredFilters =
           if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
@@ -234,7 +238,10 @@ class DeltaSharedTable(
     snapshot.version -> actions
   }
 
-  private def queryDataChangeSinceStartVersion(startingVersion: Long): Seq[model.SingleAction] = {
+  private def queryDataChangeSinceStartVersion(
+    startingVersion: Long,
+    startingSchema: deltaStructType
+  ): Seq[model.SingleAction] = {
     val latestVersion = tableVersion
     if (startingVersion > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
@@ -277,7 +284,11 @@ class DeltaSharedTable(
         case p: Protocol =>
           assertProtocolRead(p)
         case m: Metadata =>
-        // TODO(lin.zhou) make a copy of SchemaUtils.isReadCompatible in another PR
+          if (!SchemaUtils.isReadCompatible(m.schema, startingSchema)) {
+            throw new DeltaSharingIllegalStateException(
+              DeltaErrors.schemaChangedException(startingSchema, m.schema).getMessage
+            )
+          }
         case _ => ()
       }
     }
