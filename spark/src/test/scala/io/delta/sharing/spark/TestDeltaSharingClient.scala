@@ -51,7 +51,7 @@ class TestDeltaSharingClient(
     DeltaTableMetadata(0, Protocol(0), metadata)
   }
 
-  override def getTableVersion(table: Table): Long = 0
+  override def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long = 0
 
   override def getFiles(
     table: Table,
