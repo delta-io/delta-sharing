@@ -44,7 +44,6 @@ import io.delta.sharing.server.{
   AbfsFileSigner,
   CausedBy,
   DeltaSharingIllegalArgumentException,
-
   DeltaSharingUnsupportedOperationException,
   ErrorStrings,
   GCSFileSigner,
@@ -151,6 +150,27 @@ class DeltaSharedTable(
     }
   }
 
+  /** Get table version at or after startingTimestamp if it's provided, otherwise return
+   *  the latest table version.
+   */
+  def getTableVersion(startingTimestamp: Option[String]): Long = withClassLoader {
+    if (startingTimestamp.isEmpty) {
+      tableVersion
+    } else {
+      val ts = DeltaSharingHistoryManager.getTimestamp("startingTimestamp", startingTimestamp.get)
+      // get a version at or after the provided timestamp, if the timestamp is early than version 0,
+      // return 0.
+      try {
+        deltaLog.getVersionAtOrAfterTimestamp(ts.getTime())
+      } catch {
+        // Convert to DeltaSharingIllegalArgumentException to return 4xx instead of 5xx error code
+        // Only convert known exceptions around timestamp too late or too early
+        case e: IllegalArgumentException =>
+          throw new DeltaSharingIllegalArgumentException(e.getMessage)
+      }
+    }
+  }
+
   /** Return the current table version */
   def tableVersion: Long = withClassLoader {
     val snapshot = deltaLog.snapshot
@@ -186,7 +206,9 @@ class DeltaSharedTable(
     } else {
       deltaLog.snapshot
     }
-
+    // TODO Open the `state` field in Delta Standalone library.
+    val stateMethod = snapshot.getClass.getMethod("state")
+    val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
     val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
     val modelMetadata = model.Metadata(
       id = snapshot.metadataScala.id,
@@ -195,12 +217,7 @@ class DeltaSharedTable(
       format = model.Format(),
       schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
       configuration = getMetadataConfiguration(snapshot.metadataScala.configuration),
-      partitionColumns = snapshot.metadataScala.partitionColumns,
-      version = if (startingVersion.isDefined) {
-        startingVersion.get
-      } else {
-        null
-      }
+      partitionColumns = snapshot.metadataScala.partitionColumns
     )
     val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
       if (startingVersion.isDefined) {
@@ -208,9 +225,6 @@ class DeltaSharedTable(
         // queryDataChangeSinceStartVersion.
         queryDataChangeSinceStartVersion(startingVersion.get)
       } else if (includeFiles) {
-        // TODO Open the `state` field in Delta Standalone library.
-        val stateMethod = snapshot.getClass.getMethod("state")
-        val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
         val selectedFiles = state.activeFiles.toSeq
         val filteredFilters =
           if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
@@ -284,19 +298,7 @@ class DeltaSharedTable(
         case p: Protocol =>
           assertProtocolRead(p)
         case m: Metadata =>
-          if (v > startingVersion) {
-            val modelMetadata = model.Metadata(
-              id = m.id,
-              name = m.name,
-              description = m.description,
-              format = model.Format(),
-              schemaString = cleanUpTableSchema(m.schemaString),
-              configuration = getMetadataConfiguration(m.configuration),
-              partitionColumns = m.partitionColumns,
-              version = v
-            )
-            actions.append(modelMetadata.wrap)
-          }
+        // TODO(lin.zhou) make a copy of SchemaUtils.isReadCompatible in another PR
         case _ => ()
       }
     }
