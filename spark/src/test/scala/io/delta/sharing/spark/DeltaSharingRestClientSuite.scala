@@ -63,12 +63,28 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getTableVersion") {
+  integrationTest("getTableVersion - success") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       assert(client.getTableVersion(Table(name = "table2", schema = "default", share = "share2")) == 2)
       assert(client.getTableVersion(Table(name = "table1", schema = "default", share = "share1")) == 2)
       assert(client.getTableVersion(Table(name = "table3", schema = "default", share = "share1")) == 4)
+      assert(client.getTableVersion(Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+        startingTimestamp = Some("2020-01-01 00:00:00")) == 0)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getTableVersion - exceptions") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val errorMessage = intercept[UnexpectedHttpStatus] {
+        client.getTableVersion(Table(name = "table1", schema = "default", share = "share1"),
+          startingTimestamp = Some("2020-01-01 00:00:00"))
+      }.getMessage
+      assert(errorMessage.contains("400 Bad Request"))
+      assert(errorMessage.contains("Reading table by version or timestamp is not supported"))
     } finally {
       client.close()
     }

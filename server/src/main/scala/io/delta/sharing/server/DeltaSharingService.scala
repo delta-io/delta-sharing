@@ -240,12 +240,28 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   }
 
   @Head("/shares/{share}/schemas/{schema}/tables/{table}")
+  @Get("/shares/{share}/schemas/{schema}/tables/{table}")
   def getTableVersion(
     @Param("share") share: String,
     @Param("schema") schema: String,
-    @Param("table") table: String): HttpResponse = processRequest {
+    @Param("table") table: String,
+    @Param("startingTimestamp") @Nullable startingTimestamp: String
+  ): HttpResponse = processRequest {
     val tableConfig = sharedTableManager.getTable(share, schema, table)
-    val version = deltaSharedTableLoader.loadTable(tableConfig).tableVersion
+    if (startingTimestamp != null && !tableConfig.cdfEnabled) {
+      throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +
+        " not supported because change data feed is not enabled on table: " +
+        s"$share.$schema.$table")
+    }
+    val version = deltaSharedTableLoader.loadTable(tableConfig).getTableVersion(
+      Option(startingTimestamp)
+    )
+    if (startingTimestamp != null && version < tableConfig.startVersion) {
+      throw new DeltaSharingIllegalArgumentException(
+        s"You can only query table data since version ${tableConfig.startVersion}." +
+        s"The provided timestamp($startingTimestamp) corresponds to $version."
+      )
+    }
     val headers = createHeadersBuilderForTableVersion(version).build()
     HttpResponse.of(headers)
   }
@@ -310,6 +326,11 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.version,
       request.timestamp,
       request.startingVersion)
+    if (version < tableConfig.startVersion) {
+      throw new DeltaSharingIllegalArgumentException(
+        s"You can only query table data since version ${tableConfig.startVersion}."
+      )
+    }
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
     streamingOutput(Some(version), actions)

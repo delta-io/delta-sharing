@@ -150,6 +150,27 @@ class DeltaSharedTable(
     }
   }
 
+  /** Get table version at or after startingTimestamp if it's provided, otherwise return
+   *  the latest table version.
+   */
+  def getTableVersion(startingTimestamp: Option[String]): Long = withClassLoader {
+    if (startingTimestamp.isEmpty) {
+      tableVersion
+    } else {
+      val ts = DeltaSharingHistoryManager.getTimestamp("startingTimestamp", startingTimestamp.get)
+      // get a version at or after the provided timestamp, if the timestamp is early than version 0,
+      // return 0.
+      try {
+        deltaLog.getVersionAtOrAfterTimestamp(ts.getTime())
+      } catch {
+        // Convert to DeltaSharingIllegalArgumentException to return 4xx instead of 5xx error code
+        // Only convert known exceptions around timestamp too late or too early
+        case e: IllegalArgumentException =>
+          throw new DeltaSharingIllegalArgumentException(e.getMessage)
+      }
+    }
+  }
+
   /** Return the current table version */
   def tableVersion: Long = withClassLoader {
     val snapshot = deltaLog.snapshot
