@@ -103,9 +103,7 @@ private[sharing] sealed trait Action {
   def wrap: SingleAction
 }
 
-private[sharing] case class Protocol(
-    minReaderVersion: Int,
-    version: java.lang.Long = null) extends Action {
+private[sharing] case class Protocol(minReaderVersion: Int) extends Action {
   override def wrap: SingleAction = SingleAction(protocol = this)
 }
 
