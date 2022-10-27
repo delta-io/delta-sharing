@@ -209,14 +209,7 @@ class DeltaSharedTable(
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
-    val modelProtocol = model.Protocol(
-      snapshot.protocolScala.minReaderVersion,
-      version = if (startingVersion.isDefined) {
-        startingVersion.get
-      } else {
-        null
-      }
-    )
+    val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
     val modelMetadata = model.Metadata(
       id = snapshot.metadataScala.id,
       name = snapshot.metadataScala.name,
@@ -309,10 +302,6 @@ class DeltaSharedTable(
           actions.append(modelRemoveFile.wrap)
         case p: Protocol =>
           assertProtocolRead(p)
-          if (v > startingVersion) {
-            val modelProtocol = model.Protocol(p.minReaderVersion, v)
-            actions.append(modelProtocol.wrap)
-          }
         case m: Metadata =>
           if (v > startingVersion) {
             val modelMetadata = model.Metadata(

@@ -49,7 +49,6 @@ private[sharing] case class DeltaTableFiles(
     addFiles: Seq[AddFileForCDF] = Nil,
     cdfFiles: Seq[AddCDCFile] = Nil,
     removeFiles: Seq[RemoveFile] = Nil,
-    additionalProtocols: Seq[Protocol] = Nil,
     additionalMetadatas: Seq[Metadata] = Nil)
 
 private[sharing] case class Share(name: String)

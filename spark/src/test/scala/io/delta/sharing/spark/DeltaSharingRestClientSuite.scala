@@ -69,7 +69,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(client.getTableVersion(Table(name = "table2", schema = "default", share = "share2")) == 2)
       assert(client.getTableVersion(Table(name = "table1", schema = "default", share = "share1")) == 2)
       assert(client.getTableVersion(Table(name = "table3", schema = "default", share = "share1")) == 4)
-      assert(client.getTableVersion(Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+      assert(client.getTableVersion(Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
         startingTimestamp = Some("2020-01-01 00:00:00")) == 0)
     } finally {
       client.close()
@@ -327,7 +327,6 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       )
       assert(expectedRemoveFiles == tableFiles.removeFiles.toList)
 
-      assert(tableFiles.additionalProtocols.size == 0)
       assert(tableFiles.additionalMetadatas.size == 2)
       val v4Metadata = Metadata(
         id = "16736144-3306-4577-807a-d3f899b77670",
