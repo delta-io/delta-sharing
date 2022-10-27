@@ -99,6 +99,7 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
   override def afterAll(): Unit = {
     if (shouldRunIntegrationTest) {
       try {
+        org.apache.hadoop.fs.FileSystem.closeAll()
         if (process != null) {
           process.destroy()
           process = null

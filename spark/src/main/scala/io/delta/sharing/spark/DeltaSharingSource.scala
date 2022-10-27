@@ -79,13 +79,20 @@ trait DeltaSharingSourceBase extends Source
     }
   }
 
+  // Serves as local cache to store all the files fetched from the delta sharing server.
+  // If not empty, will advance the offset and fetch data from this list based on the read limit.
+  // If empty, will try to load all possible new data files through delta sharing rpc to this list,
+  //   sorted by version and id.
   protected var sortedFetchedFiles: Seq[IndexedFile] = Seq.empty
 
   protected var lastGetVersionTimestamp: Long = -1
   protected var lastQueriedTableVersion: Long = -1
   private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 30000 // 30 seconds
 
-  protected def intervalGetTableVersion: Long = {
+  // Check the latest table version from the delta sharing server through the client.getTableVersion
+  // RPC. Adding a minimum 30 seconds interval between two consecutive rpcs to avoid traffic jam on
+  // the delta sharing server.
+  protected def getOrUpdateLatestTableVersion: Long = {
     val currentTimeMillis = System.currentTimeMillis()
     if (lastGetVersionTimestamp == -1 ||
       (currentTimeMillis - lastGetVersionTimestamp) >= QUERY_TABLE_VERSION_INTERVAL_MILLIS) {
@@ -97,25 +104,35 @@ trait DeltaSharingSourceBase extends Source
 
   /**
    * Fetch the changes from delta sharing server starting from (fromVersion, fromIndex).
-   * The start point should not be included in the result, it should be consumed in the last batch.
    *
-   * If sortedFetchedFiles is not empty, return directly.
+   * The start point should not be included in the result, it will be consumed in the next getBatch.
+   *
+   * If sortedFetchedFiles is not empty, this is a no-op.
    * Else, fetch file changes from the delta sharing server and store them in sortedFetchedFiles.
+   *
+   * @param fromVersion - a table version, initially would be the startingVersion or the latest
+   *                      table version.
+   * @param fromIndex - index of a file within the same version,
+   * @param isStartingVersion - If true, will load fromVersion as a table snapshot(including files
+   *                            from previous versions). If false, will only load files since
+   *                            fromVersion.
    */
-  protected def getFileChanges(
+  protected def maybeGetFileChanges(
     fromVersion: Long,
     fromIndex: Long,
     isStartingVersion: Boolean): Unit = {
     if (!sortedFetchedFiles.isEmpty) { return }
 
-    if (fromVersion > intervalGetTableVersion) {
+    if (fromVersion > getOrUpdateLatestTableVersion) {
+      // If true, it means that there's no new data from the delta sharing server.
       return
     }
 
-    def sortAddFile(f1: AddFile, f2: AddFile): Boolean = { f1.url < f2.url }
-
-    def sortAddFileForCDF(f1: AddFileForCDF, f2: AddFileForCDF): Boolean = {
-      f1.version < f2.version || (f1.version == f2.version && f1.url < f2.url)
+    // The actual order of files doesn't matter much.
+    // Sort by id gives us a stable order of the files within a version.
+    def addFileCompareFunc(f1: AddFile, f2: AddFile): Boolean = { f1.id < f2.id }
+    def addFileForCDFCompareFunc(f1: AddFileForCDF, f2: AddFileForCDF): Boolean = {
+      f1.version < f2.version || (f1.version == f2.version && f1.id < f2.id)
     }
 
     def appendToSortedFetchedFiles(indexedFile: IndexedFile): Unit = {
@@ -123,22 +140,26 @@ trait DeltaSharingSourceBase extends Source
     }
 
     if (isStartingVersion) {
+      // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
+      // include table changes from previous versions.
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, Nil, None, Some(fromVersion), None)
       val numFiles = tableFiles.files.size
-      tableFiles.files.sortWith(sortAddFile).zipWithIndex.foreach{
+      tableFiles.files.sortWith(addFileCompareFunc).zipWithIndex.foreach{
         case (file, index) if (index > fromIndex) =>
           appendToSortedFetchedFiles(
             IndexedFile(fromVersion, index, file, isLast = (index + 1 == numFiles)))
       }
     } else {
+      // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
+      // including files from previous versions.
       // TODO(lin.zhou) return metadata for each version, and check schema read compatibility
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)
       val addFiles = verifyStreamHygieneAndFilterAddFiles(tableFiles)
       addFiles.groupBy(a => a.version).toSeq.sortWith(_._1 < _._1).foreach{
-        case (v, adds) =>
-          val numFiles = adds.size
-          adds.sortWith(sortAddFileForCDF).zipWithIndex.foreach{
-            case (add, index) if (v > fromVersion || index > fromIndex) =>
+        case (v, vAddFiles) =>
+          val numFiles = vAddFiles.size
+          vAddFiles.sortWith(addFileForCDFCompareFunc).zipWithIndex.foreach{
+            case (add, index) if (v > fromVersion || (v == fromVersion && index > fromIndex)) =>
               appendToSortedFetchedFiles(IndexedFile(
                 add.version,
                 index,
@@ -150,6 +171,17 @@ trait DeltaSharingSourceBase extends Source
     }
   }
 
+  /**
+   * Get the last IndexedFile, and uses its version and index to calculate the latestOffset.
+   * @param fromVersion - a table version, initially would be the startingVersion or the latest
+   *                      table version.
+   * @param fromIndex - index of a file within the same version.
+   * @param isStartingVersion - If true, will load fromVersion as a table snapshot(including files
+   *                            from previous versions). If false, will only load files since
+   *                            fromVersion.
+   * @param limits - Indicates how much data can be processed by a micro batch.
+   * @return the last IndexedFile or None if there are no new data.
+   */
   protected def getLastFileChangeWithRateLimit(
     fromVersion: Long,
     fromIndex: Long,
@@ -158,7 +190,7 @@ trait DeltaSharingSourceBase extends Source
     if (options.readChangeFeed) {
       throw DeltaSharingErrors.CDFNotSupportedInStreaming
     } else {
-      getFileChanges(fromVersion, fromIndex, isStartingVersion)
+      maybeGetFileChanges(fromVersion, fromIndex, isStartingVersion)
 
       if (limits.isEmpty) return sortedFetchedFiles.lastOption
 
@@ -179,12 +211,19 @@ trait DeltaSharingSourceBase extends Source
   }
 
   /**
-   * Get the changes from startVersion, startIndex to the endOffset, and create DataFrame
-   * @param startVersion - calculated starting version
-   * @param startIndex - calculated starting index
-   * @param isStartingVersion - whether the stream has to return the initial snapshot or not
+   * Get the changes from startVersion, startIndex to the endOffset, and create DataFrame.
+   *
+   * Since we use sortedFetchedFiles to serve as local cache of all table files, the table files
+   * that are used to construct the DataFrame will be dropped from sortedFetchedFiles (they are
+   * considered as processed).
+   *
+   * @param startVersion - calculated starting version.
+   * @param startIndex - calculated starting index.
+   * @param isStartingVersion - If true, will load fromVersion as a table snapshot(including files
+   *                            from previous versions). If false, will only load files since
+   *                            fromVersion.
    * @param endOffset - Offset that signifies the end of the stream.
-   * @return
+   * @return the created DataFrame.
    */
   protected def getFileChangesAndCreateDataFrame(
     startVersion: Long,
@@ -193,22 +232,22 @@ trait DeltaSharingSourceBase extends Source
     endOffset: DeltaSharingSourceOffset): DataFrame = {
     if (options.readChangeFeed) {
       throw DeltaSharingErrors.CDFNotSupportedInStreaming
-    } else {
-      getFileChanges(startVersion, startIndex, isStartingVersion)
-
-      val fileActions = sortedFetchedFiles.takeWhile {
-        case IndexedFile(version, index, _, _) =>
-          version < endOffset.tableVersion ||
-            (version == endOffset.tableVersion && index <= endOffset.index)
-      }
-      sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
-
-      createDataFrame(fileActions)
     }
+
+    maybeGetFileChanges(startVersion, startIndex, isStartingVersion)
+
+    val fileActions = sortedFetchedFiles.takeWhile {
+      case IndexedFile(version, index, _, _) =>
+        version < endOffset.tableVersion ||
+          (version == endOffset.tableVersion && index <= endOffset.index)
+    }
+    sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
+
+    createDataFrame(fileActions)
   }
 
   /**
-   * Given an list of file actions, create a DataFrame representing the files added to a table
+   * Given a list of file actions, create a DataFrame representing the files added to a table
    * Only AddFile actions will be used to create the DataFrame.
    * @param indexedFiles actions list from which to generate the DataFrame.
    */
@@ -233,7 +272,9 @@ trait DeltaSharingSourceBase extends Source
    * Returns the offset that starts from a specific delta table version. This function is
    * called when starting a new stream query.
    * @param fromVersion The version of the delta table to calculate the offset from.
-   * @param isStartingVersion Whether the delta version is for the initial snapshot or not.
+   * @param isStartingVersion - If true, will load fromVersion as a table snapshot(including files
+   *                            from previous versions). If false, will only load files since
+   *                            fromVersion.
    * @param limits Indicates how much data can be processed by a micro batch.
    */
   protected def getStartingOffsetFromSpecificDeltaVersion(
@@ -265,6 +306,8 @@ trait DeltaSharingSourceBase extends Source
       limits)
 
     if (lastFileChange.isEmpty) {
+      // Return the previousOffset if there are no more changes, which still indicates until which
+      // offset we've processed the data.
       Some(previousOffset)
     } else {
       buildOffsetFromIndexedFile(lastFileChange.get, previousOffset.tableVersion,
@@ -275,18 +318,19 @@ trait DeltaSharingSourceBase extends Source
   /**
    * Build the latest offset based on the last indexedFile. The function also checks if latest
    * version is valid by comparing with previous version.
-   * @param indexedFile The last indexed file used to build offset from.
-   * @param version Previous offset table version.
-   * @param isStartingVersion Whether previous offset is starting version or not.
+   * @param lastIndexedFile - The last indexed file used to build offset from.
+   * @param previousOffsetVersion - Previous offset table version.
+   * @param ispreviousOffsetStartingVersion - Whether previous offset is starting version or not.
+   * @return the constructed offset.
    */
   private def buildOffsetFromIndexedFile(
-    indexedFile: IndexedFile,
-    version: Long,
-    isStartingVersion: Boolean): Option[DeltaSharingSourceOffset] = {
-    val IndexedFile(v, i, _, isLastFileInVersion) = indexedFile
-    assert(v >= version,
-      s"buildOffsetFromIndexedFile receives an invalid version: $v (expected: >= $version), " +
-        s"tableId: $tableId")
+    lastIndexedFile: IndexedFile,
+    previousOffsetVersion: Long,
+    ispreviousOffsetStartingVersion: Boolean): Option[DeltaSharingSourceOffset] = {
+    val IndexedFile(v, i, _, isLastFileInVersion) = lastIndexedFile
+    assert(v >= previousOffsetVersion,
+      s"buildOffsetFromIndexedFile receives an invalid previousOffsetVersion: $v " +
+        s"(expected: >= $previousOffsetVersion), tableId: $tableId")
 
     // If the last file in previous batch is the last file of that version, automatically bump
     // to next version to skip accessing that version file altogether.
@@ -296,9 +340,9 @@ trait DeltaSharingSourceBase extends Source
         isStartingVersion = false))
     } else {
       // isStartingVersion will be true only if previous isStartingVersion is true and the next file
-      // is still at the same version (i.e v == version).
+      // is still at the same version (i.e v == previousOffsetVersion).
       Some(DeltaSharingSourceOffset(DeltaSharingSourceOffset.VERSION_1, tableId, v, i,
-        isStartingVersion = v == version && isStartingVersion))
+        isStartingVersion = (v == previousOffsetVersion && ispreviousOffsetStartingVersion)))
     }
   }
 }
@@ -329,18 +373,19 @@ case class DeltaSharingSource(
 
   protected val tableId = snapshot.metadata.id
 
+  // Records until which offset the delta sharing source has been processing the table files.
   private var previousOffset: DeltaSharingSourceOffset = null
 
   protected def verifyStreamHygieneAndFilterAddFiles(
     tableFiles: DeltaTableFiles): Seq[AddFileForCDF] = {
     if (!tableFiles.removeFiles.isEmpty) {
-      val groupedRemoveFiles = tableFiles.removeFiles.groupBy(r => r.version)
-      val groupedAddFiles = tableFiles.addFiles.groupBy(a => a.version)
-      groupedRemoveFiles.foreach{
-        case (version, _) =>
-          if (groupedAddFiles.contains(version) && !ignoreChanges) {
+      val versionsWithRemoveFiles = tableFiles.removeFiles.map(r => r.version).toSet
+      val versionsWithAddFiles = tableFiles.addFiles.map(a => a.version).toSet
+      versionsWithRemoveFiles.foreach{
+        case version =>
+          if (versionsWithAddFiles.contains(version) && !ignoreChanges) {
             throw DeltaSharingErrors.deltaSourceIgnoreChangesError(version)
-          } else if (!groupedAddFiles.contains(version) && !ignoreDeletes) {
+          } else if (!versionsWithAddFiles.contains(version) && !ignoreDeletes) {
             throw DeltaSharingErrors.deltaSourceIgnoreDeleteError(version)
           }
       }
@@ -349,12 +394,19 @@ case class DeltaSharingSource(
     tableFiles.addFiles
   }
 
+  /**
+   * Get the latest offset when the streaming query starts. It tries to fetch all table files
+   * from the delta sharing server based on the startingVersion, and then return the latest offset
+   * based on the provided read limit.
+   * @param limits - Indicates how much data can be processed by a micro batch.
+   * @return the latest offset.
+   */
   private def getStartingOffset(
     limits: Option[AdmissionLimits] = Some(new AdmissionLimits())): Option[Offset] = {
 
     val (version, isStartingVersion) = getStartingVersion match {
       case Some(v) => (v, false)
-      case None => (intervalGetTableVersion, true)
+      case None => (getOrUpdateLatestTableVersion, true)
     }
     if (version < 0) {
       return None
@@ -386,12 +438,9 @@ case class DeltaSharingSource(
 
   override def getBatch(startOffsetOption: Option[Offset], end: Offset): DataFrame = {
     val endOffset = DeltaSharingSourceOffset(tableId, end)
-    previousOffset = endOffset // Proceed the offset, and for recovery,
 
-    val (startVersion,
-    startIndex,
-    isStartingVersion,
-    startSourceVersion) = if (startOffsetOption.isEmpty) {
+    val (startVersion, startIndex, isStartingVersion, startSourceVersion) = if (
+      startOffsetOption.isEmpty) {
       getStartingVersion match {
         case Some(v) =>
           // startingVersion is provided by the user
@@ -400,7 +449,7 @@ case class DeltaSharingSource(
         case _ =>
           // startingVersion is NOT provided by the user
           if (endOffset.isStartingVersion) {
-            // get all files in this version if endOffset is startingVersion
+            // Get all files in this version if endOffset is startingVersion
             (endOffset.tableVersion, -1L, true, None)
           } else {
             assert(
@@ -422,6 +471,9 @@ case class DeltaSharingSource(
         Some(startOffset.sourceVersion))
     }
     logDebug(s"start: $startOffsetOption end: $end")
+
+    // Proceed the offset as the files before the endOffset are processed.
+    previousOffset = endOffset
     val createdDf = getFileChangesAndCreateDataFrame(
       startVersion, startIndex, isStartingVersion, endOffset
     )
@@ -432,18 +484,6 @@ case class DeltaSharingSource(
   override def stop(): Unit = {}
 
   override def toString(): String = s"DeltaSharingSource[${deltaLog.table.toString}]"
-
-  trait DeltaSharingSourceAdmissionBase { self: AdmissionLimits =>
-    /** Whether to admit the next file */
-    def admit(addFile: Option[AddFile]): Boolean = {
-      if (addFile.isEmpty) return true
-      val shouldAdmit = filesToTake > 0 && bytesToTake > 0
-      filesToTake -= 1
-
-      bytesToTake -= addFile.get.size
-      shouldAdmit
-    }
-  }
 
   /**
    * Class that helps controlling how much data should be processed by a single micro-batch.
@@ -474,6 +514,16 @@ case class DeltaSharingSource(
             DeltaSharingOptions.MAX_FILES_PER_TRIGGER_OPTION_DEFAULT))
       }
     }
+
+    /** Whether to admit the next file */
+    def admit(addFile: Option[AddFile]): Boolean = {
+      if (addFile.isEmpty) return true
+      val shouldAdmit = filesToTake > 0 && bytesToTake > 0
+      filesToTake -= 1
+
+      bytesToTake -= addFile.get.size
+      shouldAdmit
+    }
   }
 
   object AdmissionLimits {
@@ -496,7 +546,7 @@ case class DeltaSharingSource(
     if (options.startingVersion.isDefined) {
       val v = options.startingVersion.get match {
         case StartingVersionLatest =>
-          intervalGetTableVersion + 1
+          getOrUpdateLatestTableVersion + 1
         case StartingVersion(version) =>
           version
       }
