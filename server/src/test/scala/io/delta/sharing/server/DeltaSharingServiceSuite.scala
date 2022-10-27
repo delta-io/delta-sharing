@@ -1019,6 +1019,37 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(actions(3).add != null)
   }
 
+  integrationTest("streaming_table_read_incompatible - no exceptions") {
+    val p =
+      s"""
+         |{
+         | "startingVersion": 0
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_read_incompatible/query"), Some("POST"), Some(p), Some(0))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 4)
+
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "fc28ebd8-db88-4f36-97c7-0c874bac27f9",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+      configuration = Map.empty,
+      partitionColumns = Nil,
+      version = 0)
+    assert(expectedMetadata == actions(1).metaData)
+
+    assert(actions(2).add != null)
+
+    expectedMetadata = expectedMetadata.copy(
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+      version = 2
+    )
+    assert(expectedMetadata == actions(3).metaData)
+  }
+
   integrationTest("table_reader_version_increased - exception") {
     assertHttpError(
       url = requestPath("/shares/share8/schemas/default/tables/table_reader_version_increased/query"),

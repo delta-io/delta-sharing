@@ -229,7 +229,7 @@ def test_query_existed_table_version(rest_client: DataSharingRestClient):
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_table_version_with_timestamp(rest_client: DataSharingRestClient):
     response = rest_client.query_table_version(
-        Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
+        Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
         starting_timestamp="2020-01-01 00:00:00.0"
     )
     assert isinstance(response.delta_table_version, int)
