@@ -55,6 +55,7 @@ private[sharing] class DeltaSharingDataSource
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
   }
 
+  // Returns the schema of the latest table snapshot.
   override def sourceSchema(
     sqlContext: SQLContext,
     schema: Option[StructType],
