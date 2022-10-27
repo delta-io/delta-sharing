@@ -62,12 +62,28 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getTableVersion") {
+  integrationTest("getTableVersion - success") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       assert(client.getTableVersion(Table(name = "table2", schema = "default", share = "share2")) == 2)
       assert(client.getTableVersion(Table(name = "table1", schema = "default", share = "share1")) == 2)
       assert(client.getTableVersion(Table(name = "table3", schema = "default", share = "share1")) == 4)
+      assert(client.getTableVersion(Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+        startingTimestamp = Some("2020-01-01 00:00:00")) == 0)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getTableVersion - exceptions") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val errorMessage = intercept[UnexpectedHttpStatus] {
+        client.getTableVersion(Table(name = "table1", schema = "default", share = "share1"),
+          startingTimestamp = Some("2020-01-01 00:00:00"))
+      }.getMessage
+      assert(errorMessage.contains("400 Bad Request"))
+      assert(errorMessage.contains("Reading table by version or timestamp is not supported"))
     } finally {
       client.close()
     }
@@ -113,6 +129,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     try {
       val tableFiles =
         client.getFiles(Table(name = "table2", schema = "default", share = "share2"), Nil, None, None, None)
+      assert(tableFiles.version == 2)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       val expectedMetadata = Metadata(
         id = "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
@@ -152,6 +169,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         None,
         Some(1L),
         None)
+      assert(tableFiles.version == 1)
       assert(tableFiles.files.size == 3)
       val expectedFiles = Seq(
         AddFile(
@@ -343,6 +361,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
         cdfOptions
       )
+      assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       val expectedMetadata = Metadata(
         id = "16736144-3306-4577-807a-d3f899b77670",
@@ -415,6 +434,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "cdf_table_with_vacuum", schema = "default", share = "share1"),
         cdfOptions
       )
+      assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       assert(tableFiles.addFiles.size == 4)
       assert(tableFiles.cdfFiles.size == 2)

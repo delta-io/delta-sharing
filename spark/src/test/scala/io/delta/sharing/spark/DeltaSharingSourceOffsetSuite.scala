@@ -40,7 +40,7 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
       s"""
          |{
          |  "sourceVersion": $unknownVersion,
-         |  "reservoirVersion": 1,
+         |  "tableVersion": 1,
          |  "index": 1,
          |  "isStartingVersion": true
          |}
@@ -56,7 +56,7 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
       """
         |{
         |  "sourceVersion": "foo",
-        |  "reservoirVersion": 1,
+        |  "tableVersion": 1,
         |  "index": 1,
         |  "isStartingVersion": true
         |}
@@ -73,7 +73,7 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
     val json =
       """
         |{
-        |  "reservoirVersion": 1,
+        |  "tableVersion": 1,
         |  "index": 1,
         |  "isStartingVersion": true
         |}
@@ -86,13 +86,13 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
     }
   }
 
-  test("DeltaSharingSourceOffset - unmatched reservoir id") {
+  test("DeltaSharingSourceOffset - unmatched table id") {
     val json =
       s"""
          |{
-         |  "reservoirId": "${UUID.randomUUID().toString}",
+         |  "tableId": "${UUID.randomUUID().toString}",
          |  "sourceVersion": 1,
-         |  "reservoirVersion": 1,
+         |  "tableVersion": 1,
          |  "index": 1,
          |  "isStartingVersion": true
          |}
@@ -103,5 +103,57 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
     for (msg <- Seq("delete", "checkpoint", "restart")) {
       assert(e.getMessage.contains(msg))
     }
+  }
+
+  test("DeltaSharingSourceOffset - validateOffsets") {
+    def testValidateOffset(
+      previousTableVersion: Long,
+      previousIndex: Long,
+      previousIsStarting: Boolean,
+      currentTableVersion: Long,
+      currentIndex: Long,
+      currentIsStarting: Boolean,
+      errorMessage: Option[String]
+    ): Unit = {
+      val previousOffset = DeltaSharingSourceOffset(
+        sourceVersion = 1,
+        tableId = "foo",
+        tableVersion = previousTableVersion,
+        index = previousIndex,
+        isStartingVersion = previousIsStarting)
+      val currentOffset = DeltaSharingSourceOffset(
+        sourceVersion = 1,
+        tableId = "foo",
+        tableVersion = currentTableVersion,
+        index = currentIndex,
+        isStartingVersion = currentIsStarting)
+      if (errorMessage.isDefined) {
+        assert(intercept[IllegalStateException] {
+          DeltaSharingSourceOffset.validateOffsets(previousOffset, currentOffset)
+        }.getMessage.contains(errorMessage.get))
+      } else {
+        DeltaSharingSourceOffset.validateOffsets(previousOffset, currentOffset)
+      }
+    }
+
+    // No errors on forward moving offset
+    testValidateOffset(4, 10, false, 4, 10, false, None)
+    testValidateOffset(4, 10, false, 4, 11, false, None)
+    testValidateOffset(4, 10, false, 5, 1, false, None)
+    testValidateOffset(4, 10, true, 4, 10, true, None)
+    testValidateOffset(4, 10, true, 4, 11, true, None)
+    testValidateOffset(4, 10, true, 5, 1, true, None)
+
+    // errors on backward moving offset
+    testValidateOffset(4, 10, false, 4, 9, false, Some("Found invalid offsets. Previous:"))
+    testValidateOffset(4, 10, false, 3, 11, false, Some("Found invalid offsets. Previous:"))
+    testValidateOffset(4, 10, true, 4, 9, true, Some("Found invalid offsets. Previous:"))
+    testValidateOffset(4, 10, true, 3, 11, true, Some("Found invalid offsets. Previous:"))
+
+    // isStartingVersion flipping from true to false: ok
+    testValidateOffset(4, 10, true, 4, 10, false, None)
+    // isStartingVersion flipping from false to true: error
+    testValidateOffset(4, 10, false, 4, 10, true, Some(
+      "Found invalid offsets: 'isStartingVersion' fliped incorrectly."))
   }
 }

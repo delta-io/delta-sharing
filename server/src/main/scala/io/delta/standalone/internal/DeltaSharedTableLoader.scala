@@ -150,6 +150,27 @@ class DeltaSharedTable(
     }
   }
 
+  /** Get table version at or after startingTimestamp if it's provided, otherwise return
+   *  the latest table version.
+   */
+  def getTableVersion(startingTimestamp: Option[String]): Long = withClassLoader {
+    if (startingTimestamp.isEmpty) {
+      tableVersion
+    } else {
+      val ts = DeltaSharingHistoryManager.getTimestamp("startingTimestamp", startingTimestamp.get)
+      // get a version at or after the provided timestamp, if the timestamp is early than version 0,
+      // return 0.
+      try {
+        deltaLog.getVersionAtOrAfterTimestamp(ts.getTime())
+      } catch {
+        // Convert to DeltaSharingIllegalArgumentException to return 4xx instead of 5xx error code
+        // Only convert known exceptions around timestamp too late or too early
+        case e: IllegalArgumentException =>
+          throw new DeltaSharingIllegalArgumentException(e.getMessage)
+      }
+    }
+  }
+
   /** Return the current table version */
   def tableVersion: Long = withClassLoader {
     val snapshot = deltaLog.snapshot
@@ -284,7 +305,7 @@ class DeltaSharedTable(
     actions.toSeq
   }
 
-  def queryCDF(cdfOptions: Map[String, String]): Seq[model.SingleAction] = withClassLoader {
+  def queryCDF(cdfOptions: Map[String, String]): (Long, Seq[model.SingleAction]) = withClassLoader {
     val actions = ListBuffer[model.SingleAction]()
 
     // First: validate cdf options are greater than startVersion
@@ -294,7 +315,7 @@ class DeltaSharedTable(
       cdfOptions, latestVersion, tableConfig.startVersion)
 
     // Second: get Protocol and Metadata
-    val snapshot = deltaLog.snapshot
+    val snapshot = deltaLog.getSnapshotForVersionAsOf(start)
     val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
     val modelMetadata = model.Metadata(
       id = snapshot.metadataScala.id,
@@ -359,7 +380,7 @@ class DeltaSharedTable(
         actions.append(modelRemoveFile.wrap)
       }
     }
-    actions.toSeq
+    snapshot.version -> actions.toSeq
   }
 
   def update(): Unit = withClassLoader {

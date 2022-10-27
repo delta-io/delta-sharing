@@ -307,18 +307,125 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
 
   integrationTest("table1 - head - /shares/{share}/schemas/{schema}/tables/{table}") {
-    val url = requestPath("/shares/share1/schemas/default/tables/table1")
-    val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
+    // getTableVersion succeeds without parameters
+    var url = requestPath("/shares/share1/schemas/default/tables/table1")
+    var connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestMethod("HEAD")
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
-    val input = connection.getInputStream()
+    var input = connection.getInputStream()
     try {
       IOUtils.toString(input)
     } finally {
       input.close()
     }
-    val deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
+    var deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
     assert(deltaTableVersion == "2")
+
+    // getTableVersion succeeds with parameters
+    url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=2000-01-01%2000:00:00")
+    connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
+    connection.setRequestMethod("HEAD")
+    connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    input = connection.getInputStream()
+    try {
+      IOUtils.toString(input)
+    } finally {
+      input.close()
+    }
+    deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
+    assert(deltaTableVersion == "0")
+  }
+
+  integrationTest("table1 - get - /shares/{share}/schemas/{schema}/tables/{table}") {
+    // getTableVersion succeeds without parameters
+    var url = requestPath("/shares/share1/schemas/default/tables/table1")
+    var connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
+    connection.setRequestMethod("GET")
+    connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    var input = connection.getInputStream()
+    try {
+      IOUtils.toString(input)
+    } finally {
+      input.close()
+    }
+    var deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
+    assert(deltaTableVersion == "2")
+
+    // getTableVersion succeeds with parameters
+    url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=2000-01-01%2000:00:00")
+    connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
+    connection.setRequestMethod("GET")
+    connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    input = connection.getInputStream()
+    try {
+      IOUtils.toString(input)
+    } finally {
+      input.close()
+    }
+    deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
+    assert(deltaTableVersion == "0")
+  }
+
+  integrationTest("getTableVersion - head exceptions") {
+    // timestamp can be any string here, it's resolved in DeltaSharedTableLoader
+    assertHttpError(
+      url = requestPath("/shares/share2/schemas/default/tables/table2?startingTimestamp=abc"),
+      method = "HEAD",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Reading table by version or timestamp is not supported because "
+    )
+
+    // invalid startingTimestamp format
+    assertHttpError(
+      url = requestPath(
+        "/shares/share1/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=abc"
+      ),
+      method = "HEAD",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Invalid startingTimestamp"
+    )
+
+    // timestamp after the latest version
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=9999-01-01%2000:00:00"),
+      method = "HEAD",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "The provided timestamp (9999-01-01 00:00:00.0) is after the latest version available"
+    )
+  }
+
+  integrationTest("getTableVersion - get exceptions") {
+    // timestamp can be any string here, it's resolved in DeltaSharedTableLoader
+    assertHttpError(
+      url = requestPath("/shares/share2/schemas/default/tables/table2?startingTimestamp=abc"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Reading table by version or timestamp is not supported because "
+    )
+
+    // invalid startingTimestamp format
+    assertHttpError(
+      url = requestPath(
+        "/shares/share1/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=abc"
+      ),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Invalid startingTimestamp"
+    )
+
+    // timestamp after the latest version
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=9999-01-01%2000:00:00"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "The provided timestamp (9999-01-01 00:00:00.0) is after the latest version available"
+    )
   }
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
@@ -686,6 +793,17 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       expectedErrorCode = 400,
       expectedErrorMessage = "The provided timestamp (9999-01-01 00:00:00.0) is after the latest version available"
     )
+
+    // can only query table data since version 1
+    // 1651614979 PST: 2022-05-03T14:56:19.000+0000, version 1 is 1 second later
+    val tsStr = new Timestamp(1651614979000L).toString
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/query"),
+      method = "POST",
+      data = Some(s"""{"timestamp": "$tsStr"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "You can only query table data since version 1"
+    )
   }
 
   integrationTest("cdf_table_cdf_enabled - timestamp on version 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
@@ -842,7 +960,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_cdf_enabled_changes - query table changes") {
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, None)
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, Some(0))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
@@ -907,7 +1025,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     // 1651272660000, PST: 2022-04-29 15:51:00.0 -> version 3
     val endStr = URLEncoder.encode(new Timestamp(1651272660000L).toString)
 
-    val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, None)
+    val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, Some(0))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
@@ -925,7 +1043,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_with_partition: query table changes") {
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3"), Some("GET"), None, None)
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3"), Some("GET"), None, Some(1))
     val lines = response.split("\n")
     val files = lines.drop(2)
     assert(files.size == 6)
@@ -1051,7 +1169,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       connection.getInputStream()
     }
     assert(e.getMessage.contains(s"Server returned HTTP response code: $expectedErrorCode"))
-    assert(IOUtils.toString(connection.getErrorStream()).contains(expectedErrorMessage))
+    // If the http method is HEAD, error message is not returned from the server.
+    assert(method == "HEAD" || IOUtils.toString(connection.getErrorStream()).contains(expectedErrorMessage))
   }
 
   integrationTest("valid request json but incorrect field type") {
