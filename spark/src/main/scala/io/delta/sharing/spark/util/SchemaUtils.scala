@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package io.delta.standalone.internal
+package io.delta.sharing.spark.util
 
-import java.util.Locale
+import org.apache.spark.internal.Logging
+import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
+import org.apache.spark.sql.types._
 
-import io.delta.standalone.types.{ArrayType, DataType, MapType, StructField, StructType}
 
-
-private[standalone] object SchemaUtils {
+object SchemaUtils extends Logging {
 
   /**
    * TODO: switch to SchemaUtils in delta-io/connectors once isReadCompatible is supported in it.
@@ -35,9 +35,15 @@ private[standalone] object SchemaUtils {
    */
   def isReadCompatible(existingSchema: StructType, newSchema: StructType): Boolean = {
 
-    def toFieldMap(fields: Seq[StructField]): Map[String, StructField] = {
-      // CaseInsensitiveMap is not available, so we explicitly convert field name to lower case
-      fields.map(field => field.getName.toLowerCase(Locale.ROOT) -> field).toMap
+    def toFieldMap(
+      fields: Seq[StructField],
+      caseSensitive: Boolean = false): Map[String, StructField] = {
+      val fieldMap = fields.map(field => field.name -> field).toMap
+      if (caseSensitive) {
+        fieldMap
+      } else {
+        CaseInsensitiveMap(fieldMap)
+      }
     }
 
     def isDatatypeReadCompatible(existingType: DataType, newType: DataType): Boolean = {
@@ -48,27 +54,27 @@ private[standalone] object SchemaUtils {
         case (e: ArrayType, n: ArrayType) =>
           // if existing elements are non-nullable, so should be the new element
           (e.containsNull || !n.containsNull) &&
-            isDatatypeReadCompatible(e.getElementType, n.getElementType)
+            isDatatypeReadCompatible(e.elementType, n.elementType)
         case (e: MapType, n: MapType) =>
           // if existing value is non-nullable, so should be the new value
           (e.valueContainsNull || !n.valueContainsNull) &&
-            isDatatypeReadCompatible(e.getKeyType, n.getKeyType) &&
-            isDatatypeReadCompatible(e.getValueType, n.getValueType)
+            isDatatypeReadCompatible(e.keyType, n.keyType) &&
+            isDatatypeReadCompatible(e.valueType, n.valueType)
         case (a, b) => a == b
       }
     }
 
     def isStructReadCompatible: Boolean = {
-      val existingFieldMap = toFieldMap(existingSchema.getFields)
+      val existingFieldMap = toFieldMap(existingSchema)
       // scalastyle:off caselocale
-      val existingFieldNames = existingSchema.getFieldNames.map(_.toLowerCase).toSet
+      val existingFieldNames = existingSchema.fieldNames.map(_.toLowerCase).toSet
       assert(
-        existingFieldNames.size == existingSchema.getFields.length,
+        existingFieldNames.size == existingSchema.length,
         "Delta tables don't allow field names that only differ by case"
       )
-      val newFieldMap = newSchema.getFieldNames.map(_.toLowerCase).toSet
+      val newFieldMap = newSchema.fieldNames.map(_.toLowerCase).toSet
       assert(
-        newFieldMap.size == newSchema.getFields.length,
+        newFieldMap.size == newSchema.length,
         "Delta tables don't allow field names that only differ by case"
       )
       // scalastyle:on caselocale
@@ -77,15 +83,15 @@ private[standalone] object SchemaUtils {
         // Dropped a column that was present in the DataFrame schema
         return false
       }
-      newSchema.getFields.forall { newField =>
+      newSchema.forall { newField =>
         // new fields are fine, they just won't be returned
-        existingFieldMap.get(newField.getName.toLowerCase(Locale.ROOT)).forall { existingField =>
+        existingFieldMap.get(newField.name).forall { existingField =>
           // we know the name matches modulo case - now verify exact match
-          (existingField.getName == newField.getName
+          (existingField.name == newField.name
             // if existingFieldMap value is non-nullable, so should be the new value
-            && (existingField.isNullable || !newField.isNullable)
+            && (existingField.nullable || !newField.nullable)
             // and the type of the field must be compatible, too
-            && isDatatypeReadCompatible(existingField.getDataType, newField.getDataType))
+            && isDatatypeReadCompatible(existingField.dataType, newField.dataType))
         }
       }
     }

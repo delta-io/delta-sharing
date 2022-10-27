@@ -258,6 +258,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Table().withName("cdf_table_with_vacuum").withSchema("default").withShare("share1") ::
         Table().withName("cdf_table_missing_log").withSchema("default").withShare("share1") ::
         Table().withName("streaming_table_with_optimize").withSchema("default").withShare("share1") ::
+        Table().withName("streaming_table_read_incompatible").withSchema("default").withShare("share1") ::
         Table().withName("table_reader_version_increased").withSchema("default").withShare("share1") :: Nil)
     assert(expected == JsonFormat.fromJsonString[ListTablesResponse](response))
   }
@@ -279,6 +280,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         Table().withName("cdf_table_with_vacuum").withSchema("default").withShare("share1") ::
         Table().withName("cdf_table_missing_log").withSchema("default").withShare("share1") ::
         Table().withName("streaming_table_with_optimize").withSchema("default").withShare("share1") ::
+        Table().withName("streaming_table_read_incompatible").withSchema("default").withShare("share1") ::
         Table().withName("table_reader_version_increased").withSchema("default").withShare("share1") :: Nil
     assert(expected == tables)
   }
@@ -760,7 +762,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil).wrap
+      partitionColumns = Nil,
+      version = 0).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
     val files = lines.drop(2)
     assert(files.size == 7)
@@ -841,22 +844,35 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-  integrationTest("streaming_table_read_incompatible - exception") {
-    assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/streaming_table_read_incompatible/query"),
-      method = "POST",
-      data = Some("""{"startingVersion": 0}"""),
-      expectedErrorCode = 400,
-      expectedErrorMessage = "Detected incompatible schema change"
-    )
+  integrationTest("streaming_table_read_incompatible - no exceptions") {
+    val p =
+      s"""
+         |{
+         | "startingVersion": 0
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/streaming_table_read_incompatible/query"), Some("POST"), Some(p), Some(0))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 4)
 
-    assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/streaming_table_read_incompatible/query"),
-      method = "POST",
-      data = Some("""{"startingVersion": 1}"""),
-      expectedErrorCode = 400,
-      expectedErrorMessage = "Detected incompatible schema change"
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "fc28ebd8-db88-4f36-97c7-0c874bac27f9",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+      configuration = Map.empty,
+      partitionColumns = Nil,
+      version = 0)
+    assert(expectedMetadata == actions(1).metaData)
+
+    assert(actions(2).add != null)
+
+    expectedMetadata = expectedMetadata.copy(
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+      version = 2
     )
+    assert(expectedMetadata == actions(3).metaData)
   }
 
   integrationTest("cdf_table_cdf_enabled_changes - query table changes") {

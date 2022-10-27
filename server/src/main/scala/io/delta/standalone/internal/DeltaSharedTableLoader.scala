@@ -28,11 +28,9 @@ import com.google.common.cache.CacheBuilder
 import com.google.common.hash.Hashing
 import com.google.common.util.concurrent.UncheckedExecutionException
 import io.delta.standalone.DeltaLog
-import io.delta.standalone.internal.SchemaUtils
 import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, Metadata, Protocol, RemoveFile}
 import io.delta.standalone.internal.exception.DeltaErrors
 import io.delta.standalone.internal.util.ConversionUtils
-import io.delta.standalone.types.{StructType => deltaStructType}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.azure.NativeAzureFileSystem
@@ -46,7 +44,7 @@ import io.delta.sharing.server.{
   AbfsFileSigner,
   CausedBy,
   DeltaSharingIllegalArgumentException,
-  DeltaSharingIllegalStateException,
+
   DeltaSharingUnsupportedOperationException,
   ErrorStrings,
   GCSFileSigner,
@@ -197,13 +195,18 @@ class DeltaSharedTable(
       format = model.Format(),
       schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
       configuration = getMetadataConfiguration(snapshot.metadataScala.configuration),
-      partitionColumns = snapshot.metadataScala.partitionColumns
+      partitionColumns = snapshot.metadataScala.partitionColumns,
+      version = if (startingVersion.isDefined) {
+        startingVersion.get
+      } else {
+        null
+      }
     )
     val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
-        queryDataChangeSinceStartVersion(startingVersion.get, snapshot.metadataScala.schema)
+        queryDataChangeSinceStartVersion(startingVersion.get)
       } else if (includeFiles) {
         // TODO Open the `state` field in Delta Standalone library.
         val stateMethod = snapshot.getClass.getMethod("state")
@@ -238,10 +241,7 @@ class DeltaSharedTable(
     snapshot.version -> actions
   }
 
-  private def queryDataChangeSinceStartVersion(
-    startingVersion: Long,
-    startingSchema: deltaStructType
-  ): Seq[model.SingleAction] = {
+  private def queryDataChangeSinceStartVersion(startingVersion: Long): Seq[model.SingleAction] = {
     val latestVersion = tableVersion
     if (startingVersion > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
@@ -284,10 +284,18 @@ class DeltaSharedTable(
         case p: Protocol =>
           assertProtocolRead(p)
         case m: Metadata =>
-          if (!SchemaUtils.isReadCompatible(m.schema, startingSchema)) {
-            throw new DeltaSharingIllegalStateException(
-              DeltaErrors.schemaChangedException(startingSchema, m.schema).getMessage
+          if (v > startingVersion) {
+            val modelMetadata = model.Metadata(
+              id = m.id,
+              name = m.name,
+              description = m.description,
+              format = model.Format(),
+              schemaString = cleanUpTableSchema(m.schemaString),
+              configuration = getMetadataConfiguration(m.configuration),
+              partitionColumns = m.partitionColumns,
+              version = v
             )
+            actions.append(modelMetadata.wrap)
           }
         case _ => ()
       }
