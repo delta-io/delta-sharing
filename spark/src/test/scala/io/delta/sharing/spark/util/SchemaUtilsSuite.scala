@@ -16,10 +16,10 @@
 
 package io.delta.sharing.spark.util
 
-import io.delta.sharing.spark.util.SchemaUtils.isReadCompatible
-
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.sql.types._
+
+import io.delta.sharing.spark.util.SchemaUtils.isReadCompatible
 
 class SchemaUtilsSuite extends SparkFunSuite {
   /////////////////////////////
