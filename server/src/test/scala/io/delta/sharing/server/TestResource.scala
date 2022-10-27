@@ -97,11 +97,6 @@ object TestResource {
                 true
               ),
               TableConfig(
-                "streaming_table_read_incompatible",
-                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_table_read_incompatible",
-                true
-              ),
-              TableConfig(
                 "table_reader_version_increased",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_reader_version_increased",
                 true

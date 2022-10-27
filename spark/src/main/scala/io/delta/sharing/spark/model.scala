@@ -48,8 +48,7 @@ private[sharing] case class DeltaTableFiles(
     files: Seq[AddFile] = Nil,
     addFiles: Seq[AddFileForCDF] = Nil,
     cdfFiles: Seq[AddCDCFile] = Nil,
-    removeFiles: Seq[RemoveFile] = Nil,
-    additionalMetadatas: Seq[Metadata] = Nil)
+    removeFiles: Seq[RemoveFile] = Nil)
 
 private[sharing] case class Share(name: String)
 
@@ -93,8 +92,7 @@ private[sharing] case class Metadata(
     format: Format = Format(),
     schemaString: String = null,
     configuration: Map[String, String] = Map.empty,
-    partitionColumns: Seq[String] = Nil,
-    version: java.lang.Long = null) extends Action {
+    partitionColumns: Seq[String] = Nil) extends Action {
   override def wrap: SingleAction = SingleAction(metaData = this)
 }
 
