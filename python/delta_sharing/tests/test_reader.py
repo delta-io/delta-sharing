@@ -73,7 +73,9 @@ def test_to_pandas_non_partitioned(tmp_path):
                     stats="",
                 ),
             ]
-            return ListFilesInTableResponse(protocol=None, metadata=metadata, add_files=add_files)
+            return ListFilesInTableResponse(
+                delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
+            )
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.to_pandas()
@@ -126,7 +128,9 @@ def test_to_pandas_partitioned(tmp_path):
                     stats="",
                 ),
             ]
-            return ListFilesInTableResponse(protocol=None, metadata=metadata, add_files=add_files)
+            return ListFilesInTableResponse(
+                delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
+            )
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.to_pandas()
@@ -184,7 +188,9 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
                     stats="",
                 ),
             ]
-            return ListFilesInTableResponse(protocol=None, metadata=metadata, add_files=add_files)
+            return ListFilesInTableResponse(
+                delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
+            )
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.to_pandas()
@@ -238,7 +244,9 @@ def test_to_pandas_empty(rest_client: DataSharingRestClient):
                 )
             )
             add_files: Sequence[AddFile] = []
-            return ListFilesInTableResponse(protocol=None, metadata=metadata, add_files=add_files)
+            return ListFilesInTableResponse(
+                delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
+            )
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock()  # type: ignore
