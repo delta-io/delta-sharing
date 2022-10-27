@@ -64,11 +64,23 @@ private[sharing] case class IndexedFile(
  * getting changes from the delta sharing server.
  * TODO(lin.zhou) Support SupportsTriggerAvailableNow
  */
-trait DeltaSharingSourceBase extends Source
+/**
+ * A streaming source for a Delta Sharing table.
+ *
+ * When a new stream is started, delta sharing starts by constructing a [[RemoteDeltaSnapshot]]
+ * at the current version of the table. This snapshot is broken up into batches until
+ * all existing data has been processed. Subsequent processing is done by tailing
+ * the change log looking for new data. This results in the streaming query returning
+ * the same answer as a batch query that had processed the entire dataset at any given point.
+ */
+case class DeltaSharingSource(
+  spark: SparkSession,
+  deltaLog: RemoteDeltaLog,
+  options: DeltaSharingOptions) extends Source
   with SupportsAdmissionControl
-  with Logging { self: DeltaSharingSource =>
+  with Logging {
 
-  val snapshot: RemoteSnapshot = deltaLog.snapshot()
+  private val snapshot: RemoteSnapshot = deltaLog.snapshot()
 
   override val schema: StructType = {
     val schemaWithoutCDC = snapshot.schema
@@ -79,20 +91,34 @@ trait DeltaSharingSourceBase extends Source
     }
   }
 
+  // This is checked before creating DeltaSharingSource
+  assert(schema.nonEmpty)
+
+  /** A check on the source table that disallows deletes on the source data. */
+  private val ignoreChanges = options.ignoreChanges
+
+  /** A check on the source table that disallows commits that only include deletes to the data. */
+  private val ignoreDeletes = options.ignoreDeletes || ignoreChanges
+
+  private val tableId = snapshot.metadata.id
+
+  // Records until which offset the delta sharing source has been processing the table files.
+  private var previousOffset: DeltaSharingSourceOffset = null
+
   // Serves as local cache to store all the files fetched from the delta sharing server.
   // If not empty, will advance the offset and fetch data from this list based on the read limit.
   // If empty, will try to load all possible new data files through delta sharing rpc to this list,
   //   sorted by version and id.
-  protected var sortedFetchedFiles: Seq[IndexedFile] = Seq.empty
+  private var sortedFetchedFiles: Seq[IndexedFile] = Seq.empty
 
-  protected var lastGetVersionTimestamp: Long = -1
-  protected var lastQueriedTableVersion: Long = -1
+  private var lastGetVersionTimestamp: Long = -1
+  private var lastQueriedTableVersion: Long = -1
   private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 30000 // 30 seconds
 
   // Check the latest table version from the delta sharing server through the client.getTableVersion
-  // RPC. Adding a minimum 30 seconds interval between two consecutive rpcs to avoid traffic jam on
-  // the delta sharing server.
-  protected def getOrUpdateLatestTableVersion: Long = {
+  // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
+  // rpcs to avoid traffic jam on the delta sharing server.
+  private def getOrUpdateLatestTableVersion: Long = {
     val currentTimeMillis = System.currentTimeMillis()
     if (lastGetVersionTimestamp == -1 ||
       (currentTimeMillis - lastGetVersionTimestamp) >= QUERY_TABLE_VERSION_INTERVAL_MILLIS) {
@@ -117,7 +143,7 @@ trait DeltaSharingSourceBase extends Source
    *                            from previous versions). If false, will only load files since
    *                            fromVersion.
    */
-  protected def maybeGetFileChanges(
+  private def maybeGetFileChanges(
     fromVersion: Long,
     fromIndex: Long,
     isStartingVersion: Boolean): Unit = {
@@ -182,7 +208,7 @@ trait DeltaSharingSourceBase extends Source
    * @param limits - Indicates how much data can be processed by a micro batch.
    * @return the last IndexedFile or None if there are no new data.
    */
-  protected def getLastFileChangeWithRateLimit(
+  private def getLastFileChangeWithRateLimit(
     fromVersion: Long,
     fromIndex: Long,
     isStartingVersion: Boolean,
@@ -206,6 +232,7 @@ trait DeltaSharingSourceBase extends Source
         }
       }
 
+      // If here, it means all files are admitted by the limits.
       lastFileChange
     }
   }
@@ -225,7 +252,7 @@ trait DeltaSharingSourceBase extends Source
    * @param endOffset - Offset that signifies the end of the stream.
    * @return the created DataFrame.
    */
-  protected def getFileChangesAndCreateDataFrame(
+  private def getFileChangesAndCreateDataFrame(
     startVersion: Long,
     startIndex: Long,
     isStartingVersion: Boolean,
@@ -242,6 +269,8 @@ trait DeltaSharingSourceBase extends Source
           (version == endOffset.tableVersion && index <= endOffset.index)
     }
     sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
+    // Proceed the offset as the files before the endOffset are processed.
+    previousOffset = endOffset
 
     createDataFrame(fileActions)
   }
@@ -251,7 +280,7 @@ trait DeltaSharingSourceBase extends Source
    * Only AddFile actions will be used to create the DataFrame.
    * @param indexedFiles actions list from which to generate the DataFrame.
    */
-  protected def createDataFrame(indexedFiles: Seq[IndexedFile]): DataFrame = {
+  private def createDataFrame(indexedFiles: Seq[IndexedFile]): DataFrame = {
     val addFilesList = indexedFiles.map(_.getFileAction)
 
     val params = new RemoteDeltaFileIndexParams(spark, snapshot)
@@ -277,7 +306,7 @@ trait DeltaSharingSourceBase extends Source
    *                            fromVersion.
    * @param limits Indicates how much data can be processed by a micro batch.
    */
-  protected def getStartingOffsetFromSpecificDeltaVersion(
+  private def getStartingOffsetFromSpecificDeltaVersion(
     fromVersion: Long,
     isStartingVersion: Boolean,
     limits: Option[AdmissionLimits]): Option[Offset] = {
@@ -296,7 +325,7 @@ trait DeltaSharingSourceBase extends Source
   /**
    * Return the next offset when previous offset exists.
    */
-  protected def getNextOffsetFromPreviousOffset(
+  private def getNextOffsetFromPreviousOffset(
     previousOffset: DeltaSharingSourceOffset,
     limits: Option[AdmissionLimits]): Option[Offset] = {
     val lastFileChange = getLastFileChangeWithRateLimit(
@@ -333,7 +362,9 @@ trait DeltaSharingSourceBase extends Source
         s"(expected: >= $previousOffsetVersion), tableId: $tableId")
 
     // If the last file in previous batch is the last file of that version, automatically bump
-    // to next version to skip accessing that version file altogether.
+    // to next version to skip getting files from the same version again from the delta sharing
+    // server (through deltaLog.client.getFiles), this is safe because logically for latest offset:
+    // (previousVersion, lastIndex> == <nextVersion, -1>
     if (isLastFileInVersion) {
       // isStartingVersion must be false here as we have bumped the version.
       Some(DeltaSharingSourceOffset(DeltaSharingSourceOffset.VERSION_1, tableId, v + 1, index = -1,
@@ -345,38 +376,8 @@ trait DeltaSharingSourceBase extends Source
         isStartingVersion = (v == previousOffsetVersion && ispreviousOffsetStartingVersion)))
     }
   }
-}
 
-/**
- * A streaming source for a Delta Sharing table.
- *
- * When a new stream is started, delta sharing starts by constructing a [[RemoteDeltaSnapshot]]
- * at the current version of the table. This snapshot is broken up into batches until
- * all existing data has been processed. Subsequent processing is done by tailing
- * the change log looking for new data. This results in the streaming query returning
- * the same answer as a batch query that had processed the entire dataset at any given point.
- */
-case class DeltaSharingSource(
-  spark: SparkSession,
-  deltaLog: RemoteDeltaLog,
-  options: DeltaSharingOptions)
-  extends DeltaSharingSourceBase {
-
-  /** A check on the source table that disallows deletes on the source data. */
-  private val ignoreChanges = options.ignoreChanges
-
-  /** A check on the source table that disallows commits that only include deletes to the data. */
-  private val ignoreDeletes = options.ignoreDeletes || ignoreChanges
-
-  // This is checked before creating DeltaSharingSource
-  assert(schema.nonEmpty)
-
-  protected val tableId = snapshot.metadata.id
-
-  // Records until which offset the delta sharing source has been processing the table files.
-  private var previousOffset: DeltaSharingSourceOffset = null
-
-  protected def verifyStreamHygieneAndFilterAddFiles(
+  private def verifyStreamHygieneAndFilterAddFiles(
     tableFiles: DeltaTableFiles): Seq[AddFileForCDF] = {
     if (!tableFiles.removeFiles.isEmpty) {
       val versionsWithRemoveFiles = tableFiles.removeFiles.map(r => r.version).toSet
@@ -472,8 +473,6 @@ case class DeltaSharingSource(
     }
     logDebug(s"start: $startOffsetOption end: $end")
 
-    // Proceed the offset as the files before the endOffset are processed.
-    previousOffset = endOffset
     val createdDf = getFileChangesAndCreateDataFrame(
       startVersion, startIndex, isStartingVersion, endOffset
     )
@@ -541,7 +540,7 @@ case class DeltaSharingSource(
    * Extracts whether users provided the option to time travel a relation. If a query restarts from
    * a checkpoint and the checkpoint has recorded the offset, this method should never been called.
    */
-  protected lazy val getStartingVersion: Option[Long] = {
+  private lazy val getStartingVersion: Option[Long] = {
     /** DeltaOption validates input and ensures that only one is provided. */
     if (options.startingVersion.isDefined) {
       val v = options.startingVersion.get match {

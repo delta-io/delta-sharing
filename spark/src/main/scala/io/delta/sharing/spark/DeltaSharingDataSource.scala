@@ -65,23 +65,21 @@ private[sharing] class DeltaSharingDataSource
       throw DeltaSharingErrors.specifySchemaAtReadTimeException
     }
     val options = new DeltaSharingOptions(parameters)
-    val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
-
-    val deltaLog = RemoteDeltaLog(path)
-
     if (options.isTimeTravel) {
       throw DeltaSharingErrors.timeTravelNotSupportedException
     }
+    if (options.readChangeFeed) {
+      throw DeltaSharingErrors.CDFNotSupportedInStreaming
+    }
 
+    val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
+    val deltaLog = RemoteDeltaLog(path)
     val schemaToUse = deltaLog.snapshot().schema
     if (schemaToUse.isEmpty) {
       throw DeltaSharingErrors.schemaNotSetException
     }
-    if (options.readChangeFeed) {
-      throw DeltaSharingErrors.CDFNotSupportedInStreaming
-    } else {
-      (shortName(), schemaToUse)
-    }
+
+    (shortName(), schemaToUse)
   }
 
   override def createSource(
