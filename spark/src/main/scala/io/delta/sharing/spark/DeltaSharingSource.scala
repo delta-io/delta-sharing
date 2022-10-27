@@ -491,7 +491,7 @@ case class DeltaSharingSource(
   class AdmissionLimits(
     maxFiles: Option[Int] = options.maxFilesPerTrigger,
     var bytesToTake: Long = options.maxBytesPerTrigger.getOrElse(Long.MaxValue)
-  ) extends DeltaSharingSourceAdmissionBase {
+  ) {
 
     var filesToTake = maxFiles.getOrElse {
       if (options.maxBytesPerTrigger.isEmpty) {
