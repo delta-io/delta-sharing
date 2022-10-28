@@ -26,12 +26,21 @@ import org.apache.spark.delta.sharing.PreSignedUrlCache
 import org.apache.spark.sql.{SparkSession, SQLContext}
 import org.apache.spark.sql.connector.catalog.{Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.expressions.Transform
-import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
+import org.apache.spark.sql.execution.streaming.Source
+import org.apache.spark.sql.sources.{
+  BaseRelation,
+  DataSourceRegister,
+  RelationProvider,
+  StreamSourceProvider
+}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /** A DataSource V1 for integrating Delta into Spark SQL batch APIs. */
-private[sharing] class DeltaSharingDataSource extends RelationProvider with DataSourceRegister {
+private[sharing] class DeltaSharingDataSource
+  extends RelationProvider
+    with StreamSourceProvider
+    with DataSourceRegister {
 
   override def createRelation(
       sqlContext: SQLContext,
@@ -46,9 +55,52 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
   }
 
+  // Returns the schema of the latest table snapshot.
+  override def sourceSchema(
+    sqlContext: SQLContext,
+    schema: Option[StructType],
+    providerName: String,
+    parameters: Map[String, String]): (String, StructType) = {
+    if (schema.nonEmpty && schema.get.nonEmpty) {
+      throw DeltaSharingErrors.specifySchemaAtReadTimeException
+    }
+    val options = new DeltaSharingOptions(parameters)
+    if (options.isTimeTravel) {
+      throw DeltaSharingErrors.timeTravelNotSupportedException
+    }
+    if (options.readChangeFeed) {
+      throw DeltaSharingErrors.CDFNotSupportedInStreaming
+    }
+
+    val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
+    val deltaLog = RemoteDeltaLog(path)
+    val schemaToUse = deltaLog.snapshot().schema
+    if (schemaToUse.isEmpty) {
+      throw DeltaSharingErrors.schemaNotSetException
+    }
+
+    (shortName(), schemaToUse)
+  }
+
+  override def createSource(
+    sqlContext: SQLContext,
+    metadataPath: String,
+    schema: Option[StructType],
+    providerName: String,
+    parameters: Map[String, String]): Source = {
+    DeltaSharingDataSource.setupFileSystem(sqlContext)
+    if (schema.nonEmpty && schema.get.nonEmpty) {
+      throw DeltaSharingErrors.specifySchemaAtReadTimeException
+    }
+    val options = new DeltaSharingOptions(parameters)
+    val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
+    val deltaLog = RemoteDeltaLog(path)
+
+    DeltaSharingSource(SparkSession.active, deltaLog, options)
+  }
+
   override def shortName: String = "deltaSharing"
 }
-
 
 private[sharing] object DeltaSharingDataSource {
   def setupFileSystem(sqlContext: SQLContext): Unit = {
