@@ -198,8 +198,8 @@ trait DeltaSharingSourceBase extends Source
       Console.println(s"--------[linzhou]--------[sorted.size][${sortedFetchedFiles.size}]")
       val fileActions = sortedFetchedFiles.takeWhile {
         case IndexedFile(version, index, _, _) =>
-          version < endOffset.reservoirVersion ||
-            (version == endOffset.reservoirVersion && index <= endOffset.index)
+          version < endOffset.tableVersion ||
+            (version == endOffset.tableVersion && index <= endOffset.index)
       }
       sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
       Console.println(s"--------[linzhou]--------[took/sorted.size]" +
@@ -269,7 +269,7 @@ trait DeltaSharingSourceBase extends Source
     previousOffset: DeltaSharingSourceOffset,
     limits: Option[AdmissionLimits]): Option[Offset] = {
     val lastFileChange = getLastFileChangeWithRateLimit(
-      previousOffset.reservoirVersion,
+      previousOffset.tableVersion,
       previousOffset.index,
       previousOffset.isStartingVersion,
       limits)
@@ -277,7 +277,7 @@ trait DeltaSharingSourceBase extends Source
     if (lastFileChange.isEmpty) {
       Some(previousOffset)
     } else {
-      buildOffsetFromIndexedFile(lastFileChange.get, previousOffset.reservoirVersion,
+      buildOffsetFromIndexedFile(lastFileChange.get, previousOffset.tableVersion,
         previousOffset.isStartingVersion)
     }
   }
@@ -286,7 +286,7 @@ trait DeltaSharingSourceBase extends Source
    * Build the latest offset based on the last indexedFile. The function also checks if latest
    * version is valid by comparing with previous version.
    * @param indexedFile The last indexed file used to build offset from.
-   * @param version Previous offset reservoir version.
+   * @param version Previous offset table version.
    * @param isStartingVersion Whether previous offset is starting version or not.
    */
   private def buildOffsetFromIndexedFile(
@@ -334,7 +334,7 @@ case class DeltaSharingSource(
   /** A check on the source table that disallows commits that only include deletes to the data. */
   private val ignoreDeletes = options.ignoreDeletes || ignoreChanges
 
-  // This is checked before creating ReservoirSource
+  // This is checked before creating tableSource
   assert(schema.nonEmpty)
 
   protected val tableId = snapshot.metadata.id
@@ -421,13 +421,13 @@ case class DeltaSharingSource(
           // startingVersion is NOT provided by the user
           if (endOffset.isStartingVersion) {
             // get all files in this version if endOffset is startingVersion
-            (endOffset.reservoirVersion, -1L, true, None)
+            (endOffset.tableVersion, -1L, true, None)
           } else {
             assert(
-              endOffset.reservoirVersion > 0, s"invalid reservoirVersion in endOffset: $endOffset")
-            // Load from snapshot `endOffset.reservoirVersion - 1L` if endOffset is not
+              endOffset.tableVersion > 0, s"invalid tableVersion in endOffset: $endOffset")
+            // Load from snapshot `endOffset.tableVersion - 1L` if endOffset is not
             // startingVersion
-            (endOffset.reservoirVersion - 1L, -1L, true, None)
+            (endOffset.tableVersion - 1L, -1L, true, None)
           }
       }
     } else {
@@ -438,7 +438,7 @@ case class DeltaSharingSource(
         // can return any DataFrame.
         return DeltaSharingScanUtils.internalCreateDataFrame(spark, schema)
       }
-      (startOffset.reservoirVersion, startOffset.index, startOffset.isStartingVersion,
+      (startOffset.tableVersion, startOffset.index, startOffset.isStartingVersion,
         Some(startOffset.sourceVersion))
     }
     logDebug(s"start: $startOffsetOption end: $end")
@@ -522,7 +522,10 @@ case class DeltaSharingSource(
       }
       Some(v)
     } else if (options.startingTimestamp.isDefined) {
-      throw new UnsupportedOperationException("startingTimestamp is not supported yet")
+      Console.println(s"------[linzhou]------startingTimestamp:${options.startingTimestamp.get}")
+      val v = deltaLog.client.getTableVersion(deltaLog.table, options.startingTimestamp)
+      Console.println(s"------[linzhou]------v:${v}")
+      Some(v)
     } else {
       None
     }

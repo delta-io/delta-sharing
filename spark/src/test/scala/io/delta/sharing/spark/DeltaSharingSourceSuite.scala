@@ -97,8 +97,8 @@ class DeltaSharingSourceSuite extends QueryTest
     assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
     val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
     assert(offset.sourceVersion == 1)
-    assert(offset.reservoirId == deltaLog.snapshot(Some(0)).metadata.id)
-    assert(offset.reservoirVersion == 4)
+    assert(offset.tableId == deltaLog.snapshot(Some(0)).metadata.id)
+    assert(offset.tableVersion == 4)
     assert(offset.index == -1)
     assert(!offset.isStartingVersion)
   }
@@ -123,8 +123,8 @@ class DeltaSharingSourceSuite extends QueryTest
     assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
     val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
     assert(offset.sourceVersion == 1)
-    assert(offset.reservoirId == deltaLog.snapshot().metadata.id)
-    assert(offset.reservoirVersion == 6)
+    assert(offset.tableId == deltaLog.snapshot().metadata.id)
+    assert(offset.tableVersion == 6)
     assert(offset.index == -1)
     assert(!offset.isStartingVersion)
   }
@@ -361,14 +361,33 @@ class DeltaSharingSourceSuite extends QueryTest
       }
     }
 
-
     var errorMessage = intercept[StreamingQueryException] {
      val query = spark.readStream.format("deltaSharing").option("path", tablePath)
         .option("startingTimestamp", "-1")
         .load().writeStream.format("console").start()
       query.awaitTermination(streamingTimeout.toMillis)
     }.getMessage
-    assert(errorMessage.contains("startingTimestamp is not supported yet"))
+    Console.println(s"------[linzhou]------errorMessage:${errorMessage}")
+    assert(errorMessage.contains("Invalid startingTimestamp"))
+  }
+
+  integrationTest("startingTimestamp - succeeds") {
+    val query = spark.readStream.format("deltaSharing").option("path", tablePath)
+      .option("startingTimestamp", "2022-01-01 00:00:00.0")
+      .option("ignoreDeletes", "true")
+      .option("ignoreChanges", "true")
+      .load().writeStream.format("console").start()
+
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 4)
+      }
+    } finally {
+      query.stop()
+    }
   }
 
   integrationTest("startingVersion - succeeds") {
