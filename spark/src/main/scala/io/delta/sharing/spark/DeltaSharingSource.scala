@@ -193,13 +193,13 @@ case class DeltaSharingSource(
     } else {
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
-      val tableFiles = deltaLog.client.getCDFFiles(
-        deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString))
+      // TODO(lin.zhou) return metadata for each version, and check schema read compatibility
+      val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)
       val addFiles = verifyStreamHygieneAndFilterAddFiles(tableFiles)
-      addFiles.groupBy(a => a.version).toSeq.sortWith(_._1 < _._1).foreach {
+      addFiles.groupBy(a => a.version).toSeq.sortWith(_._1 < _._1).foreach{
         case (v, vAddFiles) =>
           val numFiles = vAddFiles.size
-          vAddFiles.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
+          vAddFiles.sortWith(fileActionCompareFunc).zipWithIndex.foreach{
             case (add, index) if (v > fromVersion || (v == fromVersion && index > fromIndex)) =>
               appendToSortedFetchedFiles(IndexedFile(
                 add.version,
@@ -247,7 +247,9 @@ case class DeltaSharingSource(
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
       // TODO(lin.zhou) return metadata for each version, and check schema read compatibility
-      val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)
+      val tableFiles = deltaLog.client.getCDFFiles(
+        deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString))
+
       val allFiles = tableFiles.addFiles ++ tableFiles.cdfFiles ++ tableFiles.removeFiles
 //      if (v > fromVersion || (v == fromVersion && index > fromIndex))
       allFiles.groupBy(f => f.version).toSeq.sortWith(_._1 < _._1).foreach {
@@ -541,7 +543,7 @@ case class DeltaSharingSource(
             assert(
               endOffset.tableVersion > 0, s"invalid tableVersion in endOffset: $endOffset")
             // Load from snapshot `endOffset.tableVersion - 1L` if endOffset is not
-            // startingVersion
+            // startingVersion, this is the same behavior as DeltaSource.
             (endOffset.tableVersion - 1L, -1L, true, None)
           }
       }

@@ -38,13 +38,13 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /** A DataSource V1 for integrating Delta into Spark SQL batch APIs. */
 private[sharing] class DeltaSharingDataSource
-    extends RelationProvider
+  extends RelationProvider
     with StreamSourceProvider
     with DataSourceRegister {
 
   override def createRelation(
-    sqlContext: SQLContext,
-    parameters: Map[String, String]): BaseRelation = {
+      sqlContext: SQLContext,
+      parameters: Map[String, String]): BaseRelation = {
     DeltaSharingDataSource.setupFileSystem(sqlContext)
     val options = new DeltaSharingOptions(parameters)
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
@@ -53,6 +53,7 @@ private[sharing] class DeltaSharingDataSource
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
   }
 
+  // Returns the schema of the latest table snapshot.
   override def sourceSchema(
     sqlContext: SQLContext,
     schema: Option[StructType],
@@ -62,20 +63,19 @@ private[sharing] class DeltaSharingDataSource
       throw DeltaSharingErrors.specifySchemaAtReadTimeException
     }
     val options = new DeltaSharingOptions(parameters)
-    val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
-
-    val deltaLog = RemoteDeltaLog(path)
-
     if (options.isTimeTravel) {
       throw DeltaSharingErrors.timeTravelNotSupportedException
     }
 
+    val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
+    val deltaLog = RemoteDeltaLog(path)
     val schemaToUse = deltaLog.snapshot().schema
     if (schemaToUse.isEmpty) {
       throw DeltaSharingErrors.schemaNotSetException
     }
+
     if (options.readChangeFeed) {
-      (shortName(), DeltaTableUtils.addCdcSchema(schemaWithoutCDC))
+      (shortName(), DeltaTableUtils.addCdcSchema(schemaToUse))
     } else {
       (shortName(), schemaToUse)
     }
@@ -100,7 +100,6 @@ private[sharing] class DeltaSharingDataSource
 
   override def shortName: String = "deltaSharing"
 }
-
 
 private[sharing] object DeltaSharingDataSource {
   def setupFileSystem(sqlContext: SQLContext): Unit = {

@@ -185,6 +185,8 @@ class DeltaSharingSourceSuite extends QueryTest
    * Test maxFilesPerTrigger and maxBytesPerTrigger
    */
   integrationTest("maxFilesPerTrigger - success with different values") {
+    // Map from maxFilesPerTrigger to a list, the size of the list is the number of progresses of
+    // the stream query, and each element in the list is the numInputRows for each progress.
     Map(1 -> Seq(1, 1, 1, 1), 2 -> Seq(2, 2), 3 -> Seq(3, 1), 4 -> Seq(4), 5 -> Seq(4)).foreach{
       case (k, v) =>
         val query = withStreamReaderAtVersion()
@@ -193,28 +195,6 @@ class DeltaSharingSourceSuite extends QueryTest
 
         try {
           query.processAllAvailable()
-          val progress = query.recentProgress.filter(_.numInputRows != 0)
-          assert(progress.length === v.size)
-          progress.zipWithIndex.map { case (p, index) =>
-            assert(p.numInputRows === v(index))
-          }
-        } finally {
-          query.stop()
-        }
-    }
-  }
-
-  integrationTest("maxFilesPerTrigger - Trigger.AvailableNow respects read limits") {
-    Map(1 -> Seq(1, 1, 1, 1)).foreach{
-      case (k, v) =>
-        val query = withStreamReaderAtVersion()
-          .option("maxFilesPerTrigger", s"$k")
-          .load().writeStream.format("console").trigger(Trigger.AvailableNow).start()
-
-        try {
-//          query.processAllAvailable()
-          query.awaitTermination(30000)
-          Console.println(s"-----[linzhou]--------here")
           val progress = query.recentProgress.filter(_.numInputRows != 0)
           assert(progress.length === v.size)
           progress.zipWithIndex.map { case (p, index) =>
@@ -239,7 +219,28 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
+  test("maxFilesPerTrigger - ignored when using Trigger.Once") {
+    val query = withStreamReaderAtVersion()
+      .option("maxFilesPerTrigger", "1")
+      .load().writeStream.format("console")
+      .trigger(Trigger.Once)
+      .start()
+
+    try {
+      assert(query.awaitTermination(streamingTimeout.toMillis))
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1) // only one trigger was run
+      progress.foreach { p =>
+        assert(p.numInputRows === 4)
+      }
+    } finally {
+      query.stop()
+    }
+  }
+
   integrationTest("maxBytesPerTrigger - at least one file") {
+    // Map from maxBytesPerTrigger to a list, the size of the list is the number of progresses of
+    // the stream query, and each element in the list is the numInputRows for each progress.
     Map(1 -> Seq(1, 1, 1, 1), 1000 -> Seq(1, 1, 1, 1), 2000 -> Seq(2, 2),
       3000 -> Seq(3, 1), 4000 -> Seq(4), 5000 -> Seq(4)).foreach {
       case (k, v) =>
