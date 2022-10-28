@@ -33,6 +33,10 @@ class DeltaSharingSourceSuite extends QueryTest
 
   import testImplicits._
 
+  // VERSION 0: CREATE TABLE
+  // VERSION 1: INSERT 3 rows, 3 add files
+  // VERSION 2: REMOVE 1 row, 1 remove file
+  // VERSION 3: UPDATE 1 row, 1 remove file and 1 add file
   lazy val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
 
   lazy val deltaLog = RemoteDeltaLog(tablePath)
@@ -87,7 +91,7 @@ class DeltaSharingSourceSuite extends QueryTest
     assert(!offset.isStartingVersion)
   }
 
-  integrationTest("DeltaSharingSource.lastestOffset - startingVersion latest") {
+  integrationTest("DeltaSharingSource.latestOffset - startingVersion latest") {
     val source = getSource(Map(
       "ignoreChanges" -> "true",
       "ignoreDeletes" -> "true",
@@ -96,23 +100,6 @@ class DeltaSharingSourceSuite extends QueryTest
     val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
     assert(latestOffset == null)
   }
-
-  integrationTest("DeltaSharingSource.lastestOffset - no startingVersion") {
-    val source = getSource(Map(
-      "ignoreChanges" -> "true",
-      "ignoreDeletes" -> "true"
-    ))
-    val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
-
-    assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
-    val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
-    assert(offset.sourceVersion == 1)
-    assert(offset.tableId == deltaLog.snapshot(Some(0)).metadata.id)
-    assert(offset.tableVersion == 6)
-    assert(offset.index == -1)
-    assert(!offset.isStartingVersion)
-  }
-
 
   integrationTest("DeltaSharingSource.latestOffset - no startingVersion") {
     val source = getSource(Map("ignoreChanges" -> "true", "ignoreDeletes" -> "true"))
@@ -137,11 +124,11 @@ class DeltaSharingSourceSuite extends QueryTest
       "ignoreDeletes" -> "true",
       "startingVersion" -> "0"))
     val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
-    val message = intercept[AnalysisException] {
+    intercept[AnalysisException] {
+      // Error message would be:
+      //    Queries with streaming sources must be executed with writeStream.start()
       source.getBatch(None, latestOffset.asInstanceOf[DeltaSharingSourceOffset]).show()
-    }.getMessage
-    assert(message.contains("Queries with streaming sources must be executed with " +
-      "writeStream.start()"))
+    }
   }
 
   /**
@@ -197,20 +184,23 @@ class DeltaSharingSourceSuite extends QueryTest
   /**
    * Test maxFilesPerTrigger and maxBytesPerTrigger
    */
-  integrationTest("maxFilesPerTrigger - success") {
-    val query = withStreamReaderAtVersion()
-      .option("maxFilesPerTrigger", "1")
-      .load().writeStream.format("console").start()
+  integrationTest("maxFilesPerTrigger - success with different values") {
+    Map(1 -> Seq(1, 1, 1, 1), 2 -> Seq(2, 2), 3 -> Seq(3, 1), 4 -> Seq(4), 5 -> Seq(4)).foreach{
+      case (k, v) =>
+        val query = withStreamReaderAtVersion()
+          .option("maxFilesPerTrigger", s"$k")
+          .load().writeStream.format("console").start()
 
-    try {
-      query.processAllAvailable()
-      val progress = query.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 4)
-      progress.foreach { p =>
-        assert(p.numInputRows === 1)
-      }
-    } finally {
-      query.stop()
+        try {
+          query.processAllAvailable()
+          val progress = query.recentProgress.filter(_.numInputRows != 0)
+          assert(progress.length === v.size)
+          progress.zipWithIndex.map { case (p, index) =>
+            assert(p.numInputRows === v(index))
+          }
+        } finally {
+          query.stop()
+        }
     }
   }
 
@@ -247,19 +237,23 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   integrationTest("maxBytesPerTrigger - at least one file") {
-    val query = withStreamReaderAtVersion()
-      .option("maxBytesPerTrigger", "1b")
-      .load().writeStream.format("console").start()
+    Map(1 -> Seq(1, 1, 1, 1), 1000 -> Seq(1, 1, 1, 1), 2000 -> Seq(2, 2),
+      3000 -> Seq(3, 1), 4000 -> Seq(4), 5000 -> Seq(4)).foreach {
+      case (k, v) =>
+        val query = withStreamReaderAtVersion()
+          .option("maxBytesPerTrigger", s"${k}b")
+          .load().writeStream.format("console").start()
 
-    try {
-      query.processAllAvailable()
-      val progress = query.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 4)
-      progress.foreach { p =>
-        assert(p.numInputRows === 1)
-      }
-    } finally {
-      query.stop()
+        try {
+          query.processAllAvailable()
+          val progress = query.recentProgress.filter(_.numInputRows != 0)
+          assert(progress.length === v.size)
+          progress.zipWithIndex.map { case (p, index) =>
+            assert(p.numInputRows === v(index))
+          }
+        } finally {
+          query.stop()
+        }
     }
   }
 
