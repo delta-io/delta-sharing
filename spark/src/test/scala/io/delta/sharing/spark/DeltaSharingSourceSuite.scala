@@ -185,6 +185,8 @@ class DeltaSharingSourceSuite extends QueryTest
    * Test maxFilesPerTrigger and maxBytesPerTrigger
    */
   integrationTest("maxFilesPerTrigger - success with different values") {
+    // Map from maxFilesPerTrigger to a list, the size of the list is the number of progresses of
+    // the stream query, and each element in the list is the numInputRows for each progress.
     Map(1 -> Seq(1, 1, 1, 1), 2 -> Seq(2, 2), 3 -> Seq(3, 1), 4 -> Seq(4), 5 -> Seq(4)).foreach{
       case (k, v) =>
         val query = withStreamReaderAtVersion()
@@ -237,6 +239,8 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   integrationTest("maxBytesPerTrigger - at least one file") {
+    // Map from maxBytesPerTrigger to a list, the size of the list is the number of progresses of
+    // the stream query, and each element in the list is the numInputRows for each progress.
     Map(1 -> Seq(1, 1, 1, 1), 1000 -> Seq(1, 1, 1, 1), 2000 -> Seq(2, 2),
       3000 -> Seq(3, 1), 4000 -> Seq(4), 5000 -> Seq(4)).foreach {
       case (k, v) =>

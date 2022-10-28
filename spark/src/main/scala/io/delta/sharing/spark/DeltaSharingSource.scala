@@ -31,7 +31,7 @@ import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRela
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.types.StructType
 
-import io.delta.sharing.spark.model.{AddFile, AddFileForCDF, DeltaTableFiles}
+import io.delta.sharing.spark.model.{AddFile, AddFileForCDF, DeltaTableFiles, FileAction}
 
 /**
  * A case class to help with `Dataset` operations regarding Offset indexing, representing AddFile
@@ -156,10 +156,7 @@ case class DeltaSharingSource(
 
     // The actual order of files doesn't matter much.
     // Sort by id gives us a stable order of the files within a version.
-    def addFileCompareFunc(f1: AddFile, f2: AddFile): Boolean = { f1.id < f2.id }
-    def addFileForCDFCompareFunc(f1: AddFileForCDF, f2: AddFileForCDF): Boolean = {
-      f1.version < f2.version || (f1.version == f2.version && f1.id < f2.id)
-    }
+    def fileActionCompareFunc(f1: FileAction, f2: FileAction): Boolean = { f1.id < f2.id }
 
     def appendToSortedFetchedFiles(indexedFile: IndexedFile): Unit = {
       sortedFetchedFiles = sortedFetchedFiles :+ indexedFile
@@ -170,7 +167,7 @@ case class DeltaSharingSource(
       // include table changes from previous versions.
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, Nil, None, Some(fromVersion), None)
       val numFiles = tableFiles.files.size
-      tableFiles.files.sortWith(addFileCompareFunc).zipWithIndex.foreach{
+      tableFiles.files.sortWith(fileActionCompareFunc).zipWithIndex.foreach{
         case (file, index) if (index > fromIndex) =>
           appendToSortedFetchedFiles(
             IndexedFile(fromVersion, index, file, isLast = (index + 1 == numFiles)))
@@ -184,7 +181,7 @@ case class DeltaSharingSource(
       addFiles.groupBy(a => a.version).toSeq.sortWith(_._1 < _._1).foreach{
         case (v, vAddFiles) =>
           val numFiles = vAddFiles.size
-          vAddFiles.sortWith(addFileForCDFCompareFunc).zipWithIndex.foreach{
+          vAddFiles.sortWith(fileActionCompareFunc).zipWithIndex.foreach{
             case (add, index) if (v > fromVersion || (v == fromVersion && index > fromIndex)) =>
               appendToSortedFetchedFiles(IndexedFile(
                 add.version,
@@ -456,7 +453,7 @@ case class DeltaSharingSource(
             assert(
               endOffset.tableVersion > 0, s"invalid tableVersion in endOffset: $endOffset")
             // Load from snapshot `endOffset.tableVersion - 1L` if endOffset is not
-            // startingVersion
+            // startingVersion, this is the same behavior as DeltaSource.
             (endOffset.tableVersion - 1L, -1L, true, None)
           }
       }
