@@ -47,7 +47,7 @@ object DeltaSharingErrors {
   }
 
   def CDFNotSupportedInStreaming: Throwable = {
-    new UnsupportedOperationException("CDF is not supported in Delta Sharing Streaming yet.")
+    new UnsupportedOperationException("Delta Sharing Streaming CDF is not supported yet.")
   }
 
   def deltaSourceIgnoreDeleteError(version: Long): Throwable = {

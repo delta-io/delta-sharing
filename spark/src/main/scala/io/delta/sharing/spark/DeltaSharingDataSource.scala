@@ -75,7 +75,7 @@ private[sharing] class DeltaSharingDataSource
       throw DeltaSharingErrors.schemaNotSetException
     }
     if (options.readChangeFeed) {
-      throw DeltaSharingErrors.CDFNotSupportedInStreaming
+      (shortName(), DeltaTableUtils.addCdcSchema(schemaWithoutCDC))
     } else {
       (shortName(), schemaToUse)
     }
