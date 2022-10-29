@@ -288,6 +288,8 @@ case class DeltaSharingSource(
               isLast = (index + 1 == numFiles))
             )
         }
+      } else {
+        appendToSortedFetchedFiles(IndexedFile(v, -1, add = null, isLast = true))
       }
     }
   }
