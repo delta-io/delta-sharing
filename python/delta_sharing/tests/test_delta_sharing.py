@@ -53,6 +53,7 @@ def test_list_shares(sharing_client: SharingClient):
         Share(name="share7"),
         Share(name="share_azure"),
         Share(name="share_gcp"),
+        Share(name="share8")
     ]
 
 
@@ -71,13 +72,7 @@ def test_list_tables(sharing_client: SharingClient):
     assert tables == [
         Table(name="table1", share="share1", schema="default"),
         Table(name="table3", share="share1", schema="default"),
-        Table(name="table7", share="share1", schema="default"),
-        Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
-        Table(name="cdf_table_with_partition", share="share1", schema="default"),
-        Table(name="cdf_table_with_vacuum", share="share1", schema="default"),
-        Table(name="cdf_table_missing_log", share="share1", schema="default"),
-        Table(name="streaming_table_with_optimize", share="share1", schema="default"),
-        Table(name="table_reader_version_increased", share="share1", schema="default"),
+        Table(name="table7", share="share1", schema="default")
     ]
 
     tables = sharing_client.list_tables(Schema(name="default", share="share2"))
@@ -89,12 +84,6 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table1", share="share1", schema="default"),
         Table(name="table3", share="share1", schema="default"),
         Table(name="table7", share="share1", schema="default"),
-        Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
-        Table(name="cdf_table_with_partition", share="share1", schema="default"),
-        Table(name="cdf_table_with_vacuum", share="share1", schema="default"),
-        Table(name="cdf_table_missing_log", share="share1", schema="default"),
-        Table(name="streaming_table_with_optimize", share="share1", schema="default"),
-        Table(name="table_reader_version_increased", share="share1", schema="default"),
         Table(name="table2", share="share2", schema="default"),
         Table(name="table4", share="share3", schema="default"),
         Table(name="table5", share="share3", schema="default"),
@@ -104,6 +93,14 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_wasb", share="share_azure", schema="default"),
         Table(name="table_abfs", share="share_azure", schema="default"),
         Table(name="table_gcs", share="share_gcp", schema="default"),
+        Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
+        Table(name="cdf_table_with_partition", share="share8", schema="default"),
+        Table(name="cdf_table_with_vacuum", share="share8", schema="default"),
+        Table(name="cdf_table_missing_log", share="share8", schema="default"),
+        Table(name="streaming_table_with_optimize", share="share8", schema="default"),
+        Table(name="streaming_table_metadata_protocol", share="share8", schema="default"),
+        Table(name="streaming_table_read_incompatible", share="share8", schema="default"),
+        Table(name="table_reader_version_increased", share="share8", schema="default")
     ]
 
 
@@ -272,7 +269,7 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
             id="limit 4",
         ),
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             None,
             None,
             pd.DataFrame(
@@ -285,7 +282,7 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
             id="cdf_table_cdf_enabled",
         ),
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             None,
             1,
             pd.DataFrame(
@@ -388,14 +385,14 @@ def test_load_as_pandas_success(
             id="timestamp not supported",
         ),
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             1,
             "random_timestamp",
             "Please only provide one of",
             id="only one is supported",
         ),
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             None,
             "2000-01-01 00:00:00",
             "Please use a timestamp greater",
@@ -423,7 +420,7 @@ def test_load_as_pandas_exception(
     "fragments,starting_version,ending_version,starting_timestamp,ending_timestamp,error,expected",
     [
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             0,
             3,
             None,
@@ -463,7 +460,7 @@ def test_load_as_pandas_exception(
             id="cdf_table_cdf_enabled table changes:[0, 3]",
         ),
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             5,
             None,
             None,
@@ -482,7 +479,7 @@ def test_load_as_pandas_exception(
             id="cdf_table_cdf_enabled table changes:[5, ]",
         ),
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             None,
             None,
             "2000-01-01 00:00:00",
@@ -492,7 +489,7 @@ def test_load_as_pandas_exception(
             id="cdf_table_cdf_enabled table changes with starting_timestamp",
         ),
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             0,
             None,
             None,
@@ -599,7 +596,7 @@ def test_parse_url():
             id="table1 timestamp not supported",
         ),
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             1,
             None,
             None,
@@ -612,7 +609,7 @@ def test_parse_url():
             id="cdf_table_cdf_enabled version 1 spark",
         ),
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             None,
             "2000-01-01 00:00:00",
             "Please use a timestamp greater",
@@ -621,7 +618,7 @@ def test_parse_url():
             id="cdf_table_cdf_enabled timestamp too early",
         ),
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             1,
             "2000-01-01 00:00:00",
             "Please either provide",
@@ -673,7 +670,7 @@ def test_load_as_spark(
     "expected_data,expected_schema_str",
     [
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             0,
             3,
             None,
@@ -692,7 +689,7 @@ def test_load_as_spark(
             id="cdf_table_cdf_enabled table changes",
         ),
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             None,
             None,
             "2000-01-01 00:00:00",
@@ -703,7 +700,7 @@ def test_load_as_spark(
             id="cdf_table_cdf_enabled starting_timestamp correctly passed",
         ),
         pytest.param(
-            "share1.default.cdf_table_cdf_enabled",
+            "share8.default.cdf_table_cdf_enabled",
             0,
             None,
             None,
