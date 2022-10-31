@@ -17,7 +17,7 @@
 package io.delta.sharing.spark
 
 // scalastyle:off import.ordering.noEmptyLine
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, SparkSession}
@@ -30,6 +30,7 @@ import org.apache.spark.sql.connector.read.streaming.{
 }
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.execution.streaming._
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.StructType
 
 import io.delta.sharing.spark.model.{
@@ -60,7 +61,7 @@ import io.delta.sharing.spark.model.{
 private[sharing] case class IndexedFile(
   version: Long,
   index: Long,
-  add: AddFile,
+  add: AddFileForCDF,
   remove: RemoveFile = null,
   cdc: AddCDCFile = null,
   isLast: Boolean = false) {
@@ -196,7 +197,12 @@ case class DeltaSharingSource(
       tableFiles.files.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
         case (file, index) if (index > fromIndex) =>
           appendToSortedFetchedFiles(
-            IndexedFile(fromVersion, index, file, isLast = (index + 1 == numFiles)))
+            IndexedFile(
+              fromVersion,
+              index,
+              AddFileForCDF(
+                file.url, file.id, file.partitionValues, file.size, fromVersion, -1, file.stats),
+              isLast = (index + 1 == numFiles)))
       }
     } else if (options.readChangeFeed) {
       getCDFFileChanges(fromVersion, fromIndex, isStartingVersion, currentLatestVersion)
@@ -213,12 +219,8 @@ case class DeltaSharingSource(
         appendToSortedFetchedFiles(IndexedFile(v, -1, add = null, isLast = (numFiles == 0)))
         vAddFiles.sortWith(fileActionCompareFunc).zipWithIndex.foreach{
           case (add, index) if (v > fromVersion || (v == fromVersion && index > fromIndex)) =>
-            appendToSortedFetchedFiles(IndexedFile(
-              add.version,
-              index,
-              AddFile(add.url, add.id, add.partitionValues, add.size, add.stats),
-              isLast = (index + 1 == numFiles))
-            )
+            appendToSortedFetchedFiles(
+              IndexedFile(add.version, index, add, isLast = (index + 1 == numFiles)))
         }
       }
     }
@@ -274,7 +276,7 @@ case class DeltaSharingSource(
             appendToSortedFetchedFiles(IndexedFile(
               v,
               index,
-              AddFile(add.url, add.id, add.partitionValues, add.size, add.stats),
+              add,
               isLast = (index + 1 == numFiles))
             )
           case (remove: RemoveFile, index) if (
@@ -346,7 +348,7 @@ case class DeltaSharingSource(
   }
 
   /**
-   * Get the changes from startVersion, startIndex to the endOffset, and create DataFrame.
+   * Create DataFrame from startVersion, startIndex to the endOffset, based on sortedFetchedFiles.
    *
    * Since we use sortedFetchedFiles to serve as local cache of all table files, the table files
    * that are used to construct the DataFrame will be dropped from sortedFetchedFiles (they are
@@ -360,17 +362,13 @@ case class DeltaSharingSource(
    * @param endOffset - Offset that signifies the end of the stream.
    * @return the created DataFrame.
    */
-  private def getFileChangesAndCreateDataFrame(
+  private def createDataFrame(
     startVersion: Long,
     startIndex: Long,
     isStartingVersion: Boolean,
     endOffset: DeltaSharingSourceOffset): DataFrame = {
-    if (options.readChangeFeed) {
-      throw DeltaSharingErrors.CDFNotSupportedInStreaming
-    }
-
     // TODO(lin.zhou) this may be not needed, as we'll always return latestOffset from local cache
-    maybeGetFileChanges(startVersion, startIndex, isStartingVersion)
+//    maybeGetFileChanges(startVersion, startIndex, isStartingVersion)
 
     val fileActions = sortedFetchedFiles.takeWhile {
       case IndexedFile(version, index, _, _, _, _) =>
@@ -381,11 +379,13 @@ case class DeltaSharingSource(
       // Proceed the offset as the files before the endOffset are processed.
     previousOffset = endOffset
 
+    val filteredActions = fileActions.filter{ indexedFile => indexedFile.getFileAction != null }
+
     if (options.readChangeFeed) {
-      return DeltaSharingScanUtils.internalCreateDataFrame(spark, schema)
+      return createCDFDataFrame(filteredActions)
     }
 
-    createDataFrame(fileActions.filter{ indexedFile => indexedFile.getFileAction != null })
+    createDataFrame(filteredActions)
   }
 
   /**
@@ -394,7 +394,10 @@ case class DeltaSharingSource(
    * @param indexedFiles actions list from which to generate the DataFrame.
    */
   private def createDataFrame(indexedFiles: Seq[IndexedFile]): DataFrame = {
-    val addFilesList = indexedFiles.map(_.getFileAction.asInstanceOf[AddFile])
+    val addFilesList = indexedFiles.map { indexedFile =>
+      val add = indexedFile.add
+      AddFile(add.url, add.id, add.partitionValues, add.size, add.stats)
+    }
 
     val params = new RemoteDeltaFileIndexParams(spark, snapshot)
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
@@ -408,6 +411,34 @@ case class DeltaSharingSource(
       Map.empty)(spark)
 
     DeltaSharingScanUtils.ofRows(spark, LogicalRelation(relation, isStreaming = true))
+  }
+
+  /**
+   * Given a list of file actions, create a DataFrame representing the Change Data Feed of the
+   * table.
+   * @param indexedFiles actions list from which to generate the DataFrame.
+   */
+  private def createCDFDataFrame(indexedFiles: Seq[IndexedFile]): DataFrame = {
+    val addFiles = ArrayBuffer[AddFileForCDF]()
+    val cdfFiles = ArrayBuffer[AddCDCFile]()
+    val removeFiles = ArrayBuffer[RemoveFile]()
+    indexedFiles.foreach{indexedFile =>
+      indexedFile.getFileAction match {
+        case cdf: AddCDCFile => cdfFiles.append(cdf)
+        case add: AddFileForCDF => addFiles.append(add)
+        case remove: RemoveFile => removeFiles.append(remove)
+        case f => throw new IllegalStateException(s"Unexpected File:${f}")
+      }
+    }
+
+    DeltaSharingCDFReader.changesToDF(
+      new RemoteDeltaFileIndexParams(spark, snapshot),
+      schema.fields.map(f => f.name),
+      addFiles,
+      cdfFiles,
+      removeFiles,
+      schema
+    )
   }
 
   /**
@@ -586,9 +617,7 @@ case class DeltaSharingSource(
     }
     logDebug(s"start: $startOffsetOption end: $end")
 
-    val createdDf = getFileChangesAndCreateDataFrame(
-      startVersion, startIndex, isStartingVersion, endOffset
-    )
+    val createdDf = createDataFrame(startVersion, startIndex, isStartingVersion, endOffset)
 
     createdDf
   }

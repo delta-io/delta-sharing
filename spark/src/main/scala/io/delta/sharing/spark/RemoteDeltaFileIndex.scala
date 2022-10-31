@@ -23,32 +23,17 @@ import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
-import org.apache.spark.sql.catalyst.expressions.{
-  And,
-  Attribute,
-  Cast,
-  Expression,
-  GenericInternalRow,
-  Literal,
-  SubqueryExpression
-}
-import org.apache.spark.sql.execution.datasources.{
-  FileFormat,
-  FileIndex,
-  HadoopFsRelation,
-  PartitionDirectory
-}
+import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal, SubqueryExpression}
+import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
 import org.apache.spark.sql.types.{DataType, StructType}
 
 import io.delta.sharing.spark.model.{
   AddCDCFile,
   AddFile,
+  AddFileForCDF,
   CDFColumnInfo,
-  DeltaTableFiles,
   FileAction,
-  Metadata,
-  Protocol,
-  Table => DeltaSharingTable
+  RemoveFile
 }
 
 private[sharing] case class RemoteDeltaFileIndexParams(
@@ -168,26 +153,26 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
 
 private[sharing] case class RemoteDeltaCDFAddFileIndex(
     override val params: RemoteDeltaFileIndexParams,
-    deltaTableFiles: DeltaTableFiles)
+    addFiles: Seq[AddFileForCDF])
     extends RemoteDeltaCDFFileIndexBase(
       params,
-      deltaTableFiles.addFiles,
+      addFiles,
       CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile) {}
 
 private[sharing] case class RemoteDeltaCDCFileIndex(
     override val params: RemoteDeltaFileIndexParams,
-    deltaTableFiles: DeltaTableFiles)
+    cdfFiles: Seq[AddCDCFile])
     extends RemoteDeltaCDFFileIndexBase(
       params,
-      deltaTableFiles.cdfFiles,
+      cdfFiles,
       CDFColumnInfo.getInternalPartitonSchemaForCDC) {}
 
 private[sharing] case class RemoteDeltaCDFRemoveFileIndex(
     override val params: RemoteDeltaFileIndexParams,
-    deltaTableFiles: DeltaTableFiles)
+    removeFiles: Seq[RemoveFile])
     extends RemoteDeltaCDFFileIndexBase(
       params,
-      deltaTableFiles.removeFiles,
+      removeFiles,
       CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile) {}
 
 // The index classes for batch files
