@@ -31,6 +31,9 @@ import org.scalatest.time.SpanSugar._
 class DeltaSharingSourceSuite extends QueryTest
   with SharedSparkSession with DeltaSharingIntegrationTest {
 
+  // TODO: add test on a shared table without schema
+  // TODO: support dir so we can test checkpoint, restart the stream, the actual dataframe, etc.
+
   import testImplicits._
 
   // VERSION 0: CREATE TABLE
@@ -41,7 +44,7 @@ class DeltaSharingSourceSuite extends QueryTest
 
   lazy val deltaLog = RemoteDeltaLog(tablePath)
 
-  val streamingTimeout = 5.seconds
+  val streamingTimeout = 60.seconds
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
     val options = new DeltaSharingOptions(parameters)
@@ -56,9 +59,6 @@ class DeltaSharingSourceSuite extends QueryTest
       .option("ignoreDeletes", "true")
       .option("ignoreChanges", "true")
   }
-
-  // TODO: add test on a shared table without schema
-  // TODO: support dir so we can test checkpoint, restart the stream, etc.
 
   /**
    * Test defaultReadLimit
@@ -221,7 +221,7 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-  test("maxFilesPerTrigger - ignored when using Trigger.Once") {
+  integrationTest("maxFilesPerTrigger - ignored when using Trigger.Once") {
     val query = withStreamReaderAtVersion()
       .option("maxFilesPerTrigger", "1")
       .load().writeStream.format("console")
@@ -240,7 +240,7 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-  integrationTest("maxBytesPerTrigger - at least one file") {
+  integrationTest("maxBytesPerTrigger - success with different values") {
     // Map from maxBytesPerTrigger to a list, the size of the list is the number of progresses of
     // the stream query, and each element in the list is the numInputRows for each progress.
     Map(1 -> Seq(1, 1, 1, 1), 1000 -> Seq(1, 1, 1, 1), 2000 -> Seq(2, 2),
@@ -276,7 +276,7 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-  test("maxBytesPerTrigger - ignored when using Trigger.Once") {
+  integrationTest("maxBytesPerTrigger - ignored when using Trigger.Once") {
     val query = withStreamReaderAtVersion()
       .option("maxBytesPerTrigger", "1b")
       .load().writeStream.format("console")
@@ -295,7 +295,7 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-  test("maxBytesPerTrigger - max bytes and max files together") {
+  integrationTest("maxBytesPerTrigger - max bytes and max files together") {
     // should process one file at a time
     val q = withStreamReaderAtVersion()
       .option(DeltaSharingOptions.MAX_FILES_PER_TRIGGER_OPTION, "1")

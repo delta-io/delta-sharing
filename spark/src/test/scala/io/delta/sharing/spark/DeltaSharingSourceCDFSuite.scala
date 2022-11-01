@@ -31,6 +31,9 @@ import org.scalatest.time.SpanSugar._
 class DeltaSharingSourceCDFSuite extends QueryTest
   with SharedSparkSession with DeltaSharingIntegrationTest {
 
+  // TODO: add test on a shared table without schema
+  // TODO: support dir so we can test checkpoint, restart the stream, the actual dataframe, etc.
+
   import testImplicits._
 
   // VERSION 0: CREATE TABLE
@@ -48,13 +51,13 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   // allowed to query starting from version 1
   // VERSION 1: INSERT 2 rows, 1 add file
   // VERSION 1: INSERT 3 rows, 1 add file
-  // VERSION 2: UPDATE 4 row, 2 cdf files
-  // VERSION 2: REMOVE 4 rows, 2 cdf files
+  // VERSION 2: UPDATE 4 rows, 4 cdf files, 8 cdf rows
+  // VERSION 2: REMOVE 4 rows, 2 remove files
   lazy val cdfTablePath = testProfileFile.getCanonicalPath + "#share8.default.streaming_cdf_table"
 
   lazy val deltaLog = RemoteDeltaLog(cdfTablePath)
 
-  val streamingTimeout = 5.seconds
+  val streamingTimeout = 120.seconds
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
     val options = new DeltaSharingOptions(parameters ++ Map("readChangeFeed" -> "true"))
@@ -72,7 +75,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   }
 
   /**
-   * Test latestOffset
+   * Test latestOffset for Stream CDF
    */
   integrationTest("DeltaSharingSource.latestOffset - startingVersion 0") {
     val source = getSource(Map(
@@ -86,7 +89,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
     assert(offset.sourceVersion == 1)
     assert(offset.tableId == deltaLog.snapshot(Some(0)).metadata.id)
-    assert(offset.tableVersion == 4)
+    assert(offset.tableVersion == 5)
     assert(offset.index == -1)
     assert(!offset.isStartingVersion)
   }
@@ -109,13 +112,13 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
     assert(offset.sourceVersion == 1)
     assert(offset.tableId == deltaLog.snapshot().metadata.id)
-    assert(offset.tableVersion == 4)
+    assert(offset.tableVersion == 5)
     assert(offset.index == -1)
     assert(!offset.isStartingVersion)
   }
 
   /**
-   * Test getBatch
+   * Test getBatch for Stream CDF
    */
   integrationTest("DeltaSharingSource.getBatch - exception") {
     // getBatch cannot be called without writestream
@@ -149,7 +152,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       query.stop()
     }
 
-    // Test readchangeData
+    // Test readchangeData=true, and startingVersion=1.
     query = spark.readStream.format("deltaSharing")
       .option("readchangeData", "true")
       .option("startingVersion", "1")
@@ -212,7 +215,6 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     }.getMessage
     assert(message.contains("Error getting change data for range"))
 
-    Console.println(s"-----[linzhou]--------exception-2")
     query = withStreamReaderAtVersion(path = errorTablePath2, startingVersion = "0")
       .load().writeStream.format("console").start()
     message = intercept[StreamingQueryException] {
@@ -222,7 +224,6 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     assert(message.contains("You can only query table changes since version 1."))
 
     // startingTimestamp > latest version
-    Console.println(s"-----[linzhou]--------exception-3")
     message = intercept[StreamingQueryException] {
       val query = spark.readStream.format("deltaSharing")
         .option("readchangeFeed", "true")
@@ -232,7 +233,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     }.getMessage
     assert(message.contains("The provided timestamp (9999-01-01 00:00:00.0) is after"))
 
-    // startingTimestamp corresponds to version 0, < allowed starting version 1.
+    // startingTimestamp corresponds to version 0, < allowed starting version 1 on errorTablePath2.
     message = intercept[StreamingQueryException] {
       val query = spark.readStream.format("deltaSharing")
         .option("readchangeFeed", "true")
@@ -245,7 +246,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   }
 
   integrationTest("CDF Stream - different startingVersion") {
-    // Starting from version 3: 2 CDF Files
+    // Starting from version 3: 4 CDF Files
     var query = withStreamReaderAtVersion(startingVersion = "3")
       .load().writeStream.format("console").start()
     try {
@@ -259,7 +260,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       query.stop()
     }
 
-    // Starting from version 4: 2 CDF Files
+    // Starting from version 4: 2 remove Files
     query = withStreamReaderAtVersion(startingVersion = "4")
       .load().writeStream.format("console").start()
     try {
@@ -273,8 +274,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       query.stop()
     }
 
-    // TODO: timestamp for queryTable with version
-    // no startingVersion - should result fetch the entire snapshot
+    // no startingVersion - should result fetch the latest snapshot, which has only 1 row
     query = spark.readStream.format("deltaSharing")
       .option("readchangeFeed", "true")
       .load(cdfTablePath).writeStream.format("console").start()
@@ -283,7 +283,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 1)
       progress.foreach { p =>
-        assert(p.numInputRows === 2)
+        assert(p.numInputRows === 1)
       }
     } finally {
       query.stop()
@@ -327,15 +327,24 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   integrationTest("maxFilesPerTrigger - success with different values") {
     // Map from maxFilesPerTrigger to a list, the size of the list is the number of progresses of
     // the stream query, and each element in the list is the numInputRows for each progress.
-    Map(1 -> Seq(1, 1, 1, 2, 1), 2 -> Seq(2, 2, 1),
-        3 -> Seq(3, 2), 4 -> Seq(4, 1), 5 -> Seq(5)).foreach{
+    //
+    // Table versions:
+    // VERSION 1: INSERT 2 rows, 1 add file
+    // VERSION 1: INSERT 3 rows, 1 add file
+    // VERSION 2: UPDATE 4 rows, 4 cdf files, 8 cdf rows,
+    //   For CDC commits we either admit the entire commit or nothing at all.
+    //   This is to avoid returning `update_preimage` and `update_postimage` in separate
+    //   batches.
+    // VERSION 2: REMOVE 4 rows, 2 remove files
+    Map(1 -> Seq(2, 3, 8, 2, 2), 2 -> Seq(5, 8, 4), 3 -> Seq(13, 4),
+        6 -> Seq(13, 4), 7 -> Seq(15, 2), 8 -> Seq(17), 9 -> Seq(17)).foreach{
       case (k, v) =>
         val query = withStreamReaderAtVersion()
           .option("maxFilesPerTrigger", s"$k")
           .load().writeStream.format("console").start()
 
         try {
-          query.processAllAvailable()
+          assert(query.awaitTermination(streamingTimeout.toMillis))
           val progress = query.recentProgress.filter(_.numInputRows != 0)
           assert(progress.length === v.size)
           progress.zipWithIndex.map { case (p, index) =>
@@ -347,7 +356,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     }
   }
 
-  test("maxFilesPerTrigger - ignored when using Trigger.Once") {
+  integrationTest("maxFilesPerTrigger - ignored when using Trigger.Once") {
     val query = withStreamReaderAtVersion()
       .option("maxFilesPerTrigger", "1")
       .load().writeStream.format("console")
@@ -359,18 +368,27 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 1) // only one trigger was run
       progress.foreach { p =>
-        assert(p.numInputRows === 6)
+        assert(p.numInputRows === 17)
       }
     } finally {
       query.stop()
     }
   }
 
-  integrationTest("maxBytesPerTrigger - at least one file") {
+  integrationTest("maxBytesPerTrigger - success with different values") {
     // Map from maxBytesPerTrigger to a list, the size of the list is the number of progresses of
     // the stream query, and each element in the list is the numInputRows for each progress.
-    Map(1 -> Seq(1, 1, 1, 1), 1000 -> Seq(1, 1, 1, 1), 2000 -> Seq(2, 2),
-      3000 -> Seq(3, 1), 4000 -> Seq(4), 5000 -> Seq(4)).foreach {
+    //
+    // Table versions:
+    // VERSION 1: INSERT 2 rows, 1 add file, 794 bytes
+    // VERSION 1: INSERT 3 rows, 1 add file, 803 bytes
+    // VERSION 2: UPDATE 4 rows, 4 cdf files, 8 cdf rows, 1100+ bytes each
+    //   For CDC commits we either admit the entire commit or nothing at all.
+    //   This is to avoid returning `update_preimage` and `update_postimage` in separate
+    //   batches.
+    // VERSION 2: REMOVE 4 rows, 2 remove files, 1000+ bytes each
+    Map(1 -> Seq(2, 3, 8, 2, 2), 700 -> Seq(2, 3, 8, 2, 2), 800 -> Seq(5, 8, 2, 2),
+        1600 -> Seq(13, 4), 6000 -> Seq(13, 4), 7000 -> Seq(15, 2), 9000 -> Seq(17)).foreach {
       case (k, v) =>
         val query = withStreamReaderAtVersion()
           .option("maxBytesPerTrigger", s"${k}b")
@@ -389,20 +407,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     }
   }
 
-  testQuietly("maxBytesPerTrigger - invalid parameter") {
-    Seq("0", "-1", "string").foreach { invalidMaxFilesPerTrigger =>
-      val message = intercept[IllegalArgumentException] {
-        val query = withStreamReaderAtVersion()
-          .option("maxBytesPerTrigger", invalidMaxFilesPerTrigger)
-          .load().writeStream.format("console").start()
-      }.getMessage
-      for (msg <- Seq("Invalid", DeltaSharingOptions.MAX_BYTES_PER_TRIGGER_OPTION, "size")) {
-        assert(message.contains(msg))
-      }
-    }
-  }
-
-  test("maxBytesPerTrigger - ignored when using Trigger.Once") {
+  integrationTest("maxBytesPerTrigger - ignored when using Trigger.Once") {
     val query = withStreamReaderAtVersion()
       .option("maxBytesPerTrigger", "1b")
       .load().writeStream.format("console")
@@ -414,14 +419,14 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 1) // only one trigger was run
       progress.foreach { p =>
-        assert(p.numInputRows === 4)
+        assert(p.numInputRows === 17)
       }
     } finally {
       query.stop()
     }
   }
 
-  test("maxBytesPerTrigger - max bytes and max files together") {
+  integrationTest("maxBytesPerTrigger - max bytes and max files together") {
     // should process one file at a time
     val q = withStreamReaderAtVersion()
       .option(DeltaSharingOptions.MAX_FILES_PER_TRIGGER_OPTION, "1")
@@ -429,10 +434,12 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       .load().writeStream.format("console").start()
     try {
       q.processAllAvailable()
+//      assert(q.awaitTermination(streamingTimeout.toMillis))
       val progress = q.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 4)
-      progress.foreach { p =>
-        assert(p.numInputRows === 1)
+      assert(progress.length === 5)
+      val expectedProgresses = Seq(2, 3, 8, 2, 2)
+      progress.zipWithIndex.foreach { case (p, index) =>
+        assert(p.numInputRows === expectedProgresses(index))
       }
     } finally {
       q.stop()
@@ -443,11 +450,13 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       .option(DeltaSharingOptions.MAX_BYTES_PER_TRIGGER_OPTION, "1b")
       .load().writeStream.format("console").start()
     try {
+//      assert(q2.awaitTermination(streamingTimeout.toMillis))
       q2.processAllAvailable()
       val progress = q2.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 4)
-      progress.foreach { p =>
-        assert(p.numInputRows === 1)
+      assert(progress.length === 5)
+      val expectedProgresses = Seq(2, 3, 8, 2, 2)
+      progress.zipWithIndex.foreach { case (p, index) =>
+        assert(p.numInputRows === expectedProgresses(index))
       }
     } finally {
       q2.stop()

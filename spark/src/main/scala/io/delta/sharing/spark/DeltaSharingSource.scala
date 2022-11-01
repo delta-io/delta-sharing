@@ -80,7 +80,6 @@ private[sharing] case class IndexedFile(
 /**
  * Base trait for the Delta Sharing Source, that contains methods that deal with
  * getting changes from the delta sharing server.
- * TODO(lin.zhou) Support SupportsTriggerAvailableNow
  */
 /**
  * A streaming source for a Delta Sharing table.
@@ -188,6 +187,7 @@ case class DeltaSharingSource(
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
+      // TODO: return timestamp for fromVersion
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, Nil, None, Some(fromVersion), None)
 
       val numFiles = tableFiles.files.size
@@ -228,7 +228,6 @@ case class DeltaSharingSource(
     fromIndex: Long,
     isStartingVersion: Boolean,
     currentLatestVersion: Long): Unit = {
-    // scalastyle:off println
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString))
 
@@ -310,14 +309,14 @@ case class DeltaSharingSource(
       var indexedFile = sortedFetchedFiles(index)
 
       if (admissionControl.admit(indexedFile.getFileAction)) {
-        if (indexedFile.cdc != null && index + 1 < sortedFetchedFiles.size
+        // For CDC commits we either admit the entire commit or nothing at all.
+        // This is to avoid returning `update_preimage` and `update_postimage` in separate
+        // batches.
+        while (indexedFile.cdc != null && index + 1 < sortedFetchedFiles.size
           && sortedFetchedFiles(index + 1).cdc != null &&
           sortedFetchedFiles(index + 1).version == indexedFile.version
         ) {
-          // scalastyle:off println
-          Console.println(s"-----[linzhou]--------admit-cdc:" +
-            s"${admissionControl.filesToTake}-${admissionControl.bytesToTake}")
-          // while is cdc and on the same version, admit
+          // while is cdc file and on the same version, admit the file.
           indexedFile = sortedFetchedFiles(index + 1)
           admissionControl.admit(indexedFile.getFileAction)
           index += 1
