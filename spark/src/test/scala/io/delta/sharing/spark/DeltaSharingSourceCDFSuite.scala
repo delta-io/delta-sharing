@@ -28,7 +28,7 @@ import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{StringType, StructField, StructType, TimestampType}
 import org.scalatest.time.SpanSugar._
 
-class DeltaSharingSourceSuite extends QueryTest
+class DeltaSharingSourceCDFSuite extends QueryTest
   with SharedSparkSession with DeltaSharingIntegrationTest {
 
   import testImplicits._
@@ -39,37 +39,29 @@ class DeltaSharingSourceSuite extends QueryTest
   // VERSION 3: UPDATE 1 row, 1 remove file and 1 add file
   lazy val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
 
-  lazy val deltaLog = RemoteDeltaLog(tablePath)
+  // allowed to query starting from version 1
+  // VERSION 1: INSERT 3 rows, 3 add files
+  // VERSION 2: UPDATE 1 row, 1 cdf file
+  // VERSION 2: REMOVE 1 row, 1 remove file
+  lazy val cdfTablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_with_partition"
+
+  lazy val deltaLog = RemoteDeltaLog(cdfTablePath)
 
   val streamingTimeout = 5.seconds
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
-    val options = new DeltaSharingOptions(parameters)
+    val options = new DeltaSharingOptions(parameters ++ Map("readChangeFeed" -> "true"))
     DeltaSharingSource(SparkSession.active, deltaLog, options)
   }
 
   def withStreamReaderAtVersion(
-      path: String = tablePath,
-      startingVersion: String = "0"): DataStreamReader = {
+      path: String = cdfTablePath,
+      startingVersion: String = "1"): DataStreamReader = {
     spark.readStream.format("deltaSharing").option("path", path)
       .option("startingVersion", startingVersion)
       .option("ignoreDeletes", "true")
       .option("ignoreChanges", "true")
-  }
-
-  // TODO: add test on a shared table without schema
-  // TODO: support dir so we can test checkpoint, restart the stream, etc.
-
-  /**
-   * Test defaultReadLimit
-   */
-  integrationTest("DeltaSharingSource - defaultLimit") {
-    val source = getSource(Map.empty[String, String])
-
-    val defaultLimit = source.getDefaultReadLimit
-    assert(defaultLimit.isInstanceOf[ReadMaxFiles])
-    assert(defaultLimit.asInstanceOf[ReadMaxFiles].maxFiles ==
-      DeltaSharingOptions.MAX_FILES_PER_TRIGGER_OPTION_DEFAULT)
+      .option("readChangeFeed", "true")
   }
 
   /**
@@ -87,7 +79,7 @@ class DeltaSharingSourceSuite extends QueryTest
     val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
     assert(offset.sourceVersion == 1)
     assert(offset.tableId == deltaLog.snapshot(Some(0)).metadata.id)
-    assert(offset.tableVersion == 6)
+    assert(offset.tableVersion == 4)
     assert(offset.index == -1)
     assert(!offset.isStartingVersion)
   }
@@ -110,7 +102,7 @@ class DeltaSharingSourceSuite extends QueryTest
     val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
     assert(offset.sourceVersion == 1)
     assert(offset.tableId == deltaLog.snapshot().metadata.id)
-    assert(offset.tableVersion == 6)
+    assert(offset.tableVersion == 4)
     assert(offset.index == -1)
     assert(!offset.isStartingVersion)
   }
@@ -133,22 +125,10 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   /**
-   * Test schema exception
+   * Test basic cdf streaming functionality
    */
-  integrationTest("disallow user specified schema") {
-    var message = intercept[UnsupportedOperationException] {
-      val query = spark.readStream.format("deltaSharing")
-        .schema(StructType(Array(StructField("a", TimestampType), StructField("b", StringType))))
-        .load(tablePath)
-    }.getMessage
-    assert(message.contains("Delta sharing does not support specifying the schema at read time"))
-  }
-
-  /**
-   * Test basic streaming functionality
-   */
-  integrationTest("basic - success") {
-    val query = withStreamReaderAtVersion()
+  integrationTest("CDF Stream basic - success") {
+    var query = withStreamReaderAtVersion()
       .load().writeStream.format("console").start()
 
     try {
@@ -156,21 +136,143 @@ class DeltaSharingSourceSuite extends QueryTest
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 1)
       progress.foreach { p =>
-        assert(p.numInputRows === 4)
+        assert(p.numInputRows === 6)
+      }
+    } finally {
+      query.stop()
+    }
+
+    // Test readchangeData
+    query = spark.readStream.format("deltaSharing")
+      .option("readchangeData", "true")
+      .option("startingVersion", "1")
+      .load(cdfTablePath).writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 6)
       }
     } finally {
       query.stop()
     }
   }
 
-  integrationTest("no startingVersion - success") {
-    // cdf_table_cdf_enabled snapshot at version 5 is queried, with 2 files and 2 rows of data
-    val query = spark.readStream.format("deltaSharing")
-      .option("ignoreDeletes", "true")
-      .option("ignoreChanges", "true")
-      .load(tablePath)
-      .select("birthday", "name", "age").writeStream.format("console").start()
+  integrationTest("CDF Stream select columns - success") {
+    // select all columns in a different order
+    var query = withStreamReaderAtVersion()
+      .load()
+      .select("birthday", "_commit_version", "name", "_commit_timestamp", "age", "_change_type")
+      .writeStream.format("console").start()
 
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 6)
+      }
+    } finally {
+      query.stop()
+    }
+
+    // select a few columns
+    query = withStreamReaderAtVersion()
+      .load()
+      .select("birthday", "_commit_version", "age", "_change_type")
+      .writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 6)
+      }
+    } finally {
+      query.stop()
+    }
+  }
+
+  integrationTest("CDF Stream - exceptions") {
+    // For tablePath(cdf_table_cdf_enabled), cdf is disabled at version 4, so there will exception
+    // returned from the server.
+    Console.println(s"-----[linzhou]--------exception-1")
+    var query = withStreamReaderAtVersion(path = tablePath)
+      .load().writeStream.format("console").start()
+    var message = intercept[StreamingQueryException] {
+      // block until query is terminated, with stop() or with error
+      query.awaitTermination(streamingTimeout.toMillis)
+    }.getMessage
+    assert(message.contains("Error getting change data for range"))
+
+    Console.println(s"-----[linzhou]--------exception-2")
+    query = withStreamReaderAtVersion(startingVersion = "0")
+      .load().writeStream.format("console").start()
+    message = intercept[StreamingQueryException] {
+      // block until query is terminated, with stop() or with error
+      query.awaitTermination(streamingTimeout.toMillis)
+    }.getMessage
+    assert(message.contains("You can only query table changes since version 1."))
+
+    // startingTimestamp > latest version
+    Console.println(s"-----[linzhou]--------exception-3")
+    message = intercept[StreamingQueryException] {
+      val query = spark.readStream.format("deltaSharing")
+        .option("readchangeFeed", "true")
+        .option("startingTimestamp", "9999-01-01 00:00:00.0")
+        .load(cdfTablePath).writeStream.format("console").start()
+      query.awaitTermination(streamingTimeout.toMillis)
+    }.getMessage
+    assert(message.contains("The provided timestamp (9999-01-01 00:00:00.0) is after"))
+
+    // startingTimestamp corresponds to version 0, < allowed starting version 1.
+    message = intercept[StreamingQueryException] {
+      val query = spark.readStream.format("deltaSharing")
+        .option("readchangeFeed", "true")
+        .option("startingTimestamp", "2022-01-01 00:00:00")
+        .load(cdfTablePath).writeStream.format("console").start()
+      query.awaitTermination(streamingTimeout.toMillis)
+    }.getMessage
+    assert(message.contains("The provided timestamp(2022-01-01 00:00:00) corresponds to 0"))
+    // startingVersion > latest version
+  }
+
+  integrationTest("CDF Stream - different startingVersion") {
+    // Starting from version 2: 1 CDF File
+    var query = withStreamReaderAtVersion(startingVersion = "2")
+      .load().writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 3)
+      }
+    } finally {
+      query.stop()
+    }
+
+    // Starting from version 3: 1 Remove File
+    query = withStreamReaderAtVersion(startingVersion = "3")
+      .load().writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 1)
+      }
+    } finally {
+      query.stop()
+    }
+
+
+    // TODO: timestamp for queryTable with version
+    // no startingVersion - should result fetch the entire snapshot
+    query = spark.readStream.format("deltaSharing")
+      .option("readchangeFeed", "true")
+      .load(cdfTablePath).writeStream.format("console").start()
     try {
       query.processAllAvailable()
       val progress = query.recentProgress.filter(_.numInputRows != 0)
@@ -181,7 +283,35 @@ class DeltaSharingSourceSuite extends QueryTest
     } finally {
       query.stop()
     }
+
+    // latest startingVersion - should fetch no data
+    query = spark.readStream.format("deltaSharing")
+      .option("readchangeFeed", "true")
+      .option("startingVersion", "latest")
+      .load(cdfTablePath).writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 0)
+    } finally {
+      query.stop()
+    }
   }
+
+  integrationTest("CDF Stream - startingTimestamp works") {
+//    val query = spark.readStream.format("deltaSharing")
+//      .option("readchangeFeed", "true")
+//      .option("startingTimestamp", "2022-01-01 00:00:00")
+//      .load(cdfTablePath).writeStream.format("console").start()
+//    try {
+//      query.processAllAvailable()
+//      val progress = query.recentProgress.filter(_.numInputRows != 0)
+//      assert(progress.length === 0)
+//    } finally {
+//      query.stop()
+//    }
+  }
+
 
   /**
    * Test maxFilesPerTrigger and maxBytesPerTrigger
@@ -189,7 +319,8 @@ class DeltaSharingSourceSuite extends QueryTest
   integrationTest("maxFilesPerTrigger - success with different values") {
     // Map from maxFilesPerTrigger to a list, the size of the list is the number of progresses of
     // the stream query, and each element in the list is the numInputRows for each progress.
-    Map(1 -> Seq(1, 1, 1, 1), 2 -> Seq(2, 2), 3 -> Seq(3, 1), 4 -> Seq(4), 5 -> Seq(4)).foreach{
+    Map(1 -> Seq(1, 1, 1, 2, 1), 2 -> Seq(2, 2, 1),
+        3 -> Seq(3, 2), 4 -> Seq(4, 1), 5 -> Seq(5)).foreach{
       case (k, v) =>
         val query = withStreamReaderAtVersion()
           .option("maxFilesPerTrigger", s"$k")
@@ -208,19 +339,6 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-  testQuietly("maxFilesPerTrigger - invalid parameter") {
-    Seq("0", "-1", "string").foreach { invalidMaxFilesPerTrigger =>
-      val message = intercept[IllegalArgumentException] {
-        val query = withStreamReaderAtVersion()
-          .option("maxFilesPerTrigger", invalidMaxFilesPerTrigger)
-          .load().writeStream.format("console").start()
-      }.getMessage
-      for (msg <- Seq("Invalid", DeltaSharingOptions.MAX_FILES_PER_TRIGGER_OPTION, "positive")) {
-        assert(message.contains(msg))
-      }
-    }
-  }
-
   test("maxFilesPerTrigger - ignored when using Trigger.Once") {
     val query = withStreamReaderAtVersion()
       .option("maxFilesPerTrigger", "1")
@@ -233,7 +351,7 @@ class DeltaSharingSourceSuite extends QueryTest
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 1) // only one trigger was run
       progress.foreach { p =>
-        assert(p.numInputRows === 4)
+        assert(p.numInputRows === 6)
       }
     } finally {
       query.stop()
@@ -325,162 +443,6 @@ class DeltaSharingSourceSuite extends QueryTest
       }
     } finally {
       q2.stop()
-    }
-  }
-
-  /**
-   * Test ignoreChanges/ignoreDeletes
-   */
-  integrationTest("ignoreDeletes/ignoreChanges - are needed to process deletes/updates") {
-    // There are deletes at version 2 of cdf_table_cdf_enabled
-    var query = spark.readStream.format("deltaSharing").option("path", tablePath)
-      .option("startingVersion", "0")
-      .load().writeStream.format("console").start()
-    var message = intercept[StreamingQueryException] {
-      // block until query is terminated, with stop() or with error
-      query.awaitTermination(streamingTimeout.toMillis)
-    }.getMessage
-    assert(message.contains("Detected deleted data from streaming source at version 2"))
-
-    // There are updates at version 3 of cdf_table_cdf_enabled
-    query = spark.readStream.format("deltaSharing").option("path", tablePath)
-      .option("startingVersion", "0")
-      .option("ignoreDeletes", "true")
-      .load().writeStream.format("console").start()
-    message = intercept[StreamingQueryException] {
-      // block until query is terminated, with stop() or with error
-      query.awaitTermination(streamingTimeout.toMillis)
-    }.getMessage
-    assert(message.contains("Detected a data update in the source table at version 3"))
-  }
-
-  /**
-   * Test versionAsOf/timestampAsOf
-   */
-  integrationTest("versionAsOf/timestampAsOf - not supported") {
-    var message = intercept[UnsupportedOperationException] {
-      val query = spark.readStream.format("deltaSharing").option("path", tablePath)
-        .option("versionAsOf", "1")
-        .load().writeStream.format("console").start()
-    }.getMessage
-    assert(message.contains("Cannot time travel streams"))
-
-    message = intercept[UnsupportedOperationException] {
-      val query = spark.readStream.format("deltaSharing").option("path", tablePath)
-        .option("timestampAsOf", "2022-10-01 00:00:00.0")
-        .load().writeStream.format("console").start()
-    }.getMessage
-    assert(message.contains("Cannot time travel streams"))
-  }
-
-  /**
-   * Test startingVersion/startingTimestamp
-   */
-  integrationTest("startingVersion/startingTimestamp - exceptions") {
-    Seq("-1", "string").foreach { invalidStartingVersion =>
-      val message = intercept[IllegalArgumentException] {
-        val query = spark.readStream.format("deltaSharing").option("path", tablePath)
-          .option("startingVersion", invalidStartingVersion)
-          .load().writeStream.format("console").start()
-      }.getMessage
-      for (msg <- Seq("Invalid", DeltaSharingOptions.STARTING_VERSION_OPTION, "greater")) {
-        assert(message.contains(msg))
-      }
-    }
-
-    var message = intercept[StreamingQueryException] {
-      val query = spark.readStream.format("deltaSharing").option("path", tablePath)
-        .option("startingTimestamp", "")
-        .load().writeStream.format("console").start()
-      query.awaitTermination(streamingTimeout.toMillis)
-    }.getMessage
-    assert(message.contains("Invalid startingTimestamp:"))
-
-    message = intercept[IllegalArgumentException] {
-      val query = spark.readStream.format("deltaSharing").option("path", tablePath)
-        .option("startingTimestamp", "")
-        .option("startingVersion", "1")
-        .load().writeStream.format("console").start()
-    }.getMessage
-    assert(message.contains("Please either provide 'startingVersion' or 'startingTimestamp'."))
-
-    message = intercept[StreamingQueryException] {
-      val query = spark.readStream.format("deltaSharing").option("path", tablePath)
-        .option("startingTimestamp", "9999-01-01 00:00:00.0")
-        .load().writeStream.format("console").start()
-      query.awaitTermination(streamingTimeout.toMillis)
-    }.getMessage
-    assert(message.contains("The provided timestamp (9999-01-01 00:00:00.0) is after"))
-  }
-
-  integrationTest("startingTimestamp - succeeds") {
-    // 2022-01-01 00:00:00.0 a timestamp before version 0, which will be converted to version 0.
-    var query = spark.readStream.format("deltaSharing").option("path", tablePath)
-      .option("startingTimestamp", "2022-01-01 00:00:00.0")
-      .option("ignoreDeletes", "true")
-      .option("ignoreChanges", "true")
-      .load().writeStream.format("console").start()
-    try {
-      query.processAllAvailable()
-      val progress = query.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 1)
-      progress.foreach { p =>
-        assert(p.numInputRows === 4)
-      }
-    } finally {
-      query.stop()
-    }
-  }
-
-  integrationTest("startingVersion - succeeds") {
-    var query = withStreamReaderAtVersion("1")
-      .load().writeStream.format("console").start()
-    try {
-      query.processAllAvailable()
-      val progress = query.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 1)
-      progress.foreach { p =>
-        assert(p.numInputRows === 4)
-      }
-    } finally {
-      query.stop()
-    }
-
-    query = withStreamReaderAtVersion("2")
-      .load().writeStream.format("console").start()
-    try {
-      query.processAllAvailable()
-      val progress = query.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 1)
-      progress.foreach { p =>
-        assert(p.numInputRows === 1)
-      }
-    } finally {
-      query.stop()
-    }
-
-    query = withStreamReaderAtVersion("3")
-      .load().writeStream.format("console").start()
-    try {
-      query.processAllAvailable()
-      val progress = query.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 1)
-      progress.foreach { p =>
-        assert(p.numInputRows === 1)
-      }
-    } finally {
-      query.stop()
-    }
-
-    // there are 3 versions in total
-    query = withStreamReaderAtVersion("4")
-      .load().writeStream.format("console").start()
-    try {
-      query.processAllAvailable()
-      val progress = query.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 0)
-    } finally {
-      query.stop()
     }
   }
 }

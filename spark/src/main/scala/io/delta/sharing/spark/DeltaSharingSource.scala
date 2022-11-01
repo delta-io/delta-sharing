@@ -240,22 +240,11 @@ case class DeltaSharingSource(
     val perVersionRemoveFiles = tableFiles.removeFiles.groupBy(f => f.version)
 
     for (v <- fromVersion to currentLatestVersion) {
-      Console.println(s"-----[linzhou]--------v:[$v]add:[" +
-        s"${perVersionAddFiles.getOrElse(v, ArrayBuffer[FileAction]())}]")
-      Console.println(s"-----[linzhou]--------v:[$v]remove:[" +
-        s"${perVersionRemoveFiles.getOrElse(v, ArrayBuffer[FileAction]())}]")
-      val versionFiles = perVersionAddFiles.getOrElse(v, ArrayBuffer[AddFileForCDF]()) ++
-        perVersionRemoveFiles.getOrElse(v, ArrayBuffer[RemoveFile]())
-      Console.println(s"-----[linzhou]--------v:[$v]merge:[$versionFiles]")
-    }
-
-    for (v <- fromVersion to currentLatestVersion) {
       if (perVersionCdfFiles.contains(v)) {
         // process cdf files only if it exists.
         val cdfFiles = perVersionCdfFiles.get(v).get.sortWith(fileActionCompareFunc)
         cdfFiles.zipWithIndex.foreach {
           case (cdc, index) if (v > fromVersion || (v == fromVersion && index > fromIndex)) =>
-            Console.println(s"-----[linzhou]--------v:[$v][$index]cdf:[$cdc]")
             appendToSortedFetchedFiles(IndexedFile(
               v,
               index,
@@ -272,7 +261,6 @@ case class DeltaSharingSource(
         fileActions.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
           case (add: AddFileForCDF, index) if (
             v > fromVersion || (v == fromVersion && index > fromIndex)) =>
-            Console.println(s"-----[linzhou]--------v:[$v][$index]add:[$add]")
             appendToSortedFetchedFiles(IndexedFile(
               v,
               index,
@@ -281,7 +269,6 @@ case class DeltaSharingSource(
             )
           case (remove: RemoveFile, index) if (
             v > fromVersion || (v == fromVersion && index > fromIndex)) =>
-            Console.println(s"-----[linzhou]--------v:[$v][$index]add:[$remove]")
             appendToSortedFetchedFiles(IndexedFile(
               v,
               index,
@@ -330,6 +317,8 @@ case class DeltaSharingSource(
           && sortedFetchedFiles(index + 1).cdc != null &&
           sortedFetchedFiles(index + 1).version == indexedFile.version
         ) {
+          Console.println(s"-----[linzhou]--------admit-cdc:" +
+            s"${admissionControl.filesToTake}-${admissionControl.bytesToTake}")
           // while is cdc and on the same version, admit
           indexedFile = sortedFetchedFiles(index + 1)
           admissionControl.admit(indexedFile.getFileAction)
@@ -367,9 +356,6 @@ case class DeltaSharingSource(
     startIndex: Long,
     isStartingVersion: Boolean,
     endOffset: DeltaSharingSourceOffset): DataFrame = {
-    // TODO(lin.zhou) this may be not needed, as we'll always return latestOffset from local cache
-//    maybeGetFileChanges(startVersion, startIndex, isStartingVersion)
-
     val fileActions = sortedFetchedFiles.takeWhile {
       case IndexedFile(version, index, _, _, _, _) =>
         version < endOffset.tableVersion ||
@@ -437,7 +423,8 @@ case class DeltaSharingSource(
       addFiles,
       cdfFiles,
       removeFiles,
-      schema
+      schema,
+      isStreaming = true
     )
   }
 

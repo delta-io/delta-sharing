@@ -67,17 +67,18 @@ object DeltaSharingCDFReader {
       addFiles: Seq[AddFileForCDF],
       cdfFiles: Seq[AddCDCFile],
       removeFiles: Seq[RemoveFile],
-      schema: StructType): DataFrame = {
+      schema: StructType,
+      isStreaming: Boolean = false): DataFrame = {
     val dfs = ListBuffer[DataFrame]()
 
     // We unconditionally add all types of files.
     // We will get empty data frames for empty ones, which will get combined later.
     dfs.append(scanIndex(new RemoteDeltaCDFAddFileIndex(
-      params, addFiles), schema))
+      params, addFiles), schema, isStreaming))
     dfs.append(scanIndex(new RemoteDeltaCDCFileIndex(
-      params, cdfFiles), schema))
+      params, cdfFiles), schema, isStreaming))
     dfs.append(scanIndex(new RemoteDeltaCDFRemoveFileIndex(
-      params, removeFiles), schema))
+      params, removeFiles), schema, isStreaming))
 
     dfs.reduce((df1, df2) => df1.unionAll(df2))
       .select(requiredColumns.map(c => col(quoteIdentifier(c))): _*)
@@ -91,7 +92,8 @@ object DeltaSharingCDFReader {
    */
   private def scanIndex(
       fileIndex: RemoteDeltaCDFFileIndexBase,
-      schema: StructType): DataFrame = {
+      schema: StructType,
+      isStreaming: Boolean): DataFrame = {
     val relation = HadoopFsRelation(
       fileIndex,
       fileIndex.partitionSchema,
@@ -99,7 +101,7 @@ object DeltaSharingCDFReader {
       bucketSpec = None,
       fileIndex.params.snapshotAtAnalysis.fileFormat,
       Map.empty)(fileIndex.params.spark)
-    val plan = LogicalRelation(relation)
+    val plan = LogicalRelation(relation, isStreaming = isStreaming)
     DeltaSharingScanUtils.ofRows(fileIndex.params.spark, plan)
   }
 }
