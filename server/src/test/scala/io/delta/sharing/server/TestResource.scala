@@ -195,6 +195,11 @@ object TestResource {
                 true
               ),
               TableConfig(
+                "streaming_cdf_table",
+                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_cdf_table",
+                true
+              ),
+              TableConfig(
                 "table_reader_version_increased",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_reader_version_increased",
                 true

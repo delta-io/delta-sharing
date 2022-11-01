@@ -180,9 +180,6 @@ case class DeltaSharingSource(
     }
 
     val currentLatestVersion = getOrUpdateLatestTableVersion
-    // scalastyle:off println
-    Console.println(s"-----[linzhou]--------fromVersion:$fromVersion")
-    Console.println(s"-----[linzhou]--------latestVersion:${currentLatestVersion}")
     if (fromVersion > currentLatestVersion) {
       // If true, it means that there's no new data from the delta sharing server.
       return
@@ -317,6 +314,7 @@ case class DeltaSharingSource(
           && sortedFetchedFiles(index + 1).cdc != null &&
           sortedFetchedFiles(index + 1).version == indexedFile.version
         ) {
+          // scalastyle:off println
           Console.println(s"-----[linzhou]--------admit-cdc:" +
             s"${admissionControl.filesToTake}-${admissionControl.bytesToTake}")
           // while is cdc and on the same version, admit

@@ -37,13 +37,20 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   // VERSION 1: INSERT 3 rows, 3 add files
   // VERSION 2: REMOVE 1 row, 1 remove file
   // VERSION 3: UPDATE 1 row, 1 remove file and 1 add file
-  lazy val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+  lazy val errorTablePath1 = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
 
   // allowed to query starting from version 1
   // VERSION 1: INSERT 3 rows, 3 add files
   // VERSION 2: UPDATE 1 row, 1 cdf file
   // VERSION 2: REMOVE 1 row, 1 remove file
-  lazy val cdfTablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_with_partition"
+  lazy val errorTablePath2 = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_with_partition"
+
+  // allowed to query starting from version 1
+  // VERSION 1: INSERT 2 rows, 1 add file
+  // VERSION 1: INSERT 3 rows, 1 add file
+  // VERSION 2: UPDATE 4 row, 2 cdf files
+  // VERSION 2: REMOVE 4 rows, 2 cdf files
+  lazy val cdfTablePath = testProfileFile.getCanonicalPath + "#share8.default.streaming_cdf_table"
 
   lazy val deltaLog = RemoteDeltaLog(cdfTablePath)
 
@@ -56,7 +63,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
 
   def withStreamReaderAtVersion(
       path: String = cdfTablePath,
-      startingVersion: String = "1"): DataStreamReader = {
+      startingVersion: String = "0"): DataStreamReader = {
     spark.readStream.format("deltaSharing").option("path", path)
       .option("startingVersion", startingVersion)
       .option("ignoreDeletes", "true")
@@ -136,7 +143,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 1)
       progress.foreach { p =>
-        assert(p.numInputRows === 6)
+        assert(p.numInputRows === 17)
       }
     } finally {
       query.stop()
@@ -152,7 +159,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 1)
       progress.foreach { p =>
-        assert(p.numInputRows === 6)
+        assert(p.numInputRows === 17)
       }
     } finally {
       query.stop()
@@ -171,7 +178,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 1)
       progress.foreach { p =>
-        assert(p.numInputRows === 6)
+        assert(p.numInputRows === 17)
       }
     } finally {
       query.stop()
@@ -187,7 +194,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 1)
       progress.foreach { p =>
-        assert(p.numInputRows === 6)
+        assert(p.numInputRows === 17)
       }
     } finally {
       query.stop()
@@ -195,10 +202,9 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   }
 
   integrationTest("CDF Stream - exceptions") {
-    // For tablePath(cdf_table_cdf_enabled), cdf is disabled at version 4, so there will exception
+    // For errorTablePath1(cdf_table_cdf_enabled), cdf is disabled at version 4, so there will exception
     // returned from the server.
-    Console.println(s"-----[linzhou]--------exception-1")
-    var query = withStreamReaderAtVersion(path = tablePath)
+    var query = withStreamReaderAtVersion(path = errorTablePath1)
       .load().writeStream.format("console").start()
     var message = intercept[StreamingQueryException] {
       // block until query is terminated, with stop() or with error
@@ -207,7 +213,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     assert(message.contains("Error getting change data for range"))
 
     Console.println(s"-----[linzhou]--------exception-2")
-    query = withStreamReaderAtVersion(startingVersion = "0")
+    query = withStreamReaderAtVersion(path = errorTablePath2, startingVersion = "0")
       .load().writeStream.format("console").start()
     message = intercept[StreamingQueryException] {
       // block until query is terminated, with stop() or with error
@@ -231,7 +237,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       val query = spark.readStream.format("deltaSharing")
         .option("readchangeFeed", "true")
         .option("startingTimestamp", "2022-01-01 00:00:00")
-        .load(cdfTablePath).writeStream.format("console").start()
+        .load(errorTablePath2).writeStream.format("console").start()
       query.awaitTermination(streamingTimeout.toMillis)
     }.getMessage
     assert(message.contains("The provided timestamp(2022-01-01 00:00:00) corresponds to 0"))
@@ -239,34 +245,33 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   }
 
   integrationTest("CDF Stream - different startingVersion") {
-    // Starting from version 2: 1 CDF File
-    var query = withStreamReaderAtVersion(startingVersion = "2")
+    // Starting from version 3: 2 CDF Files
+    var query = withStreamReaderAtVersion(startingVersion = "3")
       .load().writeStream.format("console").start()
     try {
       query.processAllAvailable()
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 1)
       progress.foreach { p =>
-        assert(p.numInputRows === 3)
+        assert(p.numInputRows === 12)
       }
     } finally {
       query.stop()
     }
 
-    // Starting from version 3: 1 Remove File
-    query = withStreamReaderAtVersion(startingVersion = "3")
+    // Starting from version 4: 2 CDF Files
+    query = withStreamReaderAtVersion(startingVersion = "4")
       .load().writeStream.format("console").start()
     try {
       query.processAllAvailable()
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 1)
       progress.foreach { p =>
-        assert(p.numInputRows === 1)
+        assert(p.numInputRows === 4)
       }
     } finally {
       query.stop()
     }
-
 
     // TODO: timestamp for queryTable with version
     // no startingVersion - should result fetch the entire snapshot
@@ -299,17 +304,20 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   }
 
   integrationTest("CDF Stream - startingTimestamp works") {
-//    val query = spark.readStream.format("deltaSharing")
-//      .option("readchangeFeed", "true")
-//      .option("startingTimestamp", "2022-01-01 00:00:00")
-//      .load(cdfTablePath).writeStream.format("console").start()
-//    try {
-//      query.processAllAvailable()
-//      val progress = query.recentProgress.filter(_.numInputRows != 0)
-//      assert(progress.length === 0)
-//    } finally {
-//      query.stop()
-//    }
+    val query = spark.readStream.format("deltaSharing")
+      .option("readchangeFeed", "true")
+      .option("startingTimestamp", "2022-01-01 00:00:00")
+      .load(cdfTablePath).writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 17)
+      }
+    } finally {
+      query.stop()
+    }
   }
 
 
