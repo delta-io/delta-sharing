@@ -45,12 +45,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "table7", schema = "default", share = "share1"),
         Table(name = "table8", schema = "schema1", share = "share7"),
         Table(name = "table9", schema = "schema2", share = "share7"),
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
-        Table(name = "cdf_table_with_partition", schema = "default", share = "share1"),
-        Table(name = "cdf_table_with_vacuum", schema = "default", share = "share1"),
-        Table(name = "cdf_table_missing_log", schema = "default", share = "share1"),
-        Table(name = "streaming_table_with_optimize", schema = "default", share = "share1"),
-        Table(name = "table_reader_version_increased", schema = "default", share = "share1"),
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
+        Table(name = "cdf_table_with_partition", schema = "default", share = "share8"),
+        Table(name = "cdf_table_with_vacuum", schema = "default", share = "share8"),
+        Table(name = "cdf_table_missing_log", schema = "default", share = "share8"),
+        Table(name = "streaming_table_with_optimize", schema = "default", share = "share8"),
+        Table(name = "streaming_table_metadata_protocol", schema = "default", share = "share8"),
+        Table(name = "streaming_table_read_incompatible", schema = "default", share = "share8"),
+        Table(name = "table_reader_version_increased", schema = "default", share = "share8"),
         Table(name = "test_gzip", schema = "default", share = "share4"),
         Table(name = "table_wasb", schema = "default", share = "share_azure"),
         Table(name = "table_abfs", schema = "default", share = "share_azure"),
@@ -68,7 +70,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(client.getTableVersion(Table(name = "table2", schema = "default", share = "share2")) == 2)
       assert(client.getTableVersion(Table(name = "table1", schema = "default", share = "share1")) == 2)
       assert(client.getTableVersion(Table(name = "table3", schema = "default", share = "share1")) == 4)
-      assert(client.getTableVersion(Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+      assert(client.getTableVersion(Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
         startingTimestamp = Some("2020-01-01 00:00:00")) == 0)
     } finally {
       client.close()
@@ -110,7 +112,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       val tableMatadata =
-        client.getMetadata(Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"))
+        client.getMetadata(Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"))
       assert(Protocol(minReaderVersion = 1) == tableMatadata.protocol)
       val expectedMetadata = Metadata(
         id = "16736144-3306-4577-807a-d3f899b77670",
@@ -164,7 +166,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       val tableFiles = client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
         Nil,
         None,
         Some(1L),
@@ -227,7 +229,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       // Because with undecided timezone, the timestamp string can be mapped to different versions
       val errorMessage = intercept[UnexpectedHttpStatus] {
         client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
         Nil,
         None,
         None,
@@ -261,7 +263,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       val tableFiles = client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"), 1L
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 1L
       )
       assert(tableFiles.version == 1)
       assert(tableFiles.addFiles.size == 4)
@@ -325,6 +327,22 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedRemoveFiles == tableFiles.removeFiles.toList)
+
+      assert(tableFiles.additionalMetadatas.size == 2)
+      val v4Metadata = Metadata(
+        id = "16736144-3306-4577-807a-d3f899b77670",
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+        configuration = Map.empty,
+        partitionColumns = Nil,
+        version = 4)
+      assert(v4Metadata == tableFiles.additionalMetadatas(0))
+
+      val v5Metadata = v4Metadata.copy(
+        configuration = Map("enableChangeDataFeed" -> "true"),
+        version = 5
+      )
+      assert(v5Metadata == tableFiles.additionalMetadatas(1))
     } finally {
       client.close()
     }
@@ -343,7 +361,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
       errorMessage = intercept[UnexpectedHttpStatus] {
         client.getFiles(
-          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
           -1
         )
       }.getMessage
@@ -358,7 +376,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     try {
       val cdfOptions = Map("startingVersion" -> "0", "endingVersion" -> "3")
       val tableFiles = client.getCDFFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
         cdfOptions
       )
       assert(tableFiles.version == 0)
@@ -431,7 +449,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     try {
       val cdfOptions = Map("startingVersion" -> "0")
       val tableFiles = client.getCDFFiles(
-        Table(name = "cdf_table_with_vacuum", schema = "default", share = "share1"),
+        Table(name = "cdf_table_with_vacuum", schema = "default", share = "share8"),
         cdfOptions
       )
       assert(tableFiles.version == 0)
@@ -450,7 +468,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val errorMessage = intercept[UnexpectedHttpStatus] {
         val cdfOptions = Map("startingVersion" -> "1")
         client.getCDFFiles(
-          Table(name = "cdf_table_missing_log", schema = "default", share = "share1"),
+          Table(name = "cdf_table_missing_log", schema = "default", share = "share8"),
           cdfOptions
         )
       }.getMessage
@@ -470,7 +488,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val cdfOptions = Map("startingTimestamp" -> "2000-01-01 00:00:00")
       val errorMessage = intercept[UnexpectedHttpStatus] {
         val tableFiles = client.getCDFFiles(
-          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
           cdfOptions
         )
       }.getMessage
@@ -489,7 +507,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val cdfOptions = Map("startingVersion" -> "0", "endingTimestamp" -> "2100-01-01 00:00:00")
       val errorMessage = intercept[UnexpectedHttpStatus] {
         val tableFiles = client.getCDFFiles(
-          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
+          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
           cdfOptions
         )
       }.getMessage

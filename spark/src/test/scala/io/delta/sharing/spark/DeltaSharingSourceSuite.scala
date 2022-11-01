@@ -37,7 +37,7 @@ class DeltaSharingSourceSuite extends QueryTest
   // VERSION 1: INSERT 3 rows, 3 add files
   // VERSION 2: REMOVE 1 row, 1 remove file
   // VERSION 3: UPDATE 1 row, 1 remove file and 1 add file
-  lazy val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+  lazy val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
 
   lazy val deltaLog = RemoteDeltaLog(tablePath)
 
