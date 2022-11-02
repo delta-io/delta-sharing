@@ -16,13 +16,10 @@
 
 package io.delta.sharing.spark
 
-import java.util.UUID
-
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.QueryTest
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles
-import org.apache.spark.sql.execution.streaming.SerializedOffset
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{StringType, StructField, StructType, TimestampType}
@@ -51,10 +48,8 @@ class DeltaSharingSourceSuite extends QueryTest
     DeltaSharingSource(SparkSession.active, deltaLog, options)
   }
 
-  def withStreamReaderAtVersion(
-      path: String = tablePath,
-      startingVersion: String = "0"): DataStreamReader = {
-    spark.readStream.format("deltaSharing").option("path", path)
+  def withStreamReaderAtVersion(startingVersion: String = "0"): DataStreamReader = {
+    spark.readStream.format("deltaSharing").option("path", tablePath)
       .option("startingVersion", startingVersion)
       .option("ignoreDeletes", "true")
       .option("ignoreChanges", "true")

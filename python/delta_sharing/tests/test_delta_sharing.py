@@ -100,6 +100,7 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="streaming_table_with_optimize", share="share8", schema="default"),
         Table(name="streaming_table_metadata_protocol", share="share8", schema="default"),
         Table(name="streaming_table_read_incompatible", share="share8", schema="default"),
+        Table(name="streaming_cdf_table", share="share8", schema="default"),
         Table(name="table_reader_version_increased", share="share8", schema="default")
     ]
 
