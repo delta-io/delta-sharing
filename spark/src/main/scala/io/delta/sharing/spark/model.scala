@@ -48,13 +48,16 @@ private[sharing] case class DeltaTableFiles(
     files: Seq[AddFile] = Nil,
     addFiles: Seq[AddFileForCDF] = Nil,
     cdfFiles: Seq[AddCDCFile] = Nil,
-    removeFiles: Seq[RemoveFile] = Nil)
+    removeFiles: Seq[RemoveFile] = Nil,
+    additionalMetadatas: Seq[Metadata] = Nil)
 
 private[sharing] case class Share(name: String)
 
 private[sharing] case class Schema(name: String, share: String)
 
-private[sharing] case class Table(name: String, schema: String, share: String)
+private[sharing] case class Table(name: String, schema: String, share: String) {
+  override def toString(): String = { s"$share.$schema.$name" }
+}
 
 private[sharing] case class SingleAction(
     file: AddFile = null,
@@ -92,7 +95,8 @@ private[sharing] case class Metadata(
     format: Format = Format(),
     schemaString: String = null,
     configuration: Map[String, String] = Map.empty,
-    partitionColumns: Seq[String] = Nil) extends Action {
+    partitionColumns: Seq[String] = Nil,
+    version: java.lang.Long = null) extends Action {
   override def wrap: SingleAction = SingleAction(metaData = this)
 }
 

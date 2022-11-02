@@ -114,7 +114,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("cdf_table_cdf_enabled query without version") {
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
     val expected = Seq(
       Row("1", 1, sqlDate("2020-01-01")),
       Row("2", 2, sqlDate("2020-02-02"))
@@ -127,7 +127,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("cdf_table_cdf_enabled query with valid version") {
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
     val expected = Seq(
       Row("1", 1, sqlDate("2020-01-01")),
       Row("2", 2, sqlDate("2020-01-01")),
@@ -140,7 +140,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("cdf_table_cdf_enabled version exception") {
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
     val expected = Seq()
     val errorMessage = intercept[IllegalArgumentException] {
       checkAnswer(
@@ -150,7 +150,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("cdf_table_cdf_enabled timestamp exception") {
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
     val expected = Seq()
     var errorMessage = intercept[io.delta.sharing.spark.util.UnexpectedHttpStatus] {
       checkAnswer(
@@ -202,7 +202,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("table_changes: cdf_table_cdf_enabled") {
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
 
     val expected = Seq(
       Row("1", 1, sqlDate("2020-01-01"), 1L, 1651272635000L, "insert"),
@@ -233,7 +233,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("table_changes_empty: cdf_table_cdf_enabled") {
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
 
     val result = spark.read.format("deltaSharing")
       .option("readChangeFeed", "true")
@@ -242,7 +242,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("table_changes_with_timestamp: cdf_table_cdf_enabled") {
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
 
     // Use a start timestamp in the past, and expect an error.
     val result1 = intercept[IllegalStateException] {
@@ -265,7 +265,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("table_changes: cdf_table_with_vacuum") {
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_with_vacuum"
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_with_vacuum"
 
     val expected = Seq(
       Row(11, 2L, 1655410824000L, "update_preimage"),
@@ -282,7 +282,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("table_changes_exception: cdf_table_with_vacuum") {
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_with_vacuum"
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_with_vacuum"
 
     // parquet file is vacuumed, will see 404 error when requsting the presigned url
     val ex = intercept[org.apache.spark.SparkException] {
@@ -296,7 +296,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("table_changes_exception: cdf_table_missing_log") {
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_missing_log"
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_missing_log"
 
     // log file is missing
     val ex = intercept[io.delta.sharing.spark.util.UnexpectedHttpStatus] {

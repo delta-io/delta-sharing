@@ -217,7 +217,12 @@ class DeltaSharedTable(
       format = model.Format(),
       schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
       configuration = getMetadataConfiguration(snapshot.metadataScala.configuration),
-      partitionColumns = snapshot.metadataScala.partitionColumns
+      partitionColumns = snapshot.metadataScala.partitionColumns,
+      version = if (startingVersion.isDefined) {
+        startingVersion.get
+      } else {
+        null
+      }
     )
     val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
       if (startingVersion.isDefined) {
@@ -298,7 +303,19 @@ class DeltaSharedTable(
         case p: Protocol =>
           assertProtocolRead(p)
         case m: Metadata =>
-        // TODO(lin.zhou) make a copy of SchemaUtils.isReadCompatible in another PR
+          if (v > startingVersion) {
+            val modelMetadata = model.Metadata(
+              id = m.id,
+              name = m.name,
+              description = m.description,
+              format = model.Format(),
+              schemaString = cleanUpTableSchema(m.schemaString),
+              configuration = getMetadataConfiguration(m.configuration),
+              partitionColumns = m.partitionColumns,
+              version = v
+            )
+            actions.append(modelMetadata.wrap)
+          }
         case _ => ()
       }
     }

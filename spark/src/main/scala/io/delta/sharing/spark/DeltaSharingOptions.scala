@@ -81,6 +81,8 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
 
   val timestampAsOf = options.get(TIME_TRAVEL_TIMESTAMP)
 
+  def isTimeTravel: Boolean = versionAsOf.isDefined || timestampAsOf.isDefined
+
   private def prepareCdfOptions(): Map[String, String] = {
     if (readChangeFeed) {
       validCdfOptions.filter(option => options.contains(option._1)).map(option =>

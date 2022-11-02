@@ -41,9 +41,9 @@ import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 
 /** Used to query the current state of the transaction logs of a remote shared Delta table. */
 private[sharing] class RemoteDeltaLog(
-    table: DeltaSharingTable,
-    path: Path,
-    client: DeltaSharingClient) {
+  val table: DeltaSharingTable,
+  val path: Path,
+  val client: DeltaSharingClient) {
 
   @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(path, client, table)
 

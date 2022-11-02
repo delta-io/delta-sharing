@@ -113,6 +113,7 @@ def test_list_shares(rest_client: DataSharingRestClient):
         Share(name="share7"),
         Share(name="share_azure"),
         Share(name="share_gcp"),
+        Share(name="share8")
     ]
 
 
@@ -131,13 +132,7 @@ def test_list_tables(rest_client: DataSharingRestClient):
     assert response.tables == [
         Table(name="table1", share="share1", schema="default"),
         Table(name="table3", share="share1", schema="default"),
-        Table(name="table7", share="share1", schema="default"),
-        Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
-        Table(name="cdf_table_with_partition", share="share1", schema="default"),
-        Table(name="cdf_table_with_vacuum", share="share1", schema="default"),
-        Table(name="cdf_table_missing_log", share="share1", schema="default"),
-        Table(name="streaming_table_with_optimize", share="share1", schema="default"),
-        Table(name="table_reader_version_increased", share="share1", schema="default"),
+        Table(name="table7", share="share1", schema="default")
     ]
 
     response = rest_client.list_tables(Schema(name="default", share="share2"))
@@ -156,12 +151,6 @@ def test_list_tables_with_pagination(rest_client: DataSharingRestClient):
     assert response.tables == [
         Table(name="table3", share="share1", schema="default"),
         Table(name="table7", share="share1", schema="default"),
-        Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
-        Table(name="cdf_table_with_partition", share="share1", schema="default"),
-        Table(name="cdf_table_with_vacuum", share="share1", schema="default"),
-        Table(name="cdf_table_missing_log", share="share1", schema="default"),
-        Table(name="streaming_table_with_optimize", share="share1", schema="default"),
-        Table(name="table_reader_version_increased", share="share1", schema="default"),
     ]
 
 
@@ -240,7 +229,7 @@ def test_query_existed_table_version(rest_client: DataSharingRestClient):
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_table_version_with_timestamp(rest_client: DataSharingRestClient):
     response = rest_client.query_table_version(
-        Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
+        Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
         starting_timestamp="2020-01-01 00:00:00.0"
     )
     assert isinstance(response.delta_table_version, int)
@@ -428,7 +417,7 @@ def test_list_files_in_table_version(
     rest_client: DataSharingRestClient,
 ):
     response = rest_client.list_files_in_table(
-        Table(name="cdf_table_cdf_enabled", share="share1", schema="default"),
+        Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
         version=1
     )
     assert response.delta_table_version == 1
@@ -513,7 +502,7 @@ def test_list_files_in_table_timestamp(
         assert isinstance(e, HTTPError)
         assert "Reading table by version or timestamp is not supported" in (str(e))
 
-    cdf_table = Table(name="cdf_table_with_partition", share="share1", schema="default")
+    cdf_table = Table(name="cdf_table_with_partition", share="share8", schema="default")
 
     # Only one of version and timestamp is supported
     try:
@@ -554,7 +543,7 @@ def test_list_table_changes(
     rest_client: DataSharingRestClient,
 ):
     # The following table query will return all types of actions.
-    cdf_table = Table(name="cdf_table_with_partition", share="share1", schema="default")
+    cdf_table = Table(name="cdf_table_with_partition", share="share8", schema="default")
     response = rest_client.list_table_changes(
         cdf_table,
         CdfOptions(starting_version=1, ending_version=3)
@@ -648,7 +637,7 @@ def test_list_table_changes(
 def test_list_table_changes_with_timestamp(
     rest_client: DataSharingRestClient
 ):
-    cdf_table = Table(name="cdf_table_with_partition", share="share1", schema="default")
+    cdf_table = Table(name="cdf_table_with_partition", share="share8", schema="default")
 
     # Use a really old start time, and look for an appropriate error.
     # This will ensure that the timestamps are parsed correctly.
