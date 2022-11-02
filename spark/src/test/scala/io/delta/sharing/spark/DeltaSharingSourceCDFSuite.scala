@@ -361,7 +361,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       .start()
 
     try {
-      query.processAllAvailable()
+      assert(query.awaitTermination(streamingTimeout.toMillis))
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 1) // only one trigger was run
       progress.foreach { p =>
