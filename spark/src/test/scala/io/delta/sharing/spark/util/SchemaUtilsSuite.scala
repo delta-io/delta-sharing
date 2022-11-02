@@ -48,6 +48,12 @@ class SchemaUtilsSuite extends SparkFunSuite {
           s"isReadCompatible should have failed for: ${schemas(a)}, ${schemas(b)}")
       }
     }
+    test(s"same of datatype should succeed read compatibility - $scenario") {
+      schemas.keys.foreach{ k =>
+        assert(isReadCompatible(schemas(k), schemas(k)),
+          s"isReadCompatible should have succeeded for the same schema: ${schemas(k)}")
+      }
+    }
   }
 
   /**
@@ -63,10 +69,10 @@ class SchemaUtilsSuite extends SparkFunSuite {
     val nullable = make(true)
     val nonNullable = make(false)
     test(s"relaxed nullability should fail read compatibility - $scenario") {
-      assert(!isReadCompatible(nonNullable, nullable))
+      assert(!isReadCompatible(nullable, nonNullable))
     }
     test(s"restricted nullability should not fail read compatibility - $scenario") {
-      assert(isReadCompatible(nullable, nonNullable))
+      assert(isReadCompatible(nonNullable, nullable))
     }
   }
 
