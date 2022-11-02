@@ -39,7 +39,8 @@ import io.delta.sharing.spark.model.{
   AddFileForCDF,
   DeltaTableFiles,
   FileAction,
-  RemoveFile}
+  RemoveFile
+}
 
 /**
  * A case class to help with `Dataset` operations regarding Offset indexing, representing AddFile
@@ -291,11 +292,10 @@ case class DeltaSharingSource(
    * @return the last IndexedFile or None if there are no new data.
    */
   private def getLastFileChangeWithRateLimit(
-    fromVersion: Long,
-    fromIndex: Long,
-    isStartingVersion: Boolean,
-    limits: Option[AdmissionLimits] = Some(new AdmissionLimits())): Option[IndexedFile] = {
-
+      fromVersion: Long,
+      fromIndex: Long,
+      isStartingVersion: Boolean,
+      limits: Option[AdmissionLimits] = Some(new AdmissionLimits())): Option[IndexedFile] = {
     maybeGetFileChanges(fromVersion, fromIndex, isStartingVersion)
 
     if (limits.isEmpty) return sortedFetchedFiles.lastOption
@@ -348,18 +348,18 @@ case class DeltaSharingSource(
    * @param endOffset - Offset that signifies the end of the stream.
    * @return the created DataFrame.
    */
-  private def createDataFrame(
-    startVersion: Long,
-    startIndex: Long,
-    isStartingVersion: Boolean,
-    endOffset: DeltaSharingSourceOffset): DataFrame = {
+  private def createDataFrameFromOffset(
+      startVersion: Long,
+      startIndex: Long,
+      isStartingVersion: Boolean,
+      endOffset: DeltaSharingSourceOffset): DataFrame = {
     val fileActions = sortedFetchedFiles.takeWhile {
       case IndexedFile(version, index, _, _, _, _) =>
         version < endOffset.tableVersion ||
           (version == endOffset.tableVersion && index <= endOffset.index)
     }
     sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
-      // Proceed the offset as the files before the endOffset are processed.
+    // Proceed the offset as the files before the endOffset are processed.
     previousOffset = endOffset
 
     val filteredActions = fileActions.filter{ indexedFile => indexedFile.getFileAction != null }
@@ -601,7 +601,7 @@ case class DeltaSharingSource(
     }
     logDebug(s"start: $startOffsetOption end: $end")
 
-    val createdDf = createDataFrame(startVersion, startIndex, isStartingVersion, endOffset)
+    val createdDf = createDataFrameFromOffset(startVersion, startIndex, isStartingVersion, endOffset)
 
     createdDf
   }
@@ -643,6 +643,9 @@ case class DeltaSharingSource(
     /** Whether to admit the next file */
     def admit(fileAction: FileAction): Boolean = {
       if (fileAction == null) {
+        // admit IndexedFile with null fileAction, which should be with index=-1 for each version.
+        // This is to proceed through the versions without data files, to avoid processing them
+        // repeatedly.
         return true
       }
       val shouldAdmit = filesToTake > 0 && bytesToTake > 0
