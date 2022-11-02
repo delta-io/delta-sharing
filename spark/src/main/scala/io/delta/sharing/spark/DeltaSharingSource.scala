@@ -601,7 +601,12 @@ case class DeltaSharingSource(
     }
     logDebug(s"start: $startOffsetOption end: $end")
 
-    val createdDf = createDataFrameFromOffset(startVersion, startIndex, isStartingVersion, endOffset)
+    val createdDf = createDataFrameFromOffset(
+      startVersion,
+      startIndex,
+      isStartingVersion,
+      endOffset
+    )
 
     createdDf
   }
