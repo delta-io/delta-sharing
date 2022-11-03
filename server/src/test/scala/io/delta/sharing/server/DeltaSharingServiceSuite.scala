@@ -1034,7 +1034,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
-      id = "ff68bed0-1f30-4fb7-8a44-7ca745e69cbe",
+      id = "36869638-1699-4a28-b4bb-9fe4ff5ebbf8",
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
       configuration = Map.empty,
@@ -1063,12 +1063,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
          |""".stripMargin
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_null_to_notnull/query"), Some("POST"), Some(p), Some(0))
     val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
-    assert(actions.size == 5)
+    assert(actions.size == 7)
 
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
-      id = "eb046cdc-5b6e-4356-9d0f-42ce914781b2",
+      id = "f49d6102-3fca-4452-ab83-6e71fecfb118",
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
       configuration = Map.empty,
@@ -1077,14 +1077,16 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedMetadata == actions(1).metaData)
 
     assert(actions(2).add != null)
+    assert(actions(3).remove != null)
+    assert(actions(4).add != null)
 
     expectedMetadata = expectedMetadata.copy(
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
-      version = 2
+      version = 3
     )
-    assert(expectedMetadata == actions(3).metaData)
+    assert(expectedMetadata == actions(5).metaData)
 
-    assert(actions(4).add != null)
+    assert(actions(6).add != null)
   }
 
   integrationTest("table_reader_version_increased - exception") {
