@@ -192,6 +192,33 @@ case class DeltaSharingSource(
       return
     }
 
+    if (isStartingVersion || !options.readChangeFeed) {
+      getTableFileChanges(fromVersion, fromIndex, isStartingVersion, currentLatestVersion)
+    } else {
+      getCDFFileChanges(fromVersion, fromIndex, currentLatestVersion)
+    }
+  }
+
+  /**
+   * Fetch the table changes from delta sharing server starting from (fromVersion, fromIndex), and
+   * store them in sortedFetchedFiles.
+   *
+   * @param fromVersion - a table version, initially would be the startingVersion or the latest
+   *                      table version.
+   * @param fromIndex - index of a file within the same version,
+   * @param isStartingVersion - If true, will load fromVersion as a table snapshot(including files
+   *                            from previous versions). If false, will only load files since
+   *                            fromVersion.
+   * @param currentLatestVersion - The latest table version returned from the delta sharing server.
+   *                               This is used to insert an indexedFile for each version in the
+   *                               sortedFetchedFiles, in order to ensure the offset move beyond
+   *                               this version.
+   */
+  private def getTableFileChanges(
+      fromVersion: Long,
+      fromIndex: Long,
+      isStartingVersion: Boolean,
+      currentLatestVersion: Long): Unit = {
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
@@ -209,8 +236,6 @@ case class DeltaSharingSource(
                 file.url, file.id, file.partitionValues, file.size, fromVersion, -1, file.stats),
               isLast = (index + 1 == numFiles)))
       }
-    } else if (options.readChangeFeed) {
-      getCDFFileChanges(fromVersion, fromIndex, currentLatestVersion)
     } else {
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
@@ -235,9 +260,6 @@ case class DeltaSharingSource(
    * Fetch the cdf changes from delta sharing server starting from (fromVersion, fromIndex), and
    * store them in sortedFetchedFiles.
    *
-   * The start point should not be included in the result, it's already consumed in the previous
-   * getBatch.
-   *
    * @param fromVersion - a table version, initially would be the startingVersion or the latest
    *                      table version.
    * @param fromIndex - index of a file within the same version,
@@ -259,7 +281,7 @@ case class DeltaSharingSource(
 
     for (v <- fromVersion to currentLatestVersion) {
       if (perVersionCdfFiles.contains(v)) {
-        // process cdf files if it exists, and ignore add/remove files. This is the peroperty of
+        // Process cdf files if it exists, and ignore add/remove files. This is the property of
         // delta table, when cdf file exists in a version, it represents the same data change as
         // add/remove files, so it's good enough to process the cdf files only, and only cdf files
         // are returned from the delta sharing server for this version.
@@ -299,7 +321,7 @@ case class DeltaSharingSource(
             )
         }
       } else {
-        // Still append an IndexedFile for this version with index=-1 and and getFileAction=null.
+        // Still append an IndexedFile for this version with index = -1 and getFileAction = null.
         // This is to proceed through the versions without data files, to avoid processing them
         // repeatedly, i.e., sending useless rpcs to the delta sharing server.
         // This may happen when there's a protocol change of the table, or optimize of a table where
@@ -416,6 +438,7 @@ case class DeltaSharingSource(
     val addFilesList = indexedFiles.map { indexedFile =>
       // add won't be null at this step as addFile is the only interested file when
       // options.readChangeFeed is false, which is when this function is called.
+      assert(indexedFile.add != null, "add file cannot be null.")
       val add = indexedFile.add
       AddFile(add.url, add.id, add.partitionValues, add.size, add.stats)
     }
