@@ -16,6 +16,8 @@
 
 package io.delta.sharing.spark
 
+import org.apache.spark.sql.types.StructType
+
 object DeltaSharingErrors {
   def nonExistentDeltaTable(tableId: String): Throwable = {
     new IllegalStateException(s"Delta table ${tableId} doesn't exist. " +
@@ -83,5 +85,15 @@ object DeltaSharingErrors {
 
   def schemaNotSetException: Throwable = {
     new IllegalStateException("Shared table schema is not set. Please contact your data provider.")
+  }
+
+  def schemaChangedException(readSchema: StructType, schemaToCheck: StructType): Throwable = {
+    val msg =
+      s"""Detected incompatible schema change:
+         |schema used to read data: ${readSchema.treeString}
+         |
+         |schema seen in the table: ${schemaToCheck.treeString}
+      """.stripMargin
+    new IllegalStateException(msg)
   }
 }

@@ -29,6 +29,7 @@ import org.apache.spark.sql.connector.read.streaming.{
   SupportsAdmissionControl
 }
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
+import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.StructType
@@ -41,6 +42,7 @@ import io.delta.sharing.spark.model.{
   FileAction,
   RemoveFile
 }
+import io.delta.sharing.spark.util.SchemaUtils
 
 /**
  * A case class to help with `Dataset` operations regarding Offset indexing, representing a
@@ -103,10 +105,13 @@ case class DeltaSharingSource(
   with SupportsAdmissionControl
   with Logging {
 
-  private val snapshot: RemoteSnapshot = deltaLog.snapshot()
+  // The snapshot that's used to construct the dataframe, constructed when source is initialized.
+  // Use latest snapshot instead of snapshot at startingVersion, to allow easy recovery from
+  // failures on schema incompatibility.
+  private val initSnapshot: RemoteSnapshot = deltaLog.snapshot()
 
   override val schema: StructType = {
-    val schemaWithoutCDC = snapshot.schema
+    val schemaWithoutCDC = initSnapshot.schema
     if (options.readChangeFeed) {
       DeltaTableUtils.addCdcSchema(schemaWithoutCDC)
     } else {
@@ -123,7 +128,7 @@ case class DeltaSharingSource(
   /** A check on the source table that disallows commits that only include deletes to the data. */
   private val ignoreDeletes = options.ignoreDeletes || ignoreChanges
 
-  private val tableId = snapshot.metadata.id
+  private val tableId = initSnapshot.metadata.id
 
   // Records until which offset the delta sharing source has been processing the table files.
   private var previousOffset: DeltaSharingSourceOffset = null
@@ -239,7 +244,6 @@ case class DeltaSharingSource(
     } else {
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
-      // TODO(lin.zhou) return metadata for each version, and check schema read compatibility
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)
       val allAddFiles = verifyStreamHygieneAndFilterAddFiles(tableFiles).groupBy(a => a.version)
       for (v <- fromVersion to currentLatestVersion) {
@@ -443,15 +447,15 @@ case class DeltaSharingSource(
       AddFile(add.url, add.id, add.partitionValues, add.size, add.stats)
     }
 
-    val params = new RemoteDeltaFileIndexParams(spark, snapshot)
+    val params = new RemoteDeltaFileIndexParams(spark, initSnapshot)
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
 
     val relation = HadoopFsRelation(
       fileIndex,
-      partitionSchema = snapshot.partitionSchema,
-      dataSchema = snapshot.schema,
+      partitionSchema = initSnapshot.partitionSchema,
+      dataSchema = schema,
       bucketSpec = None,
-      snapshot.fileFormat,
+      initSnapshot.fileFormat,
       Map.empty)(spark)
 
     DeltaSharingScanUtils.ofRows(spark, LogicalRelation(relation, isStreaming = true))
@@ -476,7 +480,7 @@ case class DeltaSharingSource(
     }
 
     DeltaSharingCDFReader.changesToDF(
-      new RemoteDeltaFileIndexParams(spark, snapshot),
+      new RemoteDeltaFileIndexParams(spark, initSnapshot),
       schema.fields.map(f => f.name),
       addFiles,
       cdfFiles,
@@ -568,6 +572,13 @@ case class DeltaSharingSource(
 
   private def verifyStreamHygieneAndFilterAddFiles(
       tableFiles: DeltaTableFiles): Seq[AddFileForCDF] = {
+    (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
+      val schemaToCheck = DeltaTableUtils.toSchema(m.schemaString)
+      if (!SchemaUtils.isReadCompatible(schemaToCheck, schema)) {
+        throw DeltaSharingErrors.schemaChangedException(schema, schemaToCheck)
+      }
+    }
+
     if (!tableFiles.removeFiles.isEmpty) {
       val versionsWithRemoveFiles = tableFiles.removeFiles.map(r => r.version).toSet
       val versionsWithAddFiles = tableFiles.addFiles.map(a => a.version).toSet

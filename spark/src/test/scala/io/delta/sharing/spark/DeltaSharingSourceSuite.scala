@@ -46,6 +46,11 @@ class DeltaSharingSourceSuite extends QueryTest
   // VERSION 3: UPDATE 1 row, 1 remove file and 1 add file
   lazy val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
 
+  lazy val toNullTable = testProfileFile.getCanonicalPath +
+      "#share8.default.streaming_notnull_to_null"
+  lazy val toNotNullTable = testProfileFile.getCanonicalPath +
+    "#share8.default.streaming_null_to_notnull"
+
   lazy val deltaLog = RemoteDeltaLog(tablePath)
 
   val streamingTimeout = 60.seconds
@@ -152,7 +157,7 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   /**
-   * Test schema exception
+   * Test schema
    */
   integrationTest("disallow user specified schema") {
     var message = intercept[UnsupportedOperationException] {
@@ -161,6 +166,68 @@ class DeltaSharingSourceSuite extends QueryTest
         .load(tablePath)
     }.getMessage
     assert(message.contains("Delta sharing does not support specifying the schema at read time"))
+  }
+
+  integrationTest("Schema isReadCompatible - no exception") {
+    // Latest schema is with nullable=true, which should not fail on schema with nullable=false.
+    val query = spark.readStream.format("deltaSharing")
+      .option("startingVersion", "0")
+      .load(toNullTable).writeStream.format("console").start()
+
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 3)
+      }
+    } finally {
+      query.stop()
+    }
+  }
+
+  integrationTest("Schema isReadCompatible - exceptions") {
+    // Latest schema is with nullable=false, which should fail on schema with nullable=true.
+    var message = intercept[StreamingQueryException] {
+      val query = spark.readStream.format("deltaSharing")
+        .option("startingVersion", "0")
+        .load(toNotNullTable).writeStream.format("console").start()
+      query.processAllAvailable()
+    }.getMessage
+    assert(message.contains("Detected incompatible schema change"))
+
+    // Version 1 and 2 should both return metadata from version 0, which raises the same error.
+    message = intercept[StreamingQueryException] {
+      val query = spark.readStream.format("deltaSharing")
+        .option("startingVersion", "1")
+        .load(toNotNullTable).writeStream.format("console").start()
+      query.processAllAvailable()
+    }.getMessage
+    assert(message.contains("Detected incompatible schema change"))
+
+    message = intercept[StreamingQueryException] {
+      val query = spark.readStream.format("deltaSharing")
+        .option("startingVersion", "2")
+        .load(toNotNullTable).writeStream.format("console").start()
+      query.processAllAvailable()
+    }.getMessage
+    assert(message.contains("Detected incompatible schema change"))
+
+    // But it should succeed starting from version 3.
+    val query = spark.readStream.format("deltaSharing")
+      .option("startingVersion", "3")
+      .load(toNotNullTable).writeStream.format("console").start()
+
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 1)
+      }
+    } finally {
+      query.stop()
+    }
   }
 
   /**

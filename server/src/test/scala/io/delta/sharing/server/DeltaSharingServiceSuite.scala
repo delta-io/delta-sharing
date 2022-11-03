@@ -1019,6 +1019,76 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(actions(3).add != null)
   }
 
+  integrationTest("streaming_notnull_to_null - no exceptions") {
+    // Changing a column from not null to null
+    val p =
+      s"""
+         |{
+         | "startingVersion": 0
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/query"), Some("POST"), Some(p), Some(0))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 5)
+
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "36869638-1699-4a28-b4bb-9fe4ff5ebbf8",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+      configuration = Map.empty,
+      partitionColumns = Nil,
+      version = 0)
+    assert(expectedMetadata == actions(1).metaData)
+
+    assert(actions(2).add != null)
+
+    expectedMetadata = expectedMetadata.copy(
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+      version = 2
+    )
+    assert(expectedMetadata == actions(3).metaData)
+
+    assert(actions(4).add != null)
+  }
+
+  integrationTest("streaming_null_to_notnull - no exceptions") {
+    // Changing a column from null to not null
+    val p =
+      s"""
+         |{
+         | "startingVersion": 0
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_null_to_notnull/query"), Some("POST"), Some(p), Some(0))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 7)
+
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "f49d6102-3fca-4452-ab83-6e71fecfb118",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+      configuration = Map.empty,
+      partitionColumns = Nil,
+      version = 0)
+    assert(expectedMetadata == actions(1).metaData)
+
+    assert(actions(2).add != null)
+    assert(actions(3).remove != null)
+    assert(actions(4).add != null)
+
+    expectedMetadata = expectedMetadata.copy(
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+      version = 3
+    )
+    assert(expectedMetadata == actions(5).metaData)
+
+    assert(actions(6).add != null)
+  }
+
   integrationTest("table_reader_version_increased - exception") {
     assertHttpError(
       url = requestPath("/shares/share8/schemas/default/tables/table_reader_version_increased/query"),
