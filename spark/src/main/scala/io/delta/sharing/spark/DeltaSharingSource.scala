@@ -43,21 +43,23 @@ import io.delta.sharing.spark.model.{
 }
 
 /**
- * A case class to help with `Dataset` operations regarding Offset indexing, representing AddFile
- * actions in a Delta log.
+ * A case class to help with `Dataset` operations regarding Offset indexing, representing a
+ * FileAction in a Delta log.
  * For proper offset tracking(move the offset to the next version if all data is consumed in the
- * current version), there are also special sentinel values with index = -1 and add = null.
+ * current version), there are also special sentinel values with index=-1 and getFileAction=null.
  *
  * This class is not designed to be persisted in offset logs or such.
  *
  * @param version The version of the Delta log containing this AddFile.
- * @param index The index of this AddFile in the Delta log.
- * @param add The AddFile.
- * @param isLast A flag to indicate whether this is the last AddFile in the version. This is used
+ * @param index The index of this FileAction in the Delta log in the version.
+ * @param add The AddFileForCDF.
+ * @param remove The RemoveFile.
+ * @param cdc The AddCDCFile.
+ * @param isLast A flag to indicate whether this is the last FileAction in the version. This is used
  *               to resolve an off-by-one issue in the streaming offset interface; once we've read
  *               to the end of a log version file, we check this flag to advance immediately to the
  *               next one in the persisted offset. Without this special case we would re-read the
- *               already completed log file.
+ *               already completed log file from the delta sharing server.
  */
 private[sharing] case class IndexedFile(
   version: Long,
@@ -66,6 +68,9 @@ private[sharing] case class IndexedFile(
   remove: RemoveFile = null,
   cdc: AddCDCFile = null,
   isLast: Boolean = false) {
+
+  assert(Seq(add, remove, cdc).filter(_ != null).size <= 1, "There could be at most one non-null " +
+    s"FileAction for an IndexedFile, add:$add, remove:$remove, cdc:$cdc.")
 
   def getFileAction: FileAction = {
     if (add != null) {
@@ -157,9 +162,11 @@ case class DeltaSharingSource(
   }
 
   /**
-   * Fetch the changes from delta sharing server starting from (fromVersion, fromIndex).
+   * Fetch the file changes from delta sharing server starting from (fromVersion, fromIndex), based on
+   * option.readChangeFeed, it may fetch table files or cdf files.
    *
-   * The start point should not be included in the result, it will be consumed in the next getBatch.
+   * The start point should not be included in the result, it's already consumed in the previous
+   * getBatch.
    *
    * If sortedFetchedFiles is not empty, this is a no-op.
    * Else, fetch file changes from the delta sharing server and store them in sortedFetchedFiles.
@@ -172,9 +179,9 @@ case class DeltaSharingSource(
    *                            fromVersion.
    */
   private def maybeGetFileChanges(
-    fromVersion: Long,
-    fromIndex: Long,
-    isStartingVersion: Boolean): Unit = {
+      fromVersion: Long,
+      fromIndex: Long,
+      isStartingVersion: Boolean): Unit = {
     if (!sortedFetchedFiles.isEmpty) {
       return
     }
@@ -203,7 +210,7 @@ case class DeltaSharingSource(
               isLast = (index + 1 == numFiles)))
       }
     } else if (options.readChangeFeed) {
-      getCDFFileChanges(fromVersion, fromIndex, isStartingVersion, currentLatestVersion)
+      getCDFFileChanges(fromVersion, fromIndex, currentLatestVersion)
     } else {
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
@@ -224,11 +231,25 @@ case class DeltaSharingSource(
     }
   }
 
+  /**
+   * Fetch the cdf changes from delta sharing server starting from (fromVersion, fromIndex), and
+   * store them in sortedFetchedFiles.
+   *
+   * The start point should not be included in the result, it's already consumed in the previous
+   * getBatch.
+   *
+   * @param fromVersion - a table version, initially would be the startingVersion or the latest
+   *                      table version.
+   * @param fromIndex - index of a file within the same version,
+   * @param currentLatestVersion - The latest table version returned from the delta sharing server.
+   *                               This is used to insert an indexedFile for each version in the
+   *                               sortedFetchedFiles, in order to ensure the offset move beyond
+   *                               this version.
+   */
   private def getCDFFileChanges(
-    fromVersion: Long,
-    fromIndex: Long,
-    isStartingVersion: Boolean,
-    currentLatestVersion: Long): Unit = {
+      fromVersion: Long,
+      fromIndex: Long,
+      currentLatestVersion: Long): Unit = {
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString))
 
@@ -238,7 +259,10 @@ case class DeltaSharingSource(
 
     for (v <- fromVersion to currentLatestVersion) {
       if (perVersionCdfFiles.contains(v)) {
-        // process cdf files only if it exists.
+        // process cdf files if it exists, and ignore add/remove files. This is the peroperty of
+        // delta table, when cdf file exists in a version, it represents the same data change as
+        // add/remove files, so it's good enough to process the cdf files only, and only cdf files
+        // are returned from the delta sharing server for this version.
         val cdfFiles = perVersionCdfFiles.get(v).get.sortWith(fileActionCompareFunc)
         cdfFiles.zipWithIndex.foreach {
           case (cdc, index) if (v > fromVersion || (v == fromVersion && index > fromIndex)) =>
@@ -275,6 +299,12 @@ case class DeltaSharingSource(
             )
         }
       } else {
+        // Still append an IndexedFile for this version with index=-1 and and getFileAction=null.
+        // This is to proceed through the versions without data files, to avoid processing them
+        // repeatedly, i.e., sending useless rpcs to the delta sharing server.
+        // This may happen when there's a protocol change of the table, or optimize of a table where
+        // there are no data files with dataChange=true, so the server won't return any files for
+        // the version.
         appendToSortedFetchedFiles(IndexedFile(v, -1, add = null, isLast = true))
       }
     }
@@ -310,8 +340,9 @@ case class DeltaSharingSource(
 
       if (admissionControl.admit(indexedFile.getFileAction)) {
         // For CDC commits we either admit the entire commit or nothing at all.
-        // This is to avoid returning `update_preimage` and `update_postimage` in separate
-        // batches.
+        // We may exceed the admission control limit. And it's ok because correctness is more
+        // important: This is to avoid returning `update_preimage` and `update_postimage` in
+        // separate batches.
         while (indexedFile.cdc != null && index + 1 < sortedFetchedFiles.size
           && sortedFetchedFiles(index + 1).cdc != null &&
           sortedFetchedFiles(index + 1).version == indexedFile.version
@@ -353,6 +384,8 @@ case class DeltaSharingSource(
       startIndex: Long,
       isStartingVersion: Boolean,
       endOffset: DeltaSharingSourceOffset): DataFrame = {
+    maybeGetFileChanges(startVersion, startIndex, isStartingVersion)
+
     val fileActions = sortedFetchedFiles.takeWhile {
       case IndexedFile(version, index, _, _, _, _) =>
         version < endOffset.tableVersion ||
@@ -362,6 +395,9 @@ case class DeltaSharingSource(
     // Proceed the offset as the files before the endOffset are processed.
     previousOffset = endOffset
 
+    // indexedFile.getFileAction is null for index=-1 on each version, where we add it to ensure the
+    // offset proceed through all table versions even there's no interested files returned for the
+    // version.
     val filteredActions = fileActions.filter{ indexedFile => indexedFile.getFileAction != null }
 
     if (options.readChangeFeed) {
@@ -378,6 +414,8 @@ case class DeltaSharingSource(
    */
   private def createDataFrame(indexedFiles: Seq[IndexedFile]): DataFrame = {
     val addFilesList = indexedFiles.map { indexedFile =>
+      // add won't be null at this step as addFile is the only interested file when
+      // options.readChangeFeed is false, which is when this function is called.
       val add = indexedFile.add
       AddFile(add.url, add.id, add.partitionValues, add.size, add.stats)
     }
@@ -435,9 +473,9 @@ case class DeltaSharingSource(
    * @param limits Indicates how much data can be processed by a micro batch.
    */
   private def getStartingOffsetFromSpecificDeltaVersion(
-    fromVersion: Long,
-    isStartingVersion: Boolean,
-    limits: Option[AdmissionLimits]): Option[Offset] = {
+      fromVersion: Long,
+      isStartingVersion: Boolean,
+      limits: Option[AdmissionLimits]): Option[Offset] = {
     val lastFileChange = getLastFileChangeWithRateLimit(
       fromVersion,
       fromIndex = -1L,
@@ -454,8 +492,8 @@ case class DeltaSharingSource(
    * Return the next offset when previous offset exists.
    */
   private def getNextOffsetFromPreviousOffset(
-    previousOffset: DeltaSharingSourceOffset,
-    limits: Option[AdmissionLimits]): Option[Offset] = {
+      previousOffset: DeltaSharingSourceOffset,
+      limits: Option[AdmissionLimits]): Option[Offset] = {
     val lastFileChange = getLastFileChangeWithRateLimit(
       previousOffset.tableVersion,
       previousOffset.index,
@@ -481,9 +519,9 @@ case class DeltaSharingSource(
    * @return the constructed offset.
    */
   private def buildOffsetFromIndexedFile(
-    lastIndexedFile: IndexedFile,
-    previousOffsetVersion: Long,
-    ispreviousOffsetStartingVersion: Boolean): Option[DeltaSharingSourceOffset] = {
+      lastIndexedFile: IndexedFile,
+      previousOffsetVersion: Long,
+      ispreviousOffsetStartingVersion: Boolean): Option[DeltaSharingSourceOffset] = {
     val IndexedFile(v, i, _, _, _, isLastFileInVersion) = lastIndexedFile
     assert(v >= previousOffsetVersion,
       s"buildOffsetFromIndexedFile receives an invalid previousOffsetVersion: $v " +
@@ -506,7 +544,7 @@ case class DeltaSharingSource(
   }
 
   private def verifyStreamHygieneAndFilterAddFiles(
-    tableFiles: DeltaTableFiles): Seq[AddFileForCDF] = {
+      tableFiles: DeltaTableFiles): Seq[AddFileForCDF] = {
     if (!tableFiles.removeFiles.isEmpty) {
       val versionsWithRemoveFiles = tableFiles.removeFiles.map(r => r.version).toSet
       val versionsWithAddFiles = tableFiles.addFiles.map(a => a.version).toSet
@@ -531,7 +569,7 @@ case class DeltaSharingSource(
    * @return the latest offset.
    */
   private def getStartingOffset(
-    limits: Option[AdmissionLimits] = Some(new AdmissionLimits())): Option[Offset] = {
+      limits: Option[AdmissionLimits] = Some(new AdmissionLimits())): Option[Offset] = {
 
     val (version, isStartingVersion) = getStartingVersion match {
       case Some(v) => (v, false)
@@ -650,7 +688,7 @@ case class DeltaSharingSource(
       if (fileAction == null) {
         // admit IndexedFile with null fileAction, which should be with index=-1 for each version.
         // This is to proceed through the versions without data files, to avoid processing them
-        // repeatedly.
+        // repeatedly, i.e., sending useless rpcs to the delta sharing server.
         return true
       }
       val shouldAdmit = filesToTake > 0 && bytesToTake > 0

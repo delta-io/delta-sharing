@@ -190,8 +190,13 @@ object TestResource {
                 true
               ),
               TableConfig(
-                "streaming_table_read_incompatible",
-                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_table_read_incompatible",
+                "streaming_notnull_to_null",
+                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_notnull_to_null",
+                true
+              ),
+              TableConfig(
+                "streaming_null_to_notnull",
+                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_null_to_notnull",
                 true
               ),
               TableConfig(
