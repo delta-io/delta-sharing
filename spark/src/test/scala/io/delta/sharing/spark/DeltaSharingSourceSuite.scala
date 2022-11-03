@@ -22,7 +22,14 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{StringType, StructField, StructType, TimestampType}
+import org.apache.spark.sql.types.{
+  DateType,
+  IntegerType,
+  StringType,
+  StructField,
+  StructType,
+  TimestampType
+}
 import org.scalatest.time.SpanSugar._
 
 class DeltaSharingSourceSuite extends QueryTest
@@ -108,6 +115,23 @@ class DeltaSharingSourceSuite extends QueryTest
     assert(offset.tableVersion == 6)
     assert(offset.index == -1)
     assert(!offset.isStartingVersion)
+  }
+
+  /**
+   * Test schema for Stream CDF
+   */
+  integrationTest("DeltaSharingSource.schema - success") {
+    // getBatch cannot be called without writestream
+    val source = getSource(Map(
+      "ignoreChanges" -> "true",
+      "ignoreDeletes" -> "true",
+      "startingVersion" -> "0"))
+    val expectedSchema = StructType(Array(
+      StructField("name", StringType, true),
+      StructField("age", IntegerType, true),
+      StructField("birthday", DateType, true)
+    ))
+    assert(expectedSchema == source.schema)
   }
 
   /**

@@ -21,6 +21,14 @@ import org.apache.spark.sql.QueryTest
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
+import org.apache.spark.sql.types.{
+  DateType,
+  IntegerType,
+  LongType,
+  StringType,
+  StructField,
+  StructType
+}
 import org.scalatest.time.SpanSugar._
 
 class DeltaSharingSourceCDFSuite extends QueryTest
@@ -41,15 +49,15 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   // allowed to query starting from version 1
   // VERSION 1: INSERT 3 rows, 3 add files
   // VERSION 2: UPDATE 1 row, 1 cdf file
-  // VERSION 2: REMOVE 1 row, 1 remove file
+  // VERSION 3: REMOVE 1 row, 1 remove file
   lazy val errorTablePath2 = testProfileFile.getCanonicalPath +
       "#share8.default.cdf_table_with_partition"
 
   // allowed to query starting from version 1
   // VERSION 1: INSERT 2 rows, 1 add file
-  // VERSION 1: INSERT 3 rows, 1 add file
-  // VERSION 2: UPDATE 4 rows, 4 cdf files, 8 cdf rows
-  // VERSION 2: REMOVE 4 rows, 2 remove files
+  // VERSION 2: INSERT 3 rows, 1 add file
+  // VERSION 3: UPDATE 4 rows, 4 cdf files, 8 cdf rows
+  // VERSION 4: REMOVE 4 rows, 2 remove files
   lazy val cdfTablePath = testProfileFile.getCanonicalPath + "#share8.default.streaming_cdf_table"
 
   lazy val deltaLog = RemoteDeltaLog(cdfTablePath)
@@ -82,6 +90,9 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     ))
     val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
 
+    // source is using table cdfTablePath, which has 4 versions listed in the comment above.
+    // When startingVersion is 0, so we expect the latestOffset to be at version 5 and index -1,
+    // and is not starting version, which proceeds through existing 4 versions.
     assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
     val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
     assert(offset.sourceVersion == 1)
@@ -97,6 +108,10 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       "ignoreDeletes" -> "true",
       "startingVersion" -> "latest"
     ))
+
+    // When startingVersion is latest, it ignores all existing data, so the latestOffset is null.
+    // latestOffset will be a valid offset when there's new data in the source table after the query
+    // started.
     val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
     assert(latestOffset == null)
   }
@@ -105,6 +120,9 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     val source = getSource(Map("ignoreChanges" -> "true", "ignoreDeletes" -> "true"))
     val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
 
+    // source is using table cdfTablePath, which has 4 versions listed in the comment above.
+    // When startingVersion is not specified, it will fetch the latest snapshot (at version 4), and
+    // will proceed the offset to the next version: version 5 with index -1.
     assert(latestOffset.isInstanceOf[DeltaSharingSourceOffset])
     val offset = latestOffset.asInstanceOf[DeltaSharingSourceOffset]
     assert(offset.sourceVersion == 1)
@@ -112,6 +130,26 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     assert(offset.tableVersion == 5)
     assert(offset.index == -1)
     assert(!offset.isStartingVersion)
+  }
+
+  /**
+   * Test schema for Stream CDF
+   */
+  integrationTest("DeltaSharingSource.schema - success") {
+    // getBatch cannot be called without writestream
+    val source = getSource(Map(
+      "ignoreChanges" -> "true",
+      "ignoreDeletes" -> "true",
+      "startingVersion" -> "0"))
+    val expectedSchema = StructType(Array(
+      StructField("name", StringType, true),
+      StructField("age", IntegerType, true),
+      StructField("birthday", DateType, true),
+      StructField("_commit_version", LongType, true),
+      StructField("_commit_timestamp", LongType, true),
+      StructField("_change_type", StringType, true)
+    ))
+    assert(expectedSchema == source.schema)
   }
 
   /**
@@ -327,12 +365,12 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     //
     // Table versions:
     // VERSION 1: INSERT 2 rows, 1 add file
-    // VERSION 1: INSERT 3 rows, 1 add file
-    // VERSION 2: UPDATE 4 rows, 4 cdf files, 8 cdf rows,
+    // VERSION 2: INSERT 3 rows, 1 add file
+    // VERSION 3: UPDATE 4 rows, 4 cdf files, 8 cdf rows,
     //   For CDC commits we either admit the entire commit or nothing at all.
     //   This is to avoid returning `update_preimage` and `update_postimage` in separate
     //   batches.
-    // VERSION 2: REMOVE 4 rows, 2 remove files
+    // VERSION 4: REMOVE 4 rows, 2 remove files
     Map(1 -> Seq(2, 3, 8, 2, 2), 2 -> Seq(5, 8, 4), 3 -> Seq(13, 4),
         6 -> Seq(13, 4), 7 -> Seq(15, 2), 8 -> Seq(17), 9 -> Seq(17)).foreach{
       case (k, v) =>
@@ -378,12 +416,12 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     //
     // Table versions:
     // VERSION 1: INSERT 2 rows, 1 add file, 794 bytes
-    // VERSION 1: INSERT 3 rows, 1 add file, 803 bytes
-    // VERSION 2: UPDATE 4 rows, 4 cdf files, 8 cdf rows, 1100+ bytes each
+    // VERSION 2: INSERT 3 rows, 1 add file, 803 bytes
+    // VERSION 3: UPDATE 4 rows, 4 cdf files, 8 cdf rows, 1100+ bytes each
     //   For CDC commits we either admit the entire commit or nothing at all.
     //   This is to avoid returning `update_preimage` and `update_postimage` in separate
     //   batches.
-    // VERSION 2: REMOVE 4 rows, 2 remove files, 1000+ bytes each
+    // VERSION 4: REMOVE 4 rows, 2 remove files, 1000+ bytes each
     Map(1 -> Seq(2, 3, 8, 2, 2), 700 -> Seq(2, 3, 8, 2, 2), 800 -> Seq(5, 8, 2, 2),
         1600 -> Seq(13, 4), 6000 -> Seq(13, 4), 7000 -> Seq(15, 2), 9000 -> Seq(17)).foreach {
       case (k, v) =>
