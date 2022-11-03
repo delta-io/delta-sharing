@@ -162,8 +162,8 @@ case class DeltaSharingSource(
   }
 
   /**
-   * Fetch the file changes from delta sharing server starting from (fromVersion, fromIndex), based on
-   * option.readChangeFeed, it may fetch table files or cdf files.
+   * Fetch the file changes from delta sharing server starting from (fromVersion, fromIndex), based
+   * on option.readChangeFeed, it may fetch table files or cdf files.
    *
    * The start point should not be included in the result, it's already consumed in the previous
    * getBatch.
