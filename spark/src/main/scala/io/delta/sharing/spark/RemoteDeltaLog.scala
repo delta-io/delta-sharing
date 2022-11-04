@@ -105,11 +105,10 @@ private[sharing] class RemoteDeltaLog(
 }
 
 private[sharing] object RemoteDeltaLog {
-  private lazy val _fileActionEncorder: ExpressionEncoder[FileAction] =
-    ExpressionEncoder[FileAction]()
+  private lazy val _addFileEncoder: ExpressionEncoder[AddFile] = ExpressionEncoder[AddFile]()
 
-  implicit def fileActionEncorder: Encoder[FileAction] = {
-    _fileActionEncorder.copy()
+  implicit def addFileEncoder: Encoder[AddFile] = {
+    _addFileEncoder.copy()
   }
 
   /**
@@ -217,11 +216,13 @@ class RemoteSnapshot(
     getAddFiles(tableFiles).map(_.size).sum
   }
 
-  private def getAddFiles(tableFiles: DeltaTableFiles): Seq[FileAction] = {
+  private def getAddFiles(tableFiles: DeltaTableFiles): Seq[AddFile] = {
     if (Seq(versionAsOf, timestampAsOf).filter(_.isDefined).isEmpty) {
       tableFiles.files
     } else {
-      tableFiles.addFiles
+      tableFiles.addFiles.map {add =>
+        AddFile(add.url, add.id, add.partitionValues, add.size, add.stats)
+      }
     }
   }
 
@@ -258,7 +259,7 @@ class RemoteSnapshot(
       filters: Seq[Expression],
       limitHint: Option[Long],
       fileIndex: RemoteDeltaSnapshotFileIndex): Seq[FileAction] = {
-    implicit val enc = RemoteDeltaLog.fileActionEncorder
+    implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
       DeltaTableUtils.splitMetadataAndDataPredicates(filter, metadata.partitionColumns, spark)._1
@@ -274,7 +275,6 @@ class RemoteSnapshot(
       logDebug(s"Sending predicates $predicates to the server")
     }
 
-    // scalastyle:off println
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
@@ -290,16 +290,11 @@ class RemoteSnapshot(
         })
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
-      Console.println(s"--------[linzhou]--------files:${tableFiles.files}")
-      Console.println(s"--------[linzhou]--------files:${tableFiles.addFiles}")
       getAddFiles(tableFiles).toDS()
     }
 
-    Console.println(s"--------[linzhou]--------remoteFiles:${remoteFiles}")
-    Console.println(s"--------[linzhou]--------class:${remoteFiles.getClass}")
-
     val columnFilter = new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
-    remoteFiles.filter(columnFilter).as[FileAction].collect()
+    remoteFiles.filter(columnFilter).as[AddFile].collect()
   }
 
   /**
