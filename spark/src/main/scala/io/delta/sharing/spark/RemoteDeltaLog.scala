@@ -35,7 +35,15 @@ import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
-import io.delta.sharing.spark.model.{AddFile, CDFColumnInfo, Metadata, Protocol, Table => DeltaSharingTable}
+import io.delta.sharing.spark.model.{
+  AddFile,
+  CDFColumnInfo,
+  DeltaTableFiles,
+  FileAction,
+  Metadata,
+  Protocol,
+  Table => DeltaSharingTable
+}
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 
 
@@ -97,10 +105,11 @@ private[sharing] class RemoteDeltaLog(
 }
 
 private[sharing] object RemoteDeltaLog {
-  private lazy val _addFileEncoder: ExpressionEncoder[AddFile] = ExpressionEncoder[AddFile]()
+  private lazy val _fileActionEncorder: ExpressionEncoder[FileAction] =
+    ExpressionEncoder[FileAction]()
 
-  implicit def addFileEncoder: Encoder[AddFile] = {
-    _addFileEncoder.copy()
+  implicit def fileActionEncorder: Encoder[FileAction] = {
+    _fileActionEncorder.copy()
   }
 
   /**
@@ -199,13 +208,21 @@ class RemoteSnapshot(
 
   def getTablePath: Path = tablePath
 
-  lazy val (allFiles, sizeInBytes) = {
+  lazy val sizeInBytes = {
     val implicits = spark.implicits
     import implicits._
     val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf)
     checkProtocolNotChange(tableFiles.protocol)
     checkSchemaNotChange(tableFiles.metadata)
-    tableFiles.files.toDS() -> tableFiles.files.map(_.size).sum
+    getAddFiles(tableFiles).map(_.size).sum
+  }
+
+  private def getAddFiles(tableFiles: DeltaTableFiles): Seq[FileAction] = {
+    if (Seq(versionAsOf, timestampAsOf).filter(_.isDefined).isEmpty) {
+      tableFiles.files
+    } else {
+      tableFiles.addFiles
+    }
   }
 
   private def getTableMetadata: (Metadata, Protocol, Long) = {
@@ -240,8 +257,8 @@ class RemoteSnapshot(
   def filesForScan(
       filters: Seq[Expression],
       limitHint: Option[Long],
-      fileIndex: RemoteDeltaSnapshotFileIndex): Seq[AddFile] = {
-    implicit val enc = RemoteDeltaLog.addFileEncoder
+      fileIndex: RemoteDeltaSnapshotFileIndex): Seq[FileAction] = {
+    implicit val enc = RemoteDeltaLog.fileActionEncorder
 
     val partitionFilters = filters.flatMap { filter =>
       DeltaTableUtils.splitMetadataAndDataPredicates(filter, metadata.partitionColumns, spark)._1
@@ -257,26 +274,32 @@ class RemoteSnapshot(
       logDebug(s"Sending predicates $predicates to the server")
     }
 
+    // scalastyle:off println
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(table, predicates, limitHint, versionAsOf, timestampAsOf)
-      val idToUrl = tableFiles.files.map { add =>
+      val idToUrl = getAddFiles(tableFiles).map { add =>
         add.id -> add.url
       }.toMap
       CachedTableManager.INSTANCE
         .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
-          client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
+          getAddFiles(client.getFiles(table, Nil, None, versionAsOf, timestampAsOf)).map { add =>
             add.id -> add.url
           }.toMap
         })
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
-      tableFiles.files.toDS()
+      Console.println(s"--------[linzhou]--------files:${tableFiles.files}")
+      Console.println(s"--------[linzhou]--------files:${tableFiles.addFiles}")
+      getAddFiles(tableFiles).toDS()
     }
 
+    Console.println(s"--------[linzhou]--------remoteFiles:${remoteFiles}")
+    Console.println(s"--------[linzhou]--------class:${remoteFiles.getClass}")
+
     val columnFilter = new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
-    remoteFiles.filter(columnFilter).as[AddFile].collect()
+    remoteFiles.filter(columnFilter).as[FileAction].collect()
   }
 
   /**

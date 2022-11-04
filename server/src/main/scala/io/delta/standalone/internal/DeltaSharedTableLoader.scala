@@ -230,6 +230,15 @@ class DeltaSharedTable(
         // queryDataChangeSinceStartVersion.
         queryDataChangeSinceStartVersion(startingVersion.get)
       } else if (includeFiles) {
+        val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
+          deltaLog.store,
+          deltaLog.logPath,
+          snapshot.version,
+          snapshot.version + 1,
+          conf
+        )
+        val ts = timestampsByVersion.get(snapshot.version).orNull
+
         val selectedFiles = state.activeFiles.toSeq
         val filteredFilters =
           if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
@@ -245,11 +254,22 @@ class DeltaSharedTable(
         filteredFilters.map { addFile =>
           val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
           val signedUrl = fileSigner.sign(cloudPath)
-          val modelAddFile = model.AddFile(url = signedUrl,
-            id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
-            partitionValues = addFile.partitionValues,
-            size = addFile.size,
-            stats = addFile.stats)
+          val modelAddFile = if (Seq(version, timestamp).filter(_.isDefined).isEmpty) {
+            model.AddFile(url = signedUrl,
+              id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+              partitionValues = addFile.partitionValues,
+              size = addFile.size,
+              stats = addFile.stats)
+          } else {
+            model.AddFileForCDF(url = signedUrl,
+              id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+              partitionValues = addFile.partitionValues,
+              size = addFile.size,
+              stats = addFile.stats,
+              version = snapshot.version,
+              timestamp = ts.getTime
+            )
+          }
           modelAddFile.wrap
         }
       } else {
