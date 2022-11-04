@@ -222,7 +222,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
     val deltaTableFiles = client.getCDFFiles(table, Map.empty)
 
-    val addFilesIndex = new RemoteDeltaCDFAddFileIndex(params, deltaTableFiles)
+    val addFilesIndex = new RemoteDeltaCDFAddFileIndex(params, deltaTableFiles.addFiles)
 
     // For addFile actions, we expect the internal columns in the partition schema.
     val expectedAddFilePartitionSchema = StructType(Array(
@@ -241,7 +241,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(addInputFileList.size == 1)
     assert(addInputFileList(0) == "delta-sharing:/test/cdf_add1/100")
 
-    val cdcIndex = new RemoteDeltaCDCFileIndex(params, deltaTableFiles)
+    val cdcIndex = new RemoteDeltaCDCFileIndex(params, deltaTableFiles.cdfFiles)
 
     // For cdc actions, we expect the internal columns in the partition schema.
     val expectedCDCPartitionSchema = StructType(Array(
@@ -272,7 +272,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(cdcInputFileList(1) == "delta-sharing:/test/cdf_cdc2/300")
     assert(cdcInputFileList(2) == "delta-sharing:/test/cdf_cdc3/310")
 
-    val removeFilesIndex = new RemoteDeltaCDFRemoveFileIndex(params, deltaTableFiles)
+    val removeFilesIndex = new RemoteDeltaCDFRemoveFileIndex(params, deltaTableFiles.removeFiles)
 
     // For remove actions, we expect the internal columns in the partition schema.
     val expectedRemoveFilePartitionSchema = StructType(Array(

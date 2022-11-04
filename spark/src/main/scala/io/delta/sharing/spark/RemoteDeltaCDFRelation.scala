@@ -26,7 +26,12 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan}
 import org.apache.spark.sql.types.StructType
 
-import io.delta.sharing.spark.model.{CDFColumnInfo, Metadata, Table => DeltaSharingTable}
+import io.delta.sharing.spark.model.{
+  AddCDCFile,
+  AddFileForCDF,
+  RemoveFile,
+  Table => DeltaSharingTable
+}
 
 case class RemoteDeltaCDFRelation(
     spark: SparkSession,
@@ -40,22 +45,43 @@ case class RemoteDeltaCDFRelation(
   override def sqlContext: SQLContext = spark.sqlContext
 
   override def buildScan(
-    requiredColumns: Array[String],
-    filters: Array[Filter]): RDD[Row] = {
+      requiredColumns: Array[String],
+      filters: Array[Filter]): RDD[Row] = {
     val deltaTabelFiles = client.getCDFFiles(table, cdfOptions)
-    val metadata = deltaTabelFiles.metadata
-    val params = RemoteDeltaFileIndexParams(spark, snapshotToUse)
+
+    DeltaSharingCDFReader.changesToDF(
+      new RemoteDeltaFileIndexParams(spark, snapshotToUse),
+      requiredColumns,
+      deltaTabelFiles.addFiles,
+      deltaTabelFiles.cdfFiles,
+      deltaTabelFiles.removeFiles,
+      DeltaTableUtils.addCdcSchema(deltaTabelFiles.metadata.schemaString)
+    ).rdd
+  }
+}
+
+object DeltaSharingCDFReader {
+  def changesToDF(
+      params: RemoteDeltaFileIndexParams,
+      requiredColumns: Array[String],
+      addFiles: Seq[AddFileForCDF],
+      cdfFiles: Seq[AddCDCFile],
+      removeFiles: Seq[RemoveFile],
+      schema: StructType,
+      isStreaming: Boolean = false): DataFrame = {
     val dfs = ListBuffer[DataFrame]()
 
     // We unconditionally add all types of files.
     // We will get empty data frames for empty ones, which will get combined later.
-    dfs.append(scanIndex(new RemoteDeltaCDFAddFileIndex(params, deltaTabelFiles), metadata))
-    dfs.append(scanIndex(new RemoteDeltaCDCFileIndex(params, deltaTabelFiles), metadata))
-    dfs.append(scanIndex(new RemoteDeltaCDFRemoveFileIndex(params, deltaTabelFiles), metadata))
+    dfs.append(scanIndex(new RemoteDeltaCDFAddFileIndex(
+      params, addFiles), schema, isStreaming))
+    dfs.append(scanIndex(new RemoteDeltaCDCFileIndex(
+      params, cdfFiles), schema, isStreaming))
+    dfs.append(scanIndex(new RemoteDeltaCDFRemoveFileIndex(
+      params, removeFiles), schema, isStreaming))
 
     dfs.reduce((df1, df2) => df1.unionAll(df2))
       .select(requiredColumns.map(c => col(quoteIdentifier(c))): _*)
-      .rdd
   }
 
   private def quoteIdentifier(part: String): String = s"`${part.replace("`", "``")}`"
@@ -64,15 +90,18 @@ case class RemoteDeltaCDFRelation(
    * Build a dataframe from the specified file index. We can't use a DataFrame scan directly on the
    * file names because that scan wouldn't include partition columns.
    */
-  private def scanIndex(fileIndex: RemoteDeltaCDFFileIndexBase, metadata: Metadata): DataFrame = {
+  private def scanIndex(
+      fileIndex: RemoteDeltaCDFFileIndexBase,
+      schema: StructType,
+      isStreaming: Boolean): DataFrame = {
     val relation = HadoopFsRelation(
       fileIndex,
       fileIndex.partitionSchema,
-      DeltaTableUtils.addCdcSchema(metadata.schemaString),
+      schema,
       bucketSpec = None,
-      snapshotToUse.fileFormat,
-      Map.empty)(spark)
-    val plan = LogicalRelation(relation)
-    DeltaSharingScanUtils.ofRows(spark, plan)
+      fileIndex.params.snapshotAtAnalysis.fileFormat,
+      Map.empty)(fileIndex.params.spark)
+    val plan = LogicalRelation(relation, isStreaming = isStreaming)
+    DeltaSharingScanUtils.ofRows(fileIndex.params.spark, plan)
   }
 }

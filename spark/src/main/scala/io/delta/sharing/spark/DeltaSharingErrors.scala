@@ -45,7 +45,7 @@ object DeltaSharingErrors {
   def versionAndTimestampBothSetException(
     versionOptKey: String,
     timestampOptKey: String): Throwable = {
-    new IllegalArgumentException(s"Please either provide '$versionOptKey' or '$timestampOptKey'")
+    new IllegalArgumentException(s"Please either provide '$versionOptKey' or '$timestampOptKey'.")
   }
 
   def CDFNotSupportedInStreaming: Throwable = {
