@@ -258,7 +258,7 @@ class RemoteSnapshot(
   def filesForScan(
       filters: Seq[Expression],
       limitHint: Option[Long],
-      fileIndex: RemoteDeltaSnapshotFileIndex): Seq[FileAction] = {
+      fileIndex: RemoteDeltaSnapshotFileIndex): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
