@@ -47,9 +47,7 @@ private[sharing] class DeltaSharingDataSource
       parameters: Map[String, String]): BaseRelation = {
     DeltaSharingDataSource.setupFileSystem(sqlContext)
     val options = new DeltaSharingOptions(parameters)
-    val path = options.options.getOrElse("path", throw new IllegalArgumentException(
-      "'path' is not specified. If you use SQL to create a Delta Sharing table, " +
-        "LOCATION must be specified"))
+    val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
 
     val deltaLog = RemoteDeltaLog(path)
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
@@ -68,9 +66,6 @@ private[sharing] class DeltaSharingDataSource
     if (options.isTimeTravel) {
       throw DeltaSharingErrors.timeTravelNotSupportedException
     }
-    if (options.readChangeFeed) {
-      throw DeltaSharingErrors.CDFNotSupportedInStreaming
-    }
 
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
     val deltaLog = RemoteDeltaLog(path)
@@ -79,7 +74,11 @@ private[sharing] class DeltaSharingDataSource
       throw DeltaSharingErrors.schemaNotSetException
     }
 
-    (shortName(), schemaToUse)
+    if (options.readChangeFeed) {
+      (shortName(), DeltaTableUtils.addCdcSchema(schemaToUse))
+    } else {
+      (shortName(), schemaToUse)
+    }
   }
 
   override def createSource(
