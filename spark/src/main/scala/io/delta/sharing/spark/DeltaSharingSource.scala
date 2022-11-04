@@ -17,7 +17,7 @@
 package io.delta.sharing.spark
 
 // scalastyle:off import.ordering.noEmptyLine
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, SparkSession}
@@ -29,9 +29,7 @@ import org.apache.spark.sql.connector.read.streaming.{
   SupportsAdmissionControl
 }
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
-import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.execution.streaming._
-import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.StructType
 
 import io.delta.sharing.spark.model.{
@@ -227,18 +225,24 @@ case class DeltaSharingSource(
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
-      // TODO: return timestamp for fromVersion
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, Nil, None, Some(fromVersion), None)
 
-      val numFiles = tableFiles.files.size
-      tableFiles.files.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
-        case (file, index) if (index > fromIndex) =>
+      val numFiles = tableFiles.addFiles.size
+      tableFiles.addFiles.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
+        case (add, index) if (index > fromIndex) =>
           appendToSortedFetchedFiles(
             IndexedFile(
               fromVersion,
               index,
               AddFileForCDF(
-                file.url, file.id, file.partitionValues, file.size, fromVersion, -1, file.stats),
+                add.url,
+                add.id,
+                add.partitionValues,
+                add.size,
+                fromVersion,
+                add.timestamp,
+                add.stats
+              ),
               isLast = (index + 1 == numFiles)))
       }
     } else {
