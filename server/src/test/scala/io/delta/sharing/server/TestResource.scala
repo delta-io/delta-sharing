@@ -208,6 +208,11 @@ object TestResource {
                 "table_reader_version_increased",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_reader_version_increased",
                 true
+              ),
+              TableConfig(
+                "table_with_no_metadata",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table_with_no_metadata",
+                true
               )
             )
           )

@@ -17,7 +17,7 @@
 package io.delta.sharing.spark
 
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.QueryTest
+import org.apache.spark.sql.{QueryTest, Row}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
@@ -30,6 +30,8 @@ import org.apache.spark.sql.types.{
   StructType
 }
 import org.scalatest.time.SpanSugar._
+
+import io.delta.sharing.spark.TestUtils._
 
 class DeltaSharingSourceCDFSuite extends QueryTest
   with SharedSparkSession with DeltaSharingIntegrationTest {
@@ -173,22 +175,47 @@ class DeltaSharingSourceCDFSuite extends QueryTest
    * Test basic cdf streaming functionality
    */
   integrationTest("CDF Stream basic - success") {
-    var query = withStreamReaderAtVersion()
-      .load().writeStream.format("console").start()
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion()
+        .load().writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
 
-    try {
-      query.processAllAvailable()
-      val progress = query.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 1)
-      progress.foreach { p =>
-        assert(p.numInputRows === 17)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 17)
+        }
+      } finally {
+        query.stop()
       }
-    } finally {
-      query.stop()
+
+      val expected = Seq(
+        Row("1", 1, sqlDate("2020-01-01"), 1, 1667325629000L, "insert"),
+        Row("2", 2, sqlDate("2020-01-01"), 1, 1667325629000L, "insert"),
+        Row("1", 1, sqlDate("2021-01-01"), 2, 1667325636000L, "insert"),
+        Row("2", 2, sqlDate("2021-01-01"), 2, 1667325636000L, "insert"),
+        Row("3", 3, sqlDate("2021-01-01"), 2, 1667325636000L, "insert"),
+        Row("1", 1, sqlDate("2020-01-01"), 3, 1667325644000L, "update_preimage"),
+        Row("1", 1, sqlDate("2020-02-02"), 3, 1667325644000L, "update_postimage"),
+        Row("1", 1, sqlDate("2021-01-01"), 3, 1667325644000L, "update_preimage"),
+        Row("1", 1, sqlDate("2020-02-02"), 3, 1667325644000L, "update_postimage"),
+        Row("2", 2, sqlDate("2020-01-01"), 3, 1667325644000L, "update_preimage"),
+        Row("2", 2, sqlDate("2020-02-02"), 3, 1667325644000L, "update_postimage"),
+        Row("2", 2, sqlDate("2021-01-01"), 3, 1667325644000L, "update_preimage"),
+        Row("2", 2, sqlDate("2020-02-02"), 3, 1667325644000L, "update_postimage"),
+        Row("1", 1, sqlDate("2020-02-02"), 4, 1667325812000L, "delete"),
+        Row("1", 1, sqlDate("2020-02-02"), 4, 1667325812000L, "delete"),
+        Row("2", 2, sqlDate("2020-02-02"), 4, 1667325812000L, "delete"),
+        Row("2", 2, sqlDate("2020-02-02"), 4, 1667325812000L, "delete")
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
     }
 
     // Test readchangeData=true, and startingVersion=1.
-    query = spark.readStream.format("deltaSharing")
+    val query = spark.readStream.format("deltaSharing")
       .option("readchangeData", "true")
       .option("startingVersion", "1")
       .load(cdfTablePath).writeStream.format("console").start()
@@ -223,19 +250,44 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     }
 
     // select a few columns
-    query = withStreamReaderAtVersion()
-      .load()
-      .select("birthday", "_commit_version", "age", "_change_type")
-      .writeStream.format("console").start()
-    try {
-      query.processAllAvailable()
-      val progress = query.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 1)
-      progress.foreach { p =>
-        assert(p.numInputRows === 17)
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion()
+        .load()
+        .select("birthday", "_commit_version", "age", "_change_type")
+        .writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 17)
+        }
+      } finally {
+        query.stop()
       }
-    } finally {
-      query.stop()
+
+      val expected = Seq(
+        Row(sqlDate("2020-01-01"), 1, 1, "insert"),
+        Row(sqlDate("2020-01-01"), 1, 2, "insert"),
+        Row(sqlDate("2021-01-01"), 2, 1, "insert"),
+        Row(sqlDate("2021-01-01"), 2, 2, "insert"),
+        Row(sqlDate("2021-01-01"), 2, 3, "insert"),
+        Row(sqlDate("2020-01-01"), 3, 1, "update_preimage"),
+        Row(sqlDate("2020-02-02"), 3, 1, "update_postimage"),
+        Row(sqlDate("2021-01-01"), 3, 1, "update_preimage"),
+        Row(sqlDate("2020-02-02"), 3, 1, "update_postimage"),
+        Row(sqlDate("2020-01-01"), 3, 2, "update_preimage"),
+        Row(sqlDate("2020-02-02"), 3, 2, "update_postimage"),
+        Row(sqlDate("2021-01-01"), 3, 2, "update_preimage"),
+        Row(sqlDate("2020-02-02"), 3, 2, "update_postimage"),
+        Row(sqlDate("2020-02-02"), 4, 1, "delete"),
+        Row(sqlDate("2020-02-02"), 4, 1, "delete"),
+        Row(sqlDate("2020-02-02"), 4, 2, "delete"),
+        Row(sqlDate("2020-02-02"), 4, 2, "delete")
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
     }
   }
 

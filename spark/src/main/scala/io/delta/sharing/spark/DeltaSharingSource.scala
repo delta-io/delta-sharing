@@ -251,10 +251,11 @@ case class DeltaSharingSource(
         val vAddFiles = allAddFiles.getOrElse(v, ArrayBuffer[AddFileForCDF]())
         val numFiles = vAddFiles.size
         appendToSortedFetchedFiles(IndexedFile(v, -1, add = null, isLast = (numFiles == 0)))
-        vAddFiles.sortWith(fileActionCompareFunc).zipWithIndex.foreach{
+        vAddFiles.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
           case (add, index) if (v > fromVersion || (v == fromVersion && index > fromIndex)) =>
             appendToSortedFetchedFiles(
               IndexedFile(add.version, index, add, isLast = (index + 1 == numFiles)))
+          case _ => ()
         }
       }
     }

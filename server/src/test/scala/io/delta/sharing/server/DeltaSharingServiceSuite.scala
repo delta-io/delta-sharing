@@ -489,6 +489,16 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
   }
 
+  integrationTest("table_with_no_metadata - metadata missing") {
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/table_with_no_metadata"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 500,
+      expectedErrorMessage = ""
+    )
+  }
+
   integrationTest("table2 - version 1 : cdfEnabled is false") {
     assertHttpError(
       url = requestPath("/shares/share2/schemas/default/tables/table2/query"),
