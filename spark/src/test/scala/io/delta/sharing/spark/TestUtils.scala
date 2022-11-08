@@ -42,16 +42,6 @@ object TestUtils {
     }
   }
 
-  def withTempDirs(f: (File, File, File) => Unit): Unit = {
-    withTempDir { file1 =>
-      withTempDir { file2 =>
-        withTempDir { file3 =>
-          f(file1, file2, file3)
-        }
-      }
-    }
-  }
-
   def sqlDate(date: String): java.sql.Date = {
     toJavaDate(stringToDate(
       UTF8String.fromString(date),

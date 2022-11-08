@@ -16,9 +16,11 @@
 
 package io.delta.sharing.spark
 
-import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.{QueryTest, Row}
-import org.apache.spark.sql.SparkSession
+import scala.collection.JavaConverters._
+
+import org.apache.commons.io.FileUtils
+import org.apache.hadoop.fs.Path
+import org.apache.spark.sql.{AnalysisException, QueryTest, Row, SparkSession}
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{
@@ -333,7 +335,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   }
 
   integrationTest("CDF Stream - different startingVersion") {
-    // Starting from version 3: 4 CDF Files
+    // Starting from version 3: 4 ADDCDCFiles
     var query = withStreamReaderAtVersion(startingVersion = "3")
       .load().writeStream.format("console").start()
     try {
@@ -347,7 +349,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       query.stop()
     }
 
-    // Starting from version 4: 2 remove Files
+    // Starting from version 4: 2 RemoveFiles
     query = withStreamReaderAtVersion(startingVersion = "4")
       .load().writeStream.format("console").start()
     try {
@@ -407,6 +409,54 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     }
   }
 
+  /**
+   * Test streaming checkpoint
+   */
+  integrationTest("CDF Stream - restart from checkpoint") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val processedRows = Seq(2, 3, 8, 2, 2)
+      val query = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().select("age").writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === processedRows.size)
+        progress.zipWithIndex.map { case (p, index) =>
+          assert(p.numInputRows === processedRows(index))
+        }
+      } finally {
+        query.stop()
+      }
+
+      // There are 5 checkpoints, remove the latest 3.
+      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
+      checkpointFiles.foreach{ f =>
+        if (!f.isDirectory() && (f.getCanonicalPath.endsWith("2") ||
+          f.getCanonicalPath.endsWith("3") || f.getCanonicalPath.endsWith("4"))) {
+          f.delete()
+        }
+      }
+
+      val restartQuery = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().select("age").writeStream.format("console")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start()
+      try {
+        restartQuery.processAllAvailable()
+        val progress = restartQuery.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === processedRows.size - 2)
+        progress.zipWithIndex.map { case (p, index) =>
+          assert(p.numInputRows === processedRows(index + 2))
+        }
+      } finally {
+        restartQuery.stop()
+      }
+    }
+  }
 
   /**
    * Test maxFilesPerTrigger and maxBytesPerTrigger

@@ -16,12 +16,10 @@
 
 package io.delta.sharing.spark
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.{QueryTest, Row}
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{AnalysisException, QueryTest, Row, SparkSession}
 import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
@@ -40,7 +38,6 @@ import io.delta.sharing.spark.TestUtils._
 class DeltaSharingSourceSuite extends QueryTest
   with SharedSparkSession with DeltaSharingIntegrationTest {
 
-  // TODO: add test on a shared table without schema
   // TODO: test with different Trigger.xx:
   //   https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html
 
@@ -307,7 +304,6 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-
   integrationTest("no startingVersion - success") {
     // cdf_table_cdf_enabled snapshot at version 5 is queried, with 2 files and 2 rows of data
     val query = spark.readStream.format("deltaSharing")
@@ -328,6 +324,31 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
+  /**
+   * Test Trigger.ProcessingTime
+   */
+  integrationTest("Trigger.ProcessingTime - success") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().writeStream.format("parquet")
+        // This is verified by Console output
+        .trigger(Trigger.ProcessingTime("20 seconds"))
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 4)
+        progress.foreach { p =>
+          assert(p.numInputRows === 1)
+        }
+      } finally {
+        query.stop()
+      }
+    }
+  }
   /**
    * Test maxFilesPerTrigger and maxBytesPerTrigger
    */
@@ -381,7 +402,7 @@ class DeltaSharingSourceSuite extends QueryTest
       checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
 
       // There are 4 checkpoints, remove the latest 2.
-      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).toList
+      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
       checkpointFiles.foreach{ f =>
         if (!f.isDirectory() &&
           (f.getCanonicalPath.endsWith("2") || f.getCanonicalPath.endsWith("3"))) {
