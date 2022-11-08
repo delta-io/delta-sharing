@@ -213,6 +213,16 @@ object TestResource {
                 "table_with_no_metadata",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_with_no_metadata",
                 true
+              ),
+              TableConfig(
+                "table_data_loss_with_checkpoint",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table_data_loss_with_checkpoint",
+                true
+              ),
+              TableConfig(
+                "table_data_loss_no_checkpoint",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table_data_loss_no_checkpoint",
+                true
               )
             )
           )
