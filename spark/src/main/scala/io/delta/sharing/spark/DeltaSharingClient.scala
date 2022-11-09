@@ -403,7 +403,7 @@ private[spark] class DeltaSharingRestClient(
 
   private def getUserAgent(): String = {
     DeltaSharingRestClient.USER_AGENT + (if (forStreaming) {
-      " StreamingQuery/1.0.0"
+      s" SparkStructuredStreaming/$STREAMING_VERSION"
     } else {
       ""
     })

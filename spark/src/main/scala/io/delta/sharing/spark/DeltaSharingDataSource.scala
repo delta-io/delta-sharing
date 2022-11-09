@@ -68,7 +68,7 @@ private[sharing] class DeltaSharingDataSource
     }
 
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
-    val deltaLog = RemoteDeltaLog(path)
+    val deltaLog = RemoteDeltaLog(path, forStreaming = true)
     val schemaToUse = deltaLog.snapshot().schema
     if (schemaToUse.isEmpty) {
       throw DeltaSharingErrors.schemaNotSetException
