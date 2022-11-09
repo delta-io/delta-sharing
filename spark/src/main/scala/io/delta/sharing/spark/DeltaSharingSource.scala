@@ -106,7 +106,8 @@ case class DeltaSharingSource(
   with Logging {
 
   // This is to ensure that the request sent from the client contains the http header for streaming.
-  assert(deltaLog.client.getForStreaming)
+  assert(deltaLog.client.getForStreaming,
+    "forStreaming must be true for client in DeltaSharingSource.")
 
   // The snapshot that's used to construct the dataframe, constructed when source is initialized.
   // Use latest snapshot instead of snapshot at startingVersion, to allow easy recovery from
@@ -123,7 +124,7 @@ case class DeltaSharingSource(
   }
 
   // This is checked before creating DeltaSharingSource
-  assert(schema.nonEmpty)
+  assert(schema.nonEmpty, "schema cannot be empty in DeltaSharingSource.")
 
   /** A check on the source table that disallows deletes on the source data. */
   private val ignoreChanges = options.ignoreChanges
