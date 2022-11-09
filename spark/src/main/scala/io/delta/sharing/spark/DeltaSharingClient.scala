@@ -85,7 +85,8 @@ private[spark] class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
-    sslTrustAll: Boolean = false) extends DeltaSharingClient {
+    sslTrustAll: Boolean = false,
+    forStreaming: Boolean = false) extends DeltaSharingClient {
 
   @volatile private var created = false
 
@@ -360,7 +361,7 @@ private[spark] class DeltaSharingRestClient(
       }
       val headers = Map(
         HttpHeaders.AUTHORIZATION -> s"Bearer ${profile.bearerToken}",
-        HttpHeaders.USER_AGENT -> DeltaSharingRestClient.USER_AGENT
+        HttpHeaders.USER_AGENT -> getUserAgent()
       ) ++ customeHeaders
       headers.foreach(header => httpRequest.setHeader(header._1, header._2))
       val response =
@@ -395,6 +396,14 @@ private[spark] class DeltaSharingRestClient(
         response.close()
       }
     }
+
+  private def getUserAgent(): String = {
+    DeltaSharingRestClient.USER_AGENT + (if (forStreaming) {
+      " StreamingQuery/1.0.0"
+    } else {
+      ""
+    })
+  }
 
   def close(): Unit = {
     if (created) {

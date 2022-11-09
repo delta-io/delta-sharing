@@ -124,7 +124,7 @@ private[sharing] object RemoteDeltaLog {
     (profileFile, tableSplits(0), tableSplits(1), tableSplits(2))
   }
 
-  def apply(path: String): RemoteDeltaLog = {
+  def apply(path: String, forStreaming: Boolean = false): RemoteDeltaLog = {
     val sqlConf = SparkSession.active.sessionState.conf
     val (profileFile, share, schema, table) = parsePath(path)
 
@@ -169,11 +169,12 @@ private[sharing] object RemoteDeltaLog {
     val client: DeltaSharingClient =
       Class.forName(clientClass)
         .getConstructor(classOf[DeltaSharingProfileProvider],
-          classOf[Int], classOf[Int], classOf[Boolean])
+          classOf[Int], classOf[Int], classOf[Boolean], classOf[Boolean])
         .newInstance(profileProvider,
           java.lang.Integer.valueOf(timeoutInSeconds),
           java.lang.Integer.valueOf(numRetries),
-          java.lang.Boolean.valueOf(sslTrustAll))
+          java.lang.Boolean.valueOf(sslTrustAll),
+          java.lang.Boolean.valueOf(forStreaming))
         .asInstanceOf[DeltaSharingClient]
     new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
   }
