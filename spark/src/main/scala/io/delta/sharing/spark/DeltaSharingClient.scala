@@ -58,6 +58,8 @@ private[sharing] trait DeltaSharingClient {
   def getFiles(table: Table, startingVersion: Long): DeltaTableFiles
 
   def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles
+
+  def getForStreaming(): Boolean = false
 }
 
 private[sharing] trait PaginationResponse {
@@ -161,6 +163,8 @@ private[spark] class DeltaSharingRestClient(
     }
     tables
   }
+
+  override def getForStreaming(): Boolean = forStreaming
 
   override def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")

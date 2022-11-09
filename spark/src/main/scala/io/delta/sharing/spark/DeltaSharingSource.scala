@@ -105,6 +105,9 @@ case class DeltaSharingSource(
   with SupportsAdmissionControl
   with Logging {
 
+  // This is to ensure that the request sent from the client contains the http header for streaming.
+  assert(deltaLog.client.getForStreaming)
+
   // The snapshot that's used to construct the dataframe, constructed when source is initialized.
   // Use latest snapshot instead of snapshot at startingVersion, to allow easy recovery from
   // failures on schema incompatibility.
