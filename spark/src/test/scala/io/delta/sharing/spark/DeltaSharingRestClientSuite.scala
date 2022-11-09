@@ -18,6 +18,9 @@ package io.delta.sharing.spark
 
 import java.sql.Timestamp
 
+import org.apache.http.HttpHeaders
+import org.apache.http.client.methods.HttpGet
+
 import io.delta.sharing.spark.model.{
   AddCDCFile,
   AddFile,
@@ -32,6 +35,18 @@ import io.delta.sharing.spark.util.UnexpectedHttpStatus
 
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
+
+  test("Check headers") {
+    val httpRequest = new HttpGet("random_url")
+
+    val client = new DeltaSharingRestClient(testProfileProvider, forStreaming = false)
+    var h = client.prepareHeaders(httpRequest).getFirstHeader(HttpHeaders.USER_AGENT)
+    assert(!h.getValue.contains(DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING))
+
+    val streamingClient = new DeltaSharingRestClient(testProfileProvider, forStreaming = true)
+    h = streamingClient.prepareHeaders(httpRequest).getFirstHeader(HttpHeaders.USER_AGENT)
+    assert(h.getValue.contains(DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING))
+  }
 
   integrationTest("listAllTables") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
