@@ -34,7 +34,8 @@ class TestDeltaSharingClient(
     profileProvider: DeltaSharingProfileProvider = null,
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
-    sslTrustAll: Boolean = false) extends DeltaSharingClient {
+    sslTrustAll: Boolean = false,
+    forStreaming: Boolean = false) extends DeltaSharingClient {
 
   private val metadataString =
     """{"metaData":{"id":"93351cf1-c931-4326-88f0-d10e29e71b21","format":

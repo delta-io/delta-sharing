@@ -53,13 +53,14 @@ lazy val spark = (project in file("spark")) settings(
     "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
     "org.scalatest" %% "scalatest" % "3.2.3" % "test"
   ),
-  sourceGenerators in Compile += Def.task {
-    val file = (sourceManaged in Compile).value / "io" / "delta" / "sharing" / "spark" / "package.scala"
+  Compile / sourceGenerators += Def.task {
+    val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "spark" / "package.scala"
     IO.write(file,
       s"""package io.delta.sharing
          |
          |package object spark {
          |  val VERSION = "${version.value}"
+         |  val STREAMING_VERSION = "1.0.0"
          |}
          |""".stripMargin)
     Seq(file)

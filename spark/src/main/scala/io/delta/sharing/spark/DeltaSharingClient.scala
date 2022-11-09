@@ -58,6 +58,8 @@ private[sharing] trait DeltaSharingClient {
   def getFiles(table: Table, startingVersion: Long): DeltaTableFiles
 
   def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles
+
+  def getForStreaming(): Boolean = false
 }
 
 private[sharing] trait PaginationResponse {
@@ -85,7 +87,8 @@ private[spark] class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
-    sslTrustAll: Boolean = false) extends DeltaSharingClient {
+    sslTrustAll: Boolean = false,
+    forStreaming: Boolean = false) extends DeltaSharingClient {
 
   @volatile private var created = false
 
@@ -160,6 +163,8 @@ private[spark] class DeltaSharingRestClient(
     }
     tables
   }
+
+  override def getForStreaming(): Boolean = forStreaming
 
   override def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
@@ -343,6 +348,24 @@ private[spark] class DeltaSharingRestClient(
     }
   }
 
+  private[spark] def prepareHeaders(httpRequest: HttpRequestBase): HttpRequestBase = {
+    val customeHeaders = profileProvider.getCustomHeaders
+    if (customeHeaders.contains(HttpHeaders.AUTHORIZATION)
+      || customeHeaders.contains(HttpHeaders.USER_AGENT)) {
+      throw new IllegalArgumentException(
+        s"HTTP header ${HttpHeaders.AUTHORIZATION} and ${HttpHeaders.USER_AGENT} cannot be"
+          + "overriden."
+      )
+    }
+    val headers = Map(
+      HttpHeaders.AUTHORIZATION -> s"Bearer ${profileProvider.getProfile.bearerToken}",
+      HttpHeaders.USER_AGENT -> getUserAgent()
+    ) ++ customeHeaders
+    headers.foreach(header => httpRequest.setHeader(header._1, header._2))
+
+    httpRequest
+  }
+
   /**
    * Send the http request and return the table version in the header if any, and the response
    * content.
@@ -350,21 +373,11 @@ private[spark] class DeltaSharingRestClient(
   private def getResponse(httpRequest: HttpRequestBase): (Option[Long], String) =
     RetryUtils.runWithExponentialBackoff(numRetries) {
       val profile = profileProvider.getProfile
-      val customeHeaders = profileProvider.getCustomHeaders
-      if (customeHeaders.contains(HttpHeaders.AUTHORIZATION)
-          || customeHeaders.contains(HttpHeaders.USER_AGENT)) {
-        throw new IllegalArgumentException(
-          s"HTTP header ${HttpHeaders.AUTHORIZATION} and ${HttpHeaders.USER_AGENT} cannot be"
-            + "overriden."
-        )
-      }
-      val headers = Map(
-        HttpHeaders.AUTHORIZATION -> s"Bearer ${profile.bearerToken}",
-        HttpHeaders.USER_AGENT -> DeltaSharingRestClient.USER_AGENT
-      ) ++ customeHeaders
-      headers.foreach(header => httpRequest.setHeader(header._1, header._2))
-      val response =
-        client.execute(getHttpHost(profile.endpoint), httpRequest, HttpClientContext.create())
+      val response = client.execute(
+        getHttpHost(profile.endpoint),
+        prepareHeaders(httpRequest),
+        HttpClientContext.create()
+      )
       try {
         val status = response.getStatusLine()
         val entity = response.getEntity()
@@ -396,6 +409,16 @@ private[spark] class DeltaSharingRestClient(
       }
     }
 
+  // Append SparkStructuredStreaming in the USER_AGENT header, in order for the delta sharing server
+  // to recognize the request for streaming, and take corresponding actions.
+  private def getUserAgent(): String = {
+    DeltaSharingRestClient.USER_AGENT + (if (forStreaming) {
+      s" ${DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING}/$STREAMING_VERSION"
+    } else {
+      ""
+    })
+  }
+
   def close(): Unit = {
     if (created) {
       try client.close() finally created = false
@@ -409,6 +432,8 @@ private[spark] class DeltaSharingRestClient(
 
 private[spark] object DeltaSharingRestClient extends Logging {
   val CURRENT = 1
+
+  val SPARK_STRUCTURED_STREAMING = "SparkStructuredStreaming"
 
   lazy val USER_AGENT = {
     try {
