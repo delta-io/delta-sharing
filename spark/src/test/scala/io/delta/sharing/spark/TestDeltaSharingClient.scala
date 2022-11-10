@@ -62,14 +62,25 @@ class TestDeltaSharingClient(
     timestampAsOf: Option[String]): DeltaTableFiles = {
     limit.foreach(lim => TestDeltaSharingClient.limits = TestDeltaSharingClient.limits :+ lim)
 
-    val addFiles: Seq[AddFile] = Seq(
-      AddFile("f1.parquet", "f1", Map.empty, 0),
-      AddFile("f2.parquet", "f2", Map.empty, 0),
-      AddFile("f3.parquet", "f3", Map.empty, 0),
-      AddFile("f4.parquet", "f4", Map.empty, 0)
-    ).take(limit.getOrElse(4L).toInt)
+    if (versionAsOf.isDefined) {
+      val addFiles: Seq[AddFileForCDF] = Seq(
+        AddFileForCDF("f1.parquet", "f1", Map.empty, 0, 1, 1600000000L),
+        AddFileForCDF("f2.parquet", "f2", Map.empty, 0, 1, 1600000000L),
+        AddFileForCDF("f3.parquet", "f3", Map.empty, 0, 1, 1600000000L),
+        AddFileForCDF("f4.parquet", "f4", Map.empty, 0, 1, 1600000000L)
+      ).take(limit.getOrElse(4L).toInt)
 
-    DeltaTableFiles(0, Protocol(0), metadata, addFiles)
+      DeltaTableFiles(0, Protocol(0), metadata, addFiles = addFiles)
+    } else {
+      val addFiles: Seq[AddFile] = Seq(
+        AddFile("f1.parquet", "f1", Map.empty, 0),
+        AddFile("f2.parquet", "f2", Map.empty, 0),
+        AddFile("f3.parquet", "f3", Map.empty, 0),
+        AddFile("f4.parquet", "f4", Map.empty, 0)
+      ).take(limit.getOrElse(4L).toInt)
+
+      DeltaTableFiles(0, Protocol(0), metadata, addFiles)
+    }
   }
 
   override def getFiles(table: Table, startingVersion: Long): DeltaTableFiles = {

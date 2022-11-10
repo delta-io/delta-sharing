@@ -224,12 +224,27 @@ class DeltaSharedTable(
         null
       }
     )
+
+    val isVersionQuery = !Seq(version, timestamp).filter(_.isDefined).isEmpty
     val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
         queryDataChangeSinceStartVersion(startingVersion.get)
       } else if (includeFiles) {
+        val ts = if (isVersionQuery) {
+          val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
+            deltaLog.store,
+            deltaLog.logPath,
+            snapshot.version,
+            snapshot.version + 1,
+            conf
+          )
+          Some(timestampsByVersion.get(snapshot.version).orNull.getTime)
+        } else {
+          None
+        }
+
         val selectedFiles = state.activeFiles.toSeq
         val filteredFilters =
           if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
@@ -245,11 +260,22 @@ class DeltaSharedTable(
         filteredFilters.map { addFile =>
           val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
           val signedUrl = fileSigner.sign(cloudPath)
-          val modelAddFile = model.AddFile(url = signedUrl,
-            id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
-            partitionValues = addFile.partitionValues,
-            size = addFile.size,
-            stats = addFile.stats)
+          val modelAddFile = if (isVersionQuery) {
+            model.AddFileForCDF(url = signedUrl,
+              id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+              partitionValues = addFile.partitionValues,
+              size = addFile.size,
+              stats = addFile.stats,
+              version = snapshot.version,
+              timestamp = ts.get
+            )
+          } else {
+            model.AddFile(url = signedUrl,
+              id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+              partitionValues = addFile.partitionValues,
+              size = addFile.size,
+              stats = addFile.stats)
+          }
           modelAddFile.wrap
         }
       } else {
