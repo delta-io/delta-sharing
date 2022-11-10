@@ -248,6 +248,7 @@ case class DeltaSharingSource(
                 add.stats
               ),
               isLast = (index + 1 == numFiles)))
+        case _ => ()
       }
     } else {
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
@@ -308,6 +309,7 @@ case class DeltaSharingSource(
               cdc = cdc,
               isLast = (index + 1 == cdfFiles.size))
             )
+          case _ => ()
         }
       } else if (perVersionAddFiles.contains(v) || perVersionRemoveFiles.contains(v)) {
         // process add files and remove files
@@ -332,6 +334,7 @@ case class DeltaSharingSource(
               remove = remove,
               isLast = (index + 1 == numFiles))
             )
+          case _ => ()
         }
       } else {
         // Still append an IndexedFile for this version with index = -1 and getFileAction = null.
