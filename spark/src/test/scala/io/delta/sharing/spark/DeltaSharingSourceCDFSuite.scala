@@ -64,7 +64,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   // VERSION 4: REMOVE 4 rows, 2 remove files
   lazy val cdfTablePath = testProfileFile.getCanonicalPath + "#share8.default.streaming_cdf_table"
 
-  lazy val deltaLog = RemoteDeltaLog(cdfTablePath)
+  lazy val deltaLog = RemoteDeltaLog(cdfTablePath, forStreaming = true)
 
   val streamingTimeout = 120.seconds
 
