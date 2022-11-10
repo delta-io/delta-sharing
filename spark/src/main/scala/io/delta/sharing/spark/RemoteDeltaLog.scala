@@ -35,7 +35,15 @@ import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
-import io.delta.sharing.spark.model.{AddFile, CDFColumnInfo, Metadata, Protocol, Table => DeltaSharingTable}
+import io.delta.sharing.spark.model.{
+  AddFile,
+  CDFColumnInfo,
+  DeltaTableFiles,
+  FileAction,
+  Metadata,
+  Protocol,
+  Table => DeltaSharingTable
+}
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 
 
@@ -200,13 +208,23 @@ class RemoteSnapshot(
 
   def getTablePath: Path = tablePath
 
-  lazy val (allFiles, sizeInBytes) = {
+  lazy val sizeInBytes = {
     val implicits = spark.implicits
     import implicits._
     val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf)
     checkProtocolNotChange(tableFiles.protocol)
     checkSchemaNotChange(tableFiles.metadata)
-    tableFiles.files.toDS() -> tableFiles.files.map(_.size).sum
+    getAddFiles(tableFiles).map(_.size).sum
+  }
+
+  private def getAddFiles(tableFiles: DeltaTableFiles): Seq[AddFile] = {
+    if (Seq(versionAsOf, timestampAsOf).filter(_.isDefined).isEmpty) {
+      tableFiles.files
+    } else {
+      tableFiles.addFiles.map {add =>
+        AddFile(add.url, add.id, add.partitionValues, add.size, add.stats)
+      }
+    }
   }
 
   private def getTableMetadata: (Metadata, Protocol, Long) = {
@@ -262,18 +280,18 @@ class RemoteSnapshot(
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(table, predicates, limitHint, versionAsOf, timestampAsOf)
-      val idToUrl = tableFiles.files.map { add =>
+      val idToUrl = getAddFiles(tableFiles).map { add =>
         add.id -> add.url
       }.toMap
       CachedTableManager.INSTANCE
         .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
-          client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
+          getAddFiles(client.getFiles(table, Nil, None, versionAsOf, timestampAsOf)).map { add =>
             add.id -> add.url
           }.toMap
         })
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
-      tableFiles.files.toDS()
+      getAddFiles(tableFiles).toDS()
     }
 
     val columnFilter = new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))

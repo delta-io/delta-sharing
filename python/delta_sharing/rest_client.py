@@ -300,11 +300,12 @@ class DataSharingRestClient:
             lines = values[1]
             protocol_json = json.loads(next(lines))
             metadata_json = json.loads(next(lines))
+            file_type = "add" if ((version is not None) or (timestamp is not None)) else "file"
             return ListFilesInTableResponse(
                 delta_table_version=int(headers.get("delta-table-version")),
                 protocol=Protocol.from_json(protocol_json["protocol"]),
                 metadata=Metadata.from_json(metadata_json["metaData"]),
-                add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
+                add_files=[AddFile.from_json(json.loads(file)[file_type]) for file in lines],
             )
 
     @retry_with_exponential_backoff

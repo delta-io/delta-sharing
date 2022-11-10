@@ -447,6 +447,8 @@ def test_list_files_in_table_version(
                 r'"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},'
                 r'"nullCount":{"name":0,"age":0,"birthday":0}}'
             ),
+            version=1,
+            timestamp=1651272635000
         ),
         AddFile(
             url=response.add_files[1].url,
@@ -459,6 +461,8 @@ def test_list_files_in_table_version(
                 r'"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},'
                 r'"nullCount":{"name":0,"age":0,"birthday":0}}'
             ),
+            version=1,
+            timestamp=1651272635000
         ),
         AddFile(
             url=response.add_files[2].url,
@@ -471,6 +475,8 @@ def test_list_files_in_table_version(
                 r'"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},'
                 r'"nullCount":{"name":0,"age":0,"birthday":0}}'
             ),
+            version=1,
+            timestamp=1651272635000
         ),
     ]
 

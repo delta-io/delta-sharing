@@ -662,29 +662,35 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       partitionColumns = Nil).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
     val files = lines.drop(2)
-    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).add)
     assert(actualFiles.size == 3)
     val expectedFiles = Seq(
-      AddFile(
+      AddFileForCDF(
         url = actualFiles(0).url,
         id = "60d0cf57f3e4367db154aa2c36152a1f",
         partitionValues = Map.empty,
         size = 1030,
-        stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
+        stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        version = 1,
+        timestamp = 1651272635000L
       ),
-      AddFile(
+      AddFileForCDF(
         url = actualFiles(1).url,
         id = "d7ed708546dd70fdff9191b3e3d6448b",
         partitionValues = Map.empty,
         size = 1030,
-        stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
+        stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        version = 1,
+        timestamp = 1651272635000L
       ),
-      AddFile(
+      AddFileForCDF(
         url = actualFiles(2).url,
         id = "a6dc5694a4ebcc9a067b19c348526ad6",
         partitionValues = Map.empty,
         size = 1030,
-        stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
+        stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        version = 1,
+        timestamp = 1651272635000L
       )
     )
     assert(expectedFiles == actualFiles.toList)
@@ -819,29 +825,35 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       partitionColumns = Nil).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
     val files = lines.drop(2)
-    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).add)
     assert(actualFiles.size == 3)
     val expectedFiles = Seq(
-      AddFile(
+      AddFileForCDF(
         url = actualFiles(0).url,
         id = "60d0cf57f3e4367db154aa2c36152a1f",
         partitionValues = Map.empty,
         size = 1030,
-        stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
+        stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        version = 1,
+        timestamp = 1651272635000L
       ),
-      AddFile(
+      AddFileForCDF(
         url = actualFiles(1).url,
         id = "d7ed708546dd70fdff9191b3e3d6448b",
         partitionValues = Map.empty,
         size = 1030,
-        stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
+        stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        version = 1,
+        timestamp = 1651272635000L
       ),
-      AddFile(
+      AddFileForCDF(
         url = actualFiles(2).url,
         id = "a6dc5694a4ebcc9a067b19c348526ad6",
         partitionValues = Map.empty,
         size = 1030,
-        stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
+        stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        version = 1,
+        timestamp = 1651272635000L
       )
     )
     assert(expectedFiles == actualFiles.toList)
