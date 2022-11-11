@@ -239,8 +239,28 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     ResponseHeaders.builder(200).set(DELTA_TABLE_VERSION_HEADER, version.toString)
   }
 
-  @Head("/shares/{share}/schemas/{schema}/tables/{table}")
   @Get("/shares/{share}/schemas/{schema}/tables/{table}")
+  @ProducesJson
+  def getTable(
+      @Param("share") share: String,
+      @Param("schema") schema: String,
+      @Param("table") table: String
+  ): GetTableResponse = processRequest {
+    sharedTableManager.getTable(share, schema, table)
+    GetTableResponse(
+      table = Some(
+        Table(
+          name = Some(table),
+          schema = Some(schema),
+          share = Some(share)
+        )
+      )
+    )
+  }
+
+  // TODO: deprecate HEAD request in favor of the GET request
+  @Head("/shares/{share}/schemas/{schema}/tables/{table}")
+  @Get("/shares/{share}/schemas/{schema}/tables/{table}/version")
   def getTableVersion(
     @Param("share") share: String,
     @Param("schema") schema: String,

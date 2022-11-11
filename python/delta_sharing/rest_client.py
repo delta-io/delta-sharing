@@ -251,7 +251,7 @@ class DataSharingRestClient:
         table: Table,
         starting_timestamp: Optional[str] = None,
     ) -> QueryTableVersionResponse:
-        query_str = f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}"
+        query_str = f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/version"
         if starting_timestamp is not None:
             query_str += f"?startingTimestamp={quote(starting_timestamp)}"
         with self._get_internal(
