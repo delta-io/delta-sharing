@@ -70,16 +70,6 @@ case class Protocol(minReaderVersion: Int) extends Action {
   override def wrap: SingleAction = SingleAction(protocol = this)
 }
 
-sealed abstract class AddFileBase(
-    url: String,
-    id: String,
-    @JsonInclude(JsonInclude.Include.ALWAYS)
-    partitionValues: Map[String, String],
-    size: Long,
-    @JsonRawValue
-    stats: String = null)
-    extends Action {}
-
 case class AddFile(
     url: String,
     id: String,
@@ -87,7 +77,9 @@ case class AddFile(
     partitionValues: Map[String, String],
     size: Long,
     @JsonRawValue
-    stats: String = null) extends AddFileBase(url, id, partitionValues, size, stats) {
+    stats: String = null,
+    timestamp: java.lang.Long = null,
+    version: java.lang.Long = null) extends Action {
 
   override def wrap: SingleAction = SingleAction(file = this)
 }
@@ -101,8 +93,7 @@ case class AddFileForCDF(
     version: Long,
     timestamp: Long,
     @JsonRawValue
-    stats: String = null)
-    extends AddFileBase(url, id, partitionValues, size, stats) {
+    stats: String = null) extends Action {
 
   override def wrap: SingleAction = SingleAction(add = this)
 }

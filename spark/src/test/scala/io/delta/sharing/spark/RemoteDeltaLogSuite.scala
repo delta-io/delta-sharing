@@ -145,7 +145,9 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
   }
 
   test("snapshot file index test with version") {
-    // The only diff in this test is: the RemoteSnapshot is with versionAsOf = Some(1)
+    // The only diff in this test with "snapshot file index test" is:
+    //  the RemoteSnapshot is with versionAsOf = Some(1), and is used in client.getFiles,
+    //  which will return version/timestamp for each file in TestDeltaSharingClient.getFiles.
     val spark = SparkSession.active
     val client = new TestDeltaSharingClient()
     val snapshot = new RemoteSnapshot(

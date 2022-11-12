@@ -662,10 +662,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       partitionColumns = Nil).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
     val files = lines.drop(2)
-    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).add)
+    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
     assert(actualFiles.size == 3)
     val expectedFiles = Seq(
-      AddFileForCDF(
+      AddFile(
         url = actualFiles(0).url,
         id = "60d0cf57f3e4367db154aa2c36152a1f",
         partitionValues = Map.empty,
@@ -674,7 +674,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         version = 1,
         timestamp = 1651272635000L
       ),
-      AddFileForCDF(
+      AddFile(
         url = actualFiles(1).url,
         id = "d7ed708546dd70fdff9191b3e3d6448b",
         partitionValues = Map.empty,
@@ -683,7 +683,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         version = 1,
         timestamp = 1651272635000L
       ),
-      AddFileForCDF(
+      AddFile(
         url = actualFiles(2).url,
         id = "a6dc5694a4ebcc9a067b19c348526ad6",
         partitionValues = Map.empty,
@@ -825,10 +825,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       partitionColumns = Nil).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
     val files = lines.drop(2)
-    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).add)
+    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
     assert(actualFiles.size == 3)
     val expectedFiles = Seq(
-      AddFileForCDF(
+      AddFile(
         url = actualFiles(0).url,
         id = "60d0cf57f3e4367db154aa2c36152a1f",
         partitionValues = Map.empty,
@@ -837,7 +837,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         version = 1,
         timestamp = 1651272635000L
       ),
-      AddFileForCDF(
+      AddFile(
         url = actualFiles(1).url,
         id = "d7ed708546dd70fdff9191b3e3d6448b",
         partitionValues = Map.empty,
@@ -846,7 +846,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         version = 1,
         timestamp = 1651272635000L
       ),
-      AddFileForCDF(
+      AddFile(
         url = actualFiles(2).url,
         id = "a6dc5694a4ebcc9a067b19c348526ad6",
         partitionValues = Map.empty,
