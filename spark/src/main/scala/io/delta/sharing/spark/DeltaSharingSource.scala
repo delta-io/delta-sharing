@@ -535,7 +535,6 @@ case class DeltaSharingSource(
    * Return the next offset when previous offset exists.
    */
   private def getNextOffsetFromPreviousOffset(
-      previousOffset: DeltaSharingSourceOffset,
       limits: Option[AdmissionLimits]): Option[Offset] = {
     val lastFileChange = getLastFileChangeWithRateLimit(
       previousOffset.tableVersion,
@@ -642,7 +641,7 @@ case class DeltaSharingSource(
     val currentOffset = if (previousOffset == null) {
       getStartingOffset(limits)
     } else {
-      getNextOffsetFromPreviousOffset(previousOffset, limits)
+      getNextOffsetFromPreviousOffset(limits)
     }
     logDebug(s"previousOffset -> currentOffset: $previousOffset -> $currentOffset")
     currentOffset.orNull
