@@ -248,6 +248,7 @@ case class DeltaSharingSource(
                 add.stats
               ),
               isLast = (index + 1 == numFiles)))
+        // For files with index <= fromIndex, skip them, otherwise an exception will be thrown.
         case _ => ()
       }
     } else {
@@ -264,6 +265,7 @@ case class DeltaSharingSource(
           case (add, index) if (v > fromVersion || (v == fromVersion && index > fromIndex)) =>
             appendToSortedFetchedFiles(
               IndexedFile(add.version, index, add, isLast = (index + 1 == numFiles)))
+          // For files with v <= fromVersion, skip them, otherwise an exception will be thrown.
           case _ => ()
         }
       }
@@ -309,6 +311,7 @@ case class DeltaSharingSource(
               cdc = cdc,
               isLast = (index + 1 == cdfFiles.size))
             )
+          // For files with v <= fromVersion, skip them, otherwise an exception will be thrown.
           case _ => ()
         }
       } else if (perVersionAddFiles.contains(v) || perVersionRemoveFiles.contains(v)) {
@@ -334,6 +337,7 @@ case class DeltaSharingSource(
               remove = remove,
               isLast = (index + 1 == numFiles))
             )
+          // For files with v <= fromVersion, skip them, otherwise an exception will be thrown.
           case _ => ()
         }
       } else {

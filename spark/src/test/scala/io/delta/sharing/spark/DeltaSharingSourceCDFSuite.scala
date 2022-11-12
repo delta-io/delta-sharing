@@ -431,7 +431,8 @@ class DeltaSharingSourceCDFSuite extends QueryTest
         query.stop()
       }
 
-      // There are 5 checkpoints, remove the latest 3.
+      // There are 5 checkpoints for 5 getBatch(), which is caused by maxFilesPerTrigger = 1,
+      // remove the latest 3 checkpoints.
       val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
       checkpointFiles.foreach{ f =>
         if (!f.isDirectory() && (f.getCanonicalPath.endsWith("2") ||
