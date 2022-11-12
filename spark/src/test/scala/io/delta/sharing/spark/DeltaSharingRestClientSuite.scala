@@ -36,7 +36,7 @@ import io.delta.sharing.spark.util.UnexpectedHttpStatus
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
-  test("Check headers") {
+  integrationTest("Check headers") {
     val httpRequest = new HttpGet("random_url")
 
     val client = new DeltaSharingRestClient(testProfileProvider, forStreaming = false)
