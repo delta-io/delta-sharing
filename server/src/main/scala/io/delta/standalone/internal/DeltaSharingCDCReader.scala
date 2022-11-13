@@ -21,10 +21,10 @@ import java.sql.Timestamp
 
 import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{
+  Action,
   AddCDCFile,
   AddFile,
   CommitInfo,
-  FileAction,
   Metadata,
   RemoveFile
 }
@@ -186,7 +186,8 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
   def queryCDF(start: Long, end: Long, latestVersion: Long): (
     Seq[CDCDataSpec[AddCDCFile]],
     Seq[CDCDataSpec[AddFile]],
-    Seq[CDCDataSpec[RemoveFile]]
+    Seq[CDCDataSpec[RemoveFile]],
+    Seq[CDCDataSpec[Metadata]]
   ) = {
     if (start > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(start, latestVersion)
@@ -213,6 +214,7 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
     val changeFiles = ListBuffer[CDCDataSpec[AddCDCFile]]()
     val addFiles = ListBuffer[CDCDataSpec[AddFile]]()
     val removeFiles = ListBuffer[CDCDataSpec[RemoveFile]]()
+    val metaDatas = ListBuffer[CDCDataSpec[Metadata]]()
 
     changes.foreach {versionLog =>
         val v = versionLog.getVersion
@@ -246,6 +248,8 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
             addActions.append(a)
           case r: RemoveFile =>
             removeActions.append(r)
+          case m: Metadata if (v > start) =>
+            metaDatas.append(CDCDataSpec(v, ts, Seq(m)))
           case i: CommitInfo => commitInfo = Some(i)
           case _ => // do nothing
         }
@@ -294,10 +298,10 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
         }
     }
 
-    (changeFiles.toSeq, addFiles.toSeq, removeFiles.toSeq)
+    (changeFiles.toSeq, addFiles.toSeq, removeFiles.toSeq, metaDatas.toSeq)
   }
 
-  case class CDCDataSpec[T <: FileAction](version: Long, timestamp: Timestamp, actions: Seq[T])
+  case class CDCDataSpec[T <: Action](version: Long, timestamp: Timestamp, actions: Seq[T])
 
   /**
    * Determine if the metadata provided has cdc enabled or not.

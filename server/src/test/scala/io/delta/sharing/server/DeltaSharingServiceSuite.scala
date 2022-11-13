@@ -1046,10 +1046,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
-      id = "36869638-1699-4a28-b4bb-9fe4ff5ebbf8",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
-      configuration = Map.empty,
+      configuration = Map("enableChangeDataFeed" -> "true"),
       partitionColumns = Nil,
       version = 0)
     assert(expectedMetadata == actions(1).metaData)
@@ -1249,6 +1249,31 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       version = 3,
       timestamp = 1651614994000L
     )
+  }
+
+  integrationTest("streaming_notnull_to_null - query table changes returns metadata") {
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0"), Some("GET"), None, Some(0))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 5)
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = actions(1).metaData.id,
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      partitionColumns = Nil,
+      version = 0)
+    assert(expectedMetadata == actions(1).metaData)
+
+    expectedMetadata = expectedMetadata.copy(
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+      version = 2
+    )
+    assert(expectedMetadata == actions(2).metaData)
+
+    assert(actions(3).add != null)
+    assert(actions(4).add != null)
   }
 
   private def verifyAddFile(

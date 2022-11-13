@@ -93,6 +93,10 @@ object DeltaSharingErrors {
          |schema used to read data: ${readSchema.treeString}
          |
          |schema seen in the table: ${schemaToCheck.treeString}
+         |
+         |Please try restarting the query. If this issue repeats across query restarts without
+         |making progress, you have made an incompatible schema change and need to start your
+         |query from scratch using a new checkpoint directory.
       """.stripMargin
     new IllegalStateException(msg)
   }

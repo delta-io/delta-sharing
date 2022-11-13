@@ -53,6 +53,11 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   lazy val errorTablePath2 = testProfileFile.getCanonicalPath +
       "#share8.default.cdf_table_with_partition"
 
+  lazy val toNullTable = testProfileFile.getCanonicalPath +
+    "#share8.default.streaming_notnull_to_null"
+  lazy val toNotNullTable = testProfileFile.getCanonicalPath +
+    "#share8.default.streaming_cdf_null_to_notnull"
+
   // allowed to query starting from version 1
   // VERSION 1: INSERT 2 rows, 1 add file
   // VERSION 2: INSERT 3 rows, 1 add file
@@ -150,6 +155,72 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       StructField("_change_type", StringType, true)
     ))
     assert(expectedSchema == source.schema)
+  }
+
+  integrationTest("Schema isReadCompatible - no exception") {
+    // Latest schema is with nullable=true, which should not fail on schema with nullable=false.
+    val query = spark.readStream.format("deltaSharing")
+      .option("startingVersion", "0")
+      .option("readChangeFeed", "true")
+      .load(toNullTable).writeStream.format("console").start()
+
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 3)
+      }
+    } finally {
+      query.stop()
+    }
+  }
+
+  integrationTest("Schema isReadCompatible - exceptions") {
+    // Latest schema has a column with nullable=false, which should fail on schema from version 0
+    // which has the column with nullable=true.
+    var message = intercept[StreamingQueryException] {
+      val query = spark.readStream.format("deltaSharing")
+        .option("startingVersion", "0")
+        .option("readChangeFeed", "true")
+        .load(toNotNullTable).writeStream.format("console").start()
+      query.processAllAvailable()
+    }.getMessage
+    assert(message.contains("Detected incompatible schema change"))
+
+    // Latest schema has a column with nullable=false.
+    // Version 1 and 2 snapshots should both return metadata from version 0 (nulltable=true).
+    message = intercept[StreamingQueryException] {
+      val query = spark.readStream.format("deltaSharing")
+        .option("startingVersion", "1")
+        .load(toNotNullTable).writeStream.format("console").start()
+      query.processAllAvailable()
+    }.getMessage
+    assert(message.contains("Detected incompatible schema change"))
+
+    message = intercept[StreamingQueryException] {
+      val query = spark.readStream.format("deltaSharing")
+        .option("startingVersion", "2")
+        .load(toNotNullTable).writeStream.format("console").start()
+      query.processAllAvailable()
+    }.getMessage
+    assert(message.contains("Detected incompatible schema change"))
+
+    // But it should succeed starting from version 3.
+    val query = spark.readStream.format("deltaSharing")
+      .option("startingVersion", "3")
+      .load(toNotNullTable).writeStream.format("console").start()
+
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 1)
+      }
+    } finally {
+      query.stop()
+    }
   }
 
   /**

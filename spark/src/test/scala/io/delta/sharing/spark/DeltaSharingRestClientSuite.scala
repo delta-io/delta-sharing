@@ -68,6 +68,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "streaming_table_metadata_protocol", schema = "default", share = "share8"),
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
         Table(name = "streaming_null_to_notnull", schema = "default", share = "share8"),
+        Table(name = "streaming_cdf_null_to_notnull", schema = "default", share = "share8"),
         Table(name = "streaming_cdf_table", schema = "default", share = "share8"),
         Table(name = "table_reader_version_increased", schema = "default", share = "share8"),
         Table(name = "test_gzip", schema = "default", share = "share4"),
@@ -405,11 +406,12 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       val expectedMetadata = Metadata(
-        id = "16736144-3306-4577-807a-d3f899b77670",
+        id = tableFiles.metadata.id,
         format = Format(),
         schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
         configuration = Map("enableChangeDataFeed" -> "true"),
-        partitionColumns = Nil)
+        partitionColumns = Nil,
+        version = 0)
       assert(expectedMetadata == tableFiles.metadata)
       assert(tableFiles.cdfFiles.size == 2)
       val expectedCdfFiles = Seq(
@@ -462,6 +464,35 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedAddFiles == tableFiles.addFiles.toList)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getCDFFiles - works with multiple metadatas") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val cdfOptions = Map("startingVersion" -> "0")
+      val tableFiles = client.getCDFFiles(
+        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
+        cdfOptions
+      )
+      assert(tableFiles.version == 0)
+      assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
+      val expectedMetadata = Metadata(
+        id = tableFiles.metadata.id,
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+        configuration = Map("enableChangeDataFeed" -> "true"),
+        partitionColumns = Nil,
+        version = 0)
+      assert(expectedMetadata == tableFiles.metadata)
+
+      assert(tableFiles.addFiles.size == 2)
+      assert(tableFiles.cdfFiles.size == 0)
+      assert(tableFiles.removeFiles.size == 0)
+      assert(tableFiles.additionalMetadatas.size == 1)
+
     } finally {
       client.close()
     }

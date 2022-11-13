@@ -330,7 +330,9 @@ class DataSharingRestClient:
             metadata_json = json.loads(next(lines))
             actions: List[FileAction] = []
             for line in lines:
-                actions.append(FileAction.from_json(json.loads(line)))
+                file_action = FileAction.from_json(json.loads(line))
+                if (file_action is not None):
+                    actions.append(file_action)
 
             return ListTableChangesResponse(
                 protocol=Protocol.from_json(protocol_json["protocol"]),

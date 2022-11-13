@@ -640,6 +640,21 @@ def test_list_table_changes(
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_list_table_changes_with_more_metadata(
+    rest_client: DataSharingRestClient,
+):
+    # The following table query will return all types of actions.
+    cdf_table = Table(name="streaming_notnull_to_null", share="share8", schema="default")
+    response = rest_client.list_table_changes(
+        cdf_table,
+        CdfOptions(starting_version=0)
+    )
+
+    assert response.protocol == Protocol(min_reader_version=1)
+    assert len(response.actions) == 2
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_table_changes_with_timestamp(
     rest_client: DataSharingRestClient
 ):

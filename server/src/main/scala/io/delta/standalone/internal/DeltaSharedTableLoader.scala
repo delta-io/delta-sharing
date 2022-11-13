@@ -367,13 +367,31 @@ class DeltaSharedTable(
       format = model.Format(),
       schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
       configuration = getMetadataConfiguration(snapshot.metadataScala.configuration),
-      partitionColumns = snapshot.metadataScala.partitionColumns
+      partitionColumns = snapshot.metadataScala.partitionColumns,
+      version = start
     )
     actions.append(modelProtocol.wrap)
     actions.append(modelMetadata.wrap)
 
     // Third: get files
-    val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(start, end, latestVersion)
+    val (changeFiles, addFiles, removeFiles, metadatas) = cdcReader.queryCDF(
+      start, end, latestVersion)
+    metadatas.foreach { cdcDataSpec =>
+      cdcDataSpec.actions.foreach { action =>
+        val metadata = action.asInstanceOf[Metadata]
+        val modelMetadata = model.Metadata(
+          id = metadata.id,
+          name = metadata.name,
+          description = metadata.description,
+          format = model.Format(),
+          schemaString = cleanUpTableSchema(metadata.schemaString),
+          configuration = getMetadataConfiguration(metadata.configuration),
+          partitionColumns = metadata.partitionColumns,
+          version = cdcDataSpec.version
+        )
+        actions.append(modelMetadata.wrap)
+      }
+    }
     changeFiles.foreach { cdcDataSpec =>
       cdcDataSpec.actions.foreach { action =>
         val addCDCFile = action.asInstanceOf[AddCDCFile]
