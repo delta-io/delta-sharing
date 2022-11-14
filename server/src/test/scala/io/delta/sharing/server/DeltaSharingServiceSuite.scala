@@ -420,15 +420,15 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table1/metadata"), expectedTableVersion = Some(2))
-    val Array(protocol, metadata) = response.split("\n")
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
-      partitionColumns = Nil).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      partitionColumns = Nil)
+    assert(expectedMetadata == actions(1).metaData)
   }
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/query") {
@@ -441,31 +441,28 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         |}
         |""".stripMargin
     val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table1/query"), Some("POST"), Some(p), Some(2))
-    val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
-      partitionColumns = Nil).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-    val files = lines.drop(2)
-    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+      partitionColumns = Nil)
+    assert(expectedMetadata == actions(1).metaData)
+    val actualFiles = actions.drop(2).map(a => a.file)
     assert(actualFiles.size == 2)
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
-        id = "061cb3683a467066995f8cdaabd8667d",
+        id = actualFiles(0).id,
         partitionValues = Map.empty,
         size = 781,
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
       ),
       AddFile(
         url = actualFiles(1).url,
-        id = "e268cbf70dbaa6143e7e9fa3e2d3b00e",
+        id = actualFiles(1).id,
         partitionValues = Map.empty,
         size = 781,
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
@@ -478,15 +475,15 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("table2 - partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val response = readNDJson(requestPath("/shares/share2/schemas/default/tables/table2/metadata"), expectedTableVersion = Some(2))
-    val Array(protocol, metadata) = response.split("\n")
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
-      partitionColumns = Seq("date")).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      partitionColumns = Seq("date"))
+    assert(expectedMetadata == actions(1).metaData)
   }
 
   integrationTest("table2 - version 1 : cdfEnabled is false") {
@@ -521,31 +518,28 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         |}
         |""".stripMargin
     val response = readNDJson(requestPath("/shares/share2/schemas/default/tables/table2/query"), Some("POST"), Some(p), Some(2))
-    val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
-      partitionColumns = Seq("date")).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-    val files = lines.drop(2)
-    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+      partitionColumns = Seq("date"))
+    assert(expectedMetadata == actions(1).metaData)
+    val actualFiles = actions.drop(2).map(a => a.file)
     assert(actualFiles.size == 2)
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
-        id = "9f1a49539c5cffe1ea7f9e055d5c003c",
+        id = actualFiles(0).id,
         partitionValues = Map("date" -> "2021-04-28"),
         size = 573,
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:57.955Z"},"maxValues":{"eventTime":"2021-04-28T23:33:57.955Z"},"nullCount":{"eventTime":0}}"""
       ),
       AddFile(
         url = actualFiles(1).url,
-        id = "cd2209b32f5ed5305922dd50f5908a75",
+        id = actualFiles(1).id,
         partitionValues = Map("date" -> "2021-04-28"),
         size = 573,
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"maxValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"nullCount":{"eventTime":0}}"""
@@ -558,51 +552,48 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("table3 - different data file schemas - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table3/metadata"), expectedTableVersion = Some(4))
-    val Array(protocol, metadata) = response.split("\n")
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "7ba6d727-a578-4234-a138-953f790b427c",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}},{"name":"type","type":"string","nullable":true,"metadata":{}}]}""",
-      partitionColumns = Seq("date")).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      partitionColumns = Seq("date"))
+    assert(expectedMetadata == actions(1).metaData)
   }
 
   integrationTest("table3 - different data file schemas - /shares/{share}/schemas/{schema}/tables/{table}/query") {
     val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table3/query"), Some("POST"), Some("{}"), Some(4))
-    val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "7ba6d727-a578-4234-a138-953f790b427c",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}},{"name":"type","type":"string","nullable":true,"metadata":{}}]}""",
-      partitionColumns = Seq("date")).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-    val files = lines.drop(2)
-    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+      partitionColumns = Seq("date"))
+    assert(expectedMetadata == actions(1).metaData)
+    val actualFiles = actions.drop(2).map(a => a.file)
     assert(actualFiles.size == 3)
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
-        id = "db213271abffec6fd6c7fc2aad9d4b3f",
+        id = actualFiles(0).id,
         partitionValues = Map("date" -> "2021-04-28"),
         size = 778,
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:36:51.945Z","type":"bar"},"maxValues":{"eventTime":"2021-04-28T23:36:51.945Z","type":"bar"},"nullCount":{"eventTime":0,"type":0}}"""
       ),
       AddFile(
         url = actualFiles(1).url,
-        id = "f1f8be229d8b18eb6d6a34255f2d7089",
+        id = actualFiles(1).id,
         partitionValues = Map("date" -> "2021-04-28"),
         size = 778,
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:36:47.599Z","type":"foo"},"maxValues":{"eventTime":"2021-04-28T23:36:47.599Z","type":"foo"},"nullCount":{"eventTime":0,"type":0}}"""
       ),
       AddFile(
         url = actualFiles(2).url,
-        id = "a892a55d770ee70b34ffb2ebf7dc2fd0",
+        id = actualFiles(2).id,
         partitionValues = Map("date" -> "2021-04-28"),
         size = 573,
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:35:53.156Z"},"maxValues":{"eventTime":"2021-04-28T23:35:53.156Z"},"nullCount":{"eventTime":0}}"""
@@ -616,29 +607,29 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("case insensitive") {
     val response = readNDJson(requestPath("/shares/sHare1/schemas/deFault/tables/taBle3/metadata"), expectedTableVersion = Some(4))
-    val Array(protocol, metadata) = response.split("\n")
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "7ba6d727-a578-4234-a138-953f790b427c",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}},{"name":"type","type":"string","nullable":true,"metadata":{}}]}""",
-      partitionColumns = Seq("date")).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      partitionColumns = Seq("date"))
+    assert(expectedMetadata == actions(1).metaData)
   }
 
   integrationTest("cdf_table_cdf_enabled - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/metadata"), expectedTableVersion = Some(5))
-    val Array(protocol, metadata) = response.split("\n")
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "16736144-3306-4577-807a-d3f899b77670",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      partitionColumns = Nil)
+    assert(expectedMetadata == actions(1).metaData)
   }
 
   integrationTest("cdf_table_cdf_enabled - version 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
@@ -649,25 +640,22 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         |}
         |""".stripMargin
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"), Some("POST"), Some(p), Some(1))
-    val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "16736144-3306-4577-807a-d3f899b77670",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-    val files = lines.drop(2)
-    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).add)
+      partitionColumns = Nil)
+    assert(expectedMetadata == actions(1).metaData)
+    val actualFiles = actions.drop(2).map(a => a.add)
     assert(actualFiles.size == 3)
     val expectedFiles = Seq(
       AddFileForCDF(
         url = actualFiles(0).url,
-        id = "60d0cf57f3e4367db154aa2c36152a1f",
+        id = actualFiles(0).id,
         partitionValues = Map.empty,
         size = 1030,
         stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -676,7 +664,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFileForCDF(
         url = actualFiles(1).url,
-        id = "d7ed708546dd70fdff9191b3e3d6448b",
+        id = actualFiles(1).id,
         partitionValues = Map.empty,
         size = 1030,
         stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -685,7 +673,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFileForCDF(
         url = actualFiles(2).url,
-        id = "a6dc5694a4ebcc9a067b19c348526ad6",
+        id = actualFiles(2).id,
         partitionValues = Map.empty,
         size = 1030,
         stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -812,25 +800,22 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         |}
         |""".stripMargin
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"), Some("POST"), Some(p), Some(1))
-    val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "16736144-3306-4577-807a-d3f899b77670",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-    val files = lines.drop(2)
-    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).add)
+      partitionColumns = Nil)
+    assert(expectedMetadata == actions(1).metaData)
+    val actualFiles = actions.drop(2).map(a => a.add)
     assert(actualFiles.size == 3)
     val expectedFiles = Seq(
       AddFileForCDF(
         url = actualFiles(0).url,
-        id = "60d0cf57f3e4367db154aa2c36152a1f",
+        id = actualFiles(0).id,
         partitionValues = Map.empty,
         size = 1030,
         stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -839,7 +824,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFileForCDF(
         url = actualFiles(1).url,
-        id = "d7ed708546dd70fdff9191b3e3d6448b",
+        id = actualFiles(1).id,
         partitionValues = Map.empty,
         size = 1030,
         stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -848,7 +833,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFileForCDF(
         url = actualFiles(2).url,
-        id = "a6dc5694a4ebcc9a067b19c348526ad6",
+        id = actualFiles(2).id,
         partitionValues = Map.empty,
         size = 1030,
         stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -871,18 +856,17 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
          |""".stripMargin
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(0))
     val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = lines.map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "4929d09e-b085-4d22-a95e-7416fb2f78ab",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
       partitionColumns = Nil,
-      version = 0).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      version = 0)
+    assert(expectedMetadata == actions(1).metaData)
     val files = lines.drop(2)
     assert(files.size == 7)
     // version 1: INSERT
@@ -971,7 +955,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
-      id = "eaca659e-28ac-4c68-8c72-0c96205c8160",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       partitionColumns = Nil,
@@ -1014,7 +998,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
-      id = "eaca659e-28ac-4c68-8c72-0c96205c8160",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       partitionColumns = Nil,
@@ -1046,10 +1030,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
-      id = "36869638-1699-4a28-b4bb-9fe4ff5ebbf8",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
-      configuration = Map.empty,
+      configuration = Map("enableChangeDataFeed" -> "true"),
       partitionColumns = Nil,
       version = 0)
     assert(expectedMetadata == actions(1).metaData)
@@ -1080,7 +1064,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
-      id = "f49d6102-3fca-4452-ab83-6e71fecfb118",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
       configuration = Map.empty,
@@ -1114,17 +1098,16 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   integrationTest("cdf_table_cdf_enabled_changes - query table changes") {
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, Some(0))
     val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = lines.map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "16736144-3306-4577-807a-d3f899b77670",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      partitionColumns = Nil)
+    assert(expectedMetadata == actions(1).metaData)
     val files = lines.drop(2)
     assert(files.size == 5)
     verifyAddCDCFile(
@@ -1178,20 +1161,17 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val endStr = URLEncoder.encode(new Timestamp(1651272660000L).toString)
 
     val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, Some(0))
-    val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 7)
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "16736144-3306-4577-807a-d3f899b77670",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-    val files = lines.drop(2)
-    assert(files.size == 5)
+      partitionColumns = Nil)
+    assert(expectedMetadata == actions(1).metaData)
   }
 
   integrationTest("cdf_table_with_partition: query table changes") {
@@ -1486,24 +1466,21 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   integrationTest("azure support") {
     for (azureTableName <- "table_wasb" :: "table_abfs" :: Nil) {
       val response = readNDJson(requestPath(s"/shares/share_azure/schemas/default/tables/${azureTableName}/query"), Some("POST"), Some("{}"), Some(0))
-      val lines = response.split("\n")
-      val protocol = lines(0)
-      val metadata = lines(1)
-      val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-      assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+      val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+      val expectedProtocol = Protocol(minReaderVersion = 1)
+      assert(expectedProtocol == actions(0).protocol)
       val expectedMetadata = Metadata(
-        id = "de102585-bd69-4bba-bb10-fa92c50a7f85",
+        id = actions(1).metaData.id,
         format = Format(),
         schemaString = """{"type":"struct","fields":[{"name":"c1","type":"string","nullable":true,"metadata":{}},{"name":"c2","type":"string","nullable":true,"metadata":{}}]}""",
-        partitionColumns = Seq("c2")).wrap
-      assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-      val files = lines.drop(2)
-      val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+        partitionColumns = Seq("c2"))
+      assert(expectedMetadata == actions(1).metaData)
+      val actualFiles = actions.drop(2).map(a => a.file)
       assert(actualFiles.size == 1)
       val expectedFiles = Seq(
         AddFile(
           url = actualFiles(0).url,
-          id = "84f5f9e4de01e99837f77bfc2b7215b0",
+          id = actualFiles(0).id,
           partitionValues = Map("c2" -> "foo bar"),
           size = 568,
           stats = """{"numRecords":1,"minValues":{"c1":"foo bar"},"maxValues":{"c1":"foo bar"},"nullCount":{"c1":0}}"""
@@ -1517,24 +1494,21 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   integrationTest("gcp support") {
     val gcsTableName = "table_gcs"
     val response = readNDJson(requestPath(s"/shares/share_gcp/schemas/default/tables/${gcsTableName}/query"), Some("POST"), Some("{}"), Some(0))
-    val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
     val expectedMetadata = Metadata(
-      id = "de102585-bd69-4bba-bb10-fa92c50a7f85",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"c1","type":"string","nullable":true,"metadata":{}},{"name":"c2","type":"string","nullable":true,"metadata":{}}]}""",
-      partitionColumns = Seq("c2")).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-    val files = lines.drop(2)
-    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+      partitionColumns = Seq("c2"))
+    assert(expectedMetadata == actions(1).metaData)
+    val actualFiles = actions.drop(2).map(a => a.file)
     assert(actualFiles.size == 1)
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
-        id = "84f5f9e4de01e99837f77bfc2b7215b0",
+        id = actualFiles(0).id,
         partitionValues = Map("c2" -> "foo bar"),
         size = 568,
         stats = """{"numRecords":1,"minValues":{"c1":"foo bar"},"maxValues":{"c1":"foo bar"},"nullCount":{"c1":0}}"""

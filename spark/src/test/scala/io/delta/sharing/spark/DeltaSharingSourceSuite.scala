@@ -294,7 +294,7 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-  testQuietly("maxFilesPerTrigger - invalid parameter") {
+  integrationTest("maxFilesPerTrigger - invalid parameter") {
     Seq("0", "-1", "string").foreach { invalidMaxFilesPerTrigger =>
       val message = intercept[IllegalArgumentException] {
         val query = withStreamReaderAtVersion()
@@ -349,7 +349,7 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-  testQuietly("maxBytesPerTrigger - invalid parameter") {
+  integrationTest("maxBytesPerTrigger - invalid parameter") {
     Seq("0", "-1", "string").foreach { invalidMaxFilesPerTrigger =>
       val message = intercept[IllegalArgumentException] {
         val query = withStreamReaderAtVersion()
