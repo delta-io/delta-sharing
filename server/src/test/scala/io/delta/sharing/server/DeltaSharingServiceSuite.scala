@@ -1056,7 +1056,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
-      id = "36869638-1699-4a28-b4bb-9fe4ff5ebbf8",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
       configuration = Map.empty,
