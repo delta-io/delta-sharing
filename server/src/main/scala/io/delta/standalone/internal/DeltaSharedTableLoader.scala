@@ -260,22 +260,14 @@ class DeltaSharedTable(
         filteredFilters.map { addFile =>
           val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
           val signedUrl = fileSigner.sign(cloudPath)
-          val modelAddFile = if (isVersionQuery) {
-            model.AddFileForCDF(url = signedUrl,
-              id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
-              partitionValues = addFile.partitionValues,
-              size = addFile.size,
-              stats = addFile.stats,
-              version = snapshot.version,
-              timestamp = ts.get
-            )
-          } else {
-            model.AddFile(url = signedUrl,
-              id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
-              partitionValues = addFile.partitionValues,
-              size = addFile.size,
-              stats = addFile.stats)
-          }
+          val modelAddFile = model.AddFile(url = signedUrl,
+            id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+            partitionValues = addFile.partitionValues,
+            size = addFile.size,
+            stats = addFile.stats,
+            version = if (isVersionQuery) { snapshot.version } else null,
+            timestamp = if (isVersionQuery) { ts.get} else null
+          )
           modelAddFile.wrap
         }
       } else {

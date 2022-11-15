@@ -214,17 +214,7 @@ class RemoteSnapshot(
     val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf)
     checkProtocolNotChange(tableFiles.protocol)
     checkSchemaNotChange(tableFiles.metadata)
-    getAddFiles(tableFiles).map(_.size).sum
-  }
-
-  private def getAddFiles(tableFiles: DeltaTableFiles): Seq[AddFile] = {
-    if (Seq(versionAsOf, timestampAsOf).filter(_.isDefined).isEmpty) {
-      tableFiles.files
-    } else {
-      tableFiles.addFiles.map {add =>
-        AddFile(add.url, add.id, add.partitionValues, add.size, add.stats)
-      }
-    }
+    tableFiles.files.map(_.size).sum
   }
 
   private def getTableMetadata: (Metadata, Protocol, Long) = {
@@ -280,18 +270,18 @@ class RemoteSnapshot(
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(table, predicates, limitHint, versionAsOf, timestampAsOf)
-      val idToUrl = getAddFiles(tableFiles).map { add =>
-        add.id -> add.url
+      val idToUrl = tableFiles.files.map { file =>
+        file.id -> file.url
       }.toMap
       CachedTableManager.INSTANCE
         .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
-          getAddFiles(client.getFiles(table, Nil, None, versionAsOf, timestampAsOf)).map { add =>
+          client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
             add.id -> add.url
           }.toMap
         })
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
-      getAddFiles(tableFiles).toDS()
+      tableFiles.files.toDS()
     }
 
     val columnFilter = new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
