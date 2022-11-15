@@ -102,7 +102,10 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="streaming_notnull_to_null", share="share8", schema="default"),
         Table(name="streaming_null_to_notnull", share="share8", schema="default"),
         Table(name="streaming_cdf_table", share="share8", schema="default"),
-        Table(name="table_reader_version_increased", share="share8", schema="default")
+        Table(name="table_reader_version_increased", share="share8", schema="default"),
+        Table(name="table_with_no_metadata", share="share8", schema="default"),
+        Table(name="table_data_loss_with_checkpoint", share="share8", schema="default"),
+        Table(name="table_data_loss_no_checkpoint", share="share8", schema="default")
     ]
 
 

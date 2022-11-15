@@ -489,6 +489,16 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
   }
 
+  integrationTest("table_with_no_metadata - metadata missing") {
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/table_with_no_metadata"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 500,
+      expectedErrorMessage = ""
+    )
+  }
+
   integrationTest("table2 - version 1 : cdfEnabled is false") {
     assertHttpError(
       url = requestPath("/shares/share2/schemas/default/tables/table2/query"),
@@ -1046,7 +1056,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
-      id = "36869638-1699-4a28-b4bb-9fe4ff5ebbf8",
+      id = actions(1).metaData.id,
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
       configuration = Map.empty,
@@ -1296,6 +1306,114 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(removeFile.version == version)
     assert(removeFile.timestamp == timestamp)
     verifyPreSignedUrl(removeFile.url, size.toInt)
+  }
+
+  integrationTest("table_data_loss_with_checkpoint - /shares/{share}/schemas/{schema}/tables/{table}/query") {
+    // For table_data_loss_with_checkpoint:
+    // VERSION 1: INSERT 2 rows
+    // VERSION 2: INSERT 1 row
+    // generated a checkpoint at version 2.
+    // deleted json file for version 1 -- data loss
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+
+    // queryTable, latest snapshot at version 2, works because of checkpoint
+    var response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_data_loss_with_checkpoint/query"), Some("POST"), Some("{}"), Some(2))
+    var lines = response.split("\n")
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](lines(0)).protocol)
+    val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
+    val expectedMetadata = Metadata(
+      id = metadata.id,
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      partitionColumns = Nil)
+    assert(expectedMetadata == metadata)
+    assert(lines.size == 4)
+
+    // queryTable, version 2, works because of checkpoint
+    var p =
+      """
+        |{
+        |  "version": "2"
+        |}
+        |""".stripMargin
+    response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_data_loss_with_checkpoint/query"), Some("POST"), Some(p), Some(2))
+    lines = response.split("\n")
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](lines(0)).protocol)
+    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](lines(1)).metaData)
+    assert(lines.size == 4)
+
+    // queryTable, startingVersion 2, works because of checkpoint
+    p =
+      """
+        |{
+        |  "startingVersion": "2"
+        |}
+        |""".stripMargin
+    response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_data_loss_with_checkpoint/query"), Some("POST"), Some(p), Some(2))
+    lines = response.split("\n")
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](lines(0)).protocol)
+    assert(expectedMetadata.copy(version = 2) ==
+      JsonUtils.fromJson[SingleAction](lines(1)).metaData)
+    assert(lines.size == 3)
+
+    // queryTable, startingVersion 1, fails because data loss
+    p =
+      """
+        |{
+        |  "startingVersion": "1"
+        |}
+        |""".stripMargin
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/table_data_loss_with_checkpoint/query"),
+      method = "POST",
+      data = Some(p),
+      expectedErrorCode = 500,
+      expectedErrorMessage = ""
+    )
+  }
+
+  integrationTest("table_data_loss_no_checkpoint - /shares/{share}/schemas/{schema}/tables/{table}/query") {
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+
+    // queryTable, latest snapshot
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/table_data_loss_no_checkpoint/query"),
+      method = "POST",
+      data = Some("{}"),
+      expectedErrorCode = 500,
+      expectedErrorMessage = ""
+    )
+
+    // queryTable, version 2
+    var p =
+      """
+        |{
+        |  "version": "2"
+        |}
+        |""".stripMargin
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/table_data_loss_no_checkpoint/query"),
+      method = "POST",
+      data = Some(p),
+      expectedErrorCode = 500,
+      expectedErrorMessage = ""
+    )
+
+    // queryTable, startingVersion 1
+    p =
+      """
+        |{
+        |  "startingVersion": "2"
+        |}
+        |""".stripMargin
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/table_data_loss_no_checkpoint/query"),
+      method = "POST",
+      data = Some(p),
+      expectedErrorCode = 500,
+      expectedErrorMessage = ""
+    )
   }
 
   def assertHttpError(
