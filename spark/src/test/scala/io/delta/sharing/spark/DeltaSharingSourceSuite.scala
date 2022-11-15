@@ -16,9 +16,10 @@
 
 package io.delta.sharing.spark
 
-import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.QueryTest
-import org.apache.spark.sql.SparkSession
+import scala.collection.JavaConverters._
+
+import org.apache.commons.io.FileUtils
+import org.apache.spark.sql.{AnalysisException, QueryTest, Row, SparkSession}
 import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
@@ -32,11 +33,13 @@ import org.apache.spark.sql.types.{
 }
 import org.scalatest.time.SpanSugar._
 
+import io.delta.sharing.spark.TestUtils._
+
 class DeltaSharingSourceSuite extends QueryTest
   with SharedSparkSession with DeltaSharingIntegrationTest {
 
-  // TODO: add test on a shared table without schema
-  // TODO: support dir so we can test checkpoint, restart the stream, the actual dataframe, etc.
+  // TODO: test with different Trigger.xx:
+  //   https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html
 
   import testImplicits._
 
@@ -53,7 +56,7 @@ class DeltaSharingSourceSuite extends QueryTest
 
   lazy val deltaLog = RemoteDeltaLog(tablePath, forStreaming = true)
 
-  val streamingTimeout = 60.seconds
+  val streamingTimeout = 30.seconds
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
     val options = new DeltaSharingOptions(parameters)
@@ -249,6 +252,58 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
+  integrationTest("basic memory - success") {
+    val query = withStreamReaderAtVersion()
+      .load().writeStream.format("memory").queryName("streamMemoryOutput").start()
+
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 4)
+      }
+
+      val expected = Seq(
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("3", 3, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-02-02")),
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+      checkAnswer(sql("SELECT * FROM streamMemoryOutput"), expected)
+    } finally {
+      query.stop()
+    }
+  }
+
+  integrationTest("outputDataframe - success") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion()
+        .load().writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 4)
+        }
+      } finally {
+        query.stop()
+      }
+
+      val expected = Seq(
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("3", 3, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-02-02")),
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+    }
+  }
+
   integrationTest("no startingVersion - success") {
     // cdf_table_cdf_enabled snapshot at version 5 is queried, with 2 files and 2 rows of data
     val query = spark.readStream.format("deltaSharing")
@@ -269,6 +324,31 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
+  /**
+   * Test Trigger.ProcessingTime
+   */
+  integrationTest("Trigger.ProcessingTime - success") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().writeStream.format("parquet")
+        // This is verified by Console output
+        .trigger(Trigger.ProcessingTime("20 seconds"))
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 4)
+        progress.foreach { p =>
+          assert(p.numInputRows === 1)
+        }
+      } finally {
+        query.stop()
+      }
+    }
+  }
   /**
    * Test maxFilesPerTrigger and maxBytesPerTrigger
    */
@@ -294,7 +374,61 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-  testQuietly("maxFilesPerTrigger - invalid parameter") {
+  integrationTest("restart from checkpoint - success") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 4)
+        progress.foreach {
+          p => assert(p.numInputRows === 1)
+        }
+      } finally {
+        query.stop()
+      }
+
+      // Verify the output dataframe
+      val expected = Seq(
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("3", 3, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-02-02")),
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+
+      // There are 4 checkpoints, remove the latest 2.
+      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
+      checkpointFiles.foreach{ f =>
+        if (!f.isDirectory() &&
+          (f.getCanonicalPath.endsWith("2") || f.getCanonicalPath.endsWith("3"))) {
+          f.delete()
+        }
+      }
+
+      val restartQuery = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().writeStream.format("console")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start()
+      try {
+        restartQuery.processAllAvailable()
+        val progress = restartQuery.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 2)
+        progress.foreach {
+          p => assert(p.numInputRows === 1)
+        }
+      } finally {
+        restartQuery.stop()
+      }
+    }
+  }
+
+  integrationTest("maxFilesPerTrigger - invalid parameter") {
     Seq("0", "-1", "string").foreach { invalidMaxFilesPerTrigger =>
       val message = intercept[IllegalArgumentException] {
         val query = withStreamReaderAtVersion()
@@ -349,7 +483,7 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-  testQuietly("maxBytesPerTrigger - invalid parameter") {
+  integrationTest("maxBytesPerTrigger - invalid parameter") {
     Seq("0", "-1", "string").foreach { invalidMaxFilesPerTrigger =>
       val message = intercept[IllegalArgumentException] {
         val query = withStreamReaderAtVersion()
@@ -423,8 +557,7 @@ class DeltaSharingSourceSuite extends QueryTest
       .option("startingVersion", "0")
       .load().writeStream.format("console").start()
     var message = intercept[StreamingQueryException] {
-      // block until query is terminated, with stop() or with error
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("Detected deleted data from streaming source at version 2"))
 
@@ -434,8 +567,7 @@ class DeltaSharingSourceSuite extends QueryTest
       .option("ignoreDeletes", "true")
       .load().writeStream.format("console").start()
     message = intercept[StreamingQueryException] {
-      // block until query is terminated, with stop() or with error
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("Detected a data update in the source table at version 3"))
   }
@@ -478,7 +610,7 @@ class DeltaSharingSourceSuite extends QueryTest
       val query = spark.readStream.format("deltaSharing").option("path", tablePath)
         .option("startingTimestamp", "")
         .load().writeStream.format("console").start()
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("Invalid startingTimestamp:"))
 
@@ -494,7 +626,7 @@ class DeltaSharingSourceSuite extends QueryTest
       val query = spark.readStream.format("deltaSharing").option("path", tablePath)
         .option("startingTimestamp", "9999-01-01 00:00:00.0")
         .load().writeStream.format("console").start()
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("The provided timestamp (9999-01-01 00:00:00.0) is after"))
   }
