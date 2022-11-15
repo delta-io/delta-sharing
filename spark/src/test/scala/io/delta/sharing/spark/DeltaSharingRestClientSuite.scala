@@ -192,37 +192,31 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Some(1L),
         None)
       assert(tableFiles.version == 1)
-      assert(tableFiles.addFiles.size == 3)
+      assert(tableFiles.files.size == 3)
       val expectedFiles = Seq(
-        AddFileForCDF(
-          url = tableFiles.addFiles(0).url,
+        AddFile(
+          url = tableFiles.files(0).url,
           id = "60d0cf57f3e4367db154aa2c36152a1f",
           partitionValues = Map.empty,
           size = 1030,
-          stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-          version = 1,
-          timestamp = 1651272635000L
+          stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
         ),
-        AddFileForCDF(
-          url = tableFiles.addFiles(1).url,
+        AddFile(
+          url = tableFiles.files(1).url,
           id = "d7ed708546dd70fdff9191b3e3d6448b",
           partitionValues = Map.empty,
           size = 1030,
-          stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-          version = 1,
-          timestamp = 1651272635000L
+          stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
         ),
-        AddFileForCDF(
-          url = tableFiles.addFiles(2).url,
+        AddFile(
+          url = tableFiles.files(2).url,
           id = "a6dc5694a4ebcc9a067b19c348526ad6",
           partitionValues = Map.empty,
           size = 1030,
-          stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-          version = 1,
-          timestamp = 1651272635000L
+          stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
         )
       )
-      assert(expectedFiles == tableFiles.addFiles.toList)
+      assert(expectedFiles == tableFiles.files.toList)
     } finally {
       client.close()
     }

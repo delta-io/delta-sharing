@@ -226,13 +226,8 @@ private[spark] class DeltaSharingRestClient(
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
-    if (Seq(versionAsOf, timestampAsOf).filter(_.isDefined).isEmpty) {
-      val files = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
-      DeltaTableFiles(version, protocol, metadata, files)
-    } else {
-      val addFiles = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).add)
-      DeltaTableFiles(version, protocol, metadata, addFiles = addFiles)
-    }
+    val files = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
+    DeltaTableFiles(version, protocol, metadata, files)
   }
 
   override def getFiles(table: Table, startingVersion: Long): DeltaTableFiles = {
