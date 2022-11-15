@@ -182,8 +182,11 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
    * @param end The end version of cdf
    * @param latestVersion the latest version of the delta table, which is used to validate the
    *                      starting and ending versions.
+   * @param isSparkStreamingQuery if true, this is a query from delta sharing client that supports
+   *                              spark structured streaming, which needs to return metadata for
+   *                              schema compatibility check. Otherwise, no need to return metadata.
    */
-  def queryCDF(start: Long, end: Long, latestVersion: Long): (
+  def queryCDF(start: Long, end: Long, latestVersion: Long, isSparkStreamingQuery: Boolean): (
     Seq[CDCDataSpec[AddCDCFile]],
     Seq[CDCDataSpec[AddFile]],
     Seq[CDCDataSpec[RemoveFile]],
@@ -248,7 +251,7 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
             addActions.append(a)
           case r: RemoveFile =>
             removeActions.append(r)
-          case m: Metadata if (v > start) =>
+          case m: Metadata if (isSparkStreamingQuery && v > start) =>
             metaDatas.append(CDCDataSpec(v, ts, Seq(m)))
           case i: CommitInfo => commitInfo = Some(i)
           case _ => // do nothing

@@ -472,8 +472,12 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getCDFFiles - works with multiple metadatas") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+  integrationTest("getCDFFiles - more metadatas returned for streaming query") {
+    val client = new DeltaSharingRestClient(
+        testProfileProvider,
+        sslTrustAll = true,
+        forStreaming = true
+    )
     try {
       val cdfOptions = Map("startingVersion" -> "0")
       val tableFiles = client.getCDFFiles(
@@ -495,6 +499,40 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(tableFiles.cdfFiles.size == 0)
       assert(tableFiles.removeFiles.size == 0)
       assert(tableFiles.additionalMetadatas.size == 1)
+
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getCDFFiles - no additional metadatas returned for non-streaming query") {
+    val client = new DeltaSharingRestClient(
+      testProfileProvider,
+      sslTrustAll = true,
+      // not a streaming query
+      forStreaming = false
+    )
+    try {
+      val cdfOptions = Map("startingVersion" -> "0")
+      val tableFiles = client.getCDFFiles(
+        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
+        cdfOptions
+      )
+      assert(tableFiles.version == 0)
+      assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
+      val expectedMetadata = Metadata(
+        id = tableFiles.metadata.id,
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+        configuration = Map("enableChangeDataFeed" -> "true"),
+        partitionColumns = Nil,
+        version = 0)
+      assert(expectedMetadata == tableFiles.metadata)
+
+      assert(tableFiles.addFiles.size == 2)
+      assert(tableFiles.cdfFiles.size == 0)
+      assert(tableFiles.removeFiles.size == 0)
+      assert(tableFiles.additionalMetadatas.size == 0)
 
     } finally {
       client.close()

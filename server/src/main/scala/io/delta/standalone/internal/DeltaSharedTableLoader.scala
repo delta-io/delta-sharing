@@ -348,7 +348,10 @@ class DeltaSharedTable(
     actions.toSeq
   }
 
-  def queryCDF(cdfOptions: Map[String, String]): (Long, Seq[model.SingleAction]) = withClassLoader {
+  def queryCDF(
+      cdfOptions: Map[String, String],
+      isSparkStreamingQuery: Boolean = false
+  ): (Long, Seq[model.SingleAction]) = withClassLoader {
     val actions = ListBuffer[model.SingleAction]()
 
     // First: validate cdf options are greater than startVersion
@@ -375,7 +378,8 @@ class DeltaSharedTable(
 
     // Third: get files
     val (changeFiles, addFiles, removeFiles, metadatas) = cdcReader.queryCDF(
-      start, end, latestVersion)
+      start, end, latestVersion, isSparkStreamingQuery)
+    // If isSparkStreamingQuery=false, metadatas will be empty.
     metadatas.foreach { cdcDataSpec =>
       cdcDataSpec.actions.foreach { action =>
         val metadata = action.asInstanceOf[Metadata]
