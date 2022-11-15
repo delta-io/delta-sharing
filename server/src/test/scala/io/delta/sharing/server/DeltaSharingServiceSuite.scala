@@ -1133,7 +1133,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil).wrap
+      partitionColumns = Nil,
+      version = 0).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
     val files = lines.drop(2)
     assert(files.size == 5)
@@ -1198,7 +1199,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil).wrap
+      partitionColumns = Nil,
+      version = 0).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
     val files = lines.drop(2)
     assert(files.size == 5)
