@@ -16,9 +16,11 @@
 
 package io.delta.sharing.spark
 
-import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.QueryTest
-import org.apache.spark.sql.SparkSession
+import scala.collection.JavaConverters._
+
+import org.apache.commons.io.FileUtils
+import org.apache.hadoop.fs.Path
+import org.apache.spark.sql.{AnalysisException, QueryTest, Row, SparkSession}
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{
@@ -30,6 +32,8 @@ import org.apache.spark.sql.types.{
   StructType
 }
 import org.scalatest.time.SpanSugar._
+
+import io.delta.sharing.spark.TestUtils._
 
 class DeltaSharingSourceCDFSuite extends QueryTest
   with SharedSparkSession with DeltaSharingIntegrationTest {
@@ -62,7 +66,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
 
   lazy val deltaLog = RemoteDeltaLog(cdfTablePath, forStreaming = true)
 
-  val streamingTimeout = 120.seconds
+  val streamingTimeout = 30.seconds
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
     val options = new DeltaSharingOptions(parameters ++ Map("readChangeFeed" -> "true"))
@@ -173,22 +177,47 @@ class DeltaSharingSourceCDFSuite extends QueryTest
    * Test basic cdf streaming functionality
    */
   integrationTest("CDF Stream basic - success") {
-    var query = withStreamReaderAtVersion()
-      .load().writeStream.format("console").start()
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion()
+        .load().writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
 
-    try {
-      query.processAllAvailable()
-      val progress = query.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 1)
-      progress.foreach { p =>
-        assert(p.numInputRows === 17)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 17)
+        }
+      } finally {
+        query.stop()
       }
-    } finally {
-      query.stop()
+
+      val expected = Seq(
+        Row("1", 1, sqlDate("2020-01-01"), 1, 1667325629000L, "insert"),
+        Row("2", 2, sqlDate("2020-01-01"), 1, 1667325629000L, "insert"),
+        Row("1", 1, sqlDate("2021-01-01"), 2, 1667325636000L, "insert"),
+        Row("2", 2, sqlDate("2021-01-01"), 2, 1667325636000L, "insert"),
+        Row("3", 3, sqlDate("2021-01-01"), 2, 1667325636000L, "insert"),
+        Row("1", 1, sqlDate("2020-01-01"), 3, 1667325644000L, "update_preimage"),
+        Row("1", 1, sqlDate("2020-02-02"), 3, 1667325644000L, "update_postimage"),
+        Row("1", 1, sqlDate("2021-01-01"), 3, 1667325644000L, "update_preimage"),
+        Row("1", 1, sqlDate("2020-02-02"), 3, 1667325644000L, "update_postimage"),
+        Row("2", 2, sqlDate("2020-01-01"), 3, 1667325644000L, "update_preimage"),
+        Row("2", 2, sqlDate("2020-02-02"), 3, 1667325644000L, "update_postimage"),
+        Row("2", 2, sqlDate("2021-01-01"), 3, 1667325644000L, "update_preimage"),
+        Row("2", 2, sqlDate("2020-02-02"), 3, 1667325644000L, "update_postimage"),
+        Row("1", 1, sqlDate("2020-02-02"), 4, 1667325812000L, "delete"),
+        Row("1", 1, sqlDate("2020-02-02"), 4, 1667325812000L, "delete"),
+        Row("2", 2, sqlDate("2020-02-02"), 4, 1667325812000L, "delete"),
+        Row("2", 2, sqlDate("2020-02-02"), 4, 1667325812000L, "delete")
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
     }
 
     // Test readchangeData=true, and startingVersion=1.
-    query = spark.readStream.format("deltaSharing")
+    val query = spark.readStream.format("deltaSharing")
       .option("readchangeData", "true")
       .option("startingVersion", "1")
       .load(cdfTablePath).writeStream.format("console").start()
@@ -223,19 +252,44 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     }
 
     // select a few columns
-    query = withStreamReaderAtVersion()
-      .load()
-      .select("birthday", "_commit_version", "age", "_change_type")
-      .writeStream.format("console").start()
-    try {
-      query.processAllAvailable()
-      val progress = query.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 1)
-      progress.foreach { p =>
-        assert(p.numInputRows === 17)
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion()
+        .load()
+        .select("birthday", "_commit_version", "age", "_change_type")
+        .writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 17)
+        }
+      } finally {
+        query.stop()
       }
-    } finally {
-      query.stop()
+
+      val expected = Seq(
+        Row(sqlDate("2020-01-01"), 1, 1, "insert"),
+        Row(sqlDate("2020-01-01"), 1, 2, "insert"),
+        Row(sqlDate("2021-01-01"), 2, 1, "insert"),
+        Row(sqlDate("2021-01-01"), 2, 2, "insert"),
+        Row(sqlDate("2021-01-01"), 2, 3, "insert"),
+        Row(sqlDate("2020-01-01"), 3, 1, "update_preimage"),
+        Row(sqlDate("2020-02-02"), 3, 1, "update_postimage"),
+        Row(sqlDate("2021-01-01"), 3, 1, "update_preimage"),
+        Row(sqlDate("2020-02-02"), 3, 1, "update_postimage"),
+        Row(sqlDate("2020-01-01"), 3, 2, "update_preimage"),
+        Row(sqlDate("2020-02-02"), 3, 2, "update_postimage"),
+        Row(sqlDate("2021-01-01"), 3, 2, "update_preimage"),
+        Row(sqlDate("2020-02-02"), 3, 2, "update_postimage"),
+        Row(sqlDate("2020-02-02"), 4, 1, "delete"),
+        Row(sqlDate("2020-02-02"), 4, 1, "delete"),
+        Row(sqlDate("2020-02-02"), 4, 2, "delete"),
+        Row(sqlDate("2020-02-02"), 4, 2, "delete")
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
     }
   }
 
@@ -245,16 +299,14 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     var query = withStreamReaderAtVersion(path = errorTablePath1)
       .load().writeStream.format("console").start()
     var message = intercept[StreamingQueryException] {
-      // block until query is terminated, with stop() or with error
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("Error getting change data for range"))
 
     query = withStreamReaderAtVersion(path = errorTablePath2, startingVersion = "0")
       .load().writeStream.format("console").start()
     message = intercept[StreamingQueryException] {
-      // block until query is terminated, with stop() or with error
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("You can only query table changes since version 1."))
 
@@ -264,7 +316,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
         .option("readchangeFeed", "true")
         .option("startingTimestamp", "9999-01-01 00:00:00.0")
         .load(cdfTablePath).writeStream.format("console").start()
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("The provided timestamp (9999-01-01 00:00:00.0) is after"))
 
@@ -274,14 +326,14 @@ class DeltaSharingSourceCDFSuite extends QueryTest
         .option("readchangeFeed", "true")
         .option("startingTimestamp", "2022-01-01 00:00:00")
         .load(errorTablePath2).writeStream.format("console").start()
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("The provided timestamp(2022-01-01 00:00:00) corresponds to 0"))
     // startingVersion > latest version
   }
 
   integrationTest("CDF Stream - different startingVersion") {
-    // Starting from version 3: 4 CDF Files
+    // Starting from version 3: 4 ADDCDCFiles
     var query = withStreamReaderAtVersion(startingVersion = "3")
       .load().writeStream.format("console").start()
     try {
@@ -295,7 +347,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       query.stop()
     }
 
-    // Starting from version 4: 2 remove Files
+    // Starting from version 4: 2 RemoveFiles
     query = withStreamReaderAtVersion(startingVersion = "4")
       .load().writeStream.format("console").start()
     try {
@@ -355,6 +407,55 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     }
   }
 
+  /**
+   * Test streaming checkpoint
+   */
+  integrationTest("CDF Stream - restart from checkpoint") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val processedRows = Seq(2, 3, 8, 2, 2)
+      val query = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().select("age").writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === processedRows.size)
+        progress.zipWithIndex.map { case (p, index) =>
+          assert(p.numInputRows === processedRows(index))
+        }
+      } finally {
+        query.stop()
+      }
+
+      // There are 5 checkpoints for 5 getBatch(), which is caused by maxFilesPerTrigger = 1,
+      // remove the latest 3 checkpoints.
+      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
+      checkpointFiles.foreach{ f =>
+        if (!f.isDirectory() && (f.getCanonicalPath.endsWith("2") ||
+          f.getCanonicalPath.endsWith("3") || f.getCanonicalPath.endsWith("4"))) {
+          f.delete()
+        }
+      }
+
+      val restartQuery = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().select("age").writeStream.format("console")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start()
+      try {
+        restartQuery.processAllAvailable()
+        val progress = restartQuery.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === processedRows.size - 2)
+        progress.zipWithIndex.map { case (p, index) =>
+          assert(p.numInputRows === processedRows(index + 2))
+        }
+      } finally {
+        restartQuery.stop()
+      }
+    }
+  }
 
   /**
    * Test maxFilesPerTrigger and maxBytesPerTrigger

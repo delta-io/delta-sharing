@@ -248,6 +248,8 @@ case class DeltaSharingSource(
                 file.stats
               ),
               isLast = (index + 1 == numFiles)))
+        // For files with index <= fromIndex, skip them, otherwise an exception will be thrown.
+        case _ => ()
       }
     } else {
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
@@ -259,10 +261,12 @@ case class DeltaSharingSource(
         val vAddFiles = allAddFiles.getOrElse(v, ArrayBuffer[AddFileForCDF]())
         val numFiles = vAddFiles.size
         appendToSortedFetchedFiles(IndexedFile(v, -1, add = null, isLast = (numFiles == 0)))
-        vAddFiles.sortWith(fileActionCompareFunc).zipWithIndex.foreach{
+        vAddFiles.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
           case (add, index) if (v > fromVersion || (v == fromVersion && index > fromIndex)) =>
             appendToSortedFetchedFiles(
               IndexedFile(add.version, index, add, isLast = (index + 1 == numFiles)))
+          // For files with v <= fromVersion, skip them, otherwise an exception will be thrown.
+          case _ => ()
         }
       }
     }
@@ -307,6 +311,8 @@ case class DeltaSharingSource(
               cdc = cdc,
               isLast = (index + 1 == cdfFiles.size))
             )
+          // For files with v <= fromVersion, skip them, otherwise an exception will be thrown.
+          case _ => ()
         }
       } else if (perVersionAddFiles.contains(v) || perVersionRemoveFiles.contains(v)) {
         // process add files and remove files
@@ -331,6 +337,8 @@ case class DeltaSharingSource(
               remove = remove,
               isLast = (index + 1 == numFiles))
             )
+          // For files with v <= fromVersion, skip them, otherwise an exception will be thrown.
+          case _ => ()
         }
       } else {
         // Still append an IndexedFile for this version with index = -1 and getFileAction = null.
@@ -527,7 +535,6 @@ case class DeltaSharingSource(
    * Return the next offset when previous offset exists.
    */
   private def getNextOffsetFromPreviousOffset(
-      previousOffset: DeltaSharingSourceOffset,
       limits: Option[AdmissionLimits]): Option[Offset] = {
     val lastFileChange = getLastFileChangeWithRateLimit(
       previousOffset.tableVersion,
@@ -634,7 +641,7 @@ case class DeltaSharingSource(
     val currentOffset = if (previousOffset == null) {
       getStartingOffset(limits)
     } else {
-      getNextOffsetFromPreviousOffset(previousOffset, limits)
+      getNextOffsetFromPreviousOffset(limits)
     }
     logDebug(s"previousOffset -> currentOffset: $previousOffset -> $currentOffset")
     currentOffset.orNull
