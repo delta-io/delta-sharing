@@ -66,7 +66,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
 
   lazy val deltaLog = RemoteDeltaLog(cdfTablePath, forStreaming = true)
 
-  val streamingTimeout = 120.seconds
+  val streamingTimeout = 30.seconds
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
     val options = new DeltaSharingOptions(parameters ++ Map("readChangeFeed" -> "true"))
@@ -299,16 +299,14 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     var query = withStreamReaderAtVersion(path = errorTablePath1)
       .load().writeStream.format("console").start()
     var message = intercept[StreamingQueryException] {
-      // block until query is terminated, with stop() or with error
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("Error getting change data for range"))
 
     query = withStreamReaderAtVersion(path = errorTablePath2, startingVersion = "0")
       .load().writeStream.format("console").start()
     message = intercept[StreamingQueryException] {
-      // block until query is terminated, with stop() or with error
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("You can only query table changes since version 1."))
 
@@ -318,7 +316,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
         .option("readchangeFeed", "true")
         .option("startingTimestamp", "9999-01-01 00:00:00.0")
         .load(cdfTablePath).writeStream.format("console").start()
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("The provided timestamp (9999-01-01 00:00:00.0) is after"))
 
@@ -328,7 +326,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
         .option("readchangeFeed", "true")
         .option("startingTimestamp", "2022-01-01 00:00:00")
         .load(errorTablePath2).writeStream.format("console").start()
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("The provided timestamp(2022-01-01 00:00:00) corresponds to 0"))
     // startingVersion > latest version

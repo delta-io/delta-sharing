@@ -56,7 +56,7 @@ class DeltaSharingSourceSuite extends QueryTest
 
   lazy val deltaLog = RemoteDeltaLog(tablePath, forStreaming = true)
 
-  val streamingTimeout = 60.seconds
+  val streamingTimeout = 30.seconds
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
     val options = new DeltaSharingOptions(parameters)
@@ -557,8 +557,7 @@ class DeltaSharingSourceSuite extends QueryTest
       .option("startingVersion", "0")
       .load().writeStream.format("console").start()
     var message = intercept[StreamingQueryException] {
-      // block until query is terminated, with stop() or with error
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("Detected deleted data from streaming source at version 2"))
 
@@ -568,8 +567,7 @@ class DeltaSharingSourceSuite extends QueryTest
       .option("ignoreDeletes", "true")
       .load().writeStream.format("console").start()
     message = intercept[StreamingQueryException] {
-      // block until query is terminated, with stop() or with error
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("Detected a data update in the source table at version 3"))
   }
@@ -612,7 +610,7 @@ class DeltaSharingSourceSuite extends QueryTest
       val query = spark.readStream.format("deltaSharing").option("path", tablePath)
         .option("startingTimestamp", "")
         .load().writeStream.format("console").start()
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("Invalid startingTimestamp:"))
 
@@ -628,7 +626,7 @@ class DeltaSharingSourceSuite extends QueryTest
       val query = spark.readStream.format("deltaSharing").option("path", tablePath)
         .option("startingTimestamp", "9999-01-01 00:00:00.0")
         .load().writeStream.format("console").start()
-      query.awaitTermination(streamingTimeout.toMillis)
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("The provided timestamp (9999-01-01 00:00:00.0) is after"))
   }
