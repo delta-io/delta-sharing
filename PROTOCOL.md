@@ -509,7 +509,7 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
       "share": "string"
     }
   ],
-  "nextPageToken": "string",
+  "nextPageToken": "string"
 }
 ```
 
@@ -735,7 +735,7 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
       "id": "string"
     }
   ],
-  "nextPageToken": "string",
+  "nextPageToken": "string"
 }
 ```
 
@@ -974,7 +974,7 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
       "id": "string"
     }
   ],
-  "nextPageToken": "string",
+  "nextPageToken": "string"
 }
 ```
 
@@ -1950,7 +1950,7 @@ The API supports a start parameter and and an end parameter. The start/end param
 
 You specify a version as a Long and a timestamps as a string in the format "yyyy-mm-dd hh:mm:ss[.fffffffff]".
 
-The change data feed represents row-level changes between versions of a Delta table. It records change data for UPDATE, DELETE, and MERGE operations. If you leveage the connectors provided by this library to read chagne data feed, it results in three metadata columns that identify the type of change event, in addition to the data columns:
+The change data feed represents row-level changes between versions of a Delta table. It records change data for UPDATE, DELETE, and MERGE operations. If you leverage the connectors provided by this library to read change data feed, it results in three metadata columns that identify the type of change event, in addition to the data columns:
 - _change_type (type: String): There are four values: insert, update_preimage, update_postimage, delete. preimage is the value before the udpate, postimage is the value after the update.
 - _commit_version (type: Long): The table version containing the change.
 - _commit_timestamp (type: String): The timestap associated when the commit of the change was created, in the format "yyyy-mm-dd hh:mm:ss".
@@ -2296,7 +2296,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
-url | String | A https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
+url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
 id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
@@ -2323,7 +2323,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 #### Add File
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
-url | String | A https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
+url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
 id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
@@ -2352,7 +2352,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 #### CDF File
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
-url | String | A https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
+url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
 id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
@@ -2379,7 +2379,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 #### Remove File
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
-url | String | A https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
+url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
 id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required

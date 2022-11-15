@@ -23,27 +23,14 @@ import scala.util.Random
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{QueryTest, Row}
-import org.apache.spark.sql.catalyst.util.DateTimeUtils._
-import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{DateType, StringType, StructField, StructType, TimestampType}
-import org.apache.spark.unsafe.types.UTF8String
+
+import io.delta.sharing.spark.TestUtils._
 
 class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaSharingIntegrationTest {
 
   import testImplicits._
-
-  protected def sqlDate(date: String): java.sql.Date = {
-    toJavaDate(stringToDate(
-      UTF8String.fromString(date),
-      getZoneId(SQLConf.get.sessionLocalTimeZone)).get)
-  }
-
-  protected def sqlTimestamp(timestamp: String): java.sql.Timestamp = {
-    toJavaTimestamp(stringToTimestamp(
-      UTF8String.fromString(timestamp),
-      getZoneId(SQLConf.get.sessionLocalTimeZone)).get)
-  }
 
   integrationTest("table1") {
     val tablePath = testProfileFile.getCanonicalPath + "#share1.default.table1"
