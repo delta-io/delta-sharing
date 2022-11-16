@@ -29,7 +29,7 @@ import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, Http
 import com.linecorp.armeria.common.auth.OAuth2Token
 import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
-import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
+import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Header, Param, Post, ProducesJson}
 import com.linecorp.armeria.server.auth.AuthService
 import io.delta.standalone.internal.DeltaCDFErrors
 import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
@@ -339,6 +339,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/changes")
   @ConsumesJson
   def listCdfFiles(
+      @Header("User-Agent") @Nullable userAgent: String,
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
@@ -358,7 +359,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Option(endingVersion),
         Option(startingTimestamp),
         Option(endingTimestamp)
-      )
+      ),
+      isSparkStreamingQuery = userAgent.contains(SPARK_STRUCTURED_STREAMING)
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
@@ -393,6 +395,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 object DeltaSharingService {
   val DELTA_TABLE_VERSION_HEADER = "Delta-Table-Version"
   val DELTA_TABLE_METADATA_CONTENT_TYPE = "application/x-ndjson; charset=utf-8"
+
+  val SPARK_STRUCTURED_STREAMING = "SparkStructuredStreaming"
 
   private val parser = {
     val parser = ArgumentParsers

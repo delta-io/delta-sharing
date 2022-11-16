@@ -640,6 +640,54 @@ def test_list_table_changes(
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_list_table_changes_with_more_metadata(
+    rest_client: DataSharingRestClient,
+):
+    # The table streaming_notnull_to_null contains metadata for different version, but won't be
+    # returned for cdf queries from python connector because the User-Agent header is not set to
+    # include spark structured streaming. So the query will still work: old connector is compatible
+    # with new server.
+    cdf_table = Table(name="streaming_notnull_to_null", share="share8", schema="default")
+    response = rest_client.list_table_changes(
+        cdf_table,
+        CdfOptions(starting_version=0)
+    )
+
+    assert response.protocol == Protocol(min_reader_version=1)
+    assert len(response.actions) == 2
+    assert response.actions == [
+        AddFile(
+            url=response.actions[0].url,
+            id=response.actions[0].id,
+            partition_values={},
+            size=568,
+            timestamp=1668327046000,
+            version=1,
+            stats=(
+                r'{"numRecords":1,'
+                r'"minValues":{"name":"1"},'
+                r'"maxValues":{"name":"1"},'
+                r'"nullCount":{"name":0}}'
+            ),
+        ),
+        AddFile(
+            url=response.actions[1].url,
+            id=response.actions[1].id,
+            partition_values={},
+            size=568,
+            timestamp=1668327050000,
+            version=3,
+            stats=(
+                r'{"numRecords":2,'
+                r'"minValues":{"name":"2"},'
+                r'"maxValues":{"name":"2"},'
+                r'"nullCount":{"name":1}}'
+            ),
+        )
+    ]
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_table_changes_with_timestamp(
     rest_client: DataSharingRestClient
 ):

@@ -291,6 +291,13 @@ case class DeltaSharingSource(
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString))
 
+    (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
+      val schemaToCheck = DeltaTableUtils.addCdcSchema(DeltaTableUtils.toSchema(m.schemaString))
+      if (!SchemaUtils.isReadCompatible(schemaToCheck, schema)) {
+        throw DeltaSharingErrors.schemaChangedException(schema, schemaToCheck)
+      }
+    }
+
     val perVersionAddFiles = tableFiles.addFiles.groupBy(f => f.version)
     val perVersionCdfFiles = tableFiles.cdfFiles.groupBy(f => f.version)
     val perVersionRemoveFiles = tableFiles.removeFiles.groupBy(f => f.version)
