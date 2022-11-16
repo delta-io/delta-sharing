@@ -392,7 +392,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getCDFFiles - aaa") {
+  integrationTest("getCDFFiles") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       val cdfOptions = Map("startingVersion" -> "0", "endingVersion" -> "3")

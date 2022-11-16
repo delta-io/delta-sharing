@@ -1336,12 +1336,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   private def verifyAddFile(
-    actionStr: String,
-    size: Long,
-    stats: String,
-    partitionValues: Map[String, String],
-    version: Long,
-    timestamp: Long): Unit = {
+      actionStr: String,
+      size: Long,
+      stats: String,
+      partitionValues: Map[String, String],
+      version: Long,
+      timestamp: Long): Unit = {
     assert(actionStr.startsWith("{\"add\":{"))
     val addFile = JsonUtils.fromJson[SingleAction](actionStr).add
     assert(addFile.size == size)
@@ -1353,11 +1353,11 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   private def verifyAddCDCFile(
-    actionStr: String,
-    size: Long,
-    partitionValues: Map[String, String],
-    version: Long,
-    timestamp: Long): Unit = {
+      actionStr: String,
+      size: Long,
+      partitionValues: Map[String, String],
+      version: Long,
+      timestamp: Long): Unit = {
     assert(actionStr.startsWith("{\"cdf\":{"))
     val addCDCFile = JsonUtils.fromJson[SingleAction](actionStr).cdf
     assert(addCDCFile.size == size)
@@ -1368,11 +1368,11 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   private def verifyRemove(
-    actionStr: String,
-    size: Long,
-    partitionValues: Map[String, String],
-    version: Long,
-    timestamp: Long): Unit = {
+      actionStr: String,
+      size: Long,
+      partitionValues: Map[String, String],
+      version: Long,
+      timestamp: Long): Unit = {
     assert(actionStr.startsWith("{\"remove\":{"))
     val removeFile = JsonUtils.fromJson[SingleAction](actionStr).remove
     assert(removeFile.size == size)
