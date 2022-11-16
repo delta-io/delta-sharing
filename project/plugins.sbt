@@ -28,10 +28,10 @@ addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "2.3")
 
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
 
-addSbtPlugin("com.thesamet" % "sbt-protoc" % "1.0.2")
+addSbtPlugin("com.thesamet" % "sbt-protoc" % "1.0.6")
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.7.6")
 
 addSbtPlugin("com.github.sbt" % "sbt-pgp" % "2.1.2")
 
-libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.11.1"
+libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.11.12"

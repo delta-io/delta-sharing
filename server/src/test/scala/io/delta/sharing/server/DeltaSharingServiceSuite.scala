@@ -317,6 +317,42 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expected == tables)
   }
 
+  integrationTest("table1 - get - /shares/{share}/schemas/{schema}/tables/{table}") {
+    val response = readJson(requestPath("/shares/share1/schemas/default/tables/table1"))
+    val expected = GetTableResponse(
+      Some(Table().withName("table1").withSchema("default").withShare("share1"))
+    )
+    assert(expected == JsonFormat.fromJsonString[GetTableResponse](response))
+  }
+
+  integrationTest("getTable - get exceptions") {
+    // non-existent table
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/does-not-exist"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 404,
+      expectedErrorMessage = "[Share/Schema/Table] 'share1/default/does-not-exist' does not exist, please contact your share provider for further information."
+    )
+
+    // non-existent schema
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/does-not-exist/tables/does-not-exist"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 404,
+      expectedErrorMessage = "[Share/Schema/Table] 'share1/does-not-exist/does-not-exist' does not exist, please contact your share provider for further information."
+    )
+
+    // non-existent share
+    assertHttpError(
+      url = requestPath("/shares/does-not-exist/schemas/does-not-exist/tables/does-not-exist"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 404,
+      expectedErrorMessage = "[Share/Schema/Table] 'does-not-exist/does-not-exist/does-not-exist' does not exist, please contact your share provider for further information."
+    )
+  }
 
   integrationTest("table1 - head - /shares/{share}/schemas/{schema}/tables/{table}") {
     // getTableVersion succeeds without parameters
@@ -348,9 +384,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(deltaTableVersion == "0")
   }
 
-  integrationTest("table1 - get - /shares/{share}/schemas/{schema}/tables/{table}") {
+  integrationTest("table1 - get - /shares/{share}/schemas/{schema}/tables/{table}/version") {
     // getTableVersion succeeds without parameters
-    var url = requestPath("/shares/share1/schemas/default/tables/table1")
+    var url = requestPath("/shares/share1/schemas/default/tables/table1/version")
     var connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestMethod("GET")
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
@@ -364,7 +400,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(deltaTableVersion == "2")
 
     // getTableVersion succeeds with parameters
-    url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=2000-01-01%2000:00:00")
+    url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/version?startingTimestamp=2000-01-01%2000:00:00")
     connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestMethod("GET")
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
@@ -1509,10 +1545,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         output.close()
       }
     }
-    val e = intercept[IOException] {
-      connection.getInputStream()
-    }
-    assert(e.getMessage.contains(s"Server returned HTTP response code: $expectedErrorCode"))
+    val responseStatusCode = connection.getResponseCode()
+    assert(responseStatusCode == expectedErrorCode)
     // If the http method is HEAD, error message is not returned from the server.
     assert(method == "HEAD" || IOUtils.toString(connection.getErrorStream()).contains(expectedErrorMessage))
   }
