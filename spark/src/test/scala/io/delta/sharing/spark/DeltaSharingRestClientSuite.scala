@@ -196,22 +196,22 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(tableFiles.files.size == 3)
       val expectedFiles = Seq(
         AddFile(
-          url = tableFiles.addFiles(0).url,
-          id = tableFiles.addFiles(0).id,
+          url = tableFiles.files(0).url,
+          id = tableFiles.files(0).id,
           partitionValues = Map.empty,
           size = 1030,
           stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
         ),
         AddFile(
           url = tableFiles.files(1).url,
-          id = tableFiles.addFiles(1).id,
+          id = tableFiles.files(1).id,
           partitionValues = Map.empty,
           size = 1030,
           stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
         ),
         AddFile(
           url = tableFiles.files(2).url,
-          id = tableFiles.addFiles(2).id,
+          id = tableFiles.files(2).id,
           partitionValues = Map.empty,
           size = 1030,
           stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
