@@ -291,7 +291,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val expectedAddFiles = Seq(
         AddFileForCDF(
           url = tableFiles.addFiles(0).url,
-          id = tableFiles.addFiles(0).id,
+          id = "60d0cf57f3e4367db154aa2c36152a1f",
           partitionValues = Map.empty,
           size = 1030,
           stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -300,7 +300,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFileForCDF(
           url = tableFiles.addFiles(1).url,
-          id = tableFiles.addFiles(1).id,
+          id = "a6dc5694a4ebcc9a067b19c348526ad6",
           partitionValues = Map.empty,
           size = 1030,
           stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -309,7 +309,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFileForCDF(
           url = tableFiles.addFiles(2).url,
-          id = tableFiles.addFiles(2).id,
+          id = "d7ed708546dd70fdff9191b3e3d6448b",
           partitionValues = Map.empty,
           size = 1030,
           stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -318,7 +318,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFileForCDF(
           url = tableFiles.addFiles(3).url,
-          id = tableFiles.addFiles(3).id,
+          id = "b875623be22c1fa1dfdeb0480fae6117",
           partitionValues = Map.empty,
           size = 1247,
           stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-02-02"},"maxValues":{"name":"2","age":2,"birthday":"2020-02-02"},"nullCount":{"name":0,"age":0,"birthday":0,"_change_type":1}}""",
@@ -332,7 +332,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val expectedRemoveFiles = Seq(
         RemoveFile(
           url = tableFiles.removeFiles(0).url,
-          id = tableFiles.removeFiles(0).id,
+          id = "d7ed708546dd70fdff9191b3e3d6448b",
           partitionValues = Map.empty,
           size = 1030,
           version = 2,
@@ -340,7 +340,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         RemoveFile(
           url = tableFiles.removeFiles(1).url,
-          id = tableFiles.removeFiles(1).id,
+          id = "a6dc5694a4ebcc9a067b19c348526ad6",
           partitionValues = Map.empty,
           size = 1030,
           version = 3,
@@ -392,7 +392,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getCDFFiles") {
+  integrationTest("getCDFFiles - aaa") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       val cdfOptions = Map("startingVersion" -> "0", "endingVersion" -> "3")
@@ -414,7 +414,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val expectedCdfFiles = Seq(
         AddCDCFile(
           url = tableFiles.cdfFiles(0).url,
-          id = tableFiles.cdfFiles(0).id,
+          id = "6521ba910108d4b54d27beaa9fc2373f",
           partitionValues = Map.empty,
           size = 1301,
           version = 2,
@@ -422,7 +422,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddCDCFile(
           url = tableFiles.cdfFiles(1).url,
-          id = tableFiles.cdfFiles(1).id,
+          id = "2508998dce55bd726369e53761c4bc3f",
           partitionValues = Map.empty,
           size = 1416,
           version = 3,
@@ -434,7 +434,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val expectedAddFiles = Seq(
         AddFileForCDF(
           url = tableFiles.addFiles(0).url,
-          id = tableFiles.addFiles(0).id,
+          id = "60d0cf57f3e4367db154aa2c36152a1f",
           partitionValues = Map.empty,
           size = 1030,
           stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -443,7 +443,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFileForCDF(
           url = tableFiles.addFiles(1).url,
-          id = tableFiles.addFiles(1).id,
+          id = "a6dc5694a4ebcc9a067b19c348526ad6",
           partitionValues = Map.empty,
           size = 1030,
           stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
@@ -452,7 +452,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFileForCDF(
           url = tableFiles.addFiles(2).url,
-          id = tableFiles.addFiles(2).id,
+          id = "d7ed708546dd70fdff9191b3e3d6448b",
           partitionValues = Map.empty,
           size = 1030,
           stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
