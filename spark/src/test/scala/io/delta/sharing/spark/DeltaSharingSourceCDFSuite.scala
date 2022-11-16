@@ -433,18 +433,28 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     }
 
     // no startingVersion - should result fetch the latest snapshot, which has only 1 row
-    query = spark.readStream.format("deltaSharing")
-      .option("readchangeFeed", "true")
-      .load(cdfTablePath).writeStream.format("console").start()
-    try {
-      query.processAllAvailable()
-      val progress = query.recentProgress.filter(_.numInputRows != 0)
-      assert(progress.length === 1)
-      progress.foreach { p =>
-        assert(p.numInputRows === 1)
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = spark.readStream.format("deltaSharing")
+        .option("readchangeFeed", "true")
+        .load(cdfTablePath).writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 1)
+        }
+      } finally {
+        query.stop()
       }
-    } finally {
-      query.stop()
+
+      val expected = Seq(
+        Row("3", 3, sqlDate("2021-01-01"), 4, 1667325812000L, "insert")
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
     }
 
     // latest startingVersion - should fetch no data

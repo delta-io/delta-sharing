@@ -62,12 +62,21 @@ class TestDeltaSharingClient(
     timestampAsOf: Option[String]): DeltaTableFiles = {
     limit.foreach(lim => TestDeltaSharingClient.limits = TestDeltaSharingClient.limits :+ lim)
 
-    val addFiles: Seq[AddFile] = Seq(
-      AddFile("f1.parquet", "f1", Map.empty, 0),
-      AddFile("f2.parquet", "f2", Map.empty, 0),
-      AddFile("f3.parquet", "f3", Map.empty, 0),
-      AddFile("f4.parquet", "f4", Map.empty, 0)
-    ).take(limit.getOrElse(4L).toInt)
+    val addFiles: Seq[AddFile] = if (versionAsOf.isDefined) {
+       Seq(
+        AddFile("f1.parquet", "f1", Map.empty, 0, version = 1, timestamp = 1600000000L),
+        AddFile("f2.parquet", "f2", Map.empty, 0, version = 1, timestamp = 1600000000L),
+        AddFile("f3.parquet", "f3", Map.empty, 0, version = 1, timestamp = 1600000000L),
+        AddFile("f4.parquet", "f4", Map.empty, 0, version = 1, timestamp = 1600000000L)
+      ).take(limit.getOrElse(4L).toInt)
+    } else {
+      Seq(
+        AddFile("f1.parquet", "f1", Map.empty, 0),
+        AddFile("f2.parquet", "f2", Map.empty, 0),
+        AddFile("f3.parquet", "f3", Map.empty, 0),
+        AddFile("f4.parquet", "f4", Map.empty, 0)
+      ).take(limit.getOrElse(4L).toInt)
+    }
 
     DeltaTableFiles(0, Protocol(0), metadata, addFiles)
   }

@@ -244,7 +244,7 @@ case class DeltaSharingSource(
                 file.partitionValues,
                 file.size,
                 fromVersion,
-                -1,
+                file.timestamp,
                 file.stats
               ),
               isLast = (index + 1 == numFiles)))
