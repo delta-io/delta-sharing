@@ -106,13 +106,34 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     readHttpContent(url, None, None, expectedTableVersion, "application/json; charset=utf-8")
   }
 
-  def readNDJson(url: String, method: Option[String] = None, data: Option[String] = None, expectedTableVersion: Option[Long] = None): String = {
-    readHttpContent(url, method, data, expectedTableVersion, "application/x-ndjson; charset=utf-8")
+  def readNDJson(
+      url: String,
+      method: Option[String] = None,
+      data: Option[String] = None,
+      expectedTableVersion: Option[Long] = None,
+      isStreamingQuery: Boolean = false): String = {
+    readHttpContent(
+      url,
+      method,
+      data,
+      expectedTableVersion,
+      "application/x-ndjson; charset=utf-8",
+      isStreamingQuery
+    )
   }
 
-  def readHttpContent(url: String, method: Option[String], data: Option[String] = None, expectedTableVersion: Option[Long] = None, expectedContentType: String): String = {
+  def readHttpContent(
+      url: String,
+      method: Option[String],
+      data: Option[String] = None,
+      expectedTableVersion: Option[Long] = None,
+      expectedContentType: String,
+      isStreamingQuery: Boolean = false): String = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    if (isStreamingQuery) {
+      connection.setRequestProperty("User-Agent", "SparkStructuredStreaming")
+    }
     method.foreach(connection.setRequestMethod)
     data.foreach { d =>
       connection.setDoOutput(true)
@@ -660,10 +681,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       configuration = Map("enableChangeDataFeed" -> "true"),
       partitionColumns = Nil)
     assert(expectedMetadata == actions(1).metaData)
-    val actualFiles = actions.drop(2).map(a => a.add)
+    val actualFiles = actions.drop(2).map(a => a.file)
     assert(actualFiles.size == 3)
     val expectedFiles = Seq(
-      AddFileForCDF(
+      AddFile(
         url = actualFiles(0).url,
         id = actualFiles(0).id,
         partitionValues = Map.empty,
@@ -672,7 +693,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         version = 1,
         timestamp = 1651272635000L
       ),
-      AddFileForCDF(
+      AddFile(
         url = actualFiles(1).url,
         id = actualFiles(1).id,
         partitionValues = Map.empty,
@@ -681,7 +702,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         version = 1,
         timestamp = 1651272635000L
       ),
-      AddFileForCDF(
+      AddFile(
         url = actualFiles(2).url,
         id = actualFiles(2).id,
         partitionValues = Map.empty,
@@ -820,10 +841,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       configuration = Map("enableChangeDataFeed" -> "true"),
       partitionColumns = Nil)
     assert(expectedMetadata == actions(1).metaData)
-    val actualFiles = actions.drop(2).map(a => a.add)
+    val actualFiles = actions.drop(2).map(a => a.file)
     assert(actualFiles.size == 3)
     val expectedFiles = Seq(
-      AddFileForCDF(
+      AddFile(
         url = actualFiles(0).url,
         id = actualFiles(0).id,
         partitionValues = Map.empty,
@@ -832,7 +853,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         version = 1,
         timestamp = 1651272635000L
       ),
-      AddFileForCDF(
+      AddFile(
         url = actualFiles(1).url,
         id = actualFiles(1).id,
         partitionValues = Map.empty,
@@ -841,7 +862,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         version = 1,
         timestamp = 1651272635000L
       ),
-      AddFileForCDF(
+      AddFile(
         url = actualFiles(2).url,
         id = actualFiles(2).id,
         partitionValues = Map.empty,
@@ -1116,7 +1137,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil)
+      partitionColumns = Nil,
+      version = 0)
     assert(expectedMetadata == actions(1).metaData)
     val files = lines.drop(2)
     assert(files.size == 5)
@@ -1180,7 +1202,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil)
+      partitionColumns = Nil,
+      version = 0)
     assert(expectedMetadata == actions(1).metaData)
   }
 
@@ -1239,6 +1262,58 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       version = 3,
       timestamp = 1651614994000L
     )
+  }
+
+  integrationTest("streaming_notnull_to_null - additional metadata returned") {
+    // additional metadata returned for streaming query
+    val response = readNDJson(
+      requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0"),
+      Some("GET"),
+      None,
+      Some(0),
+      isStreamingQuery = true
+    )
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 5)
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = actions(1).metaData.id,
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      partitionColumns = Nil,
+      version = 0)
+    assert(expectedMetadata == actions(1).metaData)
+
+    expectedMetadata = expectedMetadata.copy(
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+      version = 2
+    )
+    assert(expectedMetadata == actions(2).metaData)
+
+    assert(actions(3).add != null)
+    assert(actions(4).add != null)
+  }
+
+  integrationTest("streaming_notnull_to_null - additional metadata not returned") {
+    // additional metadata not returned for non-streaming query
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0"), Some("GET"), None, Some(0))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 4)
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = actions(1).metaData.id,
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      partitionColumns = Nil,
+      version = 0)
+    assert(expectedMetadata == actions(1).metaData)
+
+    assert(actions(2).add != null)
+    assert(actions(3).add != null)
   }
 
   private def verifyAddFile(
@@ -1598,7 +1673,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val expectedFiles = Seq(
         AddFile(
           url = actualFiles(0).url,
-          id = actualFiles(0).id,
+          id = "84f5f9e4de01e99837f77bfc2b7215b0",
           partitionValues = Map("c2" -> "foo bar"),
           size = 568,
           stats = """{"numRecords":1,"minValues":{"c1":"foo bar"},"maxValues":{"c1":"foo bar"},"nullCount":{"c1":0}}"""
@@ -1612,21 +1687,24 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   integrationTest("gcp support") {
     val gcsTableName = "table_gcs"
     val response = readNDJson(requestPath(s"/shares/share_gcp/schemas/default/tables/${gcsTableName}/query"), Some("POST"), Some("{}"), Some(0))
-    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
-    val expectedProtocol = Protocol(minReaderVersion = 1)
-    assert(expectedProtocol == actions(0).protocol)
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
     val expectedMetadata = Metadata(
-      id = actions(1).metaData.id,
+      id = "de102585-bd69-4bba-bb10-fa92c50a7f85",
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"c1","type":"string","nullable":true,"metadata":{}},{"name":"c2","type":"string","nullable":true,"metadata":{}}]}""",
-      partitionColumns = Seq("c2"))
-    assert(expectedMetadata == actions(1).metaData)
-    val actualFiles = actions.drop(2).map(a => a.file)
+      partitionColumns = Seq("c2")).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+    val files = lines.drop(2)
+    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
     assert(actualFiles.size == 1)
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
-        id = actualFiles(0).id,
+        id = "84f5f9e4de01e99837f77bfc2b7215b0",
         partitionValues = Map("c2" -> "foo bar"),
         size = 568,
         stats = """{"numRecords":1,"minValues":{"c1":"foo bar"},"maxValues":{"c1":"foo bar"},"nullCount":{"c1":0}}"""

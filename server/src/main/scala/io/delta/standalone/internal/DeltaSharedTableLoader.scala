@@ -260,22 +260,14 @@ class DeltaSharedTable(
         filteredFilters.map { addFile =>
           val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
           val signedUrl = fileSigner.sign(cloudPath)
-          val modelAddFile = if (isVersionQuery) {
-            model.AddFileForCDF(url = signedUrl,
-              id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
-              partitionValues = addFile.partitionValues,
-              size = addFile.size,
-              stats = addFile.stats,
-              version = snapshot.version,
-              timestamp = ts.get
-            )
-          } else {
-            model.AddFile(url = signedUrl,
-              id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
-              partitionValues = addFile.partitionValues,
-              size = addFile.size,
-              stats = addFile.stats)
-          }
+          val modelAddFile = model.AddFile(url = signedUrl,
+            id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+            partitionValues = addFile.partitionValues,
+            size = addFile.size,
+            stats = addFile.stats,
+            version = if (isVersionQuery) { snapshot.version } else null,
+            timestamp = if (isVersionQuery) { ts.get} else null
+          )
           modelAddFile.wrap
         }
       } else {
@@ -348,7 +340,10 @@ class DeltaSharedTable(
     actions.toSeq
   }
 
-  def queryCDF(cdfOptions: Map[String, String]): (Long, Seq[model.SingleAction]) = withClassLoader {
+  def queryCDF(
+      cdfOptions: Map[String, String],
+      isSparkStreamingQuery: Boolean = false
+  ): (Long, Seq[model.SingleAction]) = withClassLoader {
     val actions = ListBuffer[model.SingleAction]()
 
     // First: validate cdf options are greater than startVersion
@@ -367,13 +362,32 @@ class DeltaSharedTable(
       format = model.Format(),
       schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
       configuration = getMetadataConfiguration(snapshot.metadataScala.configuration),
-      partitionColumns = snapshot.metadataScala.partitionColumns
+      partitionColumns = snapshot.metadataScala.partitionColumns,
+      version = start
     )
     actions.append(modelProtocol.wrap)
     actions.append(modelMetadata.wrap)
 
     // Third: get files
-    val (changeFiles, addFiles, removeFiles) = cdcReader.queryCDF(start, end, latestVersion)
+    val (changeFiles, addFiles, removeFiles, metadatas) = cdcReader.queryCDF(
+      start, end, latestVersion, isSparkStreamingQuery)
+    // If isSparkStreamingQuery=false, metadatas will be empty.
+    metadatas.foreach { cdcDataSpec =>
+      cdcDataSpec.actions.foreach { action =>
+        val metadata = action.asInstanceOf[Metadata]
+        val modelMetadata = model.Metadata(
+          id = metadata.id,
+          name = metadata.name,
+          description = metadata.description,
+          format = model.Format(),
+          schemaString = cleanUpTableSchema(metadata.schemaString),
+          configuration = getMetadataConfiguration(metadata.configuration),
+          partitionColumns = metadata.partitionColumns,
+          version = cdcDataSpec.version
+        )
+        actions.append(modelMetadata.wrap)
+      }
+    }
     changeFiles.foreach { cdcDataSpec =>
       cdcDataSpec.actions.foreach { action =>
         val addCDCFile = action.asInstanceOf[AddCDCFile]

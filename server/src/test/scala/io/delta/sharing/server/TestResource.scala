@@ -200,6 +200,11 @@ object TestResource {
                 true
               ),
               TableConfig(
+                "streaming_cdf_null_to_notnull",
+                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_cdf_null_to_notnull",
+                true
+              ),
+              TableConfig(
                 "streaming_cdf_table",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_cdf_table",
                 true

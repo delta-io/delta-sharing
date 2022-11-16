@@ -231,21 +231,21 @@ case class DeltaSharingSource(
       // include table changes from previous versions.
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, Nil, None, Some(fromVersion), None)
 
-      val numFiles = tableFiles.addFiles.size
-      tableFiles.addFiles.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
-        case (add, index) if (index > fromIndex) =>
+      val numFiles = tableFiles.files.size
+      tableFiles.files.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
+        case (file, index) if (index > fromIndex) =>
           appendToSortedFetchedFiles(
             IndexedFile(
               fromVersion,
               index,
               AddFileForCDF(
-                add.url,
-                add.id,
-                add.partitionValues,
-                add.size,
+                file.url,
+                file.id,
+                file.partitionValues,
+                file.size,
                 fromVersion,
-                add.timestamp,
-                add.stats
+                -1,
+                file.stats
               ),
               isLast = (index + 1 == numFiles)))
         // For files with index <= fromIndex, skip them, otherwise an exception will be thrown.
@@ -290,6 +290,13 @@ case class DeltaSharingSource(
       currentLatestVersion: Long): Unit = {
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString))
+
+    (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
+      val schemaToCheck = DeltaTableUtils.addCdcSchema(DeltaTableUtils.toSchema(m.schemaString))
+      if (!SchemaUtils.isReadCompatible(schemaToCheck, schema)) {
+        throw DeltaSharingErrors.schemaChangedException(schema, schemaToCheck)
+      }
+    }
 
     val perVersionAddFiles = tableFiles.addFiles.groupBy(f => f.version)
     val perVersionCdfFiles = tableFiles.cdfFiles.groupBy(f => f.version)

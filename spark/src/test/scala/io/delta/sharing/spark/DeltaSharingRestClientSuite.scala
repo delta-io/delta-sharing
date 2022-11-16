@@ -68,6 +68,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "streaming_table_metadata_protocol", schema = "default", share = "share8"),
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
         Table(name = "streaming_null_to_notnull", schema = "default", share = "share8"),
+        Table(name = "streaming_cdf_null_to_notnull", schema = "default", share = "share8"),
         Table(name = "streaming_cdf_table", schema = "default", share = "share8"),
         Table(name = "table_reader_version_increased", schema = "default", share = "share8"),
         Table(name = "table_with_no_metadata", schema = "default", share = "share8"),
@@ -192,37 +193,31 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Some(1L),
         None)
       assert(tableFiles.version == 1)
-      assert(tableFiles.addFiles.size == 3)
+      assert(tableFiles.files.size == 3)
       val expectedFiles = Seq(
-        AddFileForCDF(
+        AddFile(
           url = tableFiles.addFiles(0).url,
           id = tableFiles.addFiles(0).id,
           partitionValues = Map.empty,
           size = 1030,
-          stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-          version = 1,
-          timestamp = 1651272635000L
+          stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
         ),
-        AddFileForCDF(
-          url = tableFiles.addFiles(1).url,
+        AddFile(
+          url = tableFiles.files(1).url,
           id = tableFiles.addFiles(1).id,
           partitionValues = Map.empty,
           size = 1030,
-          stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-          version = 1,
-          timestamp = 1651272635000L
+          stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
         ),
-        AddFileForCDF(
-          url = tableFiles.addFiles(2).url,
+        AddFile(
+          url = tableFiles.files(2).url,
           id = tableFiles.addFiles(2).id,
           partitionValues = Map.empty,
           size = 1030,
-          stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-          version = 1,
-          timestamp = 1651272635000L
+          stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
         )
       )
-      assert(expectedFiles == tableFiles.addFiles.toList)
+      assert(expectedFiles == tableFiles.files.toList)
     } finally {
       client.close()
     }
@@ -412,7 +407,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         format = Format(),
         schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
         configuration = Map("enableChangeDataFeed" -> "true"),
-        partitionColumns = Nil)
+        partitionColumns = Nil,
+        version = 0)
       assert(expectedMetadata == tableFiles.metadata)
       assert(tableFiles.cdfFiles.size == 2)
       val expectedCdfFiles = Seq(
@@ -465,6 +461,73 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedAddFiles == tableFiles.addFiles.toList)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getCDFFiles - more metadatas returned for streaming query") {
+    val client = new DeltaSharingRestClient(
+        testProfileProvider,
+        sslTrustAll = true,
+        forStreaming = true
+    )
+    try {
+      val cdfOptions = Map("startingVersion" -> "0")
+      val tableFiles = client.getCDFFiles(
+        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
+        cdfOptions
+      )
+      assert(tableFiles.version == 0)
+      assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
+      val expectedMetadata = Metadata(
+        id = tableFiles.metadata.id,
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+        configuration = Map("enableChangeDataFeed" -> "true"),
+        partitionColumns = Nil,
+        version = 0)
+      assert(expectedMetadata == tableFiles.metadata)
+
+      assert(tableFiles.addFiles.size == 2)
+      assert(tableFiles.cdfFiles.size == 0)
+      assert(tableFiles.removeFiles.size == 0)
+      assert(tableFiles.additionalMetadatas.size == 1)
+
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getCDFFiles - no additional metadatas returned for non-streaming query") {
+    val client = new DeltaSharingRestClient(
+      testProfileProvider,
+      sslTrustAll = true,
+      // not a streaming query
+      forStreaming = false
+    )
+    try {
+      val cdfOptions = Map("startingVersion" -> "0")
+      val tableFiles = client.getCDFFiles(
+        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
+        cdfOptions
+      )
+      assert(tableFiles.version == 0)
+      assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
+      val expectedMetadata = Metadata(
+        id = tableFiles.metadata.id,
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+        configuration = Map("enableChangeDataFeed" -> "true"),
+        partitionColumns = Nil,
+        version = 0)
+      assert(expectedMetadata == tableFiles.metadata)
+
+      assert(tableFiles.addFiles.size == 2)
+      assert(tableFiles.cdfFiles.size == 0)
+      assert(tableFiles.removeFiles.size == 0)
+      assert(tableFiles.additionalMetadatas.size == 0)
+
     } finally {
       client.close()
     }
