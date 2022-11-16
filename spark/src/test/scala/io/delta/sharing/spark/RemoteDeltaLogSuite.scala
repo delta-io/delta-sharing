@@ -148,6 +148,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     // The only diff in this test with "snapshot file index test" is:
     //  the RemoteSnapshot is with versionAsOf = Some(1), and is used in client.getFiles,
     //  which will return version/timestamp for each file in TestDeltaSharingClient.getFiles.
+    // The purpose of this test is to verify that the RemoteDeltaSnapshotFileIndex works well with
+    // files with additional field returned from server.
     val spark = SparkSession.active
     val client = new TestDeltaSharingClient()
     val snapshot = new RemoteSnapshot(
@@ -216,6 +218,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     // The only diff in this test with "snapshot file index test" is:
     //  the RemoteSnapshot is with timestampAsOf = Some(xxx), and is used in client.getFiles,
     //  which will return version/timestamp for each file in TestDeltaSharingClient.getFiles.
+    // The purpose of this test is to verify that the RemoteDeltaSnapshotFileIndex works well with
+    // files with additional field returned from server.
     val spark = SparkSession.active
     val client = new TestDeltaSharingClient()
     val snapshot = new RemoteSnapshot(
