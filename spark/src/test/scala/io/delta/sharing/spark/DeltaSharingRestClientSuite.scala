@@ -404,7 +404,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val cdfOptions = Map("startingVersion" -> "0", "endingVersion" -> "3")
       val tableFiles = client.getCDFFiles(
         Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-        cdfOptions
+        cdfOptions,
+        false
       )
       assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
@@ -472,17 +473,17 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getCDFFiles - more metadatas returned for streaming query") {
+  integrationTest("getCDFFiles - more metadatas returned for returnMetadata=true") {
     val client = new DeltaSharingRestClient(
         testProfileProvider,
-        sslTrustAll = true,
-        forStreaming = true
+        sslTrustAll = true
     )
     try {
       val cdfOptions = Map("startingVersion" -> "0")
       val tableFiles = client.getCDFFiles(
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
-        cdfOptions
+        cdfOptions,
+        returnMetadata = true
       )
       assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
@@ -505,18 +506,17 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getCDFFiles - no additional metadatas returned for non-streaming query") {
+  integrationTest("getCDFFiles - no additional metadatas returned for returnMetadata=false") {
     val client = new DeltaSharingRestClient(
       testProfileProvider,
-      sslTrustAll = true,
-      // not a streaming query
-      forStreaming = false
+      sslTrustAll = true
     )
     try {
       val cdfOptions = Map("startingVersion" -> "0")
       val tableFiles = client.getCDFFiles(
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
-        cdfOptions
+        cdfOptions,
+        returnMetadata = false
       )
       assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
@@ -545,7 +545,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val cdfOptions = Map("startingVersion" -> "0")
       val tableFiles = client.getCDFFiles(
         Table(name = "cdf_table_with_vacuum", schema = "default", share = "share8"),
-        cdfOptions
+        cdfOptions,
+        false
       )
       assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
@@ -564,7 +565,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         val cdfOptions = Map("startingVersion" -> "1")
         client.getCDFFiles(
           Table(name = "cdf_table_missing_log", schema = "default", share = "share8"),
-          cdfOptions
+          cdfOptions,
+          false
         )
       }.getMessage
       assert(errorMessage.contains("""400 Bad Request {"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
@@ -584,7 +586,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val errorMessage = intercept[UnexpectedHttpStatus] {
         val tableFiles = client.getCDFFiles(
           Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-          cdfOptions
+          cdfOptions,
+          false
         )
       }.getMessage
       assert(errorMessage.contains("Please use a timestamp greater"))
@@ -603,7 +606,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val errorMessage = intercept[UnexpectedHttpStatus] {
         val tableFiles = client.getCDFFiles(
           Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-          cdfOptions
+          cdfOptions,
+          false
         )
       }.getMessage
       assert(errorMessage.contains("Please use a timestamp less than or equal to"))
@@ -619,7 +623,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val errorMessage = intercept[UnexpectedHttpStatus] {
         client.getCDFFiles(
           Table(name = "table1", schema = "default", share = "share1"),
-          cdfOptions
+          cdfOptions,
+          false
         )
       }.getMessage
       assert(errorMessage.contains("cdf is not enabled on table share1.default.table1"))

@@ -295,7 +295,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val snapshot = new RemoteSnapshot(path, client, table)
     val params = RemoteDeltaFileIndexParams(spark, snapshot)
 
-    val deltaTableFiles = client.getCDFFiles(table, Map.empty)
+    val deltaTableFiles = client.getCDFFiles(table, Map.empty, false)
 
     val addFilesIndex = new RemoteDeltaCDFAddFileIndex(params, deltaTableFiles.addFiles)
 

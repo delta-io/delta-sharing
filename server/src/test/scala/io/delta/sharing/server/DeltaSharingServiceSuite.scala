@@ -110,15 +110,13 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     url: String,
     method: Option[String] = None,
     data: Option[String] = None,
-    expectedTableVersion: Option[Long] = None,
-    isStreamingQuery: Boolean = false): String = {
+    expectedTableVersion: Option[Long] = None): String = {
     readHttpContent(
       url,
       method,
       data,
       expectedTableVersion,
-      "application/x-ndjson; charset=utf-8",
-      isStreamingQuery
+      "application/x-ndjson; charset=utf-8"
     )
   }
 
@@ -128,13 +126,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     method: Option[String],
     data: Option[String] = None,
     expectedTableVersion: Option[Long] = None,
-    expectedContentType: String,
-    isStreamingQuery: Boolean = false): String = {
+    expectedContentType: String): String = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
-    if (isStreamingQuery) {
-      connection.setRequestProperty("User-Agent", "SparkStructuredStreaming")
-    }
     method.foreach(connection.setRequestMethod)
     data.foreach { d =>
       connection.setDoOutput(true)
@@ -1324,11 +1318,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   integrationTest("streaming_notnull_to_null - additional metadata returned") {
     // additional metadata returned for streaming query
     val response = readNDJson(
-      requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0"),
+      requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0&returnMetadata=true"),
       Some("GET"),
       None,
-      Some(0),
-      isStreamingQuery = true
+      Some(0)
     )
     val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
     assert(actions.size == 5)

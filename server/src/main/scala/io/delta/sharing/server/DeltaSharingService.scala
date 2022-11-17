@@ -24,12 +24,13 @@ import java.util.concurrent.CompletableFuture
 import javax.annotation.Nullable
 
 import scala.collection.JavaConverters._
+import scala.util.Try
 
 import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
 import com.linecorp.armeria.common.auth.OAuth2Token
 import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
-import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Header, Param, Post, ProducesJson}
+import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
 import com.linecorp.armeria.server.auth.AuthService
 import io.delta.standalone.internal.DeltaCDFErrors
 import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
@@ -359,20 +360,21 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/changes")
   @ConsumesJson
   def listCdfFiles(
-      @Header("User-Agent") @Nullable userAgent: String,
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
       @Param("startingVersion") @Nullable startingVersion: String,
       @Param("endingVersion") @Nullable endingVersion: String,
       @Param("startingTimestamp") @Nullable startingTimestamp: String,
-      @Param("endingTimestamp") @Nullable endingTimestamp: String): HttpResponse = processRequest {
+      @Param("endingTimestamp") @Nullable endingTimestamp: String,
+      @Param("returnMetadata") @Nullable returnMetadata: String): HttpResponse = processRequest {
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     if (!tableConfig.cdfEnabled) {
       throw new DeltaSharingIllegalArgumentException("cdf is not enabled on table " +
         s"$share.$schema.$table")
     }
+
     val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
       getCdfOptionsMap(
         Option(startingVersion),
@@ -380,7 +382,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Option(startingTimestamp),
         Option(endingTimestamp)
       ),
-      isSparkStreamingQuery = userAgent.contains(SPARK_STRUCTURED_STREAMING)
+      returnMetadata = Try(returnMetadata.toBoolean).getOrElse(false)
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
