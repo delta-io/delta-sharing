@@ -442,7 +442,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   integrationTest("getTableVersion - get exceptions") {
     // timestamp can be any string here, it's resolved in DeltaSharedTableLoader
     assertHttpError(
-      url = requestPath("/shares/share2/schemas/default/tables/table2?startingTimestamp=abc"),
+      url = requestPath("/shares/share2/schemas/default/tables/table2/version?startingTimestamp=abc"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -452,7 +452,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     // invalid startingTimestamp format
     assertHttpError(
       url = requestPath(
-        "/shares/share8/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=abc"
+        "/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/version?startingTimestamp=abc"
       ),
       method = "GET",
       data = None,
@@ -462,7 +462,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
     // timestamp after the latest version
     assertHttpError(
-      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=9999-01-01%2000:00:00"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/version?startingTimestamp=9999-01-01%2000:00:00"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -543,7 +543,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("table_with_no_metadata - metadata missing") {
     assertHttpError(
-      url = requestPath("/shares/share8/schemas/default/tables/table_with_no_metadata"),
+      url = requestPath("/shares/share8/schemas/default/tables/table_with_no_metadata/version"),
       method = "GET",
       data = None,
       expectedErrorCode = 500,
@@ -1345,7 +1345,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("streaming_notnull_to_null - additional metadata not returned") {
-    // additional metadata not returned for non-streaming query
+    // additional metadata not returned when returnMetadat is not set
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0"), Some("GET"), None, Some(0))
     val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
     assert(actions.size == 4)
