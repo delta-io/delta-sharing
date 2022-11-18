@@ -295,42 +295,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expected == tables)
   }
 
-  integrationTest("table1 - get - /shares/{share}/schemas/{schema}/tables/{table}") {
-    val response = readJson(requestPath("/shares/share1/schemas/default/tables/table1"))
-    val expected = GetTableResponse(
-      Some(Table().withName("table1").withSchema("default").withShare("share1"))
-    )
-    assert(expected == JsonFormat.fromJsonString[GetTableResponse](response))
-  }
-
-  integrationTest("getTable - get exceptions") {
-    // non-existent table
-    assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/does-not-exist"),
-      method = "GET",
-      data = None,
-      expectedErrorCode = 404,
-      expectedErrorMessage = "[Share/Schema/Table] 'share1/default/does-not-exist' does not exist, please contact your share provider for further information."
-    )
-
-    // non-existent schema
-    assertHttpError(
-      url = requestPath("/shares/share1/schemas/does-not-exist/tables/does-not-exist"),
-      method = "GET",
-      data = None,
-      expectedErrorCode = 404,
-      expectedErrorMessage = "[Share/Schema/Table] 'share1/does-not-exist/does-not-exist' does not exist, please contact your share provider for further information."
-    )
-
-    // non-existent share
-    assertHttpError(
-      url = requestPath("/shares/does-not-exist/schemas/does-not-exist/tables/does-not-exist"),
-      method = "GET",
-      data = None,
-      expectedErrorCode = 404,
-      expectedErrorMessage = "[Share/Schema/Table] 'does-not-exist/does-not-exist/does-not-exist' does not exist, please contact your share provider for further information."
-    )
-  }
 
   integrationTest("table1 - head - /shares/{share}/schemas/{schema}/tables/{table}") {
     // getTableVersion succeeds without parameters

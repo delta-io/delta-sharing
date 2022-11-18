@@ -84,10 +84,6 @@ message ListAllTablesResponse {
     optional string next_page_token = 2;
 }
 
-message GetTableResponse {
-    optional Table table = 1;
-}
-
 // Define a special class to generate the page token for pagination. It includes the information we
 // need to know where we should start to query, and check whether the page token comes from the
 // right result. For example, we would like to throw an error when the user uses a page token
