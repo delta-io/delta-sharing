@@ -60,7 +60,7 @@ private[sharing] trait DeltaSharingClient {
   def getCDFFiles(
       table: Table,
       cdfOptions: Map[String, String],
-      returnMetadata: Boolean): DeltaTableFiles
+      includeHistoricalMetadata: Boolean): DeltaTableFiles
 
   def getForStreaming(): Boolean = false
 }
@@ -266,11 +266,11 @@ private[spark] class DeltaSharingRestClient(
   override def getCDFFiles(
       table: Table,
       cdfOptions: Map[String, String],
-      returnMetadata: Boolean): DeltaTableFiles = {
+      includeHistoricalMetadata: Boolean): DeltaTableFiles = {
     val encodedShare = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchema = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTable = URLEncoder.encode(table.name, "UTF-8")
-    val encodedParams = getEncodedCDFParams(cdfOptions, returnMetadata)
+    val encodedParams = getEncodedCDFParams(cdfOptions, includeHistoricalMetadata)
 
     val target = getTargetUrl(
       s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
@@ -303,9 +303,9 @@ private[spark] class DeltaSharingRestClient(
 
   private def getEncodedCDFParams(
       cdfOptions: Map[String, String],
-      returnMetadata: Boolean): String = {
-    val paramMap = cdfOptions ++ (if (returnMetadata) {
-      Map("returnMetadata" -> "true")
+      includeHistoricalMetadata: Boolean): String = {
+    val paramMap = cdfOptions ++ (if (includeHistoricalMetadata) {
+      Map("includeHistoricalMetadata" -> "true")
     } else {
       Map.empty
     })

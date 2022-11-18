@@ -473,7 +473,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getCDFFiles - more metadatas returned for returnMetadata=true") {
+  integrationTest("getCDFFiles - more metadatas returned for includeHistoricalMetadata=true") {
     val client = new DeltaSharingRestClient(
         testProfileProvider,
         sslTrustAll = true
@@ -483,7 +483,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val tableFiles = client.getCDFFiles(
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
         cdfOptions,
-        returnMetadata = true
+        includeHistoricalMetadata = true
       )
       assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
@@ -506,7 +506,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getCDFFiles - no additional metadatas returned for returnMetadata=false") {
+  integrationTest("getCDFFiles - no additional metadatas returned for includeHistoricalMetadata=false") {
     val client = new DeltaSharingRestClient(
       testProfileProvider,
       sslTrustAll = true
@@ -516,7 +516,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val tableFiles = client.getCDFFiles(
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
         cdfOptions,
-        returnMetadata = false
+        includeHistoricalMetadata = false
       )
       assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)

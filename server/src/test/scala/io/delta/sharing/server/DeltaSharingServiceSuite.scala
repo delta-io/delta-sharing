@@ -1318,7 +1318,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   integrationTest("streaming_notnull_to_null - additional metadata returned") {
     // additional metadata returned for streaming query
     val response = readNDJson(
-      requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0&returnMetadata=true"),
+      requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0&includeHistoricalMetadata=true"),
       Some("GET"),
       None,
       Some(0)

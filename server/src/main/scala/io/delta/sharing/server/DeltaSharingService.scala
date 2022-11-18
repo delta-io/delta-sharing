@@ -367,7 +367,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("endingVersion") @Nullable endingVersion: String,
       @Param("startingTimestamp") @Nullable startingTimestamp: String,
       @Param("endingTimestamp") @Nullable endingTimestamp: String,
-      @Param("returnMetadata") @Nullable returnMetadata: String): HttpResponse = processRequest {
+      @Param("includeHistoricalMetadata") @Nullable includeHistoricalMetadata: String
+  ): HttpResponse = processRequest {
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     if (!tableConfig.cdfEnabled) {
@@ -382,7 +383,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Option(startingTimestamp),
         Option(endingTimestamp)
       ),
-      returnMetadata = Try(returnMetadata.toBoolean).getOrElse(false)
+      includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false)
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
