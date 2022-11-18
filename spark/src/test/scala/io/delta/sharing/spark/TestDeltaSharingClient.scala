@@ -89,7 +89,7 @@ class TestDeltaSharingClient(
   override def getCDFFiles(
       table: Table,
       cdfOptions: Map[String, String],
-      returnMetadata: Boolean): DeltaTableFiles = {
+      includeHistoricalMetadata: Boolean): DeltaTableFiles = {
     val addFiles: Seq[AddFileForCDF] = Seq(
       AddFileForCDF("cdf_add1.parquet", "cdf_add1", Map.empty, 100, 1, 1000)
     )

@@ -1345,7 +1345,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("streaming_notnull_to_null - additional metadata not returned") {
-    // additional metadata not returned when returnMetadat is not set
+    // additional metadata not returned when includeHistoricalMetadata is not set
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0"), Some("GET"), None, Some(0))
     val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
     assert(actions.size == 4)
