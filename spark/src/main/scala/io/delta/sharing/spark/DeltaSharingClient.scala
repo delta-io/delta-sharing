@@ -57,7 +57,10 @@ private[sharing] trait DeltaSharingClient {
 
   def getFiles(table: Table, startingVersion: Long): DeltaTableFiles
 
-  def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles
+  def getCDFFiles(
+      table: Table,
+      cdfOptions: Map[String, String],
+      includeHistoricalMetadata: Boolean): DeltaTableFiles
 
   def getForStreaming(): Boolean = false
 }
@@ -260,11 +263,14 @@ private[spark] class DeltaSharingRestClient(
     )
   }
 
-  override def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles = {
+  override def getCDFFiles(
+      table: Table,
+      cdfOptions: Map[String, String],
+      includeHistoricalMetadata: Boolean): DeltaTableFiles = {
     val encodedShare = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchema = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTable = URLEncoder.encode(table.name, "UTF-8")
-    val encodedParams = getEncodedCDFParams(cdfOptions)
+    val encodedParams = getEncodedCDFParams(cdfOptions, includeHistoricalMetadata)
 
     val target = getTargetUrl(
       s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
@@ -295,11 +301,17 @@ private[spark] class DeltaSharingRestClient(
     )
   }
 
-  private def getEncodedCDFParams(cdfOptions: Map[String, String]): String = {
-    val params = cdfOptions.map{
+  private def getEncodedCDFParams(
+      cdfOptions: Map[String, String],
+      includeHistoricalMetadata: Boolean): String = {
+    val paramMap = cdfOptions ++ (if (includeHistoricalMetadata) {
+      Map("includeHistoricalMetadata" -> "true")
+    } else {
+      Map.empty
+    })
+    paramMap.map {
       case (cdfKey, cdfValue) => s"$cdfKey=${URLEncoder.encode(cdfValue)}"
     }.mkString("&")
-    params
   }
 
   private def getNDJson(target: String, requireVersion: Boolean = true): (Long, Seq[String]) = {
@@ -412,14 +424,15 @@ private[spark] class DeltaSharingRestClient(
       }
     }
 
-  // Append SparkStructuredStreaming in the USER_AGENT header, in order for the delta sharing server
+  // Add SparkStructuredStreaming in the USER_AGENT header, in order for the delta sharing server
   // to recognize the request for streaming, and take corresponding actions.
   private def getUserAgent(): String = {
-    DeltaSharingRestClient.USER_AGENT + (if (forStreaming) {
-      s" ${DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING}/$STREAMING_VERSION"
+    val sparkAgent = if (forStreaming) {
+      DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING
     } else {
-      ""
-    })
+      "Delta-Sharing-Spark"
+    }
+    s"$sparkAgent/$VERSION" + DeltaSharingRestClient.USER_AGENT
   }
 
   def close(): Unit = {
@@ -436,12 +449,11 @@ private[spark] class DeltaSharingRestClient(
 private[spark] object DeltaSharingRestClient extends Logging {
   val CURRENT = 1
 
-  val SPARK_STRUCTURED_STREAMING = "SparkStructuredStreaming"
+  val SPARK_STRUCTURED_STREAMING = "Delta-Sharing-SparkStructuredStreaming"
 
   lazy val USER_AGENT = {
     try {
-      s"Delta-Sharing-Spark/$VERSION" +
-        s" $sparkVersionString" +
+      s" $sparkVersionString" +
         s" Hadoop/${VersionInfo.getVersion()}" +
         s" ${spaceFreeProperty("os.name")}/${spaceFreeProperty("os.version")}" +
         s" ${spaceFreeProperty("java.vm.name")}/${spaceFreeProperty("java.vm.version")}" +

@@ -131,7 +131,9 @@ private[sharing] case class AddFile(
     override val partitionValues: Map[String, String],
     override val size: Long,
     @JsonRawValue
-    stats: String = null) extends FileAction(url, id, partitionValues, size) {
+    stats: String = null,
+    version: java.lang.Long = null,
+    timestamp: java.lang.Long = null) extends FileAction(url, id, partitionValues, size) {
 
   override def wrap: SingleAction = SingleAction(file = this)
 }

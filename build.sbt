@@ -60,7 +60,6 @@ lazy val spark = (project in file("spark")) settings(
          |
          |package object spark {
          |  val VERSION = "${version.value}"
-         |  val STREAMING_VERSION = "1.0.0"
          |}
          |""".stripMargin)
     Seq(file)

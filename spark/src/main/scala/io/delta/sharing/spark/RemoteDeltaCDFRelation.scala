@@ -47,7 +47,7 @@ case class RemoteDeltaCDFRelation(
   override def buildScan(
       requiredColumns: Array[String],
       filters: Array[Filter]): RDD[Row] = {
-    val deltaTabelFiles = client.getCDFFiles(table, cdfOptions)
+    val deltaTabelFiles = client.getCDFFiles(table, cdfOptions, false)
 
     DeltaSharingCDFReader.changesToDF(
       new RemoteDeltaFileIndexParams(spark, snapshotToUse),

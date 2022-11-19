@@ -35,7 +35,7 @@ class TestDeltaSharingClient(
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
     sslTrustAll: Boolean = false,
-    forStreaming: Boolean = false) extends DeltaSharingClient {
+    includeHistoricalMetadata: Boolean = false) extends DeltaSharingClient {
 
   private val metadataString =
     """{"metaData":{"id":"93351cf1-c931-4326-88f0-d10e29e71b21","format":
@@ -62,12 +62,21 @@ class TestDeltaSharingClient(
     timestampAsOf: Option[String]): DeltaTableFiles = {
     limit.foreach(lim => TestDeltaSharingClient.limits = TestDeltaSharingClient.limits :+ lim)
 
-    val addFiles: Seq[AddFile] = Seq(
-      AddFile("f1.parquet", "f1", Map.empty, 0),
-      AddFile("f2.parquet", "f2", Map.empty, 0),
-      AddFile("f3.parquet", "f3", Map.empty, 0),
-      AddFile("f4.parquet", "f4", Map.empty, 0)
-    ).take(limit.getOrElse(4L).toInt)
+    val addFiles: Seq[AddFile] = if (versionAsOf.isDefined || timestampAsOf.isDefined) {
+       Seq(
+        AddFile("f1.parquet", "f1", Map.empty, 0, version = 1, timestamp = 1600000000L),
+        AddFile("f2.parquet", "f2", Map.empty, 0, version = 1, timestamp = 1600000000L),
+        AddFile("f3.parquet", "f3", Map.empty, 0, version = 1, timestamp = 1600000000L),
+        AddFile("f4.parquet", "f4", Map.empty, 0, version = 1, timestamp = 1600000000L)
+      ).take(limit.getOrElse(4L).toInt)
+    } else {
+      Seq(
+        AddFile("f1.parquet", "f1", Map.empty, 0),
+        AddFile("f2.parquet", "f2", Map.empty, 0),
+        AddFile("f3.parquet", "f3", Map.empty, 0),
+        AddFile("f4.parquet", "f4", Map.empty, 0)
+      ).take(limit.getOrElse(4L).toInt)
+    }
 
     DeltaTableFiles(0, Protocol(0), metadata, addFiles)
   }
@@ -77,7 +86,10 @@ class TestDeltaSharingClient(
     DeltaTableFiles(0, Protocol(0), metadata, Nil, Nil, Nil, Nil)
   }
 
-  override def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles = {
+  override def getCDFFiles(
+      table: Table,
+      cdfOptions: Map[String, String],
+      includeHistoricalMetadata: Boolean): DeltaTableFiles = {
     val addFiles: Seq[AddFileForCDF] = Seq(
       AddFileForCDF("cdf_add1.parquet", "cdf_add1", Map.empty, 100, 1, 1000)
     )

@@ -244,7 +244,7 @@ case class DeltaSharingSource(
                 file.partitionValues,
                 file.size,
                 fromVersion,
-                -1,
+                file.timestamp,
                 file.stats
               ),
               isLast = (index + 1 == numFiles)))
@@ -289,7 +289,7 @@ case class DeltaSharingSource(
       fromIndex: Long,
       currentLatestVersion: Long): Unit = {
     val tableFiles = deltaLog.client.getCDFFiles(
-      deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString))
+      deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
 
     (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
       val schemaToCheck = DeltaTableUtils.addCdcSchema(DeltaTableUtils.toSchema(m.schemaString))

@@ -148,6 +148,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     // The only diff in this test with "snapshot file index test" is:
     //  the RemoteSnapshot is with versionAsOf = Some(1), and is used in client.getFiles,
     //  which will return version/timestamp for each file in TestDeltaSharingClient.getFiles.
+    // The purpose of this test is to verify that the RemoteDeltaSnapshotFileIndex works well with
+    // files with additional field returned from server.
     val spark = SparkSession.active
     val client = new TestDeltaSharingClient()
     val snapshot = new RemoteSnapshot(
@@ -155,6 +157,77 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       client,
       Table("fe", "fi", "fo"),
       versionAsOf = Some(1)
+    )
+
+    // Create an index without limits.
+    val fileIndex = {
+      val params = RemoteDeltaFileIndexParams(spark, snapshot)
+      RemoteDeltaSnapshotFileIndex(params, None)
+    }
+    assert(fileIndex.partitionSchema.isEmpty)
+
+    val listFilesResult = fileIndex.listFiles(Seq.empty, Seq.empty)
+    assert(listFilesResult.size == 1)
+    assert(listFilesResult(0).files.size == 4)
+    assert(listFilesResult(0).files(0).getPath.toString == "delta-sharing:/test/f1/0")
+    assert(listFilesResult(0).files(1).getPath.toString == "delta-sharing:/test/f2/0")
+    assert(listFilesResult(0).files(2).getPath.toString == "delta-sharing:/test/f3/0")
+    assert(listFilesResult(0).files(3).getPath.toString == "delta-sharing:/test/f4/0")
+    client.clear()
+
+    val inputFileList = fileIndex.inputFiles.toList
+    assert(inputFileList.size == 4)
+    assert(inputFileList(0) == "delta-sharing:/test/f1/0")
+    assert(inputFileList(1) == "delta-sharing:/test/f2/0")
+    assert(inputFileList(2) == "delta-sharing:/test/f3/0")
+    assert(inputFileList(3) == "delta-sharing:/test/f4/0")
+
+    // Test indices with limits.
+
+    val fileIndexLimit1 = {
+      val params = RemoteDeltaFileIndexParams(spark, snapshot)
+      RemoteDeltaSnapshotFileIndex(params, Some(1L))
+    }
+    val listFilesResult1 = fileIndexLimit1.listFiles(Seq.empty, Seq.empty)
+    assert(listFilesResult1.size == 1)
+    assert(listFilesResult1(0).files.size == 1)
+    assert(listFilesResult1(0).files(0).getPath.toString == "delta-sharing:/test/f1/0")
+    client.clear()
+
+    // The input files are never limited.
+    val inputFileList1 = fileIndexLimit1.inputFiles.toList
+    assert(inputFileList1.size == 4)
+    assert(inputFileList1(0) == "delta-sharing:/test/f1/0")
+    assert(inputFileList1(1) == "delta-sharing:/test/f2/0")
+    assert(inputFileList1(2) == "delta-sharing:/test/f3/0")
+    assert(inputFileList1(3) == "delta-sharing:/test/f4/0")
+
+    val fileIndexLimit2 = {
+      val params = RemoteDeltaFileIndexParams(spark, snapshot)
+      RemoteDeltaSnapshotFileIndex(params, Some(2L))
+    }
+    val listFilesResult2 = fileIndexLimit2.listFiles(Seq.empty, Seq.empty)
+    assert(listFilesResult2.size == 1)
+    assert(listFilesResult2(0).files.size == 2)
+    assert(listFilesResult2(0).files(0).getPath.toString == "delta-sharing:/test/f1/0")
+    assert(listFilesResult2(0).files(1).getPath.toString == "delta-sharing:/test/f2/0")
+    client.clear()
+  }
+
+  test("snapshot file index test with timestamp") {
+    // The only diff in this test with "snapshot file index test" is:
+    //  the RemoteSnapshot is with timestampAsOf = Some(xxx), and is used in client.getFiles,
+    //  which will return version/timestamp for each file in TestDeltaSharingClient.getFiles.
+    // The purpose of this test is to verify that the RemoteDeltaSnapshotFileIndex works well with
+    // files with additional field returned from server.
+    val spark = SparkSession.active
+    val client = new TestDeltaSharingClient()
+    val snapshot = new RemoteSnapshot(
+      new Path("test"),
+      client,
+      Table("fe", "fi", "fo"),
+      // This is not parsed, just a place holder.
+      timestampAsOf = Some("2022-01-01 00:00:00.0")
     )
 
     // Create an index without limits.
@@ -222,7 +295,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val snapshot = new RemoteSnapshot(path, client, table)
     val params = RemoteDeltaFileIndexParams(spark, snapshot)
 
-    val deltaTableFiles = client.getCDFFiles(table, Map.empty)
+    val deltaTableFiles = client.getCDFFiles(table, Map.empty, false)
 
     val addFilesIndex = new RemoteDeltaCDFAddFileIndex(params, deltaTableFiles.addFiles)
 
