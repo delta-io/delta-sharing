@@ -250,7 +250,7 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
             addActions.append(a)
           case r: RemoveFile =>
             removeActions.append(r)
-          case m: Metadata if (includeHistoricalMetadata && v > start) =>
+          case m: Metadata if (includeHistoricalMetadata) =>
             metaDatas.append(CDCDataSpec(v, ts, Seq(m)))
           case i: CommitInfo => commitInfo = Some(i)
           case _ => // do nothing
