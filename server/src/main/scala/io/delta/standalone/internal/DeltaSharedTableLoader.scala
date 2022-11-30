@@ -441,7 +441,7 @@ class DeltaSharedTable(
         actions.append(modelRemoveFile.wrap)
       }
     }
-    snapshot.version -> actions.toSeq
+    start -> actions.toSeq
   }
 
   def update(): Unit = withClassLoader {
