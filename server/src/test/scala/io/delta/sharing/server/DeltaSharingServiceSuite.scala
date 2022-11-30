@@ -895,7 +895,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
          | "startingVersion": 0
          |}
          |""".stripMargin
-    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(6))
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(0))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
@@ -907,13 +907,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
       partitionColumns = Nil,
-      version = 6)
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata).metaData)
+      version = 0).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+    val files = lines.drop(2)
 
-    expectedMetadata = expectedMetadata.copy(version = 0)
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](lines(2)).metaData)
-
-    val files = lines.drop(3)
     assert(files.size == 7)
     // version 1: INSERT
     // version 2: INSERT
@@ -989,9 +986,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
          | "startingVersion": 0
          |}
          |""".stripMargin
-    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"), Some("POST"), Some(p), Some(4))
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"), Some("POST"), Some(p), Some(0))
     val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
-    assert(actions.size == 7)
+    assert(actions.size == 6)
 
     // version 0: CREATE TABLE, protocol/metadata
     // version 1: INSERT
@@ -1005,28 +1002,24 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       partitionColumns = Nil,
-      version = 4)
+      version = 0)
     assert(expectedMetadata == actions(1).metaData)
 
-    // Check metadata for version 0.
-    expectedMetadata = expectedMetadata.copy(version = 0)
-    assert(expectedMetadata == actions(2).metaData)
-
-    assert(actions(3).add != null)
+    assert(actions(2).add != null)
 
     // Check metadata for version 2.
     expectedMetadata = expectedMetadata.copy(
       configuration = Map("enableChangeDataFeed" -> "true"),
       version = 2)
-    assert(expectedMetadata == actions(4).metaData)
+    assert(expectedMetadata == actions(3).metaData)
 
     // Check metadata for version 3.
     expectedMetadata = expectedMetadata.copy(
       configuration = Map.empty,
       version = 3)
-    assert(expectedMetadata == actions(5).metaData)
+    assert(expectedMetadata == actions(4).metaData)
 
-    assert(actions(6).add != null)
+    assert(actions(5).add != null)
   }
 
   integrationTest("streaming_table_metadata_protocol - startingVersion 2 success") {
@@ -1036,9 +1029,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
          | "startingVersion": 2
          |}
          |""".stripMargin
-    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"), Some("POST"), Some(p), Some(4))
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"), Some("POST"), Some(p), Some(2))
     val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
-    assert(actions.size == 5)
+    assert(actions.size == 4)
 
     // version 2: ALTER TABLE, protocol/metadata
     // version 3: ALTER TABLE, metadata
@@ -1052,23 +1045,17 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       partitionColumns = Nil,
-      configuration = Map.empty,
-      version = 4)
-    assert(expectedMetadata == actions(1).metaData)
-
-    // Check metadata for version 2.
-    expectedMetadata = expectedMetadata.copy(
       configuration = Map("enableChangeDataFeed" -> "true"),
       version = 2)
-    assert(expectedMetadata == actions(2).metaData)
+    assert(expectedMetadata == actions(1).metaData)
 
     // Check metadata for version 3.
     expectedMetadata = expectedMetadata.copy(
       configuration = Map.empty,
       version = 3)
-    assert(expectedMetadata == actions(3).metaData)
+    assert(expectedMetadata == actions(2).metaData)
 
-    assert(actions(4).add != null)
+    assert(actions(3).add != null)
   }
 
   integrationTest("streaming_notnull_to_null - no exceptions") {
@@ -1079,36 +1066,30 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
          | "startingVersion": 0
          |}
          |""".stripMargin
-    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/query"), Some("POST"), Some(p), Some(3))
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/query"), Some("POST"), Some(p), Some(0))
     val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
-    assert(actions.size == 6)
+    assert(actions.size == 5)
 
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
       id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
       format = Format(),
-      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
       partitionColumns = Nil,
-      version = 3)
+      version = 0)
     assert(expectedMetadata == actions(1).metaData)
 
-    expectedMetadata = expectedMetadata.copy(
-      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
-      version = 0
-    )
-    assert(expectedMetadata == actions(2).metaData)
-
-    assert(actions(3).add != null)
+    assert(actions(2).add != null)
 
     expectedMetadata = expectedMetadata.copy(
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
       version = 2
     )
-    assert(expectedMetadata == actions(4).metaData)
+    assert(expectedMetadata == actions(3).metaData)
 
-    assert(actions(5).add != null)
+    assert(actions(4).add != null)
   }
 
   integrationTest("streaming_null_to_notnull - no exceptions") {
@@ -1119,38 +1100,32 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
          | "startingVersion": 0
          |}
          |""".stripMargin
-    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_null_to_notnull/query"), Some("POST"), Some(p), Some(4))
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_null_to_notnull/query"), Some("POST"), Some(p), Some(0))
     val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
-    assert(actions.size == 8)
+    assert(actions.size == 7)
 
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
       id = "f49d6102-3fca-4452-ab83-6e71fecfb118",
       format = Format(),
-      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
       configuration = Map.empty,
       partitionColumns = Nil,
-      version = 4)
+      version = 0)
     assert(expectedMetadata == actions(1).metaData)
 
-    expectedMetadata = expectedMetadata.copy(
-      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
-      version = 0
-    )
-    assert(expectedMetadata == actions(2).metaData)
-
-    assert(actions(3).add != null)
-    assert(actions(4).remove != null)
-    assert(actions(5).add != null)
+    assert(actions(2).add != null)
+    assert(actions(3).remove != null)
+    assert(actions(4).add != null)
 
     expectedMetadata = expectedMetadata.copy(
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
       version = 3
     )
-    assert(expectedMetadata == actions(6).metaData)
+    assert(expectedMetadata == actions(5).metaData)
 
-    assert(actions(7).add != null)
+    assert(actions(6).add != null)
   }
 
   integrationTest("table_reader_version_increased - exception") {
