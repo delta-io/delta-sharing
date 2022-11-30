@@ -191,7 +191,7 @@ class DeltaSharedTable(
         ErrorStrings.multipleParametersSetErrorMsg(Seq("version", "timestamp", "startingVersion"))
       )
     }
-    val snapshot = if (version.isDefined) {
+    val snapshot = if (version.orElse(startingVersion).isDefined) {
       deltaLog.getSnapshotForVersionAsOf(version.orElse(startingVersion).get)
     } else if (timestamp.isDefined) {
       val ts = DeltaSharingHistoryManager.getTimestamp("timestamp", timestamp.get)
@@ -219,7 +219,7 @@ class DeltaSharedTable(
       configuration = getMetadataConfiguration(snapshot.metadataScala.configuration),
       partitionColumns = snapshot.metadataScala.partitionColumns,
       version = if (startingVersion.isDefined) {
-        snapshot.version
+        startingVersion.get
       } else {
         null
       }
@@ -321,18 +321,19 @@ class DeltaSharedTable(
         case p: Protocol =>
           assertProtocolRead(p)
         case m: Metadata =>
-          val modelMetadata = model.Metadata(
-            id = m.id,
-            name = m.name,
-            description = m.description,
-            format = model.Format(),
-            schemaString = cleanUpTableSchema(m.schemaString),
-            configuration = getMetadataConfiguration(m.configuration),
-            partitionColumns = m.partitionColumns,
-            version = v
-          )
-          actions.append(modelMetadata.wrap)
-
+          if (v > startingVersion) {
+            val modelMetadata = model.Metadata(
+              id = m.id,
+              name = m.name,
+              description = m.description,
+              format = model.Format(),
+              schemaString = cleanUpTableSchema(m.schemaString),
+              configuration = getMetadataConfiguration(m.configuration),
+              partitionColumns = m.partitionColumns,
+              version = v
+            )
+            actions.append(modelMetadata.wrap)
+          }
         case _ => ()
       }
     }
