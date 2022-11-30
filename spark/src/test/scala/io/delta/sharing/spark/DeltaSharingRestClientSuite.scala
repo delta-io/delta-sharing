@@ -407,7 +407,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         cdfOptions,
         false
       )
-      assert(tableFiles.version == 5)
+      assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       val expectedMetadata = Metadata(
         id = "16736144-3306-4577-807a-d3f899b77670",
@@ -485,21 +485,21 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         cdfOptions,
         includeHistoricalMetadata = true
       )
-      assert(tableFiles.version == 3)
+      assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       val expectedMetadata = Metadata(
         id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
         format = Format(),
-        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
         configuration = Map("enableChangeDataFeed" -> "true"),
         partitionColumns = Nil,
-        version = 3)
+        version = 0)
       assert(expectedMetadata == tableFiles.metadata)
 
       assert(tableFiles.addFiles.size == 2)
       assert(tableFiles.cdfFiles.size == 0)
       assert(tableFiles.removeFiles.size == 0)
-      assert(tableFiles.additionalMetadatas.size == 2)
+      assert(tableFiles.additionalMetadatas.size == 1)
 
     } finally {
       client.close()
@@ -518,7 +518,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         cdfOptions,
         includeHistoricalMetadata = false
       )
-      assert(tableFiles.version == 3)
+      assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       val expectedMetadata = Metadata(
         id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
@@ -548,7 +548,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         cdfOptions,
         false
       )
-      assert(tableFiles.version == 4)
+      assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       assert(tableFiles.addFiles.size == 4)
       assert(tableFiles.cdfFiles.size == 2)
