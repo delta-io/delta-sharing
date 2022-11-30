@@ -197,6 +197,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     message = intercept[StreamingQueryException] {
       val query = spark.readStream.format("deltaSharing")
         .option("startingVersion", "1")
+        .option("readChangeFeed", "true")
         .load(toNotNullTable).writeStream.format("console").start()
       query.processAllAvailable()
     }.getMessage
@@ -205,6 +206,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     message = intercept[StreamingQueryException] {
       val query = spark.readStream.format("deltaSharing")
         .option("startingVersion", "2")
+        .option("readChangeFeed", "true")
         .load(toNotNullTable).writeStream.format("console").start()
       query.processAllAvailable()
     }.getMessage
@@ -213,6 +215,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     // But it should succeed starting from version 3.
     val query = spark.readStream.format("deltaSharing")
       .option("startingVersion", "3")
+      .option("readChangeFeed", "true")
       .load(toNotNullTable).writeStream.format("console").start()
 
     try {
