@@ -342,7 +342,7 @@ class DeltaSharedTable(
 
   def queryCDF(
       cdfOptions: Map[String, String],
-      includeHistoricalMetadata: Boolean = false
+      isSparkStreamingQuery: Boolean = false
   ): (Long, Seq[model.SingleAction]) = withClassLoader {
     val actions = ListBuffer[model.SingleAction]()
 
@@ -353,11 +353,7 @@ class DeltaSharedTable(
       cdfOptions, latestVersion, tableConfig.startVersion)
 
     // Second: get Protocol and Metadata
-    val snapshot = if (includeHistoricalMetadata) {
-      deltaLog.getSnapshotForVersionAsOf(start)
-    } else {
-      deltaLog.snapshot
-    }
+    val snapshot = deltaLog.getSnapshotForVersionAsOf(start)
     val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
     val modelMetadata = model.Metadata(
       id = snapshot.metadataScala.id,
@@ -367,15 +363,15 @@ class DeltaSharedTable(
       schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
       configuration = getMetadataConfiguration(snapshot.metadataScala.configuration),
       partitionColumns = snapshot.metadataScala.partitionColumns,
-      version = snapshot.version
+      version = start
     )
     actions.append(modelProtocol.wrap)
     actions.append(modelMetadata.wrap)
 
     // Third: get files
     val (changeFiles, addFiles, removeFiles, metadatas) = cdcReader.queryCDF(
-      start, end, latestVersion, includeHistoricalMetadata)
-    // If includeHistoricalMetadata is not true, metadatas will be empty.
+      start, end, latestVersion, isSparkStreamingQuery)
+    // If isSparkStreamingQuery=false, metadatas will be empty.
     metadatas.foreach { cdcDataSpec =>
       cdcDataSpec.actions.foreach { action =>
         val metadata = action.asInstanceOf[Metadata]
@@ -441,7 +437,7 @@ class DeltaSharedTable(
         actions.append(modelRemoveFile.wrap)
       }
     }
-    start -> actions.toSeq
+    snapshot.version -> actions.toSeq
   }
 
   def update(): Unit = withClassLoader {
