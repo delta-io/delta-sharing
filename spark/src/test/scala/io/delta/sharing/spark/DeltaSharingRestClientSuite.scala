@@ -256,11 +256,11 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       // Because with undecided timezone, the timestamp string can be mapped to different versions
       val errorMessage = intercept[UnexpectedHttpStatus] {
         client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-        Nil,
-        None,
-        None,
-        Some("2000-01-01 00:00:00"))
+          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
+          Nil,
+          None,
+          None,
+          Some("2000-01-01 00:00:00"))
       }.getMessage
       assert(errorMessage.contains("The provided timestamp"))
     } finally {
@@ -475,8 +475,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   integrationTest("getCDFFiles - more metadatas returned for includeHistoricalMetadata=true") {
     val client = new DeltaSharingRestClient(
-        testProfileProvider,
-        sslTrustAll = true
+      testProfileProvider,
+      sslTrustAll = true
     )
     try {
       val cdfOptions = Map("startingVersion" -> "0")
