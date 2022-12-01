@@ -182,7 +182,7 @@ private[spark] class DeltaSharingRestClient(
     val target =
       getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/" +
         s"$encodedTableName/version$encodedParam")
-    val (version, _) = getResponse(new HttpGet(target))
+    val (version, _) = getResponse(new HttpGet(target), true)
     version.getOrElse {
       throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
     }
@@ -385,7 +385,10 @@ private[spark] class DeltaSharingRestClient(
    * Send the http request and return the table version in the header if any, and the response
    * content.
    */
-  private def getResponse(httpRequest: HttpRequestBase): (Option[Long], String) =
+  private def getResponse(
+      httpRequest: HttpRequestBase,
+      allowNoContent: Boolean = false
+  ): (Option[Long], String) =
     RetryUtils.runWithExponentialBackoff(numRetries) {
       val profile = profileProvider.getProfile
       val response = client.execute(
@@ -408,7 +411,8 @@ private[spark] class DeltaSharingRestClient(
         }
 
         val statusCode = status.getStatusCode
-        if (!(statusCode == HttpStatus.SC_OK || statusCode == HttpStatus.SC_NO_CONTENT)) {
+        if (!(statusCode == HttpStatus.SC_OK ||
+          (allowNoContent && statusCode == HttpStatus.SC_NO_CONTENT))) {
           var additionalErrorInfo = ""
           if (statusCode == HttpStatus.SC_UNAUTHORIZED && tokenExpired(profile)) {
             additionalErrorInfo = s"It may be caused by an expired token as it has expired " +
