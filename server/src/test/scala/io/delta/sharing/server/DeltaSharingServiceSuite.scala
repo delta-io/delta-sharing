@@ -106,11 +106,27 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     readHttpContent(url, None, None, expectedTableVersion, "application/json; charset=utf-8")
   }
 
-  def readNDJson(url: String, method: Option[String] = None, data: Option[String] = None, expectedTableVersion: Option[Long] = None): String = {
-    readHttpContent(url, method, data, expectedTableVersion, "application/x-ndjson; charset=utf-8")
+  def readNDJson(
+    url: String,
+    method: Option[String] = None,
+    data: Option[String] = None,
+    expectedTableVersion: Option[Long] = None): String = {
+    readHttpContent(
+      url,
+      method,
+      data,
+      expectedTableVersion,
+      "application/x-ndjson; charset=utf-8"
+    )
   }
 
-  def readHttpContent(url: String, method: Option[String], data: Option[String] = None, expectedTableVersion: Option[Long] = None, expectedContentType: String): String = {
+
+  def readHttpContent(
+    url: String,
+    method: Option[String],
+    data: Option[String] = None,
+    expectedTableVersion: Option[Long] = None,
+    expectedContentType: String): String = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
     method.foreach(connection.setRequestMethod)
@@ -222,16 +238,16 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       shares ++= response.items
     }
     val expected = Seq(
-        Share().withName("share1"),
-        Share().withName("share2"),
-        Share().withName("share3"),
-        Share().withName("share4"),
-        Share().withName("share5"),
-        Share().withName("share6"),
-        Share().withName("share7"),
-        Share().withName("share_azure"),
-        Share().withName("share_gcp"),
-        Share().withName("share8")
+      Share().withName("share1"),
+      Share().withName("share2"),
+      Share().withName("share3"),
+      Share().withName("share4"),
+      Share().withName("share5"),
+      Share().withName("share6"),
+      Share().withName("share7"),
+      Share().withName("share_azure"),
+      Share().withName("share_gcp"),
+      Share().withName("share8")
     )
     assert(expected == shares)
   }
@@ -326,9 +342,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(deltaTableVersion == "0")
   }
 
-  integrationTest("table1 - get - /shares/{share}/schemas/{schema}/tables/{table}") {
+  integrationTest("table1 - get - /shares/{share}/schemas/{schema}/tables/{table}/version") {
     // getTableVersion succeeds without parameters
-    var url = requestPath("/shares/share1/schemas/default/tables/table1")
+    var url = requestPath("/shares/share1/schemas/default/tables/table1/version")
     var connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestMethod("GET")
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
@@ -342,7 +358,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(deltaTableVersion == "2")
 
     // getTableVersion succeeds with parameters
-    url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=2000-01-01%2000:00:00")
+    url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/version?startingTimestamp=2000-01-01%2000:00:00")
     connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestMethod("GET")
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
@@ -390,7 +406,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   integrationTest("getTableVersion - get exceptions") {
     // timestamp can be any string here, it's resolved in DeltaSharedTableLoader
     assertHttpError(
-      url = requestPath("/shares/share2/schemas/default/tables/table2?startingTimestamp=abc"),
+      url = requestPath("/shares/share2/schemas/default/tables/table2/version?startingTimestamp=abc"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -400,7 +416,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     // invalid startingTimestamp format
     assertHttpError(
       url = requestPath(
-        "/shares/share8/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=abc"
+        "/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/version?startingTimestamp=abc"
       ),
       method = "GET",
       data = None,
@@ -410,7 +426,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
     // timestamp after the latest version
     assertHttpError(
-      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=9999-01-01%2000:00:00"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/version?startingTimestamp=9999-01-01%2000:00:00"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -491,7 +507,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("table_with_no_metadata - metadata missing") {
     assertHttpError(
-      url = requestPath("/shares/share8/schemas/default/tables/table_with_no_metadata"),
+      url = requestPath("/shares/share8/schemas/default/tables/table_with_no_metadata/version"),
       method = "GET",
       data = None,
       expectedErrorCode = 500,
@@ -817,10 +833,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val tsStr = new Timestamp(1651272635000L).toString
     val p =
       s"""
-        |{
-        | "timestamp": "$tsStr"
-        |}
-        |""".stripMargin
+         |{
+         | "timestamp": "$tsStr"
+         |}
+         |""".stripMargin
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"), Some("POST"), Some(p), Some(1))
     val lines = response.split("\n")
     val protocol = lines(0)
@@ -1056,7 +1072,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
-      id = actions(1).metaData.id,
+      id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
@@ -1263,14 +1279,44 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-  integrationTest("streaming_notnull_to_null - query table changes returns metadata") {
-    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0"), Some("GET"), None, Some(0))
+  integrationTest("streaming_notnull_to_null - additional metadata returned") {
+    // additional metadata returned for streaming query
+    val response = readNDJson(
+      requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0&includeHistoricalMetadata=true"),
+      Some("GET"),
+      None,
+      Some(0)
+    )
     val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
     assert(actions.size == 5)
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol == actions(0).protocol)
     var expectedMetadata = Metadata(
-      id = actions(1).metaData.id,
+      id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      partitionColumns = Nil,
+      version = 0)
+    assert(expectedMetadata == actions(1).metaData)
+    expectedMetadata = expectedMetadata.copy(
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+      version = 2
+    )
+    assert(expectedMetadata == actions(2).metaData)
+    assert(actions(3).add != null)
+    assert(actions(4).add != null)
+  }
+
+  integrationTest("streaming_notnull_to_null - additional metadata not returned") {
+    // additional metadata not returned when includeHistoricalMetadata is not set
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0"), Some("GET"), None, Some(0))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 4)
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
       format = Format(),
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
@@ -1278,23 +1324,17 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       version = 0)
     assert(expectedMetadata == actions(1).metaData)
 
-    expectedMetadata = expectedMetadata.copy(
-      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
-      version = 2
-    )
-    assert(expectedMetadata == actions(2).metaData)
-
+    assert(actions(2).add != null)
     assert(actions(3).add != null)
-    assert(actions(4).add != null)
   }
 
   private def verifyAddFile(
-      actionStr: String,
-      size: Long,
-      stats: String,
-      partitionValues: Map[String, String],
-      version: Long,
-      timestamp: Long): Unit = {
+    actionStr: String,
+    size: Long,
+    stats: String,
+    partitionValues: Map[String, String],
+    version: Long,
+    timestamp: Long): Unit = {
     assert(actionStr.startsWith("{\"add\":{"))
     val addFile = JsonUtils.fromJson[SingleAction](actionStr).add
     assert(addFile.size == size)
@@ -1306,11 +1346,11 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   private def verifyAddCDCFile(
-      actionStr: String,
-      size: Long,
-      partitionValues: Map[String, String],
-      version: Long,
-      timestamp: Long): Unit = {
+    actionStr: String,
+    size: Long,
+    partitionValues: Map[String, String],
+    version: Long,
+    timestamp: Long): Unit = {
     assert(actionStr.startsWith("{\"cdf\":{"))
     val addCDCFile = JsonUtils.fromJson[SingleAction](actionStr).cdf
     assert(addCDCFile.size == size)
@@ -1321,11 +1361,11 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   private def verifyRemove(
-      actionStr: String,
-      size: Long,
-      partitionValues: Map[String, String],
-      version: Long,
-      timestamp: Long): Unit = {
+    actionStr: String,
+    size: Long,
+    partitionValues: Map[String, String],
+    version: Long,
+    timestamp: Long): Unit = {
     assert(actionStr.startsWith("{\"remove\":{"))
     val removeFile = JsonUtils.fromJson[SingleAction](actionStr).remove
     assert(removeFile.size == size)
@@ -1462,10 +1502,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         output.close()
       }
     }
-    val e = intercept[IOException] {
-      connection.getInputStream()
-    }
-    assert(e.getMessage.contains(s"Server returned HTTP response code: $expectedErrorCode"))
+    val responseStatusCode = connection.getResponseCode()
+    assert(responseStatusCode == expectedErrorCode)
     // If the http method is HEAD, error message is not returned from the server.
     assert(method == "HEAD" || IOUtils.toString(connection.getErrorStream()).contains(expectedErrorMessage))
   }
