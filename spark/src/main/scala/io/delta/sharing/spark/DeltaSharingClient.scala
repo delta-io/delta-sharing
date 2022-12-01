@@ -408,11 +408,11 @@ private[spark] class DeltaSharingRestClient(
         }
 
         val statusCode = status.getStatusCode
-        if (statusCode != HttpStatus.SC_OK) {
+        if (!(statusCode == HttpStatus.SC_OK || statusCode == HttpStatus.SC_NO_CONTENT)) {
           var additionalErrorInfo = ""
           if (statusCode == HttpStatus.SC_UNAUTHORIZED && tokenExpired(profile)) {
             additionalErrorInfo = s"It may be caused by an expired token as it has expired " +
-              "at ${profile.expirationTime}"
+              s"at ${profile.expirationTime}"
           }
           throw new UnexpectedHttpStatus(
             s"HTTP request failed with status: $status $body. $additionalErrorInfo",
