@@ -746,7 +746,7 @@ def test_load_table_changes_as_spark(
         spark = SparkSession.builder \
             .appName("delta-sharing-test") \
             .master("local[*]") \
-            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:1.0.0-SNAPSHOT") \
+            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:0.6.0-SNAPSHOT") \
             .config("spark.delta.sharing.network.sslTrustAll", "true") \
             .getOrCreate()
 
