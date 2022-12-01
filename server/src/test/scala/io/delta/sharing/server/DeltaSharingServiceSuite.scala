@@ -725,7 +725,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(2).url, 1030)
   }
 
-  integrationTest("query table with version/tiemstamp/startingVersion - exceptions") {
+  integrationTest("query table with version/timestamp/startingVersion - exceptions") {
     // only one of version/timestamp/startingVersion is supported
     assertHttpError(
       url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
@@ -1150,7 +1150,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
       partitionColumns = Nil,
-      version = 0).wrap
+      version = 5).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
     val files = lines.drop(2)
     assert(files.size == 5)
@@ -1216,13 +1216,13 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
       partitionColumns = Nil,
-      version = 0).wrap
+      version = 5).wrap
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
     val files = lines.drop(2)
     assert(files.size == 5)
   }
 
-  integrationTest("cdf_table_with_partition: query table changes") {
+  integrationTest("cdf_table_with_partition - query table changes") {
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3"), Some("GET"), None, Some(1))
     val lines = response.split("\n")
     val files = lines.drop(2)
@@ -1299,6 +1299,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       partitionColumns = Nil,
       version = 0)
     assert(expectedMetadata == actions(1).metaData)
+
     expectedMetadata = expectedMetadata.copy(
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
       version = 2
@@ -1318,10 +1319,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     var expectedMetadata = Metadata(
       id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
       format = Format(),
-      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
       configuration = Map("enableChangeDataFeed" -> "true"),
       partitionColumns = Nil,
-      version = 0)
+      version = 3)
     assert(expectedMetadata == actions(1).metaData)
 
     assert(actions(2).add != null)

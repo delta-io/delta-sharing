@@ -353,7 +353,11 @@ class DeltaSharedTable(
       cdfOptions, latestVersion, tableConfig.startVersion)
 
     // Second: get Protocol and Metadata
-    val snapshot = deltaLog.getSnapshotForVersionAsOf(start)
+    val snapshot = if (includeHistoricalMetadata) {
+      deltaLog.getSnapshotForVersionAsOf(start)
+    } else {
+      deltaLog.snapshot
+    }
     val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
     val modelMetadata = model.Metadata(
       id = snapshot.metadataScala.id,
@@ -363,7 +367,7 @@ class DeltaSharedTable(
       schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
       configuration = getMetadataConfiguration(snapshot.metadataScala.configuration),
       partitionColumns = snapshot.metadataScala.partitionColumns,
-      version = start
+      version = snapshot.version
     )
     actions.append(modelProtocol.wrap)
     actions.append(modelMetadata.wrap)
@@ -437,7 +441,7 @@ class DeltaSharedTable(
         actions.append(modelRemoveFile.wrap)
       }
     }
-    snapshot.version -> actions.toSeq
+    start -> actions.toSeq
   }
 
   def update(): Unit = withClassLoader {
