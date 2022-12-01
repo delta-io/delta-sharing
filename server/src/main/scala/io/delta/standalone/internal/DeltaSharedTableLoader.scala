@@ -371,7 +371,7 @@ class DeltaSharedTable(
     // Third: get files
     val (changeFiles, addFiles, removeFiles, metadatas) = cdcReader.queryCDF(
       start, end, latestVersion, includeHistoricalMetadata)
-    // If includeHistoricalMetadata is  not true, metadatas will be empty.
+    // If includeHistoricalMetadata is not true, metadatas will be empty.
     metadatas.foreach { cdcDataSpec =>
       cdcDataSpec.actions.foreach { action =>
         val metadata = action.asInstanceOf[Metadata]
