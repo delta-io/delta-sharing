@@ -17,29 +17,20 @@
 package io.delta.sharing.spark
 
 // scalastyle:off import.ordering.noEmptyLine
+import java.lang.ref.WeakReference
+
 import scala.collection.mutable.ArrayBuffer
 
+import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, SparkSession}
 import org.apache.spark.sql.connector.read.streaming
-import org.apache.spark.sql.connector.read.streaming.{
-  ReadAllAvailable,
-  ReadLimit,
-  ReadMaxFiles,
-  SupportsAdmissionControl
-}
+import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl}
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.types.StructType
 
-import io.delta.sharing.spark.model.{
-  AddCDCFile,
-  AddFile,
-  AddFileForCDF,
-  DeltaTableFiles,
-  FileAction,
-  RemoveFile
-}
+import io.delta.sharing.spark.model.{AddCDCFile, AddFile, AddFileForCDF, DeltaTableFiles, FileAction, RemoveFile}
 import io.delta.sharing.spark.util.SchemaUtils
 
 /**
@@ -145,6 +136,8 @@ case class DeltaSharingSource(
   private var lastQueriedTableVersion: Long = -1
   private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 30000 // 30 seconds
 
+  private var latestRefreshFunc = () => { Map.empty[String, String] }
+
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
   // rpcs to avoid traffic jam on the delta sharing server.
@@ -230,6 +223,13 @@ case class DeltaSharingSource(
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, Nil, None, Some(fromVersion), None)
+      latestRefreshFunc = () => {
+        deltaLog.client.getFiles(
+          deltaLog.table, Nil, None, Some(fromVersion), None
+        ).files.map { f =>
+          f.id -> f.url
+        }.toMap
+      }
 
       val numFiles = tableFiles.files.size
       tableFiles.files.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
@@ -255,6 +255,11 @@ case class DeltaSharingSource(
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)
+      latestRefreshFunc = () => {
+        deltaLog.client.getFiles(deltaLog.table, fromVersion).addFiles.map { a =>
+          a.id -> a.url
+        }.toMap
+      }
       val allAddFiles = verifyStreamHygieneAndFilterAddFiles(tableFiles).groupBy(a => a.version)
       for (v <- fromVersion to currentLatestVersion) {
 
@@ -469,9 +474,14 @@ case class DeltaSharingSource(
       val add = indexedFile.add
       AddFile(add.url, add.id, add.partitionValues, add.size, add.stats)
     }
+    val idToUrl = addFilesList.map { add =>
+      add.id -> add.url
+    }.toMap
 
     val params = new RemoteDeltaFileIndexParams(spark, initSnapshot)
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
+    CachedTableManager.INSTANCE.register(
+      params.path.toString, idToUrl, new WeakReference(fileIndex), latestRefreshFunc)
 
     val relation = HadoopFsRelation(
       fileIndex,
