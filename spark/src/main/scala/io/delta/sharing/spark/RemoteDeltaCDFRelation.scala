@@ -16,8 +16,11 @@
 
 package io.delta.sharing.spark
 
+import java.lang.ref.WeakReference
+
 import scala.collection.mutable.ListBuffer
 
+import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, Row, SparkSession, SQLContext}
 import org.apache.spark.sql.execution.LogicalRDD
@@ -26,12 +29,7 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan}
 import org.apache.spark.sql.types.StructType
 
-import io.delta.sharing.spark.model.{
-  AddCDCFile,
-  AddFileForCDF,
-  RemoveFile,
-  Table => DeltaSharingTable
-}
+import io.delta.sharing.spark.model.{AddCDCFile, AddFileForCDF, RemoveFile, Table => DeltaSharingTable}
 
 case class RemoteDeltaCDFRelation(
     spark: SparkSession,
@@ -55,8 +53,12 @@ case class RemoteDeltaCDFRelation(
       deltaTabelFiles.addFiles,
       deltaTabelFiles.cdfFiles,
       deltaTabelFiles.removeFiles,
-      DeltaTableUtils.addCdcSchema(deltaTabelFiles.metadata.schemaString)
-    ).rdd
+      DeltaTableUtils.addCdcSchema(deltaTabelFiles.metadata.schemaString),
+      false,
+      () => {
+        val d = client.getCDFFiles(table, cdfOptions, false)
+        DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
+      }).rdd
   }
 }
 
@@ -68,20 +70,41 @@ object DeltaSharingCDFReader {
       cdfFiles: Seq[AddCDCFile],
       removeFiles: Seq[RemoveFile],
       schema: StructType,
-      isStreaming: Boolean = false): DataFrame = {
+      isStreaming: Boolean = false,
+      refresher: () => Map[String, String]): DataFrame = {
     val dfs = ListBuffer[DataFrame]()
+    val refs = ListBuffer[WeakReference[AnyRef]]()
 
-    // We unconditionally add all types of files.
-    // We will get empty data frames for empty ones, which will get combined later.
-    dfs.append(scanIndex(new RemoteDeltaCDFAddFileIndex(
-      params, addFiles), schema, isStreaming))
-    dfs.append(scanIndex(new RemoteDeltaCDCFileIndex(
-      params, cdfFiles), schema, isStreaming))
-    dfs.append(scanIndex(new RemoteDeltaCDFRemoveFileIndex(
-      params, removeFiles), schema, isStreaming))
+    if (!addFiles.isEmpty) {
+      val fileIndex = RemoteDeltaCDFAddFileIndex(params, addFiles)
+      refs.append(new WeakReference(fileIndex))
+      dfs.append(scanIndex(fileIndex, schema, isStreaming))
+    }
+    if (!cdfFiles.isEmpty) {
+      val fileIndex = RemoteDeltaCDCFileIndex(params, cdfFiles)
+      refs.append(new WeakReference(fileIndex))
+      dfs.append(scanIndex(fileIndex, schema, isStreaming))
+    }
+    if (!removeFiles.isEmpty) {
+      val fileIndex = RemoteDeltaCDFRemoveFileIndex(params, removeFiles)
+      refs.append(new WeakReference(fileIndex))
+      dfs.append(scanIndex(fileIndex, schema, isStreaming))
+    }
+
+    val idToUrl = getIdToUrl(addFiles, cdfFiles, removeFiles)
+    CachedTableManager.INSTANCE.register(params.path.toString, idToUrl, refs, refresher)
 
     dfs.reduce((df1, df2) => df1.unionAll(df2))
       .select(requiredColumns.map(c => col(quoteIdentifier(c))): _*)
+  }
+
+  def getIdToUrl(
+      addFiles: Seq[AddFileForCDF],
+      cdfFiles: Seq[AddCDCFile],
+      removeFiles: Seq[RemoveFile]): Map[String, String] = {
+    addFiles.map(a => a.id -> a.url).toMap ++
+      cdfFiles.map(c => c.id -> c.url).toMap ++
+      removeFiles.map(r => r.id -> r.url).toMap
   }
 
   private def quoteIdentifier(part: String): String = s"`${part.replace("`", "``")}`"

@@ -131,21 +131,9 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
   override def listFiles(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
-    // Register the files with the pre-signed url fetcher.
-    CachedTableManager.INSTANCE
-      .register(params.path.toString, getIdToUrlMap, new WeakReference(this), () => {
-        getIdToUrlMap
-      })
-
     // We ignore partition filters for list files, since the delta sharing server already
     // parforms this.
     makePartitionDirectories(actions)
-  }
-
-  private[sharing] def getIdToUrlMap : Map[String, String] = {
-    actions.map { action =>
-      action.id -> action.url
-    }.toMap
   }
 }
 
@@ -194,7 +182,7 @@ private[sharing] case class RemoteDeltaBatchFileIndex(
     // TODO(lin.zhou): Actually refresh the presigned url in the cache instead of just using
     // getIdToUrlMap
     CachedTableManager.INSTANCE
-      .register(params.path.toString, getIdToUrlMap, new WeakReference(this), () => {
+      .register(params.path.toString, getIdToUrlMap, Seq(new WeakReference(this)), () => {
         getIdToUrlMap
       })
 

@@ -145,6 +145,8 @@ case class DeltaSharingSource(
   private var lastQueriedTableVersion: Long = -1
   private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 30000 // 30 seconds
 
+  private var latestRefreshFunc = () => { Map.empty[String, String] }
+
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
   // rpcs to avoid traffic jam on the delta sharing server.
@@ -290,6 +292,11 @@ case class DeltaSharingSource(
       currentLatestVersion: Long): Unit = {
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
+    latestRefreshFunc = () => {
+      val d = deltaLog.client.getCDFFiles(
+        deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
+      DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
+    }
 
     (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
       val schemaToCheck = DeltaTableUtils.addCdcSchema(DeltaTableUtils.toSchema(m.schemaString))
@@ -509,7 +516,8 @@ case class DeltaSharingSource(
       cdfFiles,
       removeFiles,
       schema,
-      isStreaming = true
+      isStreaming = true,
+      latestRefreshFunc
     )
   }
 
