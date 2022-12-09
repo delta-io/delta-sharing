@@ -75,21 +75,17 @@ object DeltaSharingCDFReader {
     val dfs = ListBuffer[DataFrame]()
     val refs = ListBuffer[WeakReference[AnyRef]]()
 
-    if (!addFiles.isEmpty) {
-      val fileIndex = RemoteDeltaCDFAddFileIndex(params, addFiles)
-      refs.append(new WeakReference(fileIndex))
-      dfs.append(scanIndex(fileIndex, schema, isStreaming))
-    }
-    if (!cdfFiles.isEmpty) {
-      val fileIndex = RemoteDeltaCDCFileIndex(params, cdfFiles)
-      refs.append(new WeakReference(fileIndex))
-      dfs.append(scanIndex(fileIndex, schema, isStreaming))
-    }
-    if (!removeFiles.isEmpty) {
-      val fileIndex = RemoteDeltaCDFRemoveFileIndex(params, removeFiles)
-      refs.append(new WeakReference(fileIndex))
-      dfs.append(scanIndex(fileIndex, schema, isStreaming))
-    }
+    val fileIndex1 = RemoteDeltaCDFAddFileIndex(params, addFiles)
+    refs.append(new WeakReference(fileIndex1))
+    dfs.append(scanIndex(fileIndex1, schema, isStreaming))
+
+    val fileIndex2 = RemoteDeltaCDCFileIndex(params, cdfFiles)
+    refs.append(new WeakReference(fileIndex2))
+    dfs.append(scanIndex(fileIndex2, schema, isStreaming))
+
+    val fileIndex3 = RemoteDeltaCDFRemoveFileIndex(params, removeFiles)
+    refs.append(new WeakReference(fileIndex3))
+    dfs.append(scanIndex(fileIndex3, schema, isStreaming))
 
     CachedTableManager.INSTANCE.register(
       params.path.toString, getIdToUrl(addFiles, cdfFiles, removeFiles), refs, refresher)
