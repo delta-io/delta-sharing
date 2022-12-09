@@ -109,6 +109,10 @@ class TestDeltaSharingClient(
     DeltaTableFiles(0, Protocol(0), metadata, Nil, addFiles, cdcFiles, removeFiles)
   }
 
+  override def getProfileProvider: DeltaSharingProfileProvider = {
+    throw new Exception("getProfileProvider is not supported")
+  }
+
   def clear(): Unit = {
     TestDeltaSharingClient.limits = Nil
   }

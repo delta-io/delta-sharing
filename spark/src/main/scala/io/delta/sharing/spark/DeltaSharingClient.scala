@@ -63,6 +63,8 @@ private[sharing] trait DeltaSharingClient {
       includeHistoricalMetadata: Boolean): DeltaTableFiles
 
   def getForStreaming(): Boolean = false
+
+  def getProfileProvider: DeltaSharingProfileProvider
 }
 
 private[sharing] trait PaginationResponse {
@@ -120,6 +122,8 @@ private[spark] class DeltaSharingRestClient(
     created = true
     client
   }
+
+  override def getProfileProvider: DeltaSharingProfileProvider = profileProvider
 
   override def listAllTables(): Seq[Table] = {
     listShares().flatMap(listAllTablesInShare)

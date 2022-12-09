@@ -274,11 +274,16 @@ class RemoteSnapshot(
         file.id -> file.url
       }.toMap
       CachedTableManager.INSTANCE
-        .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
-          client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
-            add.id -> add.url
-          }.toMap
-        })
+        .register(
+          client.getProfileProvider.getCustomTablePath(tablePath.toString),
+          idToUrl,
+          new WeakReference(fileIndex),
+          client.getProfileProvider.getCustomRefresher(() => {
+            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
+              add.id -> add.url
+            }.toMap
+          })
+        )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.toDS()

@@ -26,6 +26,8 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.rpc.{RpcCallContext, RpcEndpoint, RpcEndpointRef, RpcEnv}
 import org.apache.spark.util.{RpcUtils, ThreadUtils}
 
+import io.delta.sharing.spark.DeltaSharingProfileProvider
+
 /**
  * @param expiration the expiration time of the pre signed urls
  * @param idToUrl the file id to pre sign url map
