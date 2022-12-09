@@ -70,7 +70,7 @@ object DeltaSharingCDFReader {
       cdfFiles: Seq[AddCDCFile],
       removeFiles: Seq[RemoveFile],
       schema: StructType,
-      isStreaming: Boolean = false,
+      isStreaming: Boolean,
       refresher: () => Map[String, String]): DataFrame = {
     val dfs = ListBuffer[DataFrame]()
     val refs = ListBuffer[WeakReference[AnyRef]]()
@@ -91,8 +91,8 @@ object DeltaSharingCDFReader {
       dfs.append(scanIndex(fileIndex, schema, isStreaming))
     }
 
-    val idToUrl = getIdToUrl(addFiles, cdfFiles, removeFiles)
-    CachedTableManager.INSTANCE.register(params.path.toString, idToUrl, refs, refresher)
+    CachedTableManager.INSTANCE.register(
+      params.path.toString, getIdToUrl(addFiles, cdfFiles, removeFiles), refs, refresher)
 
     dfs.reduce((df1, df2) => df1.unionAll(df2))
       .select(requiredColumns.map(c => col(quoteIdentifier(c))): _*)
