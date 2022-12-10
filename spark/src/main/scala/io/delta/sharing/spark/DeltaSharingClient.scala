@@ -64,7 +64,7 @@ private[sharing] trait DeltaSharingClient {
 
   def getForStreaming(): Boolean = false
 
-  def getProfileProvider: DeltaSharingProfileProvider
+  def getProfileProvider: DeltaSharingProfileProvider = null
 }
 
 private[sharing] trait PaginationResponse {
