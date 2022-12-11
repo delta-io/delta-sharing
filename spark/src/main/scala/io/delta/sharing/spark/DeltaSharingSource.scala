@@ -25,12 +25,24 @@ import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, SparkSession}
 import org.apache.spark.sql.connector.read.streaming
-import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl}
+import org.apache.spark.sql.connector.read.streaming.{
+  ReadAllAvailable,
+  ReadLimit,
+  ReadMaxFiles,
+  SupportsAdmissionControl
+}
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.types.StructType
 
-import io.delta.sharing.spark.model.{AddCDCFile, AddFile, AddFileForCDF, DeltaTableFiles, FileAction, RemoveFile}
+import io.delta.sharing.spark.model.{
+  AddCDCFile,
+  AddFile,
+  AddFileForCDF,
+  DeltaTableFiles,
+  FileAction,
+  RemoveFile
+}
 import io.delta.sharing.spark.util.SchemaUtils
 
 /**
@@ -136,6 +148,9 @@ case class DeltaSharingSource(
   private var lastQueriedTableVersion: Long = -1
   private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 30000 // 30 seconds
 
+  // The latest function used to fetch presigned urls for the delta sharing table, record it in
+  // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
+  // runs for a long time.
   private var latestRefreshFunc = () => { Map.empty[String, String] }
 
   // Check the latest table version from the delta sharing server through the client.getTableVersion
@@ -295,6 +310,11 @@ case class DeltaSharingSource(
       currentLatestVersion: Long): Unit = {
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
+    latestRefreshFunc = () => {
+      val d = deltaLog.client.getCDFFiles(
+        deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
+      DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
+    }
 
     (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
       val schemaToCheck = DeltaTableUtils.addCdcSchema(DeltaTableUtils.toSchema(m.schemaString))
@@ -519,7 +539,8 @@ case class DeltaSharingSource(
       cdfFiles,
       removeFiles,
       schema,
-      isStreaming = true
+      isStreaming = true,
+      latestRefreshFunc
     )
   }
 
