@@ -129,20 +129,20 @@ class CachedTableManager(
    * @param tablePath the table path. This is usually the profile file path.
    * @param idToUrl the pre signed url map. This will be refreshed when the pre signed urls is going
    *                to expire.
-   * @param ref A weak reference which can be used to determine whether the cache is still
-   *                  needed. When the weak reference returns null, we will remove the pre signed
-   *                  url cache of this table form the cache.
+   * @param refs    A list of weak references which can be used to determine whether the cache is
+   *                still needed. When all the weak references return null, we will remove the pre
+   *                signed url cache of this table form the cache.
    * @param refresher A function to re-generate pre signed urls for the table.
    */
   def register(
       tablePath: String,
       idToUrl: Map[String, String],
-      ref: WeakReference[AnyRef],
+      refs: Seq[WeakReference[AnyRef]],
       refresher: () => Map[String, String]): Unit = {
     val cachedTable = new CachedTable(
       preSignedUrlExpirationMs + System.currentTimeMillis(),
       idToUrl,
-      Seq(ref),
+      refs,
       System.currentTimeMillis(),
       refresher
     )
@@ -160,7 +160,7 @@ class CachedTableManager(
         // Overwrite urls with the new registered ones because they are usually newer
         oldTable.idToUrl ++ cachedTable.idToUrl,
         // Try to avoid storing duplicate references
-        if (oldTable.refs.exists(_.get eq ref.get)) oldTable.refs else ref +: oldTable.refs,
+        refs.filterNot(ref => oldTable.refs.exists(_.get eq ref.get)) ++ oldTable.refs,
         lastAccess = System.currentTimeMillis(),
         refresher
       )
