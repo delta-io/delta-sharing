@@ -278,7 +278,7 @@ class RemoteSnapshot(
           fileIndex.params.path.toString,
           idToUrl,
           Seq(new WeakReference(fileIndex)),
-          client.getProfileProvider,
+          fileIndex.params.profileProvider,
           () => {
             client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
               add.id -> add.url

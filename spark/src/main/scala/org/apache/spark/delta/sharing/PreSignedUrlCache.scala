@@ -132,6 +132,7 @@ class CachedTableManager(
    * @param refs    A list of weak references which can be used to determine whether the cache is
    *                still needed. When all the weak references return null, we will remove the pre
    *                signed url cache of this table form the cache.
+   * @param profileProvider a profile Provider that can provide customized refresher function.
    * @param refresher A function to re-generate pre signed urls for the table.
    */
   def register(
