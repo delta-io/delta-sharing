@@ -70,12 +70,12 @@ class CachedTableManager(
       val tablePath = entry.getKey
       val cachedTable = entry.getValue
       if (cachedTable.refs.forall(_.get == null)) {
-        logInfo(s"Removing $tablePath from the pre signed url cache as there are" +
+        logInfo(s"Removing table $tablePath from the pre signed url cache as there are" +
           " no references pointed to it")
         cache.remove(tablePath, cachedTable)
       } else if (cachedTable.lastAccess + expireAfterAccessMs < System.currentTimeMillis()) {
-        logInfo(s"Removing $tablePath from the pre signed url cache as it was not accessed after " +
-          s" $expireAfterAccessMs ms")
+        logInfo(s"Removing table $tablePath from the pre signed url cache as it was not accessed " +
+          s"after $expireAfterAccessMs ms")
         cache.remove(tablePath, cachedTable)
       } else if (cachedTable.expiration - System.currentTimeMillis() < refreshThresholdMs) {
         logInfo(s"Updating pre signed urls for $tablePath (expiration time: " +

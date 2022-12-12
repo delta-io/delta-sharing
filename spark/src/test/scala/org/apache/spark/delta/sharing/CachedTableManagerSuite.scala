@@ -35,16 +35,19 @@ class CachedTableManagerSuite extends SparkFunSuite {
     )
     try {
       val ref = new AnyRef
+      val provider = new TestDeltaSharingProfileProvider
       manager.register(
         "test-table-path",
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(ref)),
-        new TestDeltaSharingProfileProvider,
+        provider,
         () => {
           Map("id1" -> "url1", "id2" -> "url2")
         })
-      assert(manager.getPreSignedUrl("test-table-path", "id1")._1 == "url1")
-      assert(manager.getPreSignedUrl("test-table-path", "id2")._1 == "url2")
+      assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path"),
+        "id1")._1 == "url1")
+      assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path"),
+        "id2")._1 == "url2")
 
       manager.register(
         "test-table-path2",
@@ -56,8 +59,10 @@ class CachedTableManagerSuite extends SparkFunSuite {
         })
       // We should get the new urls eventually
       eventually(timeout(10.seconds)) {
-        assert(manager.getPreSignedUrl("test-table-path2", "id1")._1 == "url3")
-        assert(manager.getPreSignedUrl("test-table-path2", "id2")._1 == "url4")
+        assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path2"),
+          "id1")._1 == "url3")
+        assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path2"),
+          "id2")._1 == "url4")
       }
 
       manager.register(
