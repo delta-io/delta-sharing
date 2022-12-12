@@ -17,8 +17,11 @@
 package io.delta.sharing.spark
 
 // scalastyle:off import.ordering.noEmptyLine
+import java.lang.ref.WeakReference
+
 import scala.collection.mutable.ArrayBuffer
 
+import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, SparkSession}
 import org.apache.spark.sql.connector.read.streaming
@@ -235,6 +238,13 @@ case class DeltaSharingSource(
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, Nil, None, Some(fromVersion), None)
+      latestRefreshFunc = () => {
+        deltaLog.client.getFiles(
+          deltaLog.table, Nil, None, Some(fromVersion), None
+        ).files.map { f =>
+          f.id -> f.url
+        }.toMap
+      }
 
       val numFiles = tableFiles.files.size
       tableFiles.files.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
@@ -260,6 +270,11 @@ case class DeltaSharingSource(
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)
+      latestRefreshFunc = () => {
+        deltaLog.client.getFiles(deltaLog.table, fromVersion).addFiles.map { a =>
+          a.id -> a.url
+        }.toMap
+      }
       val allAddFiles = verifyStreamHygieneAndFilterAddFiles(tableFiles).groupBy(a => a.version)
       for (v <- fromVersion to currentLatestVersion) {
 
@@ -479,9 +494,20 @@ case class DeltaSharingSource(
       val add = indexedFile.add
       AddFile(add.url, add.id, add.partitionValues, add.size, add.stats)
     }
+    val idToUrl = addFilesList.map { add =>
+      add.id -> add.url
+    }.toMap
 
-    val params = new RemoteDeltaFileIndexParams(spark, initSnapshot)
+    val params = new RemoteDeltaFileIndexParams(
+      spark, initSnapshot, deltaLog.client.getProfileProvider)
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
+    CachedTableManager.INSTANCE.register(
+      params.path.toString,
+      idToUrl,
+      Seq(new WeakReference(fileIndex)),
+      params.profileProvider,
+      latestRefreshFunc
+    )
 
     val relation = HadoopFsRelation(
       fileIndex,
@@ -513,7 +539,7 @@ case class DeltaSharingSource(
     }
 
     DeltaSharingCDFReader.changesToDF(
-      new RemoteDeltaFileIndexParams(spark, initSnapshot),
+      new RemoteDeltaFileIndexParams(spark, initSnapshot, deltaLog.client.getProfileProvider),
       schema.fields.map(f => f.name),
       addFiles,
       cdfFiles,

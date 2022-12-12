@@ -48,7 +48,7 @@ case class RemoteDeltaCDFRelation(
     val deltaTabelFiles = client.getCDFFiles(table, cdfOptions, false)
 
     DeltaSharingCDFReader.changesToDF(
-      new RemoteDeltaFileIndexParams(spark, snapshotToUse),
+      new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider),
       requiredColumns,
       deltaTabelFiles.addFiles,
       deltaTabelFiles.cdfFiles,
@@ -88,7 +88,12 @@ object DeltaSharingCDFReader {
     dfs.append(scanIndex(fileIndex3, schema, isStreaming))
 
     CachedTableManager.INSTANCE.register(
-      params.path.toString, getIdToUrl(addFiles, cdfFiles, removeFiles), refs, refresher)
+      params.path.toString,
+      getIdToUrl(addFiles, cdfFiles, removeFiles),
+      refs,
+      params.profileProvider,
+      refresher
+    )
 
     dfs.reduce((df1, df2) => df1.unionAll(df2))
       .select(requiredColumns.map(c => col(quoteIdentifier(c))): _*)

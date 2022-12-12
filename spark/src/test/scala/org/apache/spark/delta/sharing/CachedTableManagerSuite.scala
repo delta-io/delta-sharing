@@ -22,6 +22,8 @@ import org.apache.spark.SparkFunSuite
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.SpanSugar._
 
+import io.delta.sharing.spark.TestDeltaSharingProfileProvider
+
 class CachedTableManagerSuite extends SparkFunSuite {
 
   test("cache") {
@@ -37,6 +39,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         "test-table-path",
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(ref)),
+        new TestDeltaSharingProfileProvider,
         () => {
           Map("id1" -> "url1", "id2" -> "url2")
         })
@@ -47,6 +50,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         "test-table-path2",
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(ref)),
+        new TestDeltaSharingProfileProvider,
         () => {
           Map("id1" -> "url3", "id2" -> "url4")
         })
@@ -60,6 +64,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         "test-table-path3",
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(new AnyRef)),
+        new TestDeltaSharingProfileProvider,
         () => {
           Map("id1" -> "url3", "id2" -> "url4")
         })
@@ -87,6 +92,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         "test-table-path",
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(ref)),
+        new TestDeltaSharingProfileProvider,
         () => {
           Map("id1" -> "url1", "id2" -> "url2")
         })

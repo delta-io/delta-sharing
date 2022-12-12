@@ -118,6 +118,8 @@ class TestDeltaSharingClient(
 
 class TestDeltaSharingProfileProvider extends DeltaSharingProfileProvider {
   override def getProfile: DeltaSharingProfile = null
+
+  override def getCustomTablePath(tablePath: String): String = "prefix." + tablePath
 }
 
 object TestDeltaSharingClient {

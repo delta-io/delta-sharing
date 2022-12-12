@@ -38,8 +38,11 @@ import io.delta.sharing.spark.model.{
 
 private[sharing] case class RemoteDeltaFileIndexParams(
     val spark: SparkSession,
-    val snapshotAtAnalysis: RemoteSnapshot) {
-  def path: Path = snapshotAtAnalysis.getTablePath
+    val snapshotAtAnalysis: RemoteSnapshot,
+    val profileProvider: DeltaSharingProfileProvider) {
+  def path: Path = new Path(
+    profileProvider.getCustomTablePath(snapshotAtAnalysis.getTablePath.toString)
+  )
 }
 
 // A base class for all file indices for remote delta log.
@@ -179,21 +182,8 @@ private[sharing] case class RemoteDeltaBatchFileIndex(
   override def listFiles(
     partitionFilters: Seq[Expression],
     dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
-    // TODO(lin.zhou): Actually refresh the presigned url in the cache instead of just using
-    // getIdToUrlMap
-    CachedTableManager.INSTANCE
-      .register(params.path.toString, getIdToUrlMap, Seq(new WeakReference(this)), () => {
-        getIdToUrlMap
-      })
-
     // We ignore partition filters for list files, since the delta sharing server already
     // parforms the filters.
     makePartitionDirectories(addFiles)
-  }
-
-  private[sharing] def getIdToUrlMap : Map[String, String] = {
-    addFiles.map { add =>
-      add.id -> add.url
-    }.toMap
   }
 }
