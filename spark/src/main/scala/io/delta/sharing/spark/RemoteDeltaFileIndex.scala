@@ -40,9 +40,7 @@ private[sharing] case class RemoteDeltaFileIndexParams(
     val spark: SparkSession,
     val snapshotAtAnalysis: RemoteSnapshot,
     val profileProvider: DeltaSharingProfileProvider) {
-  def path: Path = new Path(
-    profileProvider.getCustomTablePath(snapshotAtAnalysis.getTablePath.toString)
-  )
+  def path: Path = snapshotAtAnalysis.getTablePath
 }
 
 // A base class for all file indices for remote delta log.
@@ -57,7 +55,8 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
   override def rootPaths: Seq[Path] = params.path :: Nil
 
   protected def toDeltaSharingPath(f: FileAction): Path = {
-    DeltaSharingFileSystem.encode(params.path, f)
+    DeltaSharingFileSystem.encode(
+      params.profileProvider.getCustomTablePath(params.path.toString), f)
   }
 
   // A helper function to create partition directories from the specified actions.

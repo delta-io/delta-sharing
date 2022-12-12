@@ -141,7 +141,9 @@ class CachedTableManager(
       refs: Seq[WeakReference[AnyRef]],
       profileProvider: DeltaSharingProfileProvider,
       refresher: () => Map[String, String]): Unit = {
+    val customTablePath = profileProvider.getCustomTablePath(tablePath)
     val customRefresher = profileProvider.getCustomRefresher(refresher)
+
     val cachedTable = new CachedTable(
       preSignedUrlExpirationMs + System.currentTimeMillis(),
       idToUrl,
@@ -149,7 +151,7 @@ class CachedTableManager(
       System.currentTimeMillis(),
       customRefresher
     )
-    var oldTable = cache.putIfAbsent(tablePath, cachedTable)
+    var oldTable = cache.putIfAbsent(customTablePath, cachedTable)
     if (oldTable == null) {
       // We insert a new entry to the cache
       return
@@ -167,15 +169,15 @@ class CachedTableManager(
         lastAccess = System.currentTimeMillis(),
         customRefresher
       )
-      if (cache.replace(tablePath, oldTable, mergedTable)) {
+      if (cache.replace(customTablePath, oldTable, mergedTable)) {
         // Put the merged one to the cache
         return
       }
       // Failed to put the merged one
-      oldTable = cache.get(tablePath)
+      oldTable = cache.get(customTablePath)
       if (oldTable == null) {
         // It was removed between `cache.replace` and `cache.get`
-        oldTable = cache.putIfAbsent(tablePath, cachedTable)
+        oldTable = cache.putIfAbsent(customTablePath, cachedTable)
         if (oldTable == null) {
           // We insert a new entry to the cache
           return
