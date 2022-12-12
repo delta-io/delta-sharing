@@ -501,7 +501,7 @@ case class DeltaSharingSource(
     val params = new RemoteDeltaFileIndexParams(spark, initSnapshot)
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
     CachedTableManager.INSTANCE.register(
-      params.path.toString, idToUrl, new WeakReference(fileIndex), latestRefreshFunc)
+      params.path.toString, idToUrl, Seq(new WeakReference(fileIndex)), latestRefreshFunc)
 
     val relation = HadoopFsRelation(
       fileIndex,
