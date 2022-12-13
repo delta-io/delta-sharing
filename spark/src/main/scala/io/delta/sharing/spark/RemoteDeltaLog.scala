@@ -88,7 +88,7 @@ private[sharing] class RemoteDeltaLog(
       )
     }
 
-    val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse)
+    val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
     val fileIndex = new RemoteDeltaSnapshotFileIndex(params, None)
     if (spark.sessionState.conf.getConfString(
       "spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
@@ -274,11 +274,17 @@ class RemoteSnapshot(
         file.id -> file.url
       }.toMap
       CachedTableManager.INSTANCE
-        .register(tablePath.toString, idToUrl, Seq(new WeakReference(fileIndex)), () => {
-          client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
-            add.id -> add.url
-          }.toMap
-        })
+        .register(
+          fileIndex.params.path.toString,
+          idToUrl,
+          Seq(new WeakReference(fileIndex)),
+          fileIndex.params.profileProvider,
+          () => {
+            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
+              add.id -> add.url
+            }.toMap
+          }
+        )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.toDS()

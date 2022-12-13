@@ -22,6 +22,8 @@ import org.apache.spark.SparkFunSuite
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.SpanSugar._
 
+import io.delta.sharing.spark.TestDeltaSharingProfileProvider
+
 class CachedTableManagerSuite extends SparkFunSuite {
 
   test("cache") {
@@ -33,41 +35,51 @@ class CachedTableManagerSuite extends SparkFunSuite {
     )
     try {
       val ref = new AnyRef
+      val provider = new TestDeltaSharingProfileProvider
       manager.register(
         "test-table-path",
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(ref)),
+        provider,
         () => {
           Map("id1" -> "url1", "id2" -> "url2")
         })
-      assert(manager.getPreSignedUrl("test-table-path", "id1")._1 == "url1")
-      assert(manager.getPreSignedUrl("test-table-path", "id2")._1 == "url2")
+      assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path"),
+        "id1")._1 == "url1")
+      assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path"),
+        "id2")._1 == "url2")
 
       manager.register(
         "test-table-path2",
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(ref)),
+        provider,
         () => {
           Map("id1" -> "url3", "id2" -> "url4")
         })
       // We should get the new urls eventually
       eventually(timeout(10.seconds)) {
-        assert(manager.getPreSignedUrl("test-table-path2", "id1")._1 == "url3")
-        assert(manager.getPreSignedUrl("test-table-path2", "id2")._1 == "url4")
+        assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path2"),
+          "id1")._1 == "url3")
+        assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path2"),
+          "id2")._1 == "url4")
       }
 
       manager.register(
         "test-table-path3",
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(new AnyRef)),
+        provider,
         () => {
           Map("id1" -> "url3", "id2" -> "url4")
         })
       // We should remove the cached table eventually
       eventually(timeout(10.seconds)) {
         System.gc()
-        intercept[IllegalStateException](manager.getPreSignedUrl("test-table-path3", "id1"))
-        intercept[IllegalStateException](manager.getPreSignedUrl("test-table-path3", "id1"))
+        intercept[IllegalStateException](manager.getPreSignedUrl(
+          provider.getCustomTablePath("test-table-path3"), "id1"))
+        intercept[IllegalStateException](manager.getPreSignedUrl(
+          provider.getCustomTablePath("test-table-path3"), "id1"))
       }
     } finally {
       manager.stop()
@@ -83,16 +95,20 @@ class CachedTableManagerSuite extends SparkFunSuite {
     )
     try {
       val ref = new AnyRef
+      val provider = new TestDeltaSharingProfileProvider
+
       manager.register(
         "test-table-path",
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(ref)),
+        provider,
         () => {
           Map("id1" -> "url1", "id2" -> "url2")
         })
       Thread.sleep(1000)
       // We should remove the cached table when it's not accessed
-      intercept[IllegalStateException](manager.getPreSignedUrl("test-table-path", "id1"))
+      intercept[IllegalStateException](manager.getPreSignedUrl(
+        provider.getCustomTablePath("test-table-path"), "id1"))
     } finally {
       manager.stop()
     }

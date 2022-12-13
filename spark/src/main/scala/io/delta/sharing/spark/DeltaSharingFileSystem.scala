@@ -167,8 +167,8 @@ private[sharing] object DeltaSharingFileSystem {
     }
   }
 
-  def encode(tablePath: Path, action: FileAction): Path = {
-    DeltaSharingPath(tablePath.toString, action.id, action.size).toPath
+  def encode(tablePath: String, action: FileAction): Path = {
+    DeltaSharingPath(tablePath, action.id, action.size).toPath
   }
 
   def decode(path: Path): DeltaSharingPath = {

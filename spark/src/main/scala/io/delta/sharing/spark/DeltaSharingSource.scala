@@ -498,10 +498,16 @@ case class DeltaSharingSource(
       add.id -> add.url
     }.toMap
 
-    val params = new RemoteDeltaFileIndexParams(spark, initSnapshot)
+    val params = new RemoteDeltaFileIndexParams(
+      spark, initSnapshot, deltaLog.client.getProfileProvider)
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
     CachedTableManager.INSTANCE.register(
-      params.path.toString, idToUrl, Seq(new WeakReference(fileIndex)), latestRefreshFunc)
+      params.path.toString,
+      idToUrl,
+      Seq(new WeakReference(fileIndex)),
+      params.profileProvider,
+      latestRefreshFunc
+    )
 
     val relation = HadoopFsRelation(
       fileIndex,
@@ -533,7 +539,7 @@ case class DeltaSharingSource(
     }
 
     DeltaSharingCDFReader.changesToDF(
-      new RemoteDeltaFileIndexParams(spark, initSnapshot),
+      new RemoteDeltaFileIndexParams(spark, initSnapshot, deltaLog.client.getProfileProvider),
       schema.fields.map(f => f.name),
       addFiles,
       cdfFiles,
