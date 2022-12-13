@@ -146,8 +146,8 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
       val options = new DeltaSharingOptions(
         Map("versionAsOf" -> "x3"))
     }.getMessage
-    assert(errorMessage.contains(
-      "Invalid value 'x3' for option 'versionAsOf', must be a positive integer"))
+    assert(errorMessage.contains("Invalid value 'x3' for option 'versionAsOf', must be an integer" +
+      " greater than or equal to zero"))
 
     errorMessage = intercept[IllegalArgumentException] {
       val options = new DeltaSharingOptions(
