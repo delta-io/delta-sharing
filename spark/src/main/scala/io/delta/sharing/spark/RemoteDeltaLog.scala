@@ -261,7 +261,7 @@ class RemoteSnapshot(
         add.id -> add.url
       }.toMap
       CachedTableManager.INSTANCE
-        .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
+        .register(tablePath.toString, idToUrl, Seq(new WeakReference(fileIndex)), () => {
           client.getFiles(table, Nil, None, versionAsOf).files.map { add =>
             add.id -> add.url
           }.toMap
