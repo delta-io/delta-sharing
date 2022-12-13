@@ -44,7 +44,7 @@ case class RemoteDeltaCDFRelation(
     filters: Array[Filter]): RDD[Row] = {
     val deltaTabelFiles = client.getCDFFiles(table, cdfOptions)
     val metadata = deltaTabelFiles.metadata
-    val params = RemoteDeltaFileIndexParams(spark, snapshotToUse)
+    val params = RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
     val dfs = ListBuffer[DataFrame]()
 
     // We unconditionally add all types of files.

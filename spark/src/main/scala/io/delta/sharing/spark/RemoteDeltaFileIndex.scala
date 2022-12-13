@@ -53,7 +53,8 @@ import io.delta.sharing.spark.model.{
 
 private[sharing] case class RemoteDeltaFileIndexParams(
     val spark: SparkSession,
-    val snapshotAtAnalysis: RemoteSnapshot) {
+    val snapshotAtAnalysis: RemoteSnapshot,
+    val profileProvider: DeltaSharingProfileProvider) {
   def path: Path = snapshotAtAnalysis.getTablePath
 }
 
@@ -69,7 +70,8 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
   override def rootPaths: Seq[Path] = params.path :: Nil
 
   protected def toDeltaSharingPath(f: FileAction): Path = {
-    DeltaSharingFileSystem.encode(params.path, f)
+    DeltaSharingFileSystem.encode(
+      params.profileProvider.getCustomTablePath(params.path.toString), f)
   }
 
   // A helper function to create partition directories from the specified actions.
@@ -148,9 +150,14 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     // Register the files with the pre-signed url fetcher.
     CachedTableManager.INSTANCE
-      .register(params.path.toString, getIdToUrlMap, new WeakReference(this), () => {
-        getIdToUrlMap
-      })
+      .register(
+        params.path.toString,
+        getIdToUrlMap,
+        new WeakReference(this),
+        params.profileProvider,
+        () => {
+          getIdToUrlMap
+        })
 
     // We ignore partition filters for list files, since the server already
     // parforms this filtering for CDF.
