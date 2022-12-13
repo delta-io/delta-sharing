@@ -40,7 +40,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
       manager.register(
         "test-table-path",
         Map("id1" -> "url1", "id2" -> "url2"),
-        new WeakReference(ref),
+        Seq(new WeakReference(ref)),
         provider,
         () => {
           Map("id1" -> "url1", "id2" -> "url2")
@@ -53,7 +53,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
       manager.register(
         "test-table-path2",
         Map("id1" -> "url1", "id2" -> "url2"),
-        new WeakReference(ref),
+        Seq(new WeakReference(ref)),
         provider,
         () => {
           Map("id1" -> "url3", "id2" -> "url4")
@@ -69,7 +69,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
       manager.register(
         "test-table-path3",
         Map("id1" -> "url1", "id2" -> "url2"),
-        new WeakReference(new AnyRef),
+        Seq(new WeakReference(new AnyRef)),
         provider,
         () => {
           Map("id1" -> "url3", "id2" -> "url4")
@@ -100,7 +100,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
       manager.register(
         "test-table-path",
         Map("id1" -> "url1", "id2" -> "url2"),
-        new WeakReference(ref),
+        Seq(new WeakReference(ref)),
         provider,
         () => {
           Map("id1" -> "url1", "id2" -> "url2")

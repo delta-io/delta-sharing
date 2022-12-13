@@ -16,8 +16,11 @@
 
 package io.delta.sharing.spark
 
+import java.lang.ref.WeakReference
+
 import scala.collection.mutable.ListBuffer
 
+import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, Row, SparkSession, SQLContext}
 import org.apache.spark.sql.execution.LogicalRDD
@@ -26,7 +29,12 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan}
 import org.apache.spark.sql.types.StructType
 
-import io.delta.sharing.spark.model.{CDFColumnInfo, Metadata, Table => DeltaSharingTable}
+import io.delta.sharing.spark.model.{
+  CDFColumnInfo,
+  DeltaTableFiles,
+  Metadata,
+  Table => DeltaSharingTable
+}
 
 case class RemoteDeltaCDFRelation(
     spark: SparkSession,
@@ -46,12 +54,25 @@ case class RemoteDeltaCDFRelation(
     val metadata = deltaTabelFiles.metadata
     val params = RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
     val dfs = ListBuffer[DataFrame]()
+    val refs = ListBuffer[WeakReference[AnyRef]]()
 
     // We unconditionally add all types of files.
     // We will get empty data frames for empty ones, which will get combined later.
-    dfs.append(scanIndex(new RemoteDeltaCDFAddFileIndex(params, deltaTabelFiles), metadata))
-    dfs.append(scanIndex(new RemoteDeltaCDCFileIndex(params, deltaTabelFiles), metadata))
-    dfs.append(scanIndex(new RemoteDeltaCDFRemoveFileIndex(params, deltaTabelFiles), metadata))
+    val fileIndex1 = RemoteDeltaCDFAddFileIndex(params, deltaTabelFiles)
+    refs.append(new WeakReference(fileIndex1))
+    dfs.append(scanIndex(fileIndex1, metadata))
+
+    val fileIndex2 = RemoteDeltaCDCFileIndex(params, deltaTabelFiles)
+    refs.append(new WeakReference(fileIndex2))
+    dfs.append(scanIndex(fileIndex2, metadata))
+
+    val fileIndex3 = RemoteDeltaCDFRemoveFileIndex(params, deltaTabelFiles)
+    refs.append(new WeakReference(fileIndex3))
+    dfs.append(scanIndex(fileIndex3, metadata))
+    CachedTableManager.INSTANCE.register(
+      params.path.toString, getIdToUrl(deltaTabelFiles), refs, client.getProfileProvider, () => {
+        getIdToUrl(client.getCDFFiles(table, cdfOptions))
+      })
 
     dfs.reduce((df1, df2) => df1.unionAll(df2))
       .select(requiredColumns.map(c => col(quoteIdentifier(c))): _*)
@@ -74,5 +95,11 @@ case class RemoteDeltaCDFRelation(
       Map.empty)(spark)
     val plan = LogicalRelation(relation)
     DeltaSharingScanUtils.ofRows(spark, plan)
+  }
+
+  private def getIdToUrl(deltaTabelFiles: DeltaTableFiles): Map[String, String] = {
+    deltaTabelFiles.addFilesForCdf.map(a => a.id -> a.url).toMap ++
+      deltaTabelFiles.cdfFiles.map(c => c.id -> c.url).toMap ++
+      deltaTabelFiles.removeFiles.map(r => r.id -> r.url).toMap
   }
 }
