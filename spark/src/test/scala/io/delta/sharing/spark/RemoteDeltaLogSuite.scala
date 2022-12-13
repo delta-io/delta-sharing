@@ -169,7 +169,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val addListFilesResult = addFilesIndex.listFiles(Seq.empty, Seq.empty)
     assert(addListFilesResult.size == 1)
     assert(addListFilesResult(0).files.size == 1)
-    assert(addListFilesResult(0).files(0).getPath.toString == "delta-sharing:/prefix.test/cdf_add1/100")
+    assert(addListFilesResult(0).files(0).getPath.toString ==
+      "delta-sharing:/prefix.test/cdf_add1/100")
 
     val addInputFileList = addFilesIndex.inputFiles.toList
     assert(addInputFileList.size == 1)
