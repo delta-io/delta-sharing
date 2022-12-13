@@ -16,8 +16,6 @@
 
 package io.delta.sharing.spark
 
-import java.lang.ref.WeakReference
-
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.sql.SparkSession
@@ -146,12 +144,6 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
   override def listFiles(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
-    // Register the files with the pre-signed url fetcher.
-    CachedTableManager.INSTANCE
-      .register(params.path.toString, getIdToUrlMap, new WeakReference(this), () => {
-        getIdToUrlMap
-      })
-
     // We ignore partition filters for list files, since the server already
     // parforms this filtering for CDF.
     makePartitionDirectories(actions)
