@@ -2271,6 +2271,8 @@ format | [Format](#format) Object | Specification of the encoding for the files 
 schemaString | String | Schema of the table. This is a serialized JSON string which can be deserialized to a [Schema](#schema-object) Object. | Required
 partitionColumns | Array<String> | An array containing the names of columns by which the data should be partitioned. When a table doesn’t have partition columns, this will be an **empty** array. | Required
 configuration | Map[String, String] | A map containing configuration options for the table
+size | Long | The size of the table in bytes. | Optional 
+numFiles | Long | The number of files in the table. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -2287,7 +2289,9 @@ Example (for illustration purposes; each JSON object must be a single line in th
     "id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
     "configuration": {
       "enableChangeDataFeed": "true"
-    }
+    },
+    "size": 123456,
+    "numFiles": 5
   }
 }
 ```
