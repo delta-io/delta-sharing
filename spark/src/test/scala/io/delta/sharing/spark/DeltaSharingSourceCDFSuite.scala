@@ -51,7 +51,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   // VERSION 1: INSERT 3 rows, 3 add files
   // VERSION 2: UPDATE 1 row, 1 cdf file
   // VERSION 3: REMOVE 1 row, 1 remove file
-  lazy val errorTablePath2 = testProfileFile.getCanonicalPath +
+  lazy val partitionTablePath = testProfileFile.getCanonicalPath +
       "#share8.default.cdf_table_with_partition"
 
   lazy val toNullTable = testProfileFile.getCanonicalPath +
@@ -362,6 +362,35 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     }
   }
 
+  integrationTest("CDF Stream filter - success") {
+    // filter on birthday
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion(path = partitionTablePath, startingVersion = "1")
+        .load()
+        .filter($"birthday" === "2020-01-01")
+        .writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 3)
+        }
+      } finally {
+        query.stop()
+      }
+
+      val expected = Seq(
+        Row("1", 1, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+        Row("2", 2, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+        Row("2", 2, sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage")
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+    }
+  }
+
   integrationTest("CDF Stream - exceptions") {
     // For errorTablePath1(cdf_table_cdf_enabled), cdf is disabled at version 4, so there will
     // exception returned from the server.
@@ -372,7 +401,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     }.getMessage
     assert(message.contains("Error getting change data for range"))
 
-    query = withStreamReaderAtVersion(path = errorTablePath2, startingVersion = "0")
+    query = withStreamReaderAtVersion(path = partitionTablePath, startingVersion = "0")
       .load().writeStream.format("console").start()
     message = intercept[StreamingQueryException] {
       query.processAllAvailable()
@@ -389,12 +418,12 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     }.getMessage
     assert(message.contains("The provided timestamp (9999-01-01 00:00:00.0) is after"))
 
-    // startingTimestamp corresponds to version 0, < allowed starting version 1 on errorTablePath2.
+    // startingTimestamp corresponds to version 0, < starting version 1 on partitionTablePath.
     message = intercept[StreamingQueryException] {
       val query = spark.readStream.format("deltaSharing")
         .option("readchangeFeed", "true")
         .option("startingTimestamp", "2022-01-01 00:00:00")
-        .load(errorTablePath2).writeStream.format("console").start()
+        .load(partitionTablePath).writeStream.format("console").start()
       query.processAllAvailable()
     }.getMessage
     assert(message.contains("The provided timestamp(2022-01-01 00:00:00) corresponds to 0"))

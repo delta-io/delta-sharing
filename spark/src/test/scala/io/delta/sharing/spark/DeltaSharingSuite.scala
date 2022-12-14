@@ -219,6 +219,59 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     )
   }
 
+  integrationTest("table_changes: cdf_table_with_partition") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_with_partition"
+
+    val expected = Seq(
+      Row("1", 1, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+      Row("2", 2, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+      Row("3", 3, sqlDate("2020-03-03"), 1L, 1651614980000L, "insert"),
+      Row("2", 2, sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage"),
+      Row("2", 2, sqlDate("2020-02-02"), 2L, 1651614986000L, "update_postimage"),
+      Row("3", 3, sqlDate("2020-03-03"), 3L, 1651614994000L, "delete")
+    )
+    val result = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3).load(tablePath)
+    checkAnswer(result, expected)
+
+    // should work when filtering on partition columns
+    val filtered = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3)
+      .load(tablePath)
+      .filter($"birthday" === "2020-01-01")
+
+    checkAnswer(
+      filtered,
+      Seq(
+        Row("1", 1, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+        Row("2", 2, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+        Row("2", 2, sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage")
+      )
+    )
+
+    // should work when filtering on non-partition columns
+    val filtered2 = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3)
+      .load(tablePath)
+      .filter($"age" === "2")
+      .select("name", "birthday", "_commit_version", "_commit_timestamp", "_change_type")
+
+    checkAnswer(
+      filtered2,
+      Seq(
+        Row("2", sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage"),
+        Row("2", sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+        Row("2", sqlDate("2020-02-02"), 2L, 1651614986000L, "update_postimage")
+      )
+    )
+  }
+
   integrationTest("table_changes_empty: cdf_table_cdf_enabled") {
     val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
 

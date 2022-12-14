@@ -500,7 +500,7 @@ case class DeltaSharingSource(
 
     val params = new RemoteDeltaFileIndexParams(
       spark, initSnapshot, deltaLog.client.getProfileProvider)
-    val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
+    val fileIndex = new RemoteDeltaBatchFileIndexForStreaming(params, addFilesList)
     CachedTableManager.INSTANCE.register(
       params.path.toString,
       idToUrl,
