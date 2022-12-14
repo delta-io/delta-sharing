@@ -88,6 +88,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val spark = SparkSession.active
     val client = new TestDeltaSharingClient()
     val snapshot = new RemoteSnapshot(new Path("test"), client, Table("fe", "fi", "fo"))
+    assert(snapshot.sizeInBytes == 100)
+    assert(snapshot.metadata.numFiles == 2)
 
     // Create an index without limits.
     val fileIndex = {
@@ -158,6 +160,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       Table("fe", "fi", "fo"),
       versionAsOf = Some(1)
     )
+    assert(snapshot.sizeInBytes == 100)
+    assert(snapshot.metadata.numFiles == 2)
 
     // Create an index without limits.
     val fileIndex = {
@@ -229,6 +233,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       // This is not parsed, just a place holder.
       timestampAsOf = Some("2022-01-01 00:00:00.0")
     )
+    assert(snapshot.sizeInBytes == 100)
+    assert(snapshot.metadata.numFiles == 2)
 
     // Create an index without limits.
     val fileIndex = {
