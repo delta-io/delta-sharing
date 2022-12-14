@@ -91,6 +91,14 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
         }
     }.toSeq
   }
+
+  protected def getColumnFilter(partitionFilters: Seq[Expression]): Column = {
+    val rewrittenFilters = DeltaTableUtils.rewritePartitionFilters(
+      params.snapshotAtAnalysis.partitionSchema,
+      params.spark.sessionState.conf.resolver,
+      partitionFilters)
+    new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
+  }
 }
 
 // The index for processing files in a delta snapshot.
@@ -128,14 +136,6 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
 
   override def inputFiles: Array[String] = {
     actions.map(f => toDeltaSharingPath(f).toString).toArray
-  }
-
-  protected def getColumnFilter(partitionFilters: Seq[Expression]): Column = {
-    val rewrittenFilters = DeltaTableUtils.rewritePartitionFilters(
-      params.snapshotAtAnalysis.partitionSchema,
-      params.spark.sessionState.conf.resolver,
-      partitionFilters)
-    new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
   }
 }
 
@@ -194,7 +194,7 @@ private[sharing] case class RemoteDeltaCDFRemoveFileIndex(
 }
 
 // The index classes for batch files
-private[sharing] case class RemoteDeltaBatchFileIndexForStreaming(
+private[sharing] case class RemoteDeltaBatchFileIndex(
   override val params: RemoteDeltaFileIndexParams,
   val addFiles: Seq[AddFile]) extends RemoteDeltaFileIndexBase(params) {
 
@@ -209,8 +209,9 @@ private[sharing] case class RemoteDeltaBatchFileIndexForStreaming(
   override def listFiles(
     partitionFilters: Seq[Expression],
     dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
-    // We ignore partition filters for RemoteDeltaBatchFileIndexForStreaming, since streaming
-    // queries do not push down partitionFilters.
-    makePartitionDirectories(addFiles)
+    val columnFilter = getColumnFilter(partitionFilters)
+    val implicits = params.spark.implicits
+    import implicits._
+    makePartitionDirectories(addFiles.toDS().filter(columnFilter).as[AddFile].collect())
   }
 }

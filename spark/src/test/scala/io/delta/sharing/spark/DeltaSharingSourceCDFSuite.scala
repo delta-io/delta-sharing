@@ -367,7 +367,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
     withTempDirs { (checkpointDir, outputDir) =>
       val query = withStreamReaderAtVersion(path = partitionTablePath, startingVersion = "1")
         .load()
-        .filter($"birthday" === "2020-01-01")
+        .filter($"birthday" === "2020-01-01" && $"age" === 2)
         .writeStream.format("parquet")
         .option("checkpointLocation", checkpointDir.getCanonicalPath)
         .start(outputDir.getCanonicalPath)
@@ -376,14 +376,13 @@ class DeltaSharingSourceCDFSuite extends QueryTest
         val progress = query.recentProgress.filter(_.numInputRows != 0)
         assert(progress.length === 1)
         progress.foreach { p =>
-          assert(p.numInputRows === 3)
+          assert(p.numInputRows === 2)
         }
       } finally {
         query.stop()
       }
 
       val expected = Seq(
-        Row("1", 1, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
         Row("2", 2, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
         Row("2", 2, sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage")
       )
