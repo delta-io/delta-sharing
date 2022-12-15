@@ -20,7 +20,7 @@ import java.lang.ref.WeakReference
 
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.delta.sharing.CachedTableManager
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Column, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal, SubqueryExpression}
@@ -91,6 +91,14 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
         }
     }.toSeq
   }
+
+  protected def getColumnFilter(partitionFilters: Seq[Expression]): Column = {
+    val rewrittenFilters = DeltaTableUtils.rewritePartitionFilters(
+      params.snapshotAtAnalysis.partitionSchema,
+      params.spark.sessionState.conf.resolver,
+      partitionFilters)
+    new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
+  }
 }
 
 // The index for processing files in a delta snapshot.
@@ -129,14 +137,6 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
   override def inputFiles: Array[String] = {
     actions.map(f => toDeltaSharingPath(f).toString).toArray
   }
-
-  override def listFiles(
-      partitionFilters: Seq[Expression],
-      dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
-    // We ignore partition filters for list files, since the delta sharing server already
-    // parforms this.
-    makePartitionDirectories(actions)
-  }
 }
 
 // The index classes for CDF file types.
@@ -147,7 +147,16 @@ private[sharing] case class RemoteDeltaCDFAddFileIndex(
     extends RemoteDeltaCDFFileIndexBase(
       params,
       addFiles,
-      CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile) {}
+      CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile) {
+  override def listFiles(
+    partitionFilters: Seq[Expression],
+    dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    val columnFilter = getColumnFilter(partitionFilters)
+    val implicits = params.spark.implicits
+    import implicits._
+    makePartitionDirectories(addFiles.toDS().filter(columnFilter).as[AddFileForCDF].collect())
+  }
+}
 
 private[sharing] case class RemoteDeltaCDCFileIndex(
     override val params: RemoteDeltaFileIndexParams,
@@ -155,7 +164,17 @@ private[sharing] case class RemoteDeltaCDCFileIndex(
     extends RemoteDeltaCDFFileIndexBase(
       params,
       cdfFiles,
-      CDFColumnInfo.getInternalPartitonSchemaForCDC) {}
+      CDFColumnInfo.getInternalPartitonSchemaForCDC) {
+
+  override def listFiles(
+    partitionFilters: Seq[Expression],
+    dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    val columnFilter = getColumnFilter(partitionFilters)
+    val implicits = params.spark.implicits
+    import implicits._
+    makePartitionDirectories(cdfFiles.toDS().filter(columnFilter).as[AddCDCFile].collect())
+  }
+}
 
 private[sharing] case class RemoteDeltaCDFRemoveFileIndex(
     override val params: RemoteDeltaFileIndexParams,
@@ -163,7 +182,16 @@ private[sharing] case class RemoteDeltaCDFRemoveFileIndex(
     extends RemoteDeltaCDFFileIndexBase(
       params,
       removeFiles,
-      CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile) {}
+      CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile) {
+  override def listFiles(
+    partitionFilters: Seq[Expression],
+    dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    val columnFilter = getColumnFilter(partitionFilters)
+    val implicits = params.spark.implicits
+    import implicits._
+    makePartitionDirectories(removeFiles.toDS().filter(columnFilter).as[RemoveFile].collect())
+  }
+}
 
 // The index classes for batch files
 private[sharing] case class RemoteDeltaBatchFileIndex(
@@ -181,8 +209,9 @@ private[sharing] case class RemoteDeltaBatchFileIndex(
   override def listFiles(
     partitionFilters: Seq[Expression],
     dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
-    // We ignore partition filters for list files, since the delta sharing server already
-    // parforms the filters.
-    makePartitionDirectories(addFiles)
+    val columnFilter = getColumnFilter(partitionFilters)
+    val implicits = params.spark.implicits
+    import implicits._
+    makePartitionDirectories(addFiles.toDS().filter(columnFilter).as[AddFile].collect())
   }
 }

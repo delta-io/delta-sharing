@@ -49,6 +49,13 @@ class DeltaSharingSourceSuite extends QueryTest
   // VERSION 3: UPDATE 1 row, 1 remove file and 1 add file
   lazy val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
 
+  // allowed to query starting from version 1
+  // VERSION 1: INSERT 3 rows, 3 add files
+  // VERSION 2: UPDATE 1 row, 1 cdf file
+  // VERSION 3: REMOVE 1 row, 1 remove file
+  lazy val partitionTablePath = testProfileFile.getCanonicalPath +
+    "#share8.default.cdf_table_with_partition"
+
   lazy val toNullTable = testProfileFile.getCanonicalPath +
       "#share8.default.streaming_notnull_to_null"
   lazy val toNotNullTable = testProfileFile.getCanonicalPath +
@@ -61,8 +68,10 @@ class DeltaSharingSourceSuite extends QueryTest
     DeltaSharingSource(SparkSession.active, deltaLog, options)
   }
 
-  def withStreamReaderAtVersion(startingVersion: String = "0"): DataStreamReader = {
-    spark.readStream.format("deltaSharing").option("path", tablePath)
+  def withStreamReaderAtVersion(
+      path: String = tablePath,
+      startingVersion: String = "0"): DataStreamReader = {
+    spark.readStream.format("deltaSharing").option("path", path)
       .option("startingVersion", startingVersion)
       .option("ignoreDeletes", "true")
       .option("ignoreChanges", "true")
@@ -322,6 +331,60 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
+  integrationTest("Stream filter - success") {
+    // no filters
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion(path = partitionTablePath, startingVersion = "1")
+        .load()
+        .writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 4)
+        }
+      } finally {
+        query.stop()
+      }
+
+      val expected = Seq(
+        Row("1", 1, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("3", 3, sqlDate("2020-03-03")),
+        Row("2", 2, sqlDate("2020-02-02"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+    }
+
+    // filter on birthday and age
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion(path = partitionTablePath, startingVersion = "1")
+        .load()
+        .filter($"birthday" === "2020-01-01" && $"age" === 2)
+        .writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 1)
+        }
+      } finally {
+        query.stop()
+      }
+
+      val expected = Seq(
+        Row("2", 2, sqlDate("2020-01-01"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+    }
+  }
+
   /**
    * Test Trigger.ProcessingTime
    */
@@ -505,7 +568,7 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   integrationTest("startingVersion - succeeds") {
-    var query = withStreamReaderAtVersion("1")
+    var query = withStreamReaderAtVersion(startingVersion = "1")
       .load().writeStream.format("console").start()
     try {
       query.processAllAvailable()
@@ -518,7 +581,7 @@ class DeltaSharingSourceSuite extends QueryTest
       query.stop()
     }
 
-    query = withStreamReaderAtVersion("2")
+    query = withStreamReaderAtVersion(startingVersion = "2")
       .load().writeStream.format("console").start()
     try {
       query.processAllAvailable()
@@ -531,7 +594,7 @@ class DeltaSharingSourceSuite extends QueryTest
       query.stop()
     }
 
-    query = withStreamReaderAtVersion("3")
+    query = withStreamReaderAtVersion(startingVersion = "3")
       .load().writeStream.format("console").start()
     try {
       query.processAllAvailable()
@@ -545,7 +608,7 @@ class DeltaSharingSourceSuite extends QueryTest
     }
 
     // there are 3 versions in total
-    query = withStreamReaderAtVersion("4")
+    query = withStreamReaderAtVersion(startingVersion = "4")
       .load().writeStream.format("console").start()
     try {
       query.processAllAvailable()
