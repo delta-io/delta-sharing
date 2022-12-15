@@ -96,7 +96,9 @@ private[sharing] case class Metadata(
     schemaString: String = null,
     configuration: Map[String, String] = Map.empty,
     partitionColumns: Seq[String] = Nil,
-    version: java.lang.Long = null) extends Action {
+    version: java.lang.Long = null,
+    size: java.lang.Long = null,
+    numFiles: java.lang.Long = null) extends Action {
   override def wrap: SingleAction = SingleAction(metaData = this)
 }
 
