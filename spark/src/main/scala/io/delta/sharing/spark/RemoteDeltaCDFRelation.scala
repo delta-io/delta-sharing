@@ -52,7 +52,7 @@ case class RemoteDeltaCDFRelation(
     filters: Array[Filter]): RDD[Row] = {
     val deltaTabelFiles = client.getCDFFiles(table, cdfOptions)
     val metadata = deltaTabelFiles.metadata
-    val params = RemoteDeltaFileIndexParams(spark, snapshotToUse)
+    val params = RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
     val dfs = ListBuffer[DataFrame]()
     val refs = ListBuffer[WeakReference[AnyRef]]()
 
@@ -70,7 +70,7 @@ case class RemoteDeltaCDFRelation(
     refs.append(new WeakReference(fileIndex3))
     dfs.append(scanIndex(fileIndex3, metadata))
     CachedTableManager.INSTANCE.register(
-      params.path.toString, getIdToUrl(deltaTabelFiles), refs, () => {
+      params.path.toString, getIdToUrl(deltaTabelFiles), refs, client.getProfileProvider, () => {
         getIdToUrl(client.getCDFFiles(table, cdfOptions))
       })
 

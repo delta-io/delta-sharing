@@ -17,7 +17,6 @@
 package io.delta.sharing.spark
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkFunSuite
 
 import io.delta.sharing.spark.model.{AddCDCFile, AddFile, AddFileForCDF, FileAction, RemoveFile}
@@ -26,7 +25,7 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
   import DeltaSharingFileSystem._
 
   test("encode and decode") {
-    val tablePath = new Path("https://delta.io/foo")
+    val tablePath = "https://delta.io/foo"
 
     val actions: Seq[FileAction] = Seq(
       AddFile("unused", "id", Map.empty, 100),
@@ -42,7 +41,7 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
   }
 
   test("file system should be cached") {
-    val tablePath = new Path("https://delta.io/foo")
+    val tablePath = "https://delta.io/foo"
     val actions: Seq[FileAction] = Seq(
       AddFile("unused", "id", Map.empty, 100),
       AddFileForCDF("unused_cdf", "id_cdf", Map.empty, 200, 1, 2),
