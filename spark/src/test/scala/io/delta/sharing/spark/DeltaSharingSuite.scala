@@ -24,6 +24,7 @@ import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{QueryTest, Row}
 import org.apache.spark.sql.catalyst.util.DateTimeUtils._
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{DateType, StringType, StructField, StructType, TimestampType}
@@ -113,6 +114,43 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     }
   }
 
+  integrationTest("cdf_table_with_partition: filter success") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_with_partition"
+
+    val expected = Seq(
+      Row("1", 1, sqlDate("2020-01-01")),
+      Row("2", 2, sqlDate("2020-02-02"))
+    )
+    val result = spark.read.format("deltaSharing").load(tablePath)
+    checkAnswer(result, expected)
+
+    // should work when filtering on partition columns
+    val filtered = spark.read.format("deltaSharing")
+      .load(tablePath)
+      .filter($"birthday" === "2020-01-01")
+
+    checkAnswer(
+      filtered,
+      Seq(
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+    )
+
+    // should work when filtering on non-partition columns
+    val filtered2 = spark.read.format("deltaSharing")
+      .load(tablePath)
+      .filter($"age" === "2")
+      .select("name", "birthday")
+
+    checkAnswer(
+      filtered2,
+      Seq(
+        Row("2", sqlDate("2020-02-02"))
+      )
+    )
+  }
+
+
   integrationTest("cdf_table_cdf_enabled query without version") {
     val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_cdf_enabled"
     val expected = Seq(
@@ -201,6 +239,123 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
         Row("update_preimage", sqlDate("2020-01-01"), 2),
         Row("update_postimage", sqlDate("2020-02-02"), 2),
         Row("delete", sqlDate("2020-01-01"), 3)
+      )
+    )
+  }
+
+  integrationTest("table_changes: cdf_table_with_partition") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.cdf_table_with_partition"
+
+    val expected = Seq(
+      Row("1", 1, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+      Row("2", 2, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+      Row("3", 3, sqlDate("2020-03-03"), 1L, 1651614980000L, "insert"),
+      Row("2", 2, sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage"),
+      Row("2", 2, sqlDate("2020-02-02"), 2L, 1651614986000L, "update_postimage"),
+      Row("3", 3, sqlDate("2020-03-03"), 3L, 1651614994000L, "delete")
+    )
+    val result = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3).load(tablePath)
+    checkAnswer(result, expected)
+
+    // should work when filtering on partition columns
+    val filtered = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3)
+      .load(tablePath)
+      .filter($"birthday" === "2020-01-01")
+
+    checkAnswer(
+      filtered,
+      Seq(
+        Row("1", 1, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+        Row("2", 2, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+        Row("2", 2, sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage")
+      )
+    )
+
+    // should work when filtering on non-partition columns
+    val filtered2 = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3)
+      .load(tablePath)
+      .filter($"age" === "2")
+      .select("name", "birthday", "_commit_version", "_commit_timestamp", "_change_type")
+
+    checkAnswer(
+      filtered2,
+      Seq(
+        Row("2", sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage"),
+        Row("2", sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+        Row("2", sqlDate("2020-02-02"), 2L, 1651614986000L, "update_postimage")
+      )
+    )
+
+    // should work when filtering on two columns
+    val filtered3 = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3)
+      .load(tablePath)
+      .filter($"age" === "2" && $"birthday" === "2020-01-01")
+      .select("name", "birthday", "_commit_version", "_commit_timestamp", "_change_type")
+
+    checkAnswer(
+      filtered3,
+      Seq(
+        Row("2", sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage"),
+        Row("2", sqlDate("2020-01-01"), 1L, 1651614980000L, "insert")
+      )
+    )
+
+    // should work when filtering on added cdf columns
+    val filtered4 = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3)
+      .load(tablePath)
+      .filter($"_commit_version" === "2")
+
+    checkAnswer(
+      filtered4,
+      Seq(
+        Row("2", 2, sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage"),
+        Row("2", 2, sqlDate("2020-02-02"), 2L, 1651614986000L, "update_postimage")
+      )
+    )
+
+    val filtered5 = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3)
+      .load(tablePath)
+      .filter(col("_change_type").like("%nser%"))
+
+    checkAnswer(
+      filtered5,
+      Seq(
+        Row("1", 1, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+        Row("2", 2, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+        Row("3", 3, sqlDate("2020-03-03"), 1L, 1651614980000L, "insert")
+      )
+    )
+
+    val filtered6 = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3)
+      .load(tablePath)
+      .filter(col("_change_type").contains("update"))
+
+    checkAnswer(
+      filtered6,
+      Seq(
+        Row("2", 2, sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage"),
+        Row("2", 2, sqlDate("2020-02-02"), 2L, 1651614986000L, "update_postimage")
       )
     )
   }
