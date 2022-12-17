@@ -400,9 +400,9 @@ def test_load_as_pandas_success(
         pytest.param(
             "share8.default.cdf_table_cdf_enabled",
             None,
-            "2000-01-01 00:00:00",
+            "2000-01-01T00:00:00Z",
             "Please use a timestamp greater",
-            id="timestap too early ",
+            id="timestamp too early ",
         ),
     ],
 )
@@ -488,7 +488,7 @@ def test_load_as_pandas_exception(
             "share8.default.cdf_table_cdf_enabled",
             None,
             None,
-            "2000-01-01 00:00:00",
+            "2000-01-01T00:00:00Z",
             None,
             "Please use a timestamp greater",
             pd.DataFrame({"not_used": []}),
@@ -499,7 +499,7 @@ def test_load_as_pandas_exception(
             0,
             None,
             None,
-            "2100-01-01 00:00:00",
+            "2100-01-01T00:00:00Z",
             "Please use a timestamp less",
             pd.DataFrame({"not_used": []}),
             id="cdf_table_cdf_enabled table changes with ending_timestamp",
@@ -617,7 +617,7 @@ def test_parse_url():
         pytest.param(
             "share8.default.cdf_table_cdf_enabled",
             None,
-            "2000-01-01 00:00:00",
+            "2000-01-01T00:00:00Z",
             "Please use a timestamp greater",
             [],
             "not-used-schema-str",
@@ -626,7 +626,7 @@ def test_parse_url():
         pytest.param(
             "share8.default.cdf_table_cdf_enabled",
             1,
-            "2000-01-01 00:00:00",
+            "2000-01-01T00:00:00Z",
             "Please either provide",
             [],
             "not-used-schema-str",
@@ -648,7 +648,7 @@ def test_load_as_spark(
         spark = SparkSession.builder \
             .appName("delta-sharing-test") \
             .master("local[*]") \
-            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:0.6.0-SNAPSHOT") \
+            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:1.0.0-SNAPSHOT") \
             .config("spark.delta.sharing.network.sslTrustAll", "true") \
             .getOrCreate()
 
@@ -698,7 +698,7 @@ def test_load_as_spark(
             "share8.default.cdf_table_cdf_enabled",
             None,
             None,
-            "2000-01-01 00:00:00",
+            "2000-01-01T00:00:00Z",
             None,
             "Please use a timestamp greater",
             [],
@@ -710,7 +710,7 @@ def test_load_as_spark(
             0,
             None,
             None,
-            "2100-01-01 00:00:00",
+            "2100-01-01T00:00:00Z",
             "Please use a timestamp less than",
             [],
             "unused-schema-str",
@@ -746,7 +746,7 @@ def test_load_table_changes_as_spark(
         spark = SparkSession.builder \
             .appName("delta-sharing-test") \
             .master("local[*]") \
-            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:0.6.0-SNAPSHOT") \
+            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:1.0.0-SNAPSHOT") \
             .config("spark.delta.sharing.network.sslTrustAll", "true") \
             .getOrCreate()
 

@@ -328,7 +328,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(deltaTableVersion == "2")
 
     // getTableVersion succeeds with parameters
-    url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=2000-01-01%2000:00:00")
+    url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=2000-01-01T00:00:00Z")
     connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestMethod("HEAD")
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
@@ -358,7 +358,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(deltaTableVersion == "2")
 
     // getTableVersion succeeds with parameters
-    url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/version?startingTimestamp=2000-01-01%2000:00:00")
+    url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/version?startingTimestamp=2000-01-01T00:00:00Z")
     connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestMethod("GET")
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
@@ -395,7 +395,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
     // timestamp after the latest version
     assertHttpError(
-      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=9999-01-01%2000:00:00"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=9999-01-01T00:00:00Z"),
       method = "HEAD",
       data = None,
       expectedErrorCode = 400,
@@ -426,7 +426,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
     // timestamp after the latest version
     assertHttpError(
-      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/version?startingTimestamp=9999-01-01%2000:00:00"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/version?startingTimestamp=9999-01-01T00:00:00-08:00"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -802,7 +802,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assertHttpError(
       url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
       method = "POST",
-      data = Some("""{"timestamp": "2000-01-01 00:00:00"}"""),
+      data = Some("""{"timestamp": "2000-01-01T00:00:00-08:00"}"""),
       expectedErrorCode = 400,
       expectedErrorMessage = "The provided timestamp (2000-01-01 00:00:00.0) is before the earliest version"
     )
@@ -811,14 +811,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assertHttpError(
       url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
       method = "POST",
-      data = Some("""{"timestamp": "9999-01-01 00:00:00"}"""),
+      data = Some("""{"timestamp": "9999-01-01T00:00:00-08:00"}"""),
       expectedErrorCode = 400,
       expectedErrorMessage = "The provided timestamp (9999-01-01 00:00:00.0) is after the latest version available"
     )
 
     // can only query table data since version 1
-    // 1651614979 PST: 2022-05-03T14:56:19.000+0000, version 1 is 1 second later
-    val tsStr = new Timestamp(1651614979000L).toString
+    // 1651614979 PST: 2022-05-03T14:56:19.000-08:00, version 1 is 1 second later
+    val tsStr = new Timestamp(1651614979000L).toInstant.toString
     assertHttpError(
       url = requestPath("/shares/share8/schemas/default/tables/cdf_table_with_partition/query"),
       method = "POST",
@@ -830,7 +830,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("cdf_table_cdf_enabled - timestamp on version 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
     // 1651272635000, PST: 2022-04-29 15:50:35.0 -> version 1
-    val tsStr = new Timestamp(1651272635000L).toString
+    val tsStr = new Timestamp(1651272635000L).toInstant.toString
     val p =
       s"""
          |{
@@ -1200,9 +1200,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("cdf_table_cdf_enabled_changes - timestamp works") {
     // 1651272616000, PST: 2022-04-29 15:50:16.0 -> version 0
-    val startStr = URLEncoder.encode(new Timestamp(1651272616000L).toString)
+    val startStr = new Timestamp(1651272616000L).toInstant.toString
     // 1651272660000, PST: 2022-04-29 15:51:00.0 -> version 3
-    val endStr = URLEncoder.encode(new Timestamp(1651272660000L).toString)
+    val endStr = new Timestamp(1651272660000L).toInstant.toString
 
     val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, Some(0))
     val lines = response.split("\n")
@@ -1557,7 +1557,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("cdf_table_cdf_enabled_changes - exceptions") {
     assertHttpError(
-      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=2000-01-01%2000:00:00"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=2000-01-01T00:00:00-08:00"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1565,7 +1565,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=9999-01-01%2000:00:00"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=9999-01-01T00:00:00-08:00"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
@@ -1581,7 +1581,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=1&startingTimestamp=2022-02-02%2000:00:00"),
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=1&startingTimestamp=2022-02-02T00:00:00Z"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
