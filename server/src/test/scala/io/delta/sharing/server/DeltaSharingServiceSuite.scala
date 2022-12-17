@@ -643,9 +643,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("cdf_table_cdf_enabled_changes: timestamp works") {
     // 1651272616000, PST: 2022-04-29 15:50:16.0
-    val startStr = URLEncoder.encode(new Timestamp(1651272616000L).toString)
+    val startStr = new Timestamp(1651272616000L).toInstant.toString
     // 1651272660000, PST: 2022-04-29 15:51:00.0
-    val endStr = URLEncoder.encode(new Timestamp(1651272660000L).toString)
+    val endStr = new Timestamp(1651272660000L).toInstant.toString
 
     val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingTimestamp=${startStr}&endingTimestamp=${endStr}"), Some("GET"), None, None)
     val lines = response.split("\n")
@@ -874,7 +874,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
 
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=1&startingTimestamp=2022-02-02%2000:00:00"),
+      url = requestPath("/shares/share1/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=1&startingTimestamp=2022-02-02T00:00:00Z"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,

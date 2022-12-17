@@ -573,7 +573,7 @@ def test_list_table_changes_with_timestamp(
     try:
         rest_client.list_table_changes(
             cdf_table,
-            CdfOptions(starting_timestamp="2000-05-03 00:00:00")
+            CdfOptions(starting_timestamp="2000-05-03T00:00:00Z")
         )
         assert False
     except Exception as e:
@@ -584,7 +584,7 @@ def test_list_table_changes_with_timestamp(
     try:
         rest_client.list_table_changes(
             cdf_table,
-            CdfOptions(starting_version=0, ending_timestamp="2100-05-03 00:00:00")
+            CdfOptions(starting_version=0, ending_timestamp="2100-05-03T00:00:00Z")
         )
         assert False
     except Exception as e:

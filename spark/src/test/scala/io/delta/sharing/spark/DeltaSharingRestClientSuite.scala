@@ -307,7 +307,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       // This is to test that timestamp is correctly passed to the server and parsed.
       // The error message is expected as we are using a timestamp much larger than the latest
       // version of the table.
-      val cdfOptions = Map("startingTimestamp" -> "2000-01-01 00:00:00")
+      val cdfOptions = Map("startingTimestamp" -> "2000-01-01T00:00:00Z")
       val errorMessage = intercept[UnexpectedHttpStatus] {
         val tableFiles = client.getCDFFiles(
           Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),
@@ -326,7 +326,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       // This is to test that timestamp is correctly passed to the server and parsed.
       // The error message is expected as we are using a timestamp much larger than the latest
       // version of the table.
-      val cdfOptions = Map("startingVersion" -> "0", "endingTimestamp" -> "2100-01-01 00:00:00")
+      val cdfOptions = Map("startingVersion" -> "0", "endingTimestamp" -> "2100-01-01T00:00:00Z")
       val errorMessage = intercept[UnexpectedHttpStatus] {
         val tableFiles = client.getCDFFiles(
           Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share1"),

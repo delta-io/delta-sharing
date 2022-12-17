@@ -24,10 +24,13 @@ import scala.collection.mutable
 import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.PreSignedUrlCache
 import org.apache.spark.sql.{SparkSession, SQLContext}
+import org.apache.spark.sql.catalyst.expressions.{Cast, Literal}
+import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.connector.catalog.{Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.expressions.Transform
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.TimestampType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /** A DataSource V1 for integrating Delta into Spark SQL batch APIs. */
@@ -50,16 +53,16 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
           DeltaSharingDataSource.CDF_START_VERSION_KEY)
       }
       if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY)) {
-        cdfOptions(DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY) = caseInsensitiveParams.get(
-          DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY)
+        cdfOptions(DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY) = getFormattedTimestamp(
+          caseInsensitiveParams.get(DeltaSharingDataSource.CDF_START_TIMESTAMP_KEY))
       }
       if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_END_VERSION_KEY)) {
         cdfOptions(DeltaSharingDataSource.CDF_END_VERSION_KEY) = caseInsensitiveParams.get(
           DeltaSharingDataSource.CDF_END_VERSION_KEY)
       }
       if (caseInsensitiveParams.containsKey(DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY)) {
-        cdfOptions(DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY) = caseInsensitiveParams.get(
-          DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY)
+        cdfOptions(DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY) = getFormattedTimestamp(
+          caseInsensitiveParams.get(DeltaSharingDataSource.CDF_END_TIMESTAMP_KEY))
       }
     }
 
@@ -74,6 +77,16 @@ private[sharing] class DeltaSharingDataSource extends RelationProvider with Data
     }
     val deltaLog = RemoteDeltaLog(path)
     deltaLog.createRelation(versionAsOf, cdfOptions = cdfOptions.toMap)
+  }
+
+  private def getFormattedTimestamp(str: String): String = {
+    val castResult = Cast(
+      Literal(str), TimestampType, Option(SQLConf.get.sessionLocalTimeZone)).eval()
+    if (castResult == null) {
+      throw new IllegalArgumentException(s"The provided timestamp ($str) cannot be converted to a" +
+        s" valid timestamp.")
+    }
+    DateTimeUtils.toJavaTimestamp(castResult.asInstanceOf[java.lang.Long]).toInstant.toString
   }
 
   override def shortName: String = "deltaSharing"

@@ -221,7 +221,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     val result1 = intercept[IllegalStateException] {
       val df = spark.read.format("deltaSharing")
         .option("readChangeFeed", "true")
-        .option("startingTimestamp", "2000-01-01 00:00:00").load(tablePath)
+        .option("startingTimestamp", "2000-01-01").load(tablePath)
       checkAnswer(df, Nil)
     }
     assert (result1.getMessage.contains("Please use a timestamp greater"))
@@ -231,7 +231,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       val df = spark.read.format("deltaSharing")
         .option("readChangeFeed", "true")
         .option("startingVersion", 0)
-        .option("endingTimestamp", "2100-01-01 00:00:00").load(tablePath)
+        .option("endingTimestamp", "2100-01-01").load(tablePath)
       checkAnswer(df, Nil)
     }
     assert (result2.getMessage.contains("Please use a timestamp less"))
