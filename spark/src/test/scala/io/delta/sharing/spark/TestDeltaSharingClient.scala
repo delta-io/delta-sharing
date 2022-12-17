@@ -31,7 +31,7 @@ import io.delta.sharing.spark.model.{
 import io.delta.sharing.spark.util.JsonUtils
 
 class TestDeltaSharingClient(
-    profileProvider: DeltaSharingProfileProvider = null,
+    profileProvider: DeltaSharingProfileProvider = new TestDeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
     sslTrustAll: Boolean = false) extends DeltaSharingClient {
@@ -90,9 +90,17 @@ class TestDeltaSharingClient(
     DeltaTableFiles(0, Protocol(0), metadata, Nil, addFiles, cdcFiles, removeFiles)
   }
 
+  override def getProfileProvider: DeltaSharingProfileProvider = profileProvider
+
   def clear(): Unit = {
     TestDeltaSharingClient.limits = Nil
   }
+}
+
+class TestDeltaSharingProfileProvider extends DeltaSharingProfileProvider {
+  override def getProfile: DeltaSharingProfile = null
+
+  override def getCustomTablePath(tablePath: String): String = "prefix." + tablePath
 }
 
 object TestDeltaSharingClient {

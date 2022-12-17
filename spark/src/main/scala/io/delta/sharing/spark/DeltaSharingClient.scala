@@ -55,6 +55,8 @@ private[sharing] trait DeltaSharingClient {
     versionAsOf: Option[Long]): DeltaTableFiles
 
   def getCDFFiles(table: Table, cdfOptions: Map[String, String]): DeltaTableFiles
+
+  def getProfileProvider: DeltaSharingProfileProvider = null
 }
 
 private[sharing] trait PaginationResponse {
@@ -109,6 +111,8 @@ private[spark] class DeltaSharingRestClient(
     created = true
     client
   }
+
+  override def getProfileProvider: DeltaSharingProfileProvider = profileProvider
 
   override def listAllTables(): Seq[Table] = {
     listShares().flatMap(listAllTablesInShare)

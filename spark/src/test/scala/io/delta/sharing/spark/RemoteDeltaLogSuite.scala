@@ -69,16 +69,16 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
     // check snapshot
     val snapshot = new RemoteSnapshot(new Path("test"), client, Table("fe", "fi", "fo"))
-    snapshot.filesForScan(Nil, Some(2L), null)
+    val fileIndex = {
+      val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
+      RemoteDeltaSnapshotFileIndex(params, Some(2L))
+    }
+    snapshot.filesForScan(Nil, Some(2L), fileIndex)
     assert(TestDeltaSharingClient.limits === Seq(2L))
     client.clear()
 
     // check RemoteDeltaSnapshotFileIndex
     val remoteDeltaLog = new RemoteDeltaLog(Table("fe", "fi", "fo"), new Path("test"), client)
-    val fileIndex = {
-      val params = RemoteDeltaFileIndexParams(spark, snapshot)
-      RemoteDeltaSnapshotFileIndex(params, Some(2L))
-    }
     fileIndex.listFiles(Seq.empty, Seq.empty)
     assert(TestDeltaSharingClient.limits === Seq(2L))
     client.clear()
@@ -91,7 +91,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
     // Create an index without limits.
     val fileIndex = {
-      val params = RemoteDeltaFileIndexParams(spark, snapshot)
+      val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
       RemoteDeltaSnapshotFileIndex(params, None)
     }
     assert(fileIndex.partitionSchema.isEmpty)
@@ -99,48 +99,48 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val listFilesResult = fileIndex.listFiles(Seq.empty, Seq.empty)
     assert(listFilesResult.size == 1)
     assert(listFilesResult(0).files.size == 4)
-    assert(listFilesResult(0).files(0).getPath.toString == "delta-sharing:/test/f1/0")
-    assert(listFilesResult(0).files(1).getPath.toString == "delta-sharing:/test/f2/0")
-    assert(listFilesResult(0).files(2).getPath.toString == "delta-sharing:/test/f3/0")
-    assert(listFilesResult(0).files(3).getPath.toString == "delta-sharing:/test/f4/0")
+    assert(listFilesResult(0).files(0).getPath.toString == "delta-sharing:/prefix.test/f1/0")
+    assert(listFilesResult(0).files(1).getPath.toString == "delta-sharing:/prefix.test/f2/0")
+    assert(listFilesResult(0).files(2).getPath.toString == "delta-sharing:/prefix.test/f3/0")
+    assert(listFilesResult(0).files(3).getPath.toString == "delta-sharing:/prefix.test/f4/0")
     client.clear()
 
     val inputFileList = fileIndex.inputFiles.toList
     assert(inputFileList.size == 4)
-    assert(inputFileList(0) == "delta-sharing:/test/f1/0")
-    assert(inputFileList(1) == "delta-sharing:/test/f2/0")
-    assert(inputFileList(2) == "delta-sharing:/test/f3/0")
-    assert(inputFileList(3) == "delta-sharing:/test/f4/0")
+    assert(inputFileList(0) == "delta-sharing:/prefix.test/f1/0")
+    assert(inputFileList(1) == "delta-sharing:/prefix.test/f2/0")
+    assert(inputFileList(2) == "delta-sharing:/prefix.test/f3/0")
+    assert(inputFileList(3) == "delta-sharing:/prefix.test/f4/0")
 
     // Test indices with limits.
 
     val fileIndexLimit1 = {
-      val params = RemoteDeltaFileIndexParams(spark, snapshot)
+      val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
       RemoteDeltaSnapshotFileIndex(params, Some(1L))
     }
     val listFilesResult1 = fileIndexLimit1.listFiles(Seq.empty, Seq.empty)
     assert(listFilesResult1.size == 1)
     assert(listFilesResult1(0).files.size == 1)
-    assert(listFilesResult1(0).files(0).getPath.toString == "delta-sharing:/test/f1/0")
+    assert(listFilesResult1(0).files(0).getPath.toString == "delta-sharing:/prefix.test/f1/0")
     client.clear()
 
     // The input files are never limited.
     val inputFileList1 = fileIndexLimit1.inputFiles.toList
     assert(inputFileList1.size == 4)
-    assert(inputFileList1(0) == "delta-sharing:/test/f1/0")
-    assert(inputFileList1(1) == "delta-sharing:/test/f2/0")
-    assert(inputFileList1(2) == "delta-sharing:/test/f3/0")
-    assert(inputFileList1(3) == "delta-sharing:/test/f4/0")
+    assert(inputFileList1(0) == "delta-sharing:/prefix.test/f1/0")
+    assert(inputFileList1(1) == "delta-sharing:/prefix.test/f2/0")
+    assert(inputFileList1(2) == "delta-sharing:/prefix.test/f3/0")
+    assert(inputFileList1(3) == "delta-sharing:/prefix.test/f4/0")
 
     val fileIndexLimit2 = {
-      val params = RemoteDeltaFileIndexParams(spark, snapshot)
+      val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
       RemoteDeltaSnapshotFileIndex(params, Some(2L))
     }
     val listFilesResult2 = fileIndexLimit2.listFiles(Seq.empty, Seq.empty)
     assert(listFilesResult2.size == 1)
     assert(listFilesResult2(0).files.size == 2)
-    assert(listFilesResult2(0).files(0).getPath.toString == "delta-sharing:/test/f1/0")
-    assert(listFilesResult2(0).files(1).getPath.toString == "delta-sharing:/test/f2/0")
+    assert(listFilesResult2(0).files(0).getPath.toString == "delta-sharing:/prefix.test/f1/0")
+    assert(listFilesResult2(0).files(1).getPath.toString == "delta-sharing:/prefix.test/f2/0")
     client.clear()
   }
 
@@ -152,7 +152,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val client = new TestDeltaSharingClient()
     val remoteDeltaLog = new RemoteDeltaLog(table, path, client)
     val snapshot = new RemoteSnapshot(path, client, table)
-    val params = RemoteDeltaFileIndexParams(spark, snapshot)
+    val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
 
     val deltaTableFiles = client.getCDFFiles(table, Map.empty)
 
@@ -169,11 +169,12 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val addListFilesResult = addFilesIndex.listFiles(Seq.empty, Seq.empty)
     assert(addListFilesResult.size == 1)
     assert(addListFilesResult(0).files.size == 1)
-    assert(addListFilesResult(0).files(0).getPath.toString == "delta-sharing:/test/cdf_add1/100")
+    assert(addListFilesResult(0).files(0).getPath.toString ==
+      "delta-sharing:/prefix.test/cdf_add1/100")
 
     val addInputFileList = addFilesIndex.inputFiles.toList
     assert(addInputFileList.size == 1)
-    assert(addInputFileList(0) == "delta-sharing:/test/cdf_add1/100")
+    assert(addInputFileList(0) == "delta-sharing:/prefix.test/cdf_add1/100")
 
     val cdcIndex = new RemoteDeltaCDCFileIndex(params, deltaTableFiles)
 
@@ -195,16 +196,16 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       (cdcListFilesResult(1), cdcListFilesResult(0))
     }
     assert(cdcP1.files.size == 1)
-    assert(cdcP1.files(0).getPath.toString == "delta-sharing:/test/cdf_cdc1/200")
+    assert(cdcP1.files(0).getPath.toString == "delta-sharing:/prefix.test/cdf_cdc1/200")
     assert(cdcP2.files.size == 2)
-    assert(cdcP2.files(0).getPath.toString == "delta-sharing:/test/cdf_cdc2/300")
-    assert(cdcP2.files(1).getPath.toString == "delta-sharing:/test/cdf_cdc3/310")
+    assert(cdcP2.files(0).getPath.toString == "delta-sharing:/prefix.test/cdf_cdc2/300")
+    assert(cdcP2.files(1).getPath.toString == "delta-sharing:/prefix.test/cdf_cdc3/310")
 
     val cdcInputFileList = cdcIndex.inputFiles.toList
     assert(cdcInputFileList.size == 3)
-    assert(cdcInputFileList(0) == "delta-sharing:/test/cdf_cdc1/200")
-    assert(cdcInputFileList(1) == "delta-sharing:/test/cdf_cdc2/300")
-    assert(cdcInputFileList(2) == "delta-sharing:/test/cdf_cdc3/310")
+    assert(cdcInputFileList(0) == "delta-sharing:/prefix.test/cdf_cdc1/200")
+    assert(cdcInputFileList(1) == "delta-sharing:/prefix.test/cdf_cdc2/300")
+    assert(cdcInputFileList(2) == "delta-sharing:/prefix.test/cdf_cdc3/310")
 
     val removeFilesIndex = new RemoteDeltaCDFRemoveFileIndex(params, deltaTableFiles)
 
@@ -225,16 +226,16 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val p2 = removeListFilesResult(1)
     assert(p2.files.size == 1)
     assert(
-      (p1.files(0).getPath.toString == "delta-sharing:/test/cdf_rem1/400" &&
-      p2.files(0).getPath.toString == "delta-sharing:/test/cdf_rem2/420") ||
-      (p2.files(0).getPath.toString == "delta-sharing:/test/cdf_rem1/400" &&
-      p1.files(0).getPath.toString == "delta-sharing:/test/cdf_rem2/420")
+      (p1.files(0).getPath.toString == "delta-sharing:/prefix.test/cdf_rem1/400" &&
+      p2.files(0).getPath.toString == "delta-sharing:/prefix.test/cdf_rem2/420") ||
+      (p2.files(0).getPath.toString == "delta-sharing:/prefix.test/cdf_rem1/400" &&
+      p1.files(0).getPath.toString == "delta-sharing:/prefix.test/cdf_rem2/420")
     )
 
     val removeInputFileList = removeFilesIndex.inputFiles.toList
     assert(removeInputFileList.size == 2)
-    assert(removeInputFileList(0) == "delta-sharing:/test/cdf_rem1/400")
-    assert(removeInputFileList(1) == "delta-sharing:/test/cdf_rem2/420")
+    assert(removeInputFileList(0) == "delta-sharing:/prefix.test/cdf_rem1/400")
+    assert(removeInputFileList(1) == "delta-sharing:/prefix.test/cdf_rem2/420")
   }
 
   test("Limit pushdown test") {
