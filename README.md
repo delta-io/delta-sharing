@@ -23,6 +23,62 @@ This repo includes the following components:
 - [Apache Spark](http://spark.apache.org/) Connector: An Apache Spark connector that implements the Delta Sharing Protocol to read shared tables from a Delta Sharing Server. The tables can then be accessed in SQL, Python, Java, Scala, or R.
 - Delta Sharing Server: A reference implementation server for the Delta Sharing Protocol for development purposes. Users can deploy this server to share existing tables in Delta Lake and Apache Parquet format on modern cloud storage systems.
 
+## Feature List
+Here is the list of releases and noteble features from each release, please check [release notes](https://github.com/delta-io/delta-sharing/releases) for more details. 
+<table>
+<tr>
+<th>Release</th>
+<th>Features</th>
+</tr>
+<tr>
+<td>0.1.0</td>
+<td>Python Connector and Spark Connector and a reference implementation of the delta sharing server, supporting the following features:
+ 
+ - query table version.
+ - query table metadata.
+ - query data from a table.
+</td>
+</tr>
+<tr>
+<td>0.2.0</td>
+<td>
+
+- Added the conf directory to the Delta Sharing Server classpath to allow users to add their Hadoop configuration files in the directory.
+- Added retry with exponential backoff for REST requests in the Python connector.
+</td>
+</tr>
+<tr>
+<td>0.3.0</td>
+<td>
+ 
+- Apache Spark Connector will refresh/re-fetch pre-signed urls before they expire to support long running queries.
+- Add a User-Agent header to request sent from Apache Spark Connector and Python.
+- Support Azure Blob Storage and Azure Data Lake Gen2 in Delta Sharing Server.
+- Support limit pushdown from python/spark connector to the delta sharing server.
+</td>
+</tr>
+<tr>
+<td>0.4.0</td>
+<td>
+ Support Google Cloud Storage on Delta Sharing Server.
+</td>
+</tr>
+<tr>
+<td>0.5.0</td>
+<td>
+
+- Support sharing and querying the historical version of a table.
+- Support for Change Data Feed which allows clients to fetch incremental changes for the shared tables.
+</td>
+</tr>
+<tr>
+<td>0.6.0</td>
+<td>
+Support using delta sharing table as a source in spark structured streaming, both cdf and non-cdf streaming are supported.   
+</td>
+</tr>
+
+</table>
 
 # Python Connector
 
@@ -80,6 +136,16 @@ delta_sharing.load_as_pandas(table_url)
 delta_sharing.load_as_spark(table_url)
 ```
 
+If the table support history sharing, you can query the connector to query table changes.
+```python
+# Load table changes from version 0 to version 5, as a Pandas DataFrame.
+delta_sharing.load_table_changes_as_pandas(table_url, starting_version=0, ending_version=5)
+
+# If the code is running with PySpark, you can load table changes as Spark DataFrame.
+delta_sharing.load_table_changes_as_spark(table_url, starting__version=0, ending_version=5)
+```
+  
+
 You can try this by running our [examples](examples/README.md) with the open, example Delta Sharing Server.
 
 ### Details on Profile Paths
@@ -100,7 +166,7 @@ The Apache Spark Connector implements the [Delta Sharing Protocol](PROTOCOL.md) 
 
 ## Accessing Shared Data
 
-The connector loads user credentials from profile files. Please see [Download the share profile file](#download-the-share-profile-file) to download a profile file for our example server or for your own data sharing server.
+The connector loads user credentials from profile files. Please see [Accessing Shared Data](#accessing-shared-data) to download a profile file for our example server or for your own data sharing server.
 
 ## Configuring Apache Spark
 
@@ -118,13 +184,13 @@ To use Delta Sharing connector interactively within the Spark’s Scala/Python s
 #### PySpark shell
 
 ```
-pyspark --packages io.delta:delta-sharing-spark_2.12:0.5.0
+pyspark --packages io.delta:delta-sharing-spark_2.12:0.6.1
 ```
 
 #### Scala Shell
 
 ```
-bin/spark-shell --packages io.delta:delta-sharing-spark_2.12:0.5.0
+bin/spark-shell --packages io.delta:delta-sharing-spark_2.12:0.6.1
 ```
 
 ### Set up a standalone project
@@ -139,7 +205,7 @@ You include Delta Sharing connector in your Maven project by adding it as a depe
 <dependency>
   <groupId>io.delta</groupId>
   <artifactId>delta-sharing-spark_2.12</artifactId>
-  <version>0.5.0</version>
+  <version>0.6.1</version>
 </dependency>
 ```
 
@@ -148,7 +214,7 @@ You include Delta Sharing connector in your Maven project by adding it as a depe
 You include Delta Sharing connector in your SBT project by adding the following line to your `build.sbt` file:
 
 ```scala
-libraryDependencies += "io.delta" %% "delta-sharing-spark" % "0.5.0"
+libraryDependencies += "io.delta" %% "delta-sharing-spark" % "0.6.1"
 ```
 
 ## Quick Start
@@ -200,10 +266,142 @@ df <- read.df(table_path, "deltaSharing")
 
 You can try this by running our [examples](examples/README.md) with the open, example Delta Sharing Server.
 
+### CDF 
+Starting from release 0.5.0, querying [Change Data Feed](https://docs.databricks.com/delta/delta-change-data-feed.html) is supported with delta sharing.
+The provider can turn on the CDF on the original delta table, and share it in delta sharing. Once CDF is shared, the recipient can query
+CDF of a delta sharing table in a similar way of a delta table:
+```scala
+val tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
+val df = spark.read.format("deltaSharing")
+  .option("readChangeFeed", "true")
+  .option("startingVersion", "3")
+  .load(tablePath)
+```
+
+### Streaming
+Starting from release 0.6.0, delta sharing table can be used as the data source for [spark structured streaming](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html).
+The provider can share the table with history, then the recipient can streaming query the table:
+```scala
+val tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
+val df = spark.readStream.format("deltaSharing")
+  .option("startingVersion", "1")
+  .option("ignoreChanges", "true")
+  .load(tablePath)
+```
+
 ### Table paths
 
 - A profile file path can be any URL supported by Hadoop FileSystem (such as `s3a://my_bucket/my/profile/file`).
 - A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
+
+# Other Connectors
+<table>
+<tr>
+<th>Connector</th>
+<th>GitHub Link</th>
+<th>Status</th>
+<th>Supported Features</th>
+</tr>
+<tr>
+<td>Power BI</td>
+<td>Databricks owned</td>
+<td>Released</td>
+<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+</tr>
+<tr>
+<td>Node.js</td>
+<td>
+
+[goodwillpunning/nodejs-sharing-client](https://github.com/goodwillpunning/nodejs-sharing-client)
+</td>
+<td>Released</td>
+<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+</tr>
+<tr>
+<td>Java</td>
+<td>
+
+[databrickslabs/delta-sharing-java-connector](https://github.com/databrickslabs/delta-sharing-java-connector)
+</td>
+<td>Released</td>
+<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+</tr>
+<tr>
+<td>Arcuate</td>
+<td>
+
+[databrickslabs/arcuate](https://github.com/databrickslabs/arcuate)
+</td>
+<td>Released</td>
+<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+</tr>
+<tr>
+<td>Rust</td>
+<td>
+
+[r3stl355/delta-sharing-rust-client](https://github.com/r3stl355/delta-sharing-rust-client)
+</td>
+<td>Released</td>
+<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+</tr>
+<tr>
+<td>Go</td>
+<td>
+
+[magpierre/delta-sharing](https://github.com/magpierre/delta-sharing/tree/golangdev/golang/delta_sharing_go)
+</td>
+<td>Un-released</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>C++</td>
+<td>
+
+[magpierre/delta-sharing](https://github.com/magpierre/delta-sharing/tree/golangdev/golang/delta_sharing_go)
+</td>
+<td>Un-released</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>Airflow</td>
+<td>
+
+[apache/airflow](https://github.com/apache/airflow/pull/22692)
+</td>
+<td>Un-released</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>Excel-Connector</td>
+<td>TBD</td>
+<td>In-Progress, ETA 2023 Q1</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>R</td>
+<td>TBD</td>
+<td>In-Progress</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>BigQuery</td>
+<td>TBD</td>
+<td>In-Progress</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>Athena</td>
+<td>TBD</td>
+<td>Not started</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>Trino/Starburst</td>
+<td>TBD</td>
+<td>Design discussion</td>
+<td>N/A</td>
+</tr>
+</table>
 
 # Delta Sharing Reference Server
 
@@ -332,7 +530,7 @@ You can use the pre-built docker image from https://hub.docker.com/r/deltaio/del
 ```
 docker run -p <host-port>:<container-port> \
   --mount type=bind,source=<the-server-config-yaml-file>,target=/config/delta-sharing-server-config.yaml \
-  deltaio/delta-sharing-server:0.5.0 -- --config /config/delta-sharing-server-config.yaml
+  deltaio/delta-sharing-server:0.6.1 -- --config /config/delta-sharing-server-config.yaml
 ```
 
 Note that `<container-port>` should be the same as the port defined inside the config file.
