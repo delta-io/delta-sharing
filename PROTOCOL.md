@@ -1371,7 +1371,7 @@ Query Parameters | **startingTimestamp** (type: String, optional): The startingT
 
 Example:
 
-`GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/version
+`GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/version`
 
 ```
 HTTP/2 200 
