@@ -1174,7 +1174,7 @@ Example:
 
 This is the API for clients to get a table version without any other extra information. The server usually can implement this API effectively. If a client caches information about a shared table locally, it can store the table version and use this cheap API to quickly check whether their cache is stale and they should re-fetch the data.
 
-Note: We are migrating this method from HEAD to GET, and with a `/version` suffix. Please use the new API as we'll be deprecating the support of HEAD API soon. 
+Note: We are migrating this method from HEAD to GET, and with a `/version` suffix. Please use the new API as we'll deprecate the support of HEAD API soon. 
 
 HTTP Request | Value
 -|-
@@ -1371,7 +1371,7 @@ Query Parameters | **startingTimestamp** (type: String, optional): The startingT
 
 Example:
 
-`GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/version?startingTimestamp=2022-12-01%2000:00:00`
+`GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/version
 
 ```
 HTTP/2 200 
@@ -1996,13 +1996,6 @@ The change data feed represents row-level changes between versions of a Delta ta
  **includeHistoricalMetadata**(type: Boolean, optional): If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible.</td>
 </tr>
 </table>
-HTTP Request | Value
--|-
-Method | `GET`
-Header | `Authorization: Bearer {token}`
-URL | `{prefix}/shares/{share}/schemas/{schema}/tables/{table}/changes`
-URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.<br>**{table}**: The table name to query. It's case-insensitive.
-Query Parameters | **startingVersion** (type: Int64, optional): The starting version of the query, inclusive. <br> **startingTimestamp** (type: String, optional): The starting timestamp of the query, will be converted to a version created greater or equal to this timestamp. <br> **endingVersion** (type: Int64, optional): The ending version of the query, inclusive. <br> **endingTimestamp** (type: String, optional): The ending timestamp of the query, will be converted to a version created earlier or equal to this timestamp.
 
 <details open>
 <summary><b>200: The change data feed was successfully returned.</b></summary>
@@ -2312,9 +2305,9 @@ format | [Format](#format) Object | Specification of the encoding for the files 
 schemaString | String | Schema of the table. This is a serialized JSON string which can be deserialized to a [Schema](#schema-object) Object. | Required
 partitionColumns | Array<String> | An array containing the names of columns by which the data should be partitioned. When a table doesn’t have partition columns, this will be an **empty** array. | Required
 configuration | Map[String, String] | A map containing configuration options for the table
-version | Long | The table version the metadata corresponds to. | Optional
-size | Long | The size of the table in bytes. | Optional 
-numFiles | Long | The number of files in the table. | Optional
+version | Long | The table version the metadata corresponds to, returned when querying table data with a version or timestamp parameter, or cdf query with includeHistoricalMetadata set to true. | Optional
+size | Long | The size of the table in bytes, will be returned if available in the delta log. | Optional 
+numFiles | Long | The number of files in the table, will be returned if available in the delta log. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -2347,8 +2340,8 @@ id | String | A unique string for the file in a table. The same file is guarante
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 stats | String | Contains statistics (e.g., count, min/max values for columns) about the data in this file. This field may be missing. A file may or may not have stats. This is a serialized JSON string which can be deserialized to a [Statistics Struct](#per-file-statistics). A client can decide whether to use stats or drop it. | Optional
-version | Long | The table version of the file, returned when querying a version snapshot of a table. | Optional
-timestamp | Long | The unix timestamp corresponding to the table version of the file, in milliseconds. Returned when querying a version snapshot of a table | Optional
+version | Long | The table version of the file, returned when querying a table data with a version or timestamp parameter. | Optional
+timestamp | Long | The unix timestamp corresponding to the table version of the file, in milliseconds, returned when querying a table data with a version or timestamp parameter. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
