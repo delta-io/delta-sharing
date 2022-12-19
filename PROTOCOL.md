@@ -21,7 +21,7 @@
     - [Protocol](#protocol)
     - [Metadata](#metadata)
     - [File](#file)
-    - [CDF Files](#cdf-files)
+    - [Data Change Files](#data-change-files)
     - [Format](#format)
     - [Schema Object](#schema-object)
       - [Struct Type](#struct-type)
@@ -1651,7 +1651,7 @@ This is the API for clients to read data from a table.
 </td>
 </tr>
 <tr>
-<td>Body</td>
+<td>Body (an example)</td>
 <td>
 
 ```json
@@ -1703,7 +1703,9 @@ A sequence of JSON strings delimited by newline. Each line is a JSON object defi
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
-- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [files](#file) in the table.
+- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for 
+  - either [data change files](#data-change-files) with possible historical [Metadata](#metadata) (when startingVersion is set).
+  - or [files](#file) in the table (otherwise).
 
 </td>
 </tr>
@@ -1879,7 +1881,11 @@ The request body should be a JSON string containing the following two optional f
 - **limitHint** (type: Int32, optional): an optional limit number. It’s a hint from the client to tell the server how many rows in the table the client plans to read. The server can use this hint to return only some files by using the file stats. For example, when running `SELECT * FROM table LIMIT 1000`, the client can set `limitHint` to `1000`.
   - Applying `limitHint` is **BEST EFFORT**. The server may return files containing more rows than the client requests.
 
-- **version** (type: Int64, optional): an optional version number. If set, will return files as of the specified version of the table. This is only supported on tables with change data feed (cdf) enabled. 
+- **version** (type: Int64, optional): an optional version number. If set, will return files as of the specified version of the table. This is only supported on tables with history sharing enabled.
+
+- **timestamp** (type: String, optional): an optional timestamp string. If set, will return files as of the table version corresponding to the specified timestamp. This is only supported on tables with history sharing enabled.
+
+- **startingVersion** (type: Int64, optional): an optional version number. If set, will return all data change files since startingVersion, including historical metadata if seen in the delta log.
 
 When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
@@ -1958,7 +1964,38 @@ The change data feed represents row-level changes between versions of a Delta ta
 - _commit_version (type: Long): The table version containing the change.
 - _commit_timestamp (type: String): The timestap associated when the commit of the change was created, in the format "yyyy-mm-dd hh:mm:ss".
 
-
+<table>
+<tr>
+<th>HTTP Request</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Method</td>
+<td>`GET`</td>
+</tr>
+<tr>
+<td>Header</td>
+<td>`Authorization: Bearer {token}`</td>
+</tr>
+<tr>
+<td>URL</td>
+<td>`{prefix}/shares/{share}/schemas/{schema}/tables/{table}/changes`</td>
+</tr>
+<tr>
+<td>URL Parameters</td>
+<td>**{share}**: The share name to query. It's case-insensitive.<br>
+**{schema}**: The schema name to query. It's case-insensitive.<br>
+**{table}**: The table name to query. It's case-insensitive.</td>
+</tr>
+<tr>
+<td>Query Parameters</td>
+<td>**startingVersion** (type: Int64, optional): The starting version of the query, inclusive. <br>
+ **startingTimestamp** (type: String, optional): The starting timestamp of the query, will be converted to a version created greater or equal to this timestamp. <br>
+ **endingVersion** (type: Int64, optional): The ending version of the query, inclusive. <br>
+ **endingTimestamp** (type: String, optional): The ending timestamp of the query, will be converted to a version created earlier or equal to this timestamp. <br>
+ **includeHistoricalMetadata**(type: Boolean, optional): If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible.</td>
+</tr>
+</table>
 HTTP Request | Value
 -|-
 Method | `GET`
@@ -1996,7 +2033,8 @@ A sequence of JSON strings delimited by newline. Each line is a JSON object defi
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
-- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [CDF files](#cdf-files) of the change data feed.
+- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [Data Change Files](#data-change-files) of the change data feed.
+- Historical [Metadata](#metadata) will be returned if includeHistoricalMetadata is set to true.
 
 </td>
 </tr>
@@ -2274,6 +2312,7 @@ format | [Format](#format) Object | Specification of the encoding for the files 
 schemaString | String | Schema of the table. This is a serialized JSON string which can be deserialized to a [Schema](#schema-object) Object. | Required
 partitionColumns | Array<String> | An array containing the names of columns by which the data should be partitioned. When a table doesn’t have partition columns, this will be an **empty** array. | Required
 configuration | Map[String, String] | A map containing configuration options for the table
+version | Long | The table version the metadata corresponds to. | Optional
 size | Long | The size of the table in bytes. | Optional 
 numFiles | Long | The number of files in the table. | Optional
 
@@ -2308,6 +2347,8 @@ id | String | A unique string for the file in a table. The same file is guarante
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 stats | String | Contains statistics (e.g., count, min/max values for columns) about the data in this file. This field may be missing. A file may or may not have stats. This is a serialized JSON string which can be deserialized to a [Statistics Struct](#per-file-statistics). A client can decide whether to use stats or drop it. | Optional
+version | Long | The table version of the file, returned when querying a version snapshot of a table. | Optional
+timestamp | Long | The unix timestamp corresponding to the table version of the file, in milliseconds. Returned when querying a version snapshot of a table | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -2325,7 +2366,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 }
 ```
 
-### CDF Files
+### Data Change Files
 
 #### Add File
 Field Name | Data Type | Description | Optional/Required
