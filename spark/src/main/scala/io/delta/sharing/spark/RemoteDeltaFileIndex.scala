@@ -77,6 +77,8 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
   // A helper function to create partition directories from the specified actions.
   protected def makePartitionDirectories(actions: Seq[FileAction]): Seq[PartitionDirectory] = {
     val timeZone = params.spark.sessionState.conf.sessionLocalTimeZone
+    // The getPartitionValuesInDF function is idempotent, and calling it multiple times does not
+    // change its output.
     actions.groupBy(_.getPartitionValuesInDF()).map {
       case (partitionValues, files) =>
         val rowValues: Array[Any] = partitionSchema.map { p =>
