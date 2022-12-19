@@ -155,6 +155,7 @@ private[sharing] case class AddFileForCDF(
 
   override def getPartitionValuesInDF(): Map[String, String] = {
     // The scala map operation "+" will override values of existing keys.
+    // So the function is idempotent, and calling it multiple times does not change its output.
     partitionValues +
     (CDFColumnInfo.commit_version_col_name -> version.toString) +
     (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString) +
@@ -174,6 +175,8 @@ private[sharing] case class AddCDCFile(
   override def wrap: SingleAction = SingleAction(cdf = this)
 
   override def getPartitionValuesInDF(): Map[String, String] = {
+    // The scala map operation "+" will override values of existing keys.
+    // So the function is idempotent, and calling it multiple times does not change its output.
     partitionValues +
     (CDFColumnInfo.commit_version_col_name -> version.toString) +
     (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString)
@@ -192,6 +195,8 @@ private[sharing] case class RemoveFile(
   override def wrap: SingleAction = SingleAction(remove = this)
 
   override def getPartitionValuesInDF(): Map[String, String] = {
+    // The scala map operation "+" will override values of existing keys.
+    // So the function is idempotent, and calling it multiple times does not change its output.
     partitionValues +
     (CDFColumnInfo.commit_version_col_name -> version.toString) +
     (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString) +
