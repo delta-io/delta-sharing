@@ -86,6 +86,10 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
 
   def isTimeTravel: Boolean = versionAsOf.isDefined || timestampAsOf.isDefined
 
+  // Parse the input timestamp string and TimestampType, and generate a formatted timestamp string
+  // in the ISO8601 format, in the UTC timezone, such as 2022-01-01T00:00:00Z.
+  // The input string is quite flexible, examples of accepted format: "2022", "2022-01-01",
+  // "2022-01-01 00:00:00" "2022-01-01T00:00:00-08:00", etc.
   private def getFormattedTimestamp(str: String): String = {
     val castResult = Cast(
     Literal(str), TimestampType, Option(SQLConf.get.sessionLocalTimeZone)).eval()
