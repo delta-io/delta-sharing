@@ -130,7 +130,6 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
     auxPartitionSchema: Map[String, DataType] = Map.empty)
     extends RemoteDeltaFileIndexBase(params) {
 
-  // TODO: linzhou, update this
   override def partitionSchema: StructType = {
     DeltaTableUtils.updateSchema(params.snapshotAtAnalysis.partitionSchema, auxPartitionSchema)
   }
@@ -152,6 +151,9 @@ private[sharing] case class RemoteDeltaCDFAddFileIndex(
   override def listFiles(
     partitionFilters: Seq[Expression],
     dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    // Need to apply getPartitionValuesInDF to each file, to be consistent with
+    // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
+    // applied.
     val updatedFiles = addFiles.map { a =>
       AddFileForCDF(a.url, a.id, a.getPartitionValuesInDF, a.size, a.version, a.timestamp, a.stats)
     }
@@ -173,6 +175,9 @@ private[sharing] case class RemoteDeltaCDCFileIndex(
   override def listFiles(
     partitionFilters: Seq[Expression],
     dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    // Need to apply getPartitionValuesInDF to each file, to be consistent with
+    // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
+    // applied.
     val updatedFiles = cdfFiles.map { c =>
       AddCDCFile(c.url, c.id, c.getPartitionValuesInDF, c.size, c.version, c.timestamp)
     }
@@ -193,6 +198,9 @@ private[sharing] case class RemoteDeltaCDFRemoveFileIndex(
   override def listFiles(
     partitionFilters: Seq[Expression],
     dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    // Need to apply getPartitionValuesInDF to each file, to be consistent with
+    // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
+    // applied.
     val updatedFiles = removeFiles.map { r =>
       RemoveFile(r.url, r.id, r.getPartitionValuesInDF, r.size, r.version, r.timestamp)
     }
