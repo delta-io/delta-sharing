@@ -1971,29 +1971,46 @@ The change data feed represents row-level changes between versions of a Delta ta
 </tr>
 <tr>
 <td>Method</td>
-<td>`GET`</td>
+<td>
+ 
+`GET`
+ 
+</td>
 </tr>
 <tr>
 <td>Header</td>
-<td>`Authorization: Bearer {token}`</td>
+<td>
+
+`Authorization: Bearer {token}`
+
+</td>
 </tr>
 <tr>
 <td>URL</td>
-<td>`{prefix}/shares/{share}/schemas/{schema}/tables/{table}/changes`</td>
+<td>
+
+`{prefix}/shares/{share}/schemas/{schema}/tables/{table}/changes`
+
+</td>
 </tr>
 <tr>
 <td>URL Parameters</td>
-<td>**{share}**: The share name to query. It's case-insensitive.<br>
+<td>
+
+**{share}**: The share name to query. It's case-insensitive.<br>
 **{schema}**: The schema name to query. It's case-insensitive.<br>
-**{table}**: The table name to query. It's case-insensitive.</td>
+**{table}**: The table name to query. It's case-insensitive.
+</td>
 </tr>
 <tr>
 <td>Query Parameters</td>
-<td>**startingVersion** (type: Int64, optional): The starting version of the query, inclusive. <br>
+<td>
+
+ **startingVersion** (type: Int64, optional): The starting version of the query, inclusive. <br>
  **startingTimestamp** (type: String, optional): The starting timestamp of the query, will be converted to a version created greater or equal to this timestamp. <br>
  **endingVersion** (type: Int64, optional): The ending version of the query, inclusive. <br>
  **endingTimestamp** (type: String, optional): The ending timestamp of the query, will be converted to a version created earlier or equal to this timestamp. <br>
- **includeHistoricalMetadata**(type: Boolean, optional): If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible.</td>
+ **includeHistoricalMetadata** (type: Boolean, optional): If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible.</td>
 </tr>
 </table>
 
