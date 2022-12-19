@@ -1174,12 +1174,15 @@ Example:
 
 This is the API for clients to get a table version without any other extra information. The server usually can implement this API effectively. If a client caches information about a shared table locally, it can store the table version and use this cheap API to quickly check whether their cache is stale and they should re-fetch the data.
 
+Note: We are migrating this method from HEAD to GET, and with a `/version` suffix. Please use the new API as we'll be deprecating the support of HEAD API soon. 
+
 HTTP Request | Value
 -|-
-Method | `HEAD`
+Method | `GET`
 Header | `Authorization: Bearer {token}`
-URL | `{prefix}/shares/{share}/schemas/{schema}/tables/{table}`
+URL | `{prefix}/shares/{share}/schemas/{schema}/tables/{table}/version`
 URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.<br>**{table}**: The table name to query. It's case-insensitive.
+Query Parameters | **startingTimestamp** (type: String, optional): The startingTimestamp of the query, the server needs to return a table version at or after the provided timestamp, can be earlier that the timestamp of table version 0.
 
 <details open>
 <summary><b>200: The table version was successfully returned.</b></summary>
@@ -1368,7 +1371,7 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br
 
 Example:
 
-`HEAD {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients`
+`GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/version?startingTimestamp=2022-12-01%2000:00:00`
 
 ```
 HTTP/2 200 
