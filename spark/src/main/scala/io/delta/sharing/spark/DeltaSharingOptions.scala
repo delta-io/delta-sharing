@@ -73,9 +73,9 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
   val cdfOptions: Map[String, String] = prepareCdfOptions()
 
   val versionAsOf = options.get(TIME_TRAVEL_VERSION).map { str =>
-    Try(str.toLong).toOption.filter(_ > 0).getOrElse {
+    Try(str.toLong).toOption.filter(_ >= 0).getOrElse {
       throw DeltaSharingErrors.illegalDeltaOptionException(
-        TIME_TRAVEL_VERSION, str, "must be a positive integer")
+        TIME_TRAVEL_VERSION, str, "must be an integer greater than or equal to zero")
     }
   }
 

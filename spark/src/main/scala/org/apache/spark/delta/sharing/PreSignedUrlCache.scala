@@ -26,6 +26,8 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.rpc.{RpcCallContext, RpcEndpoint, RpcEndpointRef, RpcEnv}
 import org.apache.spark.util.{RpcUtils, ThreadUtils}
 
+import io.delta.sharing.spark.DeltaSharingProfileProvider
+
 /**
  * @param expiration the expiration time of the pre signed urls
  * @param idToUrl the file id to pre sign url map
@@ -68,12 +70,12 @@ class CachedTableManager(
       val tablePath = entry.getKey
       val cachedTable = entry.getValue
       if (cachedTable.refs.forall(_.get == null)) {
-        logInfo(s"Removing $tablePath from the pre signed url cache as there are" +
+        logInfo(s"Removing table $tablePath from the pre signed url cache as there are" +
           " no references pointed to it")
         cache.remove(tablePath, cachedTable)
       } else if (cachedTable.lastAccess + expireAfterAccessMs < System.currentTimeMillis()) {
-        logInfo(s"Removing $tablePath from the pre signed url cache as it was not accessed after " +
-          s" $expireAfterAccessMs ms")
+        logInfo(s"Removing table $tablePath from the pre signed url cache as it was not accessed " +
+          s"after $expireAfterAccessMs ms")
         cache.remove(tablePath, cachedTable)
       } else if (cachedTable.expiration - System.currentTimeMillis() < refreshThresholdMs) {
         logInfo(s"Updating pre signed urls for $tablePath (expiration time: " +
@@ -127,24 +129,29 @@ class CachedTableManager(
    * @param tablePath the table path. This is usually the profile file path.
    * @param idToUrl the pre signed url map. This will be refreshed when the pre signed urls is going
    *                to expire.
-   * @param ref A weak reference which can be used to determine whether the cache is still
-   *                  needed. When the weak reference returns null, we will remove the pre signed
-   *                  url cache of this table form the cache.
+   * @param refs    A list of weak references which can be used to determine whether the cache is
+   *                still needed. When all the weak references return null, we will remove the pre
+   *                signed url cache of this table form the cache.
+   * @param profileProvider a profile Provider that can provide customized refresher function.
    * @param refresher A function to re-generate pre signed urls for the table.
    */
   def register(
       tablePath: String,
       idToUrl: Map[String, String],
-      ref: WeakReference[AnyRef],
+      refs: Seq[WeakReference[AnyRef]],
+      profileProvider: DeltaSharingProfileProvider,
       refresher: () => Map[String, String]): Unit = {
+    val customTablePath = profileProvider.getCustomTablePath(tablePath)
+    val customRefresher = profileProvider.getCustomRefresher(refresher)
+
     val cachedTable = new CachedTable(
       preSignedUrlExpirationMs + System.currentTimeMillis(),
       idToUrl,
-      Seq(ref),
+      refs,
       System.currentTimeMillis(),
-      refresher
+      customRefresher
     )
-    var oldTable = cache.putIfAbsent(tablePath, cachedTable)
+    var oldTable = cache.putIfAbsent(customTablePath, cachedTable)
     if (oldTable == null) {
       // We insert a new entry to the cache
       return
@@ -158,19 +165,19 @@ class CachedTableManager(
         // Overwrite urls with the new registered ones because they are usually newer
         oldTable.idToUrl ++ cachedTable.idToUrl,
         // Try to avoid storing duplicate references
-        if (oldTable.refs.exists(_.get eq ref.get)) oldTable.refs else ref +: oldTable.refs,
+        refs.filterNot(ref => oldTable.refs.exists(_.get eq ref.get)) ++ oldTable.refs,
         lastAccess = System.currentTimeMillis(),
-        refresher
+        customRefresher
       )
-      if (cache.replace(tablePath, oldTable, mergedTable)) {
+      if (cache.replace(customTablePath, oldTable, mergedTable)) {
         // Put the merged one to the cache
         return
       }
       // Failed to put the merged one
-      oldTable = cache.get(tablePath)
+      oldTable = cache.get(customTablePath)
       if (oldTable == null) {
         // It was removed between `cache.replace` and `cache.get`
-        oldTable = cache.putIfAbsent(tablePath, cachedTable)
+        oldTable = cache.putIfAbsent(customTablePath, cachedTable)
         if (oldTable == null) {
           // We insert a new entry to the cache
           return

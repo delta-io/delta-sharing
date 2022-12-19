@@ -88,7 +88,7 @@ private[sharing] class RemoteDeltaLog(
       )
     }
 
-    val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse)
+    val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
     val fileIndex = new RemoteDeltaSnapshotFileIndex(params, None)
     if (spark.sessionState.conf.getConfString(
       "spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
@@ -208,13 +208,25 @@ class RemoteSnapshot(
 
   def getTablePath: Path = tablePath
 
-  lazy val sizeInBytes = {
+  // This function is invoked during spark's query planning phase.
+  //
+  // The delta sharing server may not return the table size in its metadata if:
+  //   - We are talking to an older version of the server.
+  //   - The table does not contain this information in its metadata.
+  // We perform a full scan in that case.
+  lazy val sizeInBytes: Long = {
     val implicits = spark.implicits
     import implicits._
-    val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf)
-    checkProtocolNotChange(tableFiles.protocol)
-    checkSchemaNotChange(tableFiles.metadata)
-    tableFiles.files.map(_.size).sum
+
+    if (metadata.size != null) {
+      metadata.size
+    } else {
+      log.warn("Getting table size from a full file scan for table: " + table)
+      val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf)
+      checkProtocolNotChange(tableFiles.protocol)
+      checkSchemaNotChange(tableFiles.metadata)
+      tableFiles.files.map(_.size).sum
+    }
   }
 
   private def getTableMetadata: (Metadata, Protocol, Long) = {
@@ -256,7 +268,7 @@ class RemoteSnapshot(
       DeltaTableUtils.splitMetadataAndDataPredicates(filter, metadata.partitionColumns, spark)._1
     }
 
-    val rewrittenFilters = rewritePartitionFilters(
+    val rewrittenFilters = DeltaTableUtils.rewritePartitionFilters(
       partitionSchema,
       spark.sessionState.conf.resolver,
       partitionFilters)
@@ -274,11 +286,17 @@ class RemoteSnapshot(
         file.id -> file.url
       }.toMap
       CachedTableManager.INSTANCE
-        .register(tablePath.toString, idToUrl, new WeakReference(fileIndex), () => {
-          client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
-            add.id -> add.url
-          }.toMap
-        })
+        .register(
+          fileIndex.params.path.toString,
+          idToUrl,
+          Seq(new WeakReference(fileIndex)),
+          fileIndex.params.profileProvider,
+          () => {
+            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
+              add.id -> add.url
+            }.toMap
+          }
+        )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.toDS()
@@ -286,35 +304,6 @@ class RemoteSnapshot(
 
     val columnFilter = new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
     remoteFiles.filter(columnFilter).as[AddFile].collect()
-  }
-
-  /**
-   * Rewrite the given `partitionFilters` to be used for filtering partition values.
-   * We need to explicitly resolve the partitioning columns here because the partition columns
-   * are stored as keys of a Map type instead of attributes in the AddFile schema (below) and thus
-   * cannot be resolved automatically.
-   */
-  private def rewritePartitionFilters(
-      partitionSchema: StructType,
-      resolver: Resolver,
-      partitionFilters: Seq[Expression]): Seq[Expression] = {
-    partitionFilters.map(_.transformUp {
-      case a: Attribute =>
-        // If we have a special column name, e.g. `a.a`, then an UnresolvedAttribute returns
-        // the column name as '`a.a`' instead of 'a.a', therefore we need to strip the backticks.
-        val unquoted = a.name.stripPrefix("`").stripSuffix("`")
-        val partitionCol = partitionSchema.find { field => resolver(field.name, unquoted) }
-        partitionCol match {
-          case Some(StructField(name, dataType, _, _)) =>
-            Cast(
-              UnresolvedAttribute(Seq("partitionValues", name)),
-              dataType)
-          case None =>
-            // This should not be able to happen, but the case was present in the original code so
-            // we kept it to be safe.
-            UnresolvedAttribute(Seq("partitionValues", a.name))
-        }
-    })
   }
 }
 
@@ -404,5 +393,34 @@ private[sharing] object DeltaTableUtils {
       toSchema(tableSchemaStr),
       CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile()
     )
+  }
+
+  /**
+   * Rewrite the given `partitionFilters` to be used for filtering partition values.
+   * We need to explicitly resolve the partitioning columns here because the partition columns
+   * are stored as keys of a Map type instead of attributes in the AddFile schema (below) and thus
+   * cannot be resolved automatically.
+   */
+  def rewritePartitionFilters(
+    partitionSchema: StructType,
+    resolver: Resolver,
+    partitionFilters: Seq[Expression]): Seq[Expression] = {
+    partitionFilters.map(_.transformUp {
+      case a: Attribute =>
+        // If we have a special column name, e.g. `a.a`, then an UnresolvedAttribute returns
+        // the column name as '`a.a`' instead of 'a.a', therefore we need to strip the backticks.
+        val unquoted = a.name.stripPrefix("`").stripSuffix("`")
+        val partitionCol = partitionSchema.find { field => resolver(field.name, unquoted) }
+        partitionCol match {
+          case Some(StructField(name, dataType, _, _)) =>
+            Cast(
+              UnresolvedAttribute(Seq("partitionValues", name)),
+              dataType)
+          case None =>
+            // This should not be able to happen, but the case was present in the original code so
+            // we kept it to be safe.
+            UnresolvedAttribute(Seq("partitionValues", a.name))
+        }
+    })
   }
 }

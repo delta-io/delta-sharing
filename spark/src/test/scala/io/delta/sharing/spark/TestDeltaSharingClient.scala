@@ -31,7 +31,7 @@ import io.delta.sharing.spark.model.{
 import io.delta.sharing.spark.util.JsonUtils
 
 class TestDeltaSharingClient(
-    profileProvider: DeltaSharingProfileProvider = null,
+    profileProvider: DeltaSharingProfileProvider = new TestDeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
     sslTrustAll: Boolean = false,
@@ -42,7 +42,8 @@ class TestDeltaSharingClient(
       |{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",
       |\"fields\":[{\"name\":\"col1\",\"type\":\"integer\",\"nullable\":true,
       |\"metadata\":{}},{\"name\":\"col2\",\"type\":\"string\",\"nullable\":true,
-      |\"metadata\":{}}]}","partitionColumns":[],"configuration":{},"createdTime":1603723967515}}"""
+      |\"metadata\":{}}]}","partitionColumns":[],"configuration":{},
+      |"size": 100,"numFiles": 2,"createdTime":1603723967515}}"""
       .stripMargin.replaceAll("\n", "")
   private val metadata = JsonUtils.fromJson[SingleAction](metadataString).metaData
 
@@ -109,9 +110,17 @@ class TestDeltaSharingClient(
     DeltaTableFiles(0, Protocol(0), metadata, Nil, addFiles, cdcFiles, removeFiles)
   }
 
+  override def getProfileProvider: DeltaSharingProfileProvider = profileProvider
+
   def clear(): Unit = {
     TestDeltaSharingClient.limits = Nil
   }
+}
+
+class TestDeltaSharingProfileProvider extends DeltaSharingProfileProvider {
+  override def getProfile: DeltaSharingProfile = null
+
+  override def getCustomTablePath(tablePath: String): String = "prefix." + tablePath
 }
 
 object TestDeltaSharingClient {
