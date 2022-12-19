@@ -154,6 +154,7 @@ private[sharing] case class AddFileForCDF(
   override def wrap: SingleAction = SingleAction(add = this)
 
   override def getPartitionValuesInDF(): Map[String, String] = {
+    // The scala map operation "+" will override values of existing keys.
     partitionValues +
     (CDFColumnInfo.commit_version_col_name -> version.toString) +
     (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString) +
