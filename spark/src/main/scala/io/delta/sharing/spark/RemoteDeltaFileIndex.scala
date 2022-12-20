@@ -18,7 +18,7 @@ package io.delta.sharing.spark
 
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.delta.sharing.CachedTableManager
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Column, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 import org.apache.spark.sql.catalyst.expressions.{
@@ -41,11 +41,13 @@ import org.apache.spark.sql.types.{DataType, StructType}
 import io.delta.sharing.spark.model.{
   AddCDCFile,
   AddFile,
+  AddFileForCDF,
   CDFColumnInfo,
   DeltaTableFiles,
   FileAction,
   Metadata,
   Protocol,
+  RemoveFile,
   Table => DeltaSharingTable
 }
 
@@ -75,6 +77,8 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
   // A helper function to create partition directories from the specified actions.
   protected def makePartitionDirectories(actions: Seq[FileAction]): Seq[PartitionDirectory] = {
     val timeZone = params.spark.sessionState.conf.sessionLocalTimeZone
+    // The getPartitionValuesInDF function is idempotent, and calling it multiple times does not
+    // change its output.
     actions.groupBy(_.getPartitionValuesInDF()).map {
       case (partitionValues, files) =>
         val rowValues: Array[Any] = partitionSchema.map { p =>
@@ -103,6 +107,14 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
             PartitionDirectory(new GenericInternalRow(rowValues), fileStats)
         }
     }.toSeq
+  }
+
+  protected def getColumnFilter(partitionFilters: Seq[Expression]): Column = {
+    val rewrittenFilters = DeltaTableUtils.rewritePartitionFilters(
+      params.snapshotAtAnalysis.partitionSchema,
+      params.spark.sessionState.conf.resolver,
+      partitionFilters)
+    new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
   }
 }
 
@@ -143,14 +155,6 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
     actions.map(f => toDeltaSharingPath(f).toString).toArray
   }
 
-  override def listFiles(
-      partitionFilters: Seq[Expression],
-      dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
-    // We ignore partition filters for list files, since the server already
-    // parforms this filtering for CDF.
-    makePartitionDirectories(actions)
-  }
-
   private[sharing] def getIdToUrlMap : Map[String, String] = {
     actions.map { action =>
       action.id -> action.url
@@ -166,7 +170,22 @@ private[sharing] case class RemoteDeltaCDFAddFileIndex(
     extends RemoteDeltaCDFFileIndexBase(
       params,
       deltaTableFiles.addFilesForCdf,
-      CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile) {}
+      CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile) {
+  override def listFiles(
+    partitionFilters: Seq[Expression],
+    dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    // Need to apply getPartitionValuesInDF to each file, to be consistent with
+    // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
+    // applied.
+    val updatedFiles = deltaTableFiles.addFilesForCdf.map { a =>
+      AddFileForCDF(a.url, a.id, a.getPartitionValuesInDF, a.size, a.version, a.timestamp, a.stats)
+    }
+    val columnFilter = getColumnFilter(partitionFilters)
+    val implicits = params.spark.implicits
+    import implicits._
+    makePartitionDirectories(updatedFiles.toDS().filter(columnFilter).as[AddFileForCDF].collect())
+  }
+}
 
 private[sharing] case class RemoteDeltaCDCFileIndex(
     override val params: RemoteDeltaFileIndexParams,
@@ -174,7 +193,22 @@ private[sharing] case class RemoteDeltaCDCFileIndex(
     extends RemoteDeltaCDFFileIndexBase(
       params,
       deltaTableFiles.cdfFiles,
-      CDFColumnInfo.getInternalPartitonSchemaForCDC) {}
+      CDFColumnInfo.getInternalPartitonSchemaForCDC) {
+  override def listFiles(
+    partitionFilters: Seq[Expression],
+    dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    // Need to apply getPartitionValuesInDF to each file, to be consistent with
+    // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
+    // applied.
+    val updatedFiles = deltaTableFiles.cdfFiles.map { c =>
+      AddCDCFile(c.url, c.id, c.getPartitionValuesInDF, c.size, c.version, c.timestamp)
+    }
+    val columnFilter = getColumnFilter(partitionFilters)
+    val implicits = params.spark.implicits
+    import implicits._
+    makePartitionDirectories(updatedFiles.toDS().filter(columnFilter).as[AddCDCFile].collect())
+  }
+}
 
 private[sharing] case class RemoteDeltaCDFRemoveFileIndex(
     override val params: RemoteDeltaFileIndexParams,
@@ -182,4 +216,19 @@ private[sharing] case class RemoteDeltaCDFRemoveFileIndex(
     extends RemoteDeltaCDFFileIndexBase(
       params,
       deltaTableFiles.removeFiles,
-      CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile) {}
+      CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile) {
+  override def listFiles(
+    partitionFilters: Seq[Expression],
+    dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    // Need to apply getPartitionValuesInDF to each file, to be consistent with
+    // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
+    // applied.
+    val updatedFiles = deltaTableFiles.removeFiles.map { r =>
+      RemoveFile(r.url, r.id, r.getPartitionValuesInDF, r.size, r.version, r.timestamp)
+    }
+    val columnFilter = getColumnFilter(partitionFilters)
+    val implicits = params.spark.implicits
+    import implicits._
+    makePartitionDirectories(updatedFiles.toDS().filter(columnFilter).as[RemoveFile].collect())
+  }
+}
