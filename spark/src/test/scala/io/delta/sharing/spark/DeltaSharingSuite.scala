@@ -23,6 +23,7 @@ import scala.util.Random
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{QueryTest, Row}
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{DateType, StringType, StructField, StructType, TimestampType}
 
@@ -321,6 +322,53 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       Seq(
         Row("2", sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage"),
         Row("2", sqlDate("2020-01-01"), 1L, 1651614980000L, "insert")
+      )
+    )
+
+    // should work when filtering on added cdf columns
+    val filtered4 = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3)
+      .load(tablePath)
+      .filter($"_commit_version" === "2")
+
+    checkAnswer(
+      filtered4,
+      Seq(
+        Row("2", 2, sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage"),
+        Row("2", 2, sqlDate("2020-02-02"), 2L, 1651614986000L, "update_postimage")
+      )
+    )
+
+    val filtered5 = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3)
+      .load(tablePath)
+      .filter(col("_change_type").like("%nser%"))
+
+    checkAnswer(
+      filtered5,
+      Seq(
+        Row("1", 1, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+        Row("2", 2, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
+        Row("3", 3, sqlDate("2020-03-03"), 1L, 1651614980000L, "insert")
+      )
+    )
+
+    val filtered6 = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3)
+      .load(tablePath)
+      .filter(col("_change_type").contains("update"))
+
+    checkAnswer(
+      filtered6,
+      Seq(
+        Row("2", 2, sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage"),
+        Row("2", 2, sqlDate("2020-02-02"), 2L, 1651614986000L, "update_postimage")
       )
     )
   }

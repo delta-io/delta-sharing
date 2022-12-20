@@ -21,6 +21,7 @@ import scala.collection.JavaConverters._
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.{AnalysisException, QueryTest, Row, SparkSession}
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{
@@ -385,6 +386,31 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       val expected = Seq(
         Row("2", 2, sqlDate("2020-01-01"), 1L, 1651614980000L, "insert"),
         Row("2", 2, sqlDate("2020-01-01"), 2L, 1651614986000L, "update_preimage")
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+    }
+
+    // filter on added cdf columns
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion(path = partitionTablePath, startingVersion = "1")
+        .load()
+        .filter(col("_change_type").contains("delete"))
+        .writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 3)
+        }
+      } finally {
+        query.stop()
+      }
+
+      val expected = Seq(
+        Row("3", 3, sqlDate("2020-03-03"), 3L, 1651614994000L, "delete")
       )
       checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
     }

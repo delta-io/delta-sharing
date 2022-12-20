@@ -62,6 +62,8 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
   // A helper function to create partition directories from the specified actions.
   protected def makePartitionDirectories(actions: Seq[FileAction]): Seq[PartitionDirectory] = {
     val timeZone = params.spark.sessionState.conf.sessionLocalTimeZone
+    // The getPartitionValuesInDF function is idempotent, and calling it multiple times does not
+    // change its output.
     actions.groupBy(_.getPartitionValuesInDF()).map {
       case (partitionValues, files) =>
         val rowValues: Array[Any] = partitionSchema.map { p =>
@@ -151,10 +153,16 @@ private[sharing] case class RemoteDeltaCDFAddFileIndex(
   override def listFiles(
     partitionFilters: Seq[Expression],
     dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    // Need to apply getPartitionValuesInDF to each file, to be consistent with
+    // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
+    // applied.
+    val updatedFiles = addFiles.map { a =>
+      AddFileForCDF(a.url, a.id, a.getPartitionValuesInDF, a.size, a.version, a.timestamp, a.stats)
+    }
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits
     import implicits._
-    makePartitionDirectories(addFiles.toDS().filter(columnFilter).as[AddFileForCDF].collect())
+    makePartitionDirectories(updatedFiles.toDS().filter(columnFilter).as[AddFileForCDF].collect())
   }
 }
 
@@ -169,10 +177,16 @@ private[sharing] case class RemoteDeltaCDCFileIndex(
   override def listFiles(
     partitionFilters: Seq[Expression],
     dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    // Need to apply getPartitionValuesInDF to each file, to be consistent with
+    // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
+    // applied.
+    val updatedFiles = cdfFiles.map { c =>
+      AddCDCFile(c.url, c.id, c.getPartitionValuesInDF, c.size, c.version, c.timestamp)
+    }
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits
     import implicits._
-    makePartitionDirectories(cdfFiles.toDS().filter(columnFilter).as[AddCDCFile].collect())
+    makePartitionDirectories(updatedFiles.toDS().filter(columnFilter).as[AddCDCFile].collect())
   }
 }
 
@@ -186,10 +200,16 @@ private[sharing] case class RemoteDeltaCDFRemoveFileIndex(
   override def listFiles(
     partitionFilters: Seq[Expression],
     dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    // Need to apply getPartitionValuesInDF to each file, to be consistent with
+    // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
+    // applied.
+    val updatedFiles = removeFiles.map { r =>
+      RemoveFile(r.url, r.id, r.getPartitionValuesInDF, r.size, r.version, r.timestamp)
+    }
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits
     import implicits._
-    makePartitionDirectories(removeFiles.toDS().filter(columnFilter).as[RemoveFile].collect())
+    makePartitionDirectories(updatedFiles.toDS().filter(columnFilter).as[RemoveFile].collect())
   }
 }
 
