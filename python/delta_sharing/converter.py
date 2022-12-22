@@ -15,7 +15,9 @@
 #
 from decimal import Decimal
 from typing import Any, Callable, Dict
-
+from pyarrow.dataset import Dataset as PyArrowDataset
+from pyarrow.dataset import dataset
+from pyarrow import Table as PyArrowTable
 import numpy as np
 import pandas as pd
 
@@ -57,7 +59,21 @@ def _get_dummy_column(schema_type):
     raise ValueError(f"Could not parse datatype: {schema_type}")
 
 
-def get_empty_table(schema_json: dict) -> pd.DataFrame:
+def get_empty_pyarrow_table(schema_json: dict) -> PyArrowTable:
+    # TODO: Manually create a pyarrow Schema instead of a relying pandas
+    pdf = get_empty_pandas_table(schema_json)
+    table = PyArrowTable.from_pandas(pdf)
+
+    return table
+
+
+def get_empty_pyarrow_dataset(schema_json: dict) -> PyArrowDataset:
+    table = get_empty_pyarrow_table(schema_json)
+
+    return dataset(table)
+
+
+def get_empty_pandas_table(schema_json: dict) -> pd.DataFrame:
     """
     For empty tables, we use dummy columns from `_get_dummy_column` and then
     drop all rows to generate a table with the correct column names and

@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from delta_sharing.converter import to_converter, get_empty_table
+from delta_sharing.converter import to_converter, get_empty_pandas_table
 
 
 def test_to_converter_boolean():
@@ -81,7 +81,7 @@ def test_get_empty_table():
         '],"type":"struct"}'
     )
     schema_json = loads(schema_string)
-    pdf = get_empty_table(schema_json)
+    pdf = get_empty_pandas_table(schema_json)
     assert pdf.empty
     assert pdf.columns.values.size == 2
     assert pdf.columns.values[0] == "a"

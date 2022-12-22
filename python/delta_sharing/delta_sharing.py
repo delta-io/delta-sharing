@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 from itertools import chain
-from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
+from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union, Any
 from pathlib import Path
 
 import pandas as pd
@@ -23,6 +23,12 @@ from delta_sharing.protocol import CdfOptions
 
 try:
     from pyspark.sql import DataFrame as PySparkDataFrame
+except ImportError:
+    pass
+
+try:
+    from pyarrow.dataset import Dataset as PyArrowDataset
+    from pyarrow import Table as PyArrowTable
 except ImportError:
     pass
 
@@ -65,6 +71,8 @@ def load_as_pandas(
       Use this optional parameter to explore the shared table without loading the entire table to
       the memory.
     :param version: an optional non-negative int. Load the snapshot of table at version
+    :param timestamp: an optional string. Load the snapshot of table at version corresponding
+      to the timestamp.
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
@@ -110,6 +118,86 @@ def load_as_spark(
     if timestamp is not None:
         df.option("timestampAsOf", timestamp)
     return df.load(url)
+
+
+def load_as_pyarrow_table(
+    url: str,
+    limit: Optional[int] = None,
+    version: Optional[int] = None,
+    timestamp: Optional[str] = None,
+    pyarrow_ds_options: Optional[dict[str, Any]] = None,
+    pyarrow_tbl_options: Optional[dict[str, Any]] = None,
+) -> PyArrowTable:
+    """
+    Load the shared table using the given url as a Pyarrow Table.
+
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>"
+    :param limit: a non-negative int. Load only the ``limit`` rows if the parameter is specified.
+      Use this optional parameter to explore the shared table without loading the entire table to
+      the memory.
+    :param version: an optional non-negative int. Load the snapshot of table at version
+    :param timestamp: an optional string. Load the snapshot of table at version corresponding
+      to the timestamp.
+    :param pyarrow_ds_options: Keyword arguments while creating the pyarrow dataset.
+    :param pyarrow_tbl_options: Keyword arguments passed to `to_table()`
+    :return: A Pyarrow Table representing the shared table.
+    """
+    try:
+        from pyarrow import Table as PyArrowTable
+    except ImportError:
+        raise ImportError("Unable to import pyarrow. `load_as_pyarrow_table` requires pyarrow.")
+
+    if pyarrow_ds_options is None:
+        pyarrow_ds_options = {}
+
+    if pyarrow_tbl_options is None:
+        pyarrow_tbl_options = {}
+
+    ds = load_as_pyarrow_dataset(
+        url=url, version=version, timestamp=timestamp, pyarrow_ds_options=pyarrow_ds_options
+    )
+    pa_table = (
+        ds.head(limit, **pyarrow_tbl_options)
+        if limit is not None
+        else ds.to_table(**pyarrow_tbl_options)
+    )
+
+    return pa_table
+
+
+def load_as_pyarrow_dataset(
+    url: str,
+    version: Optional[int] = None,
+    timestamp: Optional[str] = None,
+    pyarrow_ds_options: Optional[dict[str, Any]] = None,
+) -> PyArrowDataset:
+    """
+    Load the shared table using the given url as a Pyarrow Dataset.
+
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>"
+    :param version: an optional non-negative int. Load the snapshot of table at version
+    :param timestamp: an optional string. Load the snapshot of table at version corresponding
+      to the timestamp.
+    :param pyarrow_ds_options: Keyword arguments while creating the pyarrow dataset.
+    :return: A Pyarrow Dataset representing the shared table.
+    """
+    try:
+        from pyarrow.dataset import Dataset as PyArrowDataset
+    except ImportError:
+        raise ImportError("Unable to import pyarrow. `load_as_pyarrow_dataset` requires pyarrow.")
+
+    if pyarrow_ds_options is None:
+        pyarrow_ds_options = {}
+
+    profile_json, share, schema, table = _parse_url(url)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
+
+    return DeltaSharingReader(
+        table=Table(name=table, share=share, schema=schema),
+        rest_client=DataSharingRestClient(profile),
+        version=version,
+        timestamp=timestamp,
+    ).to_pyarrow_dataset(pyarrow_ds_options=pyarrow_ds_options)
 
 
 def load_table_changes_as_spark(

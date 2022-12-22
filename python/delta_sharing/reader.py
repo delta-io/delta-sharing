@@ -20,8 +20,10 @@ from json import loads
 import fsspec
 import pandas as pd
 from pyarrow.dataset import dataset
+from pyarrow.dataset import Dataset as PyArrowDataset
+from pyarrow import Table as PyArrowTable
 
-from delta_sharing.converter import to_converters, get_empty_table
+from delta_sharing.converter import to_converters, get_empty_pandas_table, get_empty_pyarrow_dataset
 from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, Table
 from delta_sharing.rest_client import DataSharingRestClient
 
@@ -71,6 +73,50 @@ class DeltaSharingReader:
             timestamp=self._timestamp
         )
 
+    def to_pyarrow_dataset(
+        self, pyarrow_ds_options: Optional[dict[str, Any]] = None
+    ) -> PyArrowDataset:
+        if pyarrow_ds_options is None:
+            pyarrow_ds_options = {}
+
+        response = self._rest_client.list_files_in_table(
+            self._table,
+            predicateHints=self._predicateHints,
+            limitHint=self._limit,
+            version=self._version,
+            timestamp=self._timestamp,
+        )
+
+        schema_json = loads(response.metadata.schema_string)
+
+        if len(response.add_files) == 0 or self._limit == 0:
+            return get_empty_pyarrow_dataset(schema_json)
+
+        file_urls = [f.url for f in response.add_files]
+
+        # Take URL of first file from response and assert that all
+        # the other URLs have same scheme as well.
+        # Otherwise, fsspec filesystem cannot be instantiated.
+        first_url = urlparse(file_urls[0])
+        first_scheme = first_url.scheme
+
+        if "storage.googleapis.com" in (first_url.netloc.lower()):
+            # Apply the yarl patch for GCS pre-signed urls
+            import delta_sharing._yarl_patch  # noqa: F401
+
+        same_scheme = True
+        for url in file_urls:
+            if not urlparse(url).scheme == first_scheme:
+                same_scheme = False
+                break
+
+        assert same_scheme, "All files did not follow the same URL scheme."
+
+        fs = fsspec.filesystem(first_scheme)
+        ds = dataset(source=file_urls, format="parquet", filesystem=fs, **pyarrow_ds_options)
+
+        return ds
+
     def to_pandas(self) -> pd.DataFrame:
         response = self._rest_client.list_files_in_table(
             self._table,
@@ -83,7 +129,7 @@ class DeltaSharingReader:
         schema_json = loads(response.metadata.schema_string)
 
         if len(response.add_files) == 0 or self._limit == 0:
-            return get_empty_table(schema_json)
+            return get_empty_pandas_table(schema_json)
 
         converters = to_converters(schema_json)
 
@@ -118,7 +164,7 @@ class DeltaSharingReader:
         schema_json = loads(response.metadata.schema_string)
 
         if len(response.actions) == 0:
-            return get_empty_table(self._add_special_cdf_schema(schema_json))
+            return get_empty_pandas_table(self._add_special_cdf_schema(schema_json))
 
         converters = to_converters(schema_json)
         pdfs = []
