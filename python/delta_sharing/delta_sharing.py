@@ -156,7 +156,7 @@ def load_as_pyarrow_table(
     ds = load_as_pyarrow_dataset(
         url=url, version=version, timestamp=timestamp, pyarrow_ds_options=pyarrow_ds_options
     )
-    pa_table = (
+    pa_table: PyArrowTable = (
         ds.head(limit, **pyarrow_tbl_options)
         if limit is not None
         else ds.to_table(**pyarrow_tbl_options)
@@ -192,12 +192,14 @@ def load_as_pyarrow_dataset(
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
 
-    return DeltaSharingReader(
+    ds: PyArrowDataset = DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
         version=version,
         timestamp=timestamp,
     ).to_pyarrow_dataset(pyarrow_ds_options=pyarrow_ds_options)
+
+    return ds
 
 
 def load_table_changes_as_spark(

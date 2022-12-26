@@ -21,7 +21,6 @@ import fsspec
 import pandas as pd
 from pyarrow.dataset import dataset
 from pyarrow.dataset import Dataset as PyArrowDataset
-from pyarrow import Table as PyArrowTable
 
 from delta_sharing.converter import to_converters, get_empty_pandas_table, get_empty_pyarrow_dataset
 from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, Table
