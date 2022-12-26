@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Any, Callable, Dict, Optional, Sequence
+from typing import Any, Callable, Dict, Optional, Sequence, Mapping
 from urllib.parse import urlparse
 from json import loads
 
@@ -73,7 +73,7 @@ class DeltaSharingReader:
         )
 
     def to_pyarrow_dataset(
-        self, pyarrow_ds_options: Optional[dict[str, Any]] = None
+        self, pyarrow_ds_options: Optional[Mapping[str, Any]] = None
     ) -> PyArrowDataset:
         if pyarrow_ds_options is None:
             pyarrow_ds_options = {}

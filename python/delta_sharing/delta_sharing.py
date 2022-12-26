@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 from itertools import chain
-from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union, Any
+from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union, Any, Mapping
 from pathlib import Path
 
 import pandas as pd
@@ -125,8 +125,8 @@ def load_as_pyarrow_table(
     limit: Optional[int] = None,
     version: Optional[int] = None,
     timestamp: Optional[str] = None,
-    pyarrow_ds_options: Optional[dict[str, Any]] = None,
-    pyarrow_tbl_options: Optional[dict[str, Any]] = None,
+    pyarrow_ds_options: Optional[Mapping[str, Any]] = None,
+    pyarrow_tbl_options: Optional[Mapping[str, Any]] = None,
 ) -> PyArrowTable:
     """
     Load the shared table using the given url as a Pyarrow Table.
@@ -169,7 +169,7 @@ def load_as_pyarrow_dataset(
     url: str,
     version: Optional[int] = None,
     timestamp: Optional[str] = None,
-    pyarrow_ds_options: Optional[dict[str, Any]] = None,
+    pyarrow_ds_options: Optional[Mapping[str, Any]] = None,
 ) -> PyArrowDataset:
     """
     Load the shared table using the given url as a Pyarrow Dataset.
