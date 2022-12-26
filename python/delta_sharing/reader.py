@@ -13,18 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Any, Callable, Dict, Optional, Sequence, Mapping
+from typing import Any, Callable, Dict, Optional, Sequence, Mapping, Union
 from urllib.parse import urlparse
 from json import loads
 
 import fsspec
 import pandas as pd
+import pyarrow
 from pyarrow.dataset import dataset
 from pyarrow.dataset import Dataset as PyArrowDataset
+from pyarrow import Table as PyArrowTable
 
-from delta_sharing.converter import to_converters, get_empty_pandas_table, get_empty_pyarrow_dataset
+from delta_sharing.converter import (
+    to_converters,
+    get_empty_pandas_table,
+    get_empty_pyarrow_dataset,
+    get_empty_pyarrow_table,
+)
 from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, Table
-from delta_sharing.rest_client import DataSharingRestClient
+from delta_sharing.rest_client import DataSharingRestClient, ListFilesInTableResponse
 
 
 class DeltaSharingReader:
@@ -72,12 +79,7 @@ class DeltaSharingReader:
             timestamp=self._timestamp
         )
 
-    def to_pyarrow_dataset(
-        self, pyarrow_ds_options: Optional[Mapping[str, Any]] = None
-    ) -> PyArrowDataset:
-        if pyarrow_ds_options is None:
-            pyarrow_ds_options = {}
-
+    def _get_response(self) -> ListFilesInTableResponse:
         response = self._rest_client.list_files_in_table(
             self._table,
             predicateHints=self._predicateHints,
@@ -86,45 +88,99 @@ class DeltaSharingReader:
             timestamp=self._timestamp,
         )
 
-        schema_json = loads(response.metadata.schema_string)
+        return response
 
-        if len(response.add_files) == 0 or self._limit == 0:
-            return get_empty_pyarrow_dataset(schema_json)
+    @staticmethod
+    def _to_pyarrow_dataset(
+        file_urls: Union[Sequence[str], str], pyarrow_ds_options: Optional[Mapping[str, Any]] = None
+    ) -> PyArrowDataset:
+        if pyarrow_ds_options is None:
+            pyarrow_ds_options = {}
 
-        file_urls = [f.url for f in response.add_files]
+        if file_urls and isinstance(file_urls, list):
+            first_url = urlparse(file_urls[0])
+        elif file_urls and isinstance(file_urls, str):
+            first_url = urlparse(file_urls)
+        else:
+            raise ValueError(
+                "PyArrow Dataset can only be instantiated from a path of a list of paths."
+            )
 
-        # Take URL of first file from response and assert that all
-        # the other URLs have same scheme as well.
-        # Otherwise, fsspec filesystem cannot be instantiated.
-        first_url = urlparse(file_urls[0])
         first_scheme = first_url.scheme
 
         if "storage.googleapis.com" in (first_url.netloc.lower()):
             # Apply the yarl patch for GCS pre-signed urls
             import delta_sharing._yarl_patch  # noqa: F401
 
-        same_scheme = True
-        for url in file_urls:
-            if not urlparse(url).scheme == first_scheme:
-                same_scheme = False
-                break
+        # Take URL of first file from response and assert that all
+        # the other URLs have same scheme as well.
+        # Otherwise, fsspec filesystem cannot be instantiated.
+        if file_urls and isinstance(file_urls, list):
+            same_scheme = True
+            for url in file_urls:
+                if not urlparse(url).scheme == first_scheme:
+                    same_scheme = False
+                    break
 
-        assert same_scheme, "All files did not follow the same URL scheme."
+            assert same_scheme, "All files did not follow the same URL scheme."
 
         fs = fsspec.filesystem(first_scheme)
         ds = dataset(source=file_urls, format="parquet", filesystem=fs, **pyarrow_ds_options)
 
         return ds
 
-    def to_pandas(self) -> pd.DataFrame:
-        response = self._rest_client.list_files_in_table(
-            self._table,
-            predicateHints=self._predicateHints,
-            limitHint=self._limit,
-            version=self._version,
-            timestamp=self._timestamp
-        )
+    def to_pyarrow_table(
+        self,
+        pyarrow_ds_options: Optional[Mapping[str, Any]] = None,
+        pyarrow_tbl_options: Optional[Mapping[str, Any]] = None,
+    ) -> PyArrowTable:
+        if pyarrow_tbl_options is None:
+            pyarrow_tbl_options = {}
 
+        response = self._get_response()
+        schema_json = loads(response.metadata.schema_string)
+
+        if len(response.add_files) == 0 or self._limit == 0:
+            return get_empty_pyarrow_table(schema_json)
+
+        file_urls = [f.url for f in response.add_files]
+
+        if self._limit is None:
+            ds = DeltaSharingReader._to_pyarrow_dataset(file_urls, pyarrow_ds_options)
+            return ds.to_table(**pyarrow_tbl_options)
+        else:
+            left = self._limit
+            pa_tables = []
+
+            for file_url in file_urls:
+                ds = DeltaSharingReader._to_pyarrow_dataset(file_url, pyarrow_ds_options)
+                tbl: PyArrowTable = ds.head(left)
+                pa_tables.append(tbl)
+                left -= tbl.num_rows
+                assert (
+                    left >= 0
+                ), f"Too many rows returned from dataset. Required: {left}, returned: {tbl.num_rows}"
+                if left == 0:
+                    break
+
+            # Perform zero-copy concatenation of file tables
+            table = pyarrow.concat_tables(pa_tables)
+            return table
+
+    def to_pyarrow_dataset(
+        self, pyarrow_ds_options: Optional[Mapping[str, Any]] = None
+    ) -> PyArrowDataset:
+        response = self._get_response()
+        schema_json = loads(response.metadata.schema_string)
+
+        if len(response.add_files) == 0 or self._limit == 0:
+            return get_empty_pyarrow_dataset(schema_json)
+
+        file_urls = [f.url for f in response.add_files]
+        return DeltaSharingReader._to_pyarrow_dataset(file_urls, pyarrow_ds_options)
+
+    def to_pandas(self) -> pd.DataFrame:
+        response = self._get_response()
         schema_json = loads(response.metadata.schema_string)
 
         if len(response.add_files) == 0 or self._limit == 0:

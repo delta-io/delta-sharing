@@ -147,20 +147,16 @@ def load_as_pyarrow_table(
     except ImportError:
         raise ImportError("Unable to import pyarrow. `load_as_pyarrow_table` requires pyarrow.")
 
-    if pyarrow_ds_options is None:
-        pyarrow_ds_options = {}
+    profile_json, share, schema, table = _parse_url(url)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
 
-    if pyarrow_tbl_options is None:
-        pyarrow_tbl_options = {}
-
-    ds = load_as_pyarrow_dataset(
-        url=url, version=version, timestamp=timestamp, pyarrow_ds_options=pyarrow_ds_options
-    )
-    pa_table: PyArrowTable = (
-        ds.head(limit, **pyarrow_tbl_options)
-        if limit is not None
-        else ds.to_table(**pyarrow_tbl_options)
-    )
+    pa_table: PyArrowTable = DeltaSharingReader(
+        table=Table(name=table, share=share, schema=schema),
+        rest_client=DataSharingRestClient(profile),
+        limit=limit,
+        version=version,
+        timestamp=timestamp,
+    ).to_pyarrow_table(pyarrow_ds_options, pyarrow_tbl_options)
 
     return pa_table
 
@@ -185,9 +181,6 @@ def load_as_pyarrow_dataset(
         from pyarrow.dataset import Dataset as PyArrowDataset
     except ImportError:
         raise ImportError("Unable to import pyarrow. `load_as_pyarrow_dataset` requires pyarrow.")
-
-    if pyarrow_ds_options is None:
-        pyarrow_ds_options = {}
 
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
