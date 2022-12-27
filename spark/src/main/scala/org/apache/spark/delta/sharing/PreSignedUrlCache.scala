@@ -94,7 +94,7 @@ class CachedTableManager(
         } catch {
           case NonFatal(e) =>
             logError(s"Failed to refresh pre signed urls for table $tablePath", e)
-            if (cachedTable.expiration > System.currentTimeMillis()) {
+            if (cachedTable.expiration < System.currentTimeMillis()) {
               logInfo(s"Removing table $tablePath form cache as the pre signed url have expired")
               // Remove the cached table as pre signed urls have expired
               cache.remove(tablePath, cachedTable)

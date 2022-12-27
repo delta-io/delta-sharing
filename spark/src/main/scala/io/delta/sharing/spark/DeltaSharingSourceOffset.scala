@@ -89,7 +89,7 @@ object DeltaSharingSourceOffset {
         validateSourceVersion(s.json)
         val o = JsonUtils.fromJson[DeltaSharingSourceOffset](s.json)
         if (o.tableId != tableId) {
-          throw DeltaSharingErrors.nonExistentDeltaTable(o.tableId)
+          throw DeltaSharingErrors.nonExistentDeltaSharingTable(o.tableId)
         }
         o
     }

@@ -644,9 +644,9 @@ case class DeltaSharingSource(
       versionsWithRemoveFiles.foreach{
         case version =>
           if (versionsWithAddFiles.contains(version) && !ignoreChanges) {
-            throw DeltaSharingErrors.deltaSourceIgnoreChangesError(version)
+            throw DeltaSharingErrors.deltaSharingSourceIgnoreChangesError(version)
           } else if (!versionsWithAddFiles.contains(version) && !ignoreDeletes) {
-            throw DeltaSharingErrors.deltaSourceIgnoreDeleteError(version)
+            throw DeltaSharingErrors.deltaSharingSourceIgnoreDeleteError(version)
           }
       }
     }

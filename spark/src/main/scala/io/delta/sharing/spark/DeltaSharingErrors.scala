@@ -19,8 +19,8 @@ package io.delta.sharing.spark
 import org.apache.spark.sql.types.StructType
 
 object DeltaSharingErrors {
-  def nonExistentDeltaTable(tableId: String): Throwable = {
-    new IllegalStateException(s"Delta table ${tableId} doesn't exist. " +
+  def nonExistentDeltaSharingTable(tableId: String): Throwable = {
+    new IllegalStateException(s"Delta sharing table ${tableId} doesn't exist. " +
       s"Please delete your streaming query checkpoint and restart.")
   }
 
@@ -38,7 +38,8 @@ object DeltaSharingErrors {
     )
   }
 
-  def illegalDeltaOptionException(name: String, input: String, explain: String): Throwable = {
+  def illegalDeltaSharingOptionException(
+      name: String, input: String, explain: String): Throwable = {
     new IllegalArgumentException(s"Invalid value '$input' for option '$name', $explain")
   }
 
@@ -48,17 +49,13 @@ object DeltaSharingErrors {
     new IllegalArgumentException(s"Please either provide '$versionOptKey' or '$timestampOptKey'.")
   }
 
-  def CDFNotSupportedInStreaming: Throwable = {
-    new UnsupportedOperationException("Delta Sharing Streaming CDF is not supported yet.")
-  }
-
-  def deltaSourceIgnoreDeleteError(version: Long): Throwable = {
+  def deltaSharingSourceIgnoreDeleteError(version: Long): Throwable = {
     new UnsupportedOperationException("Detected deleted data from streaming source at version " +
       s"$version. This is currently not supported. If you'd like to ignore deletes, set the " +
       s"option 'ignoreDeletes' to 'true'.")
   }
 
-  def deltaSourceIgnoreChangesError(version: Long): Throwable = {
+  def deltaSharingSourceIgnoreChangesError(version: Long): Throwable = {
     new UnsupportedOperationException("Detected a data update in the source table at version " +
       s"$version. This is currently not supported. If you'd like to ignore updates, set the " +
       s"option 'ignoreChanges' to 'true'. If you would like the data update to be reflected, " +
