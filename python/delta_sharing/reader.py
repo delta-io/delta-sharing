@@ -154,12 +154,12 @@ class DeltaSharingReader:
 
             for file_url in file_urls:
                 ds = DeltaSharingReader._to_pyarrow_dataset(file_url, pyarrow_ds_options)
-                tbl: PyArrowTable = ds.head(left)
+                tbl: PyArrowTable = ds.head(left, **pyarrow_tbl_options)
                 pa_tables.append(tbl)
                 left -= tbl.num_rows
                 assert (
                     left >= 0
-                ), f"Too many rows returned from dataset. Required: {left}, returned: {tbl.num_rows}"
+                ), f"Too many rows returned. Required: {left}, returned: {tbl.num_rows}"
                 if left == 0:
                     break
 
