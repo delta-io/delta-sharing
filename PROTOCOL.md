@@ -16,7 +16,7 @@
     - [Read Data from a Table](#read-data-from-a-table)
       - [Request Body](#request-body)
     - [Read Change Data Feed from a Table](#read-change-data-feed-from-a-table)
-  - [Table Metadata Format](#table-metadata-format)
+  - [API Response Format](#api-response-format)
     - [JSON Wrapper Object In Each Line](#json-wrapper-object-in-each-line)
     - [Protocol](#protocol)
     - [Metadata](#metadata)
@@ -1174,7 +1174,7 @@ Example:
 
 This is the API for clients to get a table version without any other extra information. The server usually can implement this API effectively. If a client caches information about a shared table locally, it can store the table version and use this cheap API to quickly check whether their cache is stale and they should re-fetch the data.
 
-Note: We are migrating this method from HEAD to GET, and with a `/version` suffix. Please use the new API as we'll deprecate the support of HEAD API soon. 
+Note: This method is migrating from HEAD to GET, and with a `/version` suffix. Please use the new API as the support of HEAD API will be deprecated on the server side 07/01/2023. 
 
 HTTP Request | Value
 -|-
@@ -1182,7 +1182,7 @@ Method | `GET`
 Header | `Authorization: Bearer {token}`
 URL | `{prefix}/shares/{share}/schemas/{schema}/tables/{table}/version`
 URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.<br>**{table}**: The table name to query. It's case-insensitive.
-Query Parameters | **startingTimestamp** (type: String, optional): The startingTimestamp of the query, the server needs to return a table version at or after the provided timestamp, can be earlier that the timestamp of table version 0.
+Query Parameters | **startingTimestamp** (type: String, optional): The startingTimestamp of the query, a string in the [Timestamp Format](#timestamp-format), the server needs to return a table version at or after the provided timestamp, can be earlier than the timestamp of table version 0.
 
 <details open>
 <summary><b>200: The table version was successfully returned.</b></summary>
@@ -1413,7 +1413,7 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br
 <td>Body</td>
 <td>
 
-A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [Table Metadata Format](#table-metadata-format).
+A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format](#api-response-format).
 
 The response contains two lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
@@ -1578,7 +1578,7 @@ The response contains two lines:
 </table>
 </details>
 
-Example (See [Table Metadata Format](#table-metadata-format) for more details about the format):
+Example (See [API Response Format](#api-response-format) for more details about the format):
 
 `GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/metadata`
 
@@ -1698,7 +1698,7 @@ returned in the response.
 <td>Body</td>
 <td>
 
-A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [Table Metadata Format](#table-metadata-format).
+A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format](#api-response-format).
 
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
@@ -1881,15 +1881,15 @@ The request body should be a JSON string containing the following two optional f
 - **limitHint** (type: Int32, optional): an optional limit number. It’s a hint from the client to tell the server how many rows in the table the client plans to read. The server can use this hint to return only some files by using the file stats. For example, when running `SELECT * FROM table LIMIT 1000`, the client can set `limitHint` to `1000`.
   - Applying `limitHint` is **BEST EFFORT**. The server may return files containing more rows than the client requests.
 
-- **version** (type: Int64, optional): an optional version number. If set, will return files as of the specified version of the table. This is only supported on tables with history sharing enabled.
+- **version** (type: Long, optional): an optional version number. If set, will return files as of the specified version of the table. This is only supported on tables with history sharing enabled.
 
-- **timestamp** (type: String, optional): an optional timestamp string. If set, will return files as of the table version corresponding to the specified timestamp. This is only supported on tables with history sharing enabled.
+- **timestamp** (type: String, optional): an optional timestamp string in the [Timestamp Format](#timestamp-format),. If set, will return files as of the table version corresponding to the specified timestamp. This is only supported on tables with history sharing enabled.
 
-- **startingVersion** (type: Int64, optional): an optional version number. If set, will return all data change files since startingVersion, including historical metadata if seen in the delta log.
+- **startingVersion** (type: Long, optional): an optional version number. If set, will return all data change files since startingVersion, including historical metadata if seen in the delta log.
 
 When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
-Example (See [Table Metadata Format](#table-metadata-format) for more details about the format):
+Example (See [API Response Format](#api-response-format) for more details about the format):
 
 `POST {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/query`
 
@@ -1957,12 +1957,12 @@ This is the API for clients to read change data feed from a table.
 
 The API supports a start parameter and and an end parameter. The start/end parameter can either be a version or a timestamp. The start parameter must be provided. If the end parameter is not provided, the API will use the latest table version for it. The parameter range is inclusive in the query.
 
-You specify a version as a Long and a timestamps as a string in the format "yyyy-mm-dd hh:mm:ss[.fffffffff]".
+You can specify a version as a Long or a timestamp as a string in the [Timestamp Format](#timestamp-format).
 
 The change data feed represents row-level changes between versions of a Delta table. It records change data for UPDATE, DELETE, and MERGE operations. If you leverage the connectors provided by this library to read change data feed, it results in three metadata columns that identify the type of change event, in addition to the data columns:
 - _change_type (type: String): There are four values: insert, update_preimage, update_postimage, delete. preimage is the value before the udpate, postimage is the value after the update.
 - _commit_version (type: Long): The table version containing the change.
-- _commit_timestamp (type: String): The timestap associated when the commit of the change was created, in the format "yyyy-mm-dd hh:mm:ss".
+- _commit_timestamp (type: Long): The unix timestamp associated when the commit of the change was created, in milliseconds. 
 
 <table>
 <tr>
@@ -2006,10 +2006,10 @@ The change data feed represents row-level changes between versions of a Delta ta
 <td>Query Parameters</td>
 <td>
 
- **startingVersion** (type: Int64, optional): The starting version of the query, inclusive. <br>
- **startingTimestamp** (type: String, optional): The starting timestamp of the query, will be converted to a version created greater or equal to this timestamp. <br>
- **endingVersion** (type: Int64, optional): The ending version of the query, inclusive. <br>
- **endingTimestamp** (type: String, optional): The ending timestamp of the query, will be converted to a version created earlier or equal to this timestamp. <br>
+ **startingVersion** (type: Long, optional): The starting version of the query, inclusive. <br>
+ **startingTimestamp** (type: String, optional): The starting timestamp of the query, a string in the [Timestamp Format](#timestamp-format), which will be converted to a version created greater or equal to this timestamp. <br>
+ **endingVersion** (type: Long, optional): The ending version of the query, inclusive. <br>
+ **endingTimestamp** (type: String, optional): The ending timestamp of the query, a string in the [Timestamp Format](#timestamp-format), which will be converted to a version created earlier than or at the timestamp. <br>
  **includeHistoricalMetadata** (type: Boolean, optional): If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible.</td>
 </tr>
 </table>
@@ -2038,7 +2038,7 @@ The change data feed represents row-level changes between versions of a Delta ta
 <td>Body</td>
 <td>
 
-A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [Table Metadata Format](#table-metadata-format).
+A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format](#api-response-format).
 
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
@@ -2205,7 +2205,7 @@ The response contains multiple lines:
 </table>
 </details>
 
-Example (See [Table Metadata Format](#table-metadata-format) for more details about the format):
+Example (See [API Response Format](#api-response-format) for more details about the format):
 
 `GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/changes?startingVersion=0&endingVersion=2`
 
@@ -2275,9 +2275,12 @@ content-type: application/x-ndjson; charset=utf-8
 }
 ```
 
-## Table Metadata Format
+### Timestamp Format
+Accepted timestamp format by a delta sharing server: `yyyy-[m]m-[d]d hh:mm:ss[.f...]`. The server will use its local time zone to parse the provided timestamp.   
 
-This section discusses the table metadata format returned by the server.
+## API Response Format
+
+This section discusses the API Response Format returned by the server.
 
 ### JSON Wrapper Object In Each Line
 
@@ -2285,7 +2288,7 @@ The JSON object in each line is a wrapper object that may contain the following 
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
-protocol | The [Protocol](#protocol) JSON object. | Defines the versioning information about the table metadata format. | Optional
+protocol | The [Protocol](#protocol) JSON object. | Defines the versioning information about the API Response Format. | Optional
 metaData | The [Metadata](#metadata) JSON object. | The table metadata including schema, partitionColumns, etc. | Optional
 file | The [File](#file) JSON object. | An individual data file in the table. | Optional
 
