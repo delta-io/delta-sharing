@@ -136,7 +136,7 @@ delta_sharing.load_as_pandas(table_url)
 delta_sharing.load_as_spark(table_url)
 ```
 
-If the table support history sharing, you can query the connector to query table changes.
+If the table supports history sharing, the connector can query table changes.
 ```python
 # Load table changes from version 0 to version 5, as a Pandas DataFrame.
 delta_sharing.load_table_changes_as_pandas(table_url, starting_version=0, ending_version=5)
@@ -268,8 +268,8 @@ You can try this by running our [examples](examples/README.md) with the open, ex
 
 ### CDF 
 Starting from release 0.5.0, querying [Change Data Feed](https://docs.databricks.com/delta/delta-change-data-feed.html) is supported with delta sharing.
-The provider can turn on the CDF on the original delta table, and share it in delta sharing. Once CDF is shared, the recipient can query
-CDF of a delta sharing table in a similar way of a delta table:
+Once the provider turn on CDF on the original delta table and share it through delta sharing. Once CDF is shared, the recipient can query
+CDF of a delta sharing table similar to CDF of a delta table.
 ```scala
 val tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 val df = spark.read.format("deltaSharing")
@@ -280,7 +280,7 @@ val df = spark.read.format("deltaSharing")
 
 ### Streaming
 Starting from release 0.6.0, delta sharing table can be used as the data source for [spark structured streaming](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html).
-The provider can share the table with history, then the recipient can streaming query the table:
+Once the provider shares a table with history, the recipient can perform a streaming query on the table.
 ```scala
 val tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 val df = spark.readStream.format("deltaSharing")
