@@ -1,7 +1,7 @@
 # Dependencies. When you update don't forget to update setup.py.
 pandas
-pyarrow>=4.0.0
-fsspec>=0.7.4
+pyarrow
+fsspec
 requests
 aiohttp
 yarl>=1.6.0
