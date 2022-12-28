@@ -30,7 +30,8 @@ trait DeltaSharingOptionParser {
 
   def toBoolean(input: String, name: String): Boolean = {
     Try(input.toBoolean).toOption.getOrElse {
-      throw DeltaSharingErrors.illegalDeltaOptionException(name, input, "must be 'true' or 'false'")
+      throw DeltaSharingErrors.illegalDeltaSharingOptionException(
+        name, input, "must be 'true' or 'false'")
     }
   }
 }
@@ -40,14 +41,14 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
 
   val maxFilesPerTrigger = options.get(MAX_FILES_PER_TRIGGER_OPTION).map { str =>
     Try(str.toInt).toOption.filter(_ > 0).getOrElse {
-      throw DeltaSharingErrors.illegalDeltaOptionException(
+      throw DeltaSharingErrors.illegalDeltaSharingOptionException(
         MAX_FILES_PER_TRIGGER_OPTION, str, "must be a positive integer")
     }
   }
 
   val maxBytesPerTrigger = options.get(MAX_BYTES_PER_TRIGGER_OPTION).map { str =>
     Try(JavaUtils.byteStringAs(str, ByteUnit.BYTE)).toOption.filter(_ > 0).getOrElse {
-      throw DeltaSharingErrors.illegalDeltaOptionException(
+      throw DeltaSharingErrors.illegalDeltaSharingOptionException(
         MAX_BYTES_PER_TRIGGER_OPTION, str, "must be a size configuration such as '10g'")
     }
   }
@@ -63,7 +64,7 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
     case "latest" => StartingVersionLatest
     case str =>
       Try(str.toLong).toOption.filter(_ >= 0).map(StartingVersion).getOrElse{
-        throw DeltaSharingErrors.illegalDeltaOptionException(
+        throw DeltaSharingErrors.illegalDeltaSharingOptionException(
           STARTING_VERSION_OPTION, str, "must be greater than or equal to zero")
       }
   }
@@ -74,7 +75,7 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
 
   val versionAsOf = options.get(TIME_TRAVEL_VERSION).map { str =>
     Try(str.toLong).toOption.filter(_ >= 0).getOrElse {
-      throw DeltaSharingErrors.illegalDeltaOptionException(
+      throw DeltaSharingErrors.illegalDeltaSharingOptionException(
         TIME_TRAVEL_VERSION, str, "must be an integer greater than or equal to zero")
     }
   }
