@@ -119,8 +119,8 @@ def test_pyarrow_schema_map():
         _to_pyarrow_schema(base_schema_dict_tmp)
 
     assert (
-            str(exp_info1.value)
-            == "Could not parse map field with timestamp key or value types to PyArrow type."
+        str(exp_info1.value)
+        == "Could not parse map field with timestamp key or value types to PyArrow type."
     )
 
     with pytest.raises(TypeError) as exp_info2:
@@ -148,8 +148,8 @@ def test_pyarrow_schema_map():
         _to_pyarrow_schema(base_schema_dict_tmp)
 
     assert (
-            str(exp_info2.value)
-            == "Could not parse map field with struct key or value types to PyArrow type."
+        str(exp_info2.value)
+        == "Could not parse map field with struct key or value types to PyArrow type."
     )
 
 
@@ -299,7 +299,7 @@ def test_pyarrow_schema_array():
         _to_pyarrow_schema(base_schema_dict_tmp)
 
     assert (
-            str(exp_info2.value) == "Could not parse map field types: array<timestamp> to PyArrow type."
+        str(exp_info2.value) == "Could not parse map field types: array<timestamp> to PyArrow type."
     )
 
     with pytest.raises(TypeError) as exp_info3:
