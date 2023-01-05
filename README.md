@@ -23,63 +23,6 @@ This repo includes the following components:
 - [Apache Spark](http://spark.apache.org/) Connector: An Apache Spark connector that implements the Delta Sharing Protocol to read shared tables from a Delta Sharing Server. The tables can then be accessed in SQL, Python, Java, Scala, or R.
 - Delta Sharing Server: A reference implementation server for the Delta Sharing Protocol for development purposes. Users can deploy this server to share existing tables in Delta Lake and Apache Parquet format on modern cloud storage systems.
 
-## Feature List
-Here is the list of releases and noteble features from each release, please check [release notes](https://github.com/delta-io/delta-sharing/releases) for more details. 
-<table>
-<tr>
-<th>Release</th>
-<th>Features</th>
-</tr>
-<tr>
-<td>0.1.0</td>
-<td>Python Connector and Spark Connector and a reference implementation of the delta sharing server, supporting the following features:
- 
- - query table version.
- - query table metadata.
- - query data from a table.
-</td>
-</tr>
-<tr>
-<td>0.2.0</td>
-<td>
-
-- Added the conf directory to the Delta Sharing Server classpath to allow users to add their Hadoop configuration files in the directory.
-- Added retry with exponential backoff for REST requests in the Python connector.
-</td>
-</tr>
-<tr>
-<td>0.3.0</td>
-<td>
- 
-- Apache Spark Connector will refresh/re-fetch pre-signed urls before they expire to support long running queries.
-- Add a User-Agent header to request sent from Apache Spark Connector and Python.
-- Support Azure Blob Storage and Azure Data Lake Gen2 in Delta Sharing Server.
-- Support limit pushdown from python/spark connector to the delta sharing server.
-</td>
-</tr>
-<tr>
-<td>0.4.0</td>
-<td>
- Support Google Cloud Storage on Delta Sharing Server.
-</td>
-</tr>
-<tr>
-<td>0.5.0</td>
-<td>
-
-- Support sharing and querying the historical version of a table.
-- Support for Change Data Feed which allows clients to fetch incremental changes for the shared tables.
-</td>
-</tr>
-<tr>
-<td>0.6.0</td>
-<td>
-Support using delta sharing table as a source in spark structured streaming, both cdf and non-cdf streaming are supported.   
-</td>
-</tr>
-
-</table>
-
 # Python Connector
 
 The Delta Sharing Python Connector is a Python library that implements the [Delta Sharing Protocol](PROTOCOL.md) to read tables from a Delta Sharing Server. You can load shared tables as a [pandas](https://pandas.pydata.org/) DataFrame, or as an [Apache Spark](http://spark.apache.org/) DataFrame if running in PySpark with the Apache Spark Connector installed.
@@ -136,7 +79,7 @@ delta_sharing.load_as_pandas(table_url)
 delta_sharing.load_as_spark(table_url)
 ```
 
-If the table supports history sharing, the connector can query table changes.
+If the table supports history sharing(`tableConfig.cdfEnabled=true` in the oss delta sharing server), the connector can query table changes.
 ```python
 # Load table changes from version 0 to version 5, as a Pandas DataFrame.
 delta_sharing.load_table_changes_as_pandas(table_url, starting_version=0, ending_version=5)
@@ -268,7 +211,7 @@ You can try this by running our [examples](examples/README.md) with the open, ex
 
 ### CDF 
 Starting from release 0.5.0, querying [Change Data Feed](https://docs.databricks.com/delta/delta-change-data-feed.html) is supported with delta sharing.
-Once the provider turn on CDF on the original delta table and share it through delta sharing. Once CDF is shared, the recipient can query
+Once the provider turns on CDF on the original delta table and share it through delta sharing, the recipient can query
 CDF of a delta sharing table similar to CDF of a delta table.
 ```scala
 val tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
@@ -298,7 +241,7 @@ val df = spark.readStream.format("deltaSharing")
 <table>
 <tr>
 <th>Connector</th>
-<th>GitHub Link</th>
+<th>Link</th>
 <th>Status</th>
 <th>Supported Features</th>
 </tr>
@@ -357,7 +300,7 @@ val df = spark.readStream.format("deltaSharing")
 <td>C++</td>
 <td>
 
-[magpierre/delta-sharing](https://github.com/magpierre/delta-sharing/tree/golangdev/golang/delta_sharing_go)
+[magpierre/delta-sharing](https://github.com/magpierre/delta-sharing/tree/cppdev/cpp/DeltaSharingClient)
 </td>
 <td>Un-released</td>
 <td>N/A</td>
@@ -373,8 +316,11 @@ val df = spark.readStream.format("deltaSharing")
 </tr>
 <tr>
 <td>Excel-Connector</td>
-<td>TBD</td>
-<td>In-Progress, ETA 2023 Q1</td>
+<td>
+
+[https://www.exponam.com/solutions/](https://www.exponam.com/solutions/)
+</td>
+<td>limited-release</td>
 <td>N/A</td>
 </tr>
 <tr>
