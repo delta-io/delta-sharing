@@ -93,7 +93,7 @@ private[spark] class DeltaSharingRestClient(
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
     sslTrustAll: Boolean = false,
-    forStreaming: Boolean = false) extends DeltaSharingClient {
+    forStreaming: Boolean = false) extends DeltaSharingClient with Logging {
 
   @volatile private var created = false
 
@@ -193,15 +193,19 @@ private[spark] class DeltaSharingRestClient(
   }
 
   def getMetadata(table: Table): DeltaTableMetadata = {
+    log.info("client.getMetadata called")
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata")
     val (version, lines) = getNDJson(target)
+    log.info("version=" + version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
+    log.info("protocol=" + protocol)
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
+    log.info("metadata=" + metadata)
     if (lines.size != 2) {
       throw new IllegalStateException("received more than two lines")
     }

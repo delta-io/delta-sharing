@@ -219,6 +219,7 @@ class RemoteSnapshot(
     import implicits._
 
     if (metadata.size != null) {
+      log.info("Got size from metadata: size=" + metadata.size + ", files=" + metadata.numFiles)
       metadata.size
     } else {
       log.warn("Getting table size from a full file scan for table: " + table)
@@ -230,6 +231,7 @@ class RemoteSnapshot(
   }
 
   private def getTableMetadata: (Metadata, Protocol, Long) = {
+    log.info("getTableMetadata: called")
     if (versionAsOf.isEmpty) {
       val tableMetadata = client.getMetadata(table)
       (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
@@ -263,6 +265,7 @@ class RemoteSnapshot(
       limitHint: Option[Long],
       fileIndex: RemoteDeltaSnapshotFileIndex): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
+    log.info("filesForScan: called")
 
     val partitionFilters = filters.flatMap { filter =>
       DeltaTableUtils.splitMetadataAndDataPredicates(filter, metadata.partitionColumns, spark)._1
@@ -281,7 +284,9 @@ class RemoteSnapshot(
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
+      log.info("filesForScan: calling client.getFiles:")
       val tableFiles = client.getFiles(table, predicates, limitHint, versionAsOf, timestampAsOf)
+      log.info("filesForScan: done client.getFiles: " + tableFiles.files.size)
       val idToUrl = tableFiles.files.map { file =>
         file.id -> file.url
       }.toMap
