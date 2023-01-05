@@ -41,7 +41,8 @@ class TestDeltaSharingClient(
       |{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",
       |\"fields\":[{\"name\":\"col1\",\"type\":\"integer\",\"nullable\":true,
       |\"metadata\":{}},{\"name\":\"col2\",\"type\":\"string\",\"nullable\":true,
-      |\"metadata\":{}}]}","partitionColumns":[],"configuration":{},"createdTime":1603723967515}}"""
+      |\"metadata\":{}}]}","partitionColumns":[],"configuration":{},
+      |"size": 100,"numFiles": 2,"createdTime":1603723967515}}"""
       .stripMargin.replaceAll("\n", "")
   private val metadata = JsonUtils.fromJson[SingleAction](metadataString).metaData
 

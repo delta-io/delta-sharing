@@ -195,13 +195,25 @@ class RemoteSnapshot(
 
   def getTablePath: Path = tablePath
 
-  lazy val (allFiles, sizeInBytes) = {
+  // This function is invoked during spark's query planning phase.
+  //
+  // The delta sharing server may not return the table size in its metadata if:
+  //   - We are talking to an older version of the server.
+  //   - The table does not contain this information in its metadata.
+  // We perform a full scan in that case.
+  lazy val sizeInBytes: Long = {
     val implicits = spark.implicits
     import implicits._
-    val tableFiles = client.getFiles(table, Nil, None, versionAsOf)
-    checkProtocolNotChange(tableFiles.protocol)
-    checkSchemaNotChange(tableFiles.metadata)
-    tableFiles.files.toDS() -> tableFiles.files.map(_.size).sum
+
+    if (metadata.size != null) {
+      metadata.size
+    } else {
+      log.warn("Getting table size from a full file scan for table: " + table)
+      val tableFiles = client.getFiles(table, Nil, None, versionAsOf)
+      checkProtocolNotChange(tableFiles.protocol)
+      checkSchemaNotChange(tableFiles.metadata)
+      tableFiles.files.map(_.size).sum
+    }
   }
 
   private def getTableMetadata: (Metadata, Protocol, Long) = {
