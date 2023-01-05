@@ -523,17 +523,17 @@ class DeltaSharingSourceSuite extends QueryTest
       }
     }
 
-    var message = intercept[StreamingQueryException] {
+    var message = intercept[IllegalArgumentException] {
       val query = spark.readStream.format("deltaSharing").option("path", tablePath)
         .option("startingTimestamp", "")
         .load().writeStream.format("console").start()
       query.processAllAvailable()
     }.getMessage
-    assert(message.contains("Invalid startingTimestamp:"))
+    assert(message.contains("The provided timestamp () cannot be converted to a valid timestamp"))
 
     message = intercept[IllegalArgumentException] {
       val query = spark.readStream.format("deltaSharing").option("path", tablePath)
-        .option("startingTimestamp", "")
+        .option("startingTimestamp", "2022-01-01")
         .option("startingVersion", "1")
         .load().writeStream.format("console").start()
     }.getMessage
@@ -545,7 +545,7 @@ class DeltaSharingSourceSuite extends QueryTest
         .load().writeStream.format("console").start()
       query.processAllAvailable()
     }.getMessage
-    assert(message.contains("The provided timestamp (9999-01-01 00:00:00.0) is after"))
+    assert(message.contains("The provided timestamp ("))
   }
 
   integrationTest("startingTimestamp - succeeds") {

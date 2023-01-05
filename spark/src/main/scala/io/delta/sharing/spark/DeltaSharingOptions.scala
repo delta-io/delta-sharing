@@ -23,7 +23,10 @@ import scala.util.Try
 
 import org.apache.spark.internal.Logging
 import org.apache.spark.network.util.{ByteUnit, JavaUtils}
-import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
+import org.apache.spark.sql.catalyst.expressions.{Cast, Literal}
+import org.apache.spark.sql.catalyst.util.{CaseInsensitiveMap, DateTimeUtils}
+import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.types.TimestampType
 
 trait DeltaSharingOptionParser {
   protected def options: CaseInsensitiveMap[String]
@@ -69,7 +72,7 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
       }
   }
 
-  val startingTimestamp = options.get(STARTING_TIMESTAMP_OPTION)
+  val startingTimestamp = options.get(STARTING_TIMESTAMP_OPTION).map(getFormattedTimestamp(_))
 
   val cdfOptions: Map[String, String] = prepareCdfOptions()
 
@@ -80,14 +83,31 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
     }
   }
 
-  val timestampAsOf = options.get(TIME_TRAVEL_TIMESTAMP)
+  val timestampAsOf = options.get(TIME_TRAVEL_TIMESTAMP).map(getFormattedTimestamp(_))
 
   def isTimeTravel: Boolean = versionAsOf.isDefined || timestampAsOf.isDefined
+
+  // Parse the input timestamp string and TimestampType, and generate a formatted timestamp string
+  // in the ISO8601 format, in the UTC timezone, such as 2022-01-01T00:00:00Z.
+  // The input string is quite flexible, and can be in any timezone, examples of accepted format:
+  // "2022", "2022-01-01", "2022-01-01 00:00:00" "2022-01-01T00:00:00-08:00", etc.
+  private def getFormattedTimestamp(str: String): String = {
+    val castResult = Cast(
+    Literal(str), TimestampType, Option(SQLConf.get.sessionLocalTimeZone)).eval()
+    if (castResult == null) {
+      throw DeltaSharingErrors.timestampInvalid(str)
+    }
+    DateTimeUtils.toJavaTimestamp(castResult.asInstanceOf[java.lang.Long]).toInstant.toString
+  }
 
   private def prepareCdfOptions(): Map[String, String] = {
     if (readChangeFeed) {
       validCdfOptions.filter(option => options.contains(option._1)).map(option =>
-        option._1 -> options.get(option._1).get
+        if ((option._1 == CDF_START_TIMESTAMP) || (option._1 == CDF_END_TIMESTAMP)) {
+          option._1 -> getFormattedTimestamp(options.get(option._1).get)
+        } else {
+          option._1 -> options.get(option._1).get
+        }
       )
     } else {
      Map.empty[String, String]
