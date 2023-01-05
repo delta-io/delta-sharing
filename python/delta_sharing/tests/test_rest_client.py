@@ -230,7 +230,7 @@ def test_query_existed_table_version(rest_client: DataSharingRestClient):
 def test_query_table_version_with_timestamp(rest_client: DataSharingRestClient):
     response = rest_client.query_table_version(
         Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
-        starting_timestamp="2020-01-01 00:00:00.0"
+        starting_timestamp="2020-01-01T00:00:00-08:00"
     )
     assert isinstance(response.delta_table_version, int)
     assert response.delta_table_version == 0
@@ -241,7 +241,7 @@ def test_query_table_version_with_timestamp_exception(rest_client: DataSharingRe
     try:
         rest_client.query_table_version(
             Table(name="table1", share="share1", schema="default"),
-            starting_timestamp="2020-01-1 00:00:00.0"
+            starting_timestamp="2020-01-1T00:00:00-08:00"
         )
     except Exception as e:
         assert isinstance(e, HTTPError)
@@ -520,16 +520,17 @@ def test_list_files_in_table_timestamp(
     # Use a random string, and look for an appropriate error.
     # This will ensure that the timestamp is pass to server.
     try:
-        rest_client.list_files_in_table(cdf_table, timestamp="random")
+        rest_client.list_files_in_table(cdf_table, timestamp="randomTimestamp")
         assert False
     except Exception as e:
         assert isinstance(e, HTTPError)
-        assert "Invalid timestamp: Timestamp format must be" in (str(e))
+        assert "Invalid timestamp:" in (str(e))
+        assert "randomTimestamp" in (str(e))
 
     # Use a really old start time, and look for an appropriate error.
     # This will ensure that the timestamp is parsed correctly.
     try:
-        rest_client.list_files_in_table(cdf_table, timestamp="2000-01-01 00:00:00")
+        rest_client.list_files_in_table(cdf_table, timestamp="2000-01-01T00:00:00Z")
         assert False
     except Exception as e:
         assert isinstance(e, HTTPError)
@@ -537,7 +538,7 @@ def test_list_files_in_table_timestamp(
 
     # Use an end time far away, and look for an appropriate error.
     try:
-        rest_client.list_files_in_table(cdf_table, timestamp="9000-01-01 00:00:00")
+        rest_client.list_files_in_table(cdf_table, timestamp="9000-01-01T00:00:00Z")
         assert False
     except Exception as e:
         assert isinstance(e, HTTPError)
@@ -698,7 +699,7 @@ def test_list_table_changes_with_timestamp(
     try:
         rest_client.list_table_changes(
             cdf_table,
-            CdfOptions(starting_timestamp="2000-05-03 00:00:00")
+            CdfOptions(starting_timestamp="2000-05-03T00:00:00-08:00")
         )
         assert False
     except Exception as e:
@@ -709,7 +710,7 @@ def test_list_table_changes_with_timestamp(
     try:
         rest_client.list_table_changes(
             cdf_table,
-            CdfOptions(starting_version=0, ending_timestamp="2100-05-03 00:00:00")
+            CdfOptions(starting_version=0, ending_timestamp="2100-05-03T00:00:00Z")
         )
         assert False
     except Exception as e:

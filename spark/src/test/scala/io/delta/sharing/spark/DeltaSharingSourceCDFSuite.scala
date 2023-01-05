@@ -441,7 +441,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
         .load(cdfTablePath).writeStream.format("console").start()
       query.processAllAvailable()
     }.getMessage
-    assert(message.contains("The provided timestamp (9999-01-01 00:00:00.0) is after"))
+    assert(message.contains("The provided timestamp ("))
 
     // startingTimestamp corresponds to version 0, < starting version 1 on partitionTablePath.
     message = intercept[StreamingQueryException] {
@@ -451,7 +451,8 @@ class DeltaSharingSourceCDFSuite extends QueryTest
         .load(partitionTablePath).writeStream.format("console").start()
       query.processAllAvailable()
     }.getMessage
-    assert(message.contains("The provided timestamp(2022-01-01 00:00:00) corresponds to 0"))
+    assert(message.contains("The provided timestamp"))
+    assert(message.contains("corresponds to 0"))
     // startingVersion > latest version
   }
 

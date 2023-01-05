@@ -28,6 +28,11 @@ object DeltaSharingErrors {
     new IllegalStateException(s"sourceVersion($version) is invalid.")
   }
 
+  def timestampInvalid(str: String): Throwable = {
+    new IllegalArgumentException(s"The provided timestamp ($str) cannot be converted to a valid " +
+      s"timestamp.")
+  }
+
   def cannotFindSourceVersionException(json: String): Throwable = {
     new IllegalStateException(s"Cannot find 'sourceVersion' in $json")
   }

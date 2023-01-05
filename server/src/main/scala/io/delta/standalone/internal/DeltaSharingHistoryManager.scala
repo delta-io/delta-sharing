@@ -18,6 +18,9 @@
 package io.delta.standalone.internal
 
 import java.sql.Timestamp
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 import io.delta.standalone.internal.actions.CommitMarker
 import io.delta.standalone.internal.util.FileNames
@@ -59,9 +62,10 @@ object DeltaSharingHistoryManager {
   // Convert timestamp string to Timestamp
   private[internal] def getTimestamp(paramName: String, timeStampStr: String): Timestamp = {
     try {
-      Timestamp.valueOf(timeStampStr)
+      new Timestamp(OffsetDateTime.parse(
+        timeStampStr, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toInstant.toEpochMilli)
     } catch {
-      case e: IllegalArgumentException =>
+      case e: java.time.format.DateTimeParseException =>
         throw DeltaCDFErrors.invalidTimestamp(paramName, e.getMessage)
     }
   }
