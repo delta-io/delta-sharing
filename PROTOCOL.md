@@ -1174,18 +1174,56 @@ Example:
 
 This is the API for clients to get a table version without any other extra information. The server usually can implement this API effectively. If a client caches information about a shared table locally, it can store the table version and use this cheap API to quickly check whether their cache is stale and they should re-fetch the data.
 
-Note: This method is migrating from HEAD to GET, and with a `/version` suffix. Please use the new API as the support of HEAD API will be deprecated on the server side 07/01/2023. 
+Note: This method is migrating from HEAD to GET, and with a `/version` suffix. Please use the new API as we encourage that the HEAD API be deprecated by 07/01/2023. 
 
-HTTP Request | Value
--|-
-Method | `GET`
-Header | `Authorization: Bearer {token}`
-URL | `{prefix}/shares/{share}/schemas/{schema}/tables/{table}/version`
-URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.<br>**{table}**: The table name to query. It's case-insensitive.
-Query Parameters | **startingTimestamp** (type: String, optional): The startingTimestamp of the query, a string in the [Timestamp Format](#timestamp-format), the server needs to return a table version at or after the provided timestamp, can be earlier than the timestamp of table version 0.
+<table>
+<tr>
+<th>HTTP Request</th>
+<th colspan="2">Value</th>
+</tr>
+<tr>
+<td>Method</td>
+<td>GET</td>
+<td>HEAD (deprecated)</td>
+</tr>
+<tr>
+<td>HEADER</td>
+<td colspan="2">
+
+`Authorization: Bearer {token}`</td>
+</tr>
+<tr>
+<td>URL</td>
+<td>
+
+`{prefix}/shares/{share}/schemas/{schema}/tables/{table}/version`
+</td>
+<td>
+
+`{prefix}/shares/{share}/schemas/{schema}/tables/{table}`
+</td>
+</tr>
+<tr>
+<td>URL parameters</td>
+<td colspan="2">
+
+**{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.<br>**{table}**: The table name to query. It's case-insensitive.
+</td>
+</tr>
+<tr>
+<td>Query parameters</td>
+<td>
+
+**startingTimestamp** (type: String, optional): The startingTimestamp of the query, a string in the [Timestamp Format](#timestamp-format), the server needs to return the earliest table version at or after the provided timestamp, can be earlier than the timestamp of table version 0.
+</td>
+<td>N/A</td>
+</tr>
+</table>
 
 <details open>
 <summary><b>200: The table version was successfully returned.</b></summary>
+
+
 
 <table>
 <tr>
@@ -1703,9 +1741,10 @@ A sequence of JSON strings delimited by newline. Each line is a JSON object defi
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
-- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for 
-  - either [data change files](#data-change-files) with possible historical [Metadata](#metadata) (when startingVersion is set).
-  - or [files](#file) in the table (otherwise).
+- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [data change files](#data-change-files), [Metadata](#metadata), or [files](#file).  
+  - The lines are [data change files](#data-change-files) with possible historical [Metadata](#metadata) (when startingVersion is set).
+  - The lines are [files](#file) in the table (otherwise).
+  - The ordering of the lines doesn't matter.
 
 </td>
 </tr>
@@ -2044,7 +2083,8 @@ The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
 - The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [Data Change Files](#data-change-files) of the change data feed.
-- Historical [Metadata](#metadata) will be returned if includeHistoricalMetadata is set to true.
+  - Historical [Metadata](#metadata) will be returned if includeHistoricalMetadata is set to true.
+  - The ordering of the lines doesn't matter.
 
 </td>
 </tr>
