@@ -293,8 +293,8 @@ val df = spark.readStream.format("deltaSharing")
 
 [magpierre/delta-sharing](https://github.com/magpierre/delta-sharing/tree/golangdev/golang/delta_sharing_go)
 </td>
-<td>Un-released</td>
-<td>N/A</td>
+<td>Released</td>
+<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>C++</td>
@@ -302,8 +302,8 @@ val df = spark.readStream.format("deltaSharing")
 
 [magpierre/delta-sharing](https://github.com/magpierre/delta-sharing/tree/cppdev/cpp/DeltaSharingClient)
 </td>
-<td>Un-released</td>
-<td>N/A</td>
+<td>Released</td>
+<td>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Airflow</td>
@@ -325,27 +325,12 @@ val df = spark.readStream.format("deltaSharing")
 </tr>
 <tr>
 <td>R</td>
-<td>TBD</td>
-<td>In-Progress</td>
-<td>N/A</td>
-</tr>
-<tr>
-<td>BigQuery</td>
-<td>TBD</td>
-<td>In-Progress</td>
-<td>N/A</td>
-</tr>
-<tr>
-<td>Athena</td>
-<td>TBD</td>
-<td>Not started</td>
-<td>N/A</td>
-</tr>
-<tr>
-<td>Trino/Starburst</td>
-<td>TBD</td>
-<td>Design discussion</td>
-<td>N/A</td>
+<td>
+
+[zacdav-db/delta-sharing-r](https://github.com/zacdav-db/delta-sharing-r)
+</td>
+<td>Released</td>
+<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 </table>
 
