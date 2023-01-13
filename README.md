@@ -79,7 +79,7 @@ delta_sharing.load_as_pandas(table_url)
 delta_sharing.load_as_spark(table_url)
 ```
 
-If the table supports history sharing(`tableConfig.cdfEnabled=true` in the oss delta sharing server), the connector can query table changes.
+If the table supports history sharing(`tableConfig.cdfEnabled=true` in the OSS Delta Sharing Server), the connector can query table changes.
 ```python
 # Load table changes from version 0 to version 5, as a Pandas DataFrame.
 delta_sharing.load_table_changes_as_pandas(table_url, starting_version=0, ending_version=5)
@@ -210,9 +210,9 @@ df <- read.df(table_path, "deltaSharing")
 You can try this by running our [examples](examples/README.md) with the open, example Delta Sharing Server.
 
 ### CDF 
-Starting from release 0.5.0, querying [Change Data Feed](https://docs.databricks.com/delta/delta-change-data-feed.html) is supported with delta sharing.
-Once the provider turns on CDF on the original delta table and share it through delta sharing, the recipient can query
-CDF of a delta sharing table similar to CDF of a delta table.
+Starting from release 0.5.0, querying [Change Data Feed](https://docs.databricks.com/delta/delta-change-data-feed.html) is supported with Delta Sharing.
+Once the provider turns on CDF on the original delta table and shares it through Delta Sharing, the recipient can query
+CDF of a Delta Sharing table similar to CDF of a delta table.
 ```scala
 val tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 val df = spark.read.format("deltaSharing")
@@ -222,7 +222,7 @@ val df = spark.read.format("deltaSharing")
 ```
 
 ### Streaming
-Starting from release 0.6.0, delta sharing table can be used as the data source for [spark structured streaming](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html).
+Starting from release 0.6.0, Delta Sharing table can be used as a data source for [Spark Structured Streaming](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html).
 Once the provider shares a table with history, the recipient can perform a streaming query on the table.
 ```scala
 val tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
@@ -238,6 +238,9 @@ val df = spark.readStream.format("deltaSharing")
 - A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
 
 # Other Connectors
+<div align="center">
+  <img src="https://user-images.githubusercontent.com/87341375/212409874-a4ef350f-3b32-4031-b2cd-8c4e47cc42e2.jpeg" alt="Delta Sharing OSS Connectors" width="400" />
+</div>
 <table>
 <tr>
 <th>Connector</th>

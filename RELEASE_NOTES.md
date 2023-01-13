@@ -1,5 +1,9 @@
 # Release Notes
 
+## Delta Sharing 0.5.4 (Released on 2023-01-11)
+Improvements:
+- Spark connector changes to consume size from metadata.
+
 ## Delta Sharing 0.6.2 (Released on 2022-12-20)
 Bug fixes:
 - Fix comparison of the expiration time to current time for pre-signed urls.
@@ -7,8 +11,8 @@ Bug fixes:
 
 ## Delta Sharing 0.5.3 (Released on 2022-12-20)
 Bug fixes:
-- Extends DeltaSharingProfileProvider to customize tablePath and refresher
-- Refresh pre-signed urls for cdf queries
+- Extends DeltaSharingProfileProvider to customize tablePath and refresher.
+- Refresh pre-signed urls for cdf queries.
 - Fix partitionFilters issue for cdf queries.
 - Fix comparison of the expiration time to current time for pre-signed urls.
 
