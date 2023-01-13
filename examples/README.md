@@ -6,5 +6,5 @@ The profile file from the open, example Delta Sharing Server is downloaded and l
 * For Python examples, Python3.6+, Delta-Sharing Python Connector, PySpark need to be installed, see [the project docs](https://github.com/delta-io/delta-sharing) for details.
 
 ### Instructions
-* To run the example of PySpark in Python run `spark-submit --packages io.delta:delta-sharing-spark_2.12:0.1.0 ./python/quickstart_spark.py`
+* To run the example of PySpark in Python run `spark-submit --packages io.delta:delta-sharing-spark_2.12:0.6.2 ./python/quickstart_spark.py`
 * To run the example of pandas DataFrame in Python run `python3 ./python/quickstart_pandas.py`
