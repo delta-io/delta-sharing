@@ -237,7 +237,7 @@ val df = spark.readStream.format("deltaSharing")
 - A profile file path can be any URL supported by Hadoop FileSystem (such as `s3a://my_bucket/my/profile/file`).
 - A table path is the profile file path following with `#` and the fully qualified name of a table (`<share-name>.<schema-name>.<table-name>`).
 
-# Other Connectors
+# The Community
 <div align="center">
   <img src="https://user-images.githubusercontent.com/87341375/212409874-a4ef350f-3b32-4031-b2cd-8c4e47cc42e2.jpeg" alt="Delta Sharing OSS Connectors" width="400" />
 </div>
