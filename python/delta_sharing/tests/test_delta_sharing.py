@@ -677,8 +677,8 @@ def test_load_as_spark(
     [
         pytest.param(
             "share8.default.cdf_table_cdf_enabled",
-            0,
-            3,
+            1,
+            1,
             None,
             None,
             None,
