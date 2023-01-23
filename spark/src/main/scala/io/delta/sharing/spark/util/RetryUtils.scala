@@ -35,10 +35,17 @@ private[sharing] object RetryUtils extends Logging {
       try {
         return func
       } catch {
-        case NonFatal(e) if shouldRetry(e) && times <= numRetries =>
-          logWarning(s"Sleeping $sleepMs ms to retry because of error: ${e.getMessage}", e)
-          sleeper(sleepMs)
-          sleepMs *= 2
+        case NonFatal(e) =>
+          val wantToRetry = shouldRetry(e)
+          log.warn("runWithExponentialBackoff Got Error: " + e)
+          log.warn("runWithExponentialBackoff wantToRetry: " + wantToRetry)
+          if (wantToRetry && times <= numRetries) {
+            logWarning(s"Sleeping $sleepMs ms to retry because of error: ${e.getMessage}", e)
+            sleeper(sleepMs)
+            sleepMs *= 2
+          } else {
+            throw e
+          }
       }
     }
     throw new IllegalStateException("Should not happen")
@@ -47,6 +54,7 @@ private[sharing] object RetryUtils extends Logging {
   def shouldRetry(t: Throwable): Boolean = {
     t match {
       case e: UnexpectedHttpStatus =>
+        log.warn("runWithExponentialBackoff Got statusCode: " + e.statusCode)
         if (e.statusCode == 429) { // Too Many Requests
           true
         } else if (e.statusCode >= 500 && e.statusCode < 600) { // Internal Error

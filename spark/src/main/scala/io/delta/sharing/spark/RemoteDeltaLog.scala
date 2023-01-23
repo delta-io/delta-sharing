@@ -19,6 +19,8 @@ package io.delta.sharing.spark
 import java.lang.ref.WeakReference
 import java.util.concurrent.TimeUnit
 
+// scalastyle:off println
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.SparkException
@@ -198,6 +200,8 @@ class RemoteSnapshot(
 
   protected def spark = SparkSession.active
 
+  val uid = java.util.UUID.randomUUID().toString()
+
   lazy val (metadata, protocol, version) = getTableMetadata
 
   lazy val schema: StructType = DeltaTableUtils.toSchema(metadata.schemaString)
@@ -223,7 +227,7 @@ class RemoteSnapshot(
       metadata.size
     } else {
       log.warn("Getting table size from a full file scan for table: " + table)
-      val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf)
+      val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, None)
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.map(_.size).sum
@@ -238,7 +242,7 @@ class RemoteSnapshot(
     } else {
       // getMetadata doesn't support the parameter: versionAsOf
       // Leveraging getFiles to get the metadata, so setting the limitHint to 1 for efficiency.
-      val tableFiles = client.getFiles(table, Nil, Some(1L), versionAsOf, timestampAsOf)
+      val tableFiles = client.getFiles(table, Nil, Some(1L), versionAsOf, timestampAsOf, None)
       (tableFiles.metadata, tableFiles.protocol, tableFiles.version)
     }
   }
@@ -263,9 +267,12 @@ class RemoteSnapshot(
   def filesForScan(
       filters: Seq[Expression],
       limitHint: Option[Long],
+      partitionPredicates: Option[String],
       fileIndex: RemoteDeltaSnapshotFileIndex): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
-    log.info("filesForScan: called")
+
+    log.info(uid + " filesForScan called: " + tablePath + ", limit=" + limitHint)
+    log.info(uid + " filesForScan partitionPredicates: " + partitionPredicates)
 
     val partitionFilters = filters.flatMap { filter =>
       DeltaTableUtils.splitMetadataAndDataPredicates(filter, metadata.partitionColumns, spark)._1
@@ -276,6 +283,8 @@ class RemoteSnapshot(
       spark.sessionState.conf.resolver,
       partitionFilters)
 
+    log.info(uid + " rewrittenFilters=" + rewrittenFilters)
+
     val predicates = rewrittenFilters.map(_.sql)
     if (predicates.nonEmpty) {
       logDebug(s"Sending predicates $predicates to the server")
@@ -284,27 +293,36 @@ class RemoteSnapshot(
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
-      log.info("filesForScan: calling client.getFiles:")
-      val tableFiles = client.getFiles(table, predicates, limitHint, versionAsOf, timestampAsOf)
-      log.info("filesForScan: done client.getFiles: " + tableFiles.files.size)
-      val idToUrl = tableFiles.files.map { file =>
-        file.id -> file.url
-      }.toMap
-      CachedTableManager.INSTANCE
-        .register(
-          fileIndex.params.path.toString,
-          idToUrl,
-          Seq(new WeakReference(fileIndex)),
-          fileIndex.params.profileProvider,
-          () => {
-            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
-              add.id -> add.url
-            }.toMap
-          }
+      log.info(uid + " filesForScan: calling client.getFiles:")
+      try {
+        val tableFiles = client.getFiles(
+          table, predicates, limitHint, versionAsOf, timestampAsOf, partitionPredicates
         )
-      checkProtocolNotChange(tableFiles.protocol)
-      checkSchemaNotChange(tableFiles.metadata)
-      tableFiles.files.toDS()
+        log.info(uid + " filesForScan: done client.getFiles: " + tableFiles.files.size)
+        tableFiles.files.take(2).map { f => log.info(" FILE: " + f.id + " -> " +  f.url) }
+        val idToUrl = tableFiles.files.map { file =>
+          file.id -> file.url
+        }.toMap
+        CachedTableManager.INSTANCE
+          .register(
+            fileIndex.params.path.toString,
+            idToUrl,
+            Seq(new WeakReference(fileIndex)),
+            fileIndex.params.profileProvider,
+            () => {
+              client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, None).files.map { add =>
+                add.id -> add.url
+              }.toMap
+            }
+          )
+        checkProtocolNotChange(tableFiles.protocol)
+        checkSchemaNotChange(tableFiles.metadata)
+        tableFiles.files.toDS()
+      } catch {
+        case e: Exception =>
+          log.error(uid + " filesForScan error: " + e)
+          throw e
+      }
     }
 
     val columnFilter = new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))

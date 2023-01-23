@@ -53,7 +53,8 @@ private[sharing] trait DeltaSharingClient {
     predicates: Seq[String],
     limit: Option[Long],
     versionAsOf: Option[Long],
-    timestampAsOf: Option[String]): DeltaTableFiles
+    timestampAsOf: Option[String],
+    partitionPredicates: Option[String]): DeltaTableFiles
 
   def getFiles(table: Table, startingVersion: Long): DeltaTableFiles
 
@@ -76,7 +77,8 @@ private[sharing] case class QueryTableRequest(
   limitHint: Option[Long],
   version: Option[Long],
   timestamp: Option[String],
-  startingVersion: Option[Long]
+  startingVersion: Option[Long],
+  partitionPredicates: Option[String] = None
 )
 
 private[sharing] case class ListSharesResponse(
@@ -225,20 +227,35 @@ private[spark] class DeltaSharingRestClient(
       predicates: Seq[String],
       limit: Option[Long],
       versionAsOf: Option[Long],
-      timestampAsOf: Option[String]): DeltaTableFiles = {
+      timestampAsOf: Option[String],
+      partitionPredicates: Option[String]): DeltaTableFiles = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
+    log.info("getFiles: target url: " + target)
+    log.info("getFiles: calling getNDJson")
     val (version, lines) = getNDJson(
-      target, QueryTableRequest(predicates, limit, versionAsOf, timestampAsOf, None))
+      target,
+      QueryTableRequest(predicates, limit, versionAsOf, timestampAsOf, None, partitionPredicates)
+    )
+    log.info("getFiles: getNDJson call finished")
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
-    val files = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
-    DeltaTableFiles(version, protocol, metadata, files)
+    log.info("getFiles: parsing files")
+    try {
+      val files = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
+      DeltaTableFiles(version, protocol, metadata, files)
+    } catch {
+      case e: Exception =>
+        log.error("getFiles: parsing files error: " + e)
+        throw e
+    } finally {
+      log.info("getFiles: parsing files done")
+    }
   }
 
   override def getFiles(table: Table, startingVersion: Long): DeltaTableFiles = {
@@ -336,6 +353,7 @@ private[spark] class DeltaSharingRestClient(
   private def getNDJson[T: Manifest](target: String, data: T): (Long, Seq[String]) = {
     val httpPost = new HttpPost(target)
     val json = JsonUtils.toJson(data)
+    log.info("getNDJson: json=" + json)
     httpPost.setHeader("Content-type", "application/json")
     httpPost.setEntity(new StringEntity(json, UTF_8))
     val (version, response) = getResponse(httpPost)
@@ -396,14 +414,19 @@ private[spark] class DeltaSharingRestClient(
   private def getResponse(
       httpRequest: HttpRequestBase,
       allowNoContent: Boolean = false
-  ): (Option[Long], String) =
-    RetryUtils.runWithExponentialBackoff(numRetries) {
+  ): (Option[Long], String) = {
+    var iter = 0
+    val uid = java.util.UUID.randomUUID().toString()
+    RetryUtils.runWithExponentialBackoff(0) {
+      iter = iter + 1
       val profile = profileProvider.getProfile
+      log.info("getResponse: executing " + uid + ", iter=" + iter)
       val response = client.execute(
         getHttpHost(profile.endpoint),
         prepareHeaders(httpRequest),
         HttpClientContext.create()
       )
+      log.info("getResponse: response created, " + uid + ", iter=" + iter)
       try {
         val status = response.getStatusLine()
         val entity = response.getEntity()
@@ -419,6 +442,8 @@ private[spark] class DeltaSharingRestClient(
         }
 
         val statusCode = status.getStatusCode
+        log.info("getResponse: " + uid + ", iter=" + iter + ", statusCode=" + statusCode)
+        log.info("getResponse: " + uid + ", iter=" + iter + ", BodyLength: " + body.length())
         if (!(statusCode == HttpStatus.SC_OK ||
           (allowNoContent && statusCode == HttpStatus.SC_NO_CONTENT))) {
           var additionalErrorInfo = ""
@@ -433,8 +458,10 @@ private[spark] class DeltaSharingRestClient(
         Option(response.getFirstHeader("Delta-Table-Version")).map(_.getValue.toLong) -> body
       } finally {
         response.close()
+        log.info("getResponse: " + uid + " closed")
       }
     }
+  }
 
   // Add SparkStructuredStreaming in the USER_AGENT header, in order for the delta sharing server
   // to recognize the request for streaming, and take corresponding actions.

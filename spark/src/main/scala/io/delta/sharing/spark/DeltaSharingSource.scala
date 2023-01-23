@@ -237,10 +237,12 @@ case class DeltaSharingSource(
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
-      val tableFiles = deltaLog.client.getFiles(deltaLog.table, Nil, None, Some(fromVersion), None)
+      val tableFiles = deltaLog.client.getFiles(
+        deltaLog.table, Nil, None, Some(fromVersion), None, None
+      )
       latestRefreshFunc = () => {
         deltaLog.client.getFiles(
-          deltaLog.table, Nil, None, Some(fromVersion), None
+          deltaLog.table, Nil, None, Some(fromVersion), None, None
         ).files.map { f =>
           f.id -> f.url
         }.toMap
