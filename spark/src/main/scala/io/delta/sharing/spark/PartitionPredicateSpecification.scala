@@ -27,12 +27,81 @@ object PartitionPredicateDataType extends Enumeration {
   val IntType, LongType, StringType, DateType = Value
 }
 
+case class ColumnInfo(
+  colName: String,
+  colValue: String,
+  dataType: PartitionPredicateDataType.Value
+) {
+
+  def lookup(partitionValues: Map[String, String]): String = {
+    partitionValues.getOrElse(colName, "")
+  }
+
+  def Equal(partitionValues: Map[String, String]): Boolean = {
+    lookup(partitionValues) == colValue
+  }
+
+  def LessThan(partitionValues: Map[String, String]): Boolean = {
+    dataType match {
+      case PartitionPredicateDataType.IntType =>
+        lookup(partitionValues).toInt < colValue.toInt
+      case PartitionPredicateDataType.LongType =>
+        lookup(partitionValues).toLong < colValue.toLong
+      case _ =>
+        lookup(partitionValues) < colValue
+    }
+  }
+}
+
+
 case class PartitionPredicate(
+    op: PartitionPredicateOp.Value,
+    colInfo: Option[ColumnInfo],
+    children: Seq[PartitionPredicate]
+) {
+
+  def left(): PartitionPredicate = children(0)
+  def right(): PartitionPredicate = children(1)
+
+  def Equal(partitionValues: Map[String, String]): Boolean = {
+    colInfo.get.Equal(partitionValues)
+  }
+
+  def LessThan(partitionValues: Map[String, String]): Boolean = {
+    colInfo.get.LessThan(partitionValues)
+  }
+
+  def eval(partitionValues: Map[String, String]): Boolean = {
+    op match {
+      case PartitionPredicateOp.And =>
+        left.eval(partitionValues) && right.eval(partitionValues)
+      case PartitionPredicateOp.Or =>
+        left.eval(partitionValues) || right.eval(partitionValues)
+
+      case PartitionPredicateOp.EqualTo => Equal(partitionValues)
+      case PartitionPredicateOp.LessThan => LessThan(partitionValues)
+
+      case PartitionPredicateOp.NotEqualTo => !Equal(partitionValues)
+
+      case PartitionPredicateOp.LessThanOrEqual =>
+        LessThan(partitionValues) || Equal(partitionValues)
+
+      case PartitionPredicateOp.GreaterThan =>
+        !LessThan(partitionValues) && !Equal(partitionValues)
+      case PartitionPredicateOp.GreaterThanOrEqual => !LessThan(partitionValues)
+
+      case _ =>
+        throw new IllegalArgumentException("Unsupported op: " + op)
+    }
+  }
+}
+
+case class PartitionPredicateOLD(
     op: PartitionPredicateOp.Value,
     tag: Option[String],
     dataType: Option[PartitionPredicateDataType.Value],
-    left: Option[PartitionPredicate],
-    right: Option[PartitionPredicate]
+    left: Option[PartitionPredicateOLD],
+    right: Option[PartitionPredicateOLD]
 ) {
 
   def getTag(partitionValues: Map[String, String]): String = {

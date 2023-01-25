@@ -151,46 +151,58 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
     }
   }
 
-  protected def getNullPredicate(): Option[PartitionPredicate] = {
-    Some(PartitionPredicate(PartitionPredicateOp.ColValue, Some("null"), None, None, None))
-  }
+  // protected def getNullPredicate(): Option[PartitionPredicate] = {
+    // Some(PartitionPredicate(PartitionPredicateOp.ColValue, Some("null"), None, None, None))
+  // }
 
   protected def convertDataType(d: DataType): Option[PartitionPredicateDataType.Value] = {
     d match {
       case IntegerType => Some(PartitionPredicateDataType.IntType)
-      case _ => None
+      case LongType => Some(PartitionPredicateDataType.LongType)
+      case StringType => Some(PartitionPredicateDataType.StringType)
+      case DateType => Some(PartitionPredicateDataType.DateType)
+      case _ => throw new IllegalArgumentException("Unsupported data type " + d)
     }
+  }
+
+  protected def convertToColInfo(left: Expression, right: Expression): Option[ColumnInfo] = {
+    val colName: String = left match {
+      case a: Attribute => a.name
+      case _ => throw new IllegalArgumentException("Unsupported left expression " + left)
+    }
+
+    val (colValue: String, dataType: PartitionPredicateDataType.Value) = if (right == null) {
+      (None, PartitionPredicateDataType.StringType)
+    } else {
+      right match {
+        case l: Literal => (l.toString, convertDataType(l.dataType))
+        case _ => throw new IllegalArgumentException("Unsupported right expr " + right)
+      }
+    }
+    Some(ColumnInfo(colName, colValue, dataType))
   }
 
   protected def convert(expr: Expression): Option[PartitionPredicate] = {
     expr match {
       case And(left, right) =>
         Some(PartitionPredicate(
-          PartitionPredicateOp.And, None, None, convert(left), convert(right)
+          PartitionPredicateOp.And, None, Seq(convert(left).get, convert(right).get)
         ))
       case EqualTo(left, right) =>
         Some(PartitionPredicate(
-          PartitionPredicateOp.EqualTo, None, None, convert(left), convert(right)
+          PartitionPredicateOp.EqualTo, convertToColInfo(left, right), Seq.empty
         ))
       case LessThan(left, right) =>
         Some(PartitionPredicate(
-          PartitionPredicateOp.LessThan, None, None, convert(left), convert(right)
+          PartitionPredicateOp.LessThan, convertToColInfo(left, right), Seq.empty
         ))
       case GreaterThan(left, right) =>
         Some(PartitionPredicate(
-          PartitionPredicateOp.GreaterThan, None, None, convert(left), convert(right)
+          PartitionPredicateOp.GreaterThan, convertToColInfo(left, right), Seq.empty
         ))
       case IsNotNull(child) =>
         Some(PartitionPredicate(
-          PartitionPredicateOp.NotEqualTo, None, None, convert(child), getNullPredicate()
-        ))
-      case a: Attribute =>
-        Some(PartitionPredicate(
-          PartitionPredicateOp.ColName, Some(a.name), None, None, None
-        ))
-      case l: Literal =>
-        Some(PartitionPredicate(
-          PartitionPredicateOp.ColValue, Some(l.toString()), convertDataType(l.dataType), None, None
+          PartitionPredicateOp.NotEqualTo, convertToColInfo(child, null), Seq.empty
         ))
       case _ =>
         throw new IllegalArgumentException("Unsupported expression " + expr)
@@ -213,7 +225,7 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
         root = if (root.isEmpty) {
           f
         } else {
-          Some(PartitionPredicate(PartitionPredicateOp.And, None, None, root, f))
+          Some(PartitionPredicate(PartitionPredicateOp.And, None, Seq(root.get, f.get)))
         }
       })
 
