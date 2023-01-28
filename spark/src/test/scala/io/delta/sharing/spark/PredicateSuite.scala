@@ -17,13 +17,14 @@
 package io.delta.sharing.spark
 
 import java.lang.ref.WeakReference
+import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.Files
 import java.sql.{Date, Timestamp}
+import java.time.{Duration, Instant, LocalDate, LocalDateTime, Period, ZoneOffset}
 
-import org.apache.hadoop.fs.{FileStatus, Path}
-import org.apache.spark.delta.sharing.CachedTableManager
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
+import org.apache.spark.SparkFunSuite
+import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
+import org.apache.spark.sql.catalyst.dsl.expressions._
 import org.apache.spark.sql.catalyst.expressions.{
   Add,
   And,
@@ -41,24 +42,12 @@ import org.apache.spark.sql.catalyst.expressions.{
   Or,
   SubqueryExpression
 }
-import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
+import org.apache.spark.sql.catalyst.trees.CurrentOrigin.withOrigin
+import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
-import org.apache.spark.sql.types.{DataType, StructType}
-
-import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.Files
-import java.time.{Duration, Instant, LocalDate, LocalDateTime, Period, ZoneOffset}
-
-
-import org.apache.commons.io.FileUtils
-import org.apache.hadoop.fs.Path
-import org.apache.spark.SparkFunSuite
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{LongType, StringType, StructField, StructType}
-
-import io.delta.sharing.spark.model.Table
-
+import org.apache.spark.sql.types._
 
 import io.delta.sharing.spark.model.{
   AddCDCFile,
@@ -66,15 +55,9 @@ import io.delta.sharing.spark.model.{
   AddFileForCDF,
   CDFColumnInfo,
   FileAction,
-  RemoveFile
+  RemoveFile,
+  Table
 }
-
-import org.apache.spark.sql.catalyst.dsl.expressions._
-import org.apache.spark.sql.catalyst.expressions.codegen.CodegenContext
-import org.apache.spark.sql.catalyst.trees.CurrentOrigin.withOrigin
-import org.apache.spark.sql.catalyst.trees.Origin
-import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.types._
 
 // scalastyle:off println
 
@@ -104,8 +87,8 @@ class PredicateSuite extends SparkFunSuite with SharedSparkSession {
             n = n + (new Date(l.value.asInstanceOf[Integer].toLong)).toString
           case _ => n = n + l.value
         }
-      case _ => 
-    } 
+      case _ =>
+    }
     n
   }
 
@@ -128,8 +111,7 @@ class PredicateSuite extends SparkFunSuite with SharedSparkSession {
     val date = Date.valueOf("2019-02-22")
     println(
       "date=" + date + ", class=" + date.getClass +
-      ", getStr=" + getStr(Literal.create(date)) +
-      ", toInt=" + date.toInteger
+      ", getStr=" + getStr(Literal.create(date))
     )
     val date2 = LocalDate.of(2019, 3, 21)
     println(

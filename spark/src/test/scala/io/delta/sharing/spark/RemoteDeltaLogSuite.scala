@@ -62,8 +62,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
     // sanity check for dummy client
     val client = new TestDeltaSharingClient()
-    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(2L), None, None)
-    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(3L), None, None)
+    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(2L), None, None, None)
+    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(3L), None, None, None)
     assert(TestDeltaSharingClient.limits === Seq(2L, 3L))
     client.clear()
 
@@ -73,7 +73,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
       RemoteDeltaSnapshotFileIndex(params, Some(2L))
     }
-    snapshot.filesForScan(Nil, Some(2L), fileIndex)
+    snapshot.filesForScan(Nil, Some(2L), None, fileIndex)
     assert(TestDeltaSharingClient.limits === Seq(2L))
     client.clear()
 
