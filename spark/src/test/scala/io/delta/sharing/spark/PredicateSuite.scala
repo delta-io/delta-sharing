@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// scalastyle:off println
+
 package io.delta.sharing.spark
 
 import java.lang.ref.WeakReference
@@ -58,6 +60,7 @@ import io.delta.sharing.spark.model.{
   RemoveFile,
   Table
 }
+import io.delta.sharing.spark.util.JsonUtils
 
 // scalastyle:off println
 
@@ -107,6 +110,85 @@ class PredicateSuite extends SparkFunSuite with SharedSparkSession {
     }
   }
 
+  test("Equal test") {
+    val op = AndOp(Seq(
+      EqualOp(
+        left = ColumnOp(name = "date", valueType = "date"),
+        right = LiteralOp(value = "2021-04-29", valueType = "date")
+      ),
+      EqualOp(
+        left = ColumnOp(name = "id", valueType = "int"),
+        right = LiteralOp(value = "25", valueType = "int")
+      )
+    ))
+    println("Abhijit: op=" + op)
+    val op_json2 = OpMapper.toJson[BaseOp](op)
+    println("Abhijit: op_json2=" + op_json2)
+    val op2 = OpMapper.fromJson[BaseOp](op_json2)
+    println("Abhijit: op2=" + op2)
+
+    println("expect false: " + op2.eval(EvalContext(Map("date" -> "2021-04-28"))))
+    println("expect false: " + op2.eval(EvalContext(Map("date" -> "2021-04-29"))))
+    println("expect false: " + op2.eval(EvalContext(Map("id" -> "25"))))
+    println("expect false: " + op2.eval(EvalContext(Map("id" -> "20"))))
+    println("expect false: " + op2.eval(EvalContext(Map("date" -> "2021-04-30", "id" -> "25"))))
+    println("expect false: " + op2.eval(EvalContext(Map("date" -> "2021-04-29", "id" -> "21"))))
+    println("expect true: " + op2.eval(EvalContext(Map("date" -> "2021-04-29", "id" -> "25"))))
+  }
+
+  test("Null test") {
+    val op = EqualOp(
+      left = ColumnOp(name = "date", valueType = "date"),
+      right = LiteralOp(null, null)
+    )
+    println("Abhijit: op=" + op)
+    val op_json2 = OpMapper.toJson[BaseOp](op)
+    println("Abhijit: op_json2=" + op_json2)
+    val op2 = OpMapper.fromJson[BaseOp](op_json2)
+    println("Abhijit: op2=" + op2)
+
+    println("expect false: " + op2.eval(EvalContext(Map("date" -> "2021-04-28"))))
+    println("expect true: " + op2.eval(EvalContext(Map())))
+
+    val nop = NotEqualOp(
+      left = ColumnOp(name = "date", valueType = "date"),
+      right = LiteralOp(null, null)
+    )
+    val nop_json = OpMapper.toJson[BaseOp](nop)
+    val nop2 = OpMapper.fromJson[BaseOp](nop_json)
+    println("expect true: " + nop2.eval(EvalContext(Map("date" -> "2021-04-28"))))
+    println("expect false: " + nop2.eval(EvalContext(Map())))
+  }
+
+  test("LessThan test") {
+    val op = AndOp(Seq(
+      LessThanOp(
+        left = ColumnOp(name = "date", valueType = "date"),
+        right = LiteralOp(value = "2021-04-29", valueType = "date")
+      ),
+      LessThanOp(
+        left = ColumnOp(name = "id", valueType = "int"),
+        right = LiteralOp(value = "25", valueType = "int")
+      )
+    ))
+    println("Abhijit: op=" + op)
+    val op_json = OpMapper.toJson[BaseOp](op)
+    println("Abhijit: op_json=" + op_json)
+    val op2 = OpMapper.fromJson[BaseOp](op_json)
+    println("Abhijit: op2=" + op2)
+
+    println("expect true: " + op2.eval(EvalContext(Map("date" -> "2021-04-28"))))
+    println("expect false: " + op2.eval(EvalContext(Map("date" -> "2021-04-29"))))
+    println("expect false: " + op2.eval(EvalContext(Map("id" -> "25"))))
+    println("expect true: " + op2.eval(EvalContext(Map("id" -> "20"))))
+    println("expect false: " + op2.eval(EvalContext(Map("date" -> "2021-04-30", "id" -> "25"))))
+    println("expect false: " + op2.eval(EvalContext(Map("date" -> "2021-04-29", "id" -> "25"))))
+    println("expect false: " + op2.eval(EvalContext(Map("date" -> "2021-04-28", "id" -> "25"))))
+    println("expect false: " + op2.eval(EvalContext(Map("date" -> "2021-04-29", "id" -> "24"))))
+    println("expect true: " + op2.eval(EvalContext(Map("date" -> "2021-04-28", "id" -> "21"))))
+  }
+
+  /*
   test("AttributeReference") {
     val date = Date.valueOf("2019-02-22")
     println(
@@ -134,7 +216,6 @@ class PredicateSuite extends SparkFunSuite with SharedSparkSession {
     traverse(e2)
   }
 
-  /*
   test("Int Literals") {
     val a1 = Literal(1)
     println("a1=" + a1)
