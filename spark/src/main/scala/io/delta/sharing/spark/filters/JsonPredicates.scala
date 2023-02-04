@@ -111,6 +111,7 @@ trait UnaryOp {
           this + " : expected 1 but found " + children.size + " children"
       )
     }
+    children(0).validate()
   }
 }
 
@@ -123,6 +124,7 @@ trait BinaryOp {
           this + " : expected 2 but found " + children.size + " children"
       )
     }
+    children.map(c => c.validate())
   }
 }
 
@@ -135,6 +137,7 @@ trait NaryOp {
           this + " : expected at least 2 but found " + children.size + " children"
       )
     }
+    children.map(c => c.validate())
   }
 }
 
@@ -326,9 +329,11 @@ object EvalHelper {
       )
     }
 
-    // Handle nulls.
+    // We throw and exception for nulls, which will skip filtering.
     if (leftVal == null || rightVal == null) {
-      return false
+      throw new IllegalArgumentException(
+        "Comparison with null is not supported: " + children(0) + " and " + children(1)
+      )
     }
 
     // Perform data type conversion and match.
