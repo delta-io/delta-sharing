@@ -60,7 +60,10 @@ class JsonPredicateSuite extends SparkFunSuite {
     test_op(op)
 
     // Check that we can convert to json and back.
-    val op_from_json = JsonUtils.fromJson[BaseOp](JsonUtils.toJson[BaseOp](op))
+    val op_json = JsonUtils.toJson[BaseOp](op)
+    val expected_json = """{"op":"literal","value":"2021-04-29","valueType":"date"}"""
+    assert(op_json == expected_json)
+    val op_from_json = JsonUtils.fromJson[BaseOp](op_json)
     test_op(op_from_json)
 
     // Test validation failures.
@@ -85,7 +88,10 @@ class JsonPredicateSuite extends SparkFunSuite {
     test_op(op)
 
     // Check that we can convert to json and back.
-    val op_from_json = JsonUtils.fromJson[BaseOp](JsonUtils.toJson[BaseOp](op))
+    val op_json = JsonUtils.toJson[BaseOp](op)
+    val expected_json = """{"op":"column","name":"hireDate","valueType":"date"}"""
+    assert(op_json == expected_json)
+    val op_from_json = JsonUtils.fromJson[BaseOp](op_json)
     test_op(op_from_json)
 
     // Test validation failures.
@@ -113,7 +119,15 @@ class JsonPredicateSuite extends SparkFunSuite {
     test_op(op)
     
     // Check that we can convert to json and back.
-    val op_from_json = JsonUtils.fromJson[NonLeafOp](JsonUtils.toJson[NonLeafOp](op))
+    val op_json = JsonUtils.toJson[BaseOp](op)
+    val expected_json =
+      """{"op":"equal",
+         |"children":[
+         |  {"op":"column","name":"hireDate","valueType":"date"},
+         |  {"op":"literal","value":"2021-04-29","valueType":"date"}]
+         |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    assert(op_json == expected_json)
+    val op_from_json = JsonUtils.fromJson[NonLeafOp](op_json)
     test_op(op_from_json)
 
     // Test validation failures.
@@ -141,7 +155,15 @@ class JsonPredicateSuite extends SparkFunSuite {
     test_op(op)
     
     // Check that we can convert to json and back.
-    val op_from_json = JsonUtils.fromJson[NonLeafOp](JsonUtils.toJson[NonLeafOp](op))
+    val op_json = JsonUtils.toJson[BaseOp](op)
+    val expected_json =
+      """{"op":"lessThan",
+         |"children":[
+         |  {"op":"column","name":"hireDate","valueType":"date"},
+         |  {"op":"literal","value":"2021-04-29","valueType":"date"}]
+         |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    assert(op_json == expected_json)
+    val op_from_json = JsonUtils.fromJson[NonLeafOp](op_json)
     test_op(op_from_json)
 
     // Test validation failures.
@@ -184,7 +206,18 @@ class JsonPredicateSuite extends SparkFunSuite {
     test_op(op)
 
     // Check that we can convert to json and back.
-    val op_from_json = JsonUtils.fromJson[NonLeafOp](JsonUtils.toJson[NonLeafOp](op))
+    val op_json = JsonUtils.toJson[BaseOp](op)
+    val expected_json =
+      """{"op":"and","children":[
+         |  {"op":"equal","children":[
+         |    {"op":"column","name":"hireDate","valueType":"date"},
+         |    {"op":"literal","value":"2021-04-29","valueType":"date"}]},
+         |  {"op":"lessThan","children":[
+         |    {"op":"column","name":"id","valueType":"int"},
+         |    {"op":"literal","value":"25","valueType":"int"}]}
+         |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    assert(op_json == expected_json)
+    val op_from_json = JsonUtils.fromJson[NonLeafOp](op_json)
     test_op(op_from_json)
 
     // Test validation failures.
@@ -248,7 +281,18 @@ class JsonPredicateSuite extends SparkFunSuite {
     test_op(op)
 
     // Check that we can convert to json and back.
-    val op_from_json = JsonUtils.fromJson[NonLeafOp](JsonUtils.toJson[NonLeafOp](op))
+    val op_json = JsonUtils.toJson[BaseOp](op)
+    val expected_json =
+      """{"op":"or","children":[
+         |  {"op":"equal","children":[
+         |    {"op":"column","name":"hireDate","valueType":"date"},
+         |    {"op":"literal","value":"2021-04-29","valueType":"date"}]},
+         |  {"op":"lessThan","children":[
+         |    {"op":"column","name":"id","valueType":"int"},
+         |    {"op":"literal","value":"25","valueType":"int"}]}
+         |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    assert(op_json == expected_json)
+    val op_from_json = JsonUtils.fromJson[NonLeafOp](op_json)
     test_op(op_from_json)
 
     // Test validation failures.
@@ -273,7 +317,15 @@ class JsonPredicateSuite extends SparkFunSuite {
     test_op(op)
     
     // Check that we can convert to json and back.
-    val op_from_json = JsonUtils.fromJson[NonLeafOp](JsonUtils.toJson[NonLeafOp](op))
+    val op_json = JsonUtils.toJson[BaseOp](op)
+    val expected_json =
+      """{"op":"not","children":[
+         |  {"op":"equal","children":[
+         |    {"op":"column","name":"hireDate","valueType":"date"},
+         |    {"op":"literal","value":"2021-04-29","valueType":"date"}]}
+         |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    assert(op_json == expected_json)
+    val op_from_json = JsonUtils.fromJson[NonLeafOp](op_json)
     test_op(op_from_json)
 
     // Test validation failures.
@@ -292,7 +344,14 @@ class JsonPredicateSuite extends SparkFunSuite {
     val op = IsNullOp(Seq(ColumnOp(name = "hireDate", valueType = "date")))
     test_op(op)
 
-    val op_from_json = JsonUtils.fromJson[NonLeafOp](JsonUtils.toJson[NonLeafOp](op))
+    // Check that we can convert to json and back.
+    val op_json = JsonUtils.toJson[BaseOp](op)
+    val expected_json =
+      """{"op":"isNull","children":[
+         |  {"op":"column","name":"hireDate","valueType":"date"}
+         |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    assert(op_json == expected_json)
+    val op_from_json = JsonUtils.fromJson[NonLeafOp](op_json)
     test_op(op_from_json)
 
     // Test validation failures.

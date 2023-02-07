@@ -79,6 +79,11 @@ trait BaseOp {
   // If the method throws an exception, the caller should skip filtering for this context.
   @throws[IllegalArgumentException]
   def eval(ctx: EvalContext): Any
+
+  // Evaluation of a non-leaf operation is expected to return a boolean.
+  def evalExpectBoolean(ctx: EvalContext): Boolean = {
+    eval(ctx).asInstanceOf[Boolean]
+  }
 }
 
 // Represents a leaf operation.
@@ -95,12 +100,7 @@ trait LeafOp extends BaseOp {
 }
 
 // Represents a non-leaf operation.
-trait NonLeafOp extends BaseOp {
-  // Evaluation of a non-leaf operation is expected to return a boolean.
-  def evalExpectBoolean(ctx: EvalContext): Boolean = {
-    eval(ctx).asInstanceOf[Boolean]
-  }
-}
+trait NonLeafOp extends BaseOp;
 
 // Represents a unary operation.
 trait UnaryOp {
@@ -258,7 +258,7 @@ case class GreaterThanOrEqualOp(children: Seq[LeafOp]) extends NonLeafOp with Bi
  *   "&&", "||", "!"
  */
 
-case class AndOp(val children: Seq[NonLeafOp]) extends NonLeafOp with NaryOp {
+case class AndOp(val children: Seq[BaseOp]) extends NonLeafOp with NaryOp {
   override def validate(): Unit = validateChildren(children)
 
   override def eval(ctx: EvalContext): Any = {
@@ -266,7 +266,7 @@ case class AndOp(val children: Seq[NonLeafOp]) extends NonLeafOp with NaryOp {
   }
 }
 
-case class OrOp(val children: Seq[NonLeafOp]) extends NonLeafOp with NaryOp {
+case class OrOp(val children: Seq[BaseOp]) extends NonLeafOp with NaryOp {
   override def validate(): Unit = validateChildren(children)
 
   override def eval(ctx: EvalContext): Any = {
@@ -274,7 +274,7 @@ case class OrOp(val children: Seq[NonLeafOp]) extends NonLeafOp with NaryOp {
   }
 }
 
-case class NotOp(val children: Seq[NonLeafOp]) extends NonLeafOp with UnaryOp {
+case class NotOp(val children: Seq[BaseOp]) extends NonLeafOp with UnaryOp {
   override def validate(): Unit = validateChildren(children)
 
   override def eval(ctx: EvalContext): Any = !children(0).evalExpectBoolean(ctx)
