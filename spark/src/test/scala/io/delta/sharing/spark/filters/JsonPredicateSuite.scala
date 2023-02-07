@@ -23,7 +23,6 @@ import org.apache.spark.SparkFunSuite
 import io.delta.sharing.spark.util.JsonUtils
 
 class JsonPredicateSuite extends SparkFunSuite {
-
   /**
    * A wrapper around op evaluation.
    *
@@ -117,7 +116,6 @@ class JsonPredicateSuite extends SparkFunSuite {
       LiteralOp(value = "2021-04-29", valueType = "date")
     ))
     test_op(op)
-    
     // Check that we can convert to json and back.
     val op_json = JsonUtils.toJson[BaseOp](op)
     val expected_json =
@@ -153,7 +151,7 @@ class JsonPredicateSuite extends SparkFunSuite {
       LiteralOp(value = "2021-04-29", valueType = "date")
     ))
     test_op(op)
-    
+
     // Check that we can convert to json and back.
     val op_json = JsonUtils.toJson[BaseOp](op)
     val expected_json =
@@ -315,7 +313,7 @@ class JsonPredicateSuite extends SparkFunSuite {
       ))
     ))
     test_op(op)
-    
+
     // Check that we can convert to json and back.
     val op_json = JsonUtils.toJson[BaseOp](op)
     val expected_json =
@@ -369,7 +367,7 @@ class JsonPredicateSuite extends SparkFunSuite {
       LessThanOp(Seq(
         ColumnOp(name = "date", valueType = "date"),
         LiteralOp(value = "2021-05-29", valueType = "date")
-      )),
+      ))
     ))
     val dates = Seq(
       "2021-04-28",
