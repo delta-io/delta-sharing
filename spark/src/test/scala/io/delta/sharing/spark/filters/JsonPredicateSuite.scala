@@ -109,6 +109,7 @@ class JsonPredicateSuite extends SparkFunSuite {
       assert(evalExpectBoolean(op, ctx1) == false)
       val ctx2 = EvalContext(Map("hireDate" -> "2021-04-29"))
       assert(evalExpectBoolean(op, ctx2) == true)
+      assert(evalExpectBoolean(op, EvalContext(Map.empty), true) == true)
     }
 
     val op = EqualOp(Seq(
@@ -356,6 +357,16 @@ class JsonPredicateSuite extends SparkFunSuite {
     intercept[IllegalArgumentException] {
       IsNullOp(Seq.empty).validate()
     }
+  }
+
+  test("ColumnOp boolean test") {
+    def test_op(op: BaseOp): Unit = {
+      op.validate()
+      assert(op.evalExpectBoolean(EvalContext(Map("isActive" -> "true"))) == true)
+      assert(op.evalExpectBoolean(EvalContext(Map("isActive" -> "false"))) == false)
+    }
+    val op = ColumnOp(name = "isActive", valueType = "bool")
+    test_op(op)
   }
 
   test("stress test") {

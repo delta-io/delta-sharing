@@ -164,6 +164,16 @@ case class ColumnOp(val name: String, val valueType: String) extends LeafOp {
   // Returns the column value using the specified context, and its type.
   override def eval(ctx: EvalContext): Any = (resolve(ctx), valueType)
 
+  // We support column evaluation to return boolean if it is of that type.
+  override def evalExpectBoolean(ctx: EvalContext): Boolean = {
+    if (valueType != OpDataTypes.BoolType) {
+      throw new IllegalArgumentException(
+        "Unsupported type for boolean evaluation: " + valueType
+      )
+    }
+    resolve(ctx).toBoolean
+  }
+
   // Determine if the column value is null.
   override def isNull(ctx: EvalContext): Boolean = (resolve(ctx) == null)
 
@@ -295,12 +305,15 @@ object EvalHelper {
          children(0) + " and " + children(1)
       )
     }
-    // Handle nulls.
-    if (leftVal == null && rightVal == null) {
-      return true
-    } else if (leftVal == null || rightVal == null) {
+
+    // We throw an exception for nulls, which will skip filtering.
+    if (leftVal == null || rightVal == null) {
+      throw new IllegalArgumentException(
+        "Comparison with null is not supported: " + children(0) + " and " + children(1)
+      )
       return false
     }
+
     // Perform data type conversion and match.
     // TODO(abhijit): For literal operations, we can optimize evaluation by caching
     //                this conversion.
@@ -329,7 +342,7 @@ object EvalHelper {
       )
     }
 
-    // We throw and exception for nulls, which will skip filtering.
+    // We throw an exception for nulls, which will skip filtering.
     if (leftVal == null || rightVal == null) {
       throw new IllegalArgumentException(
         "Comparison with null is not supported: " + children(0) + " and " + children(1)
