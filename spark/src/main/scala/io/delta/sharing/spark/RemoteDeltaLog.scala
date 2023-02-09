@@ -222,7 +222,7 @@ class RemoteSnapshot(
       metadata.size
     } else {
       log.warn("Getting table size from a full file scan for table: " + table)
-      val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf)
+      val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, None)
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.map(_.size).sum
@@ -236,7 +236,7 @@ class RemoteSnapshot(
     } else {
       // getMetadata doesn't support the parameter: versionAsOf
       // Leveraging getFiles to get the metadata, so setting the limitHint to 1 for efficiency.
-      val tableFiles = client.getFiles(table, Nil, Some(1L), versionAsOf, timestampAsOf)
+      val tableFiles = client.getFiles(table, Nil, Some(1L), versionAsOf, timestampAsOf, None)
       (tableFiles.metadata, tableFiles.protocol, tableFiles.version)
     }
   }
@@ -261,6 +261,7 @@ class RemoteSnapshot(
   def filesForScan(
       filters: Seq[Expression],
       limitHint: Option[Long],
+      jsonPredicates: Option[String],
       fileIndex: RemoteDeltaSnapshotFileIndex): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
@@ -281,7 +282,9 @@ class RemoteSnapshot(
     val remoteFiles = {
       val implicits = spark.implicits
       import implicits._
-      val tableFiles = client.getFiles(table, predicates, limitHint, versionAsOf, timestampAsOf)
+      val tableFiles = client.getFiles(
+        table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicates
+      )
       val idToUrl = tableFiles.files.map { file =>
         file.id -> file.url
       }.toMap
@@ -292,7 +295,8 @@ class RemoteSnapshot(
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
           () => {
-            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf).files.map { add =>
+            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, jsonPredicates)
+            .files.map { add =>
               add.id -> add.url
             }.toMap
           }

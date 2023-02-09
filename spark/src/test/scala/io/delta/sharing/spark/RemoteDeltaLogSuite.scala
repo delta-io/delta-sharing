@@ -18,16 +18,27 @@ package io.delta.sharing.spark
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
+import java.util.Base64
 
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.expressions.{
+  AttributeReference => SqlAttributeReference,
+  EqualTo => SqlEqualTo,
+  Literal => SqlLiteral
+}
+import org.apache.spark.sql.types.{
+  IntegerType => SqlIntegerType
+}
+import io.delta.sharing.spark.util.JsonUtils
+
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{LongType, StringType, StructField, StructType}
 
+import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
 import io.delta.sharing.spark.model.Table
-
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
@@ -57,14 +68,15 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     }
   }
 
-  test("RemoteSnapshot getFiles with limit") {
+  test("RemoteSnapshot getFiles with limit and jsonPredicates") {
     val spark = SparkSession.active
 
     // sanity check for dummy client
     val client = new TestDeltaSharingClient()
-    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(2L), None, None)
-    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(3L), None, None)
+    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(2L), None, None, Some("jsonPredicate1"))
+    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(3L), None, None, Some("jsonPredicate2"))
     assert(TestDeltaSharingClient.limits === Seq(2L, 3L))
+    assert(TestDeltaSharingClient.jsonPredicates === Seq("jsonPredicate1", "jsonPredicate2"))
     client.clear()
 
     // check snapshot
@@ -73,15 +85,37 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
       RemoteDeltaSnapshotFileIndex(params, Some(2L))
     }
-    snapshot.filesForScan(Nil, Some(2L), fileIndex)
+    snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex)
     assert(TestDeltaSharingClient.limits === Seq(2L))
+    assert(TestDeltaSharingClient.jsonPredicates === Seq("jsonPredicate1"))
     client.clear()
 
     // check RemoteDeltaSnapshotFileIndex
+
+    // We will send a simple equal op as a SQL expression tree.
+    val sqlEq = SqlEqualTo(
+      SqlAttributeReference("id", SqlIntegerType)(),
+      SqlLiteral(23, SqlIntegerType)
+    )
+    // The client should get a base64 encoded json as jsonPredicate.
+    val expected_json =
+      """{"op":"equal",
+         |"children":[
+         |  {"op":"column","name":"id","valueType":"int"},
+         |  {"op":"literal","value":"23","valueType":"int"}]
+         |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    val encoded_json = new String(Base64.getUrlEncoder.encode(expected_json.getBytes), UTF_8)
+
     val remoteDeltaLog = new RemoteDeltaLog(Table("fe", "fi", "fo"), new Path("test"), client)
-    fileIndex.listFiles(Seq.empty, Seq.empty)
+    fileIndex.listFiles(Seq(sqlEq), Seq.empty)
     assert(TestDeltaSharingClient.limits === Seq(2L))
-    client.clear()
+    assert(TestDeltaSharingClient.jsonPredicates.size === 1)
+    val received_json = TestDeltaSharingClient.jsonPredicates(0) 
+    assert(received_json == encoded_json)
+
+    // Also test that we can decode the json correctly.
+    val decoded_json = new String(Base64.getUrlDecoder.decode(received_json), UTF_8)
+    assert(decoded_json == expected_json)
   }
 
   test("snapshot file index test") {
