@@ -29,16 +29,12 @@ import org.apache.spark.sql.catalyst.expressions.{
   EqualTo => SqlEqualTo,
   Literal => SqlLiteral
 }
-import org.apache.spark.sql.types.{
-  IntegerType => SqlIntegerType
-}
-import io.delta.sharing.spark.util.JsonUtils
-
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{LongType, StringType, StructField, StructType}
+import org.apache.spark.sql.types.{IntegerType, LongType, StringType, StructField, StructType}
 
 import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
 import io.delta.sharing.spark.model.Table
+import io.delta.sharing.spark.util.JsonUtils
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
@@ -94,8 +90,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
     // We will send a simple equal op as a SQL expression tree.
     val sqlEq = SqlEqualTo(
-      SqlAttributeReference("id", SqlIntegerType)(),
-      SqlLiteral(23, SqlIntegerType)
+      SqlAttributeReference("id", IntegerType)(),
+      SqlLiteral(23, IntegerType)
     )
     // The client should get a base64 encoded json as jsonPredicate.
     val expected_json =
@@ -110,7 +106,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     fileIndex.listFiles(Seq(sqlEq), Seq.empty)
     assert(TestDeltaSharingClient.limits === Seq(2L))
     assert(TestDeltaSharingClient.jsonPredicates.size === 1)
-    val received_json = TestDeltaSharingClient.jsonPredicates(0) 
+    val received_json = TestDeltaSharingClient.jsonPredicates(0)
     assert(received_json == encoded_json)
 
     // Also test that we can decode the json correctly.
