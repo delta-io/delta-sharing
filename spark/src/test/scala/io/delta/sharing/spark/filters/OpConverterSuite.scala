@@ -19,14 +19,13 @@
 package io.delta.sharing.spark.filters
 
 import org.apache.spark.SparkFunSuite
-
 import org.apache.spark.sql.catalyst.expressions.{
   And => SqlAnd,
   Attribute => SqlAttribute,
   AttributeReference => SqlAttributeReference,
   Cast => SqlCast,
-  EqualTo => SqlEqualTo,
   EqualNullSafe => SqlEqualNullSafe,
+  EqualTo => SqlEqualTo,
   Expression => SqlExpression,
   GreaterThan => SqlGreaterThan,
   GreaterThanOrEqual => SqlGreaterThanOrEqual,

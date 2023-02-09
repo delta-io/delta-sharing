@@ -49,9 +49,8 @@ import org.apache.spark.sql.types.{
 // A set of utilites that convert SQL expressions to Json predicate Ops.
 //
 // We support this conversion for a subset of SQL expressions, and will
-// throw an exception if the SQL expression cannot be converted.
-//
-// The caller should skip filtering in such cases.
+// throw an exception if the SQL expression cannot be converted. The caller
+// should skip filtering in such cases.
 object OpConverter {
 
   // Converts a set of SQL expression trees into a json predicate op.
@@ -61,18 +60,10 @@ object OpConverter {
   // should skip filtering in that case.
   @throws[IllegalArgumentException]
   def convert(expressions: Seq[SqlExpression]): Option[BaseOp] = {
-    val children = ListBuffer[BaseOp]()
-    expressions.map(expr => {
-      val op = convertOne(expr)
-      children += op
-    })
-
-    if (children.size == 0) {
-      None
-    } else if (children.size == 1) {
-      Some(children(0))
-    } else {
-      Some(AndOp(children.toList))
+    expressions.map(convertOne(_)) match {
+      case Seq() => None
+      case Seq(child) => Some(child)
+      case children => Some(AndOp(children.toList))
     }
   }
 
@@ -82,15 +73,10 @@ object OpConverter {
   // using a post-order DFS strategy.
   //
   // Throws an exception if conversion fails.
-  protected def convertOne(expr: SqlExpression): BaseOp = {
-    // Try converting to a leaf op.
-    val leafOp = maybeConvertAsLeaf(expr)
-    if (leafOp.isDefined) {
-      return leafOp.get
-    }
-
-    // Try converting to a non-leaf op.
-    expr match {
+  private def convertOne(expr: SqlExpression): BaseOp = {
+    // Try converting to a leaf op first, and it that fails try converting to
+    // a non-leaf op.
+    maybeConvertAsLeaf(expr).getOrElse(expr match {
       // Convert boolean logic operators.
       case SqlAnd(left, right) =>
         AndOp(Seq(convertOne(left), convertOne(right)))
@@ -135,7 +121,7 @@ object OpConverter {
       // Unsupported expressions.
       case _ =>
         throw new IllegalArgumentException("Unsupported expression during conversion " + expr)
-    }
+    })
   }
 
   /**
@@ -143,10 +129,10 @@ object OpConverter {
    * If conversion fails, the function will return None.
    *
    * @param sqlTypeOpt if specified overrides the dataType specified in
-   * in the SQL expression. It is used to suppoprt "cast" method, which
+   * the SQL expression. It is used to support "cast" method, which
   // forces data type convertion during evaluation.
    */
-  def maybeConvertAsLeaf(
+  private def maybeConvertAsLeaf(
       expr: SqlExpression,
       sqlTypeOpt: Option[SqlDataType] = None): Option[LeafOp] = {
     val sqlType = sqlTypeOpt.getOrElse(expr.dataType)
@@ -160,23 +146,20 @@ object OpConverter {
         Some(LiteralOp(lit.toString, convertDataType(sqlType)))
       case c: SqlCast =>
         // A cast operation which triggers type conversion.
-        Some(convertAsLeaf(c.child, Some(c.dataType)))
+        Some(convertAsLeaf(c.child, sqlTypeOpt = Some(c.dataType)))
       case _ => None
     }
   }
 
   // Same as maybeConvertAsLeaf, but throws an exception if conversion fails.
-  def convertAsLeaf(expr: SqlExpression, sqlTypeOpt: Option[SqlDataType] = None): LeafOp = {
-    val op = maybeConvertAsLeaf(expr, sqlTypeOpt)
-    if (!op.isDefined) {
+  private def convertAsLeaf(expr: SqlExpression, sqlTypeOpt: Option[SqlDataType] = None): LeafOp = {
+    maybeConvertAsLeaf(expr, sqlTypeOpt = sqlTypeOpt).getOrElse(
       throw new IllegalArgumentException("Unsupported leaf expression " + expr)
-    } else {
-      op.get
-    }
+    )
   }
 
   // Converts a SQL expression type into Json predicate op type.
-  def convertDataType(sqlType: SqlDataType): String = {
+  private def convertDataType(sqlType: SqlDataType): String = {
     sqlType match {
       case SqlBooleanType => OpDataTypes.BoolType
       case SqlIntegerType => OpDataTypes.IntType
