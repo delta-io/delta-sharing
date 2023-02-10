@@ -261,7 +261,7 @@ class RemoteSnapshot(
   def filesForScan(
       filters: Seq[Expression],
       limitHint: Option[Long],
-      jsonPredicates: Option[String],
+      jsonPredicateHints: Option[String],
       fileIndex: RemoteDeltaSnapshotFileIndex): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
@@ -283,7 +283,7 @@ class RemoteSnapshot(
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(
-        table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicates
+        table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints
       )
       val idToUrl = tableFiles.files.map { file =>
         file.id -> file.url
@@ -295,7 +295,7 @@ class RemoteSnapshot(
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
           () => {
-            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, jsonPredicates)
+            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints)
             .files.map { add =>
               add.id -> add.url
             }.toMap

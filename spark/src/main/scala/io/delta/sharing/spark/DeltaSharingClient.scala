@@ -54,7 +54,7 @@ private[sharing] trait DeltaSharingClient {
     limit: Option[Long],
     versionAsOf: Option[Long],
     timestampAsOf: Option[String],
-    jsonPredicates: Option[String]): DeltaTableFiles
+    jsonPredicateHints: Option[String]): DeltaTableFiles
 
   def getFiles(table: Table, startingVersion: Long): DeltaTableFiles
 
@@ -78,7 +78,7 @@ private[sharing] case class QueryTableRequest(
   version: Option[Long],
   timestamp: Option[String],
   startingVersion: Option[Long],
-  jsonPredicates: Option[String]
+  jsonPredicateHints: Option[String]
 )
 
 private[sharing] case class ListSharesResponse(
@@ -224,7 +224,7 @@ private[spark] class DeltaSharingRestClient(
       limit: Option[Long],
       versionAsOf: Option[Long],
       timestampAsOf: Option[String],
-      jsonPredicates: Option[String]): DeltaTableFiles = {
+      jsonPredicateHints: Option[String]): DeltaTableFiles = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
@@ -232,7 +232,7 @@ private[spark] class DeltaSharingRestClient(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val (version, lines) = getNDJson(
       target,
-      QueryTableRequest(predicates, limit, versionAsOf, timestampAsOf, None, jsonPredicates)
+      QueryTableRequest(predicates, limit, versionAsOf, timestampAsOf, None, jsonPredicateHints)
     )
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
