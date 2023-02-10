@@ -64,7 +64,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     }
   }
 
-  test("RemoteSnapshot getFiles with limit and jsonPredicates") {
+  test("RemoteSnapshot getFiles with limit and jsonPredicateHints") {
     val spark = SparkSession.active
 
     // sanity check for dummy client
@@ -72,7 +72,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     client.getFiles(Table("fe", "fi", "fo"), Nil, Some(2L), None, None, Some("jsonPredicate1"))
     client.getFiles(Table("fe", "fi", "fo"), Nil, Some(3L), None, None, Some("jsonPredicate2"))
     assert(TestDeltaSharingClient.limits === Seq(2L, 3L))
-    assert(TestDeltaSharingClient.jsonPredicates === Seq("jsonPredicate1", "jsonPredicate2"))
+    assert(TestDeltaSharingClient.jsonPredicateHints === Seq("jsonPredicate1", "jsonPredicate2"))
     client.clear()
 
     // check snapshot
@@ -83,7 +83,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     }
     snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex)
     assert(TestDeltaSharingClient.limits === Seq(2L))
-    assert(TestDeltaSharingClient.jsonPredicates === Seq("jsonPredicate1"))
+    assert(TestDeltaSharingClient.jsonPredicateHints === Seq("jsonPredicate1"))
     client.clear()
 
     // check RemoteDeltaSnapshotFileIndex
@@ -105,8 +105,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val remoteDeltaLog = new RemoteDeltaLog(Table("fe", "fi", "fo"), new Path("test"), client)
     fileIndex.listFiles(Seq(sqlEq), Seq.empty)
     assert(TestDeltaSharingClient.limits === Seq(2L))
-    assert(TestDeltaSharingClient.jsonPredicates.size === 1)
-    val receivedJson = TestDeltaSharingClient.jsonPredicates(0)
+    assert(TestDeltaSharingClient.jsonPredicateHints.size === 1)
+    val receivedJson = TestDeltaSharingClient.jsonPredicateHints(0)
     assert(receivedJson == encodedJson)
 
     // Also test that we can decode the json correctly.
