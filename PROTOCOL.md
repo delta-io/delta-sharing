@@ -1700,7 +1700,7 @@ This is the API for clients to read data from a table.
   ],
   "limitHint": 0,
   "version": 0,
-  "jsonPredicates": "base64_encoded_string"
+  "jsonPredicateHints": "base64_encoded_string"
 }
 
 ```
@@ -1918,9 +1918,9 @@ The request body should be a JSON string containing the following optional field
     - If the server fails to parse one of the SQL predicates, or fails to evaluate it, the server may skip it.
     - Predicate expressions are conjunctive (AND-ed together).
   - When it’s absent, the server will return all of files in the table.
-  - **These will be deprecated once all the client and server implementation move to using jsonPredicates below**.
+  - **These will be deprecated once all the client and server implementation move to using jsonPredicateHints below**.
 
-- **jsonPredicates** (type: String, optional): query predicates on partition columns specified using [a structured JSON format](#json-predicates-for-filtering), which is encoded using Base64 encoding.
+- **jsonPredicateHints** (type: String, optional): query predicates on partition columns specified using [a structured JSON format](#json-predicates-for-filtering), which is encoded using Base64 encoding.
   - When it’s present, the server will try to use the predicates to filter table's files, which could boost query performance.
     - As with **predicateHints**, this filtering is **BEST EFFORT**. The server may return files that don’t satisfy the predicates.
     - If the server encounters any errors during predicate processing (for example, invalid syntax or non existing columns), it will skip filtering and return all the files. 
