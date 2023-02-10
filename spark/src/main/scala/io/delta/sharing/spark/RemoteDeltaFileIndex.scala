@@ -17,9 +17,12 @@
 package io.delta.sharing.spark
 
 import java.lang.ref.WeakReference
+import java.nio.charset.StandardCharsets.UTF_8
+import java.util.Base64
 
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.delta.sharing.CachedTableManager
+import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{Column, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
@@ -27,6 +30,7 @@ import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expressi
 import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
 import org.apache.spark.sql.types.{DataType, StructType}
 
+import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
 import io.delta.sharing.spark.model.{
   AddCDCFile,
   AddFile,
@@ -35,6 +39,7 @@ import io.delta.sharing.spark.model.{
   FileAction,
   RemoveFile
 }
+import io.delta.sharing.spark.util.JsonUtils
 
 private[sharing] case class RemoteDeltaFileIndexParams(
     val spark: SparkSession,
@@ -45,7 +50,7 @@ private[sharing] case class RemoteDeltaFileIndexParams(
 
 // A base class for all file indices for remote delta log.
 private[sharing] abstract class RemoteDeltaFileIndexBase(
-    val params: RemoteDeltaFileIndexParams) extends FileIndex {
+    val params: RemoteDeltaFileIndexParams) extends FileIndex with Logging {
   override def refresh(): Unit = {}
 
   override def sizeInBytes: Long = params.snapshotAtAnalysis.sizeInBytes
@@ -101,6 +106,26 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
       partitionFilters)
     new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
   }
+
+  // Converts the specified SQL expressions to a json predicate.
+  //
+  // If the conversion fails, returns a None, which will imply that we will
+  // not perform json predicate based filtering.
+  protected def convertToJsonPredicate(partitionFilters: Seq[Expression]) : Option[String] = {
+    try {
+      val op = OpConverter.convert(partitionFilters)
+      if (op.isDefined) {
+        val opJson = JsonUtils.toJson[BaseOp](op.get)
+        Some(new String(Base64.getUrlEncoder.encode(opJson.getBytes), UTF_8))
+      } else {
+        None
+      }
+    } catch {
+      case e: Exception =>
+        log.error("Error while converting partition filters: " + e)
+        None
+    }
+  }
 }
 
 // The index for processing files in a delta snapshot.
@@ -109,7 +134,7 @@ private[sharing] case class RemoteDeltaSnapshotFileIndex(
     limitHint: Option[Long]) extends RemoteDeltaFileIndexBase(params) {
 
   override def inputFiles: Array[String] = {
-    params.snapshotAtAnalysis.filesForScan(Nil, None, this)
+    params.snapshotAtAnalysis.filesForScan(Nil, None, None, this)
       .map(f => toDeltaSharingPath(f).toString)
       .toArray
   }
@@ -120,6 +145,7 @@ private[sharing] case class RemoteDeltaSnapshotFileIndex(
     makePartitionDirectories(params.snapshotAtAnalysis.filesForScan(
       partitionFilters ++ dataFilters,
       limitHint,
+      convertToJsonPredicate(partitionFilters),
       this
     ))
   }

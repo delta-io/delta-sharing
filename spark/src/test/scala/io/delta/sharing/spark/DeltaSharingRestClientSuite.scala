@@ -151,7 +151,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       val tableFiles =
-        client.getFiles(Table(name = "table2", schema = "default", share = "share2"), Nil, None, None, None)
+        client.getFiles(Table(name = "table2", schema = "default", share = "share2"), Nil, None, None, None, None)
       assert(tableFiles.version == 2)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
       val expectedMetadata = Metadata(
@@ -191,6 +191,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Nil,
         None,
         Some(1L),
+        None,
         None)
       assert(tableFiles.version == 1)
       assert(tableFiles.files.size == 3)
@@ -238,6 +239,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           Nil,
           None,
           Some(1L),
+          None,
           None
         )
       }.getMessage
@@ -260,7 +262,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           Nil,
           None,
           None,
-          Some("2000-01-01T00:00:00Z"))
+          Some("2000-01-01T00:00:00Z"),
+          None)
       }.getMessage
       assert(errorMessage.contains("The provided timestamp"))
     } finally {
@@ -277,7 +280,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           Nil,
           None,
           None,
-          Some("abc")
+          Some("abc"),
+          None
         )
       }.getMessage
       assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))

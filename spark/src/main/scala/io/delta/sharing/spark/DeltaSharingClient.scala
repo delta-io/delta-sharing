@@ -53,7 +53,8 @@ private[sharing] trait DeltaSharingClient {
     predicates: Seq[String],
     limit: Option[Long],
     versionAsOf: Option[Long],
-    timestampAsOf: Option[String]): DeltaTableFiles
+    timestampAsOf: Option[String],
+    jsonPredicates: Option[String]): DeltaTableFiles
 
   def getFiles(table: Table, startingVersion: Long): DeltaTableFiles
 
@@ -76,7 +77,8 @@ private[sharing] case class QueryTableRequest(
   limitHint: Option[Long],
   version: Option[Long],
   timestamp: Option[String],
-  startingVersion: Option[Long]
+  startingVersion: Option[Long],
+  jsonPredicates: Option[String]
 )
 
 private[sharing] case class ListSharesResponse(
@@ -221,14 +223,17 @@ private[spark] class DeltaSharingRestClient(
       predicates: Seq[String],
       limit: Option[Long],
       versionAsOf: Option[Long],
-      timestampAsOf: Option[String]): DeltaTableFiles = {
+      timestampAsOf: Option[String],
+      jsonPredicates: Option[String]): DeltaTableFiles = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val (version, lines) = getNDJson(
-      target, QueryTableRequest(predicates, limit, versionAsOf, timestampAsOf, None))
+      target,
+      QueryTableRequest(predicates, limit, versionAsOf, timestampAsOf, None, jsonPredicates)
+    )
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
@@ -244,7 +249,7 @@ private[spark] class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val (version, lines) = getNDJson(
-      target, QueryTableRequest(Nil, None, None, None, Some(startingVersion)))
+      target, QueryTableRequest(Nil, None, None, None, Some(startingVersion), None))
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData

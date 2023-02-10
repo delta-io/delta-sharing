@@ -60,8 +60,12 @@ class TestDeltaSharingClient(
     predicates: Seq[String],
     limit: Option[Long],
     versionAsOf: Option[Long],
-    timestampAsOf: Option[String]): DeltaTableFiles = {
+    timestampAsOf: Option[String],
+    jsonPredicates: Option[String]): DeltaTableFiles = {
     limit.foreach(lim => TestDeltaSharingClient.limits = TestDeltaSharingClient.limits :+ lim)
+    jsonPredicates.foreach(p => {
+      TestDeltaSharingClient.jsonPredicates = TestDeltaSharingClient.jsonPredicates :+ p
+    })
 
     val addFiles: Seq[AddFile] = if (versionAsOf.isDefined || timestampAsOf.isDefined) {
        Seq(
@@ -114,6 +118,7 @@ class TestDeltaSharingClient(
 
   def clear(): Unit = {
     TestDeltaSharingClient.limits = Nil
+    TestDeltaSharingClient.jsonPredicates = Nil
   }
 }
 
@@ -125,4 +130,5 @@ class TestDeltaSharingProfileProvider extends DeltaSharingProfileProvider {
 
 object TestDeltaSharingClient {
   var limits = Seq.empty[Long]
+  var jsonPredicates = Seq.empty[String]
 }
