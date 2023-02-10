@@ -94,24 +94,24 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       SqlLiteral(23, IntegerType)
     )
     // The client should get a base64 encoded json as jsonPredicate.
-    val expected_json =
+    val expectedJson =
       """{"op":"equal",
          |"children":[
          |  {"op":"column","name":"id","valueType":"int"},
          |  {"op":"literal","value":"23","valueType":"int"}]
          |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
-    val encoded_json = new String(Base64.getUrlEncoder.encode(expected_json.getBytes), UTF_8)
+    val encodedJson = new String(Base64.getUrlEncoder.encode(expectedJson.getBytes), UTF_8)
 
     val remoteDeltaLog = new RemoteDeltaLog(Table("fe", "fi", "fo"), new Path("test"), client)
     fileIndex.listFiles(Seq(sqlEq), Seq.empty)
     assert(TestDeltaSharingClient.limits === Seq(2L))
     assert(TestDeltaSharingClient.jsonPredicates.size === 1)
-    val received_json = TestDeltaSharingClient.jsonPredicates(0)
-    assert(received_json == encoded_json)
+    val receivedJson = TestDeltaSharingClient.jsonPredicates(0)
+    assert(receivedJson == encodedJson)
 
     // Also test that we can decode the json correctly.
-    val decoded_json = new String(Base64.getUrlDecoder.decode(received_json), UTF_8)
-    assert(decoded_json == expected_json)
+    val decodedJson = new String(Base64.getUrlDecoder.decode(receivedJson), UTF_8)
+    assert(decodedJson == expectedJson)
   }
 
   test("snapshot file index test") {

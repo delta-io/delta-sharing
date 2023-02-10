@@ -78,7 +78,7 @@ private[sharing] case class QueryTableRequest(
   version: Option[Long],
   timestamp: Option[String],
   startingVersion: Option[Long],
-  jsonPredicates: Option[String] = None
+  jsonPredicates: Option[String]
 )
 
 private[sharing] case class ListSharesResponse(
@@ -249,7 +249,7 @@ private[spark] class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val (version, lines) = getNDJson(
-      target, QueryTableRequest(Nil, None, None, None, Some(startingVersion)))
+      target, QueryTableRequest(Nil, None, None, None, Some(startingVersion), None))
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
