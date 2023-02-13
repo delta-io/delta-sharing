@@ -70,7 +70,7 @@ object TestResource {
               TableConfig(
                 "table1",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table1",
-                "00000000-0000-0000-0000-000000000000"
+                "00000000-0000-0000-0000-000000000001"
               ),
               TableConfig(
                 "table3",

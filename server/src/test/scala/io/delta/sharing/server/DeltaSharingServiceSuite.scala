@@ -268,9 +268,25 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   integrationTest("/shares/{share}/schemas/{schema}/tables") {
     val response = readJson(requestPath("/shares/share1/schemas/default/tables"))
     val expected = ListTablesResponse(
-      Table().withName("table1").withSchema("default").withShare("share1") ::
-        Table().withName("table3").withSchema("default").withShare("share1") ::
-        Table().withName("table7").withSchema("default").withShare("share1") :: Nil)
+      Table(
+        name = Some("table1"),
+        schema = Some("default"),
+        share = Some("share1"),
+        id = Some("00000000-0000-0000-0000-000000000001")
+      )::
+        Table(
+          name = Some("table3"),
+          schema = Some("default"),
+          share = Some("share1"),
+          id = Some("00000000-0000-0000-0000-000000000003")
+        )::
+        Table(
+          name = Some("table7"),
+          schema = Some("default"),
+          share = Some("share1"),
+          id = Some("00000000-0000-0000-0000-000000000007")
+        )::Nil
+    )
     assert(expected == JsonFormat.fromJsonString[ListTablesResponse](response))
   }
 
@@ -283,17 +299,43 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       tables ++= response.items
     }
     val expected =
-      Table().withName("table1").withSchema("default").withShare("share1") ::
-        Table().withName("table3").withSchema("default").withShare("share1") ::
-        Table().withName("table7").withSchema("default").withShare("share1") :: Nil
+      Table(
+        name = Some("table1"),
+        schema = Some("default"),
+        share = Some("share1"),
+        id = Some("00000000-0000-0000-0000-000000000001")
+      )::
+        Table(
+          name = Some("table3"),
+          schema = Some("default"),
+          share = Some("share1"),
+          id = Some("00000000-0000-0000-0000-000000000003")
+        )::
+        Table(
+          name = Some("table7"),
+          schema = Some("default"),
+          share = Some("share1"),
+          id = Some("00000000-0000-0000-0000-000000000007")
+        )::Nil
     assert(expected == tables)
   }
 
   integrationTest("/shares/{share}/all-tables") {
     val response = readJson(requestPath("/shares/share7/all-tables"))
     val expected = ListAllTablesResponse(
-      Table().withName("table8").withSchema("schema1").withShare("share7") ::
-        Table().withName("table9").withSchema("schema2").withShare("share7") :: Nil)
+      Table(
+        name = Some("table8"),
+        schema = Some("schema1"),
+        share = Some("share7"),
+        id = Some("00000000-0000-0000-0000-000000000008")
+      )::
+        Table(
+          name = Some("table9"),
+          schema = Some("schema2"),
+          share = Some("share7"),
+          id = Some("00000000-0000-0000-0000-000000000009")
+        )::Nil
+    )
     assert(expected == JsonFormat.fromJsonString[ListAllTablesResponse](response))
   }
 
@@ -306,8 +348,18 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       tables ++= response.items
     }
     val expected =
-      Table().withName("table8").withSchema("schema1").withShare("share7") ::
-        Table().withName("table9").withSchema("schema2").withShare("share7") :: Nil
+      Table(
+        name = Some("table8"),
+        schema = Some("schema1"),
+        share = Some("share7"),
+        id = Some("00000000-0000-0000-0000-000000000008")
+      )::
+        Table(
+          name = Some("table9"),
+          schema = Some("schema2"),
+          share = Some("share7"),
+          id = Some("00000000-0000-0000-0000-000000000009")
+        )::Nil
     assert(expected == tables)
   }
 
