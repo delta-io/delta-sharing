@@ -138,8 +138,14 @@ class SharedTableManager(serverConfig: ServerConfig) {
     val schemaConfig = getSchema(getShareInternal(share), schema)
     getPage(nextPageToken, Some(share), Some(schema), maxResults, schemaConfig.getTables.size) {
       (start, end) =>
-        schemaConfig.getTables.asScala.map { tableConfig =>
-          Table().withName(tableConfig.getName).withSchema(schema).withShare(share)
+        schemaConfig.getTables.asScala.map {
+          tableConfig =>
+            Table(
+              name = Some(tableConfig.getName),
+              schema = Some(schema),
+              share = Some(share),
+              id = Some(tableConfig.getId)
+            )
         }.slice(start, end)
     }
   }
@@ -158,7 +164,8 @@ class SharedTableManager(serverConfig: ServerConfig) {
               Table(
                 name = Some(table.getName),
                 schema = Some(schema.name),
-                share = Some(share)
+                share = Some(share),
+                id = Some(table.getId)
               )
           }
         }.slice(start, end)
