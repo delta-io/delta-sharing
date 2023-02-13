@@ -17,8 +17,6 @@
 package io.delta.sharing.spark
 
 import java.lang.ref.WeakReference
-import java.nio.charset.StandardCharsets.UTF_8
-import java.util.Base64
 
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.delta.sharing.CachedTableManager
@@ -115,8 +113,7 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
     try {
       val op = OpConverter.convert(partitionFilters)
       if (op.isDefined) {
-        val opJson = JsonUtils.toJson[BaseOp](op.get)
-        Some(new String(Base64.getUrlEncoder.encode(opJson.getBytes), UTF_8))
+        Some(JsonUtils.toJson[BaseOp](op.get))
       } else {
         None
       }
