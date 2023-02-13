@@ -118,9 +118,9 @@ class SharedTableManagerSuite extends FunSuite {
           SchemaConfig(
             "schema1",
             Arrays.asList(
-              TableConfig("table1", "location1"),
-              TableConfig("table2", "location1"),
-              TableConfig("table3", "location2")
+              TableConfig("table1", "location1", "00000000-0000-0000-0000-000000000001"),
+              TableConfig("table2", "location1", "00000000-0000-0000-0000-000000000002"),
+              TableConfig("table3", "location2", "00000000-0000-0000-0000-000000000003")
             )
           )
         )
@@ -129,9 +129,24 @@ class SharedTableManagerSuite extends FunSuite {
     val sharedTableManager = new SharedTableManager(serverConfig)
     val (tables, _) = sharedTableManager.listTables("share1", "schema1")
     assert(tables == Seq(
-      Table().withName("table1").withSchema("schema1").withShare("share1"),
-      Table().withName("table2").withSchema("schema1").withShare("share1"),
-      Table().withName("table3").withSchema("schema1").withShare("share1")
+      Table(
+        name = Some("table1"),
+        schema = Some("schema1"),
+        share = Some("share1"),
+        id = Some("00000000-0000-0000-0000-000000000001")
+      ),
+      Table(
+        name = Some("table2"),
+        schema = Some("schema1"),
+        share = Some("share1"),
+        id = Some("00000000-0000-0000-0000-000000000002")
+      ),
+      Table(
+        name = Some("table3"),
+        schema = Some("schema1"),
+        share = Some("share1"),
+        id = Some("00000000-0000-0000-0000-000000000003")
+      )
     ))
 
     assert(intercept[DeltaSharingNoSuchElementException] {
@@ -151,14 +166,14 @@ class SharedTableManagerSuite extends FunSuite {
           SchemaConfig(
             "schema1",
             Arrays.asList(
-              TableConfig("table1", "location1"),
-              TableConfig("table2", "location1")
+              TableConfig("table1", "location1", "00000000-0000-0000-0000-000000000001"),
+              TableConfig("table2", "location1", "00000000-0000-0000-0000-000000000002")
             )
           ),
           SchemaConfig(
             "schema2",
             Arrays.asList(
-              TableConfig("table3", "location1")
+              TableConfig("table3", "location1", "00000000-0000-0000-0000-000000000003")
             )
           )
         )
@@ -167,9 +182,24 @@ class SharedTableManagerSuite extends FunSuite {
     val sharedTableManager = new SharedTableManager(serverConfig)
     val (tables, _) = sharedTableManager.listAllTables("share1")
     assert(tables == Seq(
-      Table().withName("table1").withSchema("schema1").withShare("share1"),
-      Table().withName("table2").withSchema("schema1").withShare("share1"),
-      Table().withName("table3").withSchema("schema2").withShare("share1")
+      Table(
+        name = Some("table1"),
+        schema = Some("schema1"),
+        share = Some("share1"),
+        id = Some("00000000-0000-0000-0000-000000000001")
+      ),
+      Table(
+        name = Some("table2"),
+        schema = Some("schema1"),
+        share = Some("share1"),
+        id = Some("00000000-0000-0000-0000-000000000002")
+      ),
+      Table(
+        name = Some("table3"),
+        schema = Some("schema2"),
+        share = Some("share1"),
+        id = Some("00000000-0000-0000-0000-000000000003")
+      )
     ))
 
     assert(intercept[DeltaSharingNoSuchElementException] {
@@ -186,8 +216,13 @@ class SharedTableManagerSuite extends FunSuite {
           SchemaConfig(
             "schema1",
             Arrays.asList(
-              TableConfig("table1", "location1"),
-              TableConfig("table0", "location0", true)
+              TableConfig("table1", "location1", "00000000-0000-0000-0000-000000000001"),
+              TableConfig(
+                "table0",
+                "location0",
+                "00000000-0000-0000-0000-000000000000",
+                cdfEnabled = true
+              )
             )
           )
         )
@@ -195,10 +230,17 @@ class SharedTableManagerSuite extends FunSuite {
     )
     val sharedTableManager = new SharedTableManager(serverConfig)
     var table = sharedTableManager.getTable("share1", "schema1", "table1")
-    assert(table == TableConfig("table1", "location1"))
+    assert(table == TableConfig("table1", "location1", "00000000-0000-0000-0000-000000000001"))
 
     table = sharedTableManager.getTable("share1", "schema1", "table0")
-    assert(table == TableConfig("table0", "location0", true))
+    assert(table ==
+      TableConfig(
+        "table0",
+        "location0",
+        "00000000-0000-0000-0000-000000000000",
+        cdfEnabled = true
+      )
+    )
 
     assert(intercept[DeltaSharingNoSuchElementException] {
       sharedTableManager.getTable("share2", "schema1", "table1")
