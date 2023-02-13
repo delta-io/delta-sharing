@@ -53,10 +53,16 @@ class ServerConfigSuite extends FunSuite {
       val sharesInTemplate = Arrays.asList(
         ShareConfig("share1", Arrays.asList(
           SchemaConfig("schema1", Arrays.asList(
-            TableConfig("table1", "s3a://<bucket-name>/<the-table-path>"),
+            TableConfig(
+              "table1",
+              "s3a://<bucket-name>/<the-table-path>",
+              id = "00000000-0000-0000-0000-000000000000"
+            ),
             TableConfig(
               "table2",
-              "wasbs://<container-name>@<account-name}.blob.core.windows.net/<the-table-path>")
+              "wasbs://<container-name>@<account-name}.blob.core.windows.net/<the-table-path>",
+              id = "00000000-0000-0000-0000-000000000001"
+            )
           ))
         )),
         ShareConfig("share2", Arrays.asList(
@@ -64,14 +70,18 @@ class ServerConfigSuite extends FunSuite {
             TableConfig(
               "table3",
               "abfss://<container-name>@<account-name}.dfs.core.windows.net/<the-table-path>",
-              true)
+              id = "00000000-0000-0000-0000-000000000002",
+              cdfEnabled = true
+            )
           ))
         )),
         ShareConfig("share3", Arrays.asList(
           SchemaConfig("schema3", Arrays.asList(
             TableConfig(
               "table4",
-              "gs://<bucket-name>/<the-table-path>")
+              "gs://<bucket-name>/<the-table-path>",
+              id = "00000000-0000-0000-0000-000000000003"
+            )
           ))
         ))
       )

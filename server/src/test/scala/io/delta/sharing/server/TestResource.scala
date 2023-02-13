@@ -67,9 +67,21 @@ object TestResource {
           SchemaConfig(
             "default",
             java.util.Arrays.asList(
-              TableConfig("table1", s"s3a://${AWS.bucket}/delta-exchange-test/table1"),
-              TableConfig("table3", s"s3a://${AWS.bucket}/delta-exchange-test/table3"),
-              TableConfig("table7", s"s3a://${AWS.bucket}/delta-exchange-test/table7")
+              TableConfig(
+                "table1",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table1",
+                "00000000-0000-0000-0000-000000000000"
+              ),
+              TableConfig(
+                "table3",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table3",
+                "00000000-0000-0000-0000-000000000003"
+              ),
+              TableConfig(
+                "table7",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table7",
+                "00000000-0000-0000-0000-000000000007"
+              )
             )
           )
         )
@@ -77,7 +89,11 @@ object TestResource {
       ShareConfig("share2",
         java.util.Arrays.asList(
           SchemaConfig("default", java.util.Arrays.asList(
-            TableConfig("table2", s"s3a://${AWS.bucket}/delta-exchange-test/table2")
+            TableConfig(
+              "table2",
+              s"s3a://${AWS.bucket}/delta-exchange-test/table2",
+              "00000000-0000-0000-0000-000000000002"
+            )
           )
           )
         )),
@@ -86,8 +102,16 @@ object TestResource {
           SchemaConfig(
             "default",
             java.util.Arrays.asList(
-              TableConfig("table4", s"s3a://${AWS.bucket}/delta-exchange-test/table4"),
-              TableConfig("table5", s"s3a://${AWS.bucket}/delta-exchange-test/table5")
+              TableConfig(
+                "table4",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table4",
+                "00000000-0000-0000-0000-000000000004"
+              ),
+              TableConfig(
+                "table5",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table5",
+                "00000000-0000-0000-0000-000000000005"
+              )
             )
           )
         )
@@ -98,7 +122,11 @@ object TestResource {
             "default",
             java.util.Arrays.asList(
               // table made with spark.sql.parquet.compression.codec=gzip
-              TableConfig("test_gzip", s"s3a://${AWS.bucket}/compress-test/table1")
+              TableConfig(
+                "test_gzip",
+                s"s3a://${AWS.bucket}/compress-test/table1",
+                "00000000-0000-0000-0000-000000000099"
+              )
             )
           )
         )
@@ -119,13 +147,21 @@ object TestResource {
           SchemaConfig(
             "schema1",
             java.util.Arrays.asList(
-              TableConfig("table8", s"s3a://${AWS.bucket}/delta-exchange-test/table8")
+              TableConfig(
+                "table8",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table8",
+                "00000000-0000-0000-0000-000000000008"
+              )
             )
           ),
           SchemaConfig(
             "schema2",
             java.util.Arrays.asList(
-              TableConfig("table9", s"s3a://${AWS.bucket}/delta-exchange-test/table9")
+              TableConfig(
+                "table9",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table9",
+                "00000000-0000-0000-0000-000000000009"
+              )
             )
           )
         )
@@ -136,8 +172,16 @@ object TestResource {
           SchemaConfig(
             "default",
             java.util.Arrays.asList(
-              TableConfig("table_wasb", s"wasbs://${Azure.container}@${Azure.accountName}.blob.core.windows.net/delta-sharing-test/table1"),
-              TableConfig("table_abfs", s"abfss://${Azure.container}@${Azure.accountName}.dfs.core.windows.net/delta-sharing-test/table1")
+              TableConfig(
+                "table_wasb",
+                s"wasbs://${Azure.container}@${Azure.accountName}.blob.core.windows.net/delta-sharing-test/table1",
+                "00000000-0000-0000-0000-000000000098"
+              ),
+              TableConfig(
+                "table_abfs",
+                s"abfss://${Azure.container}@${Azure.accountName}.dfs.core.windows.net/delta-sharing-test/table1",
+                "00000000-0000-0000-0000-000000000097"
+              )
             )
           )
         )
@@ -148,7 +192,11 @@ object TestResource {
           SchemaConfig(
             "default",
             java.util.Arrays.asList(
-              TableConfig("table_gcs", s"gs://${GCP.bucket}/delta-sharing-test/table1")
+              TableConfig(
+                "table_gcs",
+                s"gs://${GCP.bucket}/delta-sharing-test/table1",
+                "00000000-0000-0000-0000-000000000096"
+              )
             )
           )
         )
@@ -161,73 +209,87 @@ object TestResource {
               TableConfig(
                 "cdf_table_cdf_enabled",
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_cdf_enabled",
-                true
+                "00000000-0000-0000-0000-000000000095",
+                cdfEnabled = true
               ),
               TableConfig(
                 "cdf_table_with_partition",
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_partition",
-                true,
-                1
+                "00000000-0000-0000-0000-000000000094",
+                cdfEnabled = true,
+                startVersion = 1
               ),
               TableConfig(
                 "cdf_table_with_vacuum",
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_vacuum",
-                true
+                "00000000-0000-0000-0000-000000000093",
+                cdfEnabled = true
               ),
               TableConfig(
                 "cdf_table_missing_log",
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_missing_log",
-                true
+                "00000000-0000-0000-0000-000000000092",
+                cdfEnabled = true
               ),
               TableConfig(
                 "streaming_table_with_optimize",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_table_with_optimize",
-                true
+                "00000000-0000-0000-0000-000000000091",
+                cdfEnabled = true
               ),
               TableConfig(
                 "streaming_table_metadata_protocol",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_table_metadata_protocol",
-                true
+                "00000000-0000-0000-0000-000000000090",
+                cdfEnabled = true
               ),
               TableConfig(
                 "streaming_notnull_to_null",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_notnull_to_null",
-                true
+                "00000000-0000-0000-0000-000000000089",
+                cdfEnabled = true
               ),
               TableConfig(
                 "streaming_null_to_notnull",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_null_to_notnull",
-                true
+                "00000000-0000-0000-0000-000000000088",
+                cdfEnabled = true
               ),
               TableConfig(
                 "streaming_cdf_null_to_notnull",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_cdf_null_to_notnull",
-                true
+                "00000000-0000-0000-0000-000000000087",
+                cdfEnabled = true
               ),
               TableConfig(
                 "streaming_cdf_table",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_cdf_table",
-                true
+                "00000000-0000-0000-0000-000000000086",
+                cdfEnabled = true
               ),
               TableConfig(
                 "table_reader_version_increased",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_reader_version_increased",
-                true
+                "00000000-0000-0000-0000-000000000085",
+                cdfEnabled = true
               ),
               TableConfig(
                 "table_with_no_metadata",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_with_no_metadata",
-                true
+                "00000000-0000-0000-0000-000000000084",
+                cdfEnabled = true
               ),
               TableConfig(
                 "table_data_loss_with_checkpoint",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_data_loss_with_checkpoint",
-                true
+                "00000000-0000-0000-0000-000000000083",
+                cdfEnabled = true
               ),
               TableConfig(
                 "table_data_loss_no_checkpoint",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_data_loss_no_checkpoint",
-                true
+                "00000000-0000-0000-0000-000000000082",
+                cdfEnabled = true
               )
             )
           )

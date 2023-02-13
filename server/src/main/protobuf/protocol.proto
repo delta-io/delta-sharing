@@ -40,6 +40,7 @@ message Table {
     optional string name = 1;
     optional string schema = 2;
     optional string share = 3;
+    optional string id = 4;
 }
 
 message QueryTableRequest {
