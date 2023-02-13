@@ -104,7 +104,7 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
 
 Note: the `items` field may be an empty array or missing when no results are found. The client must handle both cases.
 
-Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and immutable through the share's lifecycle. 
+Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and stay immutable through the share's lifecycle. The format recommendation of `id` is UUID.
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
 </td>
@@ -295,7 +295,7 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.
 }
 ```
 
-Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and immutable through the share's lifecycle.
+Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and stay immutable through the share's lifecycle. The format recommendation of `id` is UUID.
 
 </td>
 </tr>
@@ -741,7 +741,7 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
 
 Note: the `items` field may be an empty array or missing when no results are found. The client must handle both cases.
 
-Note: the `id` field is optional. If `id` is populated for a table, its value should be unique within the share it belongs to and immutable through the table's lifecycle.
+Note: the `id` field is optional. If `id` is populated for a table, its value should be unique within the share and stay immutable through the table's lifecycle. The format recommendation of `id` is UUID.
 
 Note: the `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
 
@@ -980,7 +980,7 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
 
 Note: the `items` field may be an empty array or missing when no results are found. The client must handle both cases.
 
-Note: The `id` field is optional. If `id` is populated for a table, its value should be unique within the share it belongs to and immutable through the table's lifecycle.
+Note: the `id` field is optional. If `id` is populated for a table, its value should be unique within the share and stay immutable through the table's lifecycle. The format recommendation of `id` is UUID.
 
 Note: the `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
 
