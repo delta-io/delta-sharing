@@ -33,6 +33,7 @@
     - [Partition Value Serialization](#partition-value-serialization)
     - [Per-file Statistics](#per-file-statistics)
   - [SQL Expressions for Filtering](#sql-expressions-for-filtering)
+  - [JSON predicates for Filtering](#json-predicates-for-filtering)
 - [Profile File Format](#profile-file-format)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -1698,7 +1699,8 @@ This is the API for clients to read data from a table.
     "string"
   ],
   "limitHint": 0,
-  "version": 0
+  "version": 0,
+  "jsonPredicateHints": "string"
 }
 
 ```
@@ -1908,7 +1910,7 @@ The response contains multiple lines:
 
 #### Request Body
 
-The request body should be a JSON string containing the following two optional fields:
+The request body should be a JSON string containing the following optional fields:
  
 - **predicateHints** (type: String, optional): a list of SQL boolean expressions using [a restricted subset of SQL](#sql-expressions-for-filtering), in a JSON array.
   - When it’s present, the server will use the provided predicates as a hint to apply the SQL predicates on the returned files.
@@ -1916,6 +1918,13 @@ The request body should be a JSON string containing the following two optional f
     - If the server fails to parse one of the SQL predicates, or fails to evaluate it, the server may skip it.
     - Predicate expressions are conjunctive (AND-ed together).
   - When it’s absent, the server will return all of files in the table.
+  - **This will be deprecated once all the client and server implementation move to using jsonPredicateHints below**.
+
+- **jsonPredicateHints** (type: String, optional): query predicates on partition columns specified using [a structured JSON format](#json-predicates-for-filtering).
+  - When it’s present, the server will try to use the predicates to filter table's files, which could boost query performance.
+    - As with **predicateHints**, this filtering is **BEST EFFORT**. The server may return files that don’t satisfy the predicates.
+    - If the server encounters any errors during predicate processing (for example, invalid syntax or non existing columns), it will skip filtering and return all the files. 
+  - When it’s absent, the server will return all the files in the table.
 
 - **limitHint** (type: Int32, optional): an optional limit number. It’s a hint from the client to tell the server how many rows in the table the client plans to read. The server can use this hint to return only some files by using the file stats. For example, when running `SELECT * FROM table LIMIT 1000`, the client can set `limitHint` to `1000`.
   - Applying `limitHint` is **BEST EFFORT**. The server may return files containing more rows than the client requests.
@@ -2800,6 +2809,106 @@ Expression | Example
 `IS NOT NULL` | `col IS NOT NULL`
 
 More expression support will be added incrementally in future.
+
+## JSON predicates for Filtering
+
+The client may send filtering predicates on partition columns using a structured JSON format. This is similar to [SQL expressions for Filtering](#sql-expressions-for-filtering), but uses a simpler JSON tree structure. The partition column predicates are simple to express, and do not need the full expressive power of SQL. Using a structured JSON format to represent these predicates enables easier and safer support for file filtering capabilities in Delta Sharing server implementations.
+
+The server may try its best to filter files based on the predicates in a **BEST EFFORT** mode. The server may return all the files if validations fail. So clients should apply these predicates to the filter the data returned by the server.
+
+We will deprecate the legacy predicateHints once all the delta sharing client and servers have moved to the json predicate based file filtering.
+
+The JSON format:
+
+Field Name | Descrption
+-|-
+op | The name of the operation. See the section on supported ops for details.
+children | The child operations for the op. This allows us to represent a predicate tree. Leaf ops do not have any children. Unary ops such as **not** have only one child. Binary ops such as **equal** have two children. Nary ops such as **and** can have multiple children.
+name | Specifies the name of a column. This is only applicable to column ops.
+value | Specifies the value of a literal. This is only applicable to literal ops.
+valueType | Specifies the value type of a column or a literal op. This is only applicate to column and literal ops.
+
+The supported Ops:
+
+Op | Op Type | Description
+-|-|-
+column | Leaf | Represents a column. A column op has two fields: **name** and **valueType**. The column's value will be cast to the specified **valueType** during comparisons.
+literal | Leaf | Represents a literal or fixed value. A literal op has two fields: **value** and **valueType**. The literal's **value**  will be cast to the specified **valueType** during comparisons.
+isNull | Unary | Represents a null check on a column op. This op should have only one child, the column op.
+equal | Binary | Represents an equality ("=") check. This op should have two children, and both should be leaf ops.
+lessThan | Binary | Represents a less than ("<") check. This op should have two children, and both should be leaf ops.
+lessThanOrEqual | Binary | Represents a less than or equal ("<=") check. This op should have two children, and both should be leaf ops.
+greaterThan | Binary | Represents a greater than (">") check. This op should have two children, and both should be leaf ops.
+greaterThanOrEqual | Binary | Represents a greater than (">=") check. This op should have two children, and both should be leaf ops.
+and | Nary | Represents a logical and operation amongst its children. This op should have at least two children.
+or | Nary | Represents a logical or operation amongst its children. This op should have at least two children.
+not | Unary | Represents a logical not check. This op should have once child.
+
+The supported value types:
+
+ValueType | Description
+-|-
+"bool" | Represents an Boolean type.
+"int" | Represents an Integer type.
+"long" | Represents a Long type.
+"string" | Represents a String type.
+"date" | Represents a Date type in "yyyy-mm-dd" format.
+
+
+Examples
+
+
+1. Equal op.
+
+```json
+{
+  "op": "equal",
+  "children": [
+    {"op": "column", "name":"hireDate", "valueType":"date"},
+    {"op":"literal","value":"2021-04-29","valueType":"date"}
+  ]
+}
+```
+
+2. And op.
+
+```json
+{
+  "op":"and",
+  "children":[
+    {
+      "op":"equal",
+      "children":[
+        {"op":"column","name":"hireDate","valueType":"date"},
+        {"op":"literal","value":"2021-04-29","valueType":"date"}
+      ]
+    },
+    {
+      "op":"lessThan","children":[
+        {"op":"column","name":"id","valueType":"int"},
+        {"op":"literal","value":"25","valueType":"int"}
+      ]
+    }
+  ]
+}
+```
+
+3. Not null check.
+
+```json
+{
+  "op": "not",
+  "children": [
+    {
+      "op": "isNull",
+      "children":[
+        {"op":"column","name":"id","valueType":"int"},
+      ]
+    }
+  ]
+}
+```
+
 
 # Profile File Format
 
