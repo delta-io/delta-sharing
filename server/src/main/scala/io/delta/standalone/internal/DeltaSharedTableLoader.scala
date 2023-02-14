@@ -71,7 +71,8 @@ class DeltaSharedTableLoader(serverConfig: ServerConfig) {
           new DeltaSharedTable(
             tableConfig,
             serverConfig.preSignedUrlTimeoutSeconds,
-            serverConfig.evaluatePredicateHints)
+            serverConfig.evaluatePredicateHints,
+            serverConfig.evaluateJsonPredicateHints)
         })
       if (!serverConfig.stalenessAcceptable) {
         deltaSharedTable.update()
@@ -91,7 +92,8 @@ class DeltaSharedTableLoader(serverConfig: ServerConfig) {
 class DeltaSharedTable(
     tableConfig: TableConfig,
     preSignedUrlTimeoutSeconds: Long,
-    evaluatePredicateHints: Boolean) {
+    evaluatePredicateHints: Boolean,
+    evaluateJsonPredicateHints: Boolean) {
 
   private val conf = withClassLoader {
     new Configuration()
@@ -181,6 +183,7 @@ class DeltaSharedTable(
   def query(
       includeFiles: Boolean,
       predicateHints: Seq[String],
+      jsonPredicateHints: Option[String],
       limitHint: Option[Long],
       version: Option[Long],
       timestamp: Option[String],
@@ -245,19 +248,25 @@ class DeltaSharedTable(
           None
         }
 
-        val selectedFiles = state.activeFiles.toSeq
-        val filteredFilters =
+        var selectedFiles = state.activeFiles.toSeq
+        var filteredFiles =
+          if (evaluateJsonPredicateHints && modelMetadata.partitionColumns.nonEmpty) {
+            JsonPredicateFilterUtils.evaluatePredicate(jsonPredicateHints, selectedFiles)
+          } else {
+            selectedFiles
+          }
+        filteredFiles =
           if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
             PartitionFilterUtils.evaluatePredicate(
               modelMetadata.schemaString,
               modelMetadata.partitionColumns,
               predicateHints,
-              selectedFiles
+              filteredFiles
             )
           } else {
-            selectedFiles
+            filteredFiles
           }
-        filteredFilters.map { addFile =>
+        filteredFiles.map { addFile =>
           val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
           val signedUrl = fileSigner.sign(cloudPath)
           val modelAddFile = model.AddFile(url = signedUrl,
