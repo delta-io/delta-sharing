@@ -2852,7 +2852,7 @@ ValueType | Description
 "int" | Represents an Integer type.
 "long" | Represents a Long type.
 "string" | Represents a String type.
-"date" | Represents a Date type.
+"date" | Represents a Date type in "yyyy-mm-dd" format.
 
 
 Examples
