@@ -93,25 +93,20 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       SqlAttributeReference("id", IntegerType)(),
       SqlLiteral(23, IntegerType)
     )
-    // The client should get a base64 encoded json as jsonPredicate.
+    // The client should get json for jsonPredicateHints.
     val expectedJson =
       """{"op":"equal",
          |"children":[
          |  {"op":"column","name":"id","valueType":"int"},
          |  {"op":"literal","value":"23","valueType":"int"}]
          |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
-    val encodedJson = new String(Base64.getUrlEncoder.encode(expectedJson.getBytes), UTF_8)
 
     val remoteDeltaLog = new RemoteDeltaLog(Table("fe", "fi", "fo"), new Path("test"), client)
     fileIndex.listFiles(Seq(sqlEq), Seq.empty)
     assert(TestDeltaSharingClient.limits === Seq(2L))
     assert(TestDeltaSharingClient.jsonPredicateHints.size === 1)
     val receivedJson = TestDeltaSharingClient.jsonPredicateHints(0)
-    assert(receivedJson == encodedJson)
-
-    // Also test that we can decode the json correctly.
-    val decodedJson = new String(Base64.getUrlDecoder.decode(receivedJson), UTF_8)
-    assert(decodedJson == expectedJson)
+    assert(receivedJson == expectedJson)
   }
 
   test("snapshot file index test") {
