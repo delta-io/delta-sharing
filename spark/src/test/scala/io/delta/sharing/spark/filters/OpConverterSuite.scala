@@ -282,7 +282,7 @@ class OpConverterSuite extends SparkFunSuite {
 
     // Converts the specified values into a json predicate op.
     def convert(inValues: Seq[Int]): BaseOp = {
-      val sqlLiterals = inValues.map(v => SqlLiteral(v, SqlIntegerType)) 
+      val sqlLiterals = inValues.map(v => SqlLiteral(v, SqlIntegerType))
       val sqlColumn = SqlAttributeReference("userId", SqlIntegerType)()
       val sqlIn = SqlIn(sqlColumn, sqlLiterals)
       val op = OpConverter.convert(Seq(sqlIn)).get
