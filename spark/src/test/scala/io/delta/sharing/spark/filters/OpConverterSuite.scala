@@ -275,4 +275,44 @@ class OpConverterSuite extends SparkFunSuite {
     assert(op.evalExpectBoolean(EvalContext(Map("userId" -> "23"))) == true)
     assert(op.evalExpectBoolean(EvalContext(Map("userId" -> "24"))) == false)
   }
+
+  test("In test") {
+    val minOutOfBoundVal = "1"
+    val maxOutOfBoundVal = "100"
+
+    // Converts the specified values into a json predicate op.
+    def convert(inValues: Seq[Int]): BaseOp = {
+      val sqlLiterals = inValues.map(v => SqlLiteral(v, SqlIntegerType))
+      val sqlColumn = SqlAttributeReference("userId", SqlIntegerType)()
+      val sqlIn = SqlIn(sqlColumn, sqlLiterals)
+      val op = OpConverter.convert(Seq(sqlIn)).get
+      op.validate()
+      op
+    }
+
+    def test_op(inValues: Seq[Int]): Unit = {
+      val op = convert(inValues)
+      inValues.map(v => {
+        assert(op.evalExpectBoolean(EvalContext(Map("userId" -> v.toString()))) == true)
+      })
+      assert(op.evalExpectBoolean(EvalContext(Map("userId" -> minOutOfBoundVal))) == false)
+      assert(op.evalExpectBoolean(EvalContext(Map("userId" -> maxOutOfBoundVal))) == false)
+    }
+
+    test_op(Seq(23))
+    test_op(Seq(23, 24, 25, 26))
+
+    var tooManyVals: Seq[Int] = Seq.empty
+    for (i <- 0 to OpConverter.kMaxSqlInOpSizeLimit + 1) {
+      // Make sure we stay within bounds for out of bound checks.
+      tooManyVals = tooManyVals :+ (i + 5)
+    }
+    assert(intercept[IllegalArgumentException] {
+      convert(tooManyVals)
+    }.getMessage.contains("The In predicate exceeds max limit"))
+
+    assert(intercept[IllegalArgumentException] {
+      convert(Seq.empty)
+    }.getMessage.contains("The In predicate must have at least one entry"))
+  }
 }
