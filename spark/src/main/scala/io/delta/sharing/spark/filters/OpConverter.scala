@@ -53,6 +53,7 @@ import org.apache.spark.sql.types.{
 // should skip filtering in such cases.
 object OpConverter {
 
+  // Limit the number of predicates we allow in the IN op to avoid pathological cases.
   val kMaxSqlInOpSizeLimit = 20
 
   // Converts a set of SQL expression trees into a json predicate op.
@@ -114,11 +115,12 @@ object OpConverter {
           )
         }
         val leafOp = convertAsLeaf(value)
-        val children = list.map(e => {
-          val rightOp = convertAsLeaf(e)
-          EqualOp(Seq(leafOp, rightOp))
-        })
-        OrOp(children)
+        list.map(e => EqualOp(Seq(leafOp, convertAsLeaf(e)))) match {
+          case Seq() =>
+            throw new IllegalArgumentException("The In predicate must have at least one entry")
+          case Seq(child) => child
+          case children => OrOp(children)
+        }
 
       // Convert <=> operation.
       case SqlEqualNullSafe(left, right) =>
