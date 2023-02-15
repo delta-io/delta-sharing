@@ -53,6 +53,8 @@ import org.apache.spark.sql.types.{
 // should skip filtering in such cases.
 object OpConverter {
 
+  val kMaxSqlInOpSizeLimit = 20
+
   // Converts a set of SQL expression trees into a json predicate op.
   // We perform an implicit And across the input set at the top level.
   //
@@ -102,6 +104,21 @@ object OpConverter {
         IsNullOp(Seq(convertAsLeaf(child)))
       case SqlIsNotNull(child) =>
         NotOp(Seq(IsNullOp(Seq(convertAsLeaf(child)))))
+
+      // Convert In operation.
+      case SqlIn(value, list) =>
+        // Limit the number of predicates in the op to avoid pathological cases.
+        if (list.size > kMaxSqlInOpSizeLimit) {
+          throw new IllegalArgumentException(
+            "The In predicate exceeds max limit of " + kMaxSqlInOpSizeLimit
+          )
+        }
+        val leafOp = convertAsLeaf(value)
+        val children = list.map(e => {
+          val rightOp = convertAsLeaf(e)
+          EqualOp(Seq(leafOp, rightOp))
+        })
+        OrOp(children)
 
       // Convert <=> operation.
       case SqlEqualNullSafe(left, right) =>

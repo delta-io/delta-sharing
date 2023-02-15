@@ -275,4 +275,32 @@ class OpConverterSuite extends SparkFunSuite {
     assert(op.evalExpectBoolean(EvalContext(Map("userId" -> "23"))) == true)
     assert(op.evalExpectBoolean(EvalContext(Map("userId" -> "24"))) == false)
   }
+
+  test("In test") {
+    val sqlColumn = SqlAttributeReference("userId", SqlIntegerType)()
+    val sqlLiterals = Seq(
+      SqlLiteral(23, SqlIntegerType),
+      SqlLiteral(24, SqlIntegerType),
+      SqlLiteral(25, SqlIntegerType),
+      SqlLiteral(26, SqlIntegerType)
+    )
+    val sqlIn = SqlIn(sqlColumn, sqlLiterals)
+    val op = OpConverter.convert(Seq(sqlIn)).get
+    op.validate()
+    assert(op.evalExpectBoolean(EvalContext(Map("userId" -> "22"))) == false)
+    assert(op.evalExpectBoolean(EvalContext(Map("userId" -> "23"))) == true)
+    assert(op.evalExpectBoolean(EvalContext(Map("userId" -> "24"))) == true)
+    assert(op.evalExpectBoolean(EvalContext(Map("userId" -> "25"))) == true)
+    assert(op.evalExpectBoolean(EvalContext(Map("userId" -> "26"))) == true)
+    assert(op.evalExpectBoolean(EvalContext(Map("userId" -> "27"))) == false)
+
+    var sqlLiterals2: Seq[SqlExpression] = Seq.empty
+    for (i <- 0 to OpConverter.kMaxSqlInOpSizeLimit + 1) {
+      sqlLiterals2 = sqlLiterals2 :+ SqlLiteral(i, SqlIntegerType)
+    }
+    val sqlIn2 = SqlIn(sqlColumn, sqlLiterals2)
+    assert(intercept[IllegalArgumentException] {
+      OpConverter.convert(Seq(sqlIn2))
+    }.getMessage.contains("The In predicate exceeds max limit"))
+  }
 }
