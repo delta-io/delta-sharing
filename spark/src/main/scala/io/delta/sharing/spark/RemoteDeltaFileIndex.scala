@@ -113,7 +113,7 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
     if (!params.spark.sessionState.conf.getConfString(
       "spark.delta.sharing.jsonPredicateHints.enabled", "true").toBoolean) {
       return None
-    } 
+    }
     try {
       val op = OpConverter.convert(partitionFilters)
       if (op.isDefined) {
