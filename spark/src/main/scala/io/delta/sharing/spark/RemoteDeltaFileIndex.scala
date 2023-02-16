@@ -111,7 +111,7 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
   // not perform json predicate based filtering.
   protected def convertToJsonPredicate(partitionFilters: Seq[Expression]) : Option[String] = {
     if (!params.spark.sessionState.conf.getConfString(
-      "spark.delta.sharing.jsonPredicateHints.enabled", "true").toBoolean) {
+      "spark.delta.sharing.jsonPredicateHints.enabled", "false").toBoolean) {
       return None
     }
     try {
