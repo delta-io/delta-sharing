@@ -102,12 +102,16 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
          |  {"op":"literal","value":"23","valueType":"int"}]
          |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
 
-    val remoteDeltaLog = new RemoteDeltaLog(Table("fe", "fi", "fo"), new Path("test"), client)
     fileIndex.listFiles(Seq(sqlEq), Seq.empty)
     assert(TestDeltaSharingClient.limits === Seq(2L))
     assert(TestDeltaSharingClient.jsonPredicateHints.size === 1)
     val receivedJson = TestDeltaSharingClient.jsonPredicateHints(0)
     assert(receivedJson == expectedJson)
+
+    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "false")
+    client.clear()
+    fileIndex.listFiles(Seq(sqlEq), Seq.empty)
+    assert(TestDeltaSharingClient.jsonPredicateHints.size === 0)
   }
 
   test("snapshot file index test") {
