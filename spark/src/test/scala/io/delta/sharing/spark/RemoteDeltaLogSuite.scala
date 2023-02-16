@@ -66,6 +66,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
   test("RemoteSnapshot getFiles with limit and jsonPredicateHints") {
     val spark = SparkSession.active
+    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "true")
 
     // sanity check for dummy client
     val client = new TestDeltaSharingClient()

@@ -110,6 +110,10 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
   // If the conversion fails, returns a None, which will imply that we will
   // not perform json predicate based filtering.
   protected def convertToJsonPredicate(partitionFilters: Seq[Expression]) : Option[String] = {
+    if (!params.spark.sessionState.conf.getConfString(
+      "spark.delta.sharing.jsonPredicateHints.enabled", "true").toBoolean) {
+      return None
+    }
     try {
       val op = OpConverter.convert(partitionFilters)
       if (op.isDefined) {
