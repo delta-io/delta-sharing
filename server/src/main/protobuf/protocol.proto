@@ -45,6 +45,7 @@ message Table {
 
 message QueryTableRequest {
     repeated string predicateHints = 1;
+    optional string jsonPredicateHints = 6;
     optional int64 limitHint = 2;
 
     // Only one of the three parameters can be supported in a single query.

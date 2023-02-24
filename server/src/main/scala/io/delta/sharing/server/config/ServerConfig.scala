@@ -54,6 +54,8 @@ case class ServerConfig(
     @BeanProperty var stalenessAcceptable: Boolean,
     // Whether to evaluate user provided `predicateHints`
     @BeanProperty var evaluatePredicateHints: Boolean,
+    // Whether to evaluate user provided `jsonPredicateHints`
+    @BeanProperty var evaluateJsonPredicateHints: Boolean,
     // The timeout of an incoming web request in seconds. Set to 0 for no timeout
     @BeanProperty var requestTimeoutSeconds: Long
 ) extends ConfigItem {
@@ -73,6 +75,7 @@ case class ServerConfig(
       deltaTableCacheSize = 10,
       stalenessAcceptable = false,
       evaluatePredicateHints = false,
+      evaluateJsonPredicateHints = false,
       requestTimeoutSeconds = 30
     )
   }

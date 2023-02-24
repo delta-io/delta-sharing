@@ -47,3 +47,5 @@ deltaTableCacheSize: 10
 stalenessAcceptable: false
 # Whether to evaluate user provided `predicateHints`
 evaluatePredicateHints: false
+# Whether to evaluate user provided `jsonPredicateHints`
+evaluateJsonPredicateHints: false
