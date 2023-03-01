@@ -4,7 +4,7 @@ To complile the project, run
 build/sbt compile
 ```
 
-To generate JAR file, tun
+To generate JAR file, run
 
 ```
 build/sbt publishLocal
