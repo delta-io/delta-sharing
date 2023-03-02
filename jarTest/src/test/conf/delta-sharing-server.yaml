@@ -1,0 +1,36 @@
+# The format version of this config file
+version: 1
+# Config shares/schemas/tables to share
+shares:
+  - name: "share1"
+    schemas:
+      - name: "schema1"
+        tables:
+          - name: "test1"
+            # S3. See https://github.com/delta-io/delta-sharing#s3 for how to config the credentials
+            location: "s3a://hdl-test-data-eu-central-1/delta_lake/tab/"
+  - name: "share2"
+    schemas:
+      - name: "schema2"
+        tables:
+          - name: "test2"
+            location: "s3a://hdl-test-data-eu-central-1/delta_lake/tab_demo1/"
+
+authorization:
+  bearerToken: "123456"
+# Set the host name that the server will use
+host: "localhost"
+# Set the port that the server will listen on. Note: using ports below 1024
+# may require a privileged user in some operating systems.
+port: 8080
+# Set the url prefix for the REST APIs
+endpoint: "/delta_sharing"
+# Set the timeout of S3 presigned url in seconds
+preSignedUrlTimeoutSeconds: 3600
+# How many tables to cache in the server
+deltaTableCacheSize: 10
+# Whether we can accept working with a stale version of the table. This is useful when sharing
+# static tables that will never be changed.
+stalenessAcceptable: false
+# Whether to evaluate user provided `predicateHints`
+evaluatePredicateHints: false

@@ -20,7 +20,7 @@ public class jarTest {
 
      @Test
      public void evaluateGetShare() {
-         ServerConfig config =  ServerConfig.load("/Users/i574237/delta_sharing/delta-sharing/delta-sharing-server.yaml");
+         ServerConfig config =  ServerConfig.load("src/test/conf/delta-sharing-server.yaml");
          SharedTableManager tableManager = new SharedTableManager(config);
      Share s = tableManager.getShare("share1");
         assertEquals("share1", s.getName());
@@ -28,7 +28,7 @@ public class jarTest {
 
      @Test
     public void evaluateListShare(){
-         ServerConfig config =  ServerConfig.load("/Users/i574237/delta_sharing/delta-sharing/delta-sharing-server.yaml");
+         ServerConfig config =  ServerConfig.load("src/test/conf/delta-sharing-server.yaml");
          SharedTableManager tableManager = new SharedTableManager(config);
          Option<String> nextPageToken= Option.empty();
          Option<Object> maxResult = Option.apply(500);
@@ -49,7 +49,7 @@ public class jarTest {
 
      @Test
      public void evaluateListTables(){
-         ServerConfig config =  ServerConfig.load("/Users/i574237/delta_sharing/delta-sharing/delta-sharing-server.yaml");
+         ServerConfig config =  ServerConfig.load("src/test/conf/delta-sharing-server.yaml");
          SharedTableManager tableManager = new SharedTableManager(config);
          Option<String> nextPageToken= Option.empty();
          Option<Object> maxResult = Option.apply(500);
@@ -69,7 +69,7 @@ public class jarTest {
 
     @Test
     public void evaluateListScehmas(){
-        ServerConfig config =  ServerConfig.load("/Users/i574237/delta_sharing/delta-sharing/delta-sharing-server.yaml");
+        ServerConfig config =  ServerConfig.load("src/test/conf/delta-sharing-server.yaml");
         SharedTableManager tableManager = new SharedTableManager(config);
         Option<String> nextPageToken= Option.empty();
         Option<Object> maxResult = Option.apply(500);
@@ -82,7 +82,7 @@ public class jarTest {
 
      @Test
      public void evaluateQuery(){
-         ServerConfig config =  ServerConfig.load("/Users/i574237/delta_sharing/delta-sharing/delta-sharing-server.yaml");
+         ServerConfig config =  ServerConfig.load("src/test/conf/delta-sharing-server.yaml");
          SharedTableManager tableManager = new SharedTableManager(config);
          DeltaSharedTableLoader tableLoader = new DeltaSharedTableLoader(config);
          TableConfig tableConfig = tableManager.getTable("share1","schema1","test1");
