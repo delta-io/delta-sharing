@@ -15,7 +15,7 @@ The jar file will be generated in the target folder of server directory.
 To install the generated jar file in local Maven repo, run 
 
 ```
-cd <path_to_jar_file>  // jar file should be in server/target/scala-2.12
+cd <path_to_jar_file>  # jar file should be in server/target/scala-2.12
 mvn install:install-file -Dfile=<jar_file_name> -DgroupId=io.delta -DartifactId=delta-sharing-server_2.12 -Dversion=1.0.0-SNAPSHOT -Dpackaging=jar -DgeneratePom=true.
 ```
 
