@@ -16,11 +16,12 @@
 
 from delta_sharing.delta_sharing import SharingClient, load_as_pandas, load_as_spark
 from delta_sharing.delta_sharing import load_table_changes_as_pandas, load_table_changes_as_spark
-from delta_sharing.protocol import Share, Schema, Table
+from delta_sharing.protocol import DeltaSharingProfile, Share, Schema, Table
 from delta_sharing.version import __version__
 
 
 __all__ = [
+    "DeltaSharingProfile",
     "SharingClient",
     "Share",
     "Schema",
