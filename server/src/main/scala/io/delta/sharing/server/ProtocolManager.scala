@@ -25,11 +25,37 @@ import scala.collection.JavaConverters._
 import io.delta.sharing.server.config.{SchemaConfig, ServerConfig, ShareConfig, TableConfig}
 import io.delta.sharing.server.protocol.{PageToken, Schema, Share, Table}
 
+trait ProtocolManager {
+  def listShares(
+      nextPageToken: Option[String] = None,
+      maxResults: Option[Int] = None): (Seq[Share], Option[String])
+
+  def getShare(share: String): Share
+
+  def listSchemas(
+      share: String,
+      nextPageToken: Option[String] = None,
+      maxResults: Option[Int] = None): (Seq[Schema], Option[String])
+
+  def listTables(
+      share: String,
+      schema: String,
+      nextPageToken: Option[String] = None,
+      maxResults: Option[Int] = None): (Seq[Table], Option[String])
+
+  def listAllTables(
+      share: String,
+      nextPageToken: Option[String] = None,
+      maxResults: Option[Int] = None): (Seq[Table], Option[String])
+
+  def getTable(share: String, schema: String, table: String): TableConfig
+}
+
 /**
  * Load the shared tables from `ServerConfig` and provide the pagination APIs to query
  * shares/schemas/tables.
  */
-class SharedTableManager(serverConfig: ServerConfig) {
+class SimpleProtocolManager(serverConfig: ServerConfig) extends ProtocolManager {
 
   private val caseInsensitiveComparer = (a: String, b: String) => a.equalsIgnoreCase(b)
 
@@ -102,7 +128,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
       .getOrElse(throw new DeltaSharingNoSuchElementException(s"schema '$schema' not found"))
   }
 
-  def listShares(
+  override def listShares(
       nextPageToken: Option[String] = None,
       maxResults: Option[Int] = None): (Seq[Share], Option[String]) = {
     getPage(nextPageToken, None, None, maxResults, shares.size) { (start, end) =>
@@ -112,12 +138,12 @@ class SharedTableManager(serverConfig: ServerConfig) {
     }
   }
 
-  def getShare(share: String): Share = {
+  override def getShare(share: String): Share = {
     val shareConfig = getShareInternal(share)
     Share().withName(shareConfig.getName)
   }
 
-  def listSchemas(
+  override def listSchemas(
       share: String,
       nextPageToken: Option[String] = None,
       maxResults: Option[Int] = None): (Seq[Schema], Option[String]) = {
@@ -130,7 +156,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
     }
   }
 
-  def listTables(
+  override def listTables(
       share: String,
       schema: String,
       nextPageToken: Option[String] = None,
@@ -150,7 +176,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
     }
   }
 
-  def listAllTables(
+  override def listAllTables(
       share: String,
       nextPageToken: Option[String] = None,
       maxResults: Option[Int] = None): (Seq[Table], Option[String]) = {
@@ -172,7 +198,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
     }
   }
 
-  def getTable(share: String, schema: String, table: String): TableConfig = {
+  override def getTable(share: String, schema: String, table: String): TableConfig = {
     val schemaConfig =
       try {
         getSchema(getShareInternal(share), schema)

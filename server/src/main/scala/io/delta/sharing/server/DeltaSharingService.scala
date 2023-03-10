@@ -165,7 +165,7 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
 class DeltaSharingService(serverConfig: ServerConfig) {
   import DeltaSharingService._
 
-  private val sharedTableManager = new SharedTableManager(serverConfig)
+  private val protocolManager: ProtocolManager = new SimpleProtocolManager(serverConfig)
 
   private val deltaSharedTableLoader = new DeltaSharedTableLoader(serverConfig)
 
@@ -192,14 +192,14 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   def listShares(
       @Param("maxResults") @Default("500") maxResults: Int,
       @Param("pageToken") @Nullable pageToken: String): ListSharesResponse = processRequest {
-    val (shares, nextPageToken) = sharedTableManager.listShares(Option(pageToken), Some(maxResults))
+    val (shares, nextPageToken) = protocolManager.listShares(Option(pageToken), Some(maxResults))
     ListSharesResponse(shares, nextPageToken)
   }
 
   @Get("/shares/{share}")
   @ProducesJson
   def getShare(@Param("share") share: String): GetShareResponse = processRequest {
-    GetShareResponse(share = Some(sharedTableManager.getShare(share)))
+    GetShareResponse(share = Some(protocolManager.getShare(share)))
   }
 
   @Get("/shares/{share}/schemas")
@@ -209,7 +209,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("maxResults") @Default("500") maxResults: Int,
       @Param("pageToken") @Nullable pageToken: String): ListSchemasResponse = processRequest {
     val (schemas, nextPageToken) =
-      sharedTableManager.listSchemas(share, Option(pageToken), Some(maxResults))
+      protocolManager.listSchemas(share, Option(pageToken), Some(maxResults))
     ListSchemasResponse(schemas, nextPageToken)
   }
 
@@ -221,7 +221,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("maxResults") @Default("500") maxResults: Int,
       @Param("pageToken") @Nullable pageToken: String): ListTablesResponse = processRequest {
     val (tables, nextPageToken) =
-      sharedTableManager.listTables(share, schema, Option(pageToken), Some(maxResults))
+      protocolManager.listTables(share, schema, Option(pageToken), Some(maxResults))
     ListTablesResponse(tables, nextPageToken)
   }
 
@@ -232,7 +232,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("maxResults") @Default("500") maxResults: Int,
       @Param("pageToken") @Nullable pageToken: String): ListAllTablesResponse = processRequest {
     val (tables, nextPageToken) =
-      sharedTableManager.listAllTables(share, Option(pageToken), Some(maxResults))
+      protocolManager.listAllTables(share, Option(pageToken), Some(maxResults))
     ListAllTablesResponse(tables, nextPageToken)
   }
 
@@ -249,7 +249,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     @Param("table") table: String,
     @Param("startingTimestamp") @Nullable startingTimestamp: String
   ): HttpResponse = processRequest {
-    val tableConfig = sharedTableManager.getTable(share, schema, table)
+    val tableConfig = protocolManager.getTable(share, schema, table)
     if (startingTimestamp != null && !tableConfig.cdfEnabled) {
       throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +
         " not supported because change data feed is not enabled on table: " +
@@ -274,7 +274,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("schema") schema: String,
       @Param("table") table: String): HttpResponse = processRequest {
     import scala.collection.JavaConverters._
-    val tableConfig = sharedTableManager.getTable(share, schema, table)
+    val tableConfig = protocolManager.getTable(share, schema, table)
     val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = false,
       predicateHints = Nil,
@@ -308,7 +308,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
 
     val start = System.currentTimeMillis
-    val tableConfig = sharedTableManager.getTable(share, schema, table)
+    val tableConfig = protocolManager.getTable(share, schema, table)
     if (numVersionParams > 0) {
       if (!tableConfig.cdfEnabled) {
         throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +
@@ -353,7 +353,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("includeHistoricalMetadata") @Nullable includeHistoricalMetadata: String
   ): HttpResponse = processRequest {
     val start = System.currentTimeMillis
-    val tableConfig = sharedTableManager.getTable(share, schema, table)
+    val tableConfig = protocolManager.getTable(share, schema, table)
     if (!tableConfig.cdfEnabled) {
       throw new DeltaSharingIllegalArgumentException("cdf is not enabled on table " +
         s"$share.$schema.$table")
@@ -460,13 +460,12 @@ object DeltaSharingService {
       if (serverConfig.getAuthorization != null) {
         // Authorization is set. Set up the authorization using the token in the server config.
         val authServiceBuilder =
-          AuthService.builder.addOAuth2((_: ServiceRequestContext, token: OAuth2Token) => {
-            // Use `MessageDigest.isEqual` to do a time-constant comparison to avoid timing attacks
-            val authorized = MessageDigest.isEqual(
-              token.accessToken.getBytes(UTF_8),
-              serverConfig.getAuthorization.getBearerToken.getBytes(UTF_8))
-            CompletableFuture.completedFuture(authorized)
-          })
+          AuthService.builder.addOAuth2(new SimpleAuthorizer(serverConfig))
+        builder.decorator(authServiceBuilder.newDecorator)
+      } else if (serverConfig.getManagementDb != null) {
+        // ManagementDb is set. Set up the authorization based on managed tokens.
+        val authServiceBuilder =
+          AuthService.builder.addOAuth2(new ManagementDbAuthorizer(serverConfig))
         builder.decorator(authServiceBuilder.newDecorator)
       }
       builder.build()

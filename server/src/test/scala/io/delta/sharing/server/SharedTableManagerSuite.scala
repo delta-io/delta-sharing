@@ -26,7 +26,7 @@ import org.scalatest.FunSuite
 import io.delta.sharing.server.config.{SchemaConfig, ServerConfig, ShareConfig, TableConfig}
 import io.delta.sharing.server.protocol.{Schema, Share, Table}
 
-class SharedTableManagerSuite extends FunSuite {
+class SimpleProtocolManagerSuite extends FunSuite {
 
   test("list shares") {
     val serverConfig = new ServerConfig()
@@ -37,17 +37,17 @@ class SharedTableManagerSuite extends FunSuite {
       ShareConfig("share4", Collections.emptyList()),
       ShareConfig("share5", Collections.emptyList())
     )
-    val sharedTableManager = new SharedTableManager(serverConfig)
+    val protocolManager = new SimpleProtocolManager(serverConfig)
 
     def checkMaxResults(maxResults: Int): Unit = {
       val results = ArrayBuffer[Share]()
       var response =
-        sharedTableManager.listShares(nextPageToken = None, maxResults = Some(maxResults))
+        protocolManager.listShares(nextPageToken = None, maxResults = Some(maxResults))
       var partial = response._1
       var nextPageToken: Option[String] = response._2
       results ++= partial
       while (nextPageToken.nonEmpty) {
-        response = sharedTableManager.listShares(
+        response = protocolManager.listShares(
           nextPageToken = nextPageToken,
           maxResults = Some(maxResults))
         partial = response._1
@@ -61,11 +61,11 @@ class SharedTableManagerSuite extends FunSuite {
       checkMaxResults(maxResults)
     }
 
-    var response = sharedTableManager.listShares(nextPageToken = None, maxResults = Some(0))
+    var response = protocolManager.listShares(nextPageToken = None, maxResults = Some(0))
     assert(response._1.isEmpty) // shares
     assert(response._2.nonEmpty) // nextPageToken
 
-    response = sharedTableManager.listShares(nextPageToken = None, maxResults = None)
+    response = protocolManager.listShares(nextPageToken = None, maxResults = None)
     assert(response._1.map(_.getName) == serverConfig.shares.asScala.map(_.getName)) // shares
     assert(response._2.isEmpty) // nextPageToken
   }
@@ -75,12 +75,12 @@ class SharedTableManagerSuite extends FunSuite {
     serverConfig.shares = Arrays.asList(
       ShareConfig("share1", Collections.emptyList())
     )
-    val sharedTableManager = new SharedTableManager(serverConfig)
-    val response = sharedTableManager.getShare("share1")
+    val protocolManager = new SimpleProtocolManager(serverConfig)
+    val response = protocolManager.getShare("share1")
     assert(response.getName == "share1")
 
     assert(intercept[DeltaSharingNoSuchElementException] {
-      sharedTableManager.getShare("share2")
+      protocolManager.getShare("share2")
     }.getMessage.contains("share 'share2' not found"))
   }
 
@@ -96,8 +96,8 @@ class SharedTableManagerSuite extends FunSuite {
         )
       )
     )
-    val sharedTableManager = new SharedTableManager(serverConfig)
-    val (schemas, _) = sharedTableManager.listSchemas("share1")
+    val protocolManager = new SimpleProtocolManager(serverConfig)
+    val (schemas, _) = protocolManager.listSchemas("share1")
     assert(schemas == Seq(
       Schema().withName("schema1").withShare("share1"),
       Schema().withName("schema2").withShare("share1"),
@@ -105,7 +105,7 @@ class SharedTableManagerSuite extends FunSuite {
     ))
 
     assert(intercept[DeltaSharingNoSuchElementException] {
-      sharedTableManager.listSchemas("share2")
+      protocolManager.listSchemas("share2")
     }.getMessage.contains("share 'share2' not found"))
   }
 
@@ -126,8 +126,8 @@ class SharedTableManagerSuite extends FunSuite {
         )
       )
     )
-    val sharedTableManager = new SharedTableManager(serverConfig)
-    val (tables, _) = sharedTableManager.listTables("share1", "schema1")
+    val protocolManager = new SimpleProtocolManager(serverConfig)
+    val (tables, _) = protocolManager.listTables("share1", "schema1")
     assert(tables == Seq(
       Table(
         name = Some("table1"),
@@ -150,10 +150,10 @@ class SharedTableManagerSuite extends FunSuite {
     ))
 
     assert(intercept[DeltaSharingNoSuchElementException] {
-      sharedTableManager.listTables("share2", "schema1")
+      protocolManager.listTables("share2", "schema1")
     }.getMessage.contains("share 'share2' not found"))
     assert(intercept[DeltaSharingNoSuchElementException] {
-      sharedTableManager.listTables("share1", "schema2")
+      protocolManager.listTables("share1", "schema2")
     }.getMessage.contains("schema 'schema2' not found"))
   }
 
@@ -179,8 +179,8 @@ class SharedTableManagerSuite extends FunSuite {
         )
       )
     )
-    val sharedTableManager = new SharedTableManager(serverConfig)
-    val (tables, _) = sharedTableManager.listAllTables("share1")
+    val protocolManager = new SimpleProtocolManager(serverConfig)
+    val (tables, _) = protocolManager.listAllTables("share1")
     assert(tables == Seq(
       Table(
         name = Some("table1"),
@@ -203,7 +203,7 @@ class SharedTableManagerSuite extends FunSuite {
     ))
 
     assert(intercept[DeltaSharingNoSuchElementException] {
-      sharedTableManager.listAllTables("share2")
+      protocolManager.listAllTables("share2")
     }.getMessage.contains("share 'share2' not found"))
   }
 
@@ -228,11 +228,11 @@ class SharedTableManagerSuite extends FunSuite {
         )
       )
     )
-    val sharedTableManager = new SharedTableManager(serverConfig)
-    var table = sharedTableManager.getTable("share1", "schema1", "table1")
+    val protocolManager = new SimpleProtocolManager(serverConfig)
+    var table = protocolManager.getTable("share1", "schema1", "table1")
     assert(table == TableConfig("table1", "location1", "00000000-0000-0000-0000-000000000001"))
 
-    table = sharedTableManager.getTable("share1", "schema1", "table0")
+    table = protocolManager.getTable("share1", "schema1", "table0")
     assert(table ==
       TableConfig(
         "table0",
@@ -243,33 +243,33 @@ class SharedTableManagerSuite extends FunSuite {
     )
 
     assert(intercept[DeltaSharingNoSuchElementException] {
-      sharedTableManager.getTable("share2", "schema1", "table1")
+      protocolManager.getTable("share2", "schema1", "table1")
     }.getMessage.contains("share2/schema1/table1' does not exist, " +
     "please contact your share provider for further information."))
     assert(intercept[DeltaSharingNoSuchElementException] {
-      sharedTableManager.getTable("share1", "schema2", "table1")
+      protocolManager.getTable("share1", "schema2", "table1")
     }.getMessage.contains("share1/schema2/table1' does not exist, " +
       "please contact your share provider for further information."))
     assert(intercept[DeltaSharingNoSuchElementException] {
-      sharedTableManager.getTable("share1", "schema1", "table2")
+      protocolManager.getTable("share1", "schema1", "table2")
     }.getMessage.contains("share1/schema1/table2' does not exist, " +
       "please contact your share provider for further information."))
   }
 
   test("empty share list") {
-    val sharedTableManager = new SharedTableManager(new ServerConfig())
-    val (shares, nextPageToken) = sharedTableManager.listShares(None, maxResults = None)
+    val protocolManager = new SimpleProtocolManager(new ServerConfig())
+    val (shares, nextPageToken) = protocolManager.listShares(None, maxResults = None)
     assert(shares.isEmpty)
     assert(nextPageToken.isEmpty)
   }
 
   test("invalid maxResults") {
-    val sharedTableManager = new SharedTableManager(new ServerConfig())
+    val protocolManager = new SimpleProtocolManager(new ServerConfig())
     assert(intercept[DeltaSharingIllegalArgumentException] {
-      sharedTableManager.listShares(nextPageToken = None, maxResults = Some(-1))
+      protocolManager.listShares(nextPageToken = None, maxResults = Some(-1))
     }.getMessage.contains("maxResults"))
     assert(intercept[DeltaSharingIllegalArgumentException] {
-      sharedTableManager.listShares(nextPageToken = None, maxResults = Some(501))
+      protocolManager.listShares(nextPageToken = None, maxResults = Some(501))
     }.getMessage.contains("maxResults"))
   }
 
@@ -288,30 +288,30 @@ class SharedTableManagerSuite extends FunSuite {
         )
       )
     )
-    val sharedTableManager = new SharedTableManager(serverConfig)
+    val protocolManager = new SimpleProtocolManager(serverConfig)
     // invalid base64
     assert(intercept[DeltaSharingIllegalArgumentException] {
-      sharedTableManager.listShares(nextPageToken = Some(":"))
+      protocolManager.listShares(nextPageToken = Some(":"))
     }.getMessage.contains("invalid 'nextPageToken'"))
 
     // valid base64 but invalid protobuf
     assert(intercept[DeltaSharingIllegalArgumentException] {
-      sharedTableManager.listShares(nextPageToken = Some("a1b"))
+      protocolManager.listShares(nextPageToken = Some("a1b"))
     }.getMessage.contains("invalid 'nextPageToken'"))
 
     val (_, nextPageToken) =
-      sharedTableManager.listShares(nextPageToken = None, maxResults = Some(0))
+      protocolManager.listShares(nextPageToken = None, maxResults = Some(0))
 
     // Send token to a wrong API
     assert(intercept[DeltaSharingIllegalArgumentException] {
-      sharedTableManager.listSchemas("share1", nextPageToken = nextPageToken, maxResults = Some(0))
+      protocolManager.listSchemas("share1", nextPageToken = nextPageToken, maxResults = Some(0))
     }.getMessage.contains("invalid 'nextPageToken'"))
     assert(intercept[DeltaSharingIllegalArgumentException] {
-      sharedTableManager.listTables(
+      protocolManager.listTables(
         "share1", "schema1", nextPageToken = nextPageToken, maxResults = Some(0))
     }.getMessage.contains("invalid 'nextPageToken'"))
     assert(intercept[DeltaSharingIllegalArgumentException] {
-      sharedTableManager.listAllTables(
+      protocolManager.listAllTables(
         "share1", nextPageToken = nextPageToken, maxResults = Some(0))
     }.getMessage.contains("invalid 'nextPageToken'"))
   }

@@ -39,8 +39,19 @@ trait ConfigItem {
  */
 case class ServerConfig(
     @BeanProperty var version: java.lang.Integer,
+
+    // Static shares to be exposed by the server.
+    // Cannot be specified with managementDb.
     @BeanProperty var shares: java.util.List[ShareConfig],
+    // Static bearer token for authentication.
+    // Cannot be specified with managementDb.
     @BeanProperty var authorization: Authorization,
+
+    // MySQL management DB connection. This will allow management of
+    // shares, recipients, and tokens.
+    // Cannot be specified with shares or authorization.
+    @BeanProperty var managementDb: ManagementDb,
+
     @BeanProperty var ssl: SSLConfig,
     @BeanProperty var host: String,
     @BeanProperty var port: Int,
@@ -67,6 +78,7 @@ case class ServerConfig(
       version = null,
       shares = Collections.emptyList(),
       authorization = null,
+      managementDb = null,
       ssl = null,
       host = "localhost",
       port = 80,
@@ -103,6 +115,11 @@ case class ServerConfig(
     shares.forEach(_.checkConfig())
     if (authorization != null) {
       authorization.checkConfig()
+    }
+    if ((!shares.isEmpty || authorization != null) && (managementDb != null)) {
+      throw new IllegalArgumentException(
+        "Only either shares and authorization are specified, or managementDb is specified"
+      )
     }
     if (ssl != null) {
       ssl.checkConfig()
@@ -157,6 +174,27 @@ case class Authorization(@BeanProperty var bearerToken: String) extends ConfigIt
   override def checkConfig(): Unit = {
     if (bearerToken == null) {
       throw new IllegalArgumentException("'bearerToken' in 'authorization' must be provided")
+    }
+  }
+}
+
+case class ManagementDb(
+    @BeanProperty var url: String,
+    @BeanProperty var username: String,
+    @BeanProperty var password: String) extends ConfigItem {
+  def this() {
+    this(null, null, null)
+  }
+
+  override def checkConfig(): Unit = {
+    if (url == null) {
+      throw new IllegalArgumentException("'url' in 'managementDb' must be provided")
+    }
+    if (username == null) {
+      throw new IllegalArgumentException("'url' in 'managementDb' must be provided")
+    }
+    if (password == null) {
+      throw new IllegalArgumentException("'url' in 'managementDb' must be provided")
     }
   }
 }
