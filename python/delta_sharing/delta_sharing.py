@@ -83,7 +83,10 @@ def load_as_pandas(
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
-    profile = DeltaSharingProfile.read_from_file(profile_json)
+    if _is_valid_json(profile_json):
+        profile = DeltaSharingProfile.from_json(profile_json)
+    else:
+        profile = DeltaSharingProfile.read_from_file(profile_json)
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
@@ -193,7 +196,10 @@ def load_table_changes_as_pandas(
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
-    profile = DeltaSharingProfile.read_from_file(profile_json)
+    if _is_valid_json(profile_json):
+        profile = DeltaSharingProfile.from_json(profile_json)
+    else:
+        profile = DeltaSharingProfile.read_from_file(profile_json)
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
