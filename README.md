@@ -335,6 +335,21 @@ val df = spark.readStream.format("deltaSharing")
 <td>Released</td>
 <td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
+
+<tr>
+<td>Lakehouse Sharing</td>
+<td>
+
+[rajagurunath/lakehouse-sharing](https://github.com/rajagurunath/lakehouse-sharing)
+</td>
+<td>Preview</td>
+<td>
+
+[Demonstrates](https://guruengineering.substack.com/p/lakehouse-sharing) a table format agnostic data sharing<br/>
+server (based on delta-sharing protocol) implemented  in python for both Delta Lake and Iceberg formats.
+</td>
+</tr>
+
 </table>
 
 # Delta Sharing Reference Server
