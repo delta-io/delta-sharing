@@ -26,6 +26,7 @@ import org.apache.spark.delta.sharing.PreSignedUrlCache
 import org.apache.spark.sql.{SparkSession, SQLContext}
 import org.apache.spark.sql.connector.catalog.{Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.expressions.Transform
+import org.apache.spark.sql.delta.DeltaLog
 import org.apache.spark.sql.execution.streaming.Source
 import org.apache.spark.sql.sources.{
   BaseRelation,
@@ -49,6 +50,14 @@ private[sharing] class DeltaSharingDataSource
     val options = new DeltaSharingOptions(parameters)
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
 
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----, path: $path")
+    if (path.startsWith("delta-sharing-log")) {
+      Console.println(s"----[linzhou]---- 1")
+      val dL = DeltaLog.forTable(sqlContext.sparkSession, path, parameters)
+      return dL.createRelation()
+    }
+    Console.println(s"----[linzhou]---- 2")
     val deltaLog = RemoteDeltaLog(path)
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
   }

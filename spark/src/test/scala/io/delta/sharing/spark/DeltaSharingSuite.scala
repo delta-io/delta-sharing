@@ -538,11 +538,16 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   integrationTest("linzhou_test_table_two") {
     val tablePath = testProfileFile.getCanonicalPath + "#share1.default.linzhou_test_table_two"
     val expected = Seq(Row("1", 1, sqlDate("2020-01-01")))
+
     checkAnswer(spark.read.format("deltaSharing").load(tablePath), expected)
 
     // scalastyle:off println
     Console.println(s"----[linzhou]-------------[Real Test]------")
     val df = spark.read.format("delta").load("delta-sharing-log:///linzhou_test_table_two")
     checkAnswer(df, expected)
+
+    Console.println(s"----[linzhou]-------------[Test DeltaLog]------")
+    checkAnswer(spark.read.format("deltaSharing").load(
+      "delta-sharing-log:///linzhou_test_table_two"), expected)
   }
 }
