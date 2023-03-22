@@ -15,6 +15,7 @@
  */
 
 import sbt.ExclusionRule
+import scala.sys.process._
 
 ThisBuild / parallelExecution := false
 
@@ -26,6 +27,7 @@ lazy val commonSettings = Seq(
   fork := true,
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
   scalacOptions += "-target:jvm-1.8",
+
   // Configurations to speed up tests and reduce memory footprint
   Test / javaOptions ++= Seq(
     "-Dspark.ui.enabled=false",
@@ -39,32 +41,9 @@ lazy val commonSettings = Seq(
   )
 )
 
-lazy val root = (project in file(".")).aggregate(spark, server)
+lazy val root = (project in file(".")).aggregate( server)
 
-lazy val spark = (project in file("spark")) settings(
-  name := "delta-sharing-spark",
-  commonSettings,
-  scalaStyleSettings,
-  releaseSettings,
-  libraryDependencies ++= Seq(
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-    "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
-    "org.scalatest" %% "scalatest" % "3.2.3" % "test"
-  ),
-  Compile / sourceGenerators += Def.task {
-    val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "spark" / "package.scala"
-    IO.write(file,
-      s"""package io.delta.sharing
-         |
-         |package object spark {
-         |  val VERSION = "${version.value}"
-         |}
-         |""".stripMargin)
-    Seq(file)
-  }
-)
+
 
 lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) settings(
   name := "delta-sharing-server",
@@ -73,6 +52,8 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   releaseSettings,
   dockerUsername := Some("deltaio"),
   scriptClasspath ++= Seq("../conf"),
+  mappings in (Compile, packageBin) ~= { _.filter(!_._1.getName.endsWith("DeltaSharingService.class")) },
+  mappings in (Compile, packageBin) ~= { _.filter(!_._1.getName.endsWith("DeltaSharingService$.class")) },
   libraryDependencies ++= Seq(
     // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a
     // breaking change making us not able to use `delta-standalone`.
@@ -170,6 +151,11 @@ lazy val scalaStyleSettings = Seq(
   (Test / test) := ((Test / test) dependsOn testScalastyle).value
 )
 
+
+
+
+
+
 /*
  ********************
  * Release settings *
@@ -229,6 +215,7 @@ lazy val releaseSettings = Seq(
         </developer>
       </developers>
 )
+
 
 // Looks like some of release settings should be set for the root project as well.
 publishArtifact := false  // Don't release the root project
