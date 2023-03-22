@@ -18,11 +18,12 @@ package io.delta.sharing.server.config
 
 import java.io.{File, IOException}
 import java.util.Collections
+
 import scala.beans.BeanProperty
+
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
 
 /** A trait that requires to implement */
 trait ConfigItem {
@@ -129,15 +130,6 @@ object ServerConfig{
     } else {
       throw new IOException("The server config file must be a yml or yaml file")
     }
-  }
-
-  def loadJson(configJson: String): ServerConfig = {
-    val mapper = new ObjectMapper()
-    mapper.registerModule(DefaultScalaModule)
-
-    val serverConfig = mapper.readValue(configJson, classOf[ServerConfig])
-    serverConfig.checkConfig()
-    serverConfig
   }
 
   /**
