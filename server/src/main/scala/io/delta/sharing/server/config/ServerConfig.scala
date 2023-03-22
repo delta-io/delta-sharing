@@ -24,7 +24,6 @@ import scala.beans.BeanProperty
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
 
 /** A trait that requires to implement */
 trait ConfigItem {
@@ -39,25 +38,25 @@ trait ConfigItem {
  * Java bean classes.
  */
 case class ServerConfig(
-                         @BeanProperty var version: java.lang.Integer,
-                         @BeanProperty var shares: java.util.List[ShareConfig],
-                         @BeanProperty var authorization: Authorization,
-                         @BeanProperty var ssl: SSLConfig,
-                         @BeanProperty var host: String,
-                         @BeanProperty var port: Int,
-                         @BeanProperty var endpoint: String,
-                         // The timeout of S3 presigned url in seconds
-                         @BeanProperty var preSignedUrlTimeoutSeconds: Long,
-                         // How many tables to cache in the memory.
-                         @BeanProperty var deltaTableCacheSize: Int,
-                         // Whether we can accept working with a stale version of the table. This is useful when sharing
-                         // static tables that will never be changed.
-                         @BeanProperty var stalenessAcceptable: Boolean,
-                         // Whether to evaluate user provided `predicateHints`
-                         @BeanProperty var evaluatePredicateHints: Boolean,
-                         // The timeout of an incoming web request in seconds. Set to 0 for no timeout
-                         @BeanProperty var requestTimeoutSeconds: Long
-                       ) extends ConfigItem {
+    @BeanProperty var version: java.lang.Integer,
+    @BeanProperty var shares: java.util.List[ShareConfig],
+    @BeanProperty var authorization: Authorization,
+    @BeanProperty var ssl: SSLConfig,
+    @BeanProperty var host: String,
+    @BeanProperty var port: Int,
+    @BeanProperty var endpoint: String,
+    // The timeout of S3 presigned url in seconds
+    @BeanProperty var preSignedUrlTimeoutSeconds: Long,
+    // How many tables to cache in the memory.
+    @BeanProperty var deltaTableCacheSize: Int,
+    // Whether we can accept working with a stale version of the table. This is useful when sharing
+    // static tables that will never be changed.
+    @BeanProperty var stalenessAcceptable: Boolean,
+    // Whether to evaluate user provided `predicateHints`
+    @BeanProperty var evaluatePredicateHints: Boolean,
+    // The timeout of an incoming web request in seconds. Set to 0 for no timeout
+    @BeanProperty var requestTimeoutSeconds: Long
+) extends ConfigItem {
   import ServerConfig._
 
   def this() = {
@@ -133,16 +132,6 @@ object ServerConfig{
     }
   }
 
-  def loadJson(configJson: String): ServerConfig = {
-    val mapper = new ObjectMapper()
-    mapper.registerModule(DefaultScalaModule)
-
-    val serverConfig = mapper.readValue(configJson, classOf[ServerConfig])
-    serverConfig.checkConfig()
-    serverConfig
-
-  }
-
   /**
    * Serialize the [[ServerConfig]] object to the config file. If the file name ends with `.yaml`
    * or `.yml`, save it as a YAML file. Otherwise, throw an error.
@@ -170,13 +159,13 @@ case class Authorization(@BeanProperty var bearerToken: String) extends ConfigIt
 }
 
 case class SSLConfig(
-                      @BeanProperty var selfSigned: Boolean,
-                      // The file of the PEM-format certificate
-                      @BeanProperty var certificateFile: String,
-                      // The file of the certificate’s private key
-                      @BeanProperty var certificateKeyFile: String,
-                      // The file storing the password to access the above certificate’s private key if it's protected
-                      @BeanProperty var certificatePasswordFile: String) extends ConfigItem {
+    @BeanProperty var selfSigned: Boolean,
+    // The file of the PEM-format certificate
+    @BeanProperty var certificateFile: String,
+    // The file of the certificate’s private key
+    @BeanProperty var certificateKeyFile: String,
+    // The file storing the password to access the above certificate’s private key if it's protected
+    @BeanProperty var certificatePasswordFile: String) extends ConfigItem {
 
   def this() {
     this(selfSigned = false, null, null, null)
@@ -195,8 +184,8 @@ case class SSLConfig(
 }
 
 case class ShareConfig(
-                        @BeanProperty var name: String,
-                        @BeanProperty var schemas: java.util.List[SchemaConfig]) extends ConfigItem {
+    @BeanProperty var name: String,
+    @BeanProperty var schemas: java.util.List[SchemaConfig]) extends ConfigItem {
 
   def this() {
     this(null, Collections.emptyList())
@@ -211,8 +200,8 @@ case class ShareConfig(
 }
 
 case class SchemaConfig(
-                         @BeanProperty var name: String,
-                         @BeanProperty var tables: java.util.List[TableConfig]) extends ConfigItem {
+    @BeanProperty var name: String,
+    @BeanProperty var tables: java.util.List[TableConfig]) extends ConfigItem {
 
   def this() {
     this(null, Collections.emptyList())
@@ -227,11 +216,11 @@ case class SchemaConfig(
 }
 
 case class TableConfig(
-                        @BeanProperty var name: String,
-                        @BeanProperty var location: String,
-                        @BeanProperty var id: String = "",
-                        @BeanProperty var cdfEnabled: Boolean = false,
-                        @BeanProperty var startVersion: Long = 0) extends ConfigItem {
+    @BeanProperty var name: String,
+    @BeanProperty var location: String,
+    @BeanProperty var id: String = "",
+    @BeanProperty var cdfEnabled: Boolean = false,
+    @BeanProperty var startVersion: Long = 0) extends ConfigItem {
 
   def this() {
     this(null, null, null)
