@@ -20,19 +20,17 @@ public class jarTest {
 
      @Test
      public void evaluateGetShare() {
-         ServerConfig config =  ServerConfig.load("src/test/conf/delta-sharing-server.yaml");
-         SharedTableManager tableManager = new SharedTableManager(config);
-     Share s = tableManager.getShare("share1");
+        SharedTableManager tableManager = getSharedTableManager();
+        Share s = tableManager.getShare("share1");
         assertEquals("share1", s.getName());
      }
 
      @Test
     public void evaluateListShare(){
-         ServerConfig config =  ServerConfig.load("src/test/conf/delta-sharing-server.yaml");
-         SharedTableManager tableManager = new SharedTableManager(config);
+         SharedTableManager tableManager = getSharedTableManager();
          Option<String> nextPageToken= Option.empty();
          Option<Object> maxResult = Option.apply(500);
-         Tuple2<Seq<Share>, Option<String>> result = tableManager.listShares(nextPageToken, maxResult);
+         var result = tableManager.listShares(nextPageToken, maxResult);
          Seq<Share> shares = result._1();
          int i=0;
          for (Share share : JavaConverters.seqAsJavaList(shares)) {
@@ -49,11 +47,10 @@ public class jarTest {
 
      @Test
      public void evaluateListTables(){
-         ServerConfig config =  ServerConfig.load("src/test/conf/delta-sharing-server.yaml");
-         SharedTableManager tableManager = new SharedTableManager(config);
+         SharedTableManager tableManager = getSharedTableManager();
          Option<String> nextPageToken= Option.empty();
          Option<Object> maxResult = Option.apply(500);
-         Tuple2<Seq<Table>, Option<String>> result = tableManager.listAllTables("share1",nextPageToken,maxResult);
+         var result = tableManager.listAllTables("share1",nextPageToken,maxResult);
          Seq<Table> tableSeq = result._1();
          int i=0;
          for (Table table : JavaConverters.seqAsJavaList(tableSeq)) {
@@ -69,11 +66,10 @@ public class jarTest {
 
     @Test
     public void evaluateListScehmas(){
-        ServerConfig config =  ServerConfig.load("src/test/conf/delta-sharing-server.yaml");
-        SharedTableManager tableManager = new SharedTableManager(config);
+        SharedTableManager tableManager = getSharedTableManager();
         Option<String> nextPageToken= Option.empty();
         Option<Object> maxResult = Option.apply(500);
-        Tuple2<Seq<Schema>, Option<String>> result = tableManager.listSchemas("share1",nextPageToken,maxResult);
+        var result = tableManager.listSchemas("share1",nextPageToken,maxResult);
         Seq<Schema> schemaSeq = result._1();
         for (Schema schema : JavaConverters.seqAsJavaList(schemaSeq)) {
             assertEquals("schema1",schema.getName());
@@ -82,14 +78,13 @@ public class jarTest {
 
      @Test
      public void evaluateQuery(){
-         ServerConfig config =  ServerConfig.load("src/test/conf/delta-sharing-server.yaml");
-         SharedTableManager tableManager = new SharedTableManager(config);
-         DeltaSharedTableLoader tableLoader = new DeltaSharedTableLoader(config);
+         SharedTableManager tableManager = getSharedTableManager();
+         DeltaSharedTableLoader tableLoader = new DeltaSharedTableLoader(getServerConfig());
          TableConfig tableConfig = tableManager.getTable("share1","schema1","test1");
          Option<Object> noneObject = Option.empty();
          Option<String> timeStamp = Option.empty();
          Seq<String> predicateHint = JavaConverters.asScalaBuffer(Arrays.asList("data", ">=", "'2021-01-01'")).seq();
-         Tuple2<Object,Seq<SingleAction>> result = tableLoader.loadTable(tableConfig).query(true,predicateHint,noneObject,noneObject,timeStamp,noneObject);
+         var result = tableLoader.loadTable(tableConfig).query(true,predicateHint,noneObject,noneObject,timeStamp,noneObject);
          Seq<SingleAction> actions = result._2();
          int i=0;
          for (SingleAction action : JavaConverters.seqAsJavaList(actions)) {
@@ -114,5 +109,59 @@ public class jarTest {
              }
 
          }
+        
+        public SharedTableManager getSharedTableManager(){
+            return new SharedTableManager(getServerConfig());
+         }
+
+         public ServerConfig getServerConfig(){
+             String jsonInput = "{\n" +
+                     "  \"version\": 1,\n" +
+                     "  \"shares\": [\n" +
+                     "    {\n" +
+                     "      \"name\": \"share1\",\n" +
+                     "      \"schemas\": [\n" +
+                     "        {\n" +
+                     "          \"name\": \"schema1\",\n" +
+                     "          \"tables\": [\n" +
+                     "            {\n" +
+                     "              \"name\": \"test1\",\n" +
+                     "              \"location\": \"s3a://hdl-test-data-eu-central-1/delta_lake/tab/\"\n" +
+                     "            }\n" +
+                     "          ]\n" +
+                     "        }\n" +
+                     "      ]\n" +
+                     "    },\n" +
+                     "    {\n" +
+                     "      \"name\": \"share2\",\n" +
+                     "      \"schemas\": [\n" +
+                     "        {\n" +
+                     "          \"name\": \"schema2\",\n" +
+                     "          \"tables\": [\n" +
+                     "            {\n" +
+                     "              \"name\": \"test2\",\n" +
+                     "              \"location\": \"s3a://hdl-test-data-eu-central-1/delta_lake/tab_demo1/\"\n" +
+                     "            }\n" +
+                     "          ]\n" +
+                     "        }\n" +
+                     "      ]\n" +
+                     "    }\n" +
+                     "  ],\n" +
+                     "  \"authorization\": {\n" +
+                     "    \"bearerToken\": \"123456\"\n" +
+                     "  },\n" +
+                     "  \"host\": \"localhost\",\n" +
+                     "  \"port\": 8081,\n" +
+                     "  \"endpoint\": \"/delta_sharing\",\n" +
+                     "  \"preSignedUrlTimeoutSeconds\": 3600,\n" +
+                     "  \"deltaTableCacheSize\": 10,\n" +
+                     "  \"stalenessAcceptable\": false,\n" +
+                     "  \"evaluatePredicateHints\": false\n" +
+                     "}";
+             // ServerConfig config = ServerConfig.load("/Users/i574237/delta_sharing/delta-sharing/delta-sharing-server.yaml");
+             ServerConfig config = ServerConfig.loadJson(jsonInput);
+             return config;
+         }
+
      }
 }
