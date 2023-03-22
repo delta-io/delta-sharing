@@ -89,11 +89,6 @@ private[sharing] class DeltaSharingLogFileSystem extends FileSystem {
   override def getUri(): URI = URI.create(s"$SCHEME:///")
 
   // scalastyle:off
-  val json0 = """
-{"commitInfo":{"timestamp":1677282362336,"userId":"7953272455820895","userName":"lin.zhou@databricks.com","operation":"CREATE TABLE","operationParameters":{"isManaged":"false","description":null,"partitionBy":"[]","properties":"{}"},"notebook":{"notebookId":"493771540318175"},"clusterId":"1118-013127-82wynr8t","isolationLevel":"WriteSerializable","isBlindAppend":true,"operationMetrics":{},"engineInfo":"Databricks-Runtime/12.x-snapshot-scala2.12","txnId":"66b59704-3eab-4cca-a333-9416bac20f66"}}
-{"protocol":{"minReaderVersion":1,"minWriterVersion":2}}
-{"metaData":{"id":"8bf14108-032f-4292-a93c-6fe30e73a42b","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{},"createdTime":1677282362103}}
-""".stripMargin
   val json1 = """
 {"commitInfo":{"timestamp":1677282365870,"userId":"7953272455820895","userName":"lin.zhou@databricks.com","operation":"WRITE","operationParameters":{"mode":"Append","partitionBy":"[]"},"notebook":{"notebookId":"493771540318175"},"clusterId":"1118-013127-82wynr8t","readVersion":0,"isolationLevel":"WriteSerializable","isBlindAppend":true,"operationMetrics":{"numFiles":"1","numOutputRows":"1","numOutputBytes":"1030"},"engineInfo":"Databricks-Runtime/12.x-snapshot-scala2.12","txnId":"a91328a4-cbbe-4347-94ab-1b009d0022c4"}}
 {"protocol":{"minReaderVersion":1,"minWriterVersion":2}}
@@ -111,20 +106,13 @@ private[sharing] class DeltaSharingLogFileSystem extends FileSystem {
       "delta-sharing-log:/linzhou_test_table_two/_delta_log/00000000000000000001.crc") {
       Console.println(s"----[linzhou]----throwing exception for 1.crc")
       throw new UnsupportedOperationException("00001.crc")
-//      Console.println(s"----[linzhou]----returning:${Crc1}")
-//      return new FSDataInputStream(new SeekableByteArrayInputStream("".getBytes()))
     } else if (f.toString ==
-      "delta-sharing-log:/linzhou_test_table_two/_delta_log/00000000000000000000.json") {
-      Console.println(s"----[linzhou]----returning empty for 0.json")
-      return new FSDataInputStream(new SeekableByteArrayInputStream(json0.getBytes(), "0.json"))
-    } else if (f.toString ==
-      "delta-sharing-log:/linzhou_test_table_two/_delta_log/00000000000000000001.json") {
-      Console.println(s"----[linzhou]----returning 1.json:${json1}")
-      return new FSDataInputStream(new SeekableByteArrayInputStream(json1.getBytes(), "1.json"))
+      "delta-sharing-log:/linzhou_test_table_two/_delta_log/00000000000000000006.json") {
+      Console.println(s"----[linzhou]----returning 6.json:${json1}")
+      return new FSDataInputStream(new SeekableByteArrayInputStream(json1.getBytes(), "6.json"))
     }
-    val content = "abcdefg"
-    Console.println(s"----[linzhou]----returning content:${content}")
-    new FSDataInputStream(new SeekableByteArrayInputStream(content.getBytes(), "content"))
+    Console.println(s"----[linzhou]----returning emptry for :${f.toString}")
+    new FSDataInputStream(new SeekableByteArrayInputStream("".getBytes(), "content"))
   }
 
   override def create(
@@ -166,8 +154,18 @@ private[sharing] class DeltaSharingLogFileSystem extends FileSystem {
       val a = Array(
         new FileStatus(0, false, 0, 1, 0, new Path(
           "delta-sharing-log:/linzhou_test_table_two/_delta_log/00000000000000000000.json")),
+        new FileStatus(0, false, 0, 1, 0, new Path(
+          "delta-sharing-log:/linzhou_test_table_two/_delta_log/00000000000000000001.json")),
+        new FileStatus(0, false, 0, 1, 0, new Path(
+          "delta-sharing-log:/linzhou_test_table_two/_delta_log/00000000000000000002.json")),
+        new FileStatus(0, false, 0, 1, 0, new Path(
+          "delta-sharing-log:/linzhou_test_table_two/_delta_log/00000000000000000003.json")),
+        new FileStatus(0, false, 0, 1, 0, new Path(
+          "delta-sharing-log:/linzhou_test_table_two/_delta_log/00000000000000000004.json")),
+        new FileStatus(0, false, 0, 1, 0, new Path(
+          "delta-sharing-log:/linzhou_test_table_two/_delta_log/00000000000000000005.json")),
       new FileStatus(json1.length, false, 0, 1, 0, new Path(
-        "delta-sharing-log:/linzhou_test_table_two/_delta_log/00000000000000000001.json"))
+        "delta-sharing-log:/linzhou_test_table_two/_delta_log/00000000000000000006.json"))
       )
       Console.println(s"----[linzhou]----listing:${a}")
       return a
