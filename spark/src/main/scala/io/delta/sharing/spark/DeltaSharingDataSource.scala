@@ -109,6 +109,8 @@ private[sharing] object DeltaSharingDataSource {
     // to make sure we set up `DeltaSharingFileSystem` correctly.
     sqlContext.sparkContext.hadoopConfiguration
       .setIfUnset("fs.delta-sharing.impl", "io.delta.sharing.spark.DeltaSharingFileSystem")
+    sqlContext.sparkContext.hadoopConfiguration
+      .setIfUnset("fs.delta-sharing-log.impl", "io.delta.sharing.spark.DeltaSharingLogFileSystem")
     PreSignedUrlCache.registerIfNeeded(SparkEnv.get)
   }
 }

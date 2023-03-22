@@ -18,7 +18,7 @@ import sbt.ExclusionRule
 
 ThisBuild / parallelExecution := false
 
-val sparkVersion = "3.1.1"
+val sparkVersion = "3.2.0"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
@@ -47,11 +47,20 @@ lazy val spark = (project in file("spark")) settings(
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
+    "io.delta" %% "delta-core" % "2.2.0", // delta-spark, io-delta/delta
+    "org.apache.hadoop" % "hadoop-client" % "3.1.0",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
-    "org.scalatest" %% "scalatest" % "3.2.3" % "test"
+    "org.scalatest" %% "scalatest" % "3.2.3" % "test",
+    "org.apache.hadoop" % "hadoop-aws" % "2.10.1" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava"),
+      ExclusionRule("com.amazonaws", "aws-java-sdk-bundle")
+    ),
+    "com.amazonaws" % "aws-java-sdk-bundle" % "1.12.189"
   ),
   Compile / sourceGenerators += Def.task {
     val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "spark" / "package.scala"

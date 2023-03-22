@@ -301,6 +301,19 @@ class RemoteSnapshot(
             }.toMap
           }
         )
+      CachedTableManager.INSTANCE
+        .register(
+          "share1.default.linzhou_test_table_two",
+          idToUrl,
+          Seq(new WeakReference(fileIndex)),
+          fileIndex.params.profileProvider,
+          () => {
+            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints)
+              .files.map { add =>
+              add.id -> add.url
+            }.toMap
+          }
+        )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.toDS()

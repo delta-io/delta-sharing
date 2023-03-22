@@ -91,6 +91,8 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
     val path = DeltaSharingFileSystem.decode(f)
     val fetcher =
       new PreSignedUrlFetcher(preSignedUrlCacheRef, path.tablePath, path.fileId, refreshThresholdMs)
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----file-open:${f.toString}, ${fetcher.getUrl()}")
     if (getConf.getBoolean("spark.delta.sharing.loadDataFilesInMemory", false)) {
       // `InMemoryHttpInputStream` loads the content into the memory immediately, so we don't need
       // to refresh urls.

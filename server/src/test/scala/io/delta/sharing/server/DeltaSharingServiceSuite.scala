@@ -1779,4 +1779,22 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 568)
   }
+
+  integrationTest("linzhou_test_table_two_sign query") {
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/linzhou_test_table_two/query"), Some("POST"), Some("{}"), Some(1))
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+
+    Console.println(s"----[linzhou]----metadata:${JsonUtils.fromJson[SingleAction](metadata)}")
+    val files = lines.drop(2)
+    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+    Console.println(s"----[linzhou]----size:${actualFiles.size}")
+    actualFiles.foreach { f =>
+      Console.println(s"----[linzhou]----f:${f}")
+    }
+    verifyPreSignedUrl(actualFiles(0).url, 1030)
+  }
 }

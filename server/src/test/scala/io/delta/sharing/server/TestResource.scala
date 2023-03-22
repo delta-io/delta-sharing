@@ -81,7 +81,12 @@ object TestResource {
                 "table7",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table7",
                 "00000000-0000-0000-0000-000000000007"
-              )
+              ),
+              TableConfig(
+                "linzhou_test_table_two",
+                s"s3a://${AWS.bucket}/delta-exchange-test/linzhou_test_table_two",
+                "00000000-0000-0000-0000-0000000000si"
+              ),
             )
           )
         )

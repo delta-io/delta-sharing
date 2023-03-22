@@ -468,6 +468,24 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     )
   }
 
+  override protected def sparkConf = super.sparkConf.set(
+    "spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+  )
+
+//  "spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+
+  integrationTest("linzhou_test_table_two") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.linzhou_test_table_two"
+    val expected = Seq(Row("1", 1, sqlDate("2020-01-01")))
+    checkAnswer(spark.read.format("deltaSharing").load(tablePath), expected)
+
+    // scalastyle:off println
+    Console.println(s"----[linzhou]-------------[Real Test]------")
+    val df = spark.read.format("delta").load("delta-sharing-log:///linzhou_test_table_two")
+//    display(df)
+    checkAnswer(df, expected)
+  }
+
   integrationTest("random access stream") {
     // Set maxConnections to 1 so that if we leak any connection, we will hang forever because any
     // further request won't be able to get a free connection from the pool.
@@ -529,5 +547,27 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       sql("CREATE table foo USING deltaSharing")
     }
     assert(e.getMessage.contains("LOCATION must be specified"))
+  }
+
+  test("linzhou test") {
+    val expected = Seq(
+      Row(sqlTimestamp("2021-04-27 23:32:02.07"), sqlDate("2021-04-28")),
+      Row(sqlTimestamp("2021-04-27 23:32:22.421"), sqlDate("2021-04-28"))
+    )
+    val df = spark.read.format("delta").load("delta-sharing-log://linzhou_test_table_two")
+//    withTempDir { inputDir =>
+//      val testPath = inputDir.getCanonicalPath
+//      spark.range(10)
+//        .map(_.toInt)
+//        .withColumn("part", $"value" % 2)
+//        .write
+//        .format("delta")
+//        .partitionBy("part")
+//        .mode("append")
+//        .save(testPath)
+//
+//      val ds = spark.read.format("delta").load(testPath).as[(Int, Int)]
+//    }
+//    checkAnswer(df, expected)
   }
 }

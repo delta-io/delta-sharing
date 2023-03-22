@@ -70,9 +70,11 @@ class CachedTableManager(
       val tablePath = entry.getKey
       val cachedTable = entry.getValue
       if (cachedTable.refs.forall(_.get == null)) {
+        // scalastyle:off println
+        Console.println(s"----[linzhou]----not remove:${tablePath},${cache.get(tablePath).idToUrl}")
         logInfo(s"Removing table $tablePath from the pre signed url cache as there are" +
           " no references pointed to it")
-        cache.remove(tablePath, cachedTable)
+//        cache.remove(tablePath, cachedTable)
       } else if (cachedTable.lastAccess + expireAfterAccessMs < System.currentTimeMillis()) {
         logInfo(s"Removing table $tablePath from the pre signed url cache as it was not accessed " +
           s"after $expireAfterAccessMs ms")
@@ -141,6 +143,8 @@ class CachedTableManager(
       refs: Seq[WeakReference[AnyRef]],
       profileProvider: DeltaSharingProfileProvider,
       refresher: () => Map[String, String]): Unit = {
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----register:${tablePath},${idToUrl}")
     val customTablePath = profileProvider.getCustomTablePath(tablePath)
     val customRefresher = profileProvider.getCustomRefresher(refresher)
 
