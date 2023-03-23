@@ -411,7 +411,7 @@ object DeltaSharingService {
       .defaultHelp(true)
       .description("Start the Delta Sharing Server.")
     parser.addArgument("-c", "--config")
-      .required(true)
+      .required(false)
       .metavar("FILE")
       .dest("config")
       .help("The server config file path")
@@ -475,6 +475,42 @@ object DeltaSharingService {
     server
   }
 
+  private def processRequest[T](func: => T): T = {
+    try func catch {
+      case e: DeltaSharingUnsupportedOperationException => throw e
+      case e: DeltaSharingIllegalArgumentException => throw e
+      case e: DeltaSharingNoSuchElementException => throw e
+      case e: DeltaCDFIllegalArgumentException => throw e
+      case e: FileNotFoundException => throw e
+      case e: AccessDeniedException => throw e
+      case e: Throwable => throw new DeltaInternalException(e)
+    }
+  }
+  private def createHeadersBuilderForTableVersion(version: Long): ResponseHeadersBuilder = {
+    ResponseHeaders.builder(200).set(DELTA_TABLE_VERSION_HEADER, version.toString)
+  }
+  def streamingOutput1(version: Option[Long], actions: Seq[SingleAction]): HttpResponse = {
+    val headers = if (version.isDefined) {
+      createHeadersBuilderForTableVersion(version.get)
+        .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
+        .build()
+    } else {
+      ResponseHeaders.builder(200)
+        .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
+        .build()
+    }
+    ResponseConversionUtil.streamingFrom(
+      actions.asJava.stream(),
+      headers,
+      HttpHeaders.of(),
+      (o: SingleAction) => processRequest {
+        val out = new ByteArrayOutputStream
+        JsonUtils.mapper.writeValue(out, o)
+        out.write('\n')
+        HttpData.wrap(out.toByteArray)
+      },
+      ServiceRequestContext.current().blockingTaskExecutor())
+  }
   private def checkCDFOptionsValidity(
     startingVersion: Option[String],
     endingVersion: Option[String],
@@ -510,21 +546,22 @@ object DeltaSharingService {
   }
 
   private[server] def getCdfOptionsMap(
-    startingVersion: Option[String],
-    endingVersion: Option[String],
-    startingTimestamp: Option[String],
-    endingTimestamp: Option[String]): Map[String, String] = {
+                                        startingVersion: Option[String],
+                                        endingVersion: Option[String],
+                                        startingTimestamp: Option[String],
+                                        endingTimestamp: Option[String]): Map[String, String] = {
     checkCDFOptionsValidity(startingVersion, endingVersion, startingTimestamp, endingTimestamp)
 
     (startingVersion.map(DeltaDataSource.CDF_START_VERSION_KEY -> _) ++
-    endingVersion.map(DeltaDataSource.CDF_END_VERSION_KEY -> _) ++
-    startingTimestamp.map(DeltaDataSource.CDF_START_TIMESTAMP_KEY -> _) ++
-    endingTimestamp.map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> _)).toMap
+      endingVersion.map(DeltaDataSource.CDF_END_VERSION_KEY -> _) ++
+      startingTimestamp.map(DeltaDataSource.CDF_START_TIMESTAMP_KEY -> _) ++
+      endingTimestamp.map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> _)).toMap
   }
+
 
   def main(args: Array[String]): Unit = {
     val ns = parser.parseArgsOrFail(args)
-    val serverConfigPath = ns.getString("config")
+    val serverConfigPath = "jarTest/src/test/conf/delta-sharing-server.yaml"
     val serverConf = ServerConfig.load(serverConfigPath)
     start(serverConf).blockUntilShutdown()
   }

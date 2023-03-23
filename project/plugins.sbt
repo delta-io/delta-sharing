@@ -36,3 +36,4 @@ addSbtPlugin("com.github.sbt" % "sbt-pgp" % "2.1.2")
 
 
 libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.11.12"
+

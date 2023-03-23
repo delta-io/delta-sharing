@@ -52,8 +52,8 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   releaseSettings,
   dockerUsername := Some("deltaio"),
   scriptClasspath ++= Seq("../conf"),
-  mappings in (Compile, packageBin) ~= { _.filter(!_._1.getName.endsWith("DeltaSharingService.class")) },
-  mappings in (Compile, packageBin) ~= { _.filter(!_._1.getName.endsWith("DeltaSharingService$.class")) },
+ // mappings in (Compile, packageBin) ~= { _.filter(!_._1.getName.endsWith("DeltaSharingService.class")) },
+ // mappings in (Compile, packageBin) ~= { _.filter(!_._1.getName.endsWith("DeltaSharingService$.class")) },
   libraryDependencies ++= Seq(
     // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a
     // breaking change making us not able to use `delta-standalone`.
@@ -132,6 +132,8 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   Compile / PB.targets := Seq(
     scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
   )
+
+
 )
 
 /*

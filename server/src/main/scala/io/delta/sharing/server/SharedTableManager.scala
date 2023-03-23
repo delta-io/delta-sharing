@@ -144,7 +144,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
               name = Some(tableConfig.getName),
               schema = Some(schema),
               share = Some(share),
-              id = if (tableConfig.id.isEmpty) None else Some(tableConfig.id)
+              id = if (tableConfig.id == null) None else Some(tableConfig.id)
             )
         }.slice(start, end)
     }
@@ -165,7 +165,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
                 name = Some(table.getName),
                 schema = Some(schema.name),
                 share = Some(share),
-                id = if (table.id.isEmpty) None else Some(table.id)
+                id = if (table.id == null) None else Some(table.id)
               )
           }
         }.slice(start, end)
