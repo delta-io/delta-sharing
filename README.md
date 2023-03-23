@@ -1,4 +1,5 @@
-To complile the project, run
+
+To compile, run
 
 ```
 build/sbt compile
