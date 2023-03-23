@@ -135,6 +135,15 @@ object ServerConfig{
     }
   }
 
+  def loadJson(configJson: String): ServerConfig = {
+    val mapper = new ObjectMapper()
+    mapper.registerModule(DefaultScalaModule)
+    val serverConfig = mapper.readValue(configJson, classOf[ServerConfig])
+    serverConfig.checkConfig()
+    serverConfig
+  }
+
+
   /**
    * Serialize the [[ServerConfig]] object to the config file. If the file name ends with `.yaml`
    * or `.yml`, save it as a YAML file. Otherwise, throw an error.

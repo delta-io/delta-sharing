@@ -29,7 +29,6 @@ public class jarTest {
         SharedTableManager tableManager = getSharedTableManager();
         Option<String> nextPageToken= Option.apply(null);
         Option<Object> maxResult = Option.apply(500);
-        //Tuple2<Seq<Share>, Option<String>> result = tableManager.listShares(nextPageToken, maxResult);
         var result = tableManager.listShares(nextPageToken, maxResult);
 
         Seq<Share> shares = result._1();
