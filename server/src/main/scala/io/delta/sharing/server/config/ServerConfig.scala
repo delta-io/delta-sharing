@@ -57,7 +57,9 @@ case class ServerConfig(
     // Whether to evaluate user provided `jsonPredicateHints`
     @BeanProperty var evaluateJsonPredicateHints: Boolean,
     // The timeout of an incoming web request in seconds. Set to 0 for no timeout
-    @BeanProperty var requestTimeoutSeconds: Long
+    @BeanProperty var requestTimeoutSeconds: Long,
+    // The configuration for hdlfs
+    @BeanProperty var hdlfsConfig: HDLFSConfig
 ) extends ConfigItem {
   import ServerConfig._
 
@@ -76,7 +78,9 @@ case class ServerConfig(
       stalenessAcceptable = false,
       evaluatePredicateHints = false,
       evaluateJsonPredicateHints = false,
-      requestTimeoutSeconds = 30
+      requestTimeoutSeconds = 30,
+      requestTimeoutSeconds = 30,
+      hdlfsConfig = null
     )
   }
 
@@ -94,12 +98,35 @@ case class ServerConfig(
     }
   }
 
+  private def checkAndModifyURL(location: String): String = {
+    if (location.startsWith("hdlfs")) {
+      // scalastyle:off println
+      var path = location
+      path = path.split("/").drop(3).mkString("/")
+      println(path)
+      var newlocation = hdlfsConfig.bucket + "/" + path + "/"
+      println(newlocation)
+      // scalastyle:on println
+      newlocation
+    } else {
+        location
+    }
+  }
+
+  private def checkFilePath(): Unit = {
+    // scalastyle:off println
+    shares.forEach(share => share.schemas.forEach(schema => schema.tables.forEach(table => table.location = checkAndModifyURL(table.location))))
+    shares.forEach(share => share.schemas.forEach(schema => schema.tables.forEach(table => println(table.location))))
+    // scalastyle:on println
+  }
+
   def save(configFile: String): Unit = {
     ServerConfig.save(this, configFile)
   }
 
   override def checkConfig(): Unit = {
     checkVersion()
+    checkFilePath()
     shares.forEach(_.checkConfig())
     if (authorization != null) {
       authorization.checkConfig()
@@ -229,6 +256,7 @@ case class SchemaConfig(
 
 case class TableConfig(
     @BeanProperty var name: String,
+    // Change hdlfs to s3 link
     @BeanProperty var location: String,
     @BeanProperty var id: String = "",
     @BeanProperty var cdfEnabled: Boolean = false,
@@ -245,5 +273,28 @@ case class TableConfig(
     if (location == null) {
       throw new IllegalArgumentException("'location' in a table must be provided")
     }
+  }
+}
+
+case class HDLFSConfig(
+    @BeanProperty var bucket: String,
+    // @BeanProperty var AWS_SECRET_ACCESS_KEY: String,
+    // @BeanProperty var AWS_ACCESS_KEY_ID: String,
+    @BeanProperty var AWS_DEFAULT_REGION: String = "eu-central-1") extends ConfigItem {
+
+  def this() {
+    this(null, null)
+  }
+
+  override def checkConfig(): Unit = {
+    if (bucket == null) {
+      throw new IllegalArgumentException("'bucket' in hdlfs config must be provided")
+    }
+    // if (AWS_SECRET_ACCESS_KEY == null) {
+    //   throw new IllegalArgumentException("'AWS_SECRET_ACCESS_KEY' in hdlfs config must be provided")
+    // }
+    // if (AWS_ACCESS_KEY_ID == null) {
+    //   throw new IllegalArgumentException("'AWS_ACCESS_KEY_ID' in hdlfs config must be provided")
+    // }
   }
 }

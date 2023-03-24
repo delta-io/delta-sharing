@@ -1,0 +1,38 @@
+# The format version of this config file
+version: 1
+# Config shares/schemas/tables to share
+shares:
+- name: "deltalake"
+  schemas:
+  - name: "schema" # Nothing to do with actual schema. Just used as schema name in url
+    tables:
+    - name: "test" # Nothing to do with actual table name. Just used as table name in url
+      location: "s3a://hc-dev-demo-hc-3-hdl-bc935934-3130-4952-9b97-dbf44d824eed/spark-warehouse/tab/"
+- name: "deltalake2"
+  schemas:
+  - name: "schema2" # Nothing to do with actual schema. Just used as schema name in url
+    tables:
+    - name: "test2" # Nothing to do with actual table name. Just used as table name in url
+      location: "hdlfs://ae4ccdea-bd3f-4264-8154-3a06bad8bcb0.files.hdl.demo-hc-3-hdl-hc-dev.dev-aws.hanacloud.ondemand.com/spark-warehouse/tab/"
+
+authorization:
+  bearerToken: "123456"
+host: "localhost"
+# Set the port that the server will listen on. Note: using ports below 1024
+# may require a privileged user in some operating systems.
+port: 8080
+# Set the url prefix for the REST APIs
+endpoint: "/delta-sharing"
+# Set the timeout of S3 presigned url in seconds
+preSignedUrlTimeoutSeconds: 3600
+# How many tables to cache in the server
+deltaTableCacheSize: 10
+# Whether we can accept working with a stale version of the table. This is useful when sharing
+# static tables that will never be changed.
+stalenessAcceptable: false
+# Whether to evaluate user provided `predicateHints`
+evaluatePredicateHints: false
+# Manually add these parameters for your underlying s3 bucket of hdlfs container where your table exist
+hdlfsConfig:
+  bucket: "s3a://hc-dev-demo-hc-3-hdl-bc935934-3130-4952-9b97-dbf44d824eed"
+  AWS_DEFAULT_REGION: "eu-central-1"
