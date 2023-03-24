@@ -77,6 +77,14 @@ class DeltaSharingSourceSuite extends QueryTest
       .option("ignoreChanges", "true")
   }
 
+  def withSkipChangeCommitsStreamReaderAtVersion(
+      path: String = tablePath,
+      startingVersion: String = "0"): DataStreamReader = {
+    spark.readStream.format("deltaSharing").option("path", path)
+      .option("startingVersion", startingVersion)
+      .option("skipChangeCommits", "true")
+  }
+
   /**
    * Test defaultReadLimit
    */
@@ -487,6 +495,8 @@ class DeltaSharingSourceSuite extends QueryTest
       query.processAllAvailable()
     }.getMessage
     assert(message.contains("Detected a data update in the source table at version 3"))
+    assert(message.contains("If you'd like to ignore updates, set the option 'skipChangeCommits'" +
+      " to 'true'."))
   }
 
   /**
@@ -614,6 +624,94 @@ class DeltaSharingSourceSuite extends QueryTest
       query.processAllAvailable()
       val progress = query.recentProgress.filter(_.numInputRows != 0)
       assert(progress.length === 0)
+    } finally {
+      query.stop()
+    }
+  }
+
+  /**
+   * Test basic streaming functionality with 'skipChangeCommits' as true.
+   */
+  integrationTest("skipChangeCommits - basic - success") {
+    val query = withSkipChangeCommitsStreamReaderAtVersion()
+      .load().writeStream.format("console").start()
+
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 3)
+      }
+    } finally {
+      query.stop()
+    }
+  }
+
+  integrationTest("skipChangeCommits - basic memory - success") {
+    val query = withSkipChangeCommitsStreamReaderAtVersion()
+      .load().writeStream.format("memory").queryName("streamMemoryOutput").start()
+
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 3)
+      }
+
+      val expected = Seq(
+        Row("3", 3, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+      checkAnswer(sql("SELECT * FROM streamMemoryOutput"), expected)
+    } finally {
+      query.stop()
+    }
+  }
+
+  integrationTest("skipChangeCommits - outputDataframe - success") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withSkipChangeCommitsStreamReaderAtVersion()
+        .load().writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 3)
+        }
+      } finally {
+        query.stop()
+      }
+
+      val expected = Seq(
+        Row("3", 3, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+    }
+  }
+
+  integrationTest("skipChangeCommits - no startingVersion - success") {
+    // cdf_table_cdf_enabled snapshot at version 5 is queried, with 2 files and 2 rows of data
+    val query = spark.readStream.format("deltaSharing")
+      .option("skipChangeCommits", "true")
+      .load(tablePath)
+      .select("birthday", "name", "age").writeStream.format("console").start()
+
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === 1)
+      progress.foreach { p =>
+        assert(p.numInputRows === 2)
+      }
     } finally {
       query.stop()
     }

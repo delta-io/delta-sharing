@@ -60,6 +60,9 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
 
   val ignoreDeletes = options.get(IGNORE_DELETES_OPTION).exists(toBoolean(_, IGNORE_DELETES_OPTION))
 
+  val skipChangeCommits = options.get(SKIP_CHANGE_COMMITS_OPTION)
+    .exists(toBoolean(_, SKIP_CHANGE_COMMITS_OPTION))
+
   val readChangeFeed = options.get(CDF_READ_OPTION).exists(toBoolean(_, CDF_READ_OPTION)) ||
     options.get(CDF_READ_OPTION_LEGACY).exists(toBoolean(_, CDF_READ_OPTION_LEGACY))
 
@@ -154,6 +157,7 @@ object DeltaSharingOptions extends Logging {
   val MAX_BYTES_PER_TRIGGER_OPTION = "maxBytesPerTrigger"
   val IGNORE_CHANGES_OPTION = "ignoreChanges"
   val IGNORE_DELETES_OPTION = "ignoreDeletes"
+  val SKIP_CHANGE_COMMITS_OPTION = "skipChangeCommits"
 
   val STARTING_VERSION_OPTION = "startingVersion"
   val STARTING_TIMESTAMP_OPTION = "startingTimestamp"

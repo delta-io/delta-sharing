@@ -63,7 +63,7 @@ object DeltaSharingErrors {
   def deltaSharingSourceIgnoreChangesError(version: Long): Throwable = {
     new UnsupportedOperationException("Detected a data update in the source table at version " +
       s"$version. This is currently not supported. If you'd like to ignore updates, set the " +
-      s"option 'ignoreChanges' to 'true'. If you would like the data update to be reflected, " +
+      s"option 'skipChangeCommits' to 'true'. If you would like the data update to be reflected, " +
       s"please restart the query from latest snapshot with a fresh checkpoint directory.")
   }
 
