@@ -24,6 +24,7 @@ import scala.beans.BeanProperty
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
 
 /** A trait that requires to implement */
 trait ConfigItem {
@@ -78,7 +79,6 @@ case class ServerConfig(
       stalenessAcceptable = false,
       evaluatePredicateHints = false,
       evaluateJsonPredicateHints = false,
-      requestTimeoutSeconds = 30,
       requestTimeoutSeconds = 30,
       hdlfsConfig = null
     )
