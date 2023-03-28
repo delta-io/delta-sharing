@@ -28,8 +28,8 @@ object JsonUtils {
   lazy val mapper = {
     val _mapper = new ObjectMapper with ScalaObjectMapper
     _mapper.setSerializationInclusion(Include.NON_ABSENT)
-    _mapper.setSerializationInclusion(Include.NON_NULL)
-    _mapper.setSerializationInclusion(Include.NON_EMPTY)
+//    _mapper.setSerializationInclusion(Include.NON_NULL)
+//    _mapper.setSerializationInclusion(Include.NON_EMPTY)
     _mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
     _mapper.registerModule(DefaultScalaModule)
     _mapper

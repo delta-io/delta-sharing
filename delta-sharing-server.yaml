@@ -7,13 +7,13 @@ shares:
   - name: "schema" # Nothing to do with actual schema. Just used as schema name in url
     tables:
     - name: "test" # Nothing to do with actual table name. Just used as table name in url
-      location: "s3a://hc-dev-demo-hc-3-hdl-bc935934-3130-4952-9b97-dbf44d824eed/spark-warehouse/tab/"
+      location: "<s3url>"
 - name: "deltalake2"
   schemas:
   - name: "schema2" # Nothing to do with actual schema. Just used as schema name in url
     tables:
     - name: "test2" # Nothing to do with actual table name. Just used as table name in url
-      location: "hdlfs://ae4ccdea-bd3f-4264-8154-3a06bad8bcb0.files.hdl.demo-hc-3-hdl-hc-dev.dev-aws.hanacloud.ondemand.com/spark-warehouse/tab/"
+      location: "<hdlfs_url>"
 
 authorization:
   bearerToken: "123456"
@@ -34,5 +34,5 @@ stalenessAcceptable: false
 evaluatePredicateHints: false
 # Manually add these parameters for your underlying s3 bucket of hdlfs container where your table exist
 hdlfsConfig:
-  bucket: "s3a://hc-dev-demo-hc-3-hdl-bc935934-3130-4952-9b97-dbf44d824eed"
+  bucket: "<s3-bucket>"
   AWS_DEFAULT_REGION: "eu-central-1"

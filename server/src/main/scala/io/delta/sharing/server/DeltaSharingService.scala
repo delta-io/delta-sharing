@@ -418,7 +418,8 @@ object DeltaSharingService {
     parser
   }
 
-  private def updateDefaultJsonPrinterForScalaPbConverterUtil(): Unit = {
+
+  def updateDefaultJsonPrinterForScalaPbConverterUtil(): Unit = {
     val module = Class.forName("com.linecorp.armeria.server.scalapb.ScalaPbConverterUtil$")
       .getDeclaredField("MODULE$").get(null)
     val defaultJsonPrinterField =
@@ -561,7 +562,8 @@ object DeltaSharingService {
 
   def main(args: Array[String]): Unit = {
     val ns = parser.parseArgsOrFail(args)
-    val serverConfigPath = "jarTest/src/test/conf/delta-sharing-server.yaml"
+    // val serverConfigPath = "jarTest/src/test/conf/delta-sharing-server.yaml"
+    val serverConfigPath = "delta-sharing-server.yaml"
     val serverConf = ServerConfig.load(serverConfigPath)
     start(serverConf).blockUntilShutdown()
   }

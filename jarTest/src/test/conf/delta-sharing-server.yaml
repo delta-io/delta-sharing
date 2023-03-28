@@ -8,13 +8,13 @@ shares:
         tables:
           - name: "test1"
             # S3. See https://github.com/delta-io/delta-sharing#s3 for how to config the credentials
-            location: "s3a://hdl-test-data-eu-central-1/delta_lake/tab/"
+            location: "<s3url>"
   - name: "share2"
     schemas:
       - name: "schema2"
         tables:
           - name: "test2"
-            location: "s3a://hdl-test-data-eu-central-1/delta_lake/tab_demo1/"
+            location: "<s3url>"
 
 authorization:
   bearerToken: "123456"
