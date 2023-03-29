@@ -127,11 +127,8 @@ case class DeltaSharingSource(
   // This is checked before creating DeltaSharingSource
   assert(schema.nonEmpty, "schema cannot be empty in DeltaSharingSource.")
 
-  /** A check on the source table that disallows deletes on the source data. */
-  private val ignoreChanges = options.ignoreChanges
-
-  /** A check on the source table that disallows commits that only include deletes to the data. */
-  private val ignoreDeletes = options.ignoreDeletes || ignoreChanges
+  /** A check on the source table that skips commits that contain removes from the set of files. */
+  private val skipChangeCommits = options.skipChangeCommits
 
   private val tableId = initSnapshot.metadata.id
 
@@ -277,7 +274,7 @@ case class DeltaSharingSource(
           a.id -> a.url
         }.toMap
       }
-      val allAddFiles = verifyStreamHygieneAndFilterAddFiles(tableFiles).groupBy(a => a.version)
+      val allAddFiles = validateCommitAndFilterAddFiles(tableFiles).groupBy(a => a.version)
       for (v <- fromVersion to currentLatestVersion) {
 
         val vAddFiles = allAddFiles.getOrElse(v, ArrayBuffer[AddFileForCDF]())
@@ -631,7 +628,7 @@ case class DeltaSharingSource(
     }
   }
 
-  private def verifyStreamHygieneAndFilterAddFiles(
+  private def validateCommitAndFilterAddFiles(
       tableFiles: DeltaTableFiles): Seq[AddFileForCDF] = {
     (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
       val schemaToCheck = DeltaTableUtils.toSchema(m.schemaString)
@@ -640,20 +637,31 @@ case class DeltaSharingSource(
       }
     }
 
-    if (!tableFiles.removeFiles.isEmpty) {
+    val addFiles = tableFiles.addFiles
+    if (tableFiles.removeFiles.nonEmpty) {
+      /** A check on the source table that disallows changes on the source data. */
+      val shouldAllowChanges = options.ignoreChanges || skipChangeCommits
+      /** A check on the source table that disallows commits that only include deletes or
+       * contain changes on the source data. */
+      val shouldAllowDeletes = shouldAllowChanges || options.ignoreDeletes
       val versionsWithRemoveFiles = tableFiles.removeFiles.map(r => r.version).toSet
       val versionsWithAddFiles = tableFiles.addFiles.map(a => a.version).toSet
-      versionsWithRemoveFiles.foreach{
-        case version =>
-          if (versionsWithAddFiles.contains(version) && !ignoreChanges) {
+      if (skipChangeCommits) {
+        // Filter out addFiles that have the same version in versionsWithRemoveFiles and directly
+        // return the result. Below verification is not needed if skipChangeCommits is true.
+        return addFiles.filter(addFile => !versionsWithRemoveFiles.contains(addFile.version))
+      }
+      versionsWithRemoveFiles.foreach {
+        version =>
+          if (versionsWithAddFiles.contains(version) && !shouldAllowChanges) {
             throw DeltaSharingErrors.deltaSharingSourceIgnoreChangesError(version)
-          } else if (!versionsWithAddFiles.contains(version) && !ignoreDeletes) {
+          } else if (!versionsWithAddFiles.contains(version) && !shouldAllowDeletes) {
             throw DeltaSharingErrors.deltaSharingSourceIgnoreDeleteError(version)
           }
       }
     }
 
-    tableFiles.addFiles
+    addFiles
   }
 
   /**

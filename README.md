@@ -228,7 +228,7 @@ Once the provider shares a table with history, the recipient can perform a strea
 val tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 val df = spark.readStream.format("deltaSharing")
   .option("startingVersion", "1")
-  .option("ignoreChanges", "true")
+  .option("skipChangeCommits", "true")
   .load(tablePath)
 ```
 
