@@ -252,7 +252,7 @@ val df = spark.readStream.format("deltaSharing")
 <td>Power BI</td>
 <td>Databricks owned</td>
 <td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Node.js</td>
@@ -261,7 +261,7 @@ val df = spark.readStream.format("deltaSharing")
 [goodwillpunning/nodejs-sharing-client](https://github.com/goodwillpunning/nodejs-sharing-client)
 </td>
 <td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Java</td>
@@ -270,7 +270,7 @@ val df = spark.readStream.format("deltaSharing")
 [databrickslabs/delta-sharing-java-connector](https://github.com/databrickslabs/delta-sharing-java-connector)
 </td>
 <td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Arcuate</td>
@@ -279,7 +279,7 @@ val df = spark.readStream.format("deltaSharing")
 [databrickslabs/arcuate](https://github.com/databrickslabs/arcuate)
 </td>
 <td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Rust</td>
@@ -288,7 +288,7 @@ val df = spark.readStream.format("deltaSharing")
 [r3stl355/delta-sharing-rust-client](https://github.com/r3stl355/delta-sharing-rust-client)
 </td>
 <td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Go</td>
@@ -297,7 +297,7 @@ val df = spark.readStream.format("deltaSharing")
 [magpierre/delta-sharing](https://github.com/magpierre/delta-sharing/tree/golangdev/golang/delta_sharing_go)
 </td>
 <td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>C++</td>
@@ -306,7 +306,25 @@ val df = spark.readStream.format("deltaSharing")
 [magpierre/delta-sharing](https://github.com/magpierre/delta-sharing/tree/cppdev/cpp/DeltaSharingClient)
 </td>
 <td>Released</td>
-<td>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
+</tr>
+<tr>
+<td>R</td>
+<td>
+
+[zacdav-db/delta-sharing-r](https://github.com/zacdav-db/delta-sharing-r)
+</td>
+<td>Released</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
+</tr>
+<tr>
+<td>Google Spreadsheet</td>
+<td>
+
+[TBD](TBD)
+</td>
+<td>TBD</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Airflow</td>
@@ -326,16 +344,6 @@ val df = spark.readStream.format("deltaSharing")
 <td>limited-release</td>
 <td>N/A</td>
 </tr>
-<tr>
-<td>R</td>
-<td>
-
-[zacdav-db/delta-sharing-r](https://github.com/zacdav-db/delta-sharing-r)
-</td>
-<td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
-</tr>
-
 <tr>
 <td>Lakehouse Sharing</td>
 <td>
