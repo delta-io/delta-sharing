@@ -321,9 +321,9 @@ val df = spark.readStream.format("deltaSharing")
 <td>Google Spreadsheet</td>
 <td>
 
-[TBD](TBD)
+[delta-incubator/delta-sharing-connectors]( https://github.com/delta-incubator/delta-sharing-connectors/tree/main/google_workspace_add_on)
 </td>
-<td>TBD</td>
+<td>Beta</td>
 <td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
