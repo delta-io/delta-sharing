@@ -224,6 +224,8 @@ val df = spark.read.format("deltaSharing")
 ### Streaming
 Starting from release 0.6.0, Delta Sharing table can be used as a data source for [Spark Structured Streaming](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html).
 Once the provider shares a table with history, the recipient can perform a streaming query on the table.
+
+Note: Trigger.AvailableNow is not supported in delta sharing streaming because it's supported since spark 3.3.0, while delta sharing is still using spark 3.1.1.
 ```scala
 val tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 val df = spark.readStream.format("deltaSharing")
