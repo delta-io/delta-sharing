@@ -101,6 +101,10 @@ private[sharing] class DeltaSharingLogFileSystem extends FileSystem {
 {"add":{"path":"delta-sharing:///share8.default.cdf_table_cdf_enabled/d7ed708546dd70fdff9191b3e3d6448b/1030","partitionValues":{},"size":1030,"modificationTime":1651272634000,"dataChange":true,"stats":"{\"numRecords\":1,\"minValues\":{\"name\":\"1\",\"age\":1,\"birthday\":\"2020-01-01\"},\"maxValues\":{\"name\":\"1\",\"age\":1,\"birthday\":\"2020-01-01\"},\"nullCount\":{\"name\":0,\"age\":0,\"birthday\":0}}","tags":{"INSERTION_TIME":"1651272634000000","OPTIMIZE_TARGET_SIZE":"268435456"}}}
 {"add":{"path":"delta-sharing:///share8.default.cdf_table_cdf_enabled/60d0cf57f3e4367db154aa2c36152a1f/1030","partitionValues":{},"size":1030,"modificationTime":1651272635000,"dataChange":true,"stats":"{\"numRecords\":1,\"minValues\":{\"name\":\"2\",\"age\":2,\"birthday\":\"2020-01-01\"},\"maxValues\":{\"name\":\"2\",\"age\":2,\"birthday\":\"2020-01-01\"},\"nullCount\":{\"name\":0,\"age\":0,\"birthday\":0}}","tags":{"INSERTION_TIME":"1651272634000001","OPTIMIZE_TARGET_SIZE":"268435456"}}}
 {"add":{"path":"delta-sharing:///share8.default.cdf_table_cdf_enabled/a6dc5694a4ebcc9a067b19c348526ad6/1030","partitionValues":{},"size":1030,"modificationTime":1651272634000,"dataChange":true,"stats":"{\"numRecords\":1,\"minValues\":{\"name\":\"3\",\"age\":3,\"birthday\":\"2020-01-01\"},\"maxValues\":{\"name\":\"3\",\"age\":3,\"birthday\":\"2020-01-01\"},\"nullCount\":{\"name\":0,\"age\":0,\"birthday\":0}}","tags":{"INSERTION_TIME":"1651272634000002","OPTIMIZE_TARGET_SIZE":"268435456"}}}""".stripMargin
+  val cdfJson2 = """{"cdc":{"path":"delta-sharing:///share8.default.cdf_table_cdf_enabled/6521ba910108d4b54d27beaa9fc2373f/1301","partitionValues":{},"size":1301,"dataChange":false}}
+{"commitInfo":{"timestamp":1651272654866,"userId":"7953272455820895","userName":"lin.zhou@databricks.com","operation":"DELETE","operationParameters":{"predicate":""},"notebook":{"notebookId":"3173513222201325"},"clusterId":"0819-204509-hill72","readVersion":1,"isolationLevel":"WriteSerializable","isBlindAppend":false,"operationMetrics":{"numRemovedFiles":"1","numCopiedRows":"1","numAddedChangeFiles":"1","executionTimeMs":"1536","numDeletedRows":"1","scanTimeMs":"916","numAddedFiles":"0","rewriteTimeMs":"618"},"engineInfo":"Databricks-Runtime/11.x-snapshot-aarch64-scala2.12","txnId":"336afaea-72f4-46a4-9c69-809a90b3bdbd"}}""".stripMargin
+  val cdfJson3 = """{"cdc":{"path":"delta-sharing:///share8.default.cdf_table_cdf_enabled/2508998dce55bd726369e53761c4bc3f/1416","partitionValues":{},"size":1416,"dataChange":false}}
+{"commitInfo":{"timestamp":1651272659127,"userId":"7953272455820895","userName":"lin.zhou@databricks.com","operation":"UPDATE","operationParameters":{"predicate":"(age#15119 = 2)"},"notebook":{"notebookId":"3173513222201325"},"clusterId":"0819-204509-hill72","readVersion":2,"isolationLevel":"WriteSerializable","isBlindAppend":false,"operationMetrics":{"numRemovedFiles":"1","numCopiedRows":"0","numAddedChangeFiles":"1","executionTimeMs":"1222","scanTimeMs":"99","numAddedFiles":"1","numUpdatedRows":"1","rewriteTimeMs":"1119"},"engineInfo":"Databricks-Runtime/11.x-snapshot-aarch64-scala2.12","txnId":"4c39d77a-4105-4df9-aef8-2353411dd622"}}""".stripMargin
   // scalastyle:on
   override def open(f: Path, bufferSize: Int): FSDataInputStream = {
     // scalastyle:off println
@@ -121,6 +125,16 @@ private[sharing] class DeltaSharingLogFileSystem extends FileSystem {
       Console.println(s"----[linzhou]----returning cdf 1.json:${cdfJson1.length}")
       return new FSDataInputStream(new SeekableByteArrayInputStream(
         cdfJson1.getBytes(), "cdf_1.json"))
+    } else if (f.toString ==
+      "delta-sharing-log:/cdf_table_cdf_enabled/_delta_log/00000000000000000002.json") {
+      Console.println(s"----[linzhou]----returning cdf 2.json:${cdfJson2.length}")
+      return new FSDataInputStream(new SeekableByteArrayInputStream(
+        cdfJson2.getBytes(), "cdf_2.json"))
+    } else if (f.toString ==
+      "delta-sharing-log:/cdf_table_cdf_enabled/_delta_log/00000000000000000003.json") {
+      Console.println(s"----[linzhou]----returning cdf 3.json:${cdfJson3.length}")
+      return new FSDataInputStream(new SeekableByteArrayInputStream(
+        cdfJson3.getBytes(), "cdf_3.json"))
     } else if (f.toString ==
       "delta-sharing-log:/cdf_table_cdf_enabled/_delta_log/00000000000000000001.crc") {
       Console.println(s"----[linzhou]----throwing exception for 1.crc")
@@ -189,7 +203,11 @@ private[sharing] class DeltaSharingLogFileSystem extends FileSystem {
         new FileStatus(0, false, 0, 1, 0, new Path(
           "delta-sharing-log:/cdf_table_cdf_enabled/_delta_log/00000000000000000000.json")),
         new FileStatus(cdfJson1.length, false, 0, 1, 1651272635000L, new Path(
-          "delta-sharing-log:/cdf_table_cdf_enabled/_delta_log/00000000000000000001.json"))
+          "delta-sharing-log:/cdf_table_cdf_enabled/_delta_log/00000000000000000001.json")),
+        new FileStatus(cdfJson2.length, false, 0, 1, 1651272655000L, new Path(
+          "delta-sharing-log:/cdf_table_cdf_enabled/_delta_log/00000000000000000002.json")),
+        new FileStatus(cdfJson3.length, false, 0, 1, 1651272660000L, new Path(
+          "delta-sharing-log:/cdf_table_cdf_enabled/_delta_log/00000000000000000003.json"))
       )
       Console.println(s"----[linzhou]----listing:${a}")
       return a

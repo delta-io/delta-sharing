@@ -25,7 +25,7 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{QueryTest, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{DateType, StringType, StructField, StructType, TimestampType}
+import org.apache.spark.sql.types.{DateType, IntegerType, LongType, StringType, StructField, StructType, TimestampType}
 
 import io.delta.sharing.spark.TestUtils._
 
@@ -93,6 +93,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       StructField("eventTime", TimestampType),
       StructField("date", DateType),
       StructField("type", StringType).withComment("this is a comment")))
+
     assert(spark.read.format("deltaSharing").load(tablePath).schema == expectedSchema)
     withTable("delta_sharing_test") {
       sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
@@ -559,29 +560,51 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     val expected = Seq(
       Row("1", 1, sqlDate("2020-01-01"), 1L, 1651272635000L, "insert"),
       Row("2", 2, sqlDate("2020-01-01"), 1L, 1651272635000L, "insert"),
-      Row("3", 3, sqlDate("2020-01-01"), 1L, 1651272635000L, "insert")
-//      Row("2", 2, sqlDate("2020-01-01"), 3L, 1651272660000L, "update_preimage"),
-//      Row("2", 2, sqlDate("2020-02-02"), 3L, 1651272660000L, "update_postimage"),
-//      Row("3", 3, sqlDate("2020-01-01"), 2L, 1651272655000L, "delete")
+      Row("3", 3, sqlDate("2020-01-01"), 1L, 1651272635000L, "insert"),
+      Row("2", 2, sqlDate("2020-01-01"), 3L, 1651272660000L, "update_preimage"),
+      Row("2", 2, sqlDate("2020-02-02"), 3L, 1651272660000L, "update_postimage"),
+      Row("3", 3, sqlDate("2020-01-01"), 2L, 1651272655000L, "delete")
     )
     val result = spark.read.format("deltaSharing")
       .option("readChangeFeed", "true")
       .option("startingVersion", 1)
-      .option("endingVersion", 1).load(tablePath)
+      .option("endingVersion", 3).load(tablePath)
     checkAnswer(result, expected)
 
 //    Console.println(s"----[linzhou]-------------[Test DeltaLog CDF]------")
 //    checkAnswer(spark.read.format("deltaSharing").load(
 //      "delta-sharing-log:///cdf_table_cdf_enabled"), expected)
 
-    Console.println(s"----[linzhou]-------------[Test CDF]------")
+    if (true) {
+      Console.println(s"----[linzhou]-------------[Test CDF]------")
 
-    val df = spark.read.format("delta")
-      .option("readChangeFeed", "true")
-      .option("startingVersion", 1)
-      .option("endingVersion", 1)
-      .load("delta-sharing-log:///cdf_table_cdf_enabled")
-    checkAnswer(df, expected)
+      val df = spark.read.format("delta")
+        .option("readChangeFeed", "true")
+        .option("startingVersion", 1)
+        .option("endingVersion", 3)
+        .load("delta-sharing-log:///cdf_table_cdf_enabled")
+
+      val expectedRows = Seq(
+        Row("1", 1, sqlDate("2020-01-01"), "insert", 1L, sqlTimestamp("2022-04-29 15:50:35.0")),
+        Row("2", 2, sqlDate("2020-01-01"), "insert", 1L, sqlTimestamp("2022-04-29 15:50:35.0")),
+        Row("3", 3, sqlDate("2020-01-01"), "insert", 1L, sqlTimestamp("2022-04-29 15:50:35.0")),
+        Row("3", 3, sqlDate("2020-01-01"), "delete", 2L, sqlTimestamp("2022-04-29 15:50:55.0")),
+        Row("2", 2, sqlDate("2020-01-01"), "update_preimage", 3L, sqlTimestamp("2022-04-29 15:51:00.0")),
+        Row("2", 2, sqlDate("2020-02-02"), "update_postimage", 3L, sqlTimestamp("2022-04-29 15:51:00.0"))
+      )
+      val expectedSchema = StructType(Array(
+        StructField("name", StringType),
+        StructField("age", IntegerType),
+        StructField("birthday", DateType),
+        StructField("_change_type", StringType),
+        StructField("_commit_version", LongType),
+        StructField("_commit_timestamp", TimestampType)
+      ))
+      import scala.collection.JavaConversions._
+      var expectedDF = spark.createDataFrame(expectedRows,expectedSchema)
+
+      checkAnswer(expectedDF, df)
+    }
 //    // should work when selecting some columns in a different order
 //    checkAnswer(
 //      result.select("_change_type", "birthday", "age"),
