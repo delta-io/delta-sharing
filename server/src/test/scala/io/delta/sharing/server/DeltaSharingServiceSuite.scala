@@ -1799,7 +1799,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("linzhou_cdf_prototype") {
-    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=1"), Some("GET"), None, Some(0))
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=2"), Some("GET"), None, Some(0))
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
