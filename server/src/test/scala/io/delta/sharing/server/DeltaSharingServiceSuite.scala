@@ -92,6 +92,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       allowUntrustedServer()
       val serverConfigPath = TestResource.setupTestTables().getCanonicalPath
       serverConfig = ServerConfig.load(serverConfigPath)
+      serverConfig.evaluateJsonPredicateHints = true
       server = DeltaSharingService.start(serverConfig)
     }
   }
@@ -632,6 +633,66 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 573)
     verifyPreSignedUrl(actualFiles(1).url, 573)
+  }
+
+  integrationTest("jsonPredicateTest") {
+    // A test function that applies specified predicate hints on cdf_table_with_partition
+    // table which has two files with dates (2020-01-01, 2020-02-02)
+    //
+    // The param "expectedDatesSorted" specifies which of the two files we expect for the
+    // specified hints.
+    def testPredicateHints(hints: String, expectedDatesSorted: Seq[String]): Unit = {
+      val jsonPredicateStr = JsonUtils.toJson(Map("jsonPredicateHints" -> hints))
+      val response = readNDJson(
+        requestPath("/shares/share8/schemas/default/tables/cdf_table_with_partition/query"),
+        Some("POST"),
+        Some(jsonPredicateStr),
+        Some(3)
+      )
+
+      // Sort the files and match the expected dates.
+      // The date string should be present in the corresponding file name.
+      val lines = response.split("\n").toSeq
+      val files = lines.drop(2).map(f => JsonUtils.fromJson[SingleAction](f).file.url).sorted
+      assert(files.size == expectedDatesSorted.size)
+      for (i <- 0 to expectedDatesSorted.size - 1) {
+        assert(files(i).contains(expectedDatesSorted(i)))
+      }
+    }
+    testPredicateHints("", Seq("2020-01-01", "2020-02-02"))
+
+    val hints1 =
+      """{"op":"and","children":[
+           |  {"op":"not","children":[
+           |    {"op":"isNull","children":[
+           |      {"op":"column","name":"birthday","valueType":"date"}]}]},
+           |  {"op":"equal","children":[
+           |    {"op":"column","name":"birthday","valueType":"date"},
+           |    {"op":"literal","value":"2020-01-01","valueType":"date"}]}
+           |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    testPredicateHints(hints1, Seq("2020-01-01"))
+
+    val hints2 =
+      """{"op":"and","children":[
+           |  {"op":"not","children":[
+           |    {"op":"isNull","children":[
+           |      {"op":"column","name":"birthday","valueType":"date"}]}]},
+           |  {"op":"greaterThan","children":[
+           |    {"op":"column","name":"birthday","valueType":"date"},
+           |    {"op":"literal","value":"2020-01-01","valueType":"date"}]}
+           |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    testPredicateHints(hints2, Seq("2020-02-02"))
+
+    val hints3 =
+      """{"op":"and","children":[
+           |  {"op":"lessThan","children":[
+           |    {"op":"column","name":"birthday","valueType":"date"},
+           |    {"op":"literal","value":"2020-02-03","valueType":"date"}]},
+           |  {"op":"greaterThanOrEqual","children":[
+           |    {"op":"column","name":"birthday","valueType":"date"},
+           |    {"op":"literal","value":"2020-01-01","valueType":"date"}]}
+           |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    testPredicateHints(hints3, Seq("2020-01-01", "2020-02-02"))
   }
 
   integrationTest("table3 - different data file schemas - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {

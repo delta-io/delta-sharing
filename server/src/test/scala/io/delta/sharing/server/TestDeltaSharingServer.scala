@@ -38,6 +38,8 @@ object TestDeltaSharingServer {
     if (sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0)) {
       val serverConfigPath = TestResource.setupTestTables().getCanonicalPath
       val serverConfig = ServerConfig.load(serverConfigPath)
+      println("serverConfigPath=" + serverConfigPath)
+      println("serverConfig=" + serverConfig)
       val server = DeltaSharingService.start(serverConfig)
       // Run at most 420 seconds and exit. This is to ensure we can exit even if the parent process
       // hits any error.

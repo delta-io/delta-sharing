@@ -224,11 +224,13 @@ val df = spark.read.format("deltaSharing")
 ### Streaming
 Starting from release 0.6.0, Delta Sharing table can be used as a data source for [Spark Structured Streaming](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html).
 Once the provider shares a table with history, the recipient can perform a streaming query on the table.
+
+Note: Trigger.AvailableNow is not supported in delta sharing streaming because it's supported since spark 3.3.0, while delta sharing is still using spark 3.1.1.
 ```scala
 val tablePath = "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 val df = spark.readStream.format("deltaSharing")
   .option("startingVersion", "1")
-  .option("ignoreChanges", "true")
+  .option("skipChangeCommits", "true")
   .load(tablePath)
 ```
 
@@ -252,7 +254,7 @@ val df = spark.readStream.format("deltaSharing")
 <td>Power BI</td>
 <td>Databricks owned</td>
 <td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Node.js</td>
@@ -261,7 +263,7 @@ val df = spark.readStream.format("deltaSharing")
 [goodwillpunning/nodejs-sharing-client](https://github.com/goodwillpunning/nodejs-sharing-client)
 </td>
 <td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Java</td>
@@ -270,7 +272,7 @@ val df = spark.readStream.format("deltaSharing")
 [databrickslabs/delta-sharing-java-connector](https://github.com/databrickslabs/delta-sharing-java-connector)
 </td>
 <td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Arcuate</td>
@@ -279,7 +281,7 @@ val df = spark.readStream.format("deltaSharing")
 [databrickslabs/arcuate](https://github.com/databrickslabs/arcuate)
 </td>
 <td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Rust</td>
@@ -288,7 +290,7 @@ val df = spark.readStream.format("deltaSharing")
 [r3stl355/delta-sharing-rust-client](https://github.com/r3stl355/delta-sharing-rust-client)
 </td>
 <td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Go</td>
@@ -297,7 +299,7 @@ val df = spark.readStream.format("deltaSharing")
 [magpierre/delta-sharing](https://github.com/magpierre/delta-sharing/tree/golangdev/golang/delta_sharing_go)
 </td>
 <td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>C++</td>
@@ -306,7 +308,25 @@ val df = spark.readStream.format("deltaSharing")
 [magpierre/delta-sharing](https://github.com/magpierre/delta-sharing/tree/cppdev/cpp/DeltaSharingClient)
 </td>
 <td>Released</td>
-<td>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
+</tr>
+<tr>
+<td>R</td>
+<td>
+
+[zacdav-db/delta-sharing-r](https://github.com/zacdav-db/delta-sharing-r)
+</td>
+<td>Released</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
+</tr>
+<tr>
+<td>Google Spreadsheet</td>
+<td>
+
+[delta-incubator/delta-sharing-connectors]( https://github.com/delta-incubator/delta-sharing-connectors/tree/main/google_workspace_add_on)
+</td>
+<td>Beta</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
 <tr>
 <td>Airflow</td>
@@ -327,14 +347,19 @@ val df = spark.readStream.format("deltaSharing")
 <td>N/A</td>
 </tr>
 <tr>
-<td>R</td>
+<td>Lakehouse Sharing</td>
 <td>
 
-[zacdav-db/delta-sharing-r](https://github.com/zacdav-db/delta-sharing-r)
+[rajagurunath/lakehouse-sharing](https://github.com/rajagurunath/lakehouse-sharing)
 </td>
-<td>Released</td>
-<td>QueryTableVersion<br>QeuryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>Preview</td>
+<td>
+
+[Demonstrates](https://guruengineering.substack.com/p/lakehouse-sharing) a table format agnostic data sharing<br/>
+server (based on delta-sharing protocol) implemented  in python for both Delta Lake and Iceberg formats.
+</td>
 </tr>
+
 </table>
 
 # Delta Sharing Reference Server

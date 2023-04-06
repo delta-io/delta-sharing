@@ -2558,6 +2558,7 @@ boolean | `true` or `false`
 binary | A sequence of binary data
 date | A calendar date, represented as a `year-month-day` triple without a timezone
 timestamp | Microsecond precision timestamp without a timezone
+decimal | signed decimal number with fixed precision (maximum number of digits) and scale (number of digits on right side of dot). The precision and scale can be up to 38.
 
 #### Array Type
 
