@@ -94,6 +94,13 @@ object DeltaSharingCDFReader {
       params.profileProvider,
       refresher
     )
+    CachedTableManager.INSTANCE.register(
+      params.path.toString.split("#")(1),
+      getIdToUrl(addFiles, cdfFiles, removeFiles),
+      refs,
+      params.profileProvider,
+      refresher
+    )
 
     dfs.reduce((df1, df2) => df1.unionAll(df2))
       .select(requiredColumns.map(c => col(quoteIdentifier(c))): _*)

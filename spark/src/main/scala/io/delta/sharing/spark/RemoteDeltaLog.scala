@@ -303,7 +303,7 @@ class RemoteSnapshot(
         )
       CachedTableManager.INSTANCE
         .register(
-          "share1.default.linzhou_test_table_two",
+          fileIndex.params.path.toString.split("#")(1),
           idToUrl,
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,

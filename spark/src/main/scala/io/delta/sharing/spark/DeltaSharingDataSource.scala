@@ -51,13 +51,33 @@ private[sharing] class DeltaSharingDataSource
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
 
     // scalastyle:off println
-    Console.println(s"----[linzhou]----, path: $path")
+    Console.println(s"----[linzhou]----createRelation path: $path")
     if (path.startsWith("delta-sharing-log")) {
-      Console.println(s"----[linzhou]---- 1")
+      Console.println(s"----[linzhou]----createRelation is using DeltaLog")
       val dL = DeltaLog.forTable(sqlContext.sparkSession, path, parameters)
+
+      // Testing cdf read
+      import org.apache.spark.sql.delta.util.FileNames._
+      val startVersion = 1
+      val hadoopConf = dL.newDeltaHadoopConf()
+      val deltas = dL.store.listFrom(
+        deltaFile(dL.logPath, startVersion), hadoopConf).filter(isDeltaFile)
+      Console.println(s"----[linzhou]---- deltas:$deltas")
+      deltas.foreach { status =>
+        val p = status.getPath
+        val version = deltaVersion(p)
+        Console.println(s"----[linzhou]---- p:$p, version:$version")
+        val readContent = dL.store.read(status, hadoopConf)
+        readContent.foreach{ r =>
+          Console.println(s"----[linzhou]---- r:$r")
+        }
+//        (version, store.read(status, hadoopConf).map(Action.fromJson))
+      }
+
+
       return dL.createRelation()
     }
-    Console.println(s"----[linzhou]---- 2")
+    Console.println(s"----[linzhou]---- createRelation, is using RemoteDeltaLog")
     val deltaLog = RemoteDeltaLog(path)
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
   }

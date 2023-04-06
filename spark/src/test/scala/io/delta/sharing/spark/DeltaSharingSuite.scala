@@ -546,8 +546,53 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     val df = spark.read.format("delta").load("delta-sharing-log:///linzhou_test_table_two")
     checkAnswer(df, expected)
 
+    checkAnswer(df, expected)
+
     Console.println(s"----[linzhou]-------------[Test DeltaLog]------")
     checkAnswer(spark.read.format("deltaSharing").load(
       "delta-sharing-log:///linzhou_test_table_two"), expected)
+  }
+
+  integrationTest("linzhou_cdf_prototype") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
+
+    val expected = Seq(
+      Row("1", 1, sqlDate("2020-01-01"), 1L, 1651272635000L, "insert"),
+      Row("2", 2, sqlDate("2020-01-01"), 1L, 1651272635000L, "insert"),
+      Row("3", 3, sqlDate("2020-01-01"), 1L, 1651272635000L, "insert")
+//      Row("2", 2, sqlDate("2020-01-01"), 3L, 1651272660000L, "update_preimage"),
+//      Row("2", 2, sqlDate("2020-02-02"), 3L, 1651272660000L, "update_postimage"),
+//      Row("3", 3, sqlDate("2020-01-01"), 2L, 1651272655000L, "delete")
+    )
+    val result = spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 1).load(tablePath)
+    checkAnswer(result, expected)
+
+//    Console.println(s"----[linzhou]-------------[Test DeltaLog CDF]------")
+//    checkAnswer(spark.read.format("deltaSharing").load(
+//      "delta-sharing-log:///cdf_table_cdf_enabled"), expected)
+
+    Console.println(s"----[linzhou]-------------[Test CDF]------")
+
+    val df = spark.read.format("delta")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 1)
+      .load("delta-sharing-log:///cdf_table_cdf_enabled")
+    checkAnswer(df, expected)
+//    // should work when selecting some columns in a different order
+//    checkAnswer(
+//      result.select("_change_type", "birthday", "age"),
+//      Seq(
+//        Row("insert", sqlDate("2020-01-01"), 1),
+//        Row("insert", sqlDate("2020-01-01"), 2),
+//        Row("insert", sqlDate("2020-01-01"), 3),
+//        Row("update_preimage", sqlDate("2020-01-01"), 2),
+//        Row("update_postimage", sqlDate("2020-02-02"), 2),
+//        Row("delete", sqlDate("2020-01-01"), 3)
+//      )
+//    )
   }
 }

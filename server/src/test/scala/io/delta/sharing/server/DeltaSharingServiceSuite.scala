@@ -1797,4 +1797,19 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     }
     verifyPreSignedUrl(actualFiles(0).url, 1030)
   }
+
+  integrationTest("linzhou_cdf_prototype") {
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=1"), Some("GET"), None, Some(0))
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    Console.println(s"----[linzhou]----metadata:${JsonUtils.fromJson[SingleAction](metadata)}")
+    val files = lines.drop(2)
+//    assert(files.size == 5)
+    files.foreach{ f=>
+      Console.println(s"----[linzhou]----cdf file:${f}")
+    }
+  }
 }
