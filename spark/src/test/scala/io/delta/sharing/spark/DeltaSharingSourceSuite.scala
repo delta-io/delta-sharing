@@ -38,6 +38,10 @@ import io.delta.sharing.spark.TestUtils._
 class DeltaSharingSourceSuite extends QueryTest
   with SharedSparkSession with DeltaSharingIntegrationTest {
 
+  override protected def sparkConf = super.sparkConf.set(
+    "spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+  )
+
   // TODO: test with different Trigger.xx:
   //   https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html
 
@@ -714,6 +718,66 @@ class DeltaSharingSourceSuite extends QueryTest
       }
     } finally {
       query.stop()
+    }
+  }
+
+  integrationTest("linzhou_stream_prototype") {
+    // no filters
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion(path = partitionTablePath, startingVersion = "1")
+        .load()
+        .writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 4)
+        }
+      } finally {
+        query.stop()
+      }
+
+      val expected = Seq(
+        Row("1", 1, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("3", 3, sqlDate("2020-03-03")),
+        Row("2", 2, sqlDate("2020-02-02"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+    }
+
+    Console.println(s"----[linzhou]-------------[Test DeltaSource]------")
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query2 = spark.readStream.format("deltaSharing")
+        .option("path", "delta-sharing-log:///cdf_table_with_partition")
+        .option("startingVersion", 1)
+        .option("ignoreDeletes", "true")
+        .option("ignoreChanges", "true")
+        .load()
+        .writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query2.processAllAvailable()
+        val progress = query2.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 4)
+        }
+      } finally {
+        query2.stop()
+      }
+
+      val expected2 = Seq(
+        Row("1", 1, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("3", 3, sqlDate("2020-03-03")),
+        Row("2", 2, sqlDate("2020-02-02"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected2)
     }
   }
 }

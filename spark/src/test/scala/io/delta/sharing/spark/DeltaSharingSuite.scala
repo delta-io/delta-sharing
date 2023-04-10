@@ -571,11 +571,34 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       .option("endingVersion", 3).load(tablePath)
     checkAnswer(result, expected)
 
-//    Console.println(s"----[linzhou]-------------[Test DeltaLog CDF]------")
-//    checkAnswer(spark.read.format("deltaSharing").load(
-//      "delta-sharing-log:///cdf_table_cdf_enabled"), expected)
+    // prepare expectedDF
+    val expectedRows = Seq(
+      Row("1", 1, sqlDate("2020-01-01"), "insert", 1L, sqlTimestamp("2022-04-29 15:50:35.0")),
+      Row("2", 2, sqlDate("2020-01-01"), "insert", 1L, sqlTimestamp("2022-04-29 15:50:35.0")),
+      Row("3", 3, sqlDate("2020-01-01"), "insert", 1L, sqlTimestamp("2022-04-29 15:50:35.0")),
+      Row("3", 3, sqlDate("2020-01-01"), "delete", 2L, sqlTimestamp("2022-04-29 15:50:55.0")),
+      Row("2", 2, sqlDate("2020-01-01"), "update_preimage", 3L, sqlTimestamp("2022-04-29 15:51:00.0")),
+      Row("2", 2, sqlDate("2020-02-02"), "update_postimage", 3L, sqlTimestamp("2022-04-29 15:51:00.0"))
+    )
+    val expectedSchema = StructType(Array(
+      StructField("name", StringType),
+      StructField("age", IntegerType),
+      StructField("birthday", DateType),
+      StructField("_change_type", StringType),
+      StructField("_commit_version", LongType),
+      StructField("_commit_timestamp", TimestampType)
+    ))
+    import scala.collection.JavaConversions._
+    var expectedDF = spark.createDataFrame(expectedRows,expectedSchema)
 
-    if (true) {
+    Console.println(s"----[linzhou]-------------[Test DeltaLog CDF]------")
+    checkAnswer(expectedDF, spark.read.format("deltaSharing")
+      .option("readChangeFeed", "true")
+      .option("startingVersion", 1)
+      .option("endingVersion", 3)
+      .load("delta-sharing-log:///cdf_table_cdf_enabled"))
+
+    if (false) {
       Console.println(s"----[linzhou]-------------[Test CDF]------")
 
       val df = spark.read.format("delta")
@@ -583,39 +606,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
         .option("startingVersion", 1)
         .option("endingVersion", 3)
         .load("delta-sharing-log:///cdf_table_cdf_enabled")
-
-      val expectedRows = Seq(
-        Row("1", 1, sqlDate("2020-01-01"), "insert", 1L, sqlTimestamp("2022-04-29 15:50:35.0")),
-        Row("2", 2, sqlDate("2020-01-01"), "insert", 1L, sqlTimestamp("2022-04-29 15:50:35.0")),
-        Row("3", 3, sqlDate("2020-01-01"), "insert", 1L, sqlTimestamp("2022-04-29 15:50:35.0")),
-        Row("3", 3, sqlDate("2020-01-01"), "delete", 2L, sqlTimestamp("2022-04-29 15:50:55.0")),
-        Row("2", 2, sqlDate("2020-01-01"), "update_preimage", 3L, sqlTimestamp("2022-04-29 15:51:00.0")),
-        Row("2", 2, sqlDate("2020-02-02"), "update_postimage", 3L, sqlTimestamp("2022-04-29 15:51:00.0"))
-      )
-      val expectedSchema = StructType(Array(
-        StructField("name", StringType),
-        StructField("age", IntegerType),
-        StructField("birthday", DateType),
-        StructField("_change_type", StringType),
-        StructField("_commit_version", LongType),
-        StructField("_commit_timestamp", TimestampType)
-      ))
-      import scala.collection.JavaConversions._
-      var expectedDF = spark.createDataFrame(expectedRows,expectedSchema)
-
       checkAnswer(expectedDF, df)
     }
-//    // should work when selecting some columns in a different order
-//    checkAnswer(
-//      result.select("_change_type", "birthday", "age"),
-//      Seq(
-//        Row("insert", sqlDate("2020-01-01"), 1),
-//        Row("insert", sqlDate("2020-01-01"), 2),
-//        Row("insert", sqlDate("2020-01-01"), 3),
-//        Row("update_preimage", sqlDate("2020-01-01"), 2),
-//        Row("update_postimage", sqlDate("2020-02-02"), 2),
-//        Row("delete", sqlDate("2020-01-01"), 3)
-//      )
-//    )
   }
 }

@@ -26,7 +26,15 @@ import org.apache.spark.delta.sharing.PreSignedUrlCache
 import org.apache.spark.sql.{SparkSession, SQLContext}
 import org.apache.spark.sql.connector.catalog.{Table, TableCapability, TableProvider}
 import org.apache.spark.sql.connector.expressions.Transform
-import org.apache.spark.sql.delta.DeltaLog
+import org.apache.spark.sql.delta.{
+  ColumnWithDefaultExprUtils,
+  DeltaErrors,
+  DeltaLog,
+  DeltaOptions
+}
+import org.apache.spark.sql.delta.DeltaTableUtils.extractIfPathContainsTimeTravel
+import org.apache.spark.sql.delta.commands.cdc.CDCReader
+import org.apache.spark.sql.delta.sources.{DeltaDataSource, DeltaSource}
 import org.apache.spark.sql.execution.streaming.Source
 import org.apache.spark.sql.sources.{
   BaseRelation,
@@ -51,33 +59,13 @@ private[sharing] class DeltaSharingDataSource
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
 
     // scalastyle:off println
-    Console.println(s"----[linzhou]----createRelation path: $path")
+    Console.println(s"----[linzhou]----createRelation for path: $path")
     if (path.startsWith("delta-sharing-log")) {
-      Console.println(s"----[linzhou]----createRelation is using DeltaLog")
+      Console.println(s"----[linzhou]----createRelation using DeltaLog, parameters: $parameters")
       val dL = DeltaLog.forTable(sqlContext.sparkSession, path, parameters)
-
-      // Testing cdf read
-      import org.apache.spark.sql.delta.util.FileNames._
-      val startVersion = 1
-      val hadoopConf = dL.newDeltaHadoopConf()
-      val deltas = dL.store.listFrom(
-        deltaFile(dL.logPath, startVersion), hadoopConf).filter(isDeltaFile)
-      Console.println(s"----[linzhou]---- deltas:$deltas")
-      deltas.foreach { status =>
-        val p = status.getPath
-        val version = deltaVersion(p)
-        Console.println(s"----[linzhou]---- p:$p, version:$version")
-        val readContent = dL.store.read(status, hadoopConf)
-        readContent.foreach{ r =>
-          Console.println(s"----[linzhou]---- r:$r")
-        }
-//        (version, store.read(status, hadoopConf).map(Action.fromJson))
-      }
-
-
-      return dL.createRelation()
+      return dL.createRelation(cdcOptions = new CaseInsensitiveStringMap(options.cdfOptions.asJava))
     }
-    Console.println(s"----[linzhou]---- createRelation, is using RemoteDeltaLog")
+    Console.println(s"----[linzhou]---- createRelation using RemoteDeltaLog")
     val deltaLog = RemoteDeltaLog(path)
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
   }
@@ -97,6 +85,32 @@ private[sharing] class DeltaSharingDataSource
     }
 
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
+    Console.println(s"----[linzhou]----sourceSchema for path: $path")
+    if (path.startsWith("delta-sharing-log")) {
+      Console.println(s"----[linzhou]----sourceSchema using DeltaLog")
+      val (_, maybeTimeTravel) = extractIfPathContainsTimeTravel(
+        sqlContext.sparkSession, path, Map.empty)
+      if (maybeTimeTravel.isDefined) throw DeltaErrors.timeTravelNotSupportedException
+      if (DeltaDataSource.getTimeTravelVersion(parameters).isDefined) {
+        throw DeltaErrors.timeTravelNotSupportedException
+      }
+
+      val (_, snapshot) = DeltaLog.forTableWithSnapshot(sqlContext.sparkSession, path)
+      val readSchema = snapshot.schema
+
+      val schemaToUse = ColumnWithDefaultExprUtils.removeDefaultExpressions(readSchema)
+      if (schemaToUse.isEmpty) {
+        throw DeltaErrors.schemaNotSetException
+      }
+      val optionsDelta = new CaseInsensitiveStringMap(parameters.asJava)
+      Console.println(s"----[linzhou]----schemaToUse: $schemaToUse")
+      if (CDCReader.isCDCRead(optionsDelta)) {
+        return (shortName(), CDCReader.cdcReadSchema(schemaToUse))
+      } else {
+        return (shortName(), schemaToUse)
+      }
+    }
+
     val deltaLog = RemoteDeltaLog(path, forStreaming = true)
     val schemaToUse = deltaLog.snapshot().schema
     if (schemaToUse.isEmpty) {
@@ -122,6 +136,27 @@ private[sharing] class DeltaSharingDataSource
     }
     val options = new DeltaSharingOptions(parameters)
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
+
+    Console.println(s"----[linzhou]----createSource: for path $path")
+    if (path.startsWith("delta-sharing-log")) {
+      Console.println(s"----[linzhou]----createSource using DeltaLog")
+      val options2 = new DeltaOptions(parameters, sqlContext.sparkSession.sessionState.conf)
+      val (deltaLog, snapshot) = DeltaLog.forTableWithSnapshot(sqlContext.sparkSession, path)
+      val readSchema = snapshot.schema
+
+      if (readSchema.isEmpty) {
+        throw DeltaErrors.schemaNotSetException
+      }
+      return DeltaSharingDeltaSource(
+        DeltaSource(
+          sqlContext.sparkSession,
+          deltaLog,
+          options2,
+          snapshot
+        )
+      )
+    }
+
     val deltaLog = RemoteDeltaLog(path, forStreaming = true)
 
     DeltaSharingSource(SparkSession.active, deltaLog, options)

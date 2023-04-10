@@ -18,7 +18,7 @@ import sbt.ExclusionRule
 
 ThisBuild / parallelExecution := false
 
-val sparkVersion = "3.2.0"
+val sparkVersion = "3.3.0"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
@@ -47,7 +47,7 @@ lazy val spark = (project in file("spark")) settings(
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
-    "io.delta" %% "delta-core" % "2.2.0", // delta-spark, io-delta/delta
+    "io.delta" %% "delta-core" % "2.3.0", // delta-spark, io-delta/delta
     "org.apache.hadoop" % "hadoop-client" % "3.1.0",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",

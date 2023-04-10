@@ -27,6 +27,7 @@ import org.apache.spark.sql.catalyst.expressions.{Cast, Literal}
 import org.apache.spark.sql.catalyst.util.{CaseInsensitiveMap, DateTimeUtils}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.TimestampType
+import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 trait DeltaSharingOptionParser {
   protected def options: CaseInsensitiveMap[String]

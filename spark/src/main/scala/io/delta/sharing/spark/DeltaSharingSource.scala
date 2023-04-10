@@ -234,6 +234,7 @@ case class DeltaSharingSource(
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
+      // zhoulin: to make changes
       val tableFiles = deltaLog.client.getFiles(
         deltaLog.table, Nil, None, Some(fromVersion), None, None
       )
@@ -268,6 +269,7 @@ case class DeltaSharingSource(
     } else {
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
+      // zhoulin: to make changes
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)
       latestRefreshFunc = () => {
         deltaLog.client.getFiles(deltaLog.table, fromVersion).addFiles.map { a =>
@@ -307,6 +309,7 @@ case class DeltaSharingSource(
       fromVersion: Long,
       fromIndex: Long,
       currentLatestVersion: Long): Unit = {
+    // zhoulin: to make changes
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
     latestRefreshFunc = () => {
@@ -502,6 +505,13 @@ case class DeltaSharingSource(
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
     CachedTableManager.INSTANCE.register(
       params.path.toString,
+      idToUrl,
+      Seq(new WeakReference(fileIndex)),
+      params.profileProvider,
+      latestRefreshFunc
+    )
+    CachedTableManager.INSTANCE.register(
+      params.path.toString.split("#")(1),
       idToUrl,
       Seq(new WeakReference(fileIndex)),
       params.profileProvider,
