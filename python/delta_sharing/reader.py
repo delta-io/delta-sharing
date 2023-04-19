@@ -22,7 +22,7 @@ import pandas as pd
 from pyarrow.dataset import dataset
 
 from delta_sharing.converter import to_converters, get_empty_table
-from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, Table
+from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, JsonPredicateHints, Table
 from delta_sharing.rest_client import DataSharingRestClient
 
 
@@ -32,6 +32,7 @@ class DeltaSharingReader:
         table: Table,
         rest_client: DataSharingRestClient,
         *,
+        jsonPredicateHints: Optional[JsonPredicateHints] = None,
         predicateHints: Optional[Sequence[str]] = None,
         limit: Optional[int] = None,
         version: Optional[int] = None,
@@ -40,6 +41,7 @@ class DeltaSharingReader:
         self._table = table
         self._rest_client = rest_client
 
+        self._jsonPredicateHints = jsonPredicateHints
         if predicateHints is not None:
             assert isinstance(predicateHints, Sequence)
             assert all(isinstance(predicateHint, str) for predicateHint in predicateHints)
@@ -55,8 +57,21 @@ class DeltaSharingReader:
     def table(self) -> Table:
         return self._table
 
+    def jsonPredicateHints(
+        self,
+        jsonPredicateHints: Optional[JsonPredicateHints]
+    ) -> "DeltaSharingReader":
+        return self._copy(
+            jsonPredicateHints=jsonPredicateHints,
+            predicateHints=self._predicateHints,
+            limit=self._limit,
+            version=self._version,
+            timestamp=self._timestamp
+        )
+
     def predicateHints(self, predicateHints: Optional[Sequence[str]]) -> "DeltaSharingReader":
         return self._copy(
+            jsonPredicateHints=self._jsonPredicateHints,
             predicateHints=predicateHints,
             limit=self._limit,
             version=self._version,
@@ -65,6 +80,7 @@ class DeltaSharingReader:
 
     def limit(self, limit: Optional[int]) -> "DeltaSharingReader":
         return self._copy(
+            jsonPredicateHints=self._jsonPredicateHints,
             predicateHints=self._predicateHints,
             limit=limit,
             version=self._version,
@@ -74,6 +90,7 @@ class DeltaSharingReader:
     def to_pandas(self) -> pd.DataFrame:
         response = self._rest_client.list_files_in_table(
             self._table,
+            jsonPredicateHints=self._jsonPredicateHints,
             predicateHints=self._predicateHints,
             limitHint=self._limit,
             version=self._version,
@@ -131,6 +148,7 @@ class DeltaSharingReader:
     def _copy(
         self,
         *,
+        jsonPredicateHints: Optional[JsonPredicateHints],
         predicateHints: Optional[Sequence[str]],
         limit: Optional[int],
         version: Optional[int],
@@ -139,6 +157,7 @@ class DeltaSharingReader:
         return DeltaSharingReader(
             table=self._table,
             rest_client=self._rest_client,
+            jsonPredicateHints=jsonPredicateHints,
             predicateHints=predicateHints,
             limit=limit,
             version=version,

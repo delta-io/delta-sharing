@@ -26,7 +26,7 @@ try:
 except ImportError:
     pass
 
-from delta_sharing.protocol import DeltaSharingProfile, Schema, Share, Table
+from delta_sharing.protocol import DeltaSharingProfile, JsonPredicateHints, Schema, Share, Table
 from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import DataSharingRestClient
 
@@ -53,6 +53,7 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
 
 def load_as_pandas(
     url: str,
+    jsonPredicateHints: Optional[JsonPredicateHints] = None,
     predicateHints: Optional[Sequence[str]] = None,
     limit: Optional[int] = None,
     version: Optional[int] = None,
@@ -73,6 +74,7 @@ def load_as_pandas(
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
+        jsonPredicateHints=jsonPredicateHints,
         predicateHints=predicateHints,
         limit=limit,
         version=version,

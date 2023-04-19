@@ -21,6 +21,9 @@ from typing import ClassVar, Dict, IO, Optional, Sequence, Union
 import fsspec
 
 
+JsonPredicateHints = Dict[str, Union['JsonPredicateHints', str]]
+
+
 @dataclass(frozen=True)
 class DeltaSharingProfile:
     CURRENT: ClassVar[int] = 1

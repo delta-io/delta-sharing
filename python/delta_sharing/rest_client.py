@@ -32,6 +32,7 @@ from delta_sharing.protocol import (
     FileAction,
     CdfOptions,
     DeltaSharingProfile,
+    JsonPredicateHints,
     Metadata,
     Protocol,
     Share,
@@ -272,12 +273,15 @@ class DataSharingRestClient:
         self,
         table: Table,
         *,
+        jsonPredicateHints: Optional[JsonPredicateHints] = None,
         predicateHints: Optional[Sequence[str]] = None,
         limitHint: Optional[int] = None,
         version: Optional[int] = None,
         timestamp: Optional[str] = None,
     ) -> ListFilesInTableResponse:
         data: Dict = {}
+        if jsonPredicateHints is not None:
+            data["jsonPredicateHints"] = jsonPredicateHints
         if predicateHints is not None:
             data["predicateHints"] = predicateHints
         if limitHint is not None:
