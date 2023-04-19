@@ -53,6 +53,7 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
 
 def load_as_pandas(
     url: str,
+    predicateHints: Optional[Sequence[str]] = None,
     limit: Optional[int] = None,
     version: Optional[int] = None,
     timestamp: Optional[str] = None
@@ -72,6 +73,7 @@ def load_as_pandas(
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
+        predicateHints=predicateHints,
         limit=limit,
         version=version,
         timestamp=timestamp
