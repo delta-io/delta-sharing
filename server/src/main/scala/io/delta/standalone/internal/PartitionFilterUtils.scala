@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory
 object PartitionFilterUtils {
   private val logger = LoggerFactory.getLogger(this.getClass)
 
-  private lazy val sqlParser = new SparkSqlParser(new SQLConf)
+  private lazy val sqlParser = new SparkSqlParser()
 
   def evaluatePredicate(
       schemaString: String,
@@ -56,7 +56,7 @@ object PartitionFilterUtils {
       if (exprs.isEmpty) {
         addFiles
       } else {
-        val predicate = InterpretedPredicate.create(exprs.reduce(And), attrs)
+        val predicate = Predicate.create(exprs.reduce(And), attrs)
         predicate.initialize(0)
         addFiles.filter { addFile =>
           val converter = CatalystTypeConverters.createToCatalystConverter(addSchema)

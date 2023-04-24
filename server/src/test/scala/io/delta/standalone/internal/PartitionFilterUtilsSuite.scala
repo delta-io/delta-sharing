@@ -17,15 +17,20 @@
 package io.delta.standalone.internal
 
 import io.delta.standalone.internal.actions.AddFile
-import org.apache.spark.sql.types.StructType
-import org.scalatest.FunSuite
+import org.apache.spark.sql.types.{IntegerType, StructField, StructType}
+import org.scalatest.funsuite.AnyFunSuite
 
-class PartitionFilterUtilsSuite extends FunSuite {
+class PartitionFilterUtilsSuite extends AnyFunSuite {
 
   import PartitionFilterUtils._
 
   test("evaluatePredicate") {
-    val schema = StructType.fromDDL("c1 INT, c2 INT").json
+    val a = StructType(Array(
+      StructField("c1", IntegerType, true),
+      StructField("c2", IntegerType, true)
+    ))
+    val schema = a.json
+//    val schema = StructType.fromDDL("c1 INT, c2 INT").json
     val add1 = AddFile("foo1", Map("c2" -> "0"), 1, 1, true)
     val add2 = AddFile("foo2", Map("c2" -> "1"), 1, 1, true)
     val addFiles = add1 :: add2 :: Nil

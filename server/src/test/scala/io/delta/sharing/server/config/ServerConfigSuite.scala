@@ -22,9 +22,9 @@ import java.nio.file.Files
 import java.util.Arrays
 
 import org.apache.commons.io.FileUtils
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class ServerConfigSuite extends FunSuite {
+class ServerConfigSuite extends AnyFunSuite {
 
   def testConfig(content: String, serverConfig: ServerConfig): Unit = {
     val tempFile = Files.createTempFile("delta-sharing-server", ".yaml").toFile
