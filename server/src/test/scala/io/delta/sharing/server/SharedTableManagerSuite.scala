@@ -21,12 +21,12 @@ import java.util.{Arrays, Collections}
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
-import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.FunSuite
 
 import io.delta.sharing.server.config.{SchemaConfig, ServerConfig, ShareConfig, TableConfig}
 import io.delta.sharing.server.protocol.{Schema, Share, Table}
 
-class SharedTableManagerSuite extends AnyFunSuite {
+class SharedTableManagerSuite extends FunSuite {
 
   test("list shares") {
     val serverConfig = new ServerConfig()

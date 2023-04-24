@@ -17,11 +17,11 @@
 package io.delta.standalone.internal
 
 import io.delta.standalone.internal.actions.AddFile
-import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.FunSuite
 
 import io.delta.sharing.server.util.JsonUtils
 
-class JsonPredicateFilterUtilsSuite extends AnyFunSuite {
+class JsonPredicateFilterUtilsSuite extends FunSuite {
 
   import JsonPredicateFilterUtils._
 
