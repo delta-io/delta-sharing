@@ -450,6 +450,7 @@ class DeltaSharingSourceSuite extends QueryTest
       )
       checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
 
+      Console.println(s"----[linzhou]----RESTART")
       // There are 4 checkpoints, remove the latest 2.
       val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
       checkpointFiles.foreach{ f =>

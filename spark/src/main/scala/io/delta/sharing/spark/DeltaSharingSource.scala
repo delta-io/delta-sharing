@@ -700,6 +700,8 @@ case class DeltaSharingSource(
   }
 
   override def latestOffset(startOffset: streaming.Offset, limit: ReadLimit): streaming.Offset = {
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----[latestOffset]startOffset:$startOffset")
     val limits = AdmissionLimits(limit)
 
     val currentOffset = if (previousOffset == null) {
@@ -717,6 +719,7 @@ case class DeltaSharingSource(
   }
 
   override def getBatch(startOffsetOption: Option[Offset], end: Offset): DataFrame = {
+    Console.println(s"----[linzhou]----[getBatch]startOffsetOption:$startOffsetOption")
     val endOffset = DeltaSharingSourceOffset(tableId, end)
 
     val (startVersion, startIndex, isStartingVersion, startSourceVersion) = if (
