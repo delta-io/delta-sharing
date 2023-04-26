@@ -25,12 +25,12 @@ class PartitionFilterUtilsSuite extends AnyFunSuite {
   import PartitionFilterUtils._
 
   test("evaluatePredicate") {
-    val a = StructType(Array(
-      StructField("c1", IntegerType, true),
-      StructField("c2", IntegerType, true)
-    ))
-    val schema = a.json
-//    val schema = StructType.fromDDL("c1 INT, c2 INT").json
+//    val a = StructType(Array(
+//      StructField("c1", IntegerType, true),
+//      StructField("c2", IntegerType, true)
+//    ))
+//    val schema = a.json
+    val schema = StructType.fromDDL("c1 INT, c2 INT").json
     val add1 = AddFile("foo1", Map("c2" -> "0"), 1, 1, true)
     val add2 = AddFile("foo2", Map("c2" -> "1"), 1, 1, true)
     val addFiles = add1 :: add2 :: Nil
