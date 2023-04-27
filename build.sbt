@@ -19,10 +19,11 @@ import sbt.ExclusionRule
 ThisBuild / parallelExecution := false
 
 val sparkVersion = "3.3.2"
+val scala212 = "2.12.10"
+val scala213 = "2.13.5"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
-  scalaVersion := "2.13.5",
   fork := true,
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
   scalacOptions += "-target:jvm-1.8",
@@ -43,6 +44,7 @@ lazy val root = (project in file(".")).aggregate(spark, server)
 
 lazy val spark = (project in file("spark")) settings(
   name := "delta-sharing-spark",
+  scalaVersion := scala212,
   commonSettings,
   scalaStyleSettings,
   releaseSettings,
@@ -68,6 +70,7 @@ lazy val spark = (project in file("spark")) settings(
 
 lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) settings(
   name := "delta-sharing-server",
+  scalaVersion := scala212,
   commonSettings,
   scalaStyleSettings,
   releaseSettings,
@@ -76,15 +79,15 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   libraryDependencies ++= Seq(
     // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a
     // breaking change making us not able to use `delta-standalone`.
-    "com.fasterxml.jackson.core" % "jackson-core" % "2.13.5",
-    "com.fasterxml.jackson.core" % "jackson-databind" % "2.13.5",
-    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.13.5",
-    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.13.5",
-    "org.json4s" %% "json4s-jackson" % "3.7.0-M11" excludeAll(
+    "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7",
+    "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7.3",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.6.7.1",
+    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.6.7",
+    "org.json4s" %% "json4s-jackson" % "3.5.3" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")
     ),
-    "com.linecorp.armeria" %% "armeria-scalapb" % "1.15.0" excludeAll(
+    "com.linecorp.armeria" %% "armeria-scalapb" % "1.6.0" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")
     ),
@@ -133,7 +136,7 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")
     ),
-    "org.apache.spark" %% "spark-sql" % "3.3.2" excludeAll(
+    "org.apache.spark" %% "spark-sql" % "2.4.7" excludeAll(
       ExclusionRule("org.slf4j"),
       ExclusionRule("io.netty"),
       ExclusionRule("com.fasterxml.jackson.core"),
@@ -145,7 +148,7 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
     "org.slf4j" % "slf4j-simple" % "1.6.1",
     "net.sourceforge.argparse4j" % "argparse4j" % "0.9.0",
 
-    "org.scalatest" %% "scalatest" % "3.2.15" % "test"
+    "org.scalatest" %% "scalatest" % "3.0.5" % "test"
   ),
   Compile / PB.targets := Seq(
     scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
