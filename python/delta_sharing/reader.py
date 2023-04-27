@@ -22,7 +22,7 @@ import pandas as pd
 from pyarrow.dataset import dataset
 
 from delta_sharing.converter import to_converters, get_empty_table
-from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, JsonPredicateHints, Table
+from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, Table
 from delta_sharing.rest_client import DataSharingRestClient
 
 
@@ -32,7 +32,7 @@ class DeltaSharingReader:
         table: Table,
         rest_client: DataSharingRestClient,
         *,
-        jsonPredicateHints: Optional[JsonPredicateHints] = None,
+        jsonPredicateHints: Optional[Dict[str, Any]] = None,
         predicateHints: Optional[Sequence[str]] = None,
         limit: Optional[int] = None,
         version: Optional[int] = None,
@@ -59,7 +59,7 @@ class DeltaSharingReader:
 
     def jsonPredicateHints(
         self,
-        jsonPredicateHints: Optional[JsonPredicateHints]
+        jsonPredicateHints: Optional[Dict[str, Any]]
     ) -> "DeltaSharingReader":
         return self._copy(
             jsonPredicateHints=jsonPredicateHints,
@@ -148,7 +148,7 @@ class DeltaSharingReader:
     def _copy(
         self,
         *,
-        jsonPredicateHints: Optional[JsonPredicateHints],
+        jsonPredicateHints: Optional[Dict[str, Any]],
         predicateHints: Optional[Sequence[str]],
         limit: Optional[int],
         version: Optional[int],

@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 from itertools import chain
-from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
+from typing import Any, BinaryIO, Dict, List, Optional, Sequence, TextIO, Tuple, Union
 from pathlib import Path
 
 import pandas as pd
@@ -26,7 +26,7 @@ try:
 except ImportError:
     pass
 
-from delta_sharing.protocol import DeltaSharingProfile, JsonPredicateHints, Schema, Share, Table
+from delta_sharing.protocol import DeltaSharingProfile, Schema, Share, Table
 from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import DataSharingRestClient
 
@@ -53,7 +53,7 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
 
 def load_as_pandas(
     url: str,
-    jsonPredicateHints: Optional[JsonPredicateHints] = None,
+    jsonPredicateHints: Optional[Dict[str, Any]] = None,
     predicateHints: Optional[Sequence[str]] = None,
     limit: Optional[int] = None,
     version: Optional[int] = None,
