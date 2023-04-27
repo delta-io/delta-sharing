@@ -18,11 +18,11 @@
 
 package io.delta.standalone.internal
 
-import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.FunSuite
 
 import io.delta.sharing.server.util.JsonUtils
 
-class JsonPredicateSuite extends AnyFunSuite {
+class JsonPredicateSuite extends FunSuite {
 
   /**
    * A wrapper around op evaluation.

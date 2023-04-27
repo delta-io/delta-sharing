@@ -44,11 +44,13 @@ lazy val root = (project in file(".")).aggregate(spark, server)
 
 lazy val spark = (project in file("spark")) settings(
   name := "delta-sharing-spark",
-  scalaVersion := scala212,
+  crossScalaVersions := Seq(scala212, scala213),
   commonSettings,
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
+    "org.apache.httpcomponents" % "httpclient" % "4.5.13",
+    "org.codehaus.jackson" % "jackson-mapper-asl" % "1.9.13",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
@@ -89,7 +91,8 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
     ),
     "com.linecorp.armeria" %% "armeria-scalapb" % "1.6.0" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
-      ExclusionRule("com.fasterxml.jackson.module")
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("org.json4s")
     ),
     "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),

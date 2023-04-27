@@ -17,9 +17,9 @@
 package io.delta.sharing.server
 
 import org.apache.hadoop.fs.Path
-import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.FunSuite
 
-class CloudFileSignerSuite extends AnyFunSuite {
+class CloudFileSignerSuite extends FunSuite {
 
   test("GCSFileSigner.getBucketAndObjectNames") {
     assert(GCSFileSigner.getBucketAndObjectNames(new Path("gs://delta-sharing-test/foo"))

@@ -28,8 +28,7 @@ import scala.collection.mutable.ArrayBuffer
 import com.linecorp.armeria.server.Server
 import io.delta.standalone.internal.DeltaCDFErrors
 import org.apache.commons.io.IOUtils
-import org.scalatest.BeforeAndAfterAll
-import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import scalapb.json4s.JsonFormat
 
 import io.delta.sharing.server.config.ServerConfig
@@ -38,7 +37,7 @@ import io.delta.sharing.server.protocol._
 import io.delta.sharing.server.util.JsonUtils
 
 // scalastyle:off maxLineLength
-class DeltaSharingServiceSuite extends AnyFunSuite with BeforeAndAfterAll {
+class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   def shouldRunIntegrationTest: Boolean = {
     sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) &&
