@@ -454,8 +454,10 @@ private[spark] class DeltaSharingRestClient(
             additionalErrorInfo = s"It may be caused by an expired token as it has expired " +
               s"at ${profile.expirationTime}"
           }
+          // Only show the last 100 lines in the error to keep it contained.
+          val responseToShow = lines.drop(lines.size - 100).mkString("\n")
           throw new UnexpectedHttpStatus(
-            s"HTTP request failed with status: $status $lines. $additionalErrorInfo",
+            s"HTTP request failed with status: $status $responseToShow. $additionalErrorInfo",
             statusCode)
         }
         Option(response.getFirstHeader("Delta-Table-Version")).map(_.getValue.toLong) -> lines
