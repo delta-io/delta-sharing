@@ -26,7 +26,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.rpc.{RpcCallContext, RpcEndpoint, RpcEndpointRef, RpcEnv}
 import org.apache.spark.util.{RpcUtils, ThreadUtils}
 
-import io.delta.sharing.spark.DeltaSharingProfileProvider
+import io.delta.sharing.client.DeltaSharingProfileProvider
 
 /**
  * @param expiration the expiration time of the pre signed urls

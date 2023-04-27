@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark.model
+package io.delta.sharing.client.model
 
 import com.fasterxml.jackson.annotation.JsonInclude
 import org.apache.spark.sql.types.{DataType, LongType, StringType}

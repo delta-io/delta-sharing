@@ -22,7 +22,7 @@ import org.apache.spark.SparkFunSuite
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.SpanSugar._
 
-import io.delta.sharing.spark.TestDeltaSharingProfileProvider
+import io.delta.sharing.client.TestDeltaSharingProfileProvider
 
 class CachedTableManagerSuite extends SparkFunSuite {
 

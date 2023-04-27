@@ -35,7 +35,8 @@ import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
-import io.delta.sharing.spark.model.{
+import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingProfileProvider}
+import io.delta.sharing.client.model.{
   AddFile,
   CDFColumnInfo,
   DeltaTableFiles,
@@ -138,7 +139,7 @@ private[sharing] object RemoteDeltaLog {
 
     val profileProviderclass =
       sqlConf.getConfString("spark.delta.sharing.profile.provider.class",
-        "io.delta.sharing.spark.DeltaSharingFileProfileProvider")
+        "io.delta.sharing.client.DeltaSharingFileProfileProvider")
 
     val profileProvider: DeltaSharingProfileProvider =
       Class.forName(profileProviderclass)
@@ -172,7 +173,7 @@ private[sharing] object RemoteDeltaLog {
 
     val clientClass =
       sqlConf.getConfString("spark.delta.sharing.client.class",
-        "io.delta.sharing.spark.DeltaSharingRestClient")
+        "io.delta.sharing.client.DeltaSharingRestClient")
 
     val client: DeltaSharingClient =
       Class.forName(clientClass)

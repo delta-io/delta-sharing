@@ -16,7 +16,13 @@
 
 package io.delta.sharing.spark
 
-import io.delta.sharing.spark.model.{
+import io.delta.sharing.client.{
+  DeltaSharingClient,
+  DeltaSharingProfile,
+  DeltaSharingProfileProvider,
+  TestDeltaSharingProfileProvider
+}
+import io.delta.sharing.client.model.{
   AddCDCFile,
   AddFile,
   AddFileForCDF,
@@ -28,7 +34,7 @@ import io.delta.sharing.spark.model.{
   SingleAction,
   Table
 }
-import io.delta.sharing.spark.util.JsonUtils
+import io.delta.sharing.client.util.JsonUtils
 
 class TestDeltaSharingClient(
     profileProvider: DeltaSharingProfileProvider = new TestDeltaSharingProfileProvider,
@@ -120,12 +126,6 @@ class TestDeltaSharingClient(
     TestDeltaSharingClient.limits = Nil
     TestDeltaSharingClient.jsonPredicateHints = Nil
   }
-}
-
-class TestDeltaSharingProfileProvider extends DeltaSharingProfileProvider {
-  override def getProfile: DeltaSharingProfile = null
-
-  override def getCustomTablePath(tablePath: String): String = "prefix." + tablePath
 }
 
 object TestDeltaSharingClient {

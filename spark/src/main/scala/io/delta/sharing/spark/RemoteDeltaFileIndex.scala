@@ -28,8 +28,8 @@ import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expressi
 import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
 import org.apache.spark.sql.types.{DataType, StructType}
 
-import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
-import io.delta.sharing.spark.model.{
+import io.delta.sharing.client.{DeltaSharingFileSystem, DeltaSharingProfileProvider}
+import io.delta.sharing.client.model.{
   AddCDCFile,
   AddFile,
   AddFileForCDF,
@@ -37,7 +37,8 @@ import io.delta.sharing.spark.model.{
   FileAction,
   RemoveFile
 }
-import io.delta.sharing.spark.util.JsonUtils
+import io.delta.sharing.client.util.JsonUtils
+import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
 
 private[sharing] case class RemoteDeltaFileIndexParams(
     val spark: SparkSession,

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark
+package io.delta.sharing.client
 
 import java.sql.Timestamp
 
 import org.apache.http.HttpHeaders
 import org.apache.http.client.methods.HttpGet
 
-import io.delta.sharing.spark.model.{
+import io.delta.sharing.client.model.{
   AddCDCFile,
   AddFile,
   AddFileForCDF,
@@ -31,7 +31,7 @@ import io.delta.sharing.spark.model.{
   RemoveFile,
   Table
 }
-import io.delta.sharing.spark.util.UnexpectedHttpStatus
+import io.delta.sharing.client.util.UnexpectedHttpStatus
 
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {

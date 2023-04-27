@@ -29,7 +29,8 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan}
 import org.apache.spark.sql.types.StructType
 
-import io.delta.sharing.spark.model.{AddCDCFile, AddFileForCDF, RemoveFile, Table => DeltaSharingTable}
+import io.delta.sharing.client.DeltaSharingClient
+import io.delta.sharing.client.model.{AddCDCFile, AddFileForCDF, RemoveFile, Table => DeltaSharingTable}
 
 case class RemoteDeltaCDFRelation(
     spark: SparkSession,

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark
+package io.delta.sharing.client
 
 import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
@@ -37,11 +37,11 @@ import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
-import io.delta.sharing.spark.model._
-import io.delta.sharing.spark.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
+import io.delta.sharing.client.model._
+import io.delta.sharing.client.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
 
 /** An interface to fetch Delta metadata from remote server. */
-private[sharing] trait DeltaSharingClient {
+trait DeltaSharingClient {
   def listAllTables(): Seq[Table]
 
   def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long
@@ -90,7 +90,7 @@ private[sharing] case class ListAllTablesResponse(
     nextPageToken: Option[String]) extends PaginationResponse
 
 /** A REST client to fetch Delta metadata from remote server. */
-private[spark] class DeltaSharingRestClient(
+class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
@@ -372,7 +372,8 @@ private[spark] class DeltaSharingRestClient(
     }
   }
 
-  private[spark] def prepareHeaders(httpRequest: HttpRequestBase): HttpRequestBase = {
+  // TODO: [linzhou] mark this as private once tests are migrated.
+  def prepareHeaders(httpRequest: HttpRequestBase): HttpRequestBase = {
     val customeHeaders = profileProvider.getCustomHeaders
     if (customeHeaders.contains(HttpHeaders.AUTHORIZATION)
       || customeHeaders.contains(HttpHeaders.USER_AGENT)) {
@@ -459,7 +460,7 @@ private[spark] class DeltaSharingRestClient(
   }
 }
 
-private[spark] object DeltaSharingRestClient extends Logging {
+object DeltaSharingRestClient extends Logging {
   val CURRENT = 1
 
   val SPARK_STRUCTURED_STREAMING = "Delta-Sharing-SparkStructuredStreaming"

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark
+package io.delta.sharing.client
 
 import java.nio.charset.StandardCharsets.UTF_8
 
@@ -22,7 +22,7 @@ import org.apache.commons.io.IOUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 
-import io.delta.sharing.spark.util.JsonUtils
+import io.delta.sharing.client.util.JsonUtils
 
 case class DeltaSharingProfile(
     shareCredentialsVersion: Option[Int] = Some(DeltaSharingProfile.CURRENT),

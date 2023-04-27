@@ -108,7 +108,7 @@ private[sharing] object DeltaSharingDataSource {
     // we add the library after starting Spark. Therefore we change the global `hadoopConfiguration`
     // to make sure we set up `DeltaSharingFileSystem` correctly.
     sqlContext.sparkContext.hadoopConfiguration
-      .setIfUnset("fs.delta-sharing.impl", "io.delta.sharing.spark.DeltaSharingFileSystem")
+      .setIfUnset("fs.delta-sharing.impl", "io.delta.sharing.client.DeltaSharingFileSystem")
     PreSignedUrlCache.registerIfNeeded(SparkEnv.get)
   }
 }

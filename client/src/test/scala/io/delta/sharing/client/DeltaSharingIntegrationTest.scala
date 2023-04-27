@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark
+package io.delta.sharing.client
 
 import java.io.File
 import java.nio.charset.StandardCharsets.UTF_8
@@ -28,8 +28,6 @@ import org.apache.commons.io.FileUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkFunSuite
 import org.scalatest.BeforeAndAfterAll
-
-import io.delta.sharing.client.{DeltaSharingFileProfileProvider, DeltaSharingProfileProvider}
 
 trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
 

@@ -21,10 +21,10 @@ import java.io.{InterruptedIOException, IOException}
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.SparkFunSuite
+import io.delta.sharing.client.util.{RetryUtils, UnexpectedHttpStatus}
+import io.delta.sharing.client.util.RetryUtils._
 
 class RetryUtilsSuite extends SparkFunSuite {
-  import RetryUtils._
-
   test("shouldRetry") {
     assert(shouldRetry(new UnexpectedHttpStatus("error", 429)))
     assert(shouldRetry(new UnexpectedHttpStatus("error", 500)))

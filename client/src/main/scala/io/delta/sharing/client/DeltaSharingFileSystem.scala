@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark
+package io.delta.sharing.client
 
 import java.net.{URI, URLDecoder, URLEncoder}
 import java.util.concurrent.TimeUnit
@@ -28,7 +28,7 @@ import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.{PreSignedUrlCache, PreSignedUrlFetcher}
 import org.apache.spark.network.util.JavaUtils
 
-import io.delta.sharing.spark.model.FileAction
+import io.delta.sharing.client.model.FileAction
 
 /** Read-only file system for delta paths. */
 private[sharing] class DeltaSharingFileSystem extends FileSystem {

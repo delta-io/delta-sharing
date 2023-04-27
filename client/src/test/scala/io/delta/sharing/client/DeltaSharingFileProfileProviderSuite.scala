@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark
+package io.delta.sharing.client
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
@@ -22,6 +22,8 @@ import java.nio.file.Files
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkFunSuite
+
+import io.delta.sharing.client.{DeltaSharingFileProfileProvider, DeltaSharingProfile}
 
 class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
 
