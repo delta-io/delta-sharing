@@ -16,6 +16,7 @@
 
 package io.delta.sharing.spark
 
+import java.io.{BufferedReader, InputStream, InputStreamReader}
 import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.sql.Timestamp
@@ -23,9 +24,10 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter.ISO_DATE_TIME
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 import org.apache.commons.io.IOUtils
+import org.apache.commons.io.input.BoundedInputStream
 import org.apache.hadoop.util.VersionInfo
 import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
 import org.apache.http.client.config.RequestConfig
@@ -188,7 +190,7 @@ private[spark] class DeltaSharingRestClient(
     val target =
       getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/" +
         s"$encodedTableName/version$encodedParam")
-    val (version, _) = getResponse(new HttpGet(target), true)
+    val (version, _) = getResponse(new HttpGet(target), true, true)
     version.getOrElse {
       throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
     }
@@ -324,14 +326,14 @@ private[spark] class DeltaSharingRestClient(
   }
 
   private def getNDJson(target: String, requireVersion: Boolean = true): (Long, Seq[String]) = {
-    val (version, response) = getResponse(new HttpGet(target))
+    val (version, lines) = getResponse(new HttpGet(target))
     version.getOrElse {
       if (requireVersion) {
         throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
       } else {
         0L
       }
-    } -> response.split("[\n\r]+")
+    } -> lines
   }
 
   private def getNDJson[T: Manifest](target: String, data: T): (Long, Seq[String]) = {
@@ -339,15 +341,20 @@ private[spark] class DeltaSharingRestClient(
     val json = JsonUtils.toJson(data)
     httpPost.setHeader("Content-type", "application/json")
     httpPost.setEntity(new StringEntity(json, UTF_8))
-    val (version, response) = getResponse(httpPost)
+    val (version, lines) = getResponse(httpPost)
     version.getOrElse {
       throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
-    } -> response.split("[\n\r]+")
+    } -> lines
   }
 
   private def getJson[R: Manifest](target: String): R = {
-    val (_, response) = getResponse(new HttpGet(target))
-    JsonUtils.fromJson[R](response)
+    val (_, response) = getResponse(new HttpGet(target), false, true)
+    if (response.size != 1) {
+      throw new IllegalStateException(
+        "Unexpected response for target: " +  target + ", response=" + response
+      )
+    }
+    JsonUtils.fromJson[R](response(0))
   }
 
   private def getHttpHost(endpoint: String): HttpHost = {
@@ -393,11 +400,17 @@ private[spark] class DeltaSharingRestClient(
   /**
    * Send the http request and return the table version in the header if any, and the response
    * content.
+   *
+   * The response can be:
+   *   - empty if allowNoContent is true.
+   *   - single string, if fetchAsOneString is true.
+   *   - multi-line response (typically, one per action). This is the default.
    */
   private def getResponse(
       httpRequest: HttpRequestBase,
-      allowNoContent: Boolean = false
-  ): (Option[Long], String) =
+      allowNoContent: Boolean = false,
+      fetchAsOneString: Boolean = false
+  ): (Option[Long], Seq[String]) = {
     RetryUtils.runWithExponentialBackoff(numRetries) {
       val profile = profileProvider.getProfile
       val response = client.execute(
@@ -408,12 +421,26 @@ private[spark] class DeltaSharingRestClient(
       try {
         val status = response.getStatusLine()
         val entity = response.getEntity()
-        val body = if (entity == null) {
-          ""
+        val lines = if (entity == null) {
+          List("")
         } else {
           val input = entity.getContent()
           try {
-            IOUtils.toString(input, UTF_8)
+            if (fetchAsOneString) {
+              Seq(IOUtils.toString(input, UTF_8))
+            } else {
+              val reader = new BufferedReader(
+                new InputStreamReader(new BoundedInputStream(input), UTF_8)
+              )
+              var line: Option[String] = None
+              val lineBuffer = ListBuffer[String]()
+              while ({
+                line = Option(reader.readLine()); line.isDefined
+              }) {
+                lineBuffer += line.get
+              }
+              lineBuffer.toList
+            }
           } finally {
             input.close()
           }
@@ -427,15 +454,18 @@ private[spark] class DeltaSharingRestClient(
             additionalErrorInfo = s"It may be caused by an expired token as it has expired " +
               s"at ${profile.expirationTime}"
           }
+          // Only show the last 100 lines in the error to keep it contained.
+          val responseToShow = lines.drop(lines.size - 100).mkString("\n")
           throw new UnexpectedHttpStatus(
-            s"HTTP request failed with status: $status $body. $additionalErrorInfo",
+            s"HTTP request failed with status: $status $responseToShow. $additionalErrorInfo",
             statusCode)
         }
-        Option(response.getFirstHeader("Delta-Table-Version")).map(_.getValue.toLong) -> body
+        Option(response.getFirstHeader("Delta-Table-Version")).map(_.getValue.toLong) -> lines
       } finally {
         response.close()
       }
     }
+  }
 
   // Add SparkStructuredStreaming in the USER_AGENT header, in order for the delta sharing server
   // to recognize the request for streaming, and take corresponding actions.
