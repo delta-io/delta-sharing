@@ -37,8 +37,8 @@ import io.delta.sharing.client.model.{
   FileAction,
   RemoveFile
 }
+import io.delta.sharing.client.filters.{BaseOp, OpConverter}
 import io.delta.sharing.client.util.JsonUtils
-import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
 
 private[sharing] case class RemoteDeltaFileIndexParams(
     val spark: SparkSession,
