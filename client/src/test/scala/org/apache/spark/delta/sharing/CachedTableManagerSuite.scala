@@ -22,7 +22,11 @@ import org.apache.spark.SparkFunSuite
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.SpanSugar._
 
-import io.delta.sharing.client.TestDeltaSharingProfileProvider
+private class TestDeltaSharingProfileProvider extends DeltaSharingProfileProvider {
+  override def getProfile: DeltaSharingProfile = null
+
+  override def getCustomTablePath(tablePath: String): String = "prefix." + tablePath
+}
 
 class CachedTableManagerSuite extends SparkFunSuite {
 
