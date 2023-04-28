@@ -32,10 +32,10 @@ import org.apache.spark.sql.catalyst.expressions.{
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{IntegerType, LongType, StringType, StructField, StructType}
 
-import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
 import io.delta.sharing.client.DeltaSharingClient
 import io.delta.sharing.client.model.Table
 import io.delta.sharing.client.util.JsonUtils
+import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
