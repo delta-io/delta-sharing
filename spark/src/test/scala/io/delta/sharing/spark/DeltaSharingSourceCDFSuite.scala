@@ -563,21 +563,26 @@ class DeltaSharingSourceCDFSuite extends QueryTest
         query.stop()
       }
 
-      // There are 5 checkpoints for 5 getBatch(), which is caused by maxFilesPerTrigger = 1,
-      // remove the latest 3 checkpoints.
-      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
-      checkpointFiles.foreach{ f =>
-        if (!f.isDirectory() && (f.getCanonicalPath.endsWith("2") ||
-          f.getCanonicalPath.endsWith("3") || f.getCanonicalPath.endsWith("4"))) {
-          f.delete()
-        }
-      }
-
       val restartQuery = withStreamReaderAtVersion()
         .option("maxFilesPerTrigger", "1")
         .load().select("age").writeStream.format("console")
         .option("checkpointLocation", checkpointDir.getCanonicalPath)
         .start()
+      // There are 5 checkpoints for 5 getBatch(), which is caused by maxFilesPerTrigger = 1,
+      // remove the latest 3 checkpoints.
+      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
+      checkpointFiles.foreach{ f =>
+        if (!f.isDirectory() && (f.getCanonicalPath.endsWith("2") ||
+          f.getCanonicalPath.endsWith("3") || f.getCanonicalPath.endsWith("4") ||
+          f.getCanonicalPath.endsWith("2.crc") || f.getCanonicalPath.endsWith("3.crc") ||
+          f.getCanonicalPath.endsWith("4.crc") || f.getCanonicalPath.endsWith("metadata.crc"))) {
+          f.delete()
+        }
+        if (f.getCanonicalPath.endsWith("metadata")) {
+          FileUtils.writeStringToFile(f, s"""{"id":"${restartQuery.id}"}""")
+        }
+      }
+
       try {
         restartQuery.processAllAvailable()
         val progress = restartQuery.recentProgress.filter(_.numInputRows != 0)

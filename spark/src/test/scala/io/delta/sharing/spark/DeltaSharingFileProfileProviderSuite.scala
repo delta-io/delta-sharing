@@ -70,8 +70,8 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
     )
   }
 
-  test("version is missing") {
-    val e = intercept[IllegalArgumentException] {
+  test("shareCredentialsVersion is missing") {
+    val e = intercept[Exception] {
       testProfile(
         """{
           |  "endpoint": "foo",

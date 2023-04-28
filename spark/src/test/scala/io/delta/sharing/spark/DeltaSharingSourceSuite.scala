@@ -446,29 +446,35 @@ class DeltaSharingSourceSuite extends QueryTest
       )
       checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
 
-      // There are 4 checkpoints, remove the latest 2.
-      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
-      checkpointFiles.foreach{ f =>
-        if (!f.isDirectory() &&
-          (f.getCanonicalPath.endsWith("2") || f.getCanonicalPath.endsWith("3"))) {
-          f.delete()
-        }
-      }
-
-      val restartQuery = withStreamReaderAtVersion()
+      val newQuery = withStreamReaderAtVersion()
         .option("maxFilesPerTrigger", "1")
         .load().writeStream.format("console")
         .option("checkpointLocation", checkpointDir.getCanonicalPath)
         .start()
+
+      // There are 4 checkpoints, remove the latest 2.
+      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
+      checkpointFiles.foreach{ f =>
+        if (!f.isDirectory() &&
+          (f.getCanonicalPath.endsWith("2") || f.getCanonicalPath.endsWith("3") ||
+            f.getCanonicalPath.endsWith("2.crc") || f.getCanonicalPath.endsWith("3.crc") ||
+            f.getCanonicalPath.endsWith("metadata.crc"))) {
+          f.delete()
+        }
+        if (f.getCanonicalPath.endsWith("metadata")) {
+          FileUtils.writeStringToFile(f, s"""{"id":"${newQuery.id}"}""")
+        }
+      }
+
       try {
-        restartQuery.processAllAvailable()
-        val progress = restartQuery.recentProgress.filter(_.numInputRows != 0)
+        newQuery.processAllAvailable()
+        val progress = newQuery.recentProgress.filter(_.numInputRows != 0)
         assert(progress.length === 2)
         progress.foreach {
           p => assert(p.numInputRows === 1)
         }
       } finally {
-        restartQuery.stop()
+        newQuery.stop()
       }
     }
   }
