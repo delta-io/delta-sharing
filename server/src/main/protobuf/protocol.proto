@@ -60,6 +60,9 @@ message QueryTableRequest {
     optional string timestamp = 4;
     // Query all data change files since startingVersion
     optional int64 startingVersion = 5;
+
+    // Whether to treat the response as Delta Log
+    optional bool queryDeltaLog = 7;
 }
 
 message ListSharesResponse {

@@ -282,7 +282,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       limitHint = None,
       version = None,
       timestamp = None,
-      startingVersion = None)
+      startingVersion = None,
+      queryDeltaLog = false)
     streamingOutput(Some(v), actions)
   }
 
@@ -329,7 +330,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.limitHint,
       request.version,
       request.timestamp,
-      request.startingVersion)
+      request.startingVersion,
+      queryDeltaLog = request.queryDeltaLog.getOrElse(false))
     if (version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(
         s"You can only query table data since version ${tableConfig.startVersion}."
@@ -373,7 +375,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     streamingOutput(Some(v), actions)
   }
 
-  private def streamingOutput(version: Option[Long], actions: Seq[SingleAction]): HttpResponse = {
+  private def streamingOutput(version: Option[Long], actions: Seq[Object]): HttpResponse = {
     val headers = if (version.isDefined) {
       createHeadersBuilderForTableVersion(version.get)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
@@ -387,7 +389,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       actions.asJava.stream(),
       headers,
       HttpHeaders.of(),
-      (o: SingleAction) => processRequest {
+      (o: Object) => processRequest {
         val out = new ByteArrayOutputStream
         JsonUtils.mapper.writeValue(out, o)
         out.write('\n')

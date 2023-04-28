@@ -180,6 +180,59 @@ class DeltaSharedTable(
     snapshot.version
   }
 
+  private def getResponseProtocol(p: Protocol, queryDeltaLog: Boolean): Object = {
+    if (queryDeltaLog) {
+      p.wrap
+    } else {
+      model.Protocol(p.minReaderVersion).wrap
+    }
+  }
+
+  private def getResponseMetadata(
+      m: Metadata,
+      startingVersion: Option[Long],
+      queryDeltaLog: Boolean
+  ): Object = {
+    if (queryDeltaLog) {
+      m.wrap
+    } else {
+      model.Metadata(
+        id = m.id,
+        name = m.name,
+        description = m.description,
+        format = model.Format(),
+        schemaString = cleanUpTableSchema(m.schemaString),
+        configuration = getMetadataConfiguration(m.configuration),
+        partitionColumns = m.partitionColumns,
+        version = if (startingVersion.isDefined) {
+          startingVersion.get
+        } else {
+          null
+        }
+      ).wrap
+    }
+  }
+
+  private def getResponseAddFile(
+      addFile: AddFile,
+      signedUrl: String,
+      version: java.lang.Long,
+      timestamp: java.lang.Long,
+      queryDeltaLog: Boolean): Object = {
+    if (queryDeltaLog) {
+      addFile.copy(path = signedUrl).wrap
+    } else {
+      model.AddFile(url = signedUrl,
+        id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+        partitionValues = addFile.partitionValues,
+        size = addFile.size,
+        stats = addFile.stats,
+        version = version,
+        timestamp = timestamp
+      ).wrap
+    }
+  }
+
   def query(
       includeFiles: Boolean,
       predicateHints: Seq[String],
@@ -187,7 +240,8 @@ class DeltaSharedTable(
       limitHint: Option[Long],
       version: Option[Long],
       timestamp: Option[String],
-      startingVersion: Option[Long]): (Long, Seq[model.SingleAction]) = withClassLoader {
+      startingVersion: Option[Long],
+      queryDeltaLog: Boolean): (Long, Seq[Object]) = withClassLoader {
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
@@ -212,7 +266,6 @@ class DeltaSharedTable(
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
-    val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
     val modelMetadata = model.Metadata(
       id = snapshot.metadataScala.id,
       name = snapshot.metadataScala.name,
@@ -229,7 +282,10 @@ class DeltaSharedTable(
     )
 
     val isVersionQuery = !Seq(version, timestamp).filter(_.isDefined).isEmpty
-    val actions = Seq(modelProtocol.wrap, modelMetadata.wrap) ++ {
+    val actions = Seq(
+      getResponseProtocol(snapshot.protocolScala, queryDeltaLog),
+      getResponseMetadata(snapshot.metadataScala, startingVersion, queryDeltaLog)
+    ) ++ {
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
@@ -269,15 +325,13 @@ class DeltaSharedTable(
         filteredFiles.map { addFile =>
           val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
           val signedUrl = fileSigner.sign(cloudPath)
-          val modelAddFile = model.AddFile(url = signedUrl,
-            id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
-            partitionValues = addFile.partitionValues,
-            size = addFile.size,
-            stats = addFile.stats,
-            version = if (isVersionQuery) { snapshot.version } else null,
-            timestamp = if (isVersionQuery) { ts.get} else null
+          getResponseAddFile(
+            addFile,
+            signedUrl,
+            if (isVersionQuery) { snapshot.version } else null,
+            if (isVersionQuery) { ts.get} else null,
+            queryDeltaLog
           )
-          modelAddFile.wrap
         }
       } else {
         Nil
