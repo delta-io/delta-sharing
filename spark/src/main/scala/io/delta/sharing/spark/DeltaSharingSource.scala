@@ -149,6 +149,7 @@ case class DeltaSharingSource(
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
   // runs for a long time.
   private var latestRefreshFunc = () => { Map.empty[String, String] }
+  private var lastQueryTableTimestamp: Long = -1
 
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
@@ -244,6 +245,7 @@ case class DeltaSharingSource(
           f.id -> f.url
         }.toMap
       }
+      lastQueryTableTimestamp = System.currentTimeMillis()
 
       val numFiles = tableFiles.files.size
       tableFiles.files.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
@@ -274,6 +276,7 @@ case class DeltaSharingSource(
           a.id -> a.url
         }.toMap
       }
+      lastQueryTableTimestamp = System.currentTimeMillis()
       val allAddFiles = validateCommitAndFilterAddFiles(tableFiles).groupBy(a => a.version)
       for (v <- fromVersion to currentLatestVersion) {
 
@@ -314,6 +317,7 @@ case class DeltaSharingSource(
         deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
       DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
     }
+    lastQueryTableTimestamp = System.currentTimeMillis()
 
     (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
       val schemaToCheck = DeltaTableUtils.addCdcSchema(DeltaTableUtils.toSchema(m.schemaString))
@@ -545,7 +549,8 @@ case class DeltaSharingSource(
       removeFiles,
       schema,
       isStreaming = true,
-      latestRefreshFunc
+      latestRefreshFunc,
+      lastQueryTableTimestamp
     )
   }
 

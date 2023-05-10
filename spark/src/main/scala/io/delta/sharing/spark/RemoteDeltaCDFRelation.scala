@@ -71,7 +71,8 @@ object DeltaSharingCDFReader {
       removeFiles: Seq[RemoveFile],
       schema: StructType,
       isStreaming: Boolean,
-      refresher: () => Map[String, String]): DataFrame = {
+      refresher: () => Map[String, String],
+      lastQueryTableTimestamp: Long): DataFrame = {
     val dfs = ListBuffer[DataFrame]()
     val refs = ListBuffer[WeakReference[AnyRef]]()
 
@@ -92,7 +93,8 @@ object DeltaSharingCDFReader {
       getIdToUrl(addFiles, cdfFiles, removeFiles),
       refs,
       params.profileProvider,
-      refresher
+      refresher,
+      lastQueryTableTimestamp
     )
 
     dfs.reduce((df1, df2) => df1.unionAll(df2))
