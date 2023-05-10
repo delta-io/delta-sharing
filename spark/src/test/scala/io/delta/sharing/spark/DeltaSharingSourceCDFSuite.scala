@@ -578,6 +578,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
           f.getCanonicalPath.endsWith("4.crc") || f.getCanonicalPath.endsWith("metadata.crc"))) {
           f.delete()
         }
+        // SparkStructuredStreaming requires query id match to reuse a checkpoint.
         if (f.getCanonicalPath.endsWith("metadata")) {
           FileUtils.writeStringToFile(f, s"""{"id":"${restartQuery.id}"}""")
         }

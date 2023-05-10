@@ -143,7 +143,7 @@ case class DeltaSharingSource(
 
   private var lastGetVersionTimestamp: Long = -1
   private var lastQueriedTableVersion: Long = -1
-  private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 3000 // 30 seconds
+  private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 30000 // 30 seconds
 
   // The latest function used to fetch presigned urls for the delta sharing table, record it in
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
