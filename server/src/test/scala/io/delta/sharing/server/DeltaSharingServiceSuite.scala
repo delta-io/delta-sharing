@@ -26,6 +26,7 @@ import javax.net.ssl._
 import scala.collection.mutable.ArrayBuffer
 
 import com.linecorp.armeria.server.Server
+import io.delta.standalone.internal.DeltaCDFErrors
 import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import scalapb.json4s.JsonFormat
@@ -40,8 +41,6 @@ import io.delta.sharing.server.dsmodel.{
 import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol._
 import io.delta.sharing.server.util.JsonUtils
-
-import io.delta.standalone.internal.DeltaCDFErrors
 
 // scalastyle:off maxLineLength
 class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
