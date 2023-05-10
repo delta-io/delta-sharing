@@ -50,9 +50,11 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
         raise ValueError(f"Invalid 'url': {url}")
     return (profile, share, schema, table)
 
+
 def get_table_version(
     url: str,
-    starting_timestamp: Optional[str] = None) -> int:
+    starting_timestamp: Optional[str] = None
+) -> int:
     """
     Get the shared table version using the given url.
 
@@ -62,7 +64,7 @@ def get_table_version(
     """
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
-    rest_client=DataSharingRestClient(profile)
+    rest_client = DataSharingRestClient(profile)
     response = rest_client.query_table_version(
         Table(name=table, share=share, schema=schema),
         starting_timestamp
@@ -78,7 +80,7 @@ def get_table_protocol(url: str) -> Protocol:
     """
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
-    rest_client=DataSharingRestClient(profile)
+    rest_client = DataSharingRestClient(profile)
     response = rest_client.query_table_metadata(Table(name=table, share=share, schema=schema))
     return response.protocol
 
@@ -91,7 +93,7 @@ def get_table_metadata(url: str) -> Metadata:
     """
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
-    rest_client=DataSharingRestClient(profile)
+    rest_client = DataSharingRestClient(profile)
     response = rest_client.query_table_metadata(Table(name=table, share=share, schema=schema))
     return response.metadata
 
