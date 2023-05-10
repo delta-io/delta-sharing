@@ -63,7 +63,10 @@ def get_table_version(
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
     rest_client=DataSharingRestClient(profile)
-    response = rest_client.query_table_version(Table(name=table, share=share, schema=schema))
+    response = rest_client.query_table_version(
+        Table(name=table, share=share, schema=schema),
+        starting_timestamp
+    )
     return response.delta_table_version
 
 

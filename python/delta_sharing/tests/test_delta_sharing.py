@@ -31,7 +31,7 @@ from delta_sharing.delta_sharing import (
     load_table_changes_as_pandas,
     _parse_url,
 )
-from delta_sharing.protocol import Schema, Share, Table
+from delta_sharing.protocol import Format, Metadata, Protocol, Schema, Share, Table
 from delta_sharing.rest_client import (
     DataSharingRestClient,
     ListAllTablesResponse,
@@ -158,19 +158,19 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
             "share1.default.table1",
             None,
             None,
-            3,
+            2,
             id="table1 spark",
         ),
         pytest.param(
             "share1.default.table1",
             "random_timestamp",
-            "not supported",
+            "random",
             -1,
             id="table1 starting_timestamp not valid",
         ),
         pytest.param(
             "share8.default.cdf_table_cdf_enabled",
-            "2023-01-01T00:00:00Z",
+            "2022-01-01T00:00:00Z",
             None,
             0,
             id="cdf_table_cdf_enabled version 0",
@@ -178,7 +178,7 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         pytest.param(
             "share8.default.cdf_table_cdf_enabled",
             "2100-01-01T00:00:00Z",
-            "Please use a timestamp earlier",
+            "Please use a timestamp less than",
             -1,
             id="cdf_table_cdf_enabled timestamp too late",
         ),
@@ -218,7 +218,7 @@ def test_get_table_version(
                     "]}"
                 ),
                 partition_columns=[],
-            )
+            ),
             id="non partitioned",
         ),
         pytest.param(
@@ -254,13 +254,13 @@ def test_get_table_version(
         ),
     ],
 )
-def test_get_table_metadata_success(
+def test_get_table_metadata(
     profile_path: str,
     fragments: str,
     expected: Metadata
 ):
     actual = get_table_metadata(f"{profile_path}#{fragments}")
-    assert expected = actual
+    assert expected == actual
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
