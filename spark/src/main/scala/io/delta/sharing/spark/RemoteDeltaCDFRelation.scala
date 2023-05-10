@@ -72,7 +72,8 @@ object DeltaSharingCDFReader {
       schema: StructType,
       isStreaming: Boolean,
       refresher: () => Map[String, String],
-      lastQueryTableTimestamp: Long): DataFrame = {
+      lastQueryTableTimestamp: Long = System.currentTimeMillis()
+  ): DataFrame = {
     val dfs = ListBuffer[DataFrame]()
     val refs = ListBuffer[WeakReference[AnyRef]]()
 

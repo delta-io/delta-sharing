@@ -154,8 +154,8 @@ class CachedTableManager(
         // Otherwise, start counting from lastQueryTableTimestamp.
         preSignedUrlExpirationMs + lastQueryTableTimestamp
       },
-      idToUrl = if (preSignedUrlExpirationMs + lastQueryTableTimestamp - System.currentTimeMillis() <
-        refreshThresholdMs) {
+      idToUrl = if (preSignedUrlExpirationMs + lastQueryTableTimestamp - System.currentTimeMillis()
+        < refreshThresholdMs) {
         // force a refresh upon register
         customRefresher()
       } else {
