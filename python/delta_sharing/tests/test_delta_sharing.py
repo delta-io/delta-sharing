@@ -22,6 +22,9 @@ import pytest
 from delta_sharing.delta_sharing import (
     DeltaSharingProfile,
     SharingClient,
+    get_table_metadata,
+    get_table_protocol,
+    get_table_version,
     load_as_pandas,
     load_as_spark,
     load_table_changes_as_spark,
@@ -145,6 +148,125 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
     sharing_client._rest_client = TestDataSharingRestClient()
     tables = sharing_client.list_all_tables()
     _verify_all_tables_result(tables)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,starting_timestamp,error,expected_version",
+    [
+        pytest.param(
+            "share1.default.table1",
+            None,
+            None,
+            3,
+            id="table1 spark",
+        ),
+        pytest.param(
+            "share1.default.table1",
+            "random_timestamp",
+            "not supported",
+            -1,
+            id="table1 starting_timestamp not valid",
+        ),
+        pytest.param(
+            "share8.default.cdf_table_cdf_enabled",
+            "2023-01-01T00:00:00Z",
+            None,
+            0,
+            id="cdf_table_cdf_enabled version 0",
+        ),
+        pytest.param(
+            "share8.default.cdf_table_cdf_enabled",
+            "2100-01-01T00:00:00Z",
+            "Please use a timestamp earlier",
+            -1,
+            id="cdf_table_cdf_enabled timestamp too late",
+        ),
+    ],
+)
+def test_get_table_version(
+    profile_path: str,
+    fragments: str,
+    starting_timestamp: Optional[str],
+    error: Optional[str],
+    expected_version: int
+):
+    if error is None:
+        actual_version = get_table_version(f"{profile_path}#{fragments}", starting_timestamp)
+        assert expected_version == actual_version
+    else:
+        try:
+            get_table_version(f"{profile_path}#{fragments}", starting_timestamp)
+            assert False
+        except Exception as e:
+            assert error in str(e)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,expected",
+    [
+        pytest.param(
+            "share1.default.table1",
+            Metadata(
+                id="ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
+                format=Format(provider="parquet", options={}),
+                schema_string=(
+                    '{"type":"struct","fields":['
+                    '{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},'
+                    '{"name":"date","type":"date","nullable":true,"metadata":{}}'
+                    "]}"
+                ),
+                partition_columns=[],
+            )
+            id="non partitioned",
+        ),
+        pytest.param(
+            "share2.default.table2",
+            Metadata(
+                id="f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+                format=Format(provider="parquet", options={}),
+                schema_string=(
+                    '{"type":"struct","fields":['
+                    '{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},'
+                    '{"name":"date","type":"date","nullable":true,"metadata":{}}'
+                    "]}"
+                ),
+                partition_columns=["date"],
+            ),
+            id="partitioned",
+        ),
+        pytest.param(
+            "share1.default.table3",
+            Metadata(
+                id="7ba6d727-a578-4234-a138-953f790b427c",
+                format=Format(provider="parquet", options={}),
+                schema_string=(
+                    '{"type":"struct","fields":['
+                    '{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},'
+                    '{"name":"date","type":"date","nullable":true,"metadata":{}},'
+                    '{"name":"type","type":"string","nullable":true,"metadata":{}}'
+                    "]}"
+                ),
+                partition_columns=["date"],
+            ),
+            id="partitioned and different schemas",
+        ),
+    ],
+)
+def test_get_table_metadata_success(
+    profile_path: str,
+    fragments: str,
+    expected: Metadata
+):
+    actual = get_table_metadata(f"{profile_path}#{fragments}")
+    assert expected = actual
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_get_table_protocol(profile_path: str):
+    actual = get_table_protocol(f"{profile_path}#share1.default.table1")
+    assert Protocol(min_reader_version=1) == actual
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
