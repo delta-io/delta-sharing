@@ -31,12 +31,17 @@ import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import scalapb.json4s.JsonFormat
 
 import io.delta.sharing.server.config.ServerConfig
+import io.delta.sharing.server.dsmodel.{
+  DeltaSharingAddFile,
+  DeltaSharingMetadata,
+  DeltaSharingProtocol,
+  DeltaSharingSingleAction
+}
 import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol._
 import io.delta.sharing.server.util.JsonUtils
 
 import io.delta.standalone.internal.DeltaCDFErrors
-import io.delta.standalone.internal.actions.{SingleAction => DeltaSingleAction}
 
 // scalastyle:off maxLineLength
 class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
@@ -490,20 +495,33 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table1/metadata"), expectedTableVersion = Some(2))
-    val Array(protocol, metadata) = response.split("\n")
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
-    val expectedMetadata = Metadata(
-      id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
-      format = Format(),
-      schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
-      partitionColumns = Nil).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+    Seq(true, false).foreach { queryDeltaLog =>
+      val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/table1/metadata?queryDeltaLog=${queryDeltaLog}"), expectedTableVersion = Some(2))
+      val Array(protocol, metadata) = response.split("\n")
+      if (queryDeltaLog) {
+        val expectedProtocol = DeltaSharingProtocol(minReaderVersion = 1).wrap
+        assert(expectedProtocol == JsonUtils.fromJson[DeltaSharingSingleAction](protocol))
+        val expectedMetadata = DeltaSharingMetadata(
+          id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
+          format = Format(),
+          schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
+          partitionColumns = Seq.empty,
+          createdTime = Some(1619591469476L)).wrap
+        assert(expectedMetadata == JsonUtils.fromJson[DeltaSharingSingleAction](metadata))
+      } else {
+        val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+        assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+        val expectedMetadata = Metadata(
+          id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
+          format = Format(),
+          schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
+          partitionColumns = Nil).wrap
+        assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      }
+    }
   }
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/query") {
-    // linzhou
     Seq(true, false).foreach { queryDeltaLog =>
       val p =
         s"""
@@ -519,15 +537,37 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val protocol = lines(0)
       val metadata = lines(1)
       if (queryDeltaLog) {
-        val responseProtocol = JsonUtils.fromJson[DeltaSingleAction](protocol)
-        Console.println(s"----[linzhou]----p:${responseProtocol}")
-        val responseMetadata = JsonUtils.fromJson[DeltaSingleAction](metadata)
-        Console.println(s"----[linzhou]----m:${responseMetadata}")
-        val files = lines.drop(2)
-        val actualFiles = files.map(f => JsonUtils.fromJson[DeltaSingleAction](f))
-        actualFiles.foreach{ f =>
-          Console.println(s"----[linzhou]----f:${f}")
-        }
+        val expectedProtocol = DeltaSharingProtocol(minReaderVersion = 1).wrap
+        assert(expectedProtocol == JsonUtils.fromJson[DeltaSharingSingleAction](protocol))
+        val expectedMetadata = DeltaSharingMetadata(
+          id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
+          format = Format(),
+          schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
+          partitionColumns = Seq.empty,
+          createdTime = Some(1619591469476L)).wrap
+        assert(expectedMetadata == JsonUtils.fromJson[DeltaSharingSingleAction](metadata))
+        val actualFiles = lines.drop(2).map(f => JsonUtils.fromJson[DeltaSharingSingleAction](f).add)
+        val expectedFiles = Seq(
+          DeltaSharingAddFile(
+            path = actualFiles(0).path,
+            partitionValues = Map.empty,
+            size = 781,
+            modificationTime = 1619591543000L,
+            dataChange = false,
+            stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
+          ),
+          DeltaSharingAddFile(
+            path = actualFiles(1).path,
+            partitionValues = Map.empty,
+            size = 781,
+            modificationTime = 1619591525000L,
+            dataChange = false,
+            stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
+          )
+        )
+        assert(expectedFiles == actualFiles.toList)
+        verifyPreSignedUrl(actualFiles(0).path, 781)
+        verifyPreSignedUrl(actualFiles(1).path, 781)
       } else {
         val expectedProtocol = Protocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
@@ -1020,93 +1060,117 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("streaming_table_with_optimize - startingVersion success") {
-    val p =
-      s"""
-         |{
-         | "startingVersion": 0
-         |}
-         |""".stripMargin
-    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(0))
-    val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
-    val expectedMetadata = Metadata(
-      id = "4929d09e-b085-4d22-a95e-7416fb2f78ab",
-      format = Format(),
-      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
-      configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil,
-      version = 0).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-    val files = lines.drop(2)
-    assert(files.size == 7)
-    // version 1: INSERT
-    // version 2: INSERT
-    // version 3: INSERT
-    // version 4: OPTIMIZE
-    // version 5: REMOVE
-    // version 6: REMOVE
-    verifyAddFile(
-      files(0),
-      size = 1030,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-      partitionValues = Map.empty,
-      version = 1,
-      timestamp = 1664325366000L
-    )
-    verifyAddFile(
-      files(1),
-      size = 1030,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-      partitionValues = Map.empty,
-      version = 2,
-      timestamp = 1664325372000L
-    )
-    verifyAddFile(
-      files(2),
-      size = 1030,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-      partitionValues = Map.empty,
-      version = 3,
-      timestamp = 1664325375000L
-    )
-    verifyRemove(
-      files(3),
-      size = 1075,
-      partitionValues = Map.empty,
-      version = 5,
-      timestamp = 1664325546000L
-    )
-    verifyAddFile(
-      files(4),
-      size = 1283,
-      stats =
-        """{"numRecords":2,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0,"_change_type":2}}""",
-      partitionValues = Map.empty,
-      version = 5,
-      timestamp = 1664325546000L
-    )
-    verifyRemove(
-      files(5),
-      size = 1283,
-      partitionValues = Map.empty,
-      version = 6,
-      timestamp = 1664325549000L
-    )
-    verifyAddFile(
-      files(6),
-      size = 1247,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0,"_change_type":1}}""",
-      partitionValues = Map.empty,
-      version = 6,
-      timestamp = 1664325549000L
-    )
+    Seq(true, false).foreach { queryDeltaLog =>
+      val p =
+        s"""
+           |{
+           | "startingVersion": 0,
+           | "queryDeltaLog": $queryDeltaLog
+           |}
+           |""".stripMargin
+      val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(0))
+      val lines = response.split("\n")
+      val protocol = lines(0)
+      val metadata = lines(1)
+      if (queryDeltaLog) {
+        val expectedProtocol = DeltaSharingProtocol(minReaderVersion = 1).wrap
+        assert(expectedProtocol == JsonUtils.fromJson[DeltaSharingSingleAction](protocol))
+        val expectedMetadata = DeltaSharingMetadata(
+          id = "4929d09e-b085-4d22-a95e-7416fb2f78ab",
+          format = Format(),
+          schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+          configuration = Map("delta.enableChangeDataFeed" -> "true"),
+          partitionColumns = Seq.empty,
+          createdTime = Some(1664325322573L),
+          version = 0).wrap
+        assert(expectedMetadata == JsonUtils.fromJson[DeltaSharingSingleAction](metadata))
+      } else {
+        val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+        assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+        val expectedMetadata = Metadata(
+          id = "4929d09e-b085-4d22-a95e-7416fb2f78ab",
+          format = Format(),
+          schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+          configuration = Map("enableChangeDataFeed" -> "true"),
+          partitionColumns = Nil,
+          version = 0).wrap
+        assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      }
+      val files = lines.drop(2)
+      assert(files.size == 7)
+      // version 1: INSERT
+      // version 2: INSERT
+      // version 3: INSERT
+      // version 4: OPTIMIZE
+      // version 5: REMOVE
+      // version 6: REMOVE
+      verifyAddFile(
+        files(0),
+        size = 1030,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        partitionValues = Map.empty,
+        version = 1,
+        timestamp = 1664325366000L,
+        queryDeltaLog
+      )
+      verifyAddFile(
+        files(1),
+        size = 1030,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        partitionValues = Map.empty,
+        version = 2,
+        timestamp = 1664325372000L,
+        queryDeltaLog
+      )
+      verifyAddFile(
+        files(2),
+        size = 1030,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        partitionValues = Map.empty,
+        version = 3,
+        timestamp = 1664325375000L,
+        queryDeltaLog
+      )
+      verifyRemove(
+        files(3),
+        size = 1075,
+        partitionValues = Map.empty,
+        version = 5,
+        timestamp = 1664325546000L,
+        queryDeltaLog
+      )
+      verifyAddFile(
+        files(4),
+        size = 1283,
+        stats =
+          """{"numRecords":2,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0,"_change_type":2}}""",
+        partitionValues = Map.empty,
+        version = 5,
+        timestamp = 1664325546000L,
+        queryDeltaLog
+      )
+      verifyRemove(
+        files(5),
+        size = 1283,
+        partitionValues = Map.empty,
+        version = 6,
+        timestamp = 1664325549000L,
+        queryDeltaLog
+      )
+      verifyAddFile(
+        files(6),
+        size = 1247,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0,"_change_type":1}}""",
+        partitionValues = Map.empty,
+        version = 6,
+        timestamp = 1664325549000L,
+        queryDeltaLog
+      )
+    }
   }
 
   integrationTest("streaming_table_metadata_protocol - startingVersion 0 success") {
@@ -1269,63 +1333,84 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_cdf_enabled_changes - query table changes") {
-    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, Some(0))
-    val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
-    val expectedMetadata = Metadata(
-      id = "16736144-3306-4577-807a-d3f899b77670",
-      format = Format(),
-      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
-      configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil,
-      version = 5).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-    val files = lines.drop(2)
-    assert(files.size == 5)
-    verifyAddCDCFile(
-      files(0),
-      size = 1301,
-      partitionValues = Map.empty,
-      version = 2,
-      timestamp = 1651272655000L
-    )
-    verifyAddCDCFile(
-      files(1),
-      size = 1416,
-      partitionValues = Map.empty,
-      version = 3,
-      timestamp = 1651272660000L
-    )
-    verifyAddFile(
-      files(2),
-      size = 1030,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-      partitionValues = Map.empty,
-      version = 1,
-      timestamp = 1651272635000L
-    )
-    verifyAddFile(
-      files(3),
-      size = 1030,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-      partitionValues = Map.empty,
-      version = 1,
-      timestamp = 1651272635000L
-    )
-    verifyAddFile(
-      files(4),
-      size = 1030,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-      partitionValues = Map.empty,
-      version = 1,
-      timestamp = 1651272635000L
-    )
+    Seq(true, false).foreach { queryDeltaLog =>
+      val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3&queryDeltaLog=$queryDeltaLog"), Some("GET"), None, Some(0))
+      val lines = response.split("\n")
+      val protocol = lines(0)
+      val metadata = lines(1)
+      if (queryDeltaLog) {
+        val expectedProtocol = DeltaSharingProtocol(minReaderVersion = 1).wrap
+        assert(expectedProtocol == JsonUtils.fromJson[DeltaSharingSingleAction](protocol))
+        val expectedMetadata = DeltaSharingMetadata(
+          id = "16736144-3306-4577-807a-d3f899b77670",
+          format = Format(),
+          schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+          configuration = Map("delta.enableChangeDataFeed" -> "true"),
+          partitionColumns = Seq.empty,
+          createdTime = Some(1651272615011L),
+          version = 5).wrap
+          assert(expectedMetadata == JsonUtils.fromJson[DeltaSharingSingleAction](metadata))
+      } else {
+        val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+        assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+        val expectedMetadata = Metadata(
+          id = "16736144-3306-4577-807a-d3f899b77670",
+          format = Format(),
+          schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+          configuration = Map("enableChangeDataFeed" -> "true"),
+          partitionColumns = Nil,
+          version = 5).wrap
+        assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      }
+      val files = lines.drop(2)
+      assert(files.size == 5)
+      verifyAddCDCFile(
+        files(0),
+        size = 1301,
+        partitionValues = Map.empty,
+        version = 2,
+        timestamp = 1651272655000L,
+        queryDeltaLog
+      )
+      verifyAddCDCFile(
+        files(1),
+        size = 1416,
+        partitionValues = Map.empty,
+        version = 3,
+        timestamp = 1651272660000L,
+        queryDeltaLog
+      )
+      verifyAddFile(
+        files(2),
+        size = 1030,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        partitionValues = Map.empty,
+        version = 1,
+        timestamp = 1651272635000L,
+        queryDeltaLog
+      )
+      verifyAddFile(
+        files(3),
+        size = 1030,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        partitionValues = Map.empty,
+        version = 1,
+        timestamp = 1651272635000L,
+        queryDeltaLog
+      )
+      verifyAddFile(
+        files(4),
+        size = 1030,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        partitionValues = Map.empty,
+        version = 1,
+        timestamp = 1651272635000L,
+        queryDeltaLog
+      )
+    }
   }
 
 
@@ -1354,60 +1439,68 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_with_partition - query table changes") {
-    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3"), Some("GET"), None, Some(1))
-    val lines = response.split("\n")
-    val files = lines.drop(2)
-    assert(files.size == 6)
-    // In version 2, birthday is updated from 2020-01-01 to 2020-02-02 for one row, which result in
-    // 2 cdc files below.
-    verifyAddCDCFile(
-      files(0),
-      size = 1125,
-      partitionValues = Map("birthday" -> "2020-01-01"),
-      version = 2,
-      timestamp = 1651614986000L
-    )
-    verifyAddCDCFile(
-      files(1),
-      size = 1132,
-      partitionValues = Map("birthday" -> "2020-02-02"),
-      version = 2,
-      timestamp = 1651614986000L
-    )
-    verifyAddFile(
-      files(2),
-      size = 791,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"1","age":1},"maxValues":{"name":"1","age":1},"nullCount":{"name":0,"age":0}}""",
-      partitionValues = Map("birthday" -> "2020-01-01"),
-      version = 1,
-      timestamp = 1651614980000L
-    )
-    verifyAddFile(
-      files(3),
-      size = 791,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"2","age":2},"maxValues":{"name":"2","age":2},"nullCount":{"name":0,"age":0}}""",
-      partitionValues = Map("birthday" -> "2020-01-01"),
-      version = 1,
-      timestamp = 1651614980000L
-    )
-    verifyAddFile(
-      files(4),
-      size = 791,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"3","age":3},"maxValues":{"name":"3","age":3},"nullCount":{"name":0,"age":0}}""",
-      partitionValues = Map("birthday" -> "2020-03-03"),
-      version = 1,
-      timestamp = 1651614980000L
-    )
-    verifyRemove(
-      files(5),
-      size = 791,
-      partitionValues = Map("birthday" -> "2020-03-03"),
-      version = 3,
-      timestamp = 1651614994000L
-    )
+    Seq(true, false).foreach { queryDeltaLog =>
+      val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3&queryDeltaLog=$queryDeltaLog"), Some("GET"), None, Some(1))
+      val lines = response.split("\n")
+      val files = lines.drop(2)
+      assert(files.size == 6)
+      // In version 2, birthday is updated from 2020-01-01 to 2020-02-02 for one row, which result in
+      // 2 cdc files below.
+      verifyAddCDCFile(
+        files(0),
+        size = 1125,
+        partitionValues = Map("birthday" -> "2020-01-01"),
+        version = 2,
+        timestamp = 1651614986000L,
+        queryDeltaLog
+      )
+      verifyAddCDCFile(
+        files(1),
+        size = 1132,
+        partitionValues = Map("birthday" -> "2020-02-02"),
+        version = 2,
+        timestamp = 1651614986000L,
+        queryDeltaLog
+      )
+      verifyAddFile(
+        files(2),
+        size = 791,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"1","age":1},"maxValues":{"name":"1","age":1},"nullCount":{"name":0,"age":0}}""",
+        partitionValues = Map("birthday" -> "2020-01-01"),
+        version = 1,
+        timestamp = 1651614980000L,
+        queryDeltaLog
+      )
+      verifyAddFile(
+        files(3),
+        size = 791,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"2","age":2},"maxValues":{"name":"2","age":2},"nullCount":{"name":0,"age":0}}""",
+        partitionValues = Map("birthday" -> "2020-01-01"),
+        version = 1,
+        timestamp = 1651614980000L,
+        queryDeltaLog
+      )
+      verifyAddFile(
+        files(4),
+        size = 791,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"3","age":3},"maxValues":{"name":"3","age":3},"nullCount":{"name":0,"age":0}}""",
+        partitionValues = Map("birthday" -> "2020-03-03"),
+        version = 1,
+        timestamp = 1651614980000L,
+        queryDeltaLog
+      )
+      verifyRemove(
+        files(5),
+        size = 791,
+        partitionValues = Map("birthday" -> "2020-03-03"),
+        version = 3,
+        timestamp = 1651614994000L,
+        queryDeltaLog
+      )
+    }
   }
 
   integrationTest("streaming_notnull_to_null - additional metadata returned") {
@@ -1466,15 +1559,26 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       stats: String,
       partitionValues: Map[String, String],
       version: Long,
-      timestamp: Long): Unit = {
+      timestamp: Long,
+      queryDeltaLog: Boolean = false): Unit = {
     assert(actionStr.startsWith("{\"add\":{"))
-    val addFile = JsonUtils.fromJson[SingleAction](actionStr).add
-    assert(addFile.size == size)
-    assert(addFile.stats == stats)
-    assert(addFile.partitionValues == partitionValues)
-    assert(addFile.version == version)
-    assert(addFile.timestamp == timestamp)
-    verifyPreSignedUrl(addFile.url, size.toInt)
+    if (queryDeltaLog) {
+      val addFile = JsonUtils.fromJson[DeltaSharingSingleAction](actionStr).add
+      assert(addFile.size == size)
+      assert(addFile.stats == stats)
+      assert(addFile.partitionValues == partitionValues)
+      assert(addFile.version == version)
+      assert(addFile.timestamp == timestamp)
+      verifyPreSignedUrl(addFile.path, size.toInt)
+    } else {
+      val addFile = JsonUtils.fromJson[SingleAction](actionStr).add
+      assert(addFile.size == size)
+      assert(addFile.stats == stats)
+      assert(addFile.partitionValues == partitionValues)
+      assert(addFile.version == version)
+      assert(addFile.timestamp == timestamp)
+      verifyPreSignedUrl(addFile.url, size.toInt)
+    }
   }
 
   private def verifyAddCDCFile(
@@ -1482,14 +1586,25 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       size: Long,
       partitionValues: Map[String, String],
       version: Long,
-      timestamp: Long): Unit = {
-    assert(actionStr.startsWith("{\"cdf\":{"))
-    val addCDCFile = JsonUtils.fromJson[SingleAction](actionStr).cdf
-    assert(addCDCFile.size == size)
-    assert(addCDCFile.partitionValues == partitionValues)
-    assert(addCDCFile.version == version)
-    assert(addCDCFile.timestamp == timestamp)
-    verifyPreSignedUrl(addCDCFile.url, size.toInt)
+      timestamp: Long,
+      queryDeltaLog: Boolean = false): Unit = {
+    if (queryDeltaLog) {
+      assert(actionStr.startsWith("{\"cdc\":{"))
+      val addCDCFile = JsonUtils.fromJson[DeltaSharingSingleAction](actionStr).cdc
+      assert(addCDCFile.size == size)
+      assert(addCDCFile.partitionValues == partitionValues)
+      assert(addCDCFile.version == version)
+      assert(addCDCFile.timestamp == timestamp)
+      verifyPreSignedUrl(addCDCFile.path, size.toInt)
+    } else {
+      assert(actionStr.startsWith("{\"cdf\":{"))
+      val addCDCFile = JsonUtils.fromJson[SingleAction](actionStr).cdf
+      assert(addCDCFile.size == size)
+      assert(addCDCFile.partitionValues == partitionValues)
+      assert(addCDCFile.version == version)
+      assert(addCDCFile.timestamp == timestamp)
+      verifyPreSignedUrl(addCDCFile.url, size.toInt)
+    }
   }
 
   private def verifyRemove(
@@ -1497,14 +1612,24 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       size: Long,
       partitionValues: Map[String, String],
       version: Long,
-      timestamp: Long): Unit = {
+      timestamp: Long,
+      queryDeltaLog: Boolean = false): Unit = {
     assert(actionStr.startsWith("{\"remove\":{"))
-    val removeFile = JsonUtils.fromJson[SingleAction](actionStr).remove
-    assert(removeFile.size == size)
-    assert(removeFile.partitionValues == partitionValues)
-    assert(removeFile.version == version)
-    assert(removeFile.timestamp == timestamp)
-    verifyPreSignedUrl(removeFile.url, size.toInt)
+    if (queryDeltaLog) {
+      val removeFile = JsonUtils.fromJson[DeltaSharingSingleAction](actionStr).remove
+      assert(removeFile.size == Some(size))
+      assert(removeFile.partitionValues == partitionValues)
+      assert(removeFile.version == version)
+      assert(removeFile.timestamp == timestamp)
+      verifyPreSignedUrl(removeFile.path, size.toInt)
+    } else {
+      val removeFile = JsonUtils.fromJson[SingleAction](actionStr).remove
+      assert(removeFile.size == size)
+      assert(removeFile.partitionValues == partitionValues)
+      assert(removeFile.version == version)
+      assert(removeFile.timestamp == timestamp)
+      verifyPreSignedUrl(removeFile.url, size.toInt)
+    }
   }
 
   integrationTest("table_data_loss_with_checkpoint - /shares/{share}/schemas/{schema}/tables/{table}/query") {

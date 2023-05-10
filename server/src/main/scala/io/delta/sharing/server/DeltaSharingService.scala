@@ -272,7 +272,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   def getMetadata(
       @Param("share") share: String,
       @Param("schema") schema: String,
-      @Param("table") table: String): HttpResponse = processRequest {
+      @Param("table") table: String,
+      @Param("queryDeltaLog") @Nullable queryDeltaLog: String): HttpResponse = processRequest {
     import scala.collection.JavaConverters._
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
@@ -283,7 +284,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       version = None,
       timestamp = None,
       startingVersion = None,
-      queryDeltaLog = false)
+      queryDeltaLog = Try(queryDeltaLog.toBoolean).getOrElse(false))
     streamingOutput(Some(v), actions)
   }
 
@@ -352,7 +353,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("endingVersion") @Nullable endingVersion: String,
       @Param("startingTimestamp") @Nullable startingTimestamp: String,
       @Param("endingTimestamp") @Nullable endingTimestamp: String,
-      @Param("includeHistoricalMetadata") @Nullable includeHistoricalMetadata: String
+      @Param("includeHistoricalMetadata") @Nullable includeHistoricalMetadata: String,
+      @Param("queryDeltaLog") @Nullable queryDeltaLog: String
   ): HttpResponse = processRequest {
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
@@ -368,7 +370,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Option(startingTimestamp),
         Option(endingTimestamp)
       ),
-      includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false)
+      includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false),
+      queryDeltaLog = Try(queryDeltaLog.toBoolean).getOrElse(false)
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")

@@ -40,6 +40,7 @@ import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scala.collection.mutable.ListBuffer
 
 import io.delta.sharing.server.{
+  dsmodel,
   model,
   AbfsFileSigner,
   CausedBy,
@@ -182,7 +183,7 @@ class DeltaSharedTable(
 
   private def getResponseProtocol(p: Protocol, queryDeltaLog: Boolean): Object = {
     if (queryDeltaLog) {
-      p.wrap
+      dsmodel.DeltaSharingProtocol(p.minReaderVersion).wrap
     } else {
       model.Protocol(p.minReaderVersion).wrap
     }
@@ -194,7 +195,21 @@ class DeltaSharedTable(
       queryDeltaLog: Boolean
   ): Object = {
     if (queryDeltaLog) {
-      m.wrap
+      dsmodel.DeltaSharingMetadata(
+        id = m.id,
+        name = m.name,
+        description = m.description,
+        format = model.Format(),
+        schemaString = cleanUpTableSchema(m.schemaString),
+        partitionColumns = m.partitionColumns,
+        configuration = m.configuration,
+        version = if (startingVersion.isDefined) {
+          startingVersion.get
+        } else {
+          null
+        },
+        createdTime = m.createdTime
+      ).wrap
     } else {
       model.Metadata(
         id = m.id,
@@ -218,15 +233,95 @@ class DeltaSharedTable(
       signedUrl: String,
       version: java.lang.Long,
       timestamp: java.lang.Long,
-      queryDeltaLog: Boolean): Object = {
+      queryDeltaLog: Boolean,
+      returnAddFileForCDF: Boolean = false): Object = {
     if (queryDeltaLog) {
-      addFile.copy(path = signedUrl).wrap
-    } else {
-      model.AddFile(url = signedUrl,
+      dsmodel.DeltaSharingAddFile(
+        path = signedUrl,
+        partitionValues = addFile.partitionValues,
+        size = addFile.size,
+        modificationTime = addFile.modificationTime,
+        dataChange = addFile.dataChange,
+        stats = addFile.stats,
+        version = version,
+        timestamp = timestamp,
+        tags = addFile.tags
+      ).wrap
+    } else if (returnAddFileForCDF) {
+      model.AddFileForCDF(
+        url = signedUrl,
         id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
         partitionValues = addFile.partitionValues,
         size = addFile.size,
         stats = addFile.stats,
+        version = version,
+        timestamp = timestamp
+      ).wrap
+    } else {
+      model.AddFile(
+        url = signedUrl,
+        id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+        partitionValues = addFile.partitionValues,
+        size = addFile.size,
+        stats = addFile.stats,
+        version = version,
+        timestamp = timestamp
+      ).wrap
+    }
+  }
+
+  private def getResponseRemoveFile(
+    removeFile: RemoveFile,
+    signedUrl: String,
+    version: java.lang.Long,
+    timestamp: java.lang.Long,
+    queryDeltaLog: Boolean): Object = {
+    if (queryDeltaLog) {
+      dsmodel.DeltaSharingRemoveFile(
+        path = signedUrl,
+        deletionTimestamp = removeFile.deletionTimestamp,
+        dataChange = removeFile.dataChange,
+        extendedFileMetadata = removeFile.extendedFileMetadata,
+        partitionValues = removeFile.partitionValues,
+        size = removeFile.size,
+        version = version,
+        timestamp = timestamp,
+        tags = removeFile.tags
+      ).wrap
+    } else {
+      model.RemoveFile(
+        url = signedUrl,
+        id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
+        partitionValues = removeFile.partitionValues,
+        size = removeFile.size.get,
+        version = version,
+        timestamp = timestamp
+      ).wrap
+    }
+  }
+
+  private def getResponseAddCDCFile(
+    addCDCFile: AddCDCFile,
+    signedUrl: String,
+    version: java.lang.Long,
+    timestamp: java.lang.Long,
+    queryDeltaLog: Boolean
+  ): Object = {
+    if (queryDeltaLog) {
+      dsmodel.DeltaSharingAddCDCFile(
+        path = signedUrl,
+        partitionValues = addCDCFile.partitionValues,
+        size = addCDCFile.size,
+        version = version,
+        timestamp = timestamp,
+        tags = addCDCFile.tags
+      ).wrap
+    } else {
+      model.AddCDCFile(
+        url = signedUrl,
+        id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
+        partitionValues = addCDCFile.partitionValues,
+        size = addCDCFile.size,
         version = version,
         timestamp = timestamp
       ).wrap
@@ -266,20 +361,6 @@ class DeltaSharedTable(
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
-    val modelMetadata = model.Metadata(
-      id = snapshot.metadataScala.id,
-      name = snapshot.metadataScala.name,
-      description = snapshot.metadataScala.description,
-      format = model.Format(),
-      schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
-      configuration = getMetadataConfiguration(snapshot.metadataScala.configuration),
-      partitionColumns = snapshot.metadataScala.partitionColumns,
-      version = if (startingVersion.isDefined) {
-        startingVersion.get
-      } else {
-        null
-      }
-    )
 
     val isVersionQuery = !Seq(version, timestamp).filter(_.isDefined).isEmpty
     val actions = Seq(
@@ -289,7 +370,7 @@ class DeltaSharedTable(
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
-        queryDataChangeSinceStartVersion(startingVersion.get)
+        queryDataChangeSinceStartVersion(startingVersion.get, queryDeltaLog)
       } else if (includeFiles) {
         val ts = if (isVersionQuery) {
           val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
@@ -306,16 +387,16 @@ class DeltaSharedTable(
 
         var selectedFiles = state.activeFiles.toSeq
         var filteredFiles =
-          if (evaluateJsonPredicateHints && modelMetadata.partitionColumns.nonEmpty) {
+          if (evaluateJsonPredicateHints && snapshot.metadataScala.partitionColumns.nonEmpty) {
             JsonPredicateFilterUtils.evaluatePredicate(jsonPredicateHints, selectedFiles)
           } else {
             selectedFiles
           }
         filteredFiles =
-          if (evaluatePredicateHints && modelMetadata.partitionColumns.nonEmpty) {
+          if (evaluatePredicateHints && snapshot.metadataScala.partitionColumns.nonEmpty) {
             PartitionFilterUtils.evaluatePredicate(
-              modelMetadata.schemaString,
-              modelMetadata.partitionColumns,
+              snapshot.metadataScala.schemaString,
+              snapshot.metadataScala.partitionColumns,
               predicateHints,
               filteredFiles
             )
@@ -329,7 +410,7 @@ class DeltaSharedTable(
             addFile,
             signedUrl,
             if (isVersionQuery) { snapshot.version } else null,
-            if (isVersionQuery) { ts.get} else null,
+            if (isVersionQuery) { ts.get } else null,
             queryDeltaLog
           )
         }
@@ -341,7 +422,9 @@ class DeltaSharedTable(
     snapshot.version -> actions
   }
 
-  private def queryDataChangeSinceStartVersion(startingVersion: Long): Seq[model.SingleAction] = {
+  private def queryDataChangeSinceStartVersion(
+      startingVersion: Long,
+      queryDeltaLog: Boolean): Seq[Object] = {
     val latestVersion = tableVersion
     if (startingVersion > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
@@ -354,48 +437,44 @@ class DeltaSharedTable(
       conf
     )
 
-    val actions = ListBuffer[model.SingleAction]()
+    val actions = ListBuffer[Object]()
     deltaLog.getChanges(startingVersion, true).asScala.toSeq.foreach{versionLog =>
       val v = versionLog.getVersion
       val versionActions = versionLog.getActions.asScala.map(x => ConversionUtils.convertActionJ(x))
       val ts = timestampsByVersion.get(v).orNull
       versionActions.foreach {
         case a: AddFile if a.dataChange =>
-          val modelAddFile = model.AddFileForCDF(
-            url = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path)),
-            id = Hashing.md5().hashString(a.path, UTF_8).toString,
-            partitionValues = a.partitionValues,
-            size = a.size,
-            stats = a.stats,
-            version = v,
-            timestamp = ts.getTime
+          actions.append(
+            getResponseAddFile(
+              a,
+              fileSigner.sign(absolutePath(deltaLog.dataPath, a.path)),
+              v,
+              ts.getTime,
+              queryDeltaLog,
+              true
+            )
           )
-          actions.append(modelAddFile.wrap)
         case r: RemoveFile if r.dataChange =>
-          val modelRemoveFile = model.RemoveFile(
-            url = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path)),
-            id = Hashing.md5().hashString(r.path, UTF_8).toString,
-            partitionValues = r.partitionValues,
-            size = r.size.get,
-            version = v,
-            timestamp = ts.getTime
+          actions.append(
+            getResponseRemoveFile(
+              r,
+              fileSigner.sign(absolutePath(deltaLog.dataPath, r.path)),
+              v,
+              ts.getTime,
+              queryDeltaLog
+            )
           )
-          actions.append(modelRemoveFile.wrap)
         case p: Protocol =>
           assertProtocolRead(p)
         case m: Metadata =>
           if (v > startingVersion) {
-            val modelMetadata = model.Metadata(
-              id = m.id,
-              name = m.name,
-              description = m.description,
-              format = model.Format(),
-              schemaString = cleanUpTableSchema(m.schemaString),
-              configuration = getMetadataConfiguration(m.configuration),
-              partitionColumns = m.partitionColumns,
-              version = v
+            actions.append(
+              getResponseMetadata(
+                m,
+                Some(v),
+                queryDeltaLog
+              )
             )
-            actions.append(modelMetadata.wrap)
           }
         case _ => ()
       }
@@ -405,9 +484,10 @@ class DeltaSharedTable(
 
   def queryCDF(
       cdfOptions: Map[String, String],
-      includeHistoricalMetadata: Boolean = false
-  ): (Long, Seq[model.SingleAction]) = withClassLoader {
-    val actions = ListBuffer[model.SingleAction]()
+      includeHistoricalMetadata: Boolean = false,
+      queryDeltaLog: Boolean = false
+  ): (Long, Seq[Object]) = withClassLoader {
+    val actions = ListBuffer[Object]()
 
     // First: validate cdf options are greater than startVersion
     val cdcReader = new DeltaSharingCDCReader(deltaLog, conf)
@@ -421,19 +501,15 @@ class DeltaSharedTable(
     } else {
       deltaLog.snapshot
     }
-    val modelProtocol = model.Protocol(snapshot.protocolScala.minReaderVersion)
-    val modelMetadata = model.Metadata(
-      id = snapshot.metadataScala.id,
-      name = snapshot.metadataScala.name,
-      description = snapshot.metadataScala.description,
-      format = model.Format(),
-      schemaString = cleanUpTableSchema(snapshot.metadataScala.schemaString),
-      configuration = getMetadataConfiguration(snapshot.metadataScala.configuration),
-      partitionColumns = snapshot.metadataScala.partitionColumns,
-      version = snapshot.version
+    // linzhou
+    actions.append(getResponseProtocol(snapshot.protocolScala, queryDeltaLog))
+    actions.append(
+      getResponseMetadata(
+        snapshot.metadataScala,
+        Some(snapshot.version),
+        queryDeltaLog
+      )
     )
-    actions.append(modelProtocol.wrap)
-    actions.append(modelMetadata.wrap)
 
     // Third: get files
     val (changeFiles, addFiles, removeFiles, metadatas) = cdcReader.queryCDF(
@@ -442,17 +518,13 @@ class DeltaSharedTable(
     metadatas.foreach { cdcDataSpec =>
       cdcDataSpec.actions.foreach { action =>
         val metadata = action.asInstanceOf[Metadata]
-        val modelMetadata = model.Metadata(
-          id = metadata.id,
-          name = metadata.name,
-          description = metadata.description,
-          format = model.Format(),
-          schemaString = cleanUpTableSchema(metadata.schemaString),
-          configuration = getMetadataConfiguration(metadata.configuration),
-          partitionColumns = metadata.partitionColumns,
-          version = cdcDataSpec.version
+        actions.append(
+          getResponseMetadata(
+            metadata,
+            Some(cdcDataSpec.version),
+            queryDeltaLog
+          )
         )
-        actions.append(modelMetadata.wrap)
       }
     }
     changeFiles.foreach { cdcDataSpec =>
@@ -460,15 +532,15 @@ class DeltaSharedTable(
         val addCDCFile = action.asInstanceOf[AddCDCFile]
         val cloudPath = absolutePath(deltaLog.dataPath, addCDCFile.path)
         val signedUrl = fileSigner.sign(cloudPath)
-        val modelCDCFile = model.AddCDCFile(
-          url = signedUrl,
-          id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
-          partitionValues = addCDCFile.partitionValues,
-          size = addCDCFile.size,
-          version = cdcDataSpec.version,
-          timestamp = cdcDataSpec.timestamp.getTime
+        actions.append(
+          getResponseAddCDCFile(
+            addCDCFile,
+            signedUrl,
+            cdcDataSpec.version,
+            cdcDataSpec.timestamp.getTime,
+            queryDeltaLog
+          )
         )
-        actions.append(modelCDCFile.wrap)
       }
     }
     addFiles.foreach { cdcDataSpec =>
@@ -476,16 +548,16 @@ class DeltaSharedTable(
         val addFile = action.asInstanceOf[AddFile]
         val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
         val signedUrl = fileSigner.sign(cloudPath)
-        val modelAddFile = model.AddFileForCDF(
-          url = signedUrl,
-          id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
-          partitionValues = addFile.partitionValues,
-          size = addFile.size,
-          stats = addFile.stats,
-          version = cdcDataSpec.version,
-          timestamp = cdcDataSpec.timestamp.getTime
+        actions.append(
+          getResponseAddFile(
+            addFile,
+            signedUrl,
+            cdcDataSpec.version,
+            cdcDataSpec.timestamp.getTime,
+            queryDeltaLog,
+            returnAddFileForCDF = true
+          )
         )
-        actions.append(modelAddFile.wrap)
       }
     }
     removeFiles.foreach { cdcDataSpec =>
@@ -493,15 +565,15 @@ class DeltaSharedTable(
         val removeFile = action.asInstanceOf[RemoveFile]
         val cloudPath = absolutePath(deltaLog.dataPath, removeFile.path)
         val signedUrl = fileSigner.sign(cloudPath)
-        val modelRemoveFile = model.RemoveFile(
-          url = signedUrl,
-          id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
-          partitionValues = removeFile.partitionValues,
-          size = removeFile.size.get,
-          version = cdcDataSpec.version,
-          timestamp = cdcDataSpec.timestamp.getTime
+        actions.append(
+          getResponseRemoveFile(
+            removeFile,
+            signedUrl,
+            cdcDataSpec.version,
+            cdcDataSpec.timestamp.getTime,
+            queryDeltaLog
+          )
         )
-        actions.append(modelRemoveFile.wrap)
       }
     }
     start -> actions.toSeq
