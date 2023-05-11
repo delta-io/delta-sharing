@@ -45,9 +45,9 @@ class CachedTable(
     val refresher: () => Map[String, String])
 
 class CachedTableManager(
-    preSignedUrlExpirationMs: Long,
+    val preSignedUrlExpirationMs: Long,
     refreshCheckIntervalMs: Long,
-    refreshThresholdMs: Long,
+    val refreshThresholdMs: Long,
     expireAfterAccessMs: Long) extends Logging {
 
   private val cache = new java.util.concurrent.ConcurrentHashMap[String, CachedTable]()
@@ -140,13 +140,27 @@ class CachedTableManager(
       idToUrl: Map[String, String],
       refs: Seq[WeakReference[AnyRef]],
       profileProvider: DeltaSharingProfileProvider,
-      refresher: () => Map[String, String]): Unit = {
+      refresher: () => Map[String, String],
+      lastQueryTableTimestamp: Long = System.currentTimeMillis()): Unit = {
     val customTablePath = profileProvider.getCustomTablePath(tablePath)
     val customRefresher = profileProvider.getCustomRefresher(refresher)
 
     val cachedTable = new CachedTable(
-      preSignedUrlExpirationMs + System.currentTimeMillis(),
-      idToUrl,
+      if (preSignedUrlExpirationMs + lastQueryTableTimestamp - System.currentTimeMillis() <
+        refreshThresholdMs) {
+        // If there is a refresh, start counting from now.
+        preSignedUrlExpirationMs + System.currentTimeMillis()
+      } else {
+        // Otherwise, start counting from lastQueryTableTimestamp.
+        preSignedUrlExpirationMs + lastQueryTableTimestamp
+      },
+      idToUrl = if (preSignedUrlExpirationMs + lastQueryTableTimestamp - System.currentTimeMillis()
+        < refreshThresholdMs) {
+        // force a refresh upon register
+        customRefresher()
+      } else {
+        idToUrl
+      },
       refs,
       System.currentTimeMillis(),
       customRefresher

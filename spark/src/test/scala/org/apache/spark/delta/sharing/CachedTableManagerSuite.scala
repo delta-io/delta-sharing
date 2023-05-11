@@ -81,6 +81,22 @@ class CachedTableManagerSuite extends SparkFunSuite {
         intercept[IllegalStateException](manager.getPreSignedUrl(
           provider.getCustomTablePath("test-table-path3"), "id1"))
       }
+
+      manager.register(
+        "test-table-path4",
+        Map("id1" -> "url1", "id2" -> "url2"),
+        Seq(new WeakReference(ref)),
+        provider,
+        () => {
+          Map("id1" -> "url3", "id2" -> "url4")
+        },
+        -1
+      )
+      // We should get new urls immediately because it's refreshed upon register
+      assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path4"),
+        "id1")._1 == "url3")
+      assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path4"),
+        "id2")._1 == "url4")
     } finally {
       manager.stop()
     }
