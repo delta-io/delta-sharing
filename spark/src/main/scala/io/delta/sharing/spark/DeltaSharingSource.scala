@@ -312,10 +312,22 @@ case class DeltaSharingSource(
       fromIndex: Long,
       currentLatestVersion: Long): Unit = {
     val tableFiles = deltaLog.client.getCDFFiles(
-      deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
+      deltaLog.table,
+      Map(
+        DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
+        DeltaSharingOptions.CDF_END_VERSION -> lastQueriedTableVersion.toString
+      ),
+      true
+    )
     latestRefreshFunc = () => {
       val d = deltaLog.client.getCDFFiles(
-        deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
+        deltaLog.table,
+        Map(
+          DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
+          DeltaSharingOptions.CDF_END_VERSION -> lastQueriedTableVersion.toString
+        ),
+        true
+      )
       DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
     }
 
