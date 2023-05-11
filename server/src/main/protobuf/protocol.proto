@@ -58,7 +58,7 @@ message QueryTableRequest {
     optional int64 version = 3;
     // The table version corresponding to the timestamp being queried.
     optional string timestamp = 4;
-    // Query all data change files since startingVersion, inclusive
+    // Query all data change files since startingVersion, inclusive.
     optional int64 startingVersion = 5;
     // Query all data change files until endingVersion, inclusive. Only used when startingVersion
     // is set, otherwise will be ignored.
