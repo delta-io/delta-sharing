@@ -187,7 +187,9 @@ class DeltaSharedTable(
       limitHint: Option[Long],
       version: Option[Long],
       timestamp: Option[String],
-      startingVersion: Option[Long]): (Long, Seq[model.SingleAction]) = withClassLoader {
+      startingVersion: Option[Long],
+      endingVersion: Option[Long]
+  ): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
@@ -233,7 +235,7 @@ class DeltaSharedTable(
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
-        queryDataChangeSinceStartVersion(startingVersion.get)
+        queryDataChangeSinceStartVersion(startingVersion.get, endingVersion)
       } else if (includeFiles) {
         val ts = if (isVersionQuery) {
           val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
@@ -287,8 +289,11 @@ class DeltaSharedTable(
     snapshot.version -> actions
   }
 
-  private def queryDataChangeSinceStartVersion(startingVersion: Long): Seq[model.SingleAction] = {
-    val latestVersion = tableVersion
+  private def queryDataChangeSinceStartVersion(
+      startingVersion: Long,
+      endingVersion: Option[Long]
+  ): Seq[model.SingleAction] = {
+    val latestVersion = tableVersion.min(endingVersion.getOrElse(tableVersion))
     if (startingVersion > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
     }
@@ -301,7 +306,8 @@ class DeltaSharedTable(
     )
 
     val actions = ListBuffer[model.SingleAction]()
-    deltaLog.getChanges(startingVersion, true).asScala.toSeq.foreach{versionLog =>
+    deltaLog.getChanges(startingVersion, true).asScala.toSeq
+      .takeWhile(_.getVersion <= latestVersion).foreach{ versionLog =>
       val v = versionLog.getVersion
       val versionActions = versionLog.getActions.asScala.map(x => ConversionUtils.convertActionJ(x))
       val ts = timestampsByVersion.get(v).orNull

@@ -282,7 +282,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       limitHint = None,
       version = None,
       timestamp = None,
-      startingVersion = None)
+      startingVersion = None,
+      endingVersion = None
+    )
     streamingOutput(Some(v), actions)
   }
 
@@ -323,7 +325,10 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       }
       if (request.endingVersion.isDefined &&
         request.startingVersion.exists(_ > request.endingVersion.get)) {
-
+        throw new DeltaSharingIllegalArgumentException(
+          s"startingVersion(${request.startingVersion.get}) must smaller than or equal to " +
+            s"endingVersion(${request.endingVersion.get})."
+        )
       }
     }
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
