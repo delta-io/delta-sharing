@@ -326,7 +326,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       if (request.endingVersion.isDefined &&
         request.startingVersion.exists(_ > request.endingVersion.get)) {
         throw new DeltaSharingIllegalArgumentException(
-          s"startingVersion(${request.startingVersion.get}) must smaller than or equal to " +
+          s"startingVersion(${request.startingVersion.get}) must be smaller than or equal to " +
             s"endingVersion(${request.endingVersion.get})."
         )
       }

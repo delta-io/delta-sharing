@@ -520,7 +520,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           Some(1)
         )
       }.getMessage
-      assert(errorMessage.contains("startingVersion(2) must smaller than or equal to " +
+      assert(errorMessage.contains("startingVersion(2) must be smaller than or equal to " +
         "endingVersion(1)"))
     } finally {
       client.close()

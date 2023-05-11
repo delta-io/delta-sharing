@@ -926,7 +926,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         {"startingVersion": 3, "endingVersion": 2}
       """),
       expectedErrorCode = 400,
-      expectedErrorMessage = "startingVersion(3) must smaller than or equal to endingVersion(2)"
+      expectedErrorMessage = "startingVersion(3) must be smaller than or equal to endingVersion(2)"
     )
 
     // timestamp before the earliest version
