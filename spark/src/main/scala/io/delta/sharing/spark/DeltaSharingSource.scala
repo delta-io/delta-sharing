@@ -321,8 +321,7 @@ case class DeltaSharingSource(
         deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
       DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
     }
-
-
+    
     (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
       val schemaToCheck = DeltaTableUtils.addCdcSchema(DeltaTableUtils.toSchema(m.schemaString))
       if (!SchemaUtils.isReadCompatible(schemaToCheck, schema)) {
