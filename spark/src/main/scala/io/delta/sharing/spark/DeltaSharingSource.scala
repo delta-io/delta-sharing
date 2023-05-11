@@ -486,10 +486,17 @@ case class DeltaSharingSource(
       s"startIndex:$startIndex, endOffset:$endOffset")
     if (CachedTableManager.INSTANCE.preSignedUrlExpirationMs + lastQueryTableTimestamp -
       System.currentTimeMillis() < CachedTableManager.INSTANCE.refreshThresholdMs) {
-      logInfo(s"----[linzhou]----forcing refresh: ")
+      val formattedTime = new java.text.SimpleDateFormat("yyyy-MM-DD").format(
+        lastQueryTableTimestamp)
+
       // force a refresh if needed.
       lastQueryTableTimestamp = System.currentTimeMillis()
       val newIdToUrl = latestRefreshFunc()
+
+      logInfo(s"----[linzhou]----forcing refresh, lastQueryTableTimestamp: $formattedTime, " +
+        s"sortedFetchedFiles.size:${sortedFetchedFiles.size}," +
+        s"newIdToUrl.size:${newIdToUrl.size}," +
+        s"lastQueriedTableVersion:${lastQueriedTableVersion}")
       sortedFetchedFiles = sortedFetchedFiles.map { indexedFile =>
         IndexedFile(
           version = indexedFile.version,
@@ -527,6 +534,11 @@ case class DeltaSharingSource(
           isLast = indexedFile.isLast
         )
       }
+
+      val formattedTime2 = new java.text.SimpleDateFormat("yyyy-MM-DD").format(
+        lastQueryTableTimestamp)
+      logInfo(s"----[linzhou]----done refresh, lastQueryTableTimestamp: $formattedTime2, " +
+        s"sortedFetchedFiles.size:${sortedFetchedFiles.size}.")
     }
 
     val fileActions = sortedFetchedFiles.takeWhile {
@@ -761,6 +773,7 @@ case class DeltaSharingSource(
   }
 
   override def latestOffset(startOffset: streaming.Offset, limit: ReadLimit): streaming.Offset = {
+    logInfo(s"----[linzhou]----latestOffset, startOffset: $startOffset, limit:$limit")
     val limits = AdmissionLimits(limit)
 
     val currentOffset = if (previousOffset == null) {
@@ -778,6 +791,8 @@ case class DeltaSharingSource(
   }
 
   override def getBatch(startOffsetOption: Option[Offset], end: Offset): DataFrame = {
+    logInfo(s"----[linzhou]----getBatch, startOffsetOption: $startOffsetOption," +
+      s" end:$end")
     val endOffset = DeltaSharingSourceOffset(tableId, end)
 
     val (startVersion, startIndex, isStartingVersion, startSourceVersion) = if (
