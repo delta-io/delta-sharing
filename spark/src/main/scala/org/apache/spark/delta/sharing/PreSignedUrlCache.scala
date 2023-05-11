@@ -45,9 +45,9 @@ class CachedTable(
     val refresher: () => Map[String, String])
 
 class CachedTableManager(
-    preSignedUrlExpirationMs: Long,
+    val preSignedUrlExpirationMs: Long,
     refreshCheckIntervalMs: Long,
-    refreshThresholdMs: Long,
+    val refreshThresholdMs: Long,
     expireAfterAccessMs: Long) extends Logging {
 
   private val cache = new java.util.concurrent.ConcurrentHashMap[String, CachedTable]()

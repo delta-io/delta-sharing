@@ -232,6 +232,7 @@ case class DeltaSharingSource(
       fromIndex: Long,
       isStartingVersion: Boolean,
       currentLatestVersion: Long): Unit = {
+    lastQueryTableTimestamp = System.currentTimeMillis()
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
@@ -245,7 +246,6 @@ case class DeltaSharingSource(
           f.id -> f.url
         }.toMap
       }
-      lastQueryTableTimestamp = System.currentTimeMillis()
 
       val numFiles = tableFiles.files.size
       tableFiles.files.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
@@ -276,7 +276,6 @@ case class DeltaSharingSource(
           a.id -> a.url
         }.toMap
       }
-      lastQueryTableTimestamp = System.currentTimeMillis()
       val allAddFiles = validateCommitAndFilterAddFiles(tableFiles).groupBy(a => a.version)
       for (v <- fromVersion to currentLatestVersion) {
 
@@ -310,6 +309,7 @@ case class DeltaSharingSource(
       fromVersion: Long,
       fromIndex: Long,
       currentLatestVersion: Long): Unit = {
+    lastQueryTableTimestamp = System.currentTimeMillis()
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
     latestRefreshFunc = () => {
@@ -317,7 +317,7 @@ case class DeltaSharingSource(
         deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
       DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
     }
-    lastQueryTableTimestamp = System.currentTimeMillis()
+
 
     (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
       val schemaToCheck = DeltaTableUtils.addCdcSchema(DeltaTableUtils.toSchema(m.schemaString))
@@ -462,6 +462,50 @@ case class DeltaSharingSource(
       isStartingVersion: Boolean,
       endOffset: DeltaSharingSourceOffset): DataFrame = {
     maybeGetFileChanges(startVersion, startIndex, isStartingVersion)
+
+    if (CachedTableManager.INSTANCE.preSignedUrlExpirationMs + lastQueryTableTimestamp -
+      System.currentTimeMillis() < CachedTableManager.INSTANCE.refreshThresholdMs) {
+      // force a refresh if needed.
+      lastQueryTableTimestamp = System.currentTimeMillis()
+      val newIdToUrl = latestRefreshFunc()
+      sortedFetchedFiles = sortedFetchedFiles.map { indexedFile =>
+        IndexedFile(
+          version = indexedFile.version,
+          index = indexedFile.index,
+          add = if (indexedFile.add == null) {
+            null
+          } else {
+            val newUrl = newIdToUrl.getOrElse(
+              indexedFile.add.id,
+              throw new IllegalStateException(s"cannot find url for id ${indexedFile.add.id} " +
+                s"when refreshing table ${deltaLog.path}")
+            )
+            indexedFile.add.copy(url = newUrl)
+          },
+          remove = if (indexedFile.remove == null) {
+            null
+          } else {
+            val newUrl = newIdToUrl.getOrElse(
+              indexedFile.remove.id,
+              throw new IllegalStateException(s"cannot find url for id ${indexedFile.remove.id} " +
+                s"when refreshing table ${deltaLog.path}")
+            )
+            indexedFile.remove.copy(url = newUrl)
+          },
+          cdc = if (indexedFile.cdc == null) {
+            null
+          } else {
+            val newUrl = newIdToUrl.getOrElse(
+              indexedFile.cdc.id,
+              throw new IllegalStateException(s"cannot find url for id ${indexedFile.cdc.id} " +
+                s"when refreshing table ${deltaLog.path}")
+            )
+            indexedFile.cdc.copy(url = newUrl)
+          },
+          isLast = indexedFile.isLast
+        )
+      }
+    }
 
     val fileActions = sortedFetchedFiles.takeWhile {
       case IndexedFile(version, index, _, _, _, _) =>
