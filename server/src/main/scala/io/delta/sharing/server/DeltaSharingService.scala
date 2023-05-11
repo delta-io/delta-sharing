@@ -321,6 +321,10 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           s"You can only query table data since version ${tableConfig.startVersion}."
         )
       }
+      if (request.endingVersion.isDefined &&
+        request.startingVersion.exists(_ > request.endingVersion.get)) {
+
+      }
     }
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
@@ -329,7 +333,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.limitHint,
       request.version,
       request.timestamp,
-      request.startingVersion)
+      request.startingVersion,
+      request.endingVersion
+    )
     if (version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(
         s"You can only query table data since version ${tableConfig.startVersion}."
