@@ -149,6 +149,10 @@ case class DeltaSharingSource(
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
   // runs for a long time.
   private var latestRefreshFunc = () => { Map.empty[String, String] }
+  // The latest timestamp in millisecond, records the time of the last rpc sent to the server to
+  // fetch the pre-signed urls.
+  // This is used to track whether the pre-signed urls stored in sortedFetchedFiles are going to
+  // expire and need a refresh.
   private var lastQueryTableTimestamp: Long = -1
 
   // Check the latest table version from the delta sharing server through the client.getTableVersion
