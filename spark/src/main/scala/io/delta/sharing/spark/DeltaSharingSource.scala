@@ -486,7 +486,7 @@ case class DeltaSharingSource(
       s"startIndex:$startIndex, endOffset:$endOffset")
     if (CachedTableManager.INSTANCE.preSignedUrlExpirationMs + lastQueryTableTimestamp -
       System.currentTimeMillis() < CachedTableManager.INSTANCE.refreshThresholdMs) {
-      val formattedTime = new java.text.SimpleDateFormat("yyyy-MM-DD").format(
+      val formattedTime = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(
         lastQueryTableTimestamp)
 
       // force a refresh if needed.
@@ -535,7 +535,7 @@ case class DeltaSharingSource(
         )
       }
 
-      val formattedTime2 = new java.text.SimpleDateFormat("yyyy-MM-DD").format(
+      val formattedTime2 = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(
         lastQueryTableTimestamp)
       logInfo(s"----[linzhou]----done refresh, lastQueryTableTimestamp: $formattedTime2, " +
         s"sortedFetchedFiles.size:${sortedFetchedFiles.size}.")
