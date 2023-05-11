@@ -319,10 +319,22 @@ case class DeltaSharingSource(
       currentLatestVersion: Long): Unit = {
     lastQueryTableTimestamp = System.currentTimeMillis()
     val tableFiles = deltaLog.client.getCDFFiles(
-      deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
+      deltaLog.table,
+      Map(
+        DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
+        DeltaSharingOptions.CDF_END_VERSION -> lastQueriedTableVersion.toString
+      ),
+      true
+    )
     latestRefreshFunc = () => {
       val d = deltaLog.client.getCDFFiles(
-        deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
+        deltaLog.table,
+        Map(
+          DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
+          DeltaSharingOptions.CDF_END_VERSION -> lastQueriedTableVersion.toString
+        ),
+        true
+      )
       DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
     }
 
@@ -470,8 +482,11 @@ case class DeltaSharingSource(
       endOffset: DeltaSharingSourceOffset): DataFrame = {
     maybeGetFileChanges(startVersion, startIndex, isStartingVersion)
 
+    logInfo(s"----[linzhou]----createDataFrameFromOffset: startVersion:$startVersion, " +
+      s"startIndex:$startIndex, endOffset:$endOffset")
     if (CachedTableManager.INSTANCE.preSignedUrlExpirationMs + lastQueryTableTimestamp -
       System.currentTimeMillis() < CachedTableManager.INSTANCE.refreshThresholdMs) {
+      logInfo(s"----[linzhou]----forcing refresh: ")
       // force a refresh if needed.
       lastQueryTableTimestamp = System.currentTimeMillis()
       val newIdToUrl = latestRefreshFunc()

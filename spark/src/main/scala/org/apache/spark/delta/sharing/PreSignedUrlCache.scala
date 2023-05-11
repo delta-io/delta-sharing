@@ -223,22 +223,22 @@ object CachedTableManager {
   private lazy val preSignedUrlExpirationMs = Option(SparkEnv.get)
     .flatMap(_.conf.getOption("spark.delta.sharing.preSignedUrl.expirationMs"))
     .map(_.toLong)
-    .getOrElse(TimeUnit.HOURS.toMillis(1))
+    .getOrElse(TimeUnit.MINUTES.toMillis(2))
 
   private lazy val refreshCheckIntervalMs = Option(SparkEnv.get)
     .flatMap(_.conf.getOption("spark.delta.sharing.driver.refreshCheckIntervalMs"))
     .map(_.toLong)
-    .getOrElse(TimeUnit.MINUTES.toMillis(1))
+    .getOrElse(TimeUnit.SECONDS.toMillis(30))
 
   private lazy val refreshThresholdMs = Option(SparkEnv.get)
     .flatMap(_.conf.getOption("spark.delta.sharing.driver.refreshThresholdMs"))
     .map(_.toLong)
-    .getOrElse(TimeUnit.MINUTES.toMillis(15))
+    .getOrElse(TimeUnit.MINUTES.toMillis(1))
 
   private lazy val expireAfterAccessMs = Option(SparkEnv.get)
     .flatMap(_.conf.getOption("spark.delta.sharing.driver.accessThresholdToExpireMs"))
     .map(_.toLong)
-    .getOrElse(TimeUnit.HOURS.toMillis(1))
+    .getOrElse(TimeUnit.MINUTES.toMillis(10))
 
   lazy val INSTANCE = new CachedTableManager(
     preSignedUrlExpirationMs = preSignedUrlExpirationMs,
