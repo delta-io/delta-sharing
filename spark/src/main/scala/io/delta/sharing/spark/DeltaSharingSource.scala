@@ -132,6 +132,9 @@ case class DeltaSharingSource(
 
   private val tableId = initSnapshot.metadata.id
 
+  private val refreshPresignedUrls = spark.sessionState.conf.getConfString(
+    "spark.delta.sharing.source.refreshPresignedUrls.enabled", "false").toBoolean
+
   // Records until which offset the delta sharing source has been processing the table files.
   private var previousOffset: DeltaSharingSourceOffset = null
 
@@ -149,6 +152,11 @@ case class DeltaSharingSource(
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
   // runs for a long time.
   private var latestRefreshFunc = () => { Map.empty[String, String] }
+  // The latest timestamp in millisecond, records the time of the last rpc sent to the server to
+  // fetch the pre-signed urls.
+  // This is used to track whether the pre-signed urls stored in sortedFetchedFiles are going to
+  // expire and need a refresh.
+  private var lastQueryTableTimestamp: Long = -1
 
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
@@ -231,6 +239,7 @@ case class DeltaSharingSource(
       fromIndex: Long,
       isStartingVersion: Boolean,
       currentLatestVersion: Long): Unit = {
+    lastQueryTableTimestamp = System.currentTimeMillis()
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
@@ -307,6 +316,7 @@ case class DeltaSharingSource(
       fromVersion: Long,
       fromIndex: Long,
       currentLatestVersion: Long): Unit = {
+    lastQueryTableTimestamp = System.currentTimeMillis()
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
     latestRefreshFunc = () => {
@@ -459,6 +469,51 @@ case class DeltaSharingSource(
       endOffset: DeltaSharingSourceOffset): DataFrame = {
     maybeGetFileChanges(startVersion, startIndex, isStartingVersion)
 
+    if (refreshPresignedUrls &&
+      (CachedTableManager.INSTANCE.preSignedUrlExpirationMs + lastQueryTableTimestamp -
+        System.currentTimeMillis() < CachedTableManager.INSTANCE.refreshThresholdMs)) {
+      // force a refresh if needed.
+      lastQueryTableTimestamp = System.currentTimeMillis()
+      val newIdToUrl = latestRefreshFunc()
+      sortedFetchedFiles = sortedFetchedFiles.map { indexedFile =>
+        IndexedFile(
+          version = indexedFile.version,
+          index = indexedFile.index,
+          add = if (indexedFile.add == null) {
+            null
+          } else {
+            val newUrl = newIdToUrl.getOrElse(
+              indexedFile.add.id,
+              throw new IllegalStateException(s"cannot find url for id ${indexedFile.add.id} " +
+                s"when refreshing table ${deltaLog.path}")
+            )
+            indexedFile.add.copy(url = newUrl)
+          },
+          remove = if (indexedFile.remove == null) {
+            null
+          } else {
+            val newUrl = newIdToUrl.getOrElse(
+              indexedFile.remove.id,
+              throw new IllegalStateException(s"cannot find url for id ${indexedFile.remove.id} " +
+                s"when refreshing table ${deltaLog.path}")
+            )
+            indexedFile.remove.copy(url = newUrl)
+          },
+          cdc = if (indexedFile.cdc == null) {
+            null
+          } else {
+            val newUrl = newIdToUrl.getOrElse(
+              indexedFile.cdc.id,
+              throw new IllegalStateException(s"cannot find url for id ${indexedFile.cdc.id} " +
+                s"when refreshing table ${deltaLog.path}")
+            )
+            indexedFile.cdc.copy(url = newUrl)
+          },
+          isLast = indexedFile.isLast
+        )
+      }
+    }
+
     val fileActions = sortedFetchedFiles.takeWhile {
       case IndexedFile(version, index, _, _, _, _) =>
         version < endOffset.tableVersion ||
@@ -545,7 +600,8 @@ case class DeltaSharingSource(
       removeFiles,
       schema,
       isStreaming = true,
-      latestRefreshFunc
+      latestRefreshFunc,
+      lastQueryTableTimestamp
     )
   }
 
