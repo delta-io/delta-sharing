@@ -1,0 +1,9 @@
+###############################################################################################
+#
+#       Copyright © 2023, 2023, Oracle and/or its affiliates.
+#       Issue ref #269: OAuth 2.0 Credential Format for Delta Sharing Client
+#       Code update:
+#       - protocol.py
+#       - rest_client.py
+#
+###############################################################################################
