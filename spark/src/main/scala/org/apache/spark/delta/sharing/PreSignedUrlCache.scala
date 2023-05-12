@@ -134,6 +134,8 @@ class CachedTableManager(
    *                signed url cache of this table form the cache.
    * @param profileProvider a profile Provider that can provide customized refresher function.
    * @param refresher A function to re-generate pre signed urls for the table.
+   * @param lastQueryTableTimestamp A timestamp to indicate the last time the idToUrl mapping is
+   *                                generated, to refresh the urls in time based on it.
    */
   def register(
       tablePath: String,
