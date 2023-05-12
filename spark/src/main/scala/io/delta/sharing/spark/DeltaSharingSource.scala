@@ -136,7 +136,7 @@ case class DeltaSharingSource(
   private val tableId = initSnapshot.metadata.id
 
   private val refreshPresignedUrls = spark.sessionState.conf.getConfString(
-    "spark.delta.sharing.source.refreshPresignedUrls.enabled", "false").toBoolean
+    "spark.delta.sharing.source.refreshPresignedUrls.enabled", "true").toBoolean
 
   // Records until which offset the delta sharing source has been processing the table files.
   private var previousOffset: DeltaSharingSourceOffset = null
