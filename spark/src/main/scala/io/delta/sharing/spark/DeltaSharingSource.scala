@@ -132,6 +132,9 @@ case class DeltaSharingSource(
 
   private val tableId = initSnapshot.metadata.id
 
+  private val refreshPresignedUrls = spark.sessionState.conf.getConfString(
+    "spark.delta.sharing.source.refreshPresignedUrls.enabled", "false").toBoolean
+
   // Records until which offset the delta sharing source has been processing the table files.
   private var previousOffset: DeltaSharingSourceOffset = null
 
@@ -484,8 +487,9 @@ case class DeltaSharingSource(
 
     logInfo(s"----[linzhou]----createDataFrameFromOffset: startVersion:$startVersion, " +
       s"startIndex:$startIndex, endOffset:$endOffset")
-    if (CachedTableManager.INSTANCE.preSignedUrlExpirationMs + lastQueryTableTimestamp -
-      System.currentTimeMillis() < CachedTableManager.INSTANCE.refreshThresholdMs) {
+    if (refreshPresignedUrls &&
+      (CachedTableManager.INSTANCE.preSignedUrlExpirationMs + lastQueryTableTimestamp -
+      System.currentTimeMillis() < CachedTableManager.INSTANCE.refreshThresholdMs)) {
       val formattedTime = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(
         lastQueryTableTimestamp)
 
