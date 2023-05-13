@@ -37,4 +37,13 @@ private[sharing] object JsonUtils {
   def fromJson[T: Manifest](json: String): T = {
     mapper.readValue[T](json)
   }
+
+  def isValidJson(jsonStr: String): Boolean = {
+    try {
+      this.fromJson[T](json)
+      true
+    } catch {
+      case e: Exception => false
+    }
+  }
 }

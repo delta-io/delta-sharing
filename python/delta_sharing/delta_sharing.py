@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 from itertools import chain
 from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
 from pathlib import Path
@@ -51,6 +52,18 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
     return (profile, share, schema, table)
 
 
+def _is_valid_json(json_str):
+    """Helper function that tests if a sharing profile is a valid JSON string
+    :json_str: a JSON string containing the profile version, sharing server endpoint, bearer token
+    :return: whether or not the json_str is a valid JSON string
+    """
+    try:
+        json.loads(json_str)
+    except ValueError:
+        return False
+    return True
+
+
 def load_as_pandas(
     url: str,
     limit: Optional[int] = None,
@@ -65,10 +78,15 @@ def load_as_pandas(
       Use this optional parameter to explore the shared table without loading the entire table to
       the memory.
     :param version: an optional non-negative int. Load the snapshot of table at version
+    :param timestamp: an optional string. Load the snapshot of table at version corresponding
+      to the timestamp.
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
-    profile = DeltaSharingProfile.read_from_file(profile_json)
+    if _is_valid_json(profile_json):
+        profile = DeltaSharingProfile.from_json(profile_json)
+    else:
+        profile = DeltaSharingProfile.read_from_file(profile_json)
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
@@ -178,7 +196,10 @@ def load_table_changes_as_pandas(
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
-    profile = DeltaSharingProfile.read_from_file(profile_json)
+    if _is_valid_json(profile_json):
+        profile = DeltaSharingProfile.from_json(profile_json)
+    else:
+        profile = DeltaSharingProfile.read_from_file(profile_json)
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
@@ -195,8 +216,11 @@ class SharingClient:
     A Delta Sharing client to query shares/schemas/tables from a Delta Sharing Server.
     """
 
-    def __init__(self, profile: Union[str, BinaryIO, TextIO, Path, DeltaSharingProfile]):
-        if not isinstance(profile, DeltaSharingProfile):
+    def __init__(self, profile: Union[str, bytes, bytearray,
+                                      BinaryIO, TextIO, Path, DeltaSharingProfile]):
+        if _is_valid_json(profile):
+            profile = DeltaSharingProfile.from_json(profile)
+        elif not isinstance(profile, DeltaSharingProfile):
             profile = DeltaSharingProfile.read_from_file(profile)
         self._profile = profile
         self._rest_client = DataSharingRestClient(profile)

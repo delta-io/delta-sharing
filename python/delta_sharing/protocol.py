@@ -40,7 +40,7 @@ class DeltaSharingProfile:
             )
 
     @staticmethod
-    def read_from_file(profile: Union[str, IO, Path]) -> "DeltaSharingProfile":
+    def read_from_file(profile: Union[str, bytes, bytearray, IO, Path]) -> "DeltaSharingProfile":
         if isinstance(profile, str):
             infile = fsspec.open(profile).open()
         elif isinstance(profile, Path):
