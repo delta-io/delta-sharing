@@ -13,14 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import pytest
-
 from datetime import date
 from typing import Optional, Sequence
 
 import pandas as pd
+import pyarrow as pa
+import pytest
+from pyarrow import dataset as pa_ds
+from pyarrow import parquet as pa_pq
 
-from delta_sharing.protocol import AddFile, AddCdcFile, CdfOptions, Metadata, RemoveFile, Table
+from delta_sharing.protocol import (
+    AddFile,
+    AddCdcFile,
+    CdfOptions,
+    Metadata,
+    RemoveFile,
+    Table,
+)
 from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import (
     ListFilesInTableResponse,
@@ -74,7 +83,10 @@ def test_to_pandas_non_partitioned(tmp_path):
                 ),
             ]
             return ListFilesInTableResponse(
-                delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=add_files,
             )
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
@@ -129,7 +141,10 @@ def test_to_pandas_partitioned(tmp_path):
                 ),
             ]
             return ListFilesInTableResponse(
-                delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=add_files,
             )
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
@@ -189,7 +204,10 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
                 ),
             ]
             return ListFilesInTableResponse(
-                delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=add_files,
             )
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
@@ -245,7 +263,10 @@ def test_to_pandas_empty(rest_client: DataSharingRestClient):
             )
             add_files: Sequence[AddFile] = []
             return ListFilesInTableResponse(
-                delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=add_files,
             )
 
     reader = DeltaSharingReader(
@@ -448,3 +469,186 @@ def test_table_changes_empty(tmp_path):
     assert pdf.columns.values[2] == DeltaSharingReader._change_type_col_name()
     assert pdf.columns.values[3] == DeltaSharingReader._commit_version_col_name()
     assert pdf.columns.values[4] == DeltaSharingReader._commit_timestamp_col_name()
+
+
+def test_to_pyarrow_dataset(tmp_path):
+    t1 = pa.table(data={"a": [1, 2, 3], "b": ["a", "b", "c"]})
+    t2 = pa.table(data={"a": [4, 5, 6], "b": ["d", "e", "f"]})
+
+    pa_pq.write_table(table=t1, where=tmp_path / "pdf1.parquet")
+    pa_pq.write_table(table=t2, where=tmp_path / "pdf2.parquet")
+    paths = [str(tmp_path / "pdf1.parquet"), str(tmp_path / "pdf2.parquet")]
+
+    class RestClientMock:
+        def list_files_in_table(
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            limitHint: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[int] = None,
+        ) -> ListFilesInTableResponse:
+            assert table == Table("table_name", "share_name", "schema_name")
+
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
+                    '],"type":"struct"}'
+                )
+            )
+            add_files = [
+                AddFile(
+                    url=str(tmp_path / "pdf1.parquet"),
+                    id="pdf1",
+                    partition_values={},
+                    size=0,
+                    stats="",
+                ),
+                AddFile(
+                    url=str(tmp_path / "pdf2.parquet"),
+                    id="pdf2",
+                    partition_values={},
+                    size=0,
+                    stats="",
+                ),
+            ]
+            return ListFilesInTableResponse(
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=add_files,
+            )
+
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    ds = reader.to_pyarrow_dataset()
+    expected = pa_ds.dataset(paths, format="parquet")
+
+    assert expected.count_rows() == ds.count_rows()
+    assert expected.schema.equals(ds.schema, check_metadata=True)
+
+    ds_paths = [f.path for f in ds.get_fragments()]
+
+    assert len(ds_paths) == len(paths) == 2
+    assert sorted(ds_paths) == sorted(paths)
+
+
+def test_to_pyarrow_dataset_empty(tmp_path):
+    expected_schema = pa.schema([("a", pa.int64()), ("b", pa.string())])
+
+    class RestClientMock:
+        def list_files_in_table(
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            limitHint: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[int] = None,
+        ) -> ListFilesInTableResponse:
+            assert table == Table("table_name", "share_name", "schema_name")
+
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
+                    '],"type":"struct"}'
+                )
+            )
+            add_files: Sequence[AddFile] = []
+
+            return ListFilesInTableResponse(
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=add_files,
+            )
+
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    ds = reader.to_pyarrow_dataset()
+
+    assert expected_schema.equals(ds.schema, check_metadata=True)
+    assert len([f.path for f in ds.get_fragments()]) == 0
+    assert ds.count_rows() == 0
+
+
+def test_to_pyarrow_table_non_partitioned(tmp_path):
+    t1 = pa.table(data={"a": [1, 2, 3], "b": ["a", "b", "c"]})
+    t2 = pa.table(data={"a": [4, 5, 6], "b": ["d", "e", "f"]})
+
+    pa_pq.write_table(table=t1, where=tmp_path / "pdf1.parquet")
+    pa_pq.write_table(table=t2, where=tmp_path / "pdf2.parquet")
+
+    class RestClientMock:
+        def list_files_in_table(
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            limitHint: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[int] = None,
+        ) -> ListFilesInTableResponse:
+            assert table == Table("table_name", "share_name", "schema_name")
+
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
+                    '],"type":"struct"}'
+                )
+            )
+            add_files = [
+                AddFile(
+                    url=str(tmp_path / "pdf1.parquet"),
+                    id="pdf1",
+                    partition_values={},
+                    size=0,
+                    stats="",
+                ),
+                AddFile(
+                    url=str(tmp_path / "pdf2.parquet"),
+                    id="pdf2",
+                    partition_values={},
+                    size=0,
+                    stats="",
+                ),
+            ]
+            return ListFilesInTableResponse(
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=add_files,
+            )
+
+    # Without Limit
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    tbl = reader.to_pyarrow_table()
+    expected = pa.concat_tables([t1, t2])
+
+    assert tbl.schema.equals(expected.schema, check_metadata=True)
+    assert tbl.equals(expected, check_metadata=True)
+
+    # With Limit
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), limit=2
+    )
+    tbl = reader.to_pyarrow_table()
+    expected = pa.concat_tables([t1, t2])[:2]
+
+    assert tbl.num_rows == expected.num_rows == 2
+    assert tbl.schema.equals(expected.schema, check_metadata=True)
+    assert tbl.equals(expected, check_metadata=True)
+
+    # Empty Table only
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), limit=0
+    )
+    tbl = reader.to_pyarrow_table()
+
+    assert tbl.num_rows == 0
+    assert tbl.schema.equals(expected.schema, check_metadata=True)
