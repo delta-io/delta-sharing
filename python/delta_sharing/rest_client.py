@@ -145,7 +145,7 @@ class DataSharingRestClient:
         self._sleeper = lambda sleep_ms: time.sleep(sleep_ms / 1000)
         self.auth_session(profile)
 
-    def auth_session(self, profile) -> requests.Session:
+    def auth_session(self, profile):
         self._session = requests.Session()
         self.auth_broker(profile)
         if urlparse(profile.endpoint).hostname == "localhost":
