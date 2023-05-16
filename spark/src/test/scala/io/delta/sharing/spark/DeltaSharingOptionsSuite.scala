@@ -31,6 +31,7 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
     val options = new DeltaSharingOptions(Map.empty[String, String])
     assert(options.maxFilesPerTrigger.isEmpty)
     assert(options.maxBytesPerTrigger.isEmpty)
+    assert(options.maxVersionsPerRpc.isEmpty)
     assert(!options.ignoreChanges)
     assert(!options.ignoreDeletes)
     assert(!options.readChangeFeed)
@@ -42,6 +43,7 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
     var options = new DeltaSharingOptions(Map(
       "maxFilesPerTrigger" -> "11",
       "maxBytesPerTrigger" -> "12",
+      "maxVersionsPerRpc" -> "15",
       "ignoreChanges" -> "true",
       "ignoreDeletes" -> "true",
       "readChangeFeed" -> "true",
@@ -50,6 +52,7 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
     ))
     assert(options.maxFilesPerTrigger == Some(11))
     assert(options.maxBytesPerTrigger == Some(12))
+    assert(options.maxVersionsPerRpc == Some(15))
     assert(options.ignoreChanges)
     assert(options.ignoreDeletes)
     assert(options.readChangeFeed)
@@ -194,6 +197,12 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
     }.getMessage
     assert(errorMessage.contains("Invalid value '2mg' for option 'maxBytesPerTrigger', must be " +
       "a size configuration such as '10g'"))
+
+    errorMessage = intercept[IllegalArgumentException] {
+      new DeltaSharingOptions(Map("maxVersionsPerRpc" -> "-1"))
+    }.getMessage
+    assert(errorMessage.contains(
+      "Invalid value '-1' for option 'maxVersionsPerRpc', must be a positive integer"))
 
     // only one of options can be set
     errorMessage = intercept[IllegalArgumentException] {
