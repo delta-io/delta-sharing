@@ -216,7 +216,7 @@ case class DeltaSharingSource(
     }
 
     val endingVersionForQuery = currentLatestVersion.min(fromVersion + maxVersionsPerRpc - 1)
-      s"$endingVersionForQuery")
+
     if (isStartingVersion || !options.readChangeFeed) {
       getTableFileChanges(fromVersion, fromIndex, isStartingVersion, endingVersionForQuery)
     } else {
