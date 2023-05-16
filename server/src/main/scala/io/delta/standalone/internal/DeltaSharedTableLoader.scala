@@ -307,7 +307,7 @@ class DeltaSharedTable(
 
     val actions = ListBuffer[model.SingleAction]()
     deltaLog.getChanges(startingVersion, true).asScala.toSeq
-      .takeWhile(_.getVersion <= latestVersion).foreach{ versionLog =>
+      .filter(_.getVersion <= latestVersion).foreach{ versionLog =>
       val v = versionLog.getVersion
       val versionActions = versionLog.getActions.asScala.map(x => ConversionUtils.convertActionJ(x))
       val ts = timestampsByVersion.get(v).orNull
