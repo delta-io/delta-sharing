@@ -1796,6 +1796,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
       val files = lines.drop(2)
       val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+      Console.println(s"----[linzhou]----url:${actualFiles(0).url}")
       assert(actualFiles.size == 1)
       val expectedFiles = Seq(
         AddFile(
