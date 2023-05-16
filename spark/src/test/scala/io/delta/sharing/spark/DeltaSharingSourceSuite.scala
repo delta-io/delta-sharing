@@ -490,7 +490,7 @@ class DeltaSharingSourceSuite extends QueryTest
 
     // maxVersionsPerRpc = 1
     var processedRows = Seq(2, 3, 5)
-    var query = withStreamReaderAtVersion(path=cdfTablePath)
+    var query = withStreamReaderAtVersion(path = cdfTablePath)
       .option("maxVersionsPerRpc", "1")
       .load()
       .writeStream.format("console").start()
@@ -507,7 +507,7 @@ class DeltaSharingSourceSuite extends QueryTest
 
     // maxVersionsPerRpc = 2
     processedRows = Seq(2, 8)
-    query = withStreamReaderAtVersion(path=cdfTablePath)
+    query = withStreamReaderAtVersion(path = cdfTablePath)
       .option("maxVersionsPerRpc", "2")
       .load()
       .writeStream.format("console").start()
@@ -524,7 +524,7 @@ class DeltaSharingSourceSuite extends QueryTest
 
     // maxVersionsPerRpc = 3
     processedRows = Seq(5, 5)
-    query = withStreamReaderAtVersion(path=cdfTablePath)
+    query = withStreamReaderAtVersion(path = cdfTablePath)
       .option("maxVersionsPerRpc", "3")
       .load()
       .writeStream.format("console").start()
@@ -541,7 +541,7 @@ class DeltaSharingSourceSuite extends QueryTest
 
     // maxVersionsPerRpc = 4
     processedRows = Seq(10)
-    query = withStreamReaderAtVersion(path=cdfTablePath)
+    query = withStreamReaderAtVersion(path = cdfTablePath)
       .option("maxVersionsPerRpc", "4")
       .load()
       .writeStream.format("console").start()
