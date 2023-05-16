@@ -275,6 +275,8 @@ case class DeltaSharingSource(
         case _ => ()
       }
     } else {
+      // scalastyle:off println
+      Console.println(s"----[linzhou]----getFiles:$fromVersion")
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)

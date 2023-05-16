@@ -288,6 +288,8 @@ class DeltaSharedTable(
   }
 
   private def queryDataChangeSinceStartVersion(startingVersion: Long): Seq[model.SingleAction] = {
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----queryDataChangeSinceStartVersion")
     val latestVersion = tableVersion
     if (startingVersion > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
@@ -312,7 +314,7 @@ class DeltaSharedTable(
             id = Hashing.md5().hashString(a.path, UTF_8).toString,
             partitionValues = a.partitionValues,
             size = a.size,
-            stats = a.stats,
+            stats = "",
             version = v,
             timestamp = ts.getTime
           )
