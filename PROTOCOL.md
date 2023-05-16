@@ -1935,7 +1935,7 @@ The request body should be a JSON string containing the following optional field
 
 - **startingVersion** (type: Long, optional): an optional version number. If set, will return all data change files since startingVersion, inclusive, including historical metadata if seen in the delta log.
 
-- **endingVersion** (type: Long, optional): an optional version number, only used if startingVersion is set. If set, will return all data change files until endingVersion, inclusive, including historical metadata if seen in the delta log.
+- **endingVersion** (type: Long, optional): an optional version number, only used if startingVersion is set. If set, will return all data change files until endingVersion, inclusive, including historical metadata if seen in the delta log. If this parameter is not supported by server, all data change files until the latest table version will be returned.
 
 When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
