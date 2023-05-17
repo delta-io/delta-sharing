@@ -300,10 +300,6 @@ class DeltaSharedTable(
     if (endingVersion.isDefined && endingVersion.get > latestVersion) {
       throw DeltaCDFErrors.endVersionAfterLatestVersion(endingVersion.get, latestVersion)
     }
-    if (endingVersion.isDefined && endingVersion.get < startingVersion) {
-      throw new IllegalArgumentException(s"startingVersion(${startingVersion.get}) must be " +
-        s"smaller than or equal to endingVersion(${endingVersion.get}).")
-    }
     latestVersion = latestVersion.min(endingVersion.getOrElse(latestVersion))
     val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
       deltaLog.store,

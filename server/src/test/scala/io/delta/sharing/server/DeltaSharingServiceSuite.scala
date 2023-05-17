@@ -928,6 +928,15 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       expectedErrorCode = 400,
       expectedErrorMessage = "startingVersion(3) must be smaller than or equal to endingVersion(2)"
     )
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""
+        {"startingVersion": 2, "endingVersion": 10}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "End version cannot be greater than the latest version"
+    )
 
     // timestamp before the earliest version
     assertHttpError(
