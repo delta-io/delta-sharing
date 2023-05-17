@@ -90,10 +90,9 @@ class CachedTableManager(
           s"${new java.util.Date(cachedTable.expiration)})")
         try {
           val (idToUrl, expiration) = cachedTable.refresher()
-            s"${expiration - System.currentTimeMillis()}")
           val newTable = new CachedTable(
             if (isValidUrlExpirationTime(expiration)) {
-              expiration
+              expiration.min(preSignedUrlExpirationMs + System.currentTimeMillis())
             } else {
               preSignedUrlExpirationMs + System.currentTimeMillis()
             },
