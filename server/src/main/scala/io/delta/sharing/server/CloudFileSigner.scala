@@ -37,10 +37,15 @@ import org.apache.hadoop.fs.azurebfs.services.AuthType
 import org.apache.hadoop.fs.s3a.DefaultS3ClientFactory
 import org.apache.hadoop.util.ReflectionUtils
 
+/**
+ * @param url The signed url.
+ * @param expirationTimestamp The expiration timestamp in millis of the signed url, a minimum
+ *                            between the timeout of the url and of the token.
+ */
+case class PreSignedUrl(url: String, expirationTimestamp: Long)
 
 trait CloudFileSigner {
-  def sign(path: Path): String
-  def getExpirationTimestamp: Long
+  def sign(path: Path): PreSignedUrl
 }
 
 class S3FileSigner(
@@ -51,7 +56,7 @@ class S3FileSigner(
   private val s3Client = ReflectionUtils.newInstance(classOf[DefaultS3ClientFactory], conf)
     .createS3Client(name)
 
-  override def sign(path: Path): String = {
+  override def sign(path: Path): PreSignedUrl = {
     val absPath = path.toUri
     val bucketName = absPath.getHost
     val objectKey = absPath.getPath.stripPrefix("/")
@@ -61,11 +66,10 @@ class S3FileSigner(
     val request = new GeneratePresignedUrlRequest(bucketName, objectKey)
       .withMethod(HttpMethod.GET)
       .withExpiration(expiration)
-    s3Client.generatePresignedUrl(request).toString
-  }
-
-  override def getExpirationTimestamp: Long = {
-    System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds)
+    PreSignedUrl(
+      s3Client.generatePresignedUrl(request).toString,
+      System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds)
+    )
   }
 }
 
@@ -107,7 +111,7 @@ class AzureFileSigner(
     sharedAccessPolicy
   }
 
-  override def sign(path: Path): String = {
+  override def sign(path: Path): PreSignedUrl = {
     val containerRef = blobClient.getContainerReference(container)
     val objectKey = objectKeyExtractor(path)
     assert(objectKey.nonEmpty, s"cannot get object key from $path")
@@ -121,11 +125,10 @@ class AzureFileSigner(
       SharedAccessProtocols.HTTPS_ONLY
     )
     val sasTokenCredentials = new StorageCredentialsSharedAccessSignature(sasToken)
-    sasTokenCredentials.transformUri(blobRef.getUri).toString
-  }
-
-  override def getExpirationTimestamp: Long = {
-    System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds)
+    PreSignedUrl(
+      sasTokenCredentials.transformUri(blobRef.getUri).toString,
+      System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds)
+    )
   }
 }
 
@@ -211,17 +214,16 @@ class GCSFileSigner(
 
   private val storage = StorageOptions.newBuilder.build.getService
 
-  override def sign(path: Path): String = {
+  override def sign(path: Path): PreSignedUrl = {
     val (bucketName, objectName) = GCSFileSigner.getBucketAndObjectNames(path)
     assert(objectName.nonEmpty, s"cannot get object key from $path")
     val blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, objectName)).build
-    storage.signUrl(
+    PreSignedUrl(
+      storage.signUrl(
       blobInfo, preSignedUrlTimeoutSeconds, SECONDS, Storage.SignUrlOption.withV4Signature())
-      .toString
-  }
-
-  override def getExpirationTimestamp: Long = {
-    System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds)
+      .toString,
+      System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds)
+    )
   }
 }
 

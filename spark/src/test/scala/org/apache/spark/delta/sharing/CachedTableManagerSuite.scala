@@ -102,6 +102,43 @@ class CachedTableManagerSuite extends SparkFunSuite {
     }
   }
 
+  test("refresh based on url expiration") {
+    val manager = new CachedTableManager(
+      preSignedUrlExpirationMs = 4000,
+      refreshCheckIntervalMs = 1000,
+      refreshThresholdMs = 1000,
+      expireAfterAccessMs = 60000
+    )
+    try {
+      val ref = new AnyRef
+      val provider = new TestDeltaSharingProfileProvider
+      var refreshTime = 0
+      manager.register(
+        "test-table-path",
+        Map("id1" -> "url1", "id2" -> "url2"),
+        Seq(new WeakReference(ref)),
+        provider,
+        () => {
+          refreshTime += 1
+          (
+            Map("id1" -> ("url" + refreshTime.toString), "id2" -> "url4"),
+            System.currentTimeMillis() + 1900
+          )
+        },
+        System.currentTimeMillis() + 1900
+      )
+      // We should refresh 5 times within 10 seconds based on (System.currentTimeMillis() + 1900).
+      eventually(timeout(10.seconds)) {
+        assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path"),
+          "id1")._1 == "url5")
+        assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path"),
+          "id2")._1 == "url4")
+      }
+    } finally {
+      manager.stop()
+    }
+  }
+
   test("expireAfterAccessMs") {
     val manager = new CachedTableManager(
       preSignedUrlExpirationMs = 10,

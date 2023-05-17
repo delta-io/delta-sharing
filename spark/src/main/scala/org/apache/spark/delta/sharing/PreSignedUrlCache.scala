@@ -67,12 +67,22 @@ class CachedTableManager(
     expiration > (System.currentTimeMillis() + refreshThresholdMs)
   }
 
+  def getFomattedTS(ts: Long): String = {
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----ts:$ts")
+    new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(ts)
+  }
+
   def refresh(): Unit = {
     import scala.collection.JavaConverters._
     val snapshot = cache.entrySet().asScala.toArray
     for (entry <- snapshot) {
       val tablePath = entry.getKey
       val cachedTable = entry.getValue
+      // scalastyle:off println
+      Console.println(s"----[linzhou]----check $tablePath at " +
+        s"${getFomattedTS(System.currentTimeMillis())}:" +
+        s"${cachedTable.expiration - System.currentTimeMillis()}")
       if (cachedTable.refs.forall(_.get == null)) {
         logInfo(s"Removing table $tablePath from the pre signed url cache as there are" +
           " no references pointed to it")
@@ -86,11 +96,17 @@ class CachedTableManager(
           s"${new java.util.Date(cachedTable.expiration)})")
         try {
           val (idToUrl, expiration) = cachedTable.refresher()
-
+          // scalastyle:off println
+          Console.println(s"----[linzhou]------refreshed, timeToExpier:" +
+            s"${expiration - System.currentTimeMillis()}")
           val newTable = new CachedTable(
             if (isValidUrlExpirationTime(expiration)) {
+              Console.println(s"----[linzhou]------valid:" +
+                s"${expiration - System.currentTimeMillis()}")
               expiration
             } else {
+              Console.println(s"----[linzhou]------not-valid:" +
+                s"${expiration - System.currentTimeMillis()}")
               preSignedUrlExpirationMs + System.currentTimeMillis()
             },
             idToUrl,
@@ -144,8 +160,7 @@ class CachedTableManager(
    *                signed url cache of this table form the cache.
    * @param profileProvider a profile Provider that can provide customized refresher function.
    * @param refresher                 A function to re-generate pre signed urls for the table.
-   * @param lastQueryTableTimestamp   A timestamp to indicate the last time the idToUrl mapping is
-   *                                  generated, to refresh the urls in time based on it.
+   * @param expirationTimestamp   A timestamp to indicate the expiration timestamp of the idToUrl
    */
   def register(
       tablePath: String,
@@ -153,20 +168,20 @@ class CachedTableManager(
       refs: Seq[WeakReference[AnyRef]],
       profileProvider: DeltaSharingProfileProvider,
       refresher: () => (Map[String, String], Long),
-      lastQueryTableTimestamp: Long = System.currentTimeMillis()): Unit = {
+      expirationTimestamp: Long = (System.currentTimeMillis() + preSignedUrlExpirationMs)): Unit = {
     val customTablePath = profileProvider.getCustomTablePath(tablePath)
     val customRefresher = profileProvider.getCustomRefresher(refresher)
 
-    val (resolvedIdToUrl, expiration) = if (preSignedUrlExpirationMs + lastQueryTableTimestamp -
-      System.currentTimeMillis() < refreshThresholdMs) {
+    val (resolvedIdToUrl, expiration) = if (expirationTimestamp - System.currentTimeMillis()
+      < refreshThresholdMs) {
       val (refreshedIdToUrl, expiration) = customRefresher()
       if (isValidUrlExpirationTime(expiration)) {
         (refreshedIdToUrl, expiration)
       } else {
-        (refreshedIdToUrl, preSignedUrlExpirationMs + System.currentTimeMillis())
+        (refreshedIdToUrl, System.currentTimeMillis() + preSignedUrlExpirationMs)
       }
     } else {
-      (idToUrl, preSignedUrlExpirationMs + lastQueryTableTimestamp)
+      (idToUrl, expirationTimestamp)
     }
 
     val cachedTable = new CachedTable(

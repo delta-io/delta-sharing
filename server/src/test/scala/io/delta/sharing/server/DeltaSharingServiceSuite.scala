@@ -542,6 +542,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
       )
     )
+    assert(actualFiles.count(_.expirationTimestamp != null) == 1)
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 781)
     verifyPreSignedUrl(actualFiles(1).url, 781)
@@ -634,6 +635,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"maxValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"nullCount":{"eventTime":0}}"""
       )
     )
+    assert(actualFiles.count(_.expirationTimestamp != null) == 1)
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 573)
     verifyPreSignedUrl(actualFiles(1).url, 573)
@@ -754,6 +756,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:35:53.156Z"},"maxValues":{"eventTime":"2021-04-28T23:35:53.156Z"},"nullCount":{"eventTime":0}}"""
       )
     )
+    assert(actualFiles.count(_.expirationTimestamp != null) == 1)
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 778)
     verifyPreSignedUrl(actualFiles(1).url, 778)
@@ -842,6 +845,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         timestamp = 1651272635000L
       )
     )
+    assert(actualFiles.count(_.expirationTimestamp != null) == 1)
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 1030)
     verifyPreSignedUrl(actualFiles(1).url, 1030)
@@ -976,7 +980,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val files = lines.drop(2)
     val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
     assert(actualFiles.size == 3)
-    Console.println(s"----[linzhou]----url:${actualFiles(0).url}")
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
@@ -1009,6 +1012,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         timestamp = 1651272635000L
       )
     )
+    assert(actualFiles.count(_.expirationTimestamp != null) == 1)
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 1030)
     verifyPreSignedUrl(actualFiles(1).url, 1030)
@@ -1038,6 +1042,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
     val files = lines.drop(2)
     assert(files.size == 7)
+    assert(files.count(_.contains("expirationTimestamp")) == 1)
     // version 1: INSERT
     // version 2: INSERT
     // version 3: INSERT
@@ -1281,6 +1286,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
     val files = lines.drop(2)
     assert(files.size == 5)
+    assert(files.count(_.contains("expirationTimestamp")) == 1)
     verifyAddCDCFile(
       files(0),
       size = 1301,
@@ -1354,6 +1360,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val lines = response.split("\n")
     val files = lines.drop(2)
     assert(files.size == 6)
+    assert(files.count(_.contains("expirationTimestamp")) == 1)
     // In version 2, birthday is updated from 2020-01-01 to 2020-02-02 for one row, which result in
     // 2 cdc files below.
     verifyAddCDCFile(
@@ -1471,8 +1478,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(addFile.version == version)
     assert(addFile.timestamp == timestamp)
     verifyPreSignedUrl(addFile.url, size.toInt)
-    val timeToExpiration = addFile.expirationTimestamp - System.currentTimeMillis()
-    assert(timeToExpiration < 60 * 60 * 1000 && timeToExpiration > 50 * 60 * 1000)
+    if (addFile.expirationTimestamp != null) {
+      val timeToExpiration = addFile.expirationTimestamp - System.currentTimeMillis()
+      assert(timeToExpiration < 60 * 60 * 1000 && timeToExpiration > 50 * 60 * 1000)
+    }
   }
 
   private def verifyAddCDCFile(
@@ -1488,8 +1497,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(addCDCFile.version == version)
     assert(addCDCFile.timestamp == timestamp)
     verifyPreSignedUrl(addCDCFile.url, size.toInt)
-    val timeToExpiration = addCDCFile.expirationTimestamp - System.currentTimeMillis()
-    assert(timeToExpiration < 60 * 60 * 1000 && timeToExpiration > 50 * 60 * 1000)
+    if (addCDCFile.expirationTimestamp != null) {
+      val timeToExpiration = addCDCFile.expirationTimestamp - System.currentTimeMillis()
+      assert(timeToExpiration < 60 * 60 * 1000 && timeToExpiration > 50 * 60 * 1000)
+    }
   }
 
   private def verifyRemove(
@@ -1505,8 +1516,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(removeFile.version == version)
     assert(removeFile.timestamp == timestamp)
     verifyPreSignedUrl(removeFile.url, size.toInt)
-    val timeToExpiration = removeFile.expirationTimestamp - System.currentTimeMillis()
-    assert(timeToExpiration < 60 * 60 * 1000 && timeToExpiration > 50 * 60 * 1000)
+    if (removeFile.expirationTimestamp != null) {
+      val timeToExpiration = removeFile.expirationTimestamp - System.currentTimeMillis()
+      assert(timeToExpiration < 60 * 60 * 1000 && timeToExpiration > 50 * 60 * 1000)
+    }
   }
 
   integrationTest("table_data_loss_with_checkpoint - /shares/{share}/schemas/{schema}/tables/{table}/query") {

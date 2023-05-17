@@ -61,7 +61,14 @@ case class RemoteDeltaCDFRelation(
           DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
           DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles)
         )
-      }).rdd
+      },
+      System.currentTimeMillis(),
+      DeltaSharingCDFReader.getMinUrlExpiration(
+        deltaTabelFiles.addFiles,
+        deltaTabelFiles.cdfFiles,
+        deltaTabelFiles.removeFiles
+      )
+    ).rdd
   }
 }
 
@@ -75,7 +82,8 @@ object DeltaSharingCDFReader {
       schema: StructType,
       isStreaming: Boolean,
       refresher: () => (Map[String, String], Long),
-      lastQueryTableTimestamp: Long = System.currentTimeMillis()
+      lastQueryTableTimestamp: Long,
+      minUrlExpirationTimestamp: Long
   ): DataFrame = {
     val dfs = ListBuffer[DataFrame]()
     val refs = ListBuffer[WeakReference[AnyRef]]()
@@ -98,7 +106,11 @@ object DeltaSharingCDFReader {
       refs,
       params.profileProvider,
       refresher,
-      lastQueryTableTimestamp
+      if (minUrlExpirationTimestamp != -1) {
+        minUrlExpirationTimestamp
+      } else {
+        lastQueryTableTimestamp + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
+      }
     )
 
     dfs.reduce((df1, df2) => df1.unionAll(df2))
@@ -146,6 +158,9 @@ object DeltaSharingCDFReader {
           minUrlExpiration.min(r.expirationTimestamp)
         }
       }
+    }
+    if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpiration)) {
+      minUrlExpiration = -1
     }
     minUrlExpiration
   }
