@@ -293,10 +293,18 @@ class DeltaSharedTable(
       startingVersion: Long,
       endingVersion: Option[Long]
   ): Seq[model.SingleAction] = {
-    val latestVersion = tableVersion.min(endingVersion.getOrElse(tableVersion))
+    var latestVersion = tableVersion
     if (startingVersion > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
     }
+    if (endingVersion.isDefined && endingVersion.get > latestVersion) {
+      throw DeltaCDFErrors.endVersionAfterLatestVersion(endingVersion.get, latestVersion)
+    }
+    if (endingVersion.isDefined && endingVersion.get < startingVersion) {
+      throw new IllegalArgumentException(s"startingVersion(${startingVersion.get}) must be " +
+        s"smaller than or equal to endingVersion(${endingVersion.get}).")
+    }
+    latestVersion = latestVersion.min(endingVersion.getOrElse(latestVersion))
     val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
       deltaLog.store,
       deltaLog.logPath,

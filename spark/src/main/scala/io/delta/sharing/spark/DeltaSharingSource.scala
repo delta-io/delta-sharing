@@ -234,7 +234,8 @@ case class DeltaSharingSource(
    * @param isStartingVersion - If true, will load fromVersion as a table snapshot(including files
    *                            from previous versions). If false, will only load files since
    *                            fromVersion.
-   * @param endingVersionForQuery - The ending version used for the query.
+   * @param endingVersionForQuery - The ending version used for the query, always smaller than
+   *                                latestTableVersion.
    *                                This is used to insert an indexedFile for each version in the
    *                                sortedFetchedFiles, in order to ensure the offset move beyond
    *                                this version.
@@ -316,7 +317,8 @@ case class DeltaSharingSource(
    * @param fromVersion - a table version, initially would be the startingVersion or the latest
    *                      table version.
    * @param fromIndex - index of a file within the same version,
-   * @param endingVersionForQuery - The ending version used for the query.
+   * @param endingVersionForQuery - The ending version used for the query, always smaller than
+   *                                latestTableVersion.
    *                                This is used to insert an indexedFile for each version in the
    *                                sortedFetchedFiles, in order to ensure the offset move beyond
    *                                this version.
