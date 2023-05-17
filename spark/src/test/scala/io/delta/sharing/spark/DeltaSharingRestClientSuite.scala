@@ -164,6 +164,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val expectedFiles = Seq(
         AddFile(
           url = tableFiles.files(0).url,
+          expirationTimestamp = tableFiles.files(0).expirationTimestamp,
           id = "9f1a49539c5cffe1ea7f9e055d5c003c",
           partitionValues = Map("date" -> "2021-04-28"),
           size = 573,
@@ -171,6 +172,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFile(
           url = tableFiles.files(1).url,
+          expirationTimestamp = tableFiles.files(1).expirationTimestamp,
           id = "cd2209b32f5ed5305922dd50f5908a75",
           partitionValues = Map("date" -> "2021-04-28"),
           size = 573,
@@ -178,6 +180,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedFiles == tableFiles.files.toList)
+      assert(tableFiles.files(0).expirationTimestamp > System.currentTimeMillis())
     } finally {
       client.close()
     }
@@ -198,6 +201,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val expectedFiles = Seq(
         AddFile(
           url = tableFiles.files(0).url,
+          expirationTimestamp = tableFiles.files(0).expirationTimestamp,
           id = "60d0cf57f3e4367db154aa2c36152a1f",
           partitionValues = Map.empty,
           size = 1030,
@@ -207,6 +211,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFile(
           url = tableFiles.files(1).url,
+          expirationTimestamp = tableFiles.files(1).expirationTimestamp,
           id = "d7ed708546dd70fdff9191b3e3d6448b",
           partitionValues = Map.empty,
           size = 1030,
@@ -216,6 +221,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFile(
           url = tableFiles.files(2).url,
+          expirationTimestamp = tableFiles.files(2).expirationTimestamp,
           id = "a6dc5694a4ebcc9a067b19c348526ad6",
           partitionValues = Map.empty,
           size = 1030,
@@ -225,6 +231,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedFiles == tableFiles.files.toList)
+      assert(tableFiles.files(0).expirationTimestamp > System.currentTimeMillis())
     } finally {
       client.close()
     }
@@ -301,6 +308,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val expectedAddFiles = Seq(
         AddFileForCDF(
           url = tableFiles.addFiles(0).url,
+          expirationTimestamp = tableFiles.addFiles(0).expirationTimestamp,
           id = "60d0cf57f3e4367db154aa2c36152a1f",
           partitionValues = Map.empty,
           size = 1030,
@@ -310,6 +318,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFileForCDF(
           url = tableFiles.addFiles(1).url,
+          expirationTimestamp = tableFiles.addFiles(1).expirationTimestamp,
           id = "a6dc5694a4ebcc9a067b19c348526ad6",
           partitionValues = Map.empty,
           size = 1030,
@@ -319,6 +328,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFileForCDF(
           url = tableFiles.addFiles(2).url,
+          expirationTimestamp = tableFiles.addFiles(2).expirationTimestamp,
           id = "d7ed708546dd70fdff9191b3e3d6448b",
           partitionValues = Map.empty,
           size = 1030,
@@ -328,6 +338,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFileForCDF(
           url = tableFiles.addFiles(3).url,
+          expirationTimestamp = tableFiles.addFiles(3).expirationTimestamp,
           id = "b875623be22c1fa1dfdeb0480fae6117",
           partitionValues = Map.empty,
           size = 1247,
@@ -337,11 +348,13 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedAddFiles == tableFiles.addFiles.toList)
+      assert(tableFiles.addFiles(0).expirationTimestamp > System.currentTimeMillis())
 
       assert(tableFiles.removeFiles.size == 2)
       val expectedRemoveFiles = Seq(
         RemoveFile(
           url = tableFiles.removeFiles(0).url,
+          expirationTimestamp = tableFiles.removeFiles(0).expirationTimestamp,
           id = "d7ed708546dd70fdff9191b3e3d6448b",
           partitionValues = Map.empty,
           size = 1030,
@@ -350,6 +363,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         RemoveFile(
           url = tableFiles.removeFiles(1).url,
+          expirationTimestamp = tableFiles.removeFiles(1).expirationTimestamp,
           id = "a6dc5694a4ebcc9a067b19c348526ad6",
           partitionValues = Map.empty,
           size = 1030,
@@ -358,6 +372,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedRemoveFiles == tableFiles.removeFiles.toList)
+      assert(tableFiles.removeFiles(0).expirationTimestamp > System.currentTimeMillis())
 
       assert(tableFiles.additionalMetadatas.size == 2)
       val v4Metadata = Metadata(
@@ -425,6 +440,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val expectedCdfFiles = Seq(
         AddCDCFile(
           url = tableFiles.cdfFiles(0).url,
+          expirationTimestamp = tableFiles.cdfFiles(0).expirationTimestamp,
           id = "6521ba910108d4b54d27beaa9fc2373f",
           partitionValues = Map.empty,
           size = 1301,
@@ -433,6 +449,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddCDCFile(
           url = tableFiles.cdfFiles(1).url,
+          expirationTimestamp = tableFiles.cdfFiles(1).expirationTimestamp,
           id = "2508998dce55bd726369e53761c4bc3f",
           partitionValues = Map.empty,
           size = 1416,
@@ -441,10 +458,13 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedCdfFiles == tableFiles.cdfFiles.toList)
+      assert(tableFiles.cdfFiles(1).expirationTimestamp > System.currentTimeMillis())
+
       assert(tableFiles.addFiles.size == 3)
       val expectedAddFiles = Seq(
         AddFileForCDF(
           url = tableFiles.addFiles(0).url,
+          expirationTimestamp = tableFiles.addFiles(0).expirationTimestamp,
           id = "60d0cf57f3e4367db154aa2c36152a1f",
           partitionValues = Map.empty,
           size = 1030,
@@ -454,6 +474,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFileForCDF(
           url = tableFiles.addFiles(1).url,
+          expirationTimestamp = tableFiles.addFiles(1).expirationTimestamp,
           id = "a6dc5694a4ebcc9a067b19c348526ad6",
           partitionValues = Map.empty,
           size = 1030,
@@ -463,6 +484,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFileForCDF(
           url = tableFiles.addFiles(2).url,
+          expirationTimestamp = tableFiles.addFiles(2).expirationTimestamp,
           id = "d7ed708546dd70fdff9191b3e3d6448b",
           partitionValues = Map.empty,
           size = 1030,
@@ -472,6 +494,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       )
       assert(expectedAddFiles == tableFiles.addFiles.toList)
+      assert(tableFiles.addFiles(0).expirationTimestamp > System.currentTimeMillis())
     } finally {
       client.close()
     }

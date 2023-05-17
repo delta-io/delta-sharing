@@ -42,7 +42,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Seq(new WeakReference(ref)),
         provider,
         () => {
-          Map("id1" -> "url1", "id2" -> "url2")
+          (Map("id1" -> "url1", "id2" -> "url2"), -1L)
         })
       assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path"),
         "id1")._1 == "url1")
@@ -55,7 +55,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Seq(new WeakReference(ref)),
         provider,
         () => {
-          Map("id1" -> "url3", "id2" -> "url4")
+          (Map("id1" -> "url3", "id2" -> "url4"), -1L)
         })
       // We should get the new urls eventually
       eventually(timeout(10.seconds)) {
@@ -71,7 +71,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Seq(new WeakReference(new AnyRef)),
         provider,
         () => {
-          Map("id1" -> "url3", "id2" -> "url4")
+          (Map("id1" -> "url3", "id2" -> "url4"), -1L)
         })
       // We should remove the cached table eventually
       eventually(timeout(10.seconds)) {
@@ -88,7 +88,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Seq(new WeakReference(ref)),
         provider,
         () => {
-          Map("id1" -> "url3", "id2" -> "url4")
+          (Map("id1" -> "url3", "id2" -> "url4"), -1L)
         },
         -1
       )
@@ -119,7 +119,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Seq(new WeakReference(ref)),
         provider,
         () => {
-          Map("id1" -> "url1", "id2" -> "url2")
+          (Map("id1" -> "url1", "id2" -> "url2"), -1L)
         })
       Thread.sleep(1000)
       // We should remove the cached table when it's not accessed

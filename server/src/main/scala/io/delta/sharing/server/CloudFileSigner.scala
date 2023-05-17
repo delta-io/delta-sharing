@@ -40,6 +40,7 @@ import org.apache.hadoop.util.ReflectionUtils
 
 trait CloudFileSigner {
   def sign(path: Path): String
+  def getExpirationTimestamp: Long
 }
 
 class S3FileSigner(
@@ -61,6 +62,10 @@ class S3FileSigner(
       .withMethod(HttpMethod.GET)
       .withExpiration(expiration)
     s3Client.generatePresignedUrl(request).toString
+  }
+
+  override def getExpirationTimestamp: Long = {
+    System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds)
   }
 }
 
@@ -117,6 +122,10 @@ class AzureFileSigner(
     )
     val sasTokenCredentials = new StorageCredentialsSharedAccessSignature(sasToken)
     sasTokenCredentials.transformUri(blobRef.getUri).toString
+  }
+
+  override def getExpirationTimestamp: Long = {
+    System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds)
   }
 }
 
@@ -209,6 +218,10 @@ class GCSFileSigner(
     storage.signUrl(
       blobInfo, preSignedUrlTimeoutSeconds, SECONDS, Storage.SignUrlOption.withV4Signature())
       .toString
+  }
+
+  override def getExpirationTimestamp: Long = {
+    System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds)
   }
 }
 

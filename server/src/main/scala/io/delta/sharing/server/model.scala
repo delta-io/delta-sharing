@@ -78,6 +78,7 @@ case class AddFile(
     size: Long,
     @JsonRawValue
     stats: String = null,
+    expirationTimestamp: Long,
     timestamp: java.lang.Long = null,
     version: java.lang.Long = null) extends Action {
 
@@ -90,6 +91,7 @@ case class AddFileForCDF(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     partitionValues: Map[String, String],
     size: Long,
+    expirationTimestamp: Long,
     version: Long,
     timestamp: Long,
     @JsonRawValue
@@ -104,6 +106,7 @@ case class AddCDCFile(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     partitionValues: Map[String, String],
     size: Long,
+    expirationTimestamp: Long,
     timestamp: Long,
     version: Long)
     extends Action {
@@ -117,6 +120,7 @@ case class RemoveFile(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     partitionValues: Map[String, String],
     size: Long,
+    expirationTimestamp: Long,
     timestamp: Long,
     version: Long)
     extends Action {

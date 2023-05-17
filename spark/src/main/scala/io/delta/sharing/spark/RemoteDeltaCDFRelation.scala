@@ -57,7 +57,10 @@ case class RemoteDeltaCDFRelation(
       false,
       () => {
         val d = client.getCDFFiles(table, cdfOptions, false)
-        DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
+        (
+          DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
+          DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles)
+        )
       }).rdd
   }
 }
@@ -71,7 +74,7 @@ object DeltaSharingCDFReader {
       removeFiles: Seq[RemoveFile],
       schema: StructType,
       isStreaming: Boolean,
-      refresher: () => Map[String, String],
+      refresher: () => (Map[String, String], Long),
       lastQueryTableTimestamp: Long = System.currentTimeMillis()
   ): DataFrame = {
     val dfs = ListBuffer[DataFrame]()
@@ -109,6 +112,42 @@ object DeltaSharingCDFReader {
     addFiles.map(a => a.id -> a.url).toMap ++
       cdfFiles.map(c => c.id -> c.url).toMap ++
       removeFiles.map(r => r.id -> r.url).toMap
+  }
+
+  def getMinUrlExpiration(
+      addFiles: Seq[AddFileForCDF],
+      cdfFiles: Seq[AddCDCFile],
+      removeFiles: Seq[RemoveFile]
+  ): Long = {
+    var minUrlExpiration: Long = -1L
+    addFiles.foreach { a =>
+      if (a.expirationTimestamp != null) {
+        if (minUrlExpiration == -1L) {
+          minUrlExpiration = a.expirationTimestamp
+        } else {
+          minUrlExpiration.min(a.expirationTimestamp)
+        }
+      }
+    }
+    cdfFiles.foreach { c =>
+      if (c.expirationTimestamp != null) {
+        if (minUrlExpiration == -1L) {
+          minUrlExpiration = c.expirationTimestamp
+        } else {
+          minUrlExpiration.min(c.expirationTimestamp)
+        }
+      }
+    }
+    removeFiles.foreach { r =>
+      if (r.expirationTimestamp != null) {
+        if (minUrlExpiration == -1L) {
+          minUrlExpiration = r.expirationTimestamp
+        } else {
+          minUrlExpiration.min(r.expirationTimestamp)
+        }
+      }
+    }
+    minUrlExpiration
   }
 
   private def quoteIdentifier(part: String): String = s"`${part.replace("`", "``")}`"

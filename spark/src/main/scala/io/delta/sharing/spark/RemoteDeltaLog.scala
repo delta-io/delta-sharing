@@ -295,10 +295,20 @@ class RemoteSnapshot(
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
           () => {
-            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints)
-            .files.map { add =>
+            val files = client.getFiles(
+              table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints).files
+            var minUrlExpiration: Long = -1L
+            val idToUrl = files.map { add =>
+              if (add.expirationTimestamp != null) {
+                if (minUrlExpiration == -1L) {
+                  minUrlExpiration = add.expirationTimestamp
+                } else {
+                  minUrlExpiration.min(add.expirationTimestamp)
+                }
+              }
               add.id -> add.url
             }.toMap
+            (idToUrl, minUrlExpiration)
           }
         )
       checkProtocolNotChange(tableFiles.protocol)

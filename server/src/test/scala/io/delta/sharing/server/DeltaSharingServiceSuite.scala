@@ -527,6 +527,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
         id = "061cb3683a467066995f8cdaabd8667d",
         partitionValues = Map.empty,
         size = 781,
@@ -534,6 +535,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(1).url,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
         id = "e268cbf70dbaa6143e7e9fa3e2d3b00e",
         partitionValues = Map.empty,
         size = 781,
@@ -617,6 +619,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
         id = "9f1a49539c5cffe1ea7f9e055d5c003c",
         partitionValues = Map("date" -> "2021-04-28"),
         size = 573,
@@ -624,6 +627,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(1).url,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
         id = "cd2209b32f5ed5305922dd50f5908a75",
         partitionValues = Map("date" -> "2021-04-28"),
         size = 573,
@@ -727,6 +731,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
         id = "db213271abffec6fd6c7fc2aad9d4b3f",
         partitionValues = Map("date" -> "2021-04-28"),
         size = 778,
@@ -734,6 +739,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(1).url,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
         id = "f1f8be229d8b18eb6d6a34255f2d7089",
         partitionValues = Map("date" -> "2021-04-28"),
         size = 778,
@@ -741,6 +747,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(2).url,
+        expirationTimestamp = actualFiles(2).expirationTimestamp,
         id = "a892a55d770ee70b34ffb2ebf7dc2fd0",
         partitionValues = Map("date" -> "2021-04-28"),
         size = 573,
@@ -806,6 +813,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
         id = "60d0cf57f3e4367db154aa2c36152a1f",
         partitionValues = Map.empty,
         size = 1030,
@@ -815,6 +823,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(1).url,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
         id = "d7ed708546dd70fdff9191b3e3d6448b",
         partitionValues = Map.empty,
         size = 1030,
@@ -824,6 +833,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(2).url,
+        expirationTimestamp = actualFiles(2).expirationTimestamp,
         id = "a6dc5694a4ebcc9a067b19c348526ad6",
         partitionValues = Map.empty,
         size = 1030,
@@ -966,9 +976,11 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val files = lines.drop(2)
     val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
     assert(actualFiles.size == 3)
+    Console.println(s"----[linzhou]----url:${actualFiles(0).url}")
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
         id = "60d0cf57f3e4367db154aa2c36152a1f",
         partitionValues = Map.empty,
         size = 1030,
@@ -978,6 +990,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(1).url,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
         id = "d7ed708546dd70fdff9191b3e3d6448b",
         partitionValues = Map.empty,
         size = 1030,
@@ -987,6 +1000,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(2).url,
+        expirationTimestamp = actualFiles(2).expirationTimestamp,
         id = "a6dc5694a4ebcc9a067b19c348526ad6",
         partitionValues = Map.empty,
         size = 1030,
@@ -1457,6 +1471,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(addFile.version == version)
     assert(addFile.timestamp == timestamp)
     verifyPreSignedUrl(addFile.url, size.toInt)
+    val timeToExpiration = addFile.expirationTimestamp - System.currentTimeMillis()
+    assert(timeToExpiration < 60 * 60 * 1000 && timeToExpiration > 50 * 60 * 1000)
   }
 
   private def verifyAddCDCFile(
@@ -1472,6 +1488,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(addCDCFile.version == version)
     assert(addCDCFile.timestamp == timestamp)
     verifyPreSignedUrl(addCDCFile.url, size.toInt)
+    val timeToExpiration = addCDCFile.expirationTimestamp - System.currentTimeMillis()
+    assert(timeToExpiration < 60 * 60 * 1000 && timeToExpiration > 50 * 60 * 1000)
   }
 
   private def verifyRemove(
@@ -1487,6 +1505,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(removeFile.version == version)
     assert(removeFile.timestamp == timestamp)
     verifyPreSignedUrl(removeFile.url, size.toInt)
+    val timeToExpiration = removeFile.expirationTimestamp - System.currentTimeMillis()
+    assert(timeToExpiration < 60 * 60 * 1000 && timeToExpiration > 50 * 60 * 1000)
   }
 
   integrationTest("table_data_loss_with_checkpoint - /shares/{share}/schemas/{schema}/tables/{table}/query") {
@@ -1796,11 +1816,11 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
       val files = lines.drop(2)
       val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
-      Console.println(s"----[linzhou]----url:${actualFiles(0).url}")
       assert(actualFiles.size == 1)
       val expectedFiles = Seq(
         AddFile(
           url = actualFiles(0).url,
+          expirationTimestamp = actualFiles(0).expirationTimestamp,
           id = "84f5f9e4de01e99837f77bfc2b7215b0",
           partitionValues = Map("c2" -> "foo bar"),
           size = 568,
@@ -1832,6 +1852,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
         id = "84f5f9e4de01e99837f77bfc2b7215b0",
         partitionValues = Map("c2" -> "foo bar"),
         size = 568,

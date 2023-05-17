@@ -151,7 +151,7 @@ case class DeltaSharingSource(
   // The latest function used to fetch presigned urls for the delta sharing table, record it in
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
   // runs for a long time.
-  private var latestRefreshFunc = () => { Map.empty[String, String] }
+  private var latestRefreshFunc = () => { (Map.empty[String, String], -1L) }
   // The latest timestamp in millisecond, records the time of the last rpc sent to the server to
   // fetch the pre-signed urls.
   // This is used to track whether the pre-signed urls stored in sortedFetchedFiles are going to
@@ -247,11 +247,21 @@ case class DeltaSharingSource(
         deltaLog.table, Nil, None, Some(fromVersion), None, None
       )
       latestRefreshFunc = () => {
-        deltaLog.client.getFiles(
+        val files = deltaLog.client.getFiles(
           deltaLog.table, Nil, None, Some(fromVersion), None, None
-        ).files.map { f =>
+        ).files
+        var minUrlExpiration: Long = -1L
+        val idToUrl = files.map { f =>
+          if (f.expirationTimestamp != null) {
+            if (minUrlExpiration == -1L) {
+              minUrlExpiration = f.expirationTimestamp
+            } else {
+              minUrlExpiration.min(f.expirationTimestamp)
+            }
+          }
           f.id -> f.url
         }.toMap
+        (idToUrl, minUrlExpiration)
       }
 
       val numFiles = tableFiles.files.size
@@ -268,7 +278,8 @@ case class DeltaSharingSource(
                 file.size,
                 fromVersion,
                 file.timestamp,
-                file.stats
+                file.stats,
+                file.expirationTimestamp
               ),
               isLast = (index + 1 == numFiles)))
         // For files with index <= fromIndex, skip them, otherwise an exception will be thrown.
@@ -279,9 +290,19 @@ case class DeltaSharingSource(
       // including files from previous versions.
       val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)
       latestRefreshFunc = () => {
-        deltaLog.client.getFiles(deltaLog.table, fromVersion).addFiles.map { a =>
+        val addFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion).addFiles
+        var minUrlExpiration: Long = -1L
+        val idToUrl = addFiles.map { a =>
+          if (a.expirationTimestamp != null) {
+            if (minUrlExpiration == -1L) {
+              minUrlExpiration = a.expirationTimestamp
+            } else {
+              minUrlExpiration.min(a.expirationTimestamp)
+            }
+          }
           a.id -> a.url
         }.toMap
+        (idToUrl, minUrlExpiration)
       }
       val allAddFiles = validateCommitAndFilterAddFiles(tableFiles).groupBy(a => a.version)
       for (v <- fromVersion to currentLatestVersion) {
@@ -322,7 +343,10 @@ case class DeltaSharingSource(
     latestRefreshFunc = () => {
       val d = deltaLog.client.getCDFFiles(
         deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
-      DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
+      (
+        DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
+        DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles)
+      )
     }
 
     (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
@@ -474,7 +498,7 @@ case class DeltaSharingSource(
         System.currentTimeMillis() < CachedTableManager.INSTANCE.refreshThresholdMs)) {
       // force a refresh if needed.
       lastQueryTableTimestamp = System.currentTimeMillis()
-      val newIdToUrl = latestRefreshFunc()
+      val (newIdToUrl, _) = latestRefreshFunc()
       sortedFetchedFiles = sortedFetchedFiles.map { indexedFile =>
         IndexedFile(
           version = indexedFile.version,

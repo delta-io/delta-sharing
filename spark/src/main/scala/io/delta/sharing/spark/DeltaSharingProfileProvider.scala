@@ -47,7 +47,8 @@ trait DeltaSharingProfileProvider {
 
   def getCustomTablePath(tablePath: String): String = tablePath
 
-  def getCustomRefresher(refresher: () => Map[String, String]): () => Map[String, String] = {
+  def getCustomRefresher(refresher: () => (Map[String, String], Long)): () =>
+    (Map[String, String], Long) = {
     refresher
   }
 }

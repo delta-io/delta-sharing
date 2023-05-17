@@ -269,7 +269,9 @@ class DeltaSharedTable(
         filteredFiles.map { addFile =>
           val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
           val signedUrl = fileSigner.sign(cloudPath)
-          val modelAddFile = model.AddFile(url = signedUrl,
+          val modelAddFile = model.AddFile(
+            url = signedUrl,
+            expirationTimestamp = fileSigner.getExpirationTimestamp,
             id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
             partitionValues = addFile.partitionValues,
             size = addFile.size,
@@ -309,6 +311,7 @@ class DeltaSharedTable(
         case a: AddFile if a.dataChange =>
           val modelAddFile = model.AddFileForCDF(
             url = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path)),
+            expirationTimestamp = fileSigner.getExpirationTimestamp,
             id = Hashing.md5().hashString(a.path, UTF_8).toString,
             partitionValues = a.partitionValues,
             size = a.size,
@@ -320,6 +323,7 @@ class DeltaSharedTable(
         case r: RemoveFile if r.dataChange =>
           val modelRemoveFile = model.RemoveFile(
             url = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path)),
+            expirationTimestamp = fileSigner.getExpirationTimestamp,
             id = Hashing.md5().hashString(r.path, UTF_8).toString,
             partitionValues = r.partitionValues,
             size = r.size.get,
@@ -408,6 +412,7 @@ class DeltaSharedTable(
         val signedUrl = fileSigner.sign(cloudPath)
         val modelCDCFile = model.AddCDCFile(
           url = signedUrl,
+          expirationTimestamp = fileSigner.getExpirationTimestamp,
           id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
           partitionValues = addCDCFile.partitionValues,
           size = addCDCFile.size,
@@ -424,6 +429,7 @@ class DeltaSharedTable(
         val signedUrl = fileSigner.sign(cloudPath)
         val modelAddFile = model.AddFileForCDF(
           url = signedUrl,
+          expirationTimestamp = fileSigner.getExpirationTimestamp,
           id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
           partitionValues = addFile.partitionValues,
           size = addFile.size,
@@ -441,6 +447,7 @@ class DeltaSharedTable(
         val signedUrl = fileSigner.sign(cloudPath)
         val modelRemoveFile = model.RemoveFile(
           url = signedUrl,
+          expirationTimestamp = fileSigner.getExpirationTimestamp,
           id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
           partitionValues = removeFile.partitionValues,
           size = removeFile.size.get,
