@@ -60,7 +60,7 @@ def get_table_version(
 
     :param url: a url under the format "<profile>#<share>.<schema>.<table>"
     :param starting_timestamp: a string in the format of YYYY-MM-DDThh:mm:ssZ. Get the version at or
-      after the given timestamp.
+      after the given timestamp. The latest table version will be returned if this is not specified.
     """
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
