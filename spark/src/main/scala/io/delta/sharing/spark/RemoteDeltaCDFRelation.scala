@@ -134,7 +134,8 @@ object DeltaSharingCDFReader {
     var minUrlExpiration: Option[Long] = None
     addFiles.foreach { a =>
       if (a.expirationTimestamp != null) {
-        if (minUrlExpiration.isDefined && minUrlExpiration.get < a.expirationTimestamp) {
+        minUrlExpiration = if (
+          minUrlExpiration.isDefined && minUrlExpiration.get < a.expirationTimestamp) {
           minUrlExpiration
         } else {
           Some(a.expirationTimestamp)
@@ -143,7 +144,8 @@ object DeltaSharingCDFReader {
     }
     cdfFiles.foreach { c =>
       if (c.expirationTimestamp != null) {
-        if (minUrlExpiration.isDefined && minUrlExpiration.get < c.expirationTimestamp) {
+        minUrlExpiration = if (
+          minUrlExpiration.isDefined && minUrlExpiration.get < c.expirationTimestamp) {
           minUrlExpiration
         } else {
           Some(c.expirationTimestamp)
@@ -152,7 +154,8 @@ object DeltaSharingCDFReader {
     }
     removeFiles.foreach { r =>
       if (r.expirationTimestamp != null) {
-        if (minUrlExpiration.isDefined && minUrlExpiration.get < r.expirationTimestamp) {
+        minUrlExpiration = if (
+          minUrlExpiration.isDefined && minUrlExpiration.get < r.expirationTimestamp) {
           minUrlExpiration
         } else {
           Some(r.expirationTimestamp)

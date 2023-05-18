@@ -139,7 +139,7 @@ case class DeltaSharingSource(
   // If not empty, will advance the offset and fetch data from this list based on the read limit.
   // If empty, will try to load all possible new data files through delta sharing rpc to this list,
   //   sorted by version and id.
-  private var sortedFetchedFiles: Seq[IndexedFile] = Seq.empty
+  @volatile private var sortedFetchedFiles: Seq[IndexedFile] = Seq.empty
 
   private var lastGetVersionTimestamp: Long = -1
   private var latestTableVersion: Long = -1
@@ -272,6 +272,7 @@ case class DeltaSharingSource(
     logInfo(s"Refreshed ${numUrlsRefreshed} urls in sortedFetchedFiles(size: " +
       s"${sortedFetchedFiles.size}).")
   }
+
   /**
    * Fetch the table changes from delta sharing server starting from (fromVersion, fromIndex), and
    * store them in sortedFetchedFiles.
@@ -302,6 +303,7 @@ case class DeltaSharingSource(
         deltaLog.table, Nil, None, Some(fromVersion), None, None
       )
       latestRefreshFunc = () => {
+        lastQueryTableTimestamp = System.currentTimeMillis()
         val files = deltaLog.client.getFiles(
           deltaLog.table, Nil, None, Some(fromVersion), None, None
         ).files
@@ -319,6 +321,7 @@ case class DeltaSharingSource(
         }.toMap
 
         refreshSortedFetchedFiles(idToUrl)
+        minUrlExpirationTimestamp = minUrlExpiration
 
         (idToUrl, minUrlExpiration)
       }
@@ -362,6 +365,7 @@ case class DeltaSharingSource(
         deltaLog.table, fromVersion, Some(endingVersionForQuery)
       )
       latestRefreshFunc = () => {
+        lastQueryTableTimestamp = System.currentTimeMillis()
         val addFiles = deltaLog.client.getFiles(
           deltaLog.table, fromVersion, Some(endingVersionForQuery)
         ).addFiles
@@ -379,6 +383,7 @@ case class DeltaSharingSource(
         }.toMap
 
         refreshSortedFetchedFiles(idToUrl)
+        minUrlExpirationTimestamp = minUrlExpiration
 
         (idToUrl, minUrlExpiration)
       }
@@ -440,6 +445,7 @@ case class DeltaSharingSource(
       true
     )
     latestRefreshFunc = () => {
+      lastQueryTableTimestamp = System.currentTimeMillis()
       val d = deltaLog.client.getCDFFiles(
         deltaLog.table,
         Map(
@@ -452,10 +458,12 @@ case class DeltaSharingSource(
       val idToUrl = DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
 
       refreshSortedFetchedFiles(idToUrl)
+      minUrlExpirationTimestamp = DeltaSharingCDFReader.getMinUrlExpiration(
+        d.addFiles, d.cdfFiles, d.removeFiles)
 
       (
         idToUrl,
-        DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles)
+        minUrlExpirationTimestamp
       )
     }
 
