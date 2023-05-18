@@ -81,9 +81,9 @@ object DeltaSharingCDFReader {
       removeFiles: Seq[RemoveFile],
       schema: StructType,
       isStreaming: Boolean,
-      refresher: () => (Map[String, String], Long),
+      refresher: () => (Map[String, String], Option[Long]),
       lastQueryTableTimestamp: Long,
-      expirationTimestamp: Long
+      expirationTimestamp: Option[Long]
   ): DataFrame = {
     val dfs = ListBuffer[DataFrame]()
     val refs = ListBuffer[WeakReference[AnyRef]]()
@@ -106,8 +106,8 @@ object DeltaSharingCDFReader {
       refs,
       params.profileProvider,
       refresher,
-      if (expirationTimestamp != Long.MaxValue) {
-        expirationTimestamp
+      if (expirationTimestamp.isDefined) {
+        expirationTimestamp.get
       } else {
         lastQueryTableTimestamp + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
       }
@@ -130,25 +130,37 @@ object DeltaSharingCDFReader {
       addFiles: Seq[AddFileForCDF],
       cdfFiles: Seq[AddCDCFile],
       removeFiles: Seq[RemoveFile]
-  ): Long = {
-    var minUrlExpiration: Long = Long.MaxValue
+  ): Option[Long] = {
+    var minUrlExpiration: Option[Long] = None
     addFiles.foreach { a =>
       if (a.expirationTimestamp != null) {
-        minUrlExpiration.min(a.expirationTimestamp)
+        if (minUrlExpiration.isDefined && minUrlExpiration.get < a.expirationTimestamp) {
+          minUrlExpiration
+        } else {
+          Some(a.expirationTimestamp)
+        }
       }
     }
     cdfFiles.foreach { c =>
       if (c.expirationTimestamp != null) {
-        minUrlExpiration.min(c.expirationTimestamp)
+        if (minUrlExpiration.isDefined && minUrlExpiration.get < c.expirationTimestamp) {
+          minUrlExpiration
+        } else {
+          Some(c.expirationTimestamp)
+        }
       }
     }
     removeFiles.foreach { r =>
       if (r.expirationTimestamp != null) {
-        minUrlExpiration.min(r.expirationTimestamp)
+        if (minUrlExpiration.isDefined && minUrlExpiration.get < r.expirationTimestamp) {
+          minUrlExpiration
+        } else {
+          Some(r.expirationTimestamp)
+        }
       }
     }
     if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpiration)) {
-      minUrlExpiration = Long.MaxValue
+      minUrlExpiration = None
     }
     minUrlExpiration
   }

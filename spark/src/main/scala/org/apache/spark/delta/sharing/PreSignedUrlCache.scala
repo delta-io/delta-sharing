@@ -43,7 +43,7 @@ class CachedTable(
     val idToUrl: Map[String, String],
     val refs: Seq[WeakReference[AnyRef]],
     @volatile var lastAccess: Long,
-    val refresher: () => (Map[String, String], Long))
+    val refresher: () => (Map[String, String], Option[Long]))
 
 class CachedTableManager(
     val preSignedUrlExpirationMs: Long,
@@ -64,14 +64,16 @@ class CachedTableManager(
     thread
   }
 
-  def isValidUrlExpirationTime(expiration: Long): Boolean = {
+  def isValidUrlExpirationTime(expiration: Option[Long]): Boolean = {
     // refreshThresholdMs is the buffer time for the refresh RPC.
     // It could also help the client from keeping refreshing endlessly.
-    expiration > (System.currentTimeMillis() + refreshThresholdMs)
-  }
-
-  def getFomattedTS(ts: Long): String = {
-    new java.text.SimpleDateFormat("yyyy- MM-dd HH:mm:ss").format(ts)
+    val isValid = expiration.isDefined && (
+      expiration.get > (System.currentTimeMillis() + refreshThresholdMs))
+    if (!isValid) {
+      logWarning(s"Invalid url expiration timestamp(${expiration}), refreshThresholdMs: " +
+        s"$refreshThresholdMs, current: ${System.currentTimeMillis()}.")
+    }
+    isValid
   }
 
   def refresh(): Unit = {
@@ -92,10 +94,10 @@ class CachedTableManager(
         logInfo(s"Updating pre signed urls for $tablePath (expiration time: " +
           s"${new java.util.Date(cachedTable.expiration)})")
         try {
-          val (idToUrl, expiration) = cachedTable.refresher()
+          val (idToUrl, expOpt) = cachedTable.refresher()
           val newTable = new CachedTable(
-            if (isValidUrlExpirationTime(expiration)) {
-              expiration.min(preSignedUrlExpirationMs + System.currentTimeMillis())
+            if (isValidUrlExpirationTime(expOpt)) {
+              expOpt.get
             } else {
               preSignedUrlExpirationMs + System.currentTimeMillis()
             },
@@ -150,32 +152,34 @@ class CachedTableManager(
    *                signed url cache of this table form the cache.
    * @param profileProvider a profile Provider that can provide customized refresher function.
    * @param refresher                 A function to re-generate pre signed urls for the table.
-   * @param expirationTimestamp   A timestamp to indicate the expiration timestamp of the idToUrl
+   * @param expirationTimestamp   Optional, If set, it's a timestamp to indicate the expiration
+   *                              timestamp of the idToUrl.
    */
   def register(
       tablePath: String,
       idToUrl: Map[String, String],
       refs: Seq[WeakReference[AnyRef]],
       profileProvider: DeltaSharingProfileProvider,
-      refresher: () => (Map[String, String], Long),
-      expirationTimestamp: Long = (System.currentTimeMillis() + preSignedUrlExpirationMs)): Unit = {
+      refresher: () => (Map[String, String], Option[Long]),
+      expirationTimestamp: Long = System.currentTimeMillis() + preSignedUrlExpirationMs
+  ): Unit = {
     val customTablePath = profileProvider.getCustomTablePath(tablePath)
     val customRefresher = profileProvider.getCustomRefresher(refresher)
 
-    val (resolvedIdToUrl, expiration) = if (expirationTimestamp - System.currentTimeMillis()
-      < refreshThresholdMs) {
-      val (refreshedIdToUrl, expiration) = customRefresher()
-      if (isValidUrlExpirationTime(expiration)) {
-        (refreshedIdToUrl, expiration)
+    val (resolvedIdToUrl, resolvedExpiration) =
+      if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
+        val (refreshedIdToUrl, expOpt) = customRefresher()
+        if (isValidUrlExpirationTime(expOpt)) {
+          (refreshedIdToUrl, expOpt.get)
+        } else {
+          (refreshedIdToUrl, System.currentTimeMillis() + preSignedUrlExpirationMs)
+        }
       } else {
-        (refreshedIdToUrl, System.currentTimeMillis() + preSignedUrlExpirationMs)
+        (idToUrl, expirationTimestamp)
       }
-    } else {
-      (idToUrl, expirationTimestamp)
-    }
 
     val cachedTable = new CachedTable(
-      expiration,
+      resolvedExpiration,
       idToUrl = resolvedIdToUrl,
       refs,
       System.currentTimeMillis(),

@@ -49,8 +49,8 @@ trait DeltaSharingProfileProvider {
 
   // Map[String, String] is the id to url map.
   // Long is the minimum url expiration time for all the urls.
-  def getCustomRefresher(refresher: () => (Map[String, String], Long)): () =>
-    (Map[String, String], Long) = {
+  def getCustomRefresher(refresher: () => (Map[String, String], Option[Long])): () =>
+    (Map[String, String], Option[Long]) = {
     refresher
   }
 }

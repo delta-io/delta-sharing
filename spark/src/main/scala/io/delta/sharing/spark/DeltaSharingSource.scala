@@ -151,13 +151,13 @@ case class DeltaSharingSource(
   // The latest function used to fetch presigned urls for the delta sharing table, record it in
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
   // runs for a long time.
-  private var latestRefreshFunc = () => { (Map.empty[String, String], -1L) }
+  private var latestRefreshFunc = () => { (Map.empty[String, String], None: Option[Long]) }
   // The latest timestamp in millisecond, records the time of the last rpc sent to the server to
   // fetch the pre-signed urls.
   // This is used to track whether the pre-signed urls stored in sortedFetchedFiles are going to
   // expire and need a refresh.
   private var lastQueryTableTimestamp: Long = -1
-  private var minUrlExpirationTimestamp: Long = Long.MaxValue
+  private var minUrlExpirationTimestamp: Option[Long] = None
 
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
@@ -294,7 +294,7 @@ case class DeltaSharingSource(
       isStartingVersion: Boolean,
       endingVersionForQuery: Long): Unit = {
     lastQueryTableTimestamp = System.currentTimeMillis()
-    minUrlExpirationTimestamp = Long.MaxValue
+    minUrlExpirationTimestamp = None
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
@@ -305,10 +305,15 @@ case class DeltaSharingSource(
         val files = deltaLog.client.getFiles(
           deltaLog.table, Nil, None, Some(fromVersion), None, None
         ).files
-        var minUrlExpiration: Long = Long.MaxValue
+        var minUrlExpiration: Option[Long] = None
         val idToUrl = files.map { f =>
           if (f.expirationTimestamp != null) {
-            minUrlExpiration.min(f.expirationTimestamp)
+            minUrlExpiration = if (minUrlExpiration.isDefined &&
+              minUrlExpiration.get < f.expirationTimestamp) {
+              minUrlExpiration
+            } else {
+              Some(f.expirationTimestamp)
+            }
           }
           f.id -> f.url
         }.toMap
@@ -322,7 +327,12 @@ case class DeltaSharingSource(
       tableFiles.files.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
         case (file, index) =>
           if (file.expirationTimestamp != null) {
-            minUrlExpirationTimestamp.min(file.expirationTimestamp)
+            minUrlExpirationTimestamp = if (minUrlExpirationTimestamp.isDefined &&
+              minUrlExpirationTimestamp.get < file.expirationTimestamp) {
+              minUrlExpirationTimestamp
+            } else {
+              Some(file.expirationTimestamp)
+            }
           }
           if (index > fromIndex) {
             appendToSortedFetchedFiles(
@@ -345,10 +355,6 @@ case class DeltaSharingSource(
         // For files with index <= fromIndex, skip them, otherwise an exception will be thrown.
         case _ => ()
       }
-      if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
-        // reset to -1 to indicate that it's not a valid url expiration timestamp.
-        minUrlExpirationTimestamp = Long.MaxValue
-      }
     } else {
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
@@ -359,10 +365,15 @@ case class DeltaSharingSource(
         val addFiles = deltaLog.client.getFiles(
           deltaLog.table, fromVersion, Some(endingVersionForQuery)
         ).addFiles
-        var minUrlExpiration: Long = Long.MaxValue
+        var minUrlExpiration: Option[Long] = None
         val idToUrl = addFiles.map { a =>
           if (a.expirationTimestamp != null) {
-            minUrlExpiration.min(a.expirationTimestamp)
+            minUrlExpiration = if (minUrlExpiration.isDefined &&
+              minUrlExpiration.get < a.expirationTimestamp) {
+              minUrlExpiration
+            } else {
+              Some(a.expirationTimestamp)
+            }
           }
           a.id -> a.url
         }.toMap
@@ -373,18 +384,31 @@ case class DeltaSharingSource(
       }
       val allAddFiles = validateCommitAndFilterAddFiles(tableFiles).groupBy(a => a.version)
       for (v <- fromVersion to endingVersionForQuery) {
-
         val vAddFiles = allAddFiles.getOrElse(v, ArrayBuffer[AddFileForCDF]())
         val numFiles = vAddFiles.size
         appendToSortedFetchedFiles(IndexedFile(v, -1, add = null, isLast = (numFiles == 0)))
         vAddFiles.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
-          case (add, index) if (v > fromVersion || (v == fromVersion && index > fromIndex)) =>
-            appendToSortedFetchedFiles(
-              IndexedFile(add.version, index, add, isLast = (index + 1 == numFiles)))
+          case (add, index) =>
+            if (add.expirationTimestamp != null) {
+              minUrlExpirationTimestamp = if (minUrlExpirationTimestamp.isDefined &&
+                minUrlExpirationTimestamp.get < add.expirationTimestamp) {
+                minUrlExpirationTimestamp
+              } else {
+                Some(add.expirationTimestamp)
+              }
+            }
+            if (v > fromVersion || (v == fromVersion && index > fromIndex)) {
+              appendToSortedFetchedFiles(
+                IndexedFile(add.version, index, add, isLast = (index + 1 == numFiles)))
+            }
           // For files with v <= fromVersion, skip them, otherwise an exception will be thrown.
           case _ => ()
         }
       }
+    }
+    if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
+      // reset to None to indicate that it's not a valid url expiration timestamp.
+      minUrlExpirationTimestamp = None
     }
   }
 
@@ -406,7 +430,7 @@ case class DeltaSharingSource(
       fromIndex: Long,
       endingVersionForQuery: Long): Unit = {
     lastQueryTableTimestamp = System.currentTimeMillis()
-    minUrlExpirationTimestamp = Long.MaxValue
+    minUrlExpirationTimestamp = None
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table,
       Map(
@@ -447,8 +471,8 @@ case class DeltaSharingSource(
       tableFiles.removeFiles
     )
     if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
-      // reset to -1 to indicate that it's not a valid url expiration timestamp.
-      minUrlExpirationTimestamp = Long.MaxValue
+      // reset to None to indicate that it's not a valid url expiration timestamp.
+      minUrlExpirationTimestamp = None
     }
 
     val perVersionAddFiles = tableFiles.addFiles.groupBy(f => f.version)
@@ -635,8 +659,8 @@ case class DeltaSharingSource(
       Seq(new WeakReference(fileIndex)),
       params.profileProvider,
       latestRefreshFunc,
-      if (minUrlExpirationTimestamp != Long.MaxValue) {
-        minUrlExpirationTimestamp
+      if (minUrlExpirationTimestamp.isDefined) {
+        minUrlExpirationTimestamp.get
       } else {
         lastQueryTableTimestamp + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
       }
