@@ -47,6 +47,8 @@ trait DeltaSharingProfileProvider {
 
   def getCustomTablePath(tablePath: String): String = tablePath
 
+  // Map[String, String] is the id to url map.
+  // Long is the minimum url expiration time for all the urls.
   def getCustomRefresher(refresher: () => (Map[String, String], Long)): () =>
     (Map[String, String], Long) = {
     refresher

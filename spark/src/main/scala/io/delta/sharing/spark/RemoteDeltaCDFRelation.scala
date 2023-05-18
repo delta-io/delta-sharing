@@ -83,7 +83,7 @@ object DeltaSharingCDFReader {
       isStreaming: Boolean,
       refresher: () => (Map[String, String], Long),
       lastQueryTableTimestamp: Long,
-      minUrlExpirationTimestamp: Long
+      expirationTimestamp: Long
   ): DataFrame = {
     val dfs = ListBuffer[DataFrame]()
     val refs = ListBuffer[WeakReference[AnyRef]]()
@@ -106,8 +106,8 @@ object DeltaSharingCDFReader {
       refs,
       params.profileProvider,
       refresher,
-      if (minUrlExpirationTimestamp != -1) {
-        minUrlExpirationTimestamp
+      if (expirationTimestamp != Long.MaxValue) {
+        expirationTimestamp
       } else {
         lastQueryTableTimestamp + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
       }
@@ -131,36 +131,24 @@ object DeltaSharingCDFReader {
       cdfFiles: Seq[AddCDCFile],
       removeFiles: Seq[RemoveFile]
   ): Long = {
-    var minUrlExpiration: Long = -1L
+    var minUrlExpiration: Long = Long.MaxValue
     addFiles.foreach { a =>
       if (a.expirationTimestamp != null) {
-        if (minUrlExpiration == -1L) {
-          minUrlExpiration = a.expirationTimestamp
-        } else {
-          minUrlExpiration.min(a.expirationTimestamp)
-        }
+        minUrlExpiration.min(a.expirationTimestamp)
       }
     }
     cdfFiles.foreach { c =>
       if (c.expirationTimestamp != null) {
-        if (minUrlExpiration == -1L) {
-          minUrlExpiration = c.expirationTimestamp
-        } else {
-          minUrlExpiration.min(c.expirationTimestamp)
-        }
+        minUrlExpiration.min(c.expirationTimestamp)
       }
     }
     removeFiles.foreach { r =>
       if (r.expirationTimestamp != null) {
-        if (minUrlExpiration == -1L) {
-          minUrlExpiration = r.expirationTimestamp
-        } else {
-          minUrlExpiration.min(r.expirationTimestamp)
-        }
+        minUrlExpiration.min(r.expirationTimestamp)
       }
     }
     if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpiration)) {
-      minUrlExpiration = -1
+      minUrlExpiration = Long.MaxValue
     }
     minUrlExpiration
   }

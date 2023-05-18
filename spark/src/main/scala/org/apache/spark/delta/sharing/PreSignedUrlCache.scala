@@ -35,7 +35,8 @@ import io.delta.sharing.spark.DeltaSharingProfileProvider
  *             remove the cached table from our cache.
  * @param lastAccess When the table was accessed last time. We will remove old tables that are not
  *                   accessed after `expireAfterAccessMs` milliseconds.
- * @param refresher the function to generate a new file id to pre sign url map.
+ * @param refresher the function to generate a new file id to pre sign url map, as long as the new
+ *                  expiration timestamp of the urls.
  */
 class CachedTable(
     val expiration: Long,
@@ -64,11 +65,13 @@ class CachedTableManager(
   }
 
   def isValidUrlExpirationTime(expiration: Long): Boolean = {
+    // refreshThresholdMs is the buffer time for the refresh RPC.
+    // It could also help the client from keeping refreshing endlessly.
     expiration > (System.currentTimeMillis() + refreshThresholdMs)
   }
 
   def getFomattedTS(ts: Long): String = {
-    new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(ts)
+    new java.text.SimpleDateFormat("yyyy- MM-dd HH:mm:ss").format(ts)
   }
 
   def refresh(): Unit = {

@@ -142,8 +142,11 @@ case class DeltaSharingSource(
   private var sortedFetchedFiles: Seq[IndexedFile] = Seq.empty
 
   private var lastGetVersionTimestamp: Long = -1
-  private var lastQueriedTableVersion: Long = -1
+  private var latestTableVersion: Long = -1
   private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 30000 // 30 seconds
+  private val maxVersionsPerRpc: Int = options.maxVersionsPerRpc.getOrElse(
+    DeltaSharingOptions.MAX_VERSIONS_PER_RPC_DEFAULT
+  )
 
   // The latest function used to fetch presigned urls for the delta sharing table, record it in
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
@@ -154,7 +157,7 @@ case class DeltaSharingSource(
   // This is used to track whether the pre-signed urls stored in sortedFetchedFiles are going to
   // expire and need a refresh.
   private var lastQueryTableTimestamp: Long = -1
-  private var minUrlExpirationTimestamp: Long = -1
+  private var minUrlExpirationTimestamp: Long = Long.MaxValue
 
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
@@ -163,10 +166,10 @@ case class DeltaSharingSource(
     val currentTimeMillis = System.currentTimeMillis()
     if (lastGetVersionTimestamp == -1 ||
       (currentTimeMillis - lastGetVersionTimestamp) >= QUERY_TABLE_VERSION_INTERVAL_MILLIS) {
-      lastQueriedTableVersion = deltaLog.client.getTableVersion(deltaLog.table)
+      latestTableVersion = deltaLog.client.getTableVersion(deltaLog.table)
       lastGetVersionTimestamp = currentTimeMillis
     }
-    lastQueriedTableVersion
+    latestTableVersion
   }
 
   // The actual order of files doesn't matter much.
@@ -210,14 +213,22 @@ case class DeltaSharingSource(
       return
     }
 
+    // using "fromVersion + maxVersionsPerRpc - 1" because the endingVersion is inclusive.
+    val endingVersionForQuery = currentLatestVersion.min(fromVersion + maxVersionsPerRpc - 1)
+
     if (isStartingVersion || !options.readChangeFeed) {
-      getTableFileChanges(fromVersion, fromIndex, isStartingVersion, currentLatestVersion)
+      getTableFileChanges(fromVersion, fromIndex, isStartingVersion, endingVersionForQuery)
     } else {
-      getCDFFileChanges(fromVersion, fromIndex, currentLatestVersion)
+      getCDFFileChanges(fromVersion, fromIndex, endingVersionForQuery)
     }
   }
 
+  // Function to be called in latestRefreshFunc, to refresh the pre-signed urls in
+  // sortedFetchedFiles. newIdToUrl contains the refreshed urls.
   private def refreshSortedFetchedFiles(newIdToUrl: Map[String, String]): Unit = {
+    logInfo(s"Refreshing sortedFetchedFiles(size: ${sortedFetchedFiles.size}) with newIdToUrl(" +
+      s"size: ${newIdToUrl.size}).")
+    var numUrlsRefreshed = 0
     sortedFetchedFiles = sortedFetchedFiles.map { indexedFile =>
       IndexedFile(
         version = indexedFile.version,
@@ -225,6 +236,7 @@ case class DeltaSharingSource(
         add = if (indexedFile.add == null) {
           null
         } else {
+          numUrlsRefreshed += 1
           val newUrl = newIdToUrl.getOrElse(
             indexedFile.add.id,
             throw new IllegalStateException(s"cannot find url for id ${indexedFile.add.id} " +
@@ -235,6 +247,7 @@ case class DeltaSharingSource(
         remove = if (indexedFile.remove == null) {
           null
         } else {
+          numUrlsRefreshed += 1
           val newUrl = newIdToUrl.getOrElse(
             indexedFile.remove.id,
             throw new IllegalStateException(s"cannot find url for id ${indexedFile.remove.id} " +
@@ -245,6 +258,7 @@ case class DeltaSharingSource(
         cdc = if (indexedFile.cdc == null) {
           null
         } else {
+          numUrlsRefreshed += 1
           val newUrl = newIdToUrl.getOrElse(
             indexedFile.cdc.id,
             throw new IllegalStateException(s"cannot find url for id ${indexedFile.cdc.id} " +
@@ -255,6 +269,8 @@ case class DeltaSharingSource(
         isLast = indexedFile.isLast
       )
     }
+    logInfo(s"Refreshed ${numUrlsRefreshed} urls in sortedFetchedFiles(size: " +
+      s"${sortedFetchedFiles.size}).")
   }
   /**
    * Fetch the table changes from delta sharing server starting from (fromVersion, fromIndex), and
@@ -266,18 +282,19 @@ case class DeltaSharingSource(
    * @param isStartingVersion - If true, will load fromVersion as a table snapshot(including files
    *                            from previous versions). If false, will only load files since
    *                            fromVersion.
-   * @param currentLatestVersion - The latest table version returned from the delta sharing server.
-   *                               This is used to insert an indexedFile for each version in the
-   *                               sortedFetchedFiles, in order to ensure the offset move beyond
-   *                               this version.
+   * @param endingVersionForQuery - The ending version used for the query, always smaller than
+   *                                latestTableVersion.
+   *                                This is used to insert an indexedFile for each version in the
+   *                                sortedFetchedFiles, in order to ensure the offset move beyond
+   *                                this version.
    */
   private def getTableFileChanges(
       fromVersion: Long,
       fromIndex: Long,
       isStartingVersion: Boolean,
-      currentLatestVersion: Long): Unit = {
+      endingVersionForQuery: Long): Unit = {
     lastQueryTableTimestamp = System.currentTimeMillis()
-    minUrlExpirationTimestamp = -1
+    minUrlExpirationTimestamp = Long.MaxValue
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
@@ -288,14 +305,10 @@ case class DeltaSharingSource(
         val files = deltaLog.client.getFiles(
           deltaLog.table, Nil, None, Some(fromVersion), None, None
         ).files
-        var minUrlExpiration: Long = -1L
+        var minUrlExpiration: Long = Long.MaxValue
         val idToUrl = files.map { f =>
           if (f.expirationTimestamp != null) {
-            if (minUrlExpiration == -1L) {
-              minUrlExpiration = f.expirationTimestamp
-            } else {
-              minUrlExpiration.min(f.expirationTimestamp)
-            }
+            minUrlExpiration.min(f.expirationTimestamp)
           }
           f.id -> f.url
         }.toMap
@@ -309,11 +322,7 @@ case class DeltaSharingSource(
       tableFiles.files.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
         case (file, index) =>
           if (file.expirationTimestamp != null) {
-            if (minUrlExpirationTimestamp == -1) {
-              minUrlExpirationTimestamp = file.expirationTimestamp
-            } else {
-              minUrlExpirationTimestamp.min(file.expirationTimestamp)
-            }
+            minUrlExpirationTimestamp.min(file.expirationTimestamp)
           }
           if (index > fromIndex) {
             appendToSortedFetchedFiles(
@@ -338,22 +347,22 @@ case class DeltaSharingSource(
       }
       if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
         // reset to -1 to indicate that it's not a valid url expiration timestamp.
-        minUrlExpirationTimestamp = -1
+        minUrlExpirationTimestamp = Long.MaxValue
       }
     } else {
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
-      val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)
+      val tableFiles = deltaLog.client.getFiles(
+        deltaLog.table, fromVersion, Some(endingVersionForQuery)
+      )
       latestRefreshFunc = () => {
-        val addFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion).addFiles
-        var minUrlExpiration: Long = -1L
+        val addFiles = deltaLog.client.getFiles(
+          deltaLog.table, fromVersion, Some(endingVersionForQuery)
+        ).addFiles
+        var minUrlExpiration: Long = Long.MaxValue
         val idToUrl = addFiles.map { a =>
           if (a.expirationTimestamp != null) {
-            if (minUrlExpiration == -1L) {
-              minUrlExpiration = a.expirationTimestamp
-            } else {
-              minUrlExpiration.min(a.expirationTimestamp)
-            }
+            minUrlExpiration.min(a.expirationTimestamp)
           }
           a.id -> a.url
         }.toMap
@@ -363,7 +372,7 @@ case class DeltaSharingSource(
         (idToUrl, minUrlExpiration)
       }
       val allAddFiles = validateCommitAndFilterAddFiles(tableFiles).groupBy(a => a.version)
-      for (v <- fromVersion to currentLatestVersion) {
+      for (v <- fromVersion to endingVersionForQuery) {
 
         val vAddFiles = allAddFiles.getOrElse(v, ArrayBuffer[AddFileForCDF]())
         val numFiles = vAddFiles.size
@@ -386,22 +395,35 @@ case class DeltaSharingSource(
    * @param fromVersion - a table version, initially would be the startingVersion or the latest
    *                      table version.
    * @param fromIndex - index of a file within the same version,
-   * @param currentLatestVersion - The latest table version returned from the delta sharing server.
-   *                               This is used to insert an indexedFile for each version in the
-   *                               sortedFetchedFiles, in order to ensure the offset move beyond
-   *                               this version.
+   * @param endingVersionForQuery - The ending version used for the query, always smaller than
+   *                                latestTableVersion.
+   *                                This is used to insert an indexedFile for each version in the
+   *                                sortedFetchedFiles, in order to ensure the offset move beyond
+   *                                this version.
    */
   private def getCDFFileChanges(
       fromVersion: Long,
       fromIndex: Long,
-      currentLatestVersion: Long): Unit = {
+      endingVersionForQuery: Long): Unit = {
     lastQueryTableTimestamp = System.currentTimeMillis()
-    minUrlExpirationTimestamp = -1
+    minUrlExpirationTimestamp = Long.MaxValue
     val tableFiles = deltaLog.client.getCDFFiles(
-      deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
+      deltaLog.table,
+      Map(
+        DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
+        DeltaSharingOptions.CDF_END_VERSION -> endingVersionForQuery.toString
+      ),
+      true
+    )
     latestRefreshFunc = () => {
       val d = deltaLog.client.getCDFFiles(
-        deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
+        deltaLog.table,
+        Map(
+          DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
+          DeltaSharingOptions.CDF_END_VERSION -> endingVersionForQuery.toString
+        ),
+        true
+      )
 
       val idToUrl = DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
 
@@ -426,14 +448,14 @@ case class DeltaSharingSource(
     )
     if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
       // reset to -1 to indicate that it's not a valid url expiration timestamp.
-      minUrlExpirationTimestamp = -1
+      minUrlExpirationTimestamp = Long.MaxValue
     }
 
     val perVersionAddFiles = tableFiles.addFiles.groupBy(f => f.version)
     val perVersionCdfFiles = tableFiles.cdfFiles.groupBy(f => f.version)
     val perVersionRemoveFiles = tableFiles.removeFiles.groupBy(f => f.version)
 
-    for (v <- fromVersion to currentLatestVersion) {
+    for (v <- fromVersion to endingVersionForQuery) {
       if (perVersionCdfFiles.contains(v)) {
         // Process cdf files if it exists, and ignore add/remove files. This is the property of
         // delta table, when cdf file exists in a version, it represents the same data change as
@@ -613,7 +635,7 @@ case class DeltaSharingSource(
       Seq(new WeakReference(fileIndex)),
       params.profileProvider,
       latestRefreshFunc,
-      if (minUrlExpirationTimestamp != -1) {
+      if (minUrlExpirationTimestamp != Long.MaxValue) {
         minUrlExpirationTimestamp
       } else {
         lastQueryTableTimestamp + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
