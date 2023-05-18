@@ -87,7 +87,11 @@ class TestDeltaSharingClient(
     DeltaTableFiles(0, Protocol(0), metadata, addFiles)
   }
 
-  override def getFiles(table: Table, startingVersion: Long): DeltaTableFiles = {
+  override def getFiles(
+      table: Table,
+      startingVersion: Long,
+      endingVersion: Option[Long]
+  ): DeltaTableFiles = {
     // This is not used anywhere.
     DeltaTableFiles(0, Protocol(0), metadata, Nil, Nil, Nil, Nil)
   }

@@ -56,6 +56,13 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
     }
   }
 
+  val maxVersionsPerRpc: Option[Int] = options.get(MAX_VERSIONS_PER_RPC).map { str =>
+    Try(str.toInt).toOption.filter(_ > 0).getOrElse {
+      throw DeltaSharingErrors.illegalDeltaSharingOptionException(
+        MAX_VERSIONS_PER_RPC, str, "must be a positive integer")
+    }
+  }
+
   val ignoreChanges = options.get(IGNORE_CHANGES_OPTION).exists(toBoolean(_, IGNORE_CHANGES_OPTION))
 
   val ignoreDeletes = options.get(IGNORE_DELETES_OPTION).exists(toBoolean(_, IGNORE_DELETES_OPTION))
@@ -155,6 +162,10 @@ object DeltaSharingOptions extends Logging {
   val MAX_FILES_PER_TRIGGER_OPTION = "maxFilesPerTrigger"
   val MAX_FILES_PER_TRIGGER_OPTION_DEFAULT = 1000
   val MAX_BYTES_PER_TRIGGER_OPTION = "maxBytesPerTrigger"
+  // a delta sharing specific parameter, used to sepcify the max number of versions to query in
+  // one rpc in a streaming job.
+  val MAX_VERSIONS_PER_RPC = "maxVersionsPerRpc"
+  val MAX_VERSIONS_PER_RPC_DEFAULT = 100
   val IGNORE_CHANGES_OPTION = "ignoreChanges"
   val IGNORE_DELETES_OPTION = "ignoreDeletes"
   val SKIP_CHANGE_COMMITS_OPTION = "skipChangeCommits"
