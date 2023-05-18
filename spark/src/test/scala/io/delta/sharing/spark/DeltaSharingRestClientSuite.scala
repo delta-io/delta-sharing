@@ -405,6 +405,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val expectedAddFiles = Seq(
         AddFileForCDF(
           url = tableFiles.addFiles(0).url,
+          expirationTimestamp = tableFiles.addFiles(0).expirationTimestamp,
           id = "60d0cf57f3e4367db154aa2c36152a1f",
           partitionValues = Map.empty,
           size = 1030,
@@ -414,6 +415,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFileForCDF(
           url = tableFiles.addFiles(1).url,
+          expirationTimestamp = tableFiles.addFiles(1).expirationTimestamp,
           id = "a6dc5694a4ebcc9a067b19c348526ad6",
           partitionValues = Map.empty,
           size = 1030,
@@ -423,6 +425,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         AddFileForCDF(
           url = tableFiles.addFiles(2).url,
+          expirationTimestamp = tableFiles.addFiles(2).expirationTimestamp,
           id = "d7ed708546dd70fdff9191b3e3d6448b",
           partitionValues = Map.empty,
           size = 1030,
@@ -448,6 +451,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val expectedAddFiles = Seq(
         AddFileForCDF(
           url = tableFiles.addFiles(0).url,
+          expirationTimestamp = tableFiles.addFiles(0).expirationTimestamp,
           id = "b875623be22c1fa1dfdeb0480fae6117",
           partitionValues = Map.empty,
           size = 1247,
@@ -462,6 +466,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val expectedRemoveFiles = Seq(
         RemoveFile(
           url = tableFiles.removeFiles(0).url,
+          expirationTimestamp = tableFiles.removeFiles(0).expirationTimestamp,
           id = "d7ed708546dd70fdff9191b3e3d6448b",
           partitionValues = Map.empty,
           size = 1030,
@@ -470,6 +475,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         ),
         RemoveFile(
           url = tableFiles.removeFiles(1).url,
+          expirationTimestamp = tableFiles.removeFiles(1).expirationTimestamp,
           id = "a6dc5694a4ebcc9a067b19c348526ad6",
           partitionValues = Map.empty,
           size = 1030,
