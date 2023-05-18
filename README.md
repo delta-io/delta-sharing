@@ -127,13 +127,13 @@ To use Delta Sharing connector interactively within the Spark’s Scala/Python s
 #### PySpark shell
 
 ```
-pyspark --packages io.delta:delta-sharing-spark_2.12:0.6.2
+pyspark --packages io.delta:delta-sharing-spark_2.12:0.6.4
 ```
 
 #### Scala Shell
 
 ```
-bin/spark-shell --packages io.delta:delta-sharing-spark_2.12:0.6.2
+bin/spark-shell --packages io.delta:delta-sharing-spark_2.12:0.6.4
 ```
 
 ### Set up a standalone project
@@ -148,7 +148,7 @@ You include Delta Sharing connector in your Maven project by adding it as a depe
 <dependency>
   <groupId>io.delta</groupId>
   <artifactId>delta-sharing-spark_2.12</artifactId>
-  <version>0.6.2</version>
+  <version>0.6.4</version>
 </dependency>
 ```
 
@@ -157,7 +157,7 @@ You include Delta Sharing connector in your Maven project by adding it as a depe
 You include Delta Sharing connector in your SBT project by adding the following line to your `build.sbt` file:
 
 ```scala
-libraryDependencies += "io.delta" %% "delta-sharing-spark" % "0.6.2"
+libraryDependencies += "io.delta" %% "delta-sharing-spark" % "0.6.4"
 ```
 
 ## Quick Start
@@ -489,7 +489,7 @@ You can use the pre-built docker image from https://hub.docker.com/r/deltaio/del
 ```
 docker run -p <host-port>:<container-port> \
   --mount type=bind,source=<the-server-config-yaml-file>,target=/config/delta-sharing-server-config.yaml \
-  deltaio/delta-sharing-server:0.6.2 -- --config /config/delta-sharing-server-config.yaml
+  deltaio/delta-sharing-server:0.6.4 -- --config /config/delta-sharing-server-config.yaml
 ```
 
 Note that `<container-port>` should be the same as the port defined inside the config file.

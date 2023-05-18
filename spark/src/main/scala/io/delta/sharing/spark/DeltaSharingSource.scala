@@ -215,6 +215,7 @@ case class DeltaSharingSource(
       return
     }
 
+    // using "fromVersion + maxVersionsPerRpc - 1" because the endingVersion is inclusive.
     val endingVersionForQuery = currentLatestVersion.min(fromVersion + maxVersionsPerRpc - 1)
 
     if (isStartingVersion || !options.readChangeFeed) {
