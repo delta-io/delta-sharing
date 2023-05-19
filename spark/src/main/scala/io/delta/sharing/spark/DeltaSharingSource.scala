@@ -240,6 +240,51 @@ case class DeltaSharingSource(
     }
   }
 
+  private def resetGlobalTimestamp(): Unit = {
+    synchronized {
+      lastQueryTableTimestamp = System.currentTimeMillis()
+      minUrlExpirationTimestamp = None
+    }
+  }
+
+  private def validateMinUrlExpirationTimestamp(inputTimestamp: Option[Long] = None): Unit = {
+    synchronized {
+      if (inputTimestamp.isDefined) {
+        minUrlExpirationTimestamp = inputTimestamp
+      }
+      if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
+        // reset to None to indicate that it's not a valid url expiration timestamp.
+        minUrlExpirationTimestamp = None
+      }
+    }
+  }
+
+  // Pop a list of file actions from the local sortedFetchedFiles, until the given endOffset, to
+  // be processed by the micro batch.
+  private def popSortedFetchedFiles(endOffset: DeltaSharingSourceOffset): Seq[IndexedFile] = {
+    synchronized {
+      val fileActions = sortedFetchedFiles.takeWhile {
+        case IndexedFile(version, index, _, _, _, _) =>
+          version < endOffset.tableVersion ||
+            (version == endOffset.tableVersion && index <= endOffset.index)
+      }
+      sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
+      fileActions
+    }
+  }
+
+  private def getLastQueryTableTimestamp(): Long = {
+    synchronized {
+      lastQueryTableTimestamp
+    }
+  }
+
+  private def getMinUrlExpirationTimestamp(): Option[Long] = {
+    synchronized {
+      minUrlExpirationTimestamp
+    }
+  }
+
   // Function to be called in latestRefreshFunc, to refresh the pre-signed urls in
   // sortedFetchedFiles. newIdToUrl contains the refreshed urls.
   private def refreshSortedFetchedFiles(
@@ -319,10 +364,7 @@ case class DeltaSharingSource(
       fromIndex: Long,
       isStartingVersion: Boolean,
       endingVersionForQuery: Long): Unit = {
-    synchronized {
-      lastQueryTableTimestamp = System.currentTimeMillis()
-      minUrlExpirationTimestamp = None
-    }
+    resetGlobalTimestamp()
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
@@ -420,12 +462,7 @@ case class DeltaSharingSource(
         }
       }
     }
-    synchronized {
-      if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
-        // reset to None to indicate that it's not a valid url expiration timestamp.
-        minUrlExpirationTimestamp = None
-      }
-    }
+    validateMinUrlExpirationTimestamp()
   }
 
   /**
@@ -445,10 +482,7 @@ case class DeltaSharingSource(
       fromVersion: Long,
       fromIndex: Long,
       endingVersionForQuery: Long): Unit = {
-    synchronized {
-      lastQueryTableTimestamp = System.currentTimeMillis()
-      minUrlExpirationTimestamp = None
-    }
+    resetGlobalTimestamp()
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table,
       Map(
@@ -486,17 +520,12 @@ case class DeltaSharingSource(
         throw DeltaSharingErrors.schemaChangedException(schema, schemaToCheck)
       }
     }
-    synchronized {
-      minUrlExpirationTimestamp = DeltaSharingCDFReader.getMinUrlExpiration(
-        tableFiles.addFiles,
-        tableFiles.cdfFiles,
-        tableFiles.removeFiles
-      )
-      if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
-        // reset to None to indicate that it's not a valid url expiration timestamp.
-        minUrlExpirationTimestamp = None
-      }
-    }
+    val cdfUrlExpirationTimestamp = DeltaSharingCDFReader.getMinUrlExpiration(
+      tableFiles.addFiles,
+      tableFiles.cdfFiles,
+      tableFiles.removeFiles
+    )
+    validateMinUrlExpirationTimestamp(cdfUrlExpirationTimestamp)
 
     val perVersionAddFiles = tableFiles.addFiles.groupBy(f => f.version)
     val perVersionCdfFiles = tableFiles.cdfFiles.groupBy(f => f.version)
@@ -635,15 +664,7 @@ case class DeltaSharingSource(
       endOffset: DeltaSharingSourceOffset): DataFrame = {
     maybeGetFileChanges(startVersion, startIndex, isStartingVersion)
 
-    var fileActions = Seq[IndexedFile]()
-    synchronized {
-      fileActions = sortedFetchedFiles.takeWhile {
-        case IndexedFile(version, index, _, _, _, _) =>
-          version < endOffset.tableVersion ||
-            (version == endOffset.tableVersion && index <= endOffset.index)
-      }
-      sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
-    }
+    val fileActions = popSortedFetchedFiles(endOffset)
     // Proceed the offset as the files before the endOffset are processed.
     previousOffset = endOffset
 
@@ -679,20 +700,20 @@ case class DeltaSharingSource(
     val params = new RemoteDeltaFileIndexParams(
       spark, initSnapshot, deltaLog.client.getProfileProvider)
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
-    synchronized{
-      CachedTableManager.INSTANCE.register(
-        params.path.toString,
-        idToUrl,
-        Seq(new WeakReference(fileIndex)),
-        params.profileProvider,
-        latestRefreshFunc,
-        if (minUrlExpirationTimestamp.isDefined) {
-          minUrlExpirationTimestamp.get
-        } else {
-          lastQueryTableTimestamp + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
-        }
-      )
-    }
+    val urlExpirationTimestamp = getMinUrlExpirationTimestamp()
+    CachedTableManager.INSTANCE.register(
+      params.path.toString,
+      idToUrl,
+      Seq(new WeakReference(fileIndex)),
+      params.profileProvider,
+      latestRefreshFunc,
+      if (urlExpirationTimestamp.isDefined) {
+        urlExpirationTimestamp.get
+      } else {
+        getLastQueryTableTimestamp() + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
+      }
+    )
+
 
     val relation = HadoopFsRelation(
       fileIndex,
@@ -723,20 +744,18 @@ case class DeltaSharingSource(
       }
     }
 
-    synchronized {
-      DeltaSharingCDFReader.changesToDF(
-        new RemoteDeltaFileIndexParams(spark, initSnapshot, deltaLog.client.getProfileProvider),
-        schema.fields.map(f => f.name),
-        addFiles,
-        cdfFiles,
-        removeFiles,
-        schema,
-        isStreaming = true,
-        latestRefreshFunc,
-        lastQueryTableTimestamp,
-        minUrlExpirationTimestamp
-      )
-    }
+    DeltaSharingCDFReader.changesToDF(
+      new RemoteDeltaFileIndexParams(spark, initSnapshot, deltaLog.client.getProfileProvider),
+      schema.fields.map(f => f.name),
+      addFiles,
+      cdfFiles,
+      removeFiles,
+      schema,
+      isStreaming = true,
+      latestRefreshFunc,
+      getLastQueryTableTimestamp(),
+      getMinUrlExpirationTimestamp()
+    )
   }
 
   /**

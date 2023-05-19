@@ -126,6 +126,7 @@ object DeltaSharingCDFReader {
       removeFiles.map(r => r.id -> r.url).toMap
   }
 
+  // Get the minimum url expiration time across all the cdf files returned from the server.
   def getMinUrlExpiration(
       addFiles: Seq[AddFileForCDF],
       cdfFiles: Seq[AddCDCFile],
