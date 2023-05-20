@@ -114,10 +114,6 @@ paths:
               schema:
                 "$ref": "#/components/schemas/Share"
 
-
-
-
-
   '/shares/{share}/schemas':
     get:
       operationId: 'ListSchemas'
@@ -318,7 +314,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/TableMetadataResponse'
 
-
   '/shares/{share}/schemas/{schema}/tables/{table}/query':
     post:
       operationId: 'QueryTable'
@@ -357,6 +352,96 @@ paths:
             'application/x-ndjson':
               schema:
                 $ref: '#/components/schemas/TableQueryResponse'
+
+  '/shares/{share}/schemas/{schema}/tables/{table}/changes':
+    get:
+      operationId: 'GetTableChanges'
+      summary: 'Read Change Data Feed from a Table'
+      description: |
+        This is the API for clients to read change data feed from a table.
+        The API supports a start parameter and and an end parameter. The
+        start/end parameter can either be a version or a timestamp. The start
+        parameter must be provided. If the end parameter is not provided, the
+        API will use the latest table version for it. The parameter range is
+        inclusive in the query. You can specify a version as a Long or a
+        timestamp as a string in the Timestamp Format.
+        The change data feed represents row-level changes between versions of
+        a Delta table. It records change data for UPDATE, DELETE, and MERGE operations.
+        If you leverage the connectors provided by this library to read change data feed,
+        it results in three metadata columns that identify the type of change event, in
+        addition to the data columns:
+        _change_type (type: String): There are four values: insert, update_preimage, update_postimage, delete. preimage is the value before the udpate, postimage is the value after the update.
+        _commit_version (type: Long): The table version containing the change.
+        _commit_timestamp (type: Long): The unix timestamp associated when the commit of the change was created, in milliseconds.
+      tags:
+        - tables
+        - official
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: 'Named share for finding the named schema'
+          schema:
+            type: string
+        - in: path
+          name: schema
+          required: true
+          description: 'Named schema for finding the named table'
+          schema:
+            type: string
+        - in: path
+          name: table
+          required: true
+          description: 'Named table'
+          schema:
+            type: string
+        - in: query
+          name: startingTimestamp
+          required: false
+          description: 'The starting timestamp of the query, a string in the Timestamp Format, which will be converted to a version created greater or equal to this timestamp. '
+          schema:
+            type: string
+        - in: query
+          name: startingVersion
+          required: false
+          description: 'The starting version of the query, inclusive.'
+          schema:
+            type: integer
+        - in: query
+          name: endingVersion
+          required: false
+          description: 'The ending version of the query, inclusive.'
+          schema:
+            type: integer
+        - in: query
+          name: endingTimestamp
+          required: false
+          description: 'The starting timestamp of the query, a string in the Timestamp Format, which will be converted to a version created greater or equal to this timestamp. '
+          schema:
+            type: string
+        - in: query
+          name: includeHistoricalMetadata
+          required: false
+          description: 'If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible.'
+          schema:
+            type: boolean
+      responses:
+        '400':
+          $ref: "#/components/responses/400"
+        '401':
+          $ref: "#/components/responses/401"
+        '403':
+          $ref: "#/components/responses/403"
+        '404':
+          $ref: "#/components/responses/404"
+        '500':
+          $ref: "#/components/responses/500"
+        '200':
+          description: 'This is the API for clients to read change data feed from a table.'
+          content:
+            'application/x-ndjson':
+              schema:
+                $ref: '#/components/schemas/ChangeDataFeedResponse'
 
 
 components:
@@ -556,6 +641,14 @@ components:
         {"metaData":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"]}}
         {"file":{"url":"https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e","id":"8b0086f2-7b27-4935-ac5a-8ed6215a6640","partitionValues":{"date":"2021-04-28"},"size":573,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}"}}
         {"file":{"url":"https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=899&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=0f7acecba5df7652457164533a58004936586186c56425d9d53c52db574f6b62","id":"591723a8-6a27-4240-a90e-57426f4736d2","partitionValues":{"date":"2021-04-28"},"size":573,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}"}}
+
+    ChangeDataFeedResponse:
+      type: string
+      example: |
+        {"protocol": {"minReaderVersion": 1}}
+        {"metaData": {"id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format": {"provider": "parquet"},"schemaString": "{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns": ["date"],"configuration": {"enableChangeDataFeed": "true"}}}{"add": {"url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e","id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640","partitionValues": {"date": "2021-04-28"},"size":573,"stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}","timestamp": 1652140000000,"version": 0}}
+        {"cdf": {"url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/_change_data/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=899&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=0f7acecba5df7652457164533a58004936586186c56425d9d53c52db574f6b62","id": "591723a8-6a27-4240-a90e-57426f4736d2","partitionValues": {"date": "2021-04-28"},"size": 689,"timestamp": 1652141000000,"version": 1}}
+        {"remove": {"url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e","id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640","partitionValues": {"date": "2021-04-28"},"size": 573,"timestamp": 1652142000000,"version": 2}}
 
     CommonErrorResponse:
       type: object
