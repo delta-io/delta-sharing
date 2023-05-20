@@ -69,9 +69,11 @@ class CachedTableManager(
     // It could also help the client from keeping refreshing endlessly.
     val isValid = expiration.isDefined && (
       expiration.get > (System.currentTimeMillis() + refreshThresholdMs))
-    if (!isValid) {
-      logWarning(s"Invalid url expiration timestamp(${expiration}), refreshThresholdMs: " +
-        s"$refreshThresholdMs, current: ${System.currentTimeMillis()}.")
+    if (!isValid && expiration.isDefined) {
+      val currentTs = System.currentTimeMillis()
+      logWarning(s"Invalid url expiration timestamp(${expiration}, " +
+        s"${new java.util.Date(expiration.get)}), refreshThresholdMs:$refreshThresholdMs, " +
+        s"current timestamp(${currentTs}, ${new java.util.Date(currentTs)}).")
     }
     isValid
   }

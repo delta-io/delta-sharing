@@ -309,7 +309,8 @@ class RemoteSnapshot(
             var minUrlExpiration: Option[Long] = None
             val idToUrl = files.map { add =>
               if (add.expirationTimestamp != null) {
-                if (minUrlExpiration.isDefined && minUrlExpiration.get < add.expirationTimestamp) {
+                minUrlExpiration = if (minUrlExpiration.isDefined
+                  && minUrlExpiration.get < add.expirationTimestamp) {
                   minUrlExpiration
                 } else {
                   Some(add.expirationTimestamp)
