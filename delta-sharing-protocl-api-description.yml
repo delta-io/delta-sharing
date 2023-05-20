@@ -109,9 +109,8 @@ paths:
           $ref: "#/components/responses/500"
         '200':
           description: 'The share''s metadata was successfully returned'
-          headers:
-            Delta-Table-Version:
-              description: 'A long value which represents the current table version'
+          content:
+            application/json:
               schema:
                 "$ref": "#/components/schemas/Share"
 
@@ -229,7 +228,7 @@ paths:
                 $ref: '#/components/schemas/ListTablesResponse'
 
   '/shares/{share}/schemas/{schema}/tables/{table}':
-    head:
+    get:
       operationId: 'GetTableVersion'
       summary: 'Return the latest version identifier for the named table'
       description: |
@@ -259,6 +258,12 @@ paths:
           name: table
           required: true
           description: 'Named table'
+          schema:
+            type: string
+        - in: query
+          name: startingTimestamp
+          required: false
+          description: 'Starting Timestamp'
           schema:
             type: string
       responses:
@@ -361,6 +366,41 @@ components:
       scheme: bearer
 
   schemas:
+    Ops:
+      type: string
+      enum:
+        - column
+        - literal
+        - isNull
+        - equal
+        - lessThan
+        - lessThanOrEqual
+        - greaterThan
+        - greaterThanOrEqual
+        - and
+        - or
+        - not
+      description: |
+        Op 	                Op Type 	Description
+        column 	            Leaf 	Represents a column. A column op has two fields: name and valueType. The column's value will be cast to the specified valueType during comparisons.
+        literal 	        Leaf    Represents a literal or fixed value. A literal op has two fields: value and valueType. The literal's value will be cast to the specified valueType during comparisons.
+        isNull 	            Unary 	Represents a null check on a column op. This op should have only one child, the column op.
+        equal 	            Binary 	Represents an equality ("=") check. This op should have two children, and both should be leaf ops.
+        lessThan 	        Binary 	Represents a less than ("<") check. This op should have two children, and both should be leaf ops.
+        lessThanOrEqual	    Binary 	Represents a less than or equal ("<=") check. This op should have two children, and both should be leaf ops.
+        greaterThan 	    Binary 	Represents a greater than (">") check. This op should have two children, and both should be leaf ops.
+        greaterThanOrEqual 	Binary 	Represents a greater than (">=") check. This op should have two children, and both should be leaf ops.
+        and 	            Nary 	Represents a logical and operation amongst its children. This op should have at least two children.
+        or 	                Nary 	Represents a logical or operation amongst its children. This op should have at least two children.
+        not 	            Unary 	Represents a logical not check. This op should have once child.
+        The supported value types:
+          ValueType 	Description
+          "bool" 	Represents an Boolean type.
+          "int" 	Represents an Integer type.
+          "long" 	Represents a Long type.
+          "string" 	Represents a String type.
+          "date" 	Represents a Date type in "yyyy-mm-dd" format.
+
     ListShareResponse:
       type: object
       required:
@@ -384,7 +424,6 @@ components:
         id:
           type: string
           example: 'edacc4a7-6600-4fbb-85f3-a62a5ce6761f'
-
 
     ListSchemasResponse:
       type: object
@@ -436,22 +475,40 @@ components:
         predicateHints:
           type: array
           description: |
-            A list of SQL-like boolean expressions using the restricted subset of
-            SQL passed in as a JSON array, one per expression
-
-            Each entry should be a single SQL-like boolean expression using:
-              * `=`
-              * `>`
-              * `<`
-              * `>=`
-              * `<=`
-              * `<>`
-              * `IS NULL`
-              * `IS NOT NULL`
+            a list of SQL boolean expressions using a restricted subset of SQL, in a JSON array.
+            When it’s present, the server will use the provided predicates as a hint to apply the
+            SQL predicates on the returned files. Filtering files based on the SQL predicates
+            is BEST EFFORT. The server may return files that don’t satisfy the predicates.
+            If the server fails to parse one of the SQL predicates, or fails to evaluate it, the
+            server may skip it. Predicate expressions are conjunctive (AND-ed together).
+            When it’s absent, the server will return all of files in the table.
+            This will be deprecated once all the client and server implementation move to using jsonPredicateHints below.
           example:
             - 'col = 123'
           items:
             type: string
+        jsonPredicateHints:
+          type: object
+          description: |
+            query predicates on partition columns specified using a structured JSON format.
+            When it’s present, the server will try to use the predicates to filter table's
+            files, which could boost query performance.
+            As with predicateHints, this filtering is BEST EFFORT. The server may return files
+            that don’t satisfy the predicates.
+            If the server encounters any errors during predicate processing (for example, invalid
+            syntax or non existing columns), it will skip filtering and return all the files.
+            When it’s absent, the server will return all the files in the table.
+          properties:
+            op:
+              $ref: '#/components/schemas/Ops'
+            children:
+              type: string
+            name:
+              type: string
+            value:
+              type: string
+            valueType:
+              type: string
         limitHint:
           type: integer
           example: 1000
@@ -461,6 +518,36 @@ components:
             some files by using the stats in the Delta transaction logs. For
             example, when running SELECT * FROM table LIMIT 1000, the client
             can send limit=1000 to the server
+        version:
+          type: integer
+          description: |
+            an optional version number. If set, will return files as of the
+            specified version of the table. This is only supported on tables
+            with history sharing enabled.
+          example: 1005
+        timestamp:
+          type: string
+          example: yyyy-[m]m-[d]d hh:mm:ss[.f...]
+          description: |
+            an optional timestamp string in the Timestamp Format,. If set, will
+            return files as of the table version corresponding to the specified
+            timestamp. This is only supported on tables with history sharing enabled.
+        startingVersion:
+          type: integer
+          example: 1000
+          description: |
+            an optional version number. If set, will return all data change files
+            since startingVersion, inclusive, including historical metadata if seen
+            in the delta log.
+        endingVersion:
+          type: integer
+          example: 1000
+          description: |
+            an optional version number, only used if startingVersion is set. If set,
+            the server can use it as a hint to avoid returning data change files after
+            endingVersion. This is not enforcement. Hence, when sending the endingVersion
+            parameter, the client should still handle the case that it may receive files
+            after endingVersion.
 
     TableQueryResponse:
       type: string
