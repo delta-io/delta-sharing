@@ -320,7 +320,7 @@ class RemoteSnapshot(
             }.toMap
             (idToUrl, minUrlExpiration)
           },
-          if (minUrlExpirationTimestamp.isDefined) {
+          if (CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
             minUrlExpirationTimestamp.get
           } else {
             System.currentTimeMillis() + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
