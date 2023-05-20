@@ -56,6 +56,7 @@ case class RemoteDeltaCDFRelation(
       DeltaTableUtils.addCdcSchema(deltaTabelFiles.metadata.schemaString),
       false,
       () => {
+        // scalastyle:off println
         val d = client.getCDFFiles(table, cdfOptions, false)
         (
           DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
@@ -73,6 +74,18 @@ case class RemoteDeltaCDFRelation(
 }
 
 object DeltaSharingCDFReader {
+
+  private def formatTs(ts: Option[Long]): String = {
+    if (ts.isDefined) {
+      return formatTs(ts.get)
+    }
+    return "None-TS"
+  }
+
+  private def formatTs(ts: Long): String = {
+    return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(ts)
+  }
+
   def changesToDF(
       params: RemoteDeltaFileIndexParams,
       requiredColumns: Array[String],
@@ -100,6 +113,7 @@ object DeltaSharingCDFReader {
     refs.append(new WeakReference(fileIndex3))
     dfs.append(scanIndex(fileIndex3, schema, isStreaming))
 
+    Console.println(s"----[linzhou]----CDF register, urlExp:${formatTs(expirationTimestamp)}")
     CachedTableManager.INSTANCE.register(
       params.path.toString,
       getIdToUrl(addFiles, cdfFiles, removeFiles),
@@ -163,6 +177,7 @@ object DeltaSharingCDFReader {
         }
       }
     }
+    Console.println(s"----[linzhou]----CDF get urlExp:${formatTs(minUrlExpiration)}")
     if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpiration)) {
       minUrlExpiration = None
     }

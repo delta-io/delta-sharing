@@ -814,8 +814,8 @@ class DeltaSharingSourceSuite extends QueryTest
       .load()
       .writeStream.foreachBatch { (batchDF: org.apache.spark.sql.DataFrame, batchId: Long) =>
       Console.println(s"----[linzhou]----batchId:$batchId")
-      // sleep for 70 seconds.
-      Thread.sleep(1000 * 70)
+      // sleep for 40 seconds.
+      Thread.sleep(1000 * 40)
       batchDF.show()
       Console.println(s"----[linzhou]----end:$batchId")
     }.start()
@@ -829,5 +829,25 @@ class DeltaSharingSourceSuite extends QueryTest
     } finally {
       query.stop()
     }
+  }
+
+  integrationTest("test url expiration snapshot") {
+    var DF = spark.read.format("deltaSharing").option("path", tablePath).load()
+    Console.println(s"----[linzhou]----got df:$DF")
+    // sleep for 40 seconds.
+    DF.show()
+    Thread.sleep(1000 * 40)
+    Console.println(s"----[linzhou]----end:$DF")
+  }
+
+  integrationTest("test url expiration cdf") {
+    val DF = spark.read.format("deltaSharing").option("readChangeFeed", "true")
+      .option("startingVersion", "1")
+      .option("path", cdfTablePath).load()
+    Console.println(s"----[linzhou]----got df:$DF")
+    DF.show()
+    // sleep for 40 seconds.
+    Thread.sleep(1000 * 40)
+    Console.println(s"----[linzhou]----end:$DF")
   }
 }

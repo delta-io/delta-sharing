@@ -258,15 +258,17 @@ case class DeltaSharingSource(
       if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
         // reset to None to indicate that it's not a valid url expiration timestamp.
         minUrlExpirationTimestamp = None
-      } else {
-        Console.println(s"----[linzhou]----valid exp:${formatTs(minUrlExpirationTimestamp)}")
       }
     }
   }
 
   // Pop a list of file actions from the local sortedFetchedFiles, until the given endOffset, to
   // be processed by the micro batch.
-  private def popSortedFetchedFiles(endOffset: DeltaSharingSourceOffset): Seq[IndexedFile] = {
+  // (fileActions, lastQueryTableTimestamp, minUrlExpirationTimestamp) are returned together within
+  // a single synchronized wrap, to avoid using old urls with refreshed timestamps when a refresh
+  // happens after this function and before register().
+  private def popSortedFetchedFiles(
+      endOffset: DeltaSharingSourceOffset): (Seq[IndexedFile], Long, Option[Long]) = {
     synchronized {
       val fileActions = sortedFetchedFiles.takeWhile {
         case IndexedFile(version, index, _, _, _, _) =>
@@ -274,20 +276,8 @@ case class DeltaSharingSource(
             (version == endOffset.tableVersion && index <= endOffset.index)
       }
       sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
-      fileActions
-    }
-  }
-
-  private def getLastQueryTableTimestamp(): Long = {
-    synchronized {
-      lastQueryTableTimestamp
-    }
-  }
-
-  private def getMinUrlExpirationTimestamp(): Option[Long] = {
-    synchronized {
-      Console.println(s"----[linzhou]----getUrlExp:${minUrlExpirationTimestamp}")
-      minUrlExpirationTimestamp
+      Console.println(s"----[linzhou]----popFiles, expTs:${minUrlExpirationTimestamp}")
+      (fileActions, lastQueryTableTimestamp, minUrlExpirationTimestamp)
     }
   }
 
@@ -322,8 +312,6 @@ case class DeltaSharingSource(
       if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
         // reset to None to indicate that it's not a valid url expiration timestamp.
         minUrlExpirationTimestamp = None
-      } else {
-        Console.println(s"----[linzhou]----valid exp:${formatTs(minUrlExpirationTimestamp)}")
       }
       var numUrlsRefreshed = 0
       sortedFetchedFiles = sortedFetchedFiles.map { indexedFile =>
@@ -368,7 +356,7 @@ case class DeltaSharingSource(
       }
       logInfo(s"Refreshed ${numUrlsRefreshed} urls in sortedFetchedFiles(size: " +
         s"${sortedFetchedFiles.size}).")
-      Console.println(s"-----[linzhou]----Refreshed ${numUrlsRefreshed} urls in " +
+      Console.println(s"----[linzhou]----Refreshed ${numUrlsRefreshed} urls in " +
         s"sortedFetchedFiles(size: ${sortedFetchedFiles.size}).")
     }
   }
@@ -694,7 +682,7 @@ case class DeltaSharingSource(
       endOffset: DeltaSharingSourceOffset): DataFrame = {
     maybeGetFileChanges(startVersion, startIndex, isStartingVersion)
 
-    val fileActions = popSortedFetchedFiles(endOffset)
+    val (fileActions, lastQueryTimestamp, urlExpirationTimestamp) = popSortedFetchedFiles(endOffset)
     // Proceed the offset as the files before the endOffset are processed.
     previousOffset = endOffset
 
@@ -704,10 +692,10 @@ case class DeltaSharingSource(
     val filteredActions = fileActions.filter{ indexedFile => indexedFile.getFileAction != null }
 
     if (options.readChangeFeed) {
-      return createCDFDataFrame(filteredActions)
+      return createCDFDataFrame(filteredActions, lastQueryTimestamp, urlExpirationTimestamp)
     }
 
-    createDataFrame(filteredActions)
+    createDataFrame(filteredActions, lastQueryTimestamp, urlExpirationTimestamp)
   }
 
   /**
@@ -715,7 +703,10 @@ case class DeltaSharingSource(
    * Only AddFile actions will be used to create the DataFrame.
    * @param indexedFiles actions list from which to generate the DataFrame.
    */
-  private def createDataFrame(indexedFiles: Seq[IndexedFile]): DataFrame = {
+  private def createDataFrame(
+      indexedFiles: Seq[IndexedFile],
+      lastQueryTimestamp: Long,
+      urlExpirationTimestamp: Option[Long]): DataFrame = {
     val addFilesList = indexedFiles.map { indexedFile =>
       // add won't be null at this step as addFile is the only interested file when
       // options.readChangeFeed is false, which is when this function is called.
@@ -730,7 +721,6 @@ case class DeltaSharingSource(
     val params = new RemoteDeltaFileIndexParams(
       spark, initSnapshot, deltaLog.client.getProfileProvider)
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
-    val urlExpirationTimestamp = getMinUrlExpirationTimestamp()
     CachedTableManager.INSTANCE.register(
       params.path.toString,
       idToUrl,
@@ -741,8 +731,8 @@ case class DeltaSharingSource(
         Console.println(s"----[linzhou]----register, url exp:${formatTs(urlExpirationTimestamp)}:")
         urlExpirationTimestamp.get
       } else {
-        Console.println(s"----[linzhou]----register, sch:${formatTs(getLastQueryTableTimestamp())}")
-        getLastQueryTableTimestamp() + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
+        Console.println(s"----[linzhou]----register, quetyTs:${formatTs(lastQueryTimestamp)}")
+        lastQueryTimestamp + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
       }
     )
 
@@ -763,7 +753,10 @@ case class DeltaSharingSource(
    * table.
    * @param indexedFiles actions list from which to generate the DataFrame.
    */
-  private def createCDFDataFrame(indexedFiles: Seq[IndexedFile]): DataFrame = {
+  private def createCDFDataFrame(
+      indexedFiles: Seq[IndexedFile],
+      lastQueryTimestamp: Long,
+      urlExpirationTimestamp: Option[Long]): DataFrame = {
     val addFiles = ArrayBuffer[AddFileForCDF]()
     val cdfFiles = ArrayBuffer[AddCDCFile]()
     val removeFiles = ArrayBuffer[RemoveFile]()
@@ -785,8 +778,8 @@ case class DeltaSharingSource(
       schema,
       isStreaming = true,
       latestRefreshFunc,
-      getLastQueryTableTimestamp(),
-      getMinUrlExpirationTimestamp()
+      lastQueryTimestamp,
+      urlExpirationTimestamp
     )
   }
 

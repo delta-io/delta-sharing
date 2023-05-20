@@ -258,6 +258,17 @@ class RemoteSnapshot(
     }
   }
 
+  private def formatTs(ts: Option[Long]): String = {
+    if (ts.isDefined) {
+      return formatTs(ts.get)
+    }
+    return "None-TS"
+  }
+
+  private def formatTs(ts: Long): String = {
+    return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(ts)
+  }
+
   def filesForScan(
       filters: Seq[Expression],
       limitHint: Option[Long],
@@ -297,6 +308,8 @@ class RemoteSnapshot(
         }
         file.id -> file.url
       }.toMap
+      // scalastyle:off println
+      Console.println(s"----[linzhou]----log, urlExp:${formatTs(minUrlExpirationTimestamp)}")
       CachedTableManager.INSTANCE
         .register(
           fileIndex.params.path.toString,
@@ -309,7 +322,8 @@ class RemoteSnapshot(
             var minUrlExpiration: Option[Long] = None
             val idToUrl = files.map { add =>
               if (add.expirationTimestamp != null) {
-                if (minUrlExpiration.isDefined && minUrlExpiration.get < add.expirationTimestamp) {
+                minUrlExpiration = if (minUrlExpiration.isDefined
+                  && minUrlExpiration.get < add.expirationTimestamp) {
                   minUrlExpiration
                 } else {
                   Some(add.expirationTimestamp)
@@ -317,9 +331,10 @@ class RemoteSnapshot(
               }
               add.id -> add.url
             }.toMap
+            Console.println(s"----[linzhou]----log, new urlExp:${formatTs(minUrlExpiration)}")
             (idToUrl, minUrlExpiration)
           },
-          if (minUrlExpirationTimestamp.isDefined) {
+          if (CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
             minUrlExpirationTimestamp.get
           } else {
             System.currentTimeMillis() + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
