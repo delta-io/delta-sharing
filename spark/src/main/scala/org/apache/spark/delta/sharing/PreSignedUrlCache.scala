@@ -82,6 +82,9 @@ class CachedTableManager(
     for (entry <- snapshot) {
       val tablePath = entry.getKey
       val cachedTable = entry.getValue
+      // scalastyle:off println
+      Console.println(s"----[linzhou]----checking:${tablePath}," +
+        s"at:${formatTs(System.currentTimeMillis())}")
       if (cachedTable.refs.forall(_.get == null)) {
         logInfo(s"Removing table $tablePath from the pre signed url cache as there are" +
           " no references pointed to it")
@@ -93,12 +96,17 @@ class CachedTableManager(
       } else if (cachedTable.expiration - System.currentTimeMillis() < refreshThresholdMs) {
         logInfo(s"Updating pre signed urls for $tablePath (expiration time: " +
           s"${new java.util.Date(cachedTable.expiration)})")
+        Console.println(s"----[linzhou]----Updating pre signed urls for $tablePath (expiration " +
+          s"time: ${new java.util.Date(cachedTable.expiration)})")
         try {
           val (idToUrl, expOpt) = cachedTable.refresher()
+          Console.println(s"----[linzhou]----refreshed expOpt:${formatTs(expOpt)}")
           val newTable = new CachedTable(
             if (isValidUrlExpirationTime(expOpt)) {
+              Console.println(s"----[linzhou]----refreshed valid:${formatTs(expOpt)}")
               expOpt.get
             } else {
+              Console.println(s"----[linzhou]----refreshed invalid")
               preSignedUrlExpirationMs + System.currentTimeMillis()
             },
             idToUrl,
@@ -140,6 +148,17 @@ class CachedTableManager(
     (url, cachedTable.expiration)
   }
 
+  private def formatTs(ts: Option[Long]): String = {
+    if (ts.isDefined) {
+      return formatTs(ts.get)
+    }
+    return "None-TS"
+  }
+
+  private def formatTs(ts: Long): String = {
+    return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(ts)
+  }
+
   /**
    * Register a table path in the cache. The pre signed urls will be refreshed automatically to
    * support long running queries.
@@ -168,13 +187,19 @@ class CachedTableManager(
 
     val (resolvedIdToUrl, resolvedExpiration) =
       if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
+        Console.println(s"----[linzhou]----refreing on register:" +
+          s"${formatTs(Some(expirationTimestamp))},at:${formatTs(System.currentTimeMillis())}")
         val (refreshedIdToUrl, expOpt) = customRefresher()
         if (isValidUrlExpirationTime(expOpt)) {
+          Console.println(s"----[linzhou]----refreshed expOpt:${formatTs(expOpt)}")
           (refreshedIdToUrl, expOpt.get)
         } else {
           (refreshedIdToUrl, System.currentTimeMillis() + preSignedUrlExpirationMs)
         }
       } else {
+        Console.println(s"----[linzhou]----NOT refreing on register:" +
+          s"${formatTs(Some(expirationTimestamp))},at:" +
+          s"${formatTs(Some(System.currentTimeMillis()))}")
         (idToUrl, expirationTimestamp)
       }
 
@@ -248,12 +273,12 @@ object CachedTableManager {
   private lazy val refreshCheckIntervalMs = Option(SparkEnv.get)
     .flatMap(_.conf.getOption("spark.delta.sharing.driver.refreshCheckIntervalMs"))
     .map(_.toLong)
-    .getOrElse(TimeUnit.MINUTES.toMillis(1))
+    .getOrElse(TimeUnit.SECONDS.toMillis(20))
 
   private lazy val refreshThresholdMs = Option(SparkEnv.get)
     .flatMap(_.conf.getOption("spark.delta.sharing.driver.refreshThresholdMs"))
     .map(_.toLong)
-    .getOrElse(TimeUnit.MINUTES.toMillis(15))
+    .getOrElse(TimeUnit.MINUTES.toMillis(59))
 
   private lazy val expireAfterAccessMs = Option(SparkEnv.get)
     .flatMap(_.conf.getOption("spark.delta.sharing.driver.accessThresholdToExpireMs"))

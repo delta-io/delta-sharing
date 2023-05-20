@@ -252,9 +252,14 @@ case class DeltaSharingSource(
       if (inputTimestamp.isDefined) {
         minUrlExpirationTimestamp = inputTimestamp
       }
+
+      // scalastyle:off println
+      Console.println(s"----[linzhou]----validating, exp:${formatTs(minUrlExpirationTimestamp)}")
       if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
         // reset to None to indicate that it's not a valid url expiration timestamp.
         minUrlExpirationTimestamp = None
+      } else {
+        Console.println(s"----[linzhou]----valid exp:${formatTs(minUrlExpirationTimestamp)}")
       }
     }
   }
@@ -281,8 +286,20 @@ case class DeltaSharingSource(
 
   private def getMinUrlExpirationTimestamp(): Option[Long] = {
     synchronized {
+      Console.println(s"----[linzhou]----getUrlExp:${minUrlExpirationTimestamp}")
       minUrlExpirationTimestamp
     }
+  }
+
+  private def formatTs(ts: Option[Long]): String = {
+    if (ts.isDefined) {
+      return formatTs(ts.get)
+    }
+    return "None-TS"
+  }
+
+  private def formatTs(ts: Long): String = {
+    return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(ts)
   }
 
   // Function to be called in latestRefreshFunc, to refresh the pre-signed urls in
@@ -295,8 +312,19 @@ case class DeltaSharingSource(
     synchronized {
       logInfo(s"Refreshing sortedFetchedFiles(size: ${sortedFetchedFiles.size}) with newIdToUrl(" +
         s"size: ${newIdToUrl.size}).")
+      Console.println(s"----[linzhou]----Refreshing sortedFetchedFiles(size: " +
+        s"${sortedFetchedFiles.size}) with newIdToUrl(size: ${newIdToUrl.size})." +
+        s"new expiration: ${formatTs(newMinUrlExpiration)}")
+
       lastQueryTableTimestamp = queryTimestamp
       minUrlExpirationTimestamp = newMinUrlExpiration
+      Console.println(s"----[linzhou]----validating, exp:${formatTs(minUrlExpirationTimestamp)}")
+      if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
+        // reset to None to indicate that it's not a valid url expiration timestamp.
+        minUrlExpirationTimestamp = None
+      } else {
+        Console.println(s"----[linzhou]----valid exp:${formatTs(minUrlExpirationTimestamp)}")
+      }
       var numUrlsRefreshed = 0
       sortedFetchedFiles = sortedFetchedFiles.map { indexedFile =>
         IndexedFile(
@@ -340,6 +368,8 @@ case class DeltaSharingSource(
       }
       logInfo(s"Refreshed ${numUrlsRefreshed} urls in sortedFetchedFiles(size: " +
         s"${sortedFetchedFiles.size}).")
+      Console.println(s"-----[linzhou]----Refreshed ${numUrlsRefreshed} urls in " +
+        s"sortedFetchedFiles(size: ${sortedFetchedFiles.size}).")
     }
   }
 
@@ -708,8 +738,10 @@ case class DeltaSharingSource(
       params.profileProvider,
       latestRefreshFunc,
       if (urlExpirationTimestamp.isDefined) {
+        Console.println(s"----[linzhou]----register, url exp:${formatTs(urlExpirationTimestamp)}:")
         urlExpirationTimestamp.get
       } else {
+        Console.println(s"----[linzhou]----register, sch:${formatTs(getLastQueryTableTimestamp())}")
         getLastQueryTableTimestamp() + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
       }
     )

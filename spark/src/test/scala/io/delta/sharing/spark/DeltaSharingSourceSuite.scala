@@ -800,4 +800,34 @@ class DeltaSharingSourceSuite extends QueryTest
       query.stop()
     }
   }
+
+  integrationTest("test url expiration") {
+    // VERSION 1: INSERT 2 rows, 1 add file
+    // VERSION 2: INSERT 3 rows, 1 add file
+    // VERSION 3: UPDATE 4 rows, 4 cdf files, 4 new rows
+    // VERSION 4: REMOVE 4 rows, 2 remove files, no new rows
+
+    // maxVersionsPerRpc = 1
+    var query = withStreamReaderAtVersion(path = cdfTablePath)
+      .option("maxFilesPerTrigger", "3")
+      .option("readChangeFeed", "true")
+      .load()
+      .writeStream.foreachBatch { (batchDF: org.apache.spark.sql.DataFrame, batchId: Long) =>
+      Console.println(s"----[linzhou]----batchId:$batchId")
+      // sleep for 70 seconds.
+      Thread.sleep(1000 * 70)
+      batchDF.show()
+      Console.println(s"----[linzhou]----end:$batchId")
+    }.start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      Console.println(s"----[linzhou]----size:${progress.size}")
+      progress.zipWithIndex.map { case (p, index) =>
+        Console.println(s"----[linzhou]----index:${index},row:${p.numInputRows}")
+      }
+    } finally {
+      query.stop()
+    }
+  }
 }
