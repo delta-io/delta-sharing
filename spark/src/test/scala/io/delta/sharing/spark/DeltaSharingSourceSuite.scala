@@ -808,9 +808,9 @@ class DeltaSharingSourceSuite extends QueryTest
     // VERSION 4: REMOVE 4 rows, 2 remove files, no new rows
 
     // maxVersionsPerRpc = 1
-    var query = withStreamReaderAtVersion(path = cdfTablePath)
+    var query = withStreamReaderAtVersion(path = tablePath)
       .option("maxFilesPerTrigger", "3")
-      .option("readChangeFeed", "true")
+//      .option("readChangeFeed", "true")
       .load()
       .writeStream.foreachBatch { (batchDF: org.apache.spark.sql.DataFrame, batchId: Long) =>
       Console.println(s"----[linzhou]----batchId:$batchId")
