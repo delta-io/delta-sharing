@@ -297,6 +297,10 @@ case class DeltaSharingSource(
         s"size: ${newIdToUrl.size}).")
       lastQueryTableTimestamp = queryTimestamp
       minUrlExpirationTimestamp = newMinUrlExpiration
+      if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
+        // reset to None to indicate that it's not a valid url expiration timestamp.
+        minUrlExpirationTimestamp = None
+      }
       var numUrlsRefreshed = 0
       sortedFetchedFiles = sortedFetchedFiles.map { indexedFile =>
         IndexedFile(
