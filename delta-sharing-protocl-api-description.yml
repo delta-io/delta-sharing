@@ -39,7 +39,7 @@ paths:
       summary: 'List the shares accessible to the recipient'
       description: |
         Without any query parameters the request will return the first page
-        of "shares" available to the authenticated recipent
+        of "shares" available to the authenticated recipient
       tags:
         - shares
         - official
