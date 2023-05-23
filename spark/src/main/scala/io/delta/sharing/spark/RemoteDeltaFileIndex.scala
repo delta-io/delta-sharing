@@ -184,7 +184,8 @@ private[sharing] case class RemoteDeltaCDFAddFileIndex(
     // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
     // applied.
     val updatedFiles = addFiles.map { a =>
-      AddFileForCDF(a.url, a.id, a.getPartitionValuesInDF, a.size, a.version, a.timestamp, a.stats)
+      AddFileForCDF(a.url, a.id, a.getPartitionValuesInDF, a.size, a.version, a.timestamp, a.stats,
+        a.expirationTimestamp)
     }
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits
@@ -208,7 +209,8 @@ private[sharing] case class RemoteDeltaCDCFileIndex(
     // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
     // applied.
     val updatedFiles = cdfFiles.map { c =>
-      AddCDCFile(c.url, c.id, c.getPartitionValuesInDF, c.size, c.version, c.timestamp)
+      AddCDCFile(c.url, c.id, c.getPartitionValuesInDF, c.size, c.version, c.timestamp,
+        c.expirationTimestamp)
     }
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits
@@ -231,7 +233,8 @@ private[sharing] case class RemoteDeltaCDFRemoveFileIndex(
     // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
     // applied.
     val updatedFiles = removeFiles.map { r =>
-      RemoveFile(r.url, r.id, r.getPartitionValuesInDF, r.size, r.version, r.timestamp)
+      RemoveFile(r.url, r.id, r.getPartitionValuesInDF, r.size, r.version, r.timestamp,
+        r.expirationTimestamp)
     }
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits

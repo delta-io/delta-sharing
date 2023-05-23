@@ -2414,6 +2414,7 @@ size | Long | The size of this file in bytes. | Required
 stats | String | Contains statistics (e.g., count, min/max values for columns) about the data in this file. This field may be missing. A file may or may not have stats. This is a serialized JSON string which can be deserialized to a [Statistics Struct](#per-file-statistics). A client can decide whether to use stats or drop it. | Optional
 version | Long | The table version of the file, returned when querying a table data with a version or timestamp parameter. | Optional
 timestamp | Long | The unix timestamp corresponding to the table version of the file, in milliseconds, returned when querying a table data with a version or timestamp parameter. | Optional
+expirationTimestamp | Long | The unix timestamp corresponding to the expiration of the url, in milliseconds, returned when the server supports the feature. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -2426,7 +2427,8 @@ Example (for illustration purposes; each JSON object must be a single line in th
     "partitionValues": {
       "date": "2021-04-28"
     },
-    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}"
+    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}",
+    "expirationTimestamp": 1652140800000
   }
 }
 ```
@@ -2443,6 +2445,7 @@ size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
 version | Int32 | The table version of this file. | Required
 stats | String | Contains statistics (e.g., count, min/max values for columns) about the data in this file. This field may be missing. A file may or may not have stats. This is a serialized JSON string which can be deserialized to a [Statistics Struct](#per-file-statistics). A client can decide whether to use stats or drop it. | Optional
+expirationTimestamp | Long | The unix timestamp corresponding to the expiration of the url, in milliseconds, returned when the server supports the feature. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -2457,7 +2460,8 @@ Example (for illustration purposes; each JSON object must be a single line in th
     },
     "timestamp": 1652140800000,
     "version": 1,
-    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}"
+    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}",
+    "expirationTimestamp": 1652144400000
   }
 }
 ```
@@ -2471,6 +2475,7 @@ partitionValues | Map<String, String> | A map from partition column to value for
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
 version | Int32 | The table version of this file. | Required
+expirationTimestamp | Long | The unix timestamp corresponding to the expiration of the url, in milliseconds, returned when the server supports the feature. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -2484,7 +2489,8 @@ Example (for illustration purposes; each JSON object must be a single line in th
       "date": "2021-04-28"
     },
     "timestamp": 1652140800000,
-    "version": 1
+    "version": 1,
+    "expirationTimestamp": 1652144400000
   }
 }
 ```
@@ -2498,6 +2504,7 @@ partitionValues | Map<String, String> | A map from partition column to value for
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
 version | Int32 | The table version of this file. | Required
+expirationTimestamp | Long | The unix timestamp corresponding to the expiration of the url, in milliseconds, returned when the server supports the feature. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -2511,7 +2518,8 @@ Example (for illustration purposes; each JSON object must be a single line in th
       "date": "2021-04-28"
     },
     "timestamp": 1652140800000,
-    "version": 1
+    "version": 1,
+    "expirationTimestamp": 1652144400000
   }
 }
 ```
