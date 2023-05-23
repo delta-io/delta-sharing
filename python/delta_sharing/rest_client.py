@@ -147,24 +147,24 @@ class DataSharingRestClient:
 
     def auth_session(self, profile):
         self._session = requests.Session()
-        self.auth_broker(profile)
+        self._auth_broker(profile)
         if urlparse(profile.endpoint).hostname == "localhost":
             self._session.verify = False
 
-    def auth_broker(self, profile):
+    def _auth_broker(self, profile):
         if profile.share_credentials_version == 2:
             if profile.type == "persistent_oauth2.0":
-                self.auth_persistent_oauth2(profile)
+                self._auth_persistent_oauth2(profile)
             elif profile.type == "bearer_token":
-                self.auth_bearer_token(profile)
+                self._auth_bearer_token(profile)
             elif profile.type == "basic":
-                self.auth_basic(profile)
+                self._auth_basic(profile)
             else:
-                self.auth_bearer_token(profile)
+                self._auth_bearer_token(profile)
         else:
-            self.auth_bearer_token(profile)
+            self._auth_bearer_token(profile)
 
-    def auth_bearer_token(self, profile):
+    def _auth_bearer_token(self, profile):
         self._session.headers.update(
             {
                 "Authorization": f"Bearer {profile.bearer_token}",
@@ -172,9 +172,13 @@ class DataSharingRestClient:
             }
         )
 
-    def auth_persistent_oauth2(self, profile):
+    def _auth_persistent_oauth2(self, profile):
+        headers = {"Content-Type": "application/x-www-form-urlencoded",
+                   "Accept": "application/json"}
+
         response = requests.post(profile.token_endpoint,
                                  data={"grant_type": "client_credentials"},
+                                 headers=headers,
                                  auth=(profile.client_id,
                                        profile.client_secret),)
         bearer_token = "{}".format(response.json()["access_token"])
@@ -182,21 +186,17 @@ class DataSharingRestClient:
         self._session.headers.update(
             {
                 "Authorization": f"Bearer {bearer_token}",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "application/json",
                 "User-Agent": DataSharingRestClient.USER_AGENT,
             }
         )
 
-    def auth_basic(self, profile):
+    def _auth_basic(self, profile):
         response = requests.post(profile.endpoint,
                                  data={"grant_type": "client_credentials"},
                                  auth=(profile.username, profile.password),)
-        bearer_token = "{}".format(response.json()["access_token"])
 
         self._session.headers.update(
             {
-                "Authorization": f"Bearer {bearer_token}",
                 "User-Agent": DataSharingRestClient.USER_AGENT,
             }
         )
