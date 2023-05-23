@@ -5,5 +5,9 @@
 #       Code update:
 #       - protocol.py
 #       - rest_client.py
+#       - test_protocol.py
+#       - test_profile_bearer.json
+#       - test_profile_oauth2.json
+#       - test_profile_basic.json
 #
 ###############################################################################################

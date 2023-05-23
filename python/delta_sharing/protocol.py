@@ -86,7 +86,7 @@ class DeltaSharingProfile:
                     type=type,
                     endpoint=endpoint,
                     token_endpoint=token_endpoint,
-                    client_id=json["clientID"],
+                    client_id=json["clientId"],
                     client_secret=json["clientSecret"],
                 )
             elif type == "bearer_token":

@@ -182,12 +182,14 @@ class DataSharingRestClient:
         self._session.headers.update(
             {
                 "Authorization": f"Bearer {bearer_token}",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
                 "User-Agent": DataSharingRestClient.USER_AGENT,
             }
         )
 
     def auth_basic(self, profile):
-        response = requests.post(profile.token_endpoint,
+        response = requests.post(profile.endpoint,
                                  data={"grant_type": "client_credentials"},
                                  auth=(profile.username, profile.password),)
         bearer_token = "{}".format(response.json()["access_token"])
