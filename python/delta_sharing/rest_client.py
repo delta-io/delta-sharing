@@ -181,6 +181,7 @@ class DataSharingRestClient:
                                  headers=headers,
                                  auth=(profile.client_id,
                                        profile.client_secret),)
+
         bearer_token = "{}".format(response.json()["access_token"])
 
         self._session.headers.update(
@@ -191,9 +192,10 @@ class DataSharingRestClient:
         )
 
     def _auth_basic(self, profile):
-        response = requests.post(profile.endpoint,
-                                 data={"grant_type": "client_credentials"},
-                                 auth=(profile.username, profile.password),)
+        self._session.auth = (profile.username, profile.password)
+
+        response = self._session.post(profile.endpoint,
+                                      data={"grant_type": "client_credentials"},)
 
         self._session.headers.update(
             {
