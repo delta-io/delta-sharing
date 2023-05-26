@@ -247,6 +247,11 @@ case class DeltaSharingSource(
     }
   }
 
+  // Validate the minimum url expiration timestamp, and set it to None if it's invalid.
+  // It's considered valid only when it gives enough time for the client to read data out of the
+  // pre-signed url. If not valid, we will use the spark config to decide the refresh schedule, and
+  // if the url expired before that, we'll leverage the driver log to debug why the expiration
+  // timestamp is invalid.
   private def validateMinUrlExpirationTimestamp(inputTimestamp: Option[Long] = None): Unit = {
     synchronized {
       if (inputTimestamp.isDefined) {

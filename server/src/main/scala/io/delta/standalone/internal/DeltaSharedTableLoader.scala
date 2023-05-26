@@ -332,7 +332,6 @@ class DeltaSharedTable(
           )
           actions.append(modelAddFile.wrap)
         case r: RemoveFile if r.dataChange =>
-          val signedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path))
           val modelRemoveFile = model.RemoveFile(
             url = signedUrl.url,
             expirationTimestamp = null, // signedUrl.expirationTimestamp - 60 * 60 * 1000,
