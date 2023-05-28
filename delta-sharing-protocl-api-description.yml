@@ -17,7 +17,6 @@ servers:
   - url: 'https://sharing.delta.io/delta-sharing/'
     description: 'Demo Delta Sharing server'
 
-
 tags:
 - name: 'shares'
   description: Share discovery APIs
@@ -29,8 +28,6 @@ tags:
   description: APIs which are part of published official document
 - name: 'proposed'
   description: APIs which are part proposed and may or may not be part of official
-
-
 
 paths:
   '/shares':
@@ -226,10 +223,63 @@ paths:
               schema:
                 $ref: '#/components/schemas/ListTablesResponse'
 
-  '/shares/{share}/schemas/{schema}/tables/{table}':
+  '/shares/{share}/all-tables':
+    get:
+      operationId: 'ListTables'
+      summary: "List the tables under all schemas in a share"
+      tags:
+        - shares
+        - official
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: 'Named share for finding the named schema'
+          schema:
+            type: string
+        - in: query
+          name: maxResults
+          required: false
+          description: |
+            The maximum number of results to be returned in a single page. If
+            the number of potential results exceeds the number of maximum
+            results, the response will contain a `nextpageToken` which can be
+            used in subsequent requests.
+          example: '30'
+          schema:
+            type: number
+            format: int32
+            default: 500
+        - in: query
+          name: pageToken
+          required: false
+          description: Optionally provided page token for requesting a subsequent page of results
+          schema:
+            type: string
+
+      responses:
+        '400':
+          $ref: "#/components/responses/400"
+        '401':
+          $ref: "#/components/responses/401"
+        '403':
+          $ref: "#/components/responses/403"
+        '404':
+          $ref: "#/components/responses/404"
+        '500':
+          $ref: "#/components/responses/500"
+        '200':
+          description: |
+            The user could successfully list the tables under all schemas in a share
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListTablesResponse'
+
+  '/shares/{share}/schemas/{schema}/tables/{table}/version':
     get:
       operationId: 'GetTableVersion'
-      summary: 'Return the latest version identifier for the named table'
+      summary: 'Return the table version'
       description: |
         This is the API for clients to get a table version without any other
         extra information. The server usually can implement this API
@@ -445,7 +495,6 @@ paths:
             'application/x-ndjson':
               schema:
                 $ref: '#/components/schemas/ChangeDataFeedResponse'
-
 
 components:
   securitySchemes:
