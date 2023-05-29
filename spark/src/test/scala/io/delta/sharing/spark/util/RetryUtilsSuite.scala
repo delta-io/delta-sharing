@@ -32,6 +32,7 @@ class RetryUtilsSuite extends SparkFunSuite {
     assert(!shouldRetry(new InterruptedException))
     assert(!shouldRetry(new InterruptedIOException))
     assert(shouldRetry(new IOException))
+    assert(shouldRetry(new java.net.SocketTimeoutException))
     assert(!shouldRetry(new RuntimeException))
   }
 
@@ -55,6 +56,23 @@ class RetryUtilsSuite extends SparkFunSuite {
       }
     }
     assert(sleeps == Seq())
+    RetryUtils.sleeper = (sleepMs: Long) => Thread.sleep(sleepMs)
+  }
+
+  test("maxDuration test") {
+    val sleeps = new ArrayBuffer[Long]()
+    RetryUtils.sleeper = (sleepMs: Long) => sleeps += sleepMs
+
+    // Retry case
+    intercept[java.net.SocketTimeoutException] {
+      runWithExponentialBackoff(10, 2200) {
+        Thread.sleep(600)
+        throw new java.net.SocketTimeoutException("MaxDurationTest")
+      }
+    }
+    // Should hit max duration after 2 retries.
+    assert(sleeps.length == 3)
+    assert(sleeps == Seq(100, 200, 400))
     RetryUtils.sleeper = (sleepMs: Long) => Thread.sleep(sleepMs)
   }
 }
