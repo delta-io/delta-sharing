@@ -41,6 +41,7 @@ private[sharing] object RetryUtils extends Logging {
           sleepMs *= 2
         case e: Exception =>
           logError(s"Not retrying delta sharing rpc on error: ${e.getMessage}", e)
+          throw e
       }
     }
     throw new IllegalStateException("Should not happen")
@@ -56,10 +57,10 @@ private[sharing] object RetryUtils extends Logging {
         } else {
           false
         }
+      case _: java.net.SocketTimeoutException => true
       case _: InterruptedException => false
       case _: InterruptedIOException => false
       case _: IOException => true
-      case _: java.net.SocketTimeoutException => true
       case _ => false
     }
   }
