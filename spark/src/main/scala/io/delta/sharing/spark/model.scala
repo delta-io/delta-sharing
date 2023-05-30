@@ -135,7 +135,8 @@ private[sharing] case class AddFile(
     @JsonRawValue
     stats: String = null,
     version: java.lang.Long = null,
-    timestamp: java.lang.Long = null) extends FileAction(url, id, partitionValues, size) {
+    timestamp: java.lang.Long = null,
+    expirationTimestamp: java.lang.Long = null) extends FileAction(url, id, partitionValues, size) {
 
   override def wrap: SingleAction = SingleAction(file = this)
 }
@@ -149,7 +150,8 @@ private[sharing] case class AddFileForCDF(
     version: Long,
     timestamp: Long,
     @JsonRawValue
-    stats: String = null) extends FileAction(url, id, partitionValues, size) {
+    stats: String = null,
+    expirationTimestamp: java.lang.Long = null) extends FileAction(url, id, partitionValues, size) {
 
   override def wrap: SingleAction = SingleAction(add = this)
 
@@ -170,7 +172,8 @@ private[sharing] case class AddCDCFile(
     override val partitionValues: Map[String, String],
     override val size: Long,
     version: Long,
-    timestamp: Long) extends FileAction(url, id, partitionValues, size) {
+    timestamp: Long,
+    expirationTimestamp: java.lang.Long = null) extends FileAction(url, id, partitionValues, size) {
 
   override def wrap: SingleAction = SingleAction(cdf = this)
 
@@ -190,7 +193,8 @@ private[sharing] case class RemoveFile(
     override val partitionValues: Map[String, String],
     override val size: Long,
     version: Long,
-    timestamp: Long) extends FileAction(url, id, partitionValues, size) {
+    timestamp: Long,
+    expirationTimestamp: java.lang.Long = null) extends FileAction(url, id, partitionValues, size) {
 
   override def wrap: SingleAction = SingleAction(remove = this)
 

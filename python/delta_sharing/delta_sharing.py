@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from delta_sharing.protocol import CdfOptions
+from delta_sharing.protocol import CdfOptions, Protocol, Metadata
 
 try:
     from pyspark.sql import DataFrame as PySparkDataFrame
@@ -49,6 +49,53 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
     if len(profile) == 0 or len(share) == 0 or len(schema) == 0 or len(table) == 0:
         raise ValueError(f"Invalid 'url': {url}")
     return (profile, share, schema, table)
+
+
+def get_table_version(
+    url: str,
+    starting_timestamp: Optional[str] = None
+) -> int:
+    """
+    Get the shared table version using the given url.
+
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>"
+    :param starting_timestamp: a string in the format of YYYY-MM-DDThh:mm:ssZ. Get the version at or
+      after the given timestamp. The latest table version will be returned if this is not specified.
+    """
+    profile_json, share, schema, table = _parse_url(url)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
+    rest_client = DataSharingRestClient(profile)
+    response = rest_client.query_table_version(
+        Table(name=table, share=share, schema=schema),
+        starting_timestamp
+    )
+    return response.delta_table_version
+
+
+def get_table_protocol(url: str) -> Protocol:
+    """
+    Get the shared table protocol using the given url.
+
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>"
+    """
+    profile_json, share, schema, table = _parse_url(url)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
+    rest_client = DataSharingRestClient(profile)
+    response = rest_client.query_table_metadata(Table(name=table, share=share, schema=schema))
+    return response.protocol
+
+
+def get_table_metadata(url: str) -> Metadata:
+    """
+    Get the shared table metadata using the given url.
+
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>"
+    """
+    profile_json, share, schema, table = _parse_url(url)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
+    rest_client = DataSharingRestClient(profile)
+    response = rest_client.query_table_metadata(Table(name=table, share=share, schema=schema))
+    return response.metadata
 
 
 def load_as_pandas(

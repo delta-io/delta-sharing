@@ -38,6 +38,12 @@ object DeltaCDFErrors {
     )
   }
 
+  def endVersionAfterLatestVersion(end: Long, latest: Long): Throwable = {
+    new DeltaCDFIllegalArgumentException(s"Provided end version($end) is invalid. End version " +
+      s"cannot be greater than the latest version of the table($latest)."
+    )
+  }
+
   def endBeforeStartVersionInCDF(start: Long, end: Long): Throwable = {
     new DeltaCDFIllegalArgumentException(
       s"CDF range from start $start to end $end was invalid. End cannot be before start."

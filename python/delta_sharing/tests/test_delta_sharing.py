@@ -22,13 +22,16 @@ import pytest
 from delta_sharing.delta_sharing import (
     DeltaSharingProfile,
     SharingClient,
+    get_table_metadata,
+    get_table_protocol,
+    get_table_version,
     load_as_pandas,
     load_as_spark,
     load_table_changes_as_spark,
     load_table_changes_as_pandas,
     _parse_url,
 )
-from delta_sharing.protocol import Schema, Share, Table
+from delta_sharing.protocol import Format, Metadata, Protocol, Schema, Share, Table
 from delta_sharing.rest_client import (
     DataSharingRestClient,
     ListAllTablesResponse,
@@ -149,12 +152,129 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
-    "fragments,jsonPredicateHints,predicateHints,limit,version,expected",
+    "fragments,starting_timestamp,error,expected_version",
     [
         pytest.param(
             "share1.default.table1",
             None,
             None,
+            2,
+            id="table1 spark",
+        ),
+        pytest.param(
+            "share1.default.table1",
+            "random_timestamp",
+            "random",
+            -1,
+            id="table1 starting_timestamp not valid",
+        ),
+        pytest.param(
+            "share8.default.cdf_table_cdf_enabled",
+            "2022-01-01T00:00:00Z",
+            None,
+            0,
+            id="cdf_table_cdf_enabled version 0",
+        ),
+        pytest.param(
+            "share8.default.cdf_table_cdf_enabled",
+            "2100-01-01T00:00:00Z",
+            "Please use a timestamp less than",
+            -1,
+            id="cdf_table_cdf_enabled timestamp too late",
+        ),
+    ],
+)
+def test_get_table_version(
+    profile_path: str,
+    fragments: str,
+    starting_timestamp: Optional[str],
+    error: Optional[str],
+    expected_version: int
+):
+    if error is None:
+        actual_version = get_table_version(f"{profile_path}#{fragments}", starting_timestamp)
+        assert expected_version == actual_version
+    else:
+        try:
+            get_table_version(f"{profile_path}#{fragments}", starting_timestamp)
+            assert False
+        except Exception as e:
+            assert error in str(e)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,expected",
+    [
+        pytest.param(
+            "share1.default.table1",
+            Metadata(
+                id="ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
+                format=Format(provider="parquet", options={}),
+                schema_string=(
+                    '{"type":"struct","fields":['
+                    '{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},'
+                    '{"name":"date","type":"date","nullable":true,"metadata":{}}'
+                    "]}"
+                ),
+                partition_columns=[],
+            ),
+            id="non partitioned",
+        ),
+        pytest.param(
+            "share2.default.table2",
+            Metadata(
+                id="f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+                format=Format(provider="parquet", options={}),
+                schema_string=(
+                    '{"type":"struct","fields":['
+                    '{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},'
+                    '{"name":"date","type":"date","nullable":true,"metadata":{}}'
+                    "]}"
+                ),
+                partition_columns=["date"],
+            ),
+            id="partitioned",
+        ),
+        pytest.param(
+            "share1.default.table3",
+            Metadata(
+                id="7ba6d727-a578-4234-a138-953f790b427c",
+                format=Format(provider="parquet", options={}),
+                schema_string=(
+                    '{"type":"struct","fields":['
+                    '{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},'
+                    '{"name":"date","type":"date","nullable":true,"metadata":{}},'
+                    '{"name":"type","type":"string","nullable":true,"metadata":{}}'
+                    "]}"
+                ),
+                partition_columns=["date"],
+            ),
+            id="partitioned and different schemas",
+        ),
+    ],
+)
+def test_get_table_metadata(
+    profile_path: str,
+    fragments: str,
+    expected: Metadata
+):
+    actual = get_table_metadata(f"{profile_path}#{fragments}")
+    assert expected == actual
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_get_table_protocol(profile_path: str):
+    actual = get_table_protocol(f"{profile_path}#share1.default.table1")
+    assert Protocol(min_reader_version=1) == actual
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,limit,version,expected",
+    [
+        pytest.param(
+            "share1.default.table1",
             None,
             None,
             pd.DataFrame(
@@ -172,8 +292,6 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
             "share2.default.table2",
             None,
             None,
-            None,
-            None,
             pd.DataFrame(
                 {
                     "eventTime": [
@@ -187,8 +305,6 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         ),
         pytest.param(
             "share1.default.table3",
-            None,
-            None,
             None,
             None,
             pd.DataFrame(
@@ -206,8 +322,6 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         ),
         pytest.param(
             "share1.default.table3",
-            None,
-            None,
             0,
             None,
             pd.DataFrame(
@@ -221,8 +335,6 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         ),
         pytest.param(
             "share1.default.table3",
-            None,
-            None,
             1,
             None,
             pd.DataFrame(
@@ -236,8 +348,6 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         ),
         pytest.param(
             "share1.default.table3",
-            None,
-            None,
             2,
             None,
             pd.DataFrame(
@@ -254,8 +364,6 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         ),
         pytest.param(
             "share1.default.table3",
-            None,
-            None,
             3,
             None,
             pd.DataFrame(
@@ -273,8 +381,6 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         ),
         pytest.param(
             "share1.default.table3",
-            None,
-            None,
             4,
             None,
             pd.DataFrame(
@@ -294,8 +400,6 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
             "share8.default.cdf_table_cdf_enabled",
             None,
             None,
-            None,
-            None,
             pd.DataFrame(
                 {
                     "name": ["1", "2"],
@@ -307,8 +411,6 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         ),
         pytest.param(
             "share8.default.cdf_table_cdf_enabled",
-            None,
-            None,
             None,
             1,
             pd.DataFrame(
@@ -322,8 +424,6 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         ),
         pytest.param(
             "share3.default.table4",
-            None,
-            None,
             None,
             None,
             pd.DataFrame(
@@ -342,15 +442,11 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
             "share4.default.test_gzip",
             None,
             None,
-            None,
-            None,
             pd.DataFrame({"a": [True], "b": pd.Series([1], dtype="int32"), "c": ["Hi"]}),
             id="table column order is not the same as parquet files",
         ),
         pytest.param(
             "share_azure.default.table_wasb",
-            None,
-            None,
             None,
             None,
             pd.DataFrame(
@@ -365,8 +461,6 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
             "share_azure.default.table_abfs",
             None,
             None,
-            None,
-            None,
             pd.DataFrame(
                 {
                     "c1": ["foo bar"],
@@ -377,8 +471,6 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         ),
         pytest.param(
             "share_gcp.default.table_gcs",
-            None,
-            None,
             None,
             None,
             pd.DataFrame(
