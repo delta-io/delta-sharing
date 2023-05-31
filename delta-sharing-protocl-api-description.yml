@@ -225,7 +225,7 @@ paths:
 
   '/shares/{share}/all-tables':
     get:
-      operationId: 'ListTables'
+      operationId: 'ListALLTables'
       summary: "List the tables under all schemas in a share"
       tags:
         - shares
