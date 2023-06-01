@@ -284,6 +284,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       version = None,
       timestamp = None,
       startingVersion = None,
+      endingVersion = None,
       queryDeltaLog = Try(queryDeltaLog.toBoolean).getOrElse(false))
     streamingOutput(Some(v), actions)
   }
@@ -323,6 +324,13 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           s"You can only query table data since version ${tableConfig.startVersion}."
         )
       }
+      if (request.endingVersion.isDefined &&
+        request.startingVersion.exists(_ > request.endingVersion.get)) {
+        throw new DeltaSharingIllegalArgumentException(
+          s"startingVersion(${request.startingVersion.get}) must be smaller than or equal to " +
+            s"endingVersion(${request.endingVersion.get})."
+        )
+      }
     }
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
@@ -332,6 +340,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.version,
       request.timestamp,
       request.startingVersion,
+      request.endingVersion,
       queryDeltaLog = request.queryDeltaLog.getOrElse(false))
     if (version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(

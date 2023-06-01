@@ -228,6 +228,7 @@ class DeltaSharedTable(
     }
   }
 
+  // TODO: add expirationTimestamp
   private def getResponseAddFile(
       addFile: AddFile,
       signedUrl: String,
@@ -336,6 +337,7 @@ class DeltaSharedTable(
       version: Option[Long],
       timestamp: Option[String],
       startingVersion: Option[Long],
+      endingVersion: Option[Long],
       queryDeltaLog: Boolean): (Long, Seq[Object]) = withClassLoader {
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
@@ -370,7 +372,7 @@ class DeltaSharedTable(
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
-        queryDataChangeSinceStartVersion(startingVersion.get, queryDeltaLog)
+        queryDataChangeSinceStartVersion(startingVersion.get, endingVersion, queryDeltaLog)
       } else if (includeFiles) {
         val ts = if (isVersionQuery) {
           val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
@@ -424,11 +426,17 @@ class DeltaSharedTable(
 
   private def queryDataChangeSinceStartVersion(
       startingVersion: Long,
-      queryDeltaLog: Boolean): Seq[Object] = {
-    val latestVersion = tableVersion
+      endingVersion: Option[Long],
+      queryDeltaLog: Boolean
+  ): Seq[Object] = {
+    var latestVersion = tableVersion
     if (startingVersion > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
     }
+    if (endingVersion.isDefined && endingVersion.get > latestVersion) {
+      throw DeltaCDFErrors.endVersionAfterLatestVersion(endingVersion.get, latestVersion)
+    }
+    latestVersion = latestVersion.min(endingVersion.getOrElse(latestVersion))
     val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
       deltaLog.store,
       deltaLog.logPath,
@@ -438,7 +446,8 @@ class DeltaSharedTable(
     )
 
     val actions = ListBuffer[Object]()
-    deltaLog.getChanges(startingVersion, true).asScala.toSeq.foreach{versionLog =>
+    deltaLog.getChanges(startingVersion, true).asScala.toSeq
+      .filter(_.getVersion <= latestVersion).foreach{ versionLog =>
       val v = versionLog.getVersion
       val versionActions = versionLog.getActions.asScala.map(x => ConversionUtils.convertActionJ(x))
       val ts = timestampsByVersion.get(v).orNull

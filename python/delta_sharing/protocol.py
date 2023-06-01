@@ -146,6 +146,9 @@ class Metadata:
     schema_string: Optional[str] = None
     configuration: Dict[str, str] = field(default_factory=dict)
     partition_columns: Sequence[str] = field(default_factory=list)
+    version: Optional[int] = None
+    size: Optional[int] = None
+    num_files: Optional[int] = None
 
     @staticmethod
     def from_json(json) -> "Metadata":
@@ -163,6 +166,9 @@ class Metadata:
             schema_string=json["schemaString"],
             configuration=configuration,
             partition_columns=json["partitionColumns"],
+            version=json.get("version", None),
+            size=json.get("size", None),
+            num_files=json.get("numFiles", None)
         )
 
 

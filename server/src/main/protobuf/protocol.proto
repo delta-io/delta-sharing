@@ -58,11 +58,14 @@ message QueryTableRequest {
     optional int64 version = 3;
     // The table version corresponding to the timestamp being queried.
     optional string timestamp = 4;
-    // Query all data change files since startingVersion
+    // Query all data change files since startingVersion, inclusive.
     optional int64 startingVersion = 5;
+    // Query all data change files until endingVersion, inclusive. Only used when startingVersion
+    // is set, otherwise will be ignored.
+    optional int64 endingVersion = 7;
 
     // Whether to treat the response as Delta Log
-    optional bool queryDeltaLog = 7;
+    optional bool queryDeltaLog = 8;
 }
 
 message ListSharesResponse {

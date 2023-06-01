@@ -285,7 +285,16 @@ class RemoteSnapshot(
       val tableFiles = client.getFiles(
         table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints
       )
+      var minUrlExpirationTimestamp: Option[Long] = None
       val idToUrl = tableFiles.files.map { file =>
+        if (file.expirationTimestamp != null) {
+          minUrlExpirationTimestamp = if (minUrlExpirationTimestamp.isDefined &&
+            minUrlExpirationTimestamp.get < file.expirationTimestamp) {
+            minUrlExpirationTimestamp
+          } else {
+            Some(file.expirationTimestamp)
+          }
+        }
         file.id -> file.url
       }.toMap
       CachedTableManager.INSTANCE
@@ -295,10 +304,26 @@ class RemoteSnapshot(
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
           () => {
-            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints)
-            .files.map { add =>
+            val files = client.getFiles(
+              table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints).files
+            var minUrlExpiration: Option[Long] = None
+            val idToUrl = files.map { add =>
+              if (add.expirationTimestamp != null) {
+                minUrlExpiration = if (minUrlExpiration.isDefined
+                  && minUrlExpiration.get < add.expirationTimestamp) {
+                  minUrlExpiration
+                } else {
+                  Some(add.expirationTimestamp)
+                }
+              }
               add.id -> add.url
             }.toMap
+            (idToUrl, minUrlExpiration)
+          },
+          if (CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
+            minUrlExpirationTimestamp.get
+          } else {
+            System.currentTimeMillis() + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
           }
         )
       checkProtocolNotChange(tableFiles.protocol)
