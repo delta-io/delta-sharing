@@ -458,7 +458,7 @@ export GOOGLE_APPLICATION_CREDENTIALS="KEY_PATH"
 Replace `KEY_PATH` with path of the JSON file that contains your service account key.
 
 ### Cloudflare R2
-We use an R2 implementation of the [S3 API](https://developers.cloudflare.com/r2/api/s3/api/) and `hadoop-aws` to read Cloudflare R2. You must [generate an API token](https://developers.cloudflare.com/r2/api/s3/tokens/) for usage with existing S3-compatible SDKs. These credentials can be specified in substitute of the S3 credentials in a Hadoop configuration file named `core-site.xml` within the server's `conf` directory. For R2 to work, you also need to directly specify the S3 endpoint and reduce `fs.s3a.paging.maximum` from 5000 to 1000.
+We use an R2 implementation of the [S3 API](https://developers.cloudflare.com/r2/api/s3/api/) and `hadoop-aws` to read Cloudflare R2. You must [generate an API token](https://developers.cloudflare.com/r2/api/s3/tokens/) for usage with existing S3-compatible SDKs. These credentials can be specified in substitute of the S3 credentials in a Hadoop configuration file named `core-site.xml` within the server's `conf` directory. For R2 to work, you also need to directly specify the S3 endpoint and reduce `fs.s3a.paging.maximum` from Hadoop's default of 5000 to 1000 since R2 only supports `MaxKeys` <= 1000.
 ```xml
 <?xml version="1.0"?>
 <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
@@ -481,7 +481,7 @@ We use an R2 implementation of the [S3 API](https://developers.cloudflare.com/r2
   </property>
 </configuration>
 ```
-Replace `YOUR-ACCESS-KEY` with your generated API token's R2 access key ID, `YOUR-SECRET-KEY` with your generated API token's secret access key, and `YOUR-ACCOUNT-ID` with your Cloudflare account ID. `fs.s3a.paging.maximum` must be manually set to 1000 since R2 only supports `MaxKeys` <= 1000 and Hadoop sets the value to 5000 by default. 
+Replace `YOUR-ACCESS-KEY` with your generated API token's R2 access key ID, `YOUR-SECRET-KEY` with your generated API token's secret access key, and `YOUR-ACCOUNT-ID` with your Cloudflare account ID.
 
 **Note**: S3 and R2 credentials cannot be configured simultaneously.
 
