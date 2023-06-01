@@ -481,7 +481,7 @@ We use an R2 implementation of the [S3 API](https://developers.cloudflare.com/r2
   </property>
 </configuration>
 ```
-Replace `YOUR-ACCESS-KEY` with your generated API token's R2 access key ID, `YOUR-SECRET-KEY` with your generated API token's secret access key, and `YOUR-ACCOUNT-ID` with your Cloudflare account ID.
+Replace `YOUR-ACCESS-KEY` with your generated API token's R2 access key ID, `YOUR-SECRET-KEY` with your generated API token's secret access key, and `YOUR-ACCOUNT-ID` with your Cloudflare account ID. `fs.s3a.paging.maximum` must be manually set to 1000 since R2 only supports `MaxKeys` <= 1000 and Hadoop sets the value to 5000 by default. 
 
 **Note**: S3 and R2 credentials cannot be configured simultaneously.
 
