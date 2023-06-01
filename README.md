@@ -458,7 +458,7 @@ export GOOGLE_APPLICATION_CREDENTIALS="KEY_PATH"
 Replace `KEY_PATH` with path of the JSON file that contains your service account key.
 
 ### Cloudflare R2
-We use an R2 implementation of the [S3 API](https://developers.cloudflare.com/r2/api/s3/api/) and `hadoop-aws` to read Cloudflare R2. You must [generate an API token](https://developers.cloudflare.com/r2/api/s3/tokens/) for usage with existing S3-compatible SDKs. These credentials can be specified in substitute of the S3 credentials in a Hadoop configuration file named `core-site.xml` within the server's `conf` directory. For R2 to work, you also need to directly specify the S3 endpoint and reduce `fs.s3a.paging.maximum` from Hadoop's default of 5000 to 1000 since R2 only supports `MaxKeys` <= 1000.
+We use an R2 implementation of the [S3 API](https://developers.cloudflare.com/r2/api/s3/api/) and `hadoop-aws` to read Cloudflare R2. Table paths in the server config file should use the `s3a://` scheme. You must [generate an API token](https://developers.cloudflare.com/r2/api/s3/tokens/) for usage with existing S3-compatible SDKs. These credentials can be specified in substitute of the S3 credentials in a Hadoop configuration file named `core-site.xml` within the server's `conf` directory. For R2 to work, you also need to directly specify the S3 endpoint and reduce `fs.s3a.paging.maximum` from Hadoop's default of 5000 to 1000 since R2 only supports `MaxKeys` <= 1000.
 ```xml
 <?xml version="1.0"?>
 <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
