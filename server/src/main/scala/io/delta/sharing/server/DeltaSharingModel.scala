@@ -52,6 +52,7 @@ case class DeltaSharingProtocol(
  */
 case class DeltaSharingAddFile(
     path: String,
+    id: String,
     @JsonInclude(JsonInclude.Include.ALWAYS)
     partitionValues: Map[String, String],
     size: Long,
@@ -61,6 +62,7 @@ case class DeltaSharingAddFile(
     stats: String = null,
     version: java.lang.Long = null,
     timestamp: java.lang.Long = null,
+    expirationTimestamp: Long,
     tags: Map[String, String] = null) extends DeltaSharingAction {
   require(path.nonEmpty)
 
@@ -78,13 +80,15 @@ case class DeltaSharingAddFile(
  */
 case class DeltaSharingRemoveFile(
     path: String,
+    id: String,
     deletionTimestamp: Option[Long],
     dataChange: Boolean = true,
     extendedFileMetadata: Boolean = false,
     partitionValues: Map[String, String] = null,
     size: Option[Long] = None,
-    version: java.lang.Long,
-    timestamp: java.lang.Long,
+    version: Long,
+    timestamp: Long,
+    expirationTimestamp: Long,
     tags: Map[String, String] = null) extends DeltaSharingAction {
   override def wrap: DeltaSharingSingleAction = DeltaSharingSingleAction(remove = this)
 }
@@ -96,10 +100,12 @@ case class DeltaSharingRemoveFile(
  */
 case class DeltaSharingAddCDCFile(
     path: String,
+    id: String,
     partitionValues: Map[String, String],
     size: Long,
-    version: java.lang.Long,
-    timestamp: java.lang.Long,
+    version: Long,
+    timestamp: Long,
+    expirationTimestamp: Long,
     tags: Map[String, String] = null) extends DeltaSharingAction {
   override def wrap: DeltaSharingSingleAction = DeltaSharingSingleAction(cdc = this)
 }

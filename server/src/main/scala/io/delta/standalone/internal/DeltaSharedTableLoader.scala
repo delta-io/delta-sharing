@@ -48,6 +48,7 @@ import io.delta.sharing.server.{
   DeltaSharingUnsupportedOperationException,
   ErrorStrings,
   GCSFileSigner,
+  PreSignedUrl,
   S3FileSigner,
   WasbFileSigner
 }
@@ -228,17 +229,18 @@ class DeltaSharedTable(
     }
   }
 
-  // TODO: add expirationTimestamp
   private def getResponseAddFile(
       addFile: AddFile,
-      signedUrl: String,
+      signedUrl: PreSignedUrl,
       version: java.lang.Long,
       timestamp: java.lang.Long,
       queryDeltaLog: Boolean,
       returnAddFileForCDF: Boolean = false): Object = {
     if (queryDeltaLog) {
       dsmodel.DeltaSharingAddFile(
-        path = signedUrl,
+        path = signedUrl.url,
+        id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+        expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = addFile.partitionValues,
         size = addFile.size,
         modificationTime = addFile.modificationTime,
@@ -250,8 +252,9 @@ class DeltaSharedTable(
       ).wrap
     } else if (returnAddFileForCDF) {
       model.AddFileForCDF(
-        url = signedUrl,
+        url = signedUrl.url,
         id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+        expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = addFile.partitionValues,
         size = addFile.size,
         stats = addFile.stats,
@@ -260,8 +263,9 @@ class DeltaSharedTable(
       ).wrap
     } else {
       model.AddFile(
-        url = signedUrl,
+        url = signedUrl.url,
         id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+        expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = addFile.partitionValues,
         size = addFile.size,
         stats = addFile.stats,
@@ -273,13 +277,15 @@ class DeltaSharedTable(
 
   private def getResponseRemoveFile(
     removeFile: RemoveFile,
-    signedUrl: String,
+    signedUrl: PreSignedUrl,
     version: java.lang.Long,
     timestamp: java.lang.Long,
     queryDeltaLog: Boolean): Object = {
     if (queryDeltaLog) {
       dsmodel.DeltaSharingRemoveFile(
-        path = signedUrl,
+        path = signedUrl.url,
+        id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
+        expirationTimestamp = signedUrl.expirationTimestamp,
         deletionTimestamp = removeFile.deletionTimestamp,
         dataChange = removeFile.dataChange,
         extendedFileMetadata = removeFile.extendedFileMetadata,
@@ -291,8 +297,9 @@ class DeltaSharedTable(
       ).wrap
     } else {
       model.RemoveFile(
-        url = signedUrl,
+        url = signedUrl.url,
         id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
+        expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = removeFile.partitionValues,
         size = removeFile.size.get,
         version = version,
@@ -303,14 +310,16 @@ class DeltaSharedTable(
 
   private def getResponseAddCDCFile(
     addCDCFile: AddCDCFile,
-    signedUrl: String,
+    signedUrl: PreSignedUrl,
     version: java.lang.Long,
     timestamp: java.lang.Long,
     queryDeltaLog: Boolean
   ): Object = {
     if (queryDeltaLog) {
       dsmodel.DeltaSharingAddCDCFile(
-        path = signedUrl,
+        path = signedUrl.url,
+        id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
+        expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = addCDCFile.partitionValues,
         size = addCDCFile.size,
         version = version,
@@ -319,8 +328,9 @@ class DeltaSharedTable(
       ).wrap
     } else {
       model.AddCDCFile(
-        url = signedUrl,
+        url = signedUrl.url,
         id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
+        expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = addCDCFile.partitionValues,
         size = addCDCFile.size,
         version = version,
