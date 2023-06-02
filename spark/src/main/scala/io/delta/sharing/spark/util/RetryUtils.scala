@@ -27,21 +27,34 @@ private[sharing] object RetryUtils extends Logging {
   // Expose it for testing
   @volatile var sleeper: Long => Unit = (sleepMs: Long) => Thread.sleep(sleepMs)
 
-  def runWithExponentialBackoff[T](numRetries: Int)(func: => T): T = {
+  def runWithExponentialBackoff[T](
+      numRetries: Int,
+      maxDurationMillis: Long = Long.MaxValue)(func: => T): T = {
     var times = 0
     var sleepMs = 100
+    val startTime = System.currentTimeMillis()
     while (true) {
       times += 1
+      val retryStartTime = System.currentTimeMillis()
       try {
         return func
       } catch {
-        case NonFatal(e) if shouldRetry(e) && times <= numRetries =>
-          logWarning(s"Sleeping $sleepMs ms to retry because of error: ${e.getMessage}", e)
-          sleeper(sleepMs)
-          sleepMs *= 2
         case e: Exception =>
-          logError(s"Not retrying delta sharing rpc on error: ${e.getMessage}", e)
-          throw e
+          val totalDuration = System.currentTimeMillis() - startTime
+          val retryDuration = System.currentTimeMillis() - retryStartTime
+          logError(
+            "Error during retry attempt " + times + ", retryDuration=" + retryDuration +
+            ", totalDuration=" + totalDuration + " : " + e.getMessage,
+            e
+          )
+          if (shouldRetry(e) && times <= numRetries && totalDuration <= maxDurationMillis) {
+            logWarning(s"Sleeping $sleepMs ms to retry")
+            sleeper(sleepMs)
+            sleepMs *= 2
+          } else {
+            logError(s"Not retrying delta sharing rpc on error: ${e.getMessage}", e)
+            throw e
+          }
       }
     }
     throw new IllegalStateException("Should not happen")
