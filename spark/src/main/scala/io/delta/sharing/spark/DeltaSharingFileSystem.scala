@@ -29,40 +29,18 @@ import org.apache.spark.delta.sharing.{PreSignedUrlCache, PreSignedUrlFetcher}
 import org.apache.spark.network.util.JavaUtils
 
 import io.delta.sharing.spark.model.FileAction
+import io.delta.sharing.spark.util.{ConfUtils, RetryUtils}
 
 /** Read-only file system for delta paths. */
 private[sharing] class DeltaSharingFileSystem extends FileSystem {
   import DeltaSharingFileSystem._
 
-  lazy private val numRetries = {
-    val numRetries = getConf.getInt("spark.delta.sharing.network.numRetries", 10)
-    if (numRetries < 0) {
-      throw new IllegalArgumentException(
-        "spark.delta.sharing.network.numRetries must not be negative")
-    }
-    numRetries
-  }
-
-  lazy private val timeoutInSeconds = {
-    val timeoutStr = getConf.get("spark.delta.sharing.network.timeout", "320s")
-    val timeoutInSeconds = JavaUtils.timeStringAs(timeoutStr, TimeUnit.SECONDS)
-    if (timeoutInSeconds < 0) {
-      throw new IllegalArgumentException(
-        "spark.delta.sharing.network.timeout must not be negative")
-    }
-    if (timeoutInSeconds > Int.MaxValue) {
-      throw new IllegalArgumentException(
-        s"spark.delta.sharing.network.timeout is too big: $timeoutStr")
-    }
-    timeoutInSeconds.toInt
-  }
+  lazy private val numRetries = ConfUtils.numRetries(getConf)
+  lazy private val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(getConf)
+  lazy private val timeoutInSeconds = ConfUtils.timeoutInSeconds(getConf)
 
   lazy private val httpClient = {
-    val maxConnections = getConf.getInt("spark.delta.sharing.network.maxConnections", 64)
-    if (maxConnections < 0) {
-      throw new IllegalArgumentException(
-        "spark.delta.sharing.network.maxConnections must not be negative")
-    }
+    val maxConnections = ConfUtils.maxConnections(getConf)
     val config = RequestConfig.custom()
       .setConnectTimeout(timeoutInSeconds * 1000)
       .setConnectionRequestTimeout(timeoutInSeconds * 1000)
@@ -97,7 +75,15 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
       new FSDataInputStream(new InMemoryHttpInputStream(new URI(fetcher.getUrl())))
     } else {
       new FSDataInputStream(
-        new RandomAccessHttpInputStream(httpClient, fetcher, path.fileSize, statistics, numRetries))
+        new RandomAccessHttpInputStream(
+          httpClient,
+          fetcher,
+          path.fileSize,
+          statistics,
+          numRetries,
+          maxRetryDurationMillis
+        )
+      )
     }
   }
 
