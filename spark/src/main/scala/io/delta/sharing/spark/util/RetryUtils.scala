@@ -52,7 +52,7 @@ private[sharing] object RetryUtils extends Logging {
             sleeper(sleepMs)
             sleepMs *= 2
           } else {
-            logWarning(s"Not retrying delta sharing rpc")
+            logError(s"Not retrying delta sharing rpc on error: ${e.getMessage}", e)
             throw e
           }
       }

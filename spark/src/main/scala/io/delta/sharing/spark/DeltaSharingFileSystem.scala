@@ -40,7 +40,6 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
   lazy private val timeoutInSeconds = ConfUtils.timeoutInSeconds(getConf)
 
   lazy private val httpClient = {
-    val c = getConf()
     val maxConnections = ConfUtils.maxConnections(getConf)
     val config = RequestConfig.custom()
       .setConnectTimeout(timeoutInSeconds * 1000)
