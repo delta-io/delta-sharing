@@ -133,57 +133,11 @@ private[sharing] object RemoteDeltaLog {
   }
 
   def apply(path: String, forStreaming: Boolean = false): RemoteDeltaLog = {
-    val sqlConf = SparkSession.active.sessionState.conf
     val (profileFile, share, schema, table) = parsePath(path)
 
-    val profileProviderclass =
-      sqlConf.getConfString("spark.delta.sharing.profile.provider.class",
-        "io.delta.sharing.spark.DeltaSharingFileProfileProvider")
-
-    val profileProvider: DeltaSharingProfileProvider =
-      Class.forName(profileProviderclass)
-        .getConstructor(classOf[Configuration], classOf[String])
-        .newInstance(SparkSession.active.sessionState.newHadoopConf(),
-          profileFile)
-        .asInstanceOf[DeltaSharingProfileProvider]
-
     val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
-    // This is a flag to test the local https server. Should never be used in production.
-    val sslTrustAll =
-      sqlConf.getConfString("spark.delta.sharing.network.sslTrustAll", "false").toBoolean
-    val numRetries = sqlConf.getConfString("spark.delta.sharing.network.numRetries", "10").toInt
-    if (numRetries < 0) {
-      throw new IllegalArgumentException(
-        "spark.delta.sharing.network.numRetries must not be negative")
-    }
-    val timeoutInSeconds = {
-      val timeoutStr = sqlConf.getConfString("spark.delta.sharing.network.timeout", "320s")
-      val timeoutInSeconds = JavaUtils.timeStringAs(timeoutStr, TimeUnit.SECONDS)
-      if (timeoutInSeconds < 0) {
-        throw new IllegalArgumentException(
-          "spark.delta.sharing.network.timeout must not be negative")
-      }
-      if (timeoutInSeconds > Int.MaxValue) {
-        throw new IllegalArgumentException(
-          s"spark.delta.sharing.network.timeout is too big")
-      }
-      timeoutInSeconds.toInt
-    }
+    val client = DeltaSharingRestClient(profileFile, forStreaming)
 
-    val clientClass =
-      sqlConf.getConfString("spark.delta.sharing.client.class",
-        "io.delta.sharing.spark.DeltaSharingRestClient")
-
-    val client: DeltaSharingClient =
-      Class.forName(clientClass)
-        .getConstructor(classOf[DeltaSharingProfileProvider],
-          classOf[Int], classOf[Int], classOf[Boolean], classOf[Boolean])
-        .newInstance(profileProvider,
-          java.lang.Integer.valueOf(timeoutInSeconds),
-          java.lang.Integer.valueOf(numRetries),
-          java.lang.Boolean.valueOf(sslTrustAll),
-          java.lang.Boolean.valueOf(forStreaming))
-        .asInstanceOf[DeltaSharingClient]
     new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
   }
 }

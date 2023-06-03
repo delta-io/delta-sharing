@@ -22,12 +22,14 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.sql.Timestamp
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter.ISO_DATE_TIME
+import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 import org.apache.commons.io.IOUtils
 import org.apache.commons.io.input.BoundedInputStream
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.util.VersionInfo
 import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
 import org.apache.http.client.config.RequestConfig
@@ -37,6 +39,8 @@ import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, 
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.spark.internal.Logging
+import org.apache.spark.network.util.JavaUtils
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 import io.delta.sharing.spark.model._
@@ -51,12 +55,12 @@ private[sharing] trait DeltaSharingClient {
   def getMetadata(table: Table): DeltaTableMetadata
 
   def getFiles(
-    table: Table,
-    predicates: Seq[String],
-    limit: Option[Long],
-    versionAsOf: Option[Long],
-    timestampAsOf: Option[String],
-    jsonPredicateHints: Option[String]): DeltaTableFiles
+      table: Table,
+      predicates: Seq[String],
+      limit: Option[Long],
+      versionAsOf: Option[Long],
+      timestampAsOf: Option[String],
+      jsonPredicateHints: Option[String]): DeltaTableFiles
 
   def getFiles(table: Table, startingVersion: Long, endingVersion: Option[Long]): DeltaTableFiles
 
@@ -81,7 +85,8 @@ private[sharing] case class QueryTableRequest(
   timestamp: Option[String],
   startingVersion: Option[Long],
   endingVersion: Option[Long],
-  jsonPredicateHints: Option[String]
+  jsonPredicateHints: Option[String],
+  queryDeltaLog: Option[Boolean]
 )
 
 private[sharing] case class ListSharesResponse(
@@ -98,7 +103,8 @@ private[spark] class DeltaSharingRestClient(
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
     sslTrustAll: Boolean = false,
-    forStreaming: Boolean = false) extends DeltaSharingClient {
+    forStreaming: Boolean = false,
+    queryDeltaLog: Boolean = false) extends DeltaSharingClient {
 
   @volatile private var created = false
 
@@ -197,23 +203,43 @@ private[spark] class DeltaSharingRestClient(
     }
   }
 
+  // TODO: consider return (version, lines) as the response, and do the parsing outside.
   def getMetadata(table: Table): DeltaTableMetadata = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
-      s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata")
+      s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata?" +
+        s"queryDeltaLog=$queryDeltaLog")
     val (version, lines) = getNDJson(target)
-    val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
-    checkProtocol(protocol)
-    val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
-    if (lines.size != 2) {
-      throw new IllegalStateException("received more than two lines")
+    if (queryDeltaLog) {
+      val protocol = JsonUtils.fromJson[dsmodel.SingleAction](lines(0)).protocol
+      checkProtocol(protocol)
+      val metadata = JsonUtils.fromJson[dsmodel.SingleAction](lines(1)).metaData
+      if (lines.size != 2) {
+        throw new IllegalStateException("received more than two lines")
+      }
+      DeltaTableMetadata(version, Protocol(1), Metadata(), Some(protocol), Some(metadata))
+    } else {
+      val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
+      checkProtocol(protocol)
+      val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
+      if (lines.size != 2) {
+        throw new IllegalStateException("received more than two lines")
+      }
+      DeltaTableMetadata(version, protocol, metadata)
     }
-    DeltaTableMetadata(version, protocol, metadata)
   }
 
   private def checkProtocol(protocol: Protocol): Unit = {
+    if (protocol.minReaderVersion > DeltaSharingRestClient.CURRENT) {
+      throw new IllegalArgumentException(s"The table requires a newer version" +
+        s" ${protocol.minReaderVersion} to read. But the current release supports version " +
+        s"is ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer release.")
+    }
+  }
+
+  private def checkProtocol(protocol: dsmodel.Protocol): Unit = {
     if (protocol.minReaderVersion > DeltaSharingRestClient.CURRENT) {
       throw new IllegalArgumentException(s"The table requires a newer version" +
         s" ${protocol.minReaderVersion} to read. But the current release supports version " +
@@ -242,15 +268,25 @@ private[spark] class DeltaSharingRestClient(
         timestampAsOf,
         None,
         None,
-        jsonPredicateHints
+        jsonPredicateHints,
+        Some(queryDeltaLog)
       )
     )
     require(versionAsOf.isEmpty || versionAsOf.get == version)
-    val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
-    checkProtocol(protocol)
-    val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
-    val files = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
-    DeltaTableFiles(version, protocol, metadata, files)
+    if (queryDeltaLog) {
+      DeltaTableFiles(
+        version,
+        Protocol(1),
+        Metadata(),
+        lines = lines
+      )
+    } else {
+      val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
+      checkProtocol(protocol)
+      val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
+      val files = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
+      DeltaTableFiles(version, protocol, metadata, files)
+    }
   }
 
   override def getFiles(
@@ -264,7 +300,18 @@ private[spark] class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val (version, lines) = getNDJson(
-      target, QueryTableRequest(Nil, None, None, None, Some(startingVersion), endingVersion, None))
+      target,
+      QueryTableRequest(
+        Nil,
+        None,
+        None,
+        None,
+        Some(startingVersion),
+        endingVersion,
+        None,
+        Some(queryDeltaLog)
+      )
+    )
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
@@ -332,9 +379,13 @@ private[spark] class DeltaSharingRestClient(
       Map("includeHistoricalMetadata" -> "true")
     } else {
       Map.empty
+    }) ++ (if (queryDeltaLog) {
+      Map("queryDeltaLog" -> "true")
+    } else {
+      Map.empty
     })
     paramMap.map {
-      case (cdfKey, cdfValue) => s"$cdfKey=${URLEncoder.encode(cdfValue)}"
+      case (paramKey, paramValue) => s"$paramKey=${URLEncoder.encode(paramValue)}"
     }.mkString("&")
   }
 
@@ -541,5 +592,55 @@ private[spark] object DeltaSharingRestClient extends Logging {
   def spaceFreeProperty(key: String): String = {
     val value = System.getProperty(key)
     if (value == null) "<unknown>" else value.replace(' ', '_')
+  }
+
+  def apply(profileFile: String, forStreaming: Boolean = false): DeltaSharingClient = {
+    val sqlConf = SparkSession.active.sessionState.conf
+
+    val profileProviderclass =
+      sqlConf.getConfString("spark.delta.sharing.profile.provider.class",
+        "io.delta.sharing.spark.DeltaSharingFileProfileProvider")
+
+    val profileProvider: DeltaSharingProfileProvider =
+      Class.forName(profileProviderclass)
+        .getConstructor(classOf[Configuration], classOf[String])
+        .newInstance(SparkSession.active.sessionState.newHadoopConf(),
+          profileFile)
+        .asInstanceOf[DeltaSharingProfileProvider]
+
+    // This is a flag to test the local https server. Should never be used in production.
+    val sslTrustAll =
+      sqlConf.getConfString("spark.delta.sharing.network.sslTrustAll", "false").toBoolean
+    val numRetries = sqlConf.getConfString("spark.delta.sharing.network.numRetries", "10").toInt
+    if (numRetries < 0) {
+      throw new IllegalArgumentException(
+        "spark.delta.sharing.network.numRetries must not be negative")
+    }
+    val timeoutInSeconds = {
+      val timeoutStr = sqlConf.getConfString("spark.delta.sharing.network.timeout", "320s")
+      val timeoutInSeconds = JavaUtils.timeStringAs(timeoutStr, TimeUnit.SECONDS)
+      if (timeoutInSeconds < 0) {
+        throw new IllegalArgumentException(
+          "spark.delta.sharing.network.timeout must not be negative")
+      }
+      if (timeoutInSeconds > Int.MaxValue) {
+        throw new IllegalArgumentException(
+          s"spark.delta.sharing.network.timeout is too big")
+      }
+      timeoutInSeconds.toInt
+    }
+
+    val clientClass =
+      sqlConf.getConfString("spark.delta.sharing.client.class",
+        "io.delta.sharing.spark.DeltaSharingRestClient")
+    Class.forName(clientClass)
+      .getConstructor(classOf[DeltaSharingProfileProvider],
+        classOf[Int], classOf[Int], classOf[Boolean], classOf[Boolean])
+      .newInstance(profileProvider,
+        java.lang.Integer.valueOf(timeoutInSeconds),
+        java.lang.Integer.valueOf(numRetries),
+        java.lang.Boolean.valueOf(sslTrustAll),
+        java.lang.Boolean.valueOf(forStreaming))
+      .asInstanceOf[DeltaSharingClient]
   }
 }

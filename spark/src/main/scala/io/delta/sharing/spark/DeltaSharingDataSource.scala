@@ -49,6 +49,11 @@ private[sharing] class DeltaSharingDataSource
     val options = new DeltaSharingOptions(parameters)
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
 
+    // TODO:
+    //  1. create delta sharing client
+    //  2. getMetadata
+    //  3. Prepare custom relation with custom file index
+    //  4. in file index class, getFiles, and prepare delta log.
     val deltaLog = RemoteDeltaLog(path)
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
   }

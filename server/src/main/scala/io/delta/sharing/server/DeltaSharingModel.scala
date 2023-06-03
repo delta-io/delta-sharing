@@ -124,6 +124,8 @@ case class DeltaSharingMetadata(
     partitionColumns: Seq[String] = Nil,
     configuration: Map[String, String] = Map.empty,
     version: java.lang.Long = null,
+    size: java.lang.Long = null,
+    numFiles: java.lang.Long = null,
     createdTime: Option[Long] = Some(System.currentTimeMillis())) extends DeltaSharingAction {
   override def wrap: DeltaSharingSingleAction = DeltaSharingSingleAction(metaData = this)
 }

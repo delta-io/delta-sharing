@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark.model
+package io.delta.sharing.spark.dsmodel
 
 import com.fasterxml.jackson.annotation.JsonInclude
 import org.apache.spark.sql.types.{DataType, LongType, StringType}
 import org.codehaus.jackson.annotate.JsonRawValue
 
-import io.delta.sharing.spark.dsmodel
+import io.delta.sharing.spark.model.Format
 
 // Information about CDF columns.
 private[sharing] object CDFColumnInfo {
@@ -39,24 +39,18 @@ private[sharing] object CDFColumnInfo {
 }
 
 private[sharing] case class DeltaTableMetadata(
-    version: Long,
-    protocol: Protocol,
-    metadata: Metadata,
-    dsProtocol: Option[dsmodel.Protocol] = None,
-    dsMetadata: Option[dsmodel.Metadata] = None
-)
+  version: Long,
+  protocol: Protocol,
+  metadata: Metadata)
 
 private[sharing] case class DeltaTableFiles(
-    version: Long,
-    protocol: Protocol,
-    metadata: Metadata,
-    files: Seq[AddFile] = Nil,
-    addFiles: Seq[AddFileForCDF] = Nil,
-    cdfFiles: Seq[AddCDCFile] = Nil,
-    removeFiles: Seq[RemoveFile] = Nil,
-    additionalMetadatas: Seq[Metadata] = Nil,
-    lines: Seq[String] = Nil
-   )
+  version: Long,
+  protocol: Protocol,
+  metadata: Metadata,
+  addFiles: Seq[AddFile] = Nil,
+  cdfFiles: Seq[AddCDCFile] = Nil,
+  removeFiles: Seq[RemoveFile] = Nil,
+  additionalMetadatas: Seq[Metadata] = Nil)
 
 private[sharing] case class Share(name: String)
 
@@ -67,20 +61,17 @@ private[sharing] case class Table(name: String, schema: String, share: String) {
 }
 
 private[sharing] case class SingleAction(
-    file: AddFile = null,
-    add: AddFileForCDF = null,
-    cdf: AddCDCFile = null,
-    remove: RemoveFile = null,
-    metaData: Metadata = null,
-    protocol: Protocol = null) {
+  add: AddFile = null,
+  cdc: AddCDCFile = null,
+  remove: RemoveFile = null,
+  metaData: Metadata = null,
+  protocol: Protocol = null) {
 
   def unwrap: Action = {
-    if (file != null) {
-      file
-    } else if (add != null) {
+    if (add != null) {
       add
-    } else if (cdf != null) {
-      cdf
+    } else if (cdc != null) {
+      cdc
     } else if (remove != null) {
       remove
     } else if (metaData != null) {
@@ -93,19 +84,18 @@ private[sharing] case class SingleAction(
   }
 }
 
-private[sharing] case class Format(provider: String = "parquet")
-
 private[sharing] case class Metadata(
     id: String = null,
     name: String = null,
     description: String = null,
     format: Format = Format(),
     schemaString: String = null,
-    configuration: Map[String, String] = Map.empty,
     partitionColumns: Seq[String] = Nil,
+    configuration: Map[String, String] = Map.empty,
     version: java.lang.Long = null,
     size: java.lang.Long = null,
-    numFiles: java.lang.Long = null) extends Action {
+    numFiles: java.lang.Long = null,
+    createdTime: Option[Long] = None) extends Action {
   override def wrap: SingleAction = SingleAction(metaData = this)
 }
 
@@ -120,11 +110,14 @@ private[sharing] case class Protocol(minReaderVersion: Int) extends Action {
 
 // A common base class for all file actions.
 private[sharing] sealed abstract class FileAction(
-    val url: String,
-    val id: String,
-    @JsonInclude(JsonInclude.Include.ALWAYS)
-    val partitionValues: Map[String, String],
-    val size: Long) extends Action {
+  val path: String,
+  val id: String,
+  @JsonInclude(JsonInclude.Include.ALWAYS)
+  val partitionValues: Map[String, String],
+  val size: Long,
+  val version: Long,
+  val timestamp: Long,
+  val expirationTimestamp: Long) extends Action {
 
   // Returns the partition values to be used in a data frame.
   // By default, we return the input partition values.
@@ -134,31 +127,20 @@ private[sharing] sealed abstract class FileAction(
 }
 
 private[sharing] case class AddFile(
-    override val url: String,
+    override val path: String,
     override val id: String,
     @JsonInclude(JsonInclude.Include.ALWAYS)
     override val partitionValues: Map[String, String],
     override val size: Long,
+    override val version: Long,
+    override val timestamp: Long,
+    override val expirationTimestamp: Long,
+    modificationTime: Long,
+    dataChange: Boolean,
     @JsonRawValue
     stats: String = null,
-    version: java.lang.Long = null,
-    timestamp: java.lang.Long = null,
-    expirationTimestamp: java.lang.Long = null) extends FileAction(url, id, partitionValues, size) {
-
-  override def wrap: SingleAction = SingleAction(file = this)
-}
-
-private[sharing] case class AddFileForCDF(
-    override val url: String,
-    override val id: String,
-    @JsonInclude(JsonInclude.Include.ALWAYS)
-    override val partitionValues: Map[String, String],
-    override val size: Long,
-    version: Long,
-    timestamp: Long,
-    @JsonRawValue
-    stats: String = null,
-    expirationTimestamp: java.lang.Long = null) extends FileAction(url, id, partitionValues, size) {
+    tags: Map[String, String] = null) extends
+  FileAction(path, id, partitionValues, size, version, timestamp, expirationTimestamp) {
 
   override def wrap: SingleAction = SingleAction(add = this)
 
@@ -166,42 +148,49 @@ private[sharing] case class AddFileForCDF(
     // The scala map operation "+" will override values of existing keys.
     // So the function is idempotent, and calling it multiple times does not change its output.
     partitionValues +
-    (CDFColumnInfo.commit_version_col_name -> version.toString) +
-    (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString) +
-    (CDFColumnInfo.change_type_col_name -> "insert")
+      (CDFColumnInfo.commit_version_col_name -> version.toString) +
+      (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString) +
+      (CDFColumnInfo.change_type_col_name -> "insert")
   }
 }
 
 private[sharing] case class AddCDCFile(
-    override val url: String,
+    override val path: String,
     override val id: String,
     @JsonInclude(JsonInclude.Include.ALWAYS)
     override val partitionValues: Map[String, String],
     override val size: Long,
-    version: Long,
-    timestamp: Long,
-    expirationTimestamp: java.lang.Long = null) extends FileAction(url, id, partitionValues, size) {
+    override val version: Long,
+    override val timestamp: Long,
+    override val expirationTimestamp: Long,
+    tags: Map[String, String] = null) extends
+  FileAction(path, id, partitionValues, size, version, timestamp, expirationTimestamp) {
 
-  override def wrap: SingleAction = SingleAction(cdf = this)
+  override def wrap: SingleAction = SingleAction(cdc = this)
 
   override def getPartitionValuesInDF(): Map[String, String] = {
     // The scala map operation "+" will override values of existing keys.
     // So the function is idempotent, and calling it multiple times does not change its output.
     partitionValues +
-    (CDFColumnInfo.commit_version_col_name -> version.toString) +
-    (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString)
+      (CDFColumnInfo.commit_version_col_name -> version.toString) +
+      (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString)
   }
 }
 
 private[sharing] case class RemoveFile(
-    override val url: String,
+    override val path: String,
     override val id: String,
     @JsonInclude(JsonInclude.Include.ALWAYS)
     override val partitionValues: Map[String, String],
     override val size: Long,
-    version: Long,
-    timestamp: Long,
-    expirationTimestamp: java.lang.Long = null) extends FileAction(url, id, partitionValues, size) {
+    override val version: Long,
+    override val timestamp: Long,
+    override val expirationTimestamp: Long,
+    deletionTimestamp: Option[Long],
+    dataChange: Boolean,
+    extendedFileMetadata: Boolean,
+    tags: Map[String, String] = null) extends
+  FileAction(path, id, partitionValues, size, version, timestamp, expirationTimestamp) {
 
   override def wrap: SingleAction = SingleAction(remove = this)
 
@@ -209,8 +198,8 @@ private[sharing] case class RemoveFile(
     // The scala map operation "+" will override values of existing keys.
     // So the function is idempotent, and calling it multiple times does not change its output.
     partitionValues +
-    (CDFColumnInfo.commit_version_col_name -> version.toString) +
-    (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString) +
-    (CDFColumnInfo.change_type_col_name -> "delete")
+      (CDFColumnInfo.commit_version_col_name -> version.toString) +
+      (CDFColumnInfo.commit_timestamp_col_name -> timestamp.toString) +
+      (CDFColumnInfo.change_type_col_name -> "delete")
   }
 }
