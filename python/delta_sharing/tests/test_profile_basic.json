@@ -1,0 +1,7 @@
+{
+    "shareCredentialsVersion": 2,
+    "type": "basic",
+    "endpoint": "https://localhost/delta-sharing/",
+    "username": "username",
+    "password": "password"
+}
