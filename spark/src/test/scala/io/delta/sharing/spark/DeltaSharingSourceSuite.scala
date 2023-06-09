@@ -800,4 +800,14 @@ class DeltaSharingSourceSuite extends QueryTest
       query.stop()
     }
   }
+
+  integrationTest("Trigger.availableNow - exception") {
+    var message = intercept[StreamingQueryException] {
+      val query = withStreamReaderAtVersion()
+        .load().writeStream.format("console")
+        .trigger(Trigger.AvailableNow()).start()
+      query.processAllAvailable()
+    }.getMessage
+    assert(message.contains("DeltaSharingSource doesn't support Trigger.AvailableNow yet."))
+  }
 }

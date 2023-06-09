@@ -29,7 +29,8 @@ import org.apache.spark.sql.connector.read.streaming.{
   ReadAllAvailable,
   ReadLimit,
   ReadMaxFiles,
-  SupportsAdmissionControl
+  SupportsAdmissionControl,
+  SupportsTriggerAvailableNow
 }
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.execution.streaming._
@@ -104,6 +105,7 @@ case class DeltaSharingSource(
   deltaLog: RemoteDeltaLog,
   options: DeltaSharingOptions) extends Source
   with SupportsAdmissionControl
+  with SupportsTriggerAvailableNow
   with Logging {
 
   // This is to ensure that the request sent from the client contains the http header for streaming.
@@ -162,6 +164,11 @@ case class DeltaSharingSource(
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
   // runs for a long time.
   private var latestRefreshFunc = () => { (Map.empty[String, String], None: Option[Long]) }
+
+  override def prepareForTriggerAvailableNow(): Unit = {
+    throw new UnsupportedOperationException(
+      "DeltaSharingSource doesn't support Trigger.AvailableNow yet.")
+  }
 
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
