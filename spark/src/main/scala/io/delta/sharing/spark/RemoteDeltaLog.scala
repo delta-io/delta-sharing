@@ -51,7 +51,8 @@ import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 private[sharing] class RemoteDeltaLog(
   val table: DeltaSharingTable,
   val path: Path,
-  val client: DeltaSharingClient) {
+  val client: DeltaSharingClient,
+  val queryDeltaLog: Boolean = false) {
 
   @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(path, client, table)
 
@@ -88,8 +89,14 @@ private[sharing] class RemoteDeltaLog(
       )
     }
 
-    val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
-    val fileIndex = new RemoteDeltaSnapshotFileIndex(params, None)
+    val fileIndex = if (queryDeltaLog) {
+      val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
+      new TmpRemoteDeltaFileIndex(params, versionAsOf, timestampAsOf, table, client)
+    } else {
+      val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
+      new RemoteDeltaSnapshotFileIndex(params, None)
+    }
+
     if (spark.sessionState.conf.getConfString(
       "spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
       DeltaSharingLimitPushDown.setup(spark)
@@ -132,13 +139,16 @@ private[sharing] object RemoteDeltaLog {
     (profileFile, tableSplits(0), tableSplits(1), tableSplits(2))
   }
 
-  def apply(path: String, forStreaming: Boolean = false): RemoteDeltaLog = {
+  def apply(
+      path: String,
+      forStreaming: Boolean = false,
+      queryDeltaLog: Boolean = false): RemoteDeltaLog = {
     val (profileFile, share, schema, table) = parsePath(path)
 
     val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
-    val client = DeltaSharingRestClient(profileFile, forStreaming)
+    val client = DeltaSharingRestClient(profileFile, forStreaming, queryDeltaLog)
 
-    new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
+    new RemoteDeltaLog(deltaSharingTable, new Path(path), client, queryDeltaLog)
   }
 }
 

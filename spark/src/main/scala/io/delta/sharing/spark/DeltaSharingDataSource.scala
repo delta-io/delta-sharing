@@ -54,7 +54,7 @@ private[sharing] class DeltaSharingDataSource
     //  2. getMetadata
     //  3. Prepare custom relation with custom file index
     //  4. in file index class, getFiles, and prepare delta log.
-    val deltaLog = RemoteDeltaLog(path)
+    val deltaLog = RemoteDeltaLog(path, queryDeltaLog = true)
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
   }
 

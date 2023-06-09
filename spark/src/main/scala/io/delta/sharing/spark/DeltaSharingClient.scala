@@ -273,6 +273,8 @@ private[spark] class DeltaSharingRestClient(
       )
     )
     require(versionAsOf.isEmpty || versionAsOf.get == version)
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----getFiles.queryDeltaLog:$queryDeltaLog")
     if (queryDeltaLog) {
       DeltaTableFiles(
         version,
@@ -594,7 +596,10 @@ private[spark] object DeltaSharingRestClient extends Logging {
     if (value == null) "<unknown>" else value.replace(' ', '_')
   }
 
-  def apply(profileFile: String, forStreaming: Boolean = false): DeltaSharingClient = {
+  def apply(
+      profileFile: String,
+      forStreaming: Boolean = false,
+      queryDeltaLog: Boolean = false): DeltaSharingClient = {
     val sqlConf = SparkSession.active.sessionState.conf
 
     val profileProviderclass =
@@ -630,17 +635,20 @@ private[spark] object DeltaSharingRestClient extends Logging {
       timeoutInSeconds.toInt
     }
 
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----client.queryDeltaLog:$queryDeltaLog")
     val clientClass =
       sqlConf.getConfString("spark.delta.sharing.client.class",
         "io.delta.sharing.spark.DeltaSharingRestClient")
     Class.forName(clientClass)
       .getConstructor(classOf[DeltaSharingProfileProvider],
-        classOf[Int], classOf[Int], classOf[Boolean], classOf[Boolean])
+        classOf[Int], classOf[Int], classOf[Boolean], classOf[Boolean], classOf[Boolean])
       .newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
         java.lang.Boolean.valueOf(sslTrustAll),
-        java.lang.Boolean.valueOf(forStreaming))
+        java.lang.Boolean.valueOf(forStreaming),
+        java.lang.Boolean.valueOf(queryDeltaLog))
       .asInstanceOf[DeltaSharingClient]
   }
 }
