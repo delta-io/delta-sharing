@@ -18,7 +18,7 @@ import sbt.ExclusionRule
 
 ThisBuild / parallelExecution := false
 
-val sparkVersion = "3.1.1"
+val sparkVersion = "3.3.1"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
@@ -51,7 +51,10 @@ lazy val spark = (project in file("spark")) settings(
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
-    "org.scalatest" %% "scalatest" % "3.2.3" % "test"
+    "org.scalatest" %% "scalatest" % "3.2.3" % "test",
+    "org.apache.httpcomponents" % "httpcore" % "4.4.15",
+    "org.apache.httpcomponents" % "httpclient" % "4.5.13",
+    "org.codehaus.jackson" % "jackson-core-asl" % "1.9.13"
   ),
   Compile / sourceGenerators += Def.task {
     val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "spark" / "package.scala"
