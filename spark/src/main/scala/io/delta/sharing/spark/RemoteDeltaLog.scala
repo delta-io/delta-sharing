@@ -52,7 +52,8 @@ import io.delta.sharing.spark.util.ConfUtils
 private[sharing] class RemoteDeltaLog(
   val table: DeltaSharingTable,
   val path: Path,
-  val client: DeltaSharingClient) {
+  val client: DeltaSharingClient,
+  val queryDeltaLog: Boolean = false) {
 
   @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(path, client, table)
 
@@ -89,8 +90,14 @@ private[sharing] class RemoteDeltaLog(
       )
     }
 
-    val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
-    val fileIndex = new RemoteDeltaSnapshotFileIndex(params, None)
+    val fileIndex = if (queryDeltaLog) {
+      val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
+      new TmpRemoteDeltaFileIndex(params, versionAsOf, timestampAsOf, table, client)
+    } else {
+      val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
+      new RemoteDeltaSnapshotFileIndex(params, None)
+    }
+
     if (spark.sessionState.conf.getConfString(
       "spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
       DeltaSharingLimitPushDown.setup(spark)
@@ -133,8 +140,10 @@ private[sharing] object RemoteDeltaLog {
     (profileFile, tableSplits(0), tableSplits(1), tableSplits(2))
   }
 
-  def apply(path: String, forStreaming: Boolean = false): RemoteDeltaLog = {
-    val sqlConf = SparkSession.active.sessionState.conf
+  def apply(
+      path: String,
+      forStreaming: Boolean = false,
+      queryDeltaLog: Boolean = false): RemoteDeltaLog = {
     val (profileFile, share, schema, table) = parsePath(path)
 
     val profileProviderclass =
@@ -149,29 +158,9 @@ private[sharing] object RemoteDeltaLog {
         .asInstanceOf[DeltaSharingProfileProvider]
 
     val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
-    // This is a flag to test the local https server. Should never be used in production.
-    val sslTrustAll =
-      sqlConf.getConfString("spark.delta.sharing.network.sslTrustAll", "false").toBoolean
-    val numRetries = ConfUtils.numRetries(sqlConf)
-    val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(sqlConf)
-    val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
+    val client = DeltaSharingRestClient(profileFile, forStreaming, queryDeltaLog)
 
-    val clientClass =
-      sqlConf.getConfString("spark.delta.sharing.client.class",
-        "io.delta.sharing.spark.DeltaSharingRestClient")
-
-    val client: DeltaSharingClient =
-      Class.forName(clientClass)
-        .getConstructor(classOf[DeltaSharingProfileProvider],
-          classOf[Int], classOf[Int], classOf[Long], classOf[Boolean], classOf[Boolean])
-        .newInstance(profileProvider,
-          java.lang.Integer.valueOf(timeoutInSeconds),
-          java.lang.Integer.valueOf(numRetries),
-          java.lang.Long.valueOf(maxRetryDurationMillis),
-          java.lang.Boolean.valueOf(sslTrustAll),
-          java.lang.Boolean.valueOf(forStreaming))
-        .asInstanceOf[DeltaSharingClient]
-    new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
+    new RemoteDeltaLog(deltaSharingTable, new Path(path), client, queryDeltaLog)
   }
 }
 

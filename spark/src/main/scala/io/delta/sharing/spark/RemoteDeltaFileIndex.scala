@@ -35,7 +35,8 @@ import io.delta.sharing.spark.model.{
   AddFileForCDF,
   CDFColumnInfo,
   FileAction,
-  RemoveFile
+  RemoveFile,
+  Table => DeltaSharingTable
 }
 import io.delta.sharing.spark.util.JsonUtils
 
@@ -263,5 +264,109 @@ private[sharing] case class RemoteDeltaBatchFileIndex(
     val implicits = params.spark.implicits
     import implicits._
     makePartitionDirectories(addFiles.toDS().filter(columnFilter).as[AddFile].collect())
+  }
+}
+
+private[sharing] case class TmpRemoteDeltaFileIndex(
+  override val params: RemoteDeltaFileIndexParams,
+  versionAsOf: Option[Long],
+  timestampAsOf: Option[String],
+  table: DeltaSharingTable,
+  client: DeltaSharingClient) extends RemoteDeltaFileIndexBase(params) {
+
+  override def inputFiles: Array[String] = {
+    throw new IllegalArgumentException("TmpRemoteDeltaFileIndex.inputFiles is not supported.")
+  }
+
+  override def listFiles(
+    partitionFilters: Seq[Expression],
+    dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----TmpRemoteDeltaFileIndex.listFiles:${partitionFilters}")
+    val deltaTableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, None)
+    Console.println(s"----[linzhou]----deltaTableFiles:${deltaTableFiles}")
+    Console.println(s"----[linzhou]----conf:${params.spark.sessionState.conf}")
+    Console.println(s"----[linzhou]----conf-1:${getConfiguredLocalDirs(
+      SparkSession.getActiveSession.map(_.sparkContext.getConf).get).toList}")
+    Console.println(s"----[linzhou]----conf-2:${getConfiguredLocalDirs(
+      params.spark.sparkContext.getConf).toList}")
+
+
+    import org.apache.spark.sql.delta.actions.Action
+    deltaTableFiles.lines.foreach { line =>
+      val a = Action.fromJson(line)
+      Console.println(s"----[linzhou]----parsed action:${a}")
+    }
+    throw new IllegalArgumentException("TmpRemoteDeltaFileIndex.listFiles is not fully supported.")
+  }
+
+  import org.apache.spark.SparkConf
+  private def isRunningInYarnContainer(conf: SparkConf): Boolean = {
+    // These environment variables are set by YARN.
+    System.getenv("CONTAINER_ID") != null
+  }
+
+  /** Get the Yarn approved local directories. */
+  private def getYarnLocalDirs(conf: SparkConf): String = {
+    val localDirs = Option(System.getenv("LOCAL_DIRS")).getOrElse("")
+
+    if (localDirs.isEmpty) {
+      throw new Exception("Yarn Local dirs can't be empty")
+    }
+    localDirs
+  }
+
+  /**
+   * Return the configured local directories where Spark can write files. This
+   * method does not create any directories on its own, it only encapsulates the
+   * logic of locating the local directories according to deployment mode.
+   */
+  def getConfiguredLocalDirs(conf: SparkConf): Array[String] = {
+    val shuffleServiceEnabled = false
+    if (isRunningInYarnContainer(conf)) {
+      // If we are in yarn mode, systems can have different disk layouts so we must set it
+      // to what Yarn on this system said was available. Note this assumes that Yarn has
+      // created the directories already, and that they are secured so that only the
+      // user has access to them.
+      Console.println(s"----[linzhou]----return-1-yarn")
+      randomizeInPlace(getYarnLocalDirs(conf).split(","))
+    } else if (System.getenv("SPARK_EXECUTOR_DIRS") != null) {
+      Console.println(s"----[linzhou]----return-2-executor-dirs")
+      System.getenv("SPARK_EXECUTOR_DIRS").split(java.io.File.pathSeparator)
+    } else if (System.getenv("SPARK_LOCAL_DIRS") != null) {
+      Console.println(s"----[linzhou]----return-3-local-dirs")
+      System.getenv("SPARK_LOCAL_DIRS").split(",")
+    } else if (System.getenv("MESOS_SANDBOX") != null && !shuffleServiceEnabled) {
+      Console.println(s"----[linzhou]----return-4-mesos-sandbox")
+      // Mesos already creates a directory per Mesos task. Spark should use that directory
+      // instead so all temporary files are automatically cleaned up when the Mesos task ends.
+      // Note that we don't want this if the shuffle service is enabled because we want to
+      // continue to serve shuffle files after the executors that wrote them have already exited.
+      Array(System.getenv("MESOS_SANDBOX"))
+    } else {
+      if (System.getenv("MESOS_SANDBOX") != null && shuffleServiceEnabled) {
+        Console.println(s"----[linzhou]----return-5-just-logging")
+      }
+      // In non-Yarn mode (or for the driver in yarn-client mode), we cannot trust the user
+      // configuration to point to a secure directory. So create a subdirectory with restricted
+      // permissions under each listed directory.
+      Console.println(s"----[linzhou]----return-5-java.io.tmpdir")
+      conf.get("spark.local.dir", System.getProperty("java.io.tmpdir")).split(",")
+    }
+  }
+
+  /**
+   * Shuffle the elements of an array into a random order, modifying the
+   * original array. Returns the original array.
+   */
+  import java.util.Random
+  def randomizeInPlace[T](arr: Array[T], rand: Random = new Random): Array[T] = {
+    for (i <- (arr.length - 1) to 1 by -1) {
+      val j = rand.nextInt(i + 1)
+      val tmp = arr(j)
+      arr(j) = arr(i)
+      arr(i) = tmp
+    }
+    arr
   }
 }
