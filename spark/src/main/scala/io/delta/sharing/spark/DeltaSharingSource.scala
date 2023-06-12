@@ -29,8 +29,7 @@ import org.apache.spark.sql.connector.read.streaming.{
   ReadAllAvailable,
   ReadLimit,
   ReadMaxFiles,
-  SupportsAdmissionControl,
-  SupportsTriggerAvailableNow
+  SupportsAdmissionControl
 }
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.execution.streaming._
@@ -105,7 +104,6 @@ case class DeltaSharingSource(
   deltaLog: RemoteDeltaLog,
   options: DeltaSharingOptions) extends Source
   with SupportsAdmissionControl
-  with SupportsTriggerAvailableNow
   with Logging {
 
   // This is to ensure that the request sent from the client contains the http header for streaming.
@@ -164,11 +162,6 @@ case class DeltaSharingSource(
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
   // runs for a long time.
   private var latestRefreshFunc = () => { (Map.empty[String, String], None: Option[Long]) }
-
-  override def prepareForTriggerAvailableNow(): Unit = {
-    throw new UnsupportedOperationException(
-      "DeltaSharingSource doesn't support Trigger.AvailableNow yet.")
-  }
 
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
@@ -912,12 +905,20 @@ case class DeltaSharingSource(
   }
 
   override def latestOffset(startOffset: streaming.Offset, limit: ReadLimit): streaming.Offset = {
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----latestOffset.startOffset:${startOffset}")
     val limits = AdmissionLimits(limit)
 
-    val currentOffset = if (previousOffset == null) {
-      getStartingOffset(limits)
-    } else {
+    val currentOffset = if (previousOffset != null) {
+      Console.println(s"----[linzhou]----latestOffset,[1], previousOffset:${previousOffset}")
       getNextOffsetFromPreviousOffset(limits)
+    } else if (startOffset != null) {
+      previousOffset = DeltaSharingSourceOffset(tableId, startOffset)
+      Console.println(s"----[linzhou]----latestOffset,[2], previousOffset:${previousOffset}")
+      getNextOffsetFromPreviousOffset(limits)
+    } else {
+      Console.println(s"----[linzhou]----latestOffset,[3], previousOffset:${previousOffset}")
+      getStartingOffset(limits)
     }
     logDebug(s"previousOffset -> currentOffset: $previousOffset -> $currentOffset")
     currentOffset.orNull
@@ -929,6 +930,8 @@ case class DeltaSharingSource(
   }
 
   override def getBatch(startOffsetOption: Option[Offset], end: Offset): DataFrame = {
+    Console.println(s"----[linzhou]----getBatch, startOffsetOption:${startOffsetOption}," +
+      s"end:$end")
     val endOffset = DeltaSharingSourceOffset(tableId, end)
 
     val (startVersion, startIndex, isStartingVersion, startSourceVersion) = if (

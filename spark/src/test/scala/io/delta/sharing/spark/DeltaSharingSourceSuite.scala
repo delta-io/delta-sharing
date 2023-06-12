@@ -452,20 +452,27 @@ class DeltaSharingSourceSuite extends QueryTest
       )
       checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
 
-      // There are 4 checkpoints, remove the latest 2.
-      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
-      checkpointFiles.foreach{ f =>
-        if (!f.isDirectory() &&
-          (f.getCanonicalPath.endsWith("2") || f.getCanonicalPath.endsWith("3"))) {
-          f.delete()
-        }
-      }
-
       val restartQuery = withStreamReaderAtVersion()
         .option("maxFilesPerTrigger", "1")
         .load().writeStream.format("console")
         .option("checkpointLocation", checkpointDir.getCanonicalPath)
         .start()
+
+      // There are 4 checkpoints, remove the latest 2.
+      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
+      checkpointFiles.foreach{ f =>
+        if (!f.isDirectory() &&
+          (f.getCanonicalPath.endsWith("2") || f.getCanonicalPath.endsWith("3") ||
+            f.getCanonicalPath.endsWith("2.crc") || f.getCanonicalPath.endsWith("3.crc") ||
+            f.getCanonicalPath.endsWith("metadata.crc"))) {
+          f.delete()
+        }
+        // SparkStructuredStreaming requires query id match to reuse a checkpoint.
+        if (f.getCanonicalPath.endsWith("metadata")) {
+          FileUtils.writeStringToFile(f, s"""{"id":"${restartQuery.id}"}""")
+        }
+      }
+
       try {
         restartQuery.processAllAvailable()
         val progress = restartQuery.recentProgress.filter(_.numInputRows != 0)
@@ -801,13 +808,79 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-  integrationTest("Trigger.availableNow - exception") {
-    var message = intercept[StreamingQueryException] {
-      val query = withStreamReaderAtVersion()
+  integrationTest("Trigger.availableNow - success") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = spark.readStream.format("deltaSharing").option("path", tablePath)
+//        .option("startingVersion", startingVersion)
+        .option("ignoreDeletes", "true")
+        .option("ignoreChanges", "true")
+        .option("maxFilesPerTrigger", "2")
+        .load().writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .trigger(Trigger.AvailableNow())
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.awaitTermination()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          Console.println(s"----[linzhou]----progress:${p.numInputRows}")
+//          p => assert(p.numInputRows === 4)
+        }
+      } finally {
+        Console.println(s"----[linzhou]---------------STOP")
+//        query.stop()
+      }
+
+      // Verify the output dataframe
+      val expected = Seq(
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("3", 3, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-02-02")),
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+//      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+
+      val restartQuery = spark.readStream.format("deltaSharing").option("path", tablePath)
+        //        .option("startingVersion", startingVersion)
+        .option("ignoreDeletes", "true")
+        .option("ignoreChanges", "true")
+        .option("maxFilesPerTrigger", "2")
         .load().writeStream.format("console")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
         .trigger(Trigger.AvailableNow()).start()
-      query.processAllAvailable()
-    }.getMessage
-    assert(message.contains("DeltaSharingSource doesn't support Trigger.AvailableNow yet."))
+
+      Console.println(s"----[linzhou]---------------SECOND QUERY--------:${restartQuery}")
+      // There are 4 checkpoints, remove the latest 2.
+      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
+      checkpointFiles.foreach{ f =>
+        Console.println(s"----[linzhou]----file:$f")
+        if (!f.isDirectory() &&
+          (f.getCanonicalPath.endsWith("1") || f.getCanonicalPath.endsWith("1.crc") ||
+            f.getCanonicalPath.endsWith("metadata.crc"))) {
+          Console.println(s"----[linzhou]----file:$f:deleted")
+//          f.delete()
+        }
+        // SparkStructuredStreaming requires query id match to reuse a checkpoint.
+        if (f.getCanonicalPath.endsWith("metadata")) {
+          FileUtils.writeStringToFile(f, s"""{"id":"${restartQuery.id}"}""")
+        }
+      }
+
+      try {
+//        Console.println(s"----[linzhou]----query:${query}")
+//        Console.println(s"----[linzhou]----status:${query.status}")
+//          query.asInstanceOf[
+        restartQuery.processAllAvailable()
+//        assert(query.awaitTermination(15.seconds.toMillis))
+        val progress = restartQuery.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach {
+          p => assert(p.numInputRows === 4)
+        }
+      } finally {
+        restartQuery.stop()
+      }
+    }
   }
 }
