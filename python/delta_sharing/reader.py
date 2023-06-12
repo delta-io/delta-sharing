@@ -160,7 +160,7 @@ class DeltaSharingReader:
 
         protocol = url.scheme
         proxy = getproxies()
-        if proxy != 0:
+        if len(proxy) != 0:
             filesystem = fsspec.filesystem(protocol,trust_env=True)
         else:
             filesystem = fsspec.filesystem(protocol)
