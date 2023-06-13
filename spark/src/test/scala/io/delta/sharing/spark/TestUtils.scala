@@ -43,7 +43,9 @@ object TestUtils {
   }
 
   def sqlDate(date: String): java.sql.Date = {
-    toJavaDate(stringToDate(UTF8String.fromString(date)).get)
+    toJavaDate(stringToDate(
+      UTF8String.fromString(date),
+      getZoneId(SQLConf.get.sessionLocalTimeZone)).get)
   }
 
   def sqlTimestamp(timestamp: String): java.sql.Timestamp = {

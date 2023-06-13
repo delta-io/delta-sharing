@@ -29,8 +29,7 @@ import org.apache.spark.sql.connector.read.streaming.{
   ReadAllAvailable,
   ReadLimit,
   ReadMaxFiles,
-  SupportsAdmissionControl,
-  SupportsTriggerAvailableNow
+  SupportsAdmissionControl
 }
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.execution.streaming._
@@ -71,6 +70,7 @@ private[sharing] case class IndexedFile(
   add: AddFileForCDF,
   remove: RemoveFile = null,
   cdc: AddCDCFile = null,
+  isSnapshot: Boolean = false,
   isLast: Boolean = false) {
 
   assert(Seq(add, remove, cdc).filter(_ != null).size <= 1, "There could be at most one non-null " +
@@ -105,7 +105,6 @@ case class DeltaSharingSource(
   deltaLog: RemoteDeltaLog,
   options: DeltaSharingOptions) extends Source
   with SupportsAdmissionControl
-  with SupportsTriggerAvailableNow
   with Logging {
 
   // This is to ensure that the request sent from the client contains the http header for streaming.
@@ -160,11 +159,6 @@ case class DeltaSharingSource(
   // expire and need a refresh.
   private var lastQueryTableTimestamp: Long = -1
 
-  override def prepareForTriggerAvailableNow(): Unit = {
-    throw new UnsupportedOperationException(
-      "DeltaSharingSource doesn't support Trigger.AvailableNow yet.")
-  }
-
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
   // rpcs to avoid traffic jam on the delta sharing server.
@@ -208,12 +202,33 @@ case class DeltaSharingSource(
   private def maybeGetFileChanges(
       fromVersion: Long,
       fromIndex: Long,
-      isStartingVersion: Boolean): Unit = {
+      isStartingVersion: Boolean,
+      endOffsetOption: Option[DeltaSharingSourceOffset]): Unit = {
+      s"$isStartingVersion/$endOffsetOption")
     if (!sortedFetchedFiles.isEmpty) {
-      return
+        s"sortedFetchedFiles not empty:${sortedFetchedFiles.size}")
+      val headFile = sortedFetchedFiles.head
+      if ((headFile.version > fromVersion || (headFile.version == fromVersion && headFile.index >
+        fromIndex && fromIndex != -1)) && headFile.isSnapshot && endOffsetOption.isDefined) {
+        // clean up local sortedFileIndex, re-fetch files.
+        // This happens when the fall back logic of AvailableNow calls the latestOffset first
+        // on a query where "startingVersion" is not specified, it gets the latest table snapshot,
+        // which contains files not matching getBatch.
+        sortedFetchedFiles = Seq.empty
+      } else {
+        return
+      }
     }
 
-    val currentLatestVersion = getOrUpdateLatestTableVersion
+    var currentLatestVersion = endOffsetOption.map{ endOffset =>
+      if (endOffset.index == -1) {
+        endOffset.tableVersion - 1
+      } else {
+        endOffset.tableVersion
+      }
+    }.getOrElse(
+      getOrUpdateLatestTableVersion
+    )
     if (fromVersion > currentLatestVersion) {
       // If true, it means that there's no new data from the delta sharing server.
       return
@@ -277,6 +292,7 @@ case class DeltaSharingSource(
                 file.timestamp,
                 file.stats
               ),
+              isSnapshot = true,
               isLast = (index + 1 == numFiles)))
         // For files with index <= fromIndex, skip them, otherwise an exception will be thrown.
         case _ => ()
@@ -416,7 +432,7 @@ case class DeltaSharingSource(
       fromIndex: Long,
       isStartingVersion: Boolean,
       limits: Option[AdmissionLimits] = Some(new AdmissionLimits())): Option[IndexedFile] = {
-    maybeGetFileChanges(fromVersion, fromIndex, isStartingVersion)
+    maybeGetFileChanges(fromVersion, fromIndex, isStartingVersion, None)
 
     if (limits.isEmpty) return sortedFetchedFiles.lastOption
 
@@ -474,7 +490,7 @@ case class DeltaSharingSource(
       startIndex: Long,
       isStartingVersion: Boolean,
       endOffset: DeltaSharingSourceOffset): DataFrame = {
-    maybeGetFileChanges(startVersion, startIndex, isStartingVersion)
+    maybeGetFileChanges(startVersion, startIndex, isStartingVersion, Some(endOffset))
 
     if (refreshPresignedUrls &&
       (CachedTableManager.INSTANCE.preSignedUrlExpirationMs + lastQueryTableTimestamp -
@@ -516,15 +532,17 @@ case class DeltaSharingSource(
             )
             indexedFile.cdc.copy(url = newUrl)
           },
+          isSnapshot = indexedFile.isSnapshot,
           isLast = indexedFile.isLast
         )
       }
     }
 
     val fileActions = sortedFetchedFiles.takeWhile {
-      case IndexedFile(version, index, _, _, _, _) =>
-        version < endOffset.tableVersion ||
-          (version == endOffset.tableVersion && index <= endOffset.index)
+      case IndexedFile(version, index, _, _, _, _, _) =>
+        (version > startVersion || (version == startVersion && index >= startIndex)) &&
+          (version < endOffset.tableVersion || (version == endOffset.tableVersion &&
+            index <= endOffset.index))
     }
     sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
     // Proceed the offset as the files before the endOffset are processed.
@@ -670,7 +688,7 @@ case class DeltaSharingSource(
       lastIndexedFile: IndexedFile,
       previousOffsetVersion: Long,
       ispreviousOffsetStartingVersion: Boolean): Option[DeltaSharingSourceOffset] = {
-    val IndexedFile(v, i, _, _, _, isLastFileInVersion) = lastIndexedFile
+    val IndexedFile(v, i, _, _, _, _, isLastFileInVersion) = lastIndexedFile
     assert(v >= previousOffsetVersion,
       s"buildOffsetFromIndexedFile receives an invalid previousOffsetVersion: $v " +
         s"(expected: >= $previousOffsetVersion), tableId: $tableId")
