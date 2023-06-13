@@ -218,15 +218,7 @@ case class DeltaSharingSource(
       }
     }
 
-    var currentLatestVersion = endOffsetOption.map { endOffset =>
-      if (endOffset.index == -1) {
-        endOffset.tableVersion - 1
-      } else {
-        endOffset.tableVersion
-      }
-    }.getOrElse(
-      getOrUpdateLatestTableVersion
-    )
+    val currentLatestVersion = getOrUpdateLatestTableVersion
     if (fromVersion > currentLatestVersion) {
       // If true, it means that there's no new data from the delta sharing server.
       return
@@ -538,9 +530,9 @@ case class DeltaSharingSource(
 
     val fileActions = sortedFetchedFiles.takeWhile {
       case IndexedFile(version, index, _, _, _, _, _) =>
-        (version > startVersion || (version == startVersion && index >= startIndex)) &&
-          (version < endOffset.tableVersion || (version == endOffset.tableVersion &&
-            index <= endOffset.index))
+        (version > startVersion || (version == startVersion && (index == -1 ||
+          index >= startIndex))) && (version < endOffset.tableVersion || (
+          version == endOffset.tableVersion && index <= endOffset.index))
     }
     sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
     // Proceed the offset as the files before the endOffset are processed.

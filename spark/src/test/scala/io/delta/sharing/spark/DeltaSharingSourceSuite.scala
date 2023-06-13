@@ -449,7 +449,6 @@ class DeltaSharingSourceSuite extends QueryTest
       // There are 4 checkpoints, remove the latest 2.
       val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
       checkpointFiles.foreach{ f =>
-        Console.println(s"----[linzhou]----f:$f")
         if (!f.isDirectory() &&
           (f.getCanonicalPath.endsWith("2") || f.getCanonicalPath.endsWith("3"))) {
           f.delete()
@@ -465,6 +464,57 @@ class DeltaSharingSourceSuite extends QueryTest
         restartQuery.processAllAvailable()
         val progress = restartQuery.recentProgress.filter(_.numInputRows != 0)
         assert(progress.length === 2)
+        progress.foreach {
+          p => assert(p.numInputRows === 1)
+        }
+      } finally {
+        restartQuery.stop()
+      }
+    }
+  }
+
+  integrationTest("restart from checkpoint snapshot - success") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderSnapshot()
+        .option("maxFilesPerTrigger", "1")
+        .load().writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 2)
+        progress.foreach {
+          p => assert(p.numInputRows === 1)
+        }
+      } finally {
+        query.stop()
+      }
+
+      // Verify the output dataframe
+      val expected = Seq(
+        Row("2", 2, sqlDate("2020-02-02")),
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+
+      // There are 4 checkpoints, remove the latest 2.
+      val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
+      checkpointFiles.foreach{ f =>
+        if (!f.isDirectory() && (f.getCanonicalPath.endsWith("1"))) {
+          f.delete()
+        }
+      }
+
+      val restartQuery = withStreamReaderSnapshot()
+        .option("maxFilesPerTrigger", "1")
+        .load().writeStream.format("console")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start()
+      try {
+        restartQuery.processAllAvailable()
+        val progress = restartQuery.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
         progress.foreach {
           p => assert(p.numInputRows === 1)
         }
