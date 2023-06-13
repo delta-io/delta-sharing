@@ -204,9 +204,7 @@ case class DeltaSharingSource(
       fromIndex: Long,
       isStartingVersion: Boolean,
       endOffsetOption: Option[DeltaSharingSourceOffset]): Unit = {
-      s"$isStartingVersion/$endOffsetOption")
     if (!sortedFetchedFiles.isEmpty) {
-        s"sortedFetchedFiles not empty:${sortedFetchedFiles.size}")
       val headFile = sortedFetchedFiles.head
       if ((headFile.version > fromVersion || (headFile.version == fromVersion && headFile.index >
         fromIndex && fromIndex != -1)) && headFile.isSnapshot && endOffsetOption.isDefined) {
@@ -220,7 +218,7 @@ case class DeltaSharingSource(
       }
     }
 
-    var currentLatestVersion = endOffsetOption.map{ endOffset =>
+    var currentLatestVersion = endOffsetOption.map { endOffset =>
       if (endOffset.index == -1) {
         endOffset.tableVersion - 1
       } else {

@@ -49,12 +49,40 @@ class DeltaSharingSourceLimitSuite extends QueryTest
       .option("ignoreChanges", "true")
   }
 
+  def withStreamReaderSnapshot(): DataStreamReader = {
+    spark.readStream.format("deltaSharing").option("path", tablePath)
+      .option("ignoreDeletes", "true")
+      .option("ignoreChanges", "true")
+  }
+
   integrationTest("maxFilesPerTrigger - success with different values") {
     // Map from maxFilesPerTrigger to a list, the size of the list is the number of progresses of
     // the stream query, and each element in the list is the numInputRows for each progress.
     Map(1 -> Seq(1, 1, 1, 1), 2 -> Seq(2, 2), 3 -> Seq(3, 1), 4 -> Seq(4), 5 -> Seq(4)).foreach{
       case (k, v) =>
         val query = withStreamReaderAtVersion()
+          .option("maxFilesPerTrigger", s"$k")
+          .load().writeStream.format("console").start()
+
+        try {
+          query.processAllAvailable()
+          val progress = query.recentProgress.filter(_.numInputRows != 0)
+          assert(progress.length === v.size)
+          progress.zipWithIndex.map { case (p, index) =>
+            assert(p.numInputRows === v(index))
+          }
+        } finally {
+          query.stop()
+        }
+    }
+  }
+
+  integrationTest("maxFilesPerTrigger snapshot - success with different values") {
+    // Map from maxFilesPerTrigger to a list, the size of the list is the number of progresses of
+    // the stream query, and each element in the list is the numInputRows for each progress.
+    Map(1 -> Seq(1, 1), 2 -> Seq(2), 3 -> Seq(2)).foreach {
+      case (k, v) =>
+        val query = withStreamReaderSnapshot()
           .option("maxFilesPerTrigger", s"$k")
           .load().writeStream.format("console").start()
 

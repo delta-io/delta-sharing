@@ -449,6 +449,7 @@ class DeltaSharingSourceSuite extends QueryTest
       // There are 4 checkpoints, remove the latest 2.
       val checkpointFiles = FileUtils.listFiles(checkpointDir, null, true).asScala
       checkpointFiles.foreach{ f =>
+        Console.println(s"----[linzhou]----f:$f")
         if (!f.isDirectory() &&
           (f.getCanonicalPath.endsWith("2") || f.getCanonicalPath.endsWith("3"))) {
           f.delete()
