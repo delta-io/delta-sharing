@@ -145,8 +145,11 @@ case class DeltaSharingSource(
   private var sortedFetchedFiles: Seq[IndexedFile] = Seq.empty
 
   private var lastGetVersionTimestamp: Long = -1
-  private var lastQueriedTableVersion: Long = -1
+  private var latestTableVersion: Long = -1
   private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 30000 // 30 seconds
+  private val maxVersionsPerRpc: Int = options.maxVersionsPerRpc.getOrElse(
+    DeltaSharingOptions.MAX_VERSIONS_PER_RPC_DEFAULT
+  )
 
   // The latest function used to fetch presigned urls for the delta sharing table, record it in
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
@@ -165,10 +168,10 @@ case class DeltaSharingSource(
     val currentTimeMillis = System.currentTimeMillis()
     if (lastGetVersionTimestamp == -1 ||
       (currentTimeMillis - lastGetVersionTimestamp) >= QUERY_TABLE_VERSION_INTERVAL_MILLIS) {
-      lastQueriedTableVersion = deltaLog.client.getTableVersion(deltaLog.table)
+      latestTableVersion = deltaLog.client.getTableVersion(deltaLog.table)
       lastGetVersionTimestamp = currentTimeMillis
     }
-    lastQueriedTableVersion
+    latestTableVersion
   }
 
   // The actual order of files doesn't matter much.
@@ -212,10 +215,19 @@ case class DeltaSharingSource(
       return
     }
 
+    // using "fromVersion + maxVersionsPerRpc - 1" because the endingVersion is inclusive.
+    val endingVersionForQuery = currentLatestVersion.min(fromVersion + maxVersionsPerRpc - 1)
+    if (endingVersionForQuery < currentLatestVersion) {
+      logInfo(s"Reducing ending version for delta sharing rpc of table " +
+        s"${deltaLog.table.toString} from currentLatestVersion" +
+        s"($currentLatestVersion) to endingVersionForQuery($endingVersionForQuery), fromVersion:" +
+        s"$fromVersion, maxVersionsPerRpc: $maxVersionsPerRpc.")
+    }
+
     if (isStartingVersion || !options.readChangeFeed) {
-      getTableFileChanges(fromVersion, fromIndex, isStartingVersion, currentLatestVersion)
+      getTableFileChanges(fromVersion, fromIndex, isStartingVersion, endingVersionForQuery)
     } else {
-      getCDFFileChanges(fromVersion, fromIndex, currentLatestVersion)
+      getCDFFileChanges(fromVersion, fromIndex, endingVersionForQuery)
     }
   }
 
@@ -229,16 +241,17 @@ case class DeltaSharingSource(
    * @param isStartingVersion - If true, will load fromVersion as a table snapshot(including files
    *                            from previous versions). If false, will only load files since
    *                            fromVersion.
-   * @param currentLatestVersion - The latest table version returned from the delta sharing server.
-   *                               This is used to insert an indexedFile for each version in the
-   *                               sortedFetchedFiles, in order to ensure the offset move beyond
-   *                               this version.
+   * @param endingVersionForQuery - The ending version used for the query, always smaller than
+   *                                latestTableVersion.
+   *                                This is used to insert an indexedFile for each version in the
+   *                                sortedFetchedFiles, in order to ensure the offset move beyond
+   *                                this version.
    */
   private def getTableFileChanges(
       fromVersion: Long,
       fromIndex: Long,
       isStartingVersion: Boolean,
-      currentLatestVersion: Long): Unit = {
+      endingVersionForQuery: Long): Unit = {
     lastQueryTableTimestamp = System.currentTimeMillis()
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
@@ -277,14 +290,18 @@ case class DeltaSharingSource(
     } else {
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
-      val tableFiles = deltaLog.client.getFiles(deltaLog.table, fromVersion)
+      val tableFiles = deltaLog.client.getFiles(
+        deltaLog.table, fromVersion, Some(endingVersionForQuery)
+      )
       latestRefreshFunc = () => {
-        deltaLog.client.getFiles(deltaLog.table, fromVersion).addFiles.map { a =>
+        deltaLog.client.getFiles(
+          deltaLog.table, fromVersion, Some(endingVersionForQuery)
+        ).addFiles.map { a =>
           a.id -> a.url
         }.toMap
       }
       val allAddFiles = validateCommitAndFilterAddFiles(tableFiles).groupBy(a => a.version)
-      for (v <- fromVersion to currentLatestVersion) {
+      for (v <- fromVersion to endingVersionForQuery) {
 
         val vAddFiles = allAddFiles.getOrElse(v, ArrayBuffer[AddFileForCDF]())
         val numFiles = vAddFiles.size
@@ -307,21 +324,34 @@ case class DeltaSharingSource(
    * @param fromVersion - a table version, initially would be the startingVersion or the latest
    *                      table version.
    * @param fromIndex - index of a file within the same version,
-   * @param currentLatestVersion - The latest table version returned from the delta sharing server.
-   *                               This is used to insert an indexedFile for each version in the
-   *                               sortedFetchedFiles, in order to ensure the offset move beyond
-   *                               this version.
+   * @param endingVersionForQuery - The ending version used for the query, always smaller than
+   *                                latestTableVersion.
+   *                                This is used to insert an indexedFile for each version in the
+   *                                sortedFetchedFiles, in order to ensure the offset move beyond
+   *                                this version.
    */
   private def getCDFFileChanges(
       fromVersion: Long,
       fromIndex: Long,
-      currentLatestVersion: Long): Unit = {
+      endingVersionForQuery: Long): Unit = {
     lastQueryTableTimestamp = System.currentTimeMillis()
     val tableFiles = deltaLog.client.getCDFFiles(
-      deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
+      deltaLog.table,
+      Map(
+        DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
+        DeltaSharingOptions.CDF_END_VERSION -> endingVersionForQuery.toString
+      ),
+      true
+    )
     latestRefreshFunc = () => {
       val d = deltaLog.client.getCDFFiles(
-        deltaLog.table, Map(DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString), true)
+        deltaLog.table,
+        Map(
+          DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
+          DeltaSharingOptions.CDF_END_VERSION -> endingVersionForQuery.toString
+        ),
+        true
+      )
       DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
     }
 
@@ -336,7 +366,7 @@ case class DeltaSharingSource(
     val perVersionCdfFiles = tableFiles.cdfFiles.groupBy(f => f.version)
     val perVersionRemoveFiles = tableFiles.removeFiles.groupBy(f => f.version)
 
-    for (v <- fromVersion to currentLatestVersion) {
+    for (v <- fromVersion to endingVersionForQuery) {
       if (perVersionCdfFiles.contains(v)) {
         // Process cdf files if it exists, and ignore add/remove files. This is the property of
         // delta table, when cdf file exists in a version, it represents the same data change as

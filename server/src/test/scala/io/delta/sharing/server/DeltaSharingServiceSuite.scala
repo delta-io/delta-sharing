@@ -910,6 +910,33 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       expectedErrorCode = 400,
       expectedErrorMessage = "Not a numeric value: x3"
     )
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""
+        {"startingVersion": "3", "endingVersion": "x3"}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Not a numeric value: x3"
+    )
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""
+        {"startingVersion": 3, "endingVersion": 2}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "startingVersion(3) must be smaller than or equal to endingVersion(2)"
+    )
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""
+        {"startingVersion": 2, "endingVersion": 10}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "End version cannot be greater than the latest version"
+    )
 
     // timestamp before the earliest version
     assertHttpError(
@@ -943,11 +970,13 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("cdf_table_cdf_enabled - timestamp on version 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
     // 1651272635000, PST: 2022-04-29 15:50:35.0 -> version 1
+    // endingVersion is ignored
     val tsStr = new Timestamp(1651272635000L).toInstant.toString
     val p =
       s"""
          |{
-         | "timestamp": "$tsStr"
+         | "timestamp": "$tsStr",
+         | "endingVersion": 2
          |}
          |""".stripMargin
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"), Some("POST"), Some(p), Some(1))
@@ -1168,6 +1197,94 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedMetadata == actions(2).metaData)
 
     assert(actions(3).add != null)
+  }
+
+  integrationTest("streaming_table_metadata_protocol - startingVersion with endingVersion success") {
+    val p =
+      s"""
+         |{
+         | "startingVersion": 0,
+         | "endingVersion": 2
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"), Some("POST"), Some(p), Some(0))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 4)
+
+    // version 0: CREATE TABLE, protocol/metadata
+    // version 1: INSERT
+    // version 2: ALTER TABLE, metadata
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "eaca659e-28ac-4c68-8c72-0c96205c8160",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Nil,
+      version = 0)
+    assert(expectedMetadata == actions(1).metaData)
+
+    assert(actions(2).add != null)
+
+    // Check metadata for version 2.
+    expectedMetadata = expectedMetadata.copy(
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      version = 2)
+    assert(expectedMetadata == actions(3).metaData)
+  }
+
+  integrationTest("streaming_table_metadata_protocol - startingVersion equal endingVersion success 1") {
+    val p =
+      s"""
+         |{
+         | "startingVersion": 1,
+         | "endingVersion": 1
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"), Some("POST"), Some(p), Some(1))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 3)
+
+    // version 2: ALTER TABLE, metadata
+    // Check metadata for version 2.
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "eaca659e-28ac-4c68-8c72-0c96205c8160",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Nil,
+      version = 1)
+    assert(expectedMetadata == actions(1).metaData)
+
+    assert(actions(2).add != null)
+    assert(actions(2).add.version == 1)
+  }
+
+  integrationTest("streaming_table_metadata_protocol - startingVersion equal endingVersion success 2") {
+    val p =
+      s"""
+         |{
+         | "startingVersion": 2,
+         | "endingVersion": 2
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"), Some("POST"), Some(p), Some(2))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 2)
+
+    // version 2: ALTER TABLE, metadata
+    // Check metadata for version 2.
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "eaca659e-28ac-4c68-8c72-0c96205c8160",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Nil,
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      version = 2)
+    assert(expectedMetadata == actions(1).metaData)
   }
 
   integrationTest("streaming_notnull_to_null - no exceptions") {
