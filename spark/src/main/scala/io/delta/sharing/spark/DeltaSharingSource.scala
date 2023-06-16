@@ -232,6 +232,12 @@ case class DeltaSharingSource(
 
     // using "fromVersion + maxVersionsPerRpc - 1" because the endingVersion is inclusive.
     val endingVersionForQuery = currentLatestVersion.min(fromVersion + maxVersionsPerRpc - 1)
+    if (endingVersionForQuery < currentLatestVersion) {
+      logInfo(s"Reducing ending version for delta sharing rpc of table " +
+        s"${deltaLog.table.toString} from currentLatestVersion" +
+        s"($currentLatestVersion) to endingVersionForQuery($endingVersionForQuery), fromVersion:" +
+        s"$fromVersion, maxVersionsPerRpc: $maxVersionsPerRpc.")
+    }
 
     if (isStartingVersion || !options.readChangeFeed) {
       getTableFileChanges(fromVersion, fromIndex, isStartingVersion, endingVersionForQuery)
