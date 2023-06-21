@@ -348,4 +348,99 @@ class DeltaSharingSourceLimitSuite extends QueryTest
       query.stop()
     }
   }
+
+  /**
+   * Trigger.AvailableNow
+   */
+  integrationTest("Trigger.AvailableNow - success") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .trigger(Trigger.AvailableNow())
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.awaitTermination()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 4)
+        progress.foreach { p =>
+          assert(p.numInputRows === 1)
+        }
+      } finally {
+        query.stop()
+      }
+
+      // Verify the output dataframe
+      val expected = Seq(
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("3", 3, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-02-02")),
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+    }
+  }
+
+  integrationTest("Trigger.AvailableNow - snapshot success") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = spark.readStream.format("deltaSharing").option("path", tablePath)
+        .option("ignoreDeletes", "true")
+        .option("ignoreChanges", "true")
+        .option("maxFilesPerTrigger", "1")
+        .load().writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .trigger(Trigger.AvailableNow())
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.awaitTermination()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 2)
+        progress.foreach { p =>
+          assert(p.numInputRows === 1)
+        }
+      } finally {
+        query.stop()
+      }
+
+      // Verify the output dataframe
+      val expected = Seq(
+        Row("2", 2, sqlDate("2020-02-02")),
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+    }
+  }
+
+  integrationTest("Trigger.AvailableNow - cdf success") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withCDFStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load()
+        .select("_commit_version", "_change_type", "age", "birthday")
+        .writeStream.format("parquet")
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .trigger(Trigger.AvailableNow())
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.awaitTermination()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 4)
+        progress.foreach { p =>
+          assert(p.numInputRows === 1)
+        }
+      } finally {
+        query.stop()
+      }
+
+      // Verify the output dataframe
+      val expected = Seq(
+        Row(1, "insert", 1, sqlDate("2020-01-01")),
+        Row(3, "insert", 3, sqlDate("2020-01-01")),
+        Row(2, "remove", 2, sqlDate("2020-02-02")),
+        Row(1, "insert", 1, sqlDate("2020-01-01"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+    }
+  }
 }

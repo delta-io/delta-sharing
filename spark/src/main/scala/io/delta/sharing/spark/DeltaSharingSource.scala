@@ -29,7 +29,8 @@ import org.apache.spark.sql.connector.read.streaming.{
   ReadAllAvailable,
   ReadLimit,
   ReadMaxFiles,
-  SupportsAdmissionControl
+  SupportsAdmissionControl,
+  SupportsTriggerAvailableNow
 }
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.execution.streaming._
@@ -104,6 +105,7 @@ case class DeltaSharingSource(
   deltaLog: RemoteDeltaLog,
   options: DeltaSharingOptions) extends Source
   with SupportsAdmissionControl
+  with SupportsTriggerAvailableNow
   with Logging {
 
   // This is to ensure that the request sent from the client contains the http header for streaming.
@@ -133,7 +135,7 @@ case class DeltaSharingSource(
   private val tableId = initSnapshot.metadata.id
 
   // Records until which offset the delta sharing source has been processing the table files.
-  private var previousOffset: DeltaSharingSourceOffset = null
+  private var previousOffsetOpt: Option[DeltaSharingSourceOffset] = None
 
   // Serves as local cache to store all the files fetched from the delta sharing server.
   // If not empty, will advance the offset and fetch data from this list based on the read limit.
@@ -162,6 +164,74 @@ case class DeltaSharingSource(
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
   // runs for a long time.
   private var latestRefreshFunc = () => { (Map.empty[String, String], None: Option[Long]) }
+
+  /**
+   * When `AvailableNow` is used, this offset will be the upper bound where this run of the query
+   * will process up. We may run multiple micro batches, but the query will stop itself when it
+   * reaches this offset.
+   */
+  protected var lastOffsetForTriggerAvailableNow: Option[DeltaSharingSourceOffset] = None
+
+  private var isLastOffsetForTriggerAvailableNowInitialized = false
+
+  private var isTriggerAvailableNow = false
+
+  override def prepareForTriggerAvailableNow(): Unit = {
+    logInfo("The streaming query reports to use Trigger.AvailableNow.")
+    isTriggerAvailableNow = true
+  }
+
+  /**
+   * initialize the internal states for AvailableNow if this method is called first time after
+   * `prepareForTriggerAvailableNow`.
+   */
+  protected def initForTriggerAvailableNowIfNeeded(
+    startOffsetOpt: Option[DeltaSharingSourceOffset]): Unit = {
+    if (isTriggerAvailableNow && !isLastOffsetForTriggerAvailableNowInitialized) {
+      isLastOffsetForTriggerAvailableNowInitialized = true
+      initLastOffsetForTriggerAvailableNow(startOffsetOpt)
+    }
+  }
+
+  // scalastyle:off println
+  protected def initLastOffsetForTriggerAvailableNow(
+    startOffsetOpt: Option[DeltaSharingSourceOffset]): Unit = {
+    Console.println(s"----[linzhou]----initLastOffsetForTriggerAvailableNow, " +
+      s"startOffsetOpt:$startOffsetOpt.")
+    val offset = latestOffsetInternal(startOffsetOpt, ReadLimit.allAvailable())
+    Console.println(s"----[linzhou]----initLastOffsetForTriggerAvailableNow, " +
+      s"offset:$offset.")
+    lastOffsetForTriggerAvailableNow = offset
+    lastOffsetForTriggerAvailableNow.foreach { lastOffset =>
+      logInfo(s"lastOffset for Trigger.AvailableNow has set to ${lastOffset.json}")
+    }
+  }
+
+  protected def latestOffsetInternal(
+      startOffset: Option[DeltaSharingSourceOffset],
+      limit: ReadLimit): Option[DeltaSharingSourceOffset] = {
+    Console.println(s"----[linzhou]----latestOffsetInternal, " +
+      s"startOffset:$startOffset, limit:$limit.")
+    val limits = AdmissionLimits(limit)
+
+    val endOffset = startOffset.orElse(previousOffsetOpt).map(
+      getNextOffsetFromPreviousOffset(_, limits)).getOrElse(getStartingOffset(limits))
+
+    val startVersion = startOffset.map(_.tableVersion).getOrElse(-1L)
+    val endVersion = endOffset.map(_.tableVersion).getOrElse(-1L)
+    lazy val offsetRangeInfo = "(latestOffsetInternal)startOffset -> endOffset:" +
+      s" $startOffset -> $endOffset"
+    if (endVersion - startVersion > 1000L) {
+      // Improve the log level if the source is processing a large batch.
+      logInfo(offsetRangeInfo)
+    } else {
+      logDebug(offsetRangeInfo)
+    }
+
+    Console.println(s"----[linzhou]----latestOffsetInternal, " +
+      s"return: $endOffset.")
+    endOffset
+  }
 
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
@@ -220,28 +290,32 @@ case class DeltaSharingSource(
       fromVersion: Long,
       fromIndex: Long,
       isStartingVersion: Boolean): Unit = {
+    Console.println(s"----[linzhou]----maybeGetFileChanges, $fromVersion/$fromIndex/" +
+      s"$isStartingVersion.")
+    // scalastyle:off println
     if (!sortedFetchedFiles.isEmpty) {
       return
     }
 
-    val currentLatestVersion = getOrUpdateLatestTableVersion
+    var currentLatestVersion = lastOffsetForTriggerAvailableNow.map(_.tableVersion).getOrElse(
+      getOrUpdateLatestTableVersion)
     if (fromVersion > currentLatestVersion) {
       // If true, it means that there's no new data from the delta sharing server.
       return
     }
 
     // using "fromVersion + maxVersionsPerRpc - 1" because the endingVersion is inclusive.
-    val endingVersionForQuery = currentLatestVersion.min(fromVersion + maxVersionsPerRpc - 1)
-
+    currentLatestVersion = currentLatestVersion.min(fromVersion + maxVersionsPerRpc - 1)
     if (isStartingVersion || !options.readChangeFeed) {
-      getTableFileChanges(fromVersion, fromIndex, isStartingVersion, endingVersionForQuery)
+      getTableFileChanges(fromVersion, fromIndex, isStartingVersion, currentLatestVersion)
     } else {
-      getCDFFileChanges(fromVersion, fromIndex, endingVersionForQuery)
+      getCDFFileChanges(fromVersion, fromIndex, currentLatestVersion)
     }
   }
 
-  private def resetGlobalTimestamp(): Unit = {
+  private def resetGlobalVariables(): Unit = {
     synchronized {
+      sortedFetchedFiles = Seq.empty
       lastQueryTableTimestamp = System.currentTimeMillis()
       minUrlExpirationTimestamp = None
     }
@@ -365,7 +439,7 @@ case class DeltaSharingSource(
       fromIndex: Long,
       isStartingVersion: Boolean,
       endingVersionForQuery: Long): Unit = {
-    resetGlobalTimestamp()
+    resetGlobalVariables()
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
@@ -483,7 +557,7 @@ case class DeltaSharingSource(
       fromVersion: Long,
       fromIndex: Long,
       endingVersionForQuery: Long): Unit = {
-    resetGlobalTimestamp()
+    resetGlobalVariables()
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table,
       Map(
@@ -667,7 +741,7 @@ case class DeltaSharingSource(
 
     val (fileActions, lastQueryTimestamp, urlExpirationTimestamp) = popSortedFetchedFiles(endOffset)
     // Proceed the offset as the files before the endOffset are processed.
-    previousOffset = endOffset
+    previousOffsetOpt = Some(endOffset)
 
     // indexedFile.getFileAction is null for index=-1 on each version, where we add it to ensure the
     // offset proceed through all table versions even there's no interested files returned for the
@@ -776,7 +850,7 @@ case class DeltaSharingSource(
   private def getStartingOffsetFromSpecificDeltaVersion(
       fromVersion: Long,
       isStartingVersion: Boolean,
-      limits: Option[AdmissionLimits]): Option[Offset] = {
+      limits: Option[AdmissionLimits]): Option[DeltaSharingSourceOffset] = {
     val lastFileChange = getLastFileChangeWithRateLimit(
       fromVersion,
       fromIndex = -1L,
@@ -793,20 +867,21 @@ case class DeltaSharingSource(
    * Return the next offset when previous offset exists.
    */
   private def getNextOffsetFromPreviousOffset(
-      limits: Option[AdmissionLimits]): Option[Offset] = {
+      inputPreviousOffset: DeltaSharingSourceOffset,
+      limits: Option[AdmissionLimits]): Option[DeltaSharingSourceOffset] = {
     val lastFileChange = getLastFileChangeWithRateLimit(
-      previousOffset.tableVersion,
-      previousOffset.index,
-      previousOffset.isStartingVersion,
+      inputPreviousOffset.tableVersion,
+      inputPreviousOffset.index,
+      inputPreviousOffset.isStartingVersion,
       limits)
 
     if (lastFileChange.isEmpty) {
-      // Return the previousOffset if there are no more changes, which still indicates until which
-      // offset we've processed the data.
-      Some(previousOffset)
+      // Return the inputPreviousOffset if there are no more changes, which still indicates until
+      // which offset we've processed the data.
+      Some(inputPreviousOffset)
     } else {
-      buildOffsetFromIndexedFile(lastFileChange.get, previousOffset.tableVersion,
-        previousOffset.isStartingVersion)
+      buildOffsetFromIndexedFile(lastFileChange.get, inputPreviousOffset.tableVersion,
+        inputPreviousOffset.isStartingVersion)
     }
   }
 
@@ -887,7 +962,8 @@ case class DeltaSharingSource(
    * @return the latest offset.
    */
   private def getStartingOffset(
-      limits: Option[AdmissionLimits] = Some(new AdmissionLimits())): Option[Offset] = {
+      limits: Option[AdmissionLimits] = Some(new AdmissionLimits())
+  ): Option[DeltaSharingSourceOffset] = {
 
     val (version, isStartingVersion) = getStartingVersion match {
       case Some(v) => (v, false)
@@ -904,24 +980,15 @@ case class DeltaSharingSource(
     new AdmissionLimits().toReadLimit
   }
 
-  override def latestOffset(startOffset: streaming.Offset, limit: ReadLimit): streaming.Offset = {
-    // scalastyle:off println
-    Console.println(s"----[linzhou]----latestOffset.startOffset:${startOffset}")
-    val limits = AdmissionLimits(limit)
+  def toDeltaSharingSourceOffset(offset: streaming.Offset): DeltaSharingSourceOffset = {
+    DeltaSharingSourceOffset(tableId, offset)
+  }
 
-    val currentOffset = if (previousOffset != null) {
-      Console.println(s"----[linzhou]----latestOffset,[1], previousOffset:${previousOffset}")
-      getNextOffsetFromPreviousOffset(limits)
-    } else if (startOffset != null) {
-      previousOffset = DeltaSharingSourceOffset(tableId, startOffset)
-      Console.println(s"----[linzhou]----latestOffset,[2], previousOffset:${previousOffset}")
-      getNextOffsetFromPreviousOffset(limits)
-    } else {
-      Console.println(s"----[linzhou]----latestOffset,[3], previousOffset:${previousOffset}")
-      getStartingOffset(limits)
-    }
-    logDebug(s"previousOffset -> currentOffset: $previousOffset -> $currentOffset")
-    currentOffset.orNull
+  override def latestOffset(startOffset: streaming.Offset, limit: ReadLimit): streaming.Offset = {
+    Console.println(s"----[linzhou]----latestOffset, startOffset:$startOffset, limit:$limit")
+    val deltaSharingStartOffset = Option(startOffset).map(toDeltaSharingSourceOffset)
+    initForTriggerAvailableNowIfNeeded(deltaSharingStartOffset)
+    latestOffsetInternal(deltaSharingStartOffset, limit).orNull
   }
 
   override def getOffset: Option[Offset] = {
@@ -930,28 +997,27 @@ case class DeltaSharingSource(
   }
 
   override def getBatch(startOffsetOption: Option[Offset], end: Offset): DataFrame = {
-    Console.println(s"----[linzhou]----getBatch, startOffsetOption:${startOffsetOption}," +
-      s"end:$end")
+    Console.println(s"----[linzhou]----getBatch, startOffsetOption:" +
+      s"$startOffsetOption, end:$end.")
     val endOffset = DeltaSharingSourceOffset(tableId, end)
 
-    val (startVersion, startIndex, isStartingVersion, startSourceVersion) = if (
+    val (startVersion, startIndex, isStartingVersion) = if (
       startOffsetOption.isEmpty) {
       getStartingVersion match {
         case Some(v) =>
           // startingVersion is provided by the user
-          (v, -1L, false, None)
-
+          (v, -1L, false)
         case _ =>
           // startingVersion is NOT provided by the user
           if (endOffset.isStartingVersion) {
             // Get all files in this version if endOffset is startingVersion
-            (endOffset.tableVersion, -1L, true, None)
+            (endOffset.tableVersion, -1L, true)
           } else {
             assert(
               endOffset.tableVersion > 0, s"invalid tableVersion in endOffset: $endOffset")
             // Load from snapshot `endOffset.tableVersion - 1L` if endOffset is not
             // startingVersion, this is the same behavior as DeltaSource.
-            (endOffset.tableVersion - 1L, -1L, true, None)
+            (endOffset.tableVersion - 1L, -1L, true)
           }
       }
     } else {
@@ -962,8 +1028,7 @@ case class DeltaSharingSource(
         // can return any DataFrame.
         return DeltaSharingScanUtils.internalCreateDataFrame(spark, schema)
       }
-      (startOffset.tableVersion, startOffset.index, startOffset.isStartingVersion,
-        Some(startOffset.sourceVersion))
+      (startOffset.tableVersion, startOffset.index, startOffset.isStartingVersion)
     }
     logDebug(s"start: $startOffsetOption end: $end")
 
