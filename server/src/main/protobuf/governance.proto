@@ -1,0 +1,148 @@
+/*
+ * Copyright (2021) The Delta Lake Project Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+syntax = "proto2";
+
+package io.delta.sharing.server.governance_proto;
+
+import "scalapb/scalapb.proto";
+
+option java_package = "io.delta.sharing.server.governance_proto";
+
+option java_generate_equals_and_hash = true;
+option (scalapb.options).flat_package = true;
+
+// Define the JSON objects used by governance REST APIs.
+// This is based on Databricks's Unity Catalog APIs:
+// https://api-docs.databricks.com/rest/latest/unity-catalog-api-specification.html
+
+/*
+ **********  Share APIs  **********
+ */
+
+message SharedDataObject {
+  // Fully qualified name (<catalog>.<schema>.<table>)
+  optional string name = 1;
+  optional bool cdf_enabled = 2;
+  optional int64 start_version = 3;
+}
+
+message Share {
+  optional string name = 1;
+  repeated SharedDataObject objects = 2;
+}
+
+message SharedDataObjectUpdate {
+  enum Action {
+    UNKNOWN = 0;
+    ADD = 1;
+    REMOVE = 2;
+  }
+  optional Action action = 1;
+  optional SharedDataObject data_object = 2;
+}
+
+message UpdateShareRequest {
+  repeated SharedDataObjectUpdate updates = 1;
+}
+
+message ListSharesResponse {
+  repeated Share shares = 1;
+}
+
+message PrivilegeAssignment {
+  // Recipient name
+  optional string principal = 1;
+  // Only SELECT is currently supported.
+  repeated string privileges = 2;
+}
+
+message SharePermissions {
+  repeated PrivilegeAssignment privilege_assignments = 1;
+}
+
+message PermissionChange {
+  // Recipient name
+  optional string principal = 1;
+  // The set of privileges to add. Only SELECT is currently supported.
+  repeated string add = 2;
+  // The set of privileges to remove. Only SELECT is currently supported.
+  repeated string remove = 3;
+}
+
+message UpdateSharePermissionRequest {
+  repeated PermissionChange changes = 1;
+}
+
+/*
+ **********  Recipient APIs  **********
+ */
+
+message RecipientToken {
+  // UUID of the token
+  optional string id = 1;
+
+  optional int64 created_at = 2;
+
+  // One-time URL for the recipient to download the token.
+  optional string activation_url = 4;
+
+  optional int64 expiration_time = 5;
+
+  optional int64 updated_at = 6;
+}
+
+message Recipient {
+  optional string name = 1;
+
+  repeated RecipientToken tokens = 2;
+}
+
+message ShareToPrivilegeAssignment {
+  optional string share_name = 1;
+  repeated PrivilegeAssignment privilege_assignments = 2;
+}
+
+message GetRecipientSharePermissionsResponse {
+  repeated ShareToPrivilegeAssignment permissions_out = 1;
+}
+
+message RotateRecipientTokenRequest {
+  optional int64 existing_token_expire_in_seconds = 2;
+}
+
+// These field names must follow the delta sharing protocol.
+message ProfileFile {
+  optional int32 shareCredentialsVersion = 1;
+  optional string bearerToken = 2;
+  optional string endpoint = 3;
+  optional string expirationTime = 4;
+}
+
+/*
+ **********  Table APIs  **********
+ */
+
+// This is not based on the Unity Catalog API. This is a simplified representation of a table.
+
+message Table {
+  // Fully qualified name (<catalog>.<schema>.<table>) to identify the table.
+  // The schema and table names are used in shares.
+  // The catalog name is for logical grouping purposes.
+  optional string name = 1;
+  optional string location = 2;
+  // UUID of the table
+  optional string id = 3;
+}
