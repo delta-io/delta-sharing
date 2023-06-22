@@ -102,6 +102,7 @@ private[spark] class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
+    maxRetryDuration: Long = Long.MaxValue,
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
     queryDeltaLog: Boolean = false) extends DeltaSharingClient {
@@ -477,7 +478,7 @@ private[spark] class DeltaSharingRestClient(
       allowNoContent: Boolean = false,
       fetchAsOneString: Boolean = false
   ): (Option[Long], Seq[String]) = {
-    RetryUtils.runWithExponentialBackoff(numRetries) {
+    RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
       val profile = profileProvider.getProfile
       val response = client.execute(
         getHttpHost(profile.endpoint),

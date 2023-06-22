@@ -34,6 +34,7 @@ class TestDeltaSharingClient(
     profileProvider: DeltaSharingProfileProvider = new TestDeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
+    maxRetryDuration: Long = Long.MaxValue,
     sslTrustAll: Boolean = false,
     includeHistoricalMetadata: Boolean = false) extends DeltaSharingClient {
 

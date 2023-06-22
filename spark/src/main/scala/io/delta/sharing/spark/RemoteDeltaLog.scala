@@ -45,6 +45,7 @@ import io.delta.sharing.spark.model.{
   Table => DeltaSharingTable
 }
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
+import io.delta.sharing.spark.util.ConfUtils
 
 
 /** Used to query the current state of the transaction logs of a remote shared Delta table. */

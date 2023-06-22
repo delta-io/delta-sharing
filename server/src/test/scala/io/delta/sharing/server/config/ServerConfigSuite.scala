@@ -83,6 +83,15 @@ class ServerConfigSuite extends FunSuite {
               id = "00000000-0000-0000-0000-000000000003"
             )
           ))
+        )),
+        ShareConfig("share4", Arrays.asList(
+          SchemaConfig("schema4", Arrays.asList(
+            TableConfig(
+              "table5",
+              "s3a://<bucket-name>/<the-table-path>",
+              id = "00000000-0000-0000-0000-000000000004"
+            )
+          ))
         ))
       )
       val serverConfig = new ServerConfig()
