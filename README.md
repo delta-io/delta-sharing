@@ -127,13 +127,13 @@ To use Delta Sharing connector interactively within the Spark’s Scala/Python s
 #### PySpark shell
 
 ```
-pyspark --packages io.delta:delta-sharing-spark_2.12:0.6.2
+pyspark --packages io.delta:delta-sharing-spark_2.12:0.6.4
 ```
 
 #### Scala Shell
 
 ```
-bin/spark-shell --packages io.delta:delta-sharing-spark_2.12:0.6.2
+bin/spark-shell --packages io.delta:delta-sharing-spark_2.12:0.6.4
 ```
 
 ### Set up a standalone project
@@ -148,7 +148,7 @@ You include Delta Sharing connector in your Maven project by adding it as a depe
 <dependency>
   <groupId>io.delta</groupId>
   <artifactId>delta-sharing-spark_2.12</artifactId>
-  <version>0.6.2</version>
+  <version>0.6.4</version>
 </dependency>
 ```
 
@@ -157,7 +157,7 @@ You include Delta Sharing connector in your Maven project by adding it as a depe
 You include Delta Sharing connector in your SBT project by adding the following line to your `build.sbt` file:
 
 ```scala
-libraryDependencies += "io.delta" %% "delta-sharing-spark" % "0.6.2"
+libraryDependencies += "io.delta" %% "delta-sharing-spark" % "0.6.4"
 ```
 
 ## Quick Start
@@ -457,6 +457,34 @@ export GOOGLE_APPLICATION_CREDENTIALS="KEY_PATH"
 
 Replace `KEY_PATH` with path of the JSON file that contains your service account key.
 
+### Cloudflare R2
+We use an R2 implementation of the [S3 API](https://developers.cloudflare.com/r2/api/s3/api/) and `hadoop-aws` to read Cloudflare R2. Table paths in the server config file should use the `s3a://` scheme. You must [generate an API token](https://developers.cloudflare.com/r2/api/s3/tokens/) for usage with existing S3-compatible SDKs. These credentials can be specified in substitute of the S3 credentials in a Hadoop configuration file named `core-site.xml` within the server's `conf` directory. For R2 to work, you also need to directly specify the S3 endpoint and reduce `fs.s3a.paging.maximum` from Hadoop's default of 5000 to 1000 since R2 only supports `MaxKeys` <= 1000.
+```xml
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>fs.s3a.access.key</name>
+    <value>YOUR-ACCESS-KEY</value>
+  </property>
+  <property>
+    <name>fs.s3a.secret.key</name>
+    <value>YOUR-SECRET-KEY</value>
+  </property>
+  <property>
+    <name>fs.s3a.endpoint</name>
+    <value>https://YOUR-ACCOUNT-ID.r2.cloudflarestorage.com</value>
+  </property>
+  <property>
+    <name>fs.s3a.paging.maximum</name>
+    <value>1000</value>
+  </property>
+</configuration>
+```
+Replace `YOUR-ACCESS-KEY` with your generated API token's R2 access key ID, `YOUR-SECRET-KEY` with your generated API token's secret access key, and `YOUR-ACCOUNT-ID` with your Cloudflare account ID.
+
+**Note**: S3 and R2 credentials cannot be configured simultaneously.
+
 ## Authorization
 
 The server supports a basic authorization with pre-configed bearer token. You can add the following config to your server yaml file:
@@ -489,7 +517,7 @@ You can use the pre-built docker image from https://hub.docker.com/r/deltaio/del
 ```
 docker run -p <host-port>:<container-port> \
   --mount type=bind,source=<the-server-config-yaml-file>,target=/config/delta-sharing-server-config.yaml \
-  deltaio/delta-sharing-server:0.6.2 -- --config /config/delta-sharing-server-config.yaml
+  deltaio/delta-sharing-server:0.6.4 -- --config /config/delta-sharing-server-config.yaml
 ```
 
 Note that `<container-port>` should be the same as the port defined inside the config file.

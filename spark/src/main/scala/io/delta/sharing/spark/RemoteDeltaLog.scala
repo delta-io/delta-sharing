@@ -45,6 +45,7 @@ import io.delta.sharing.spark.model.{
   Table => DeltaSharingTable
 }
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
+import io.delta.sharing.spark.util.ConfUtils
 
 
 /** Used to query the current state of the transaction logs of a remote shared Delta table. */
@@ -151,24 +152,9 @@ private[sharing] object RemoteDeltaLog {
     // This is a flag to test the local https server. Should never be used in production.
     val sslTrustAll =
       sqlConf.getConfString("spark.delta.sharing.network.sslTrustAll", "false").toBoolean
-    val numRetries = sqlConf.getConfString("spark.delta.sharing.network.numRetries", "10").toInt
-    if (numRetries < 0) {
-      throw new IllegalArgumentException(
-        "spark.delta.sharing.network.numRetries must not be negative")
-    }
-    val timeoutInSeconds = {
-      val timeoutStr = sqlConf.getConfString("spark.delta.sharing.network.timeout", "320s")
-      val timeoutInSeconds = JavaUtils.timeStringAs(timeoutStr, TimeUnit.SECONDS)
-      if (timeoutInSeconds < 0) {
-        throw new IllegalArgumentException(
-          "spark.delta.sharing.network.timeout must not be negative")
-      }
-      if (timeoutInSeconds > Int.MaxValue) {
-        throw new IllegalArgumentException(
-          s"spark.delta.sharing.network.timeout is too big")
-      }
-      timeoutInSeconds.toInt
-    }
+    val numRetries = ConfUtils.numRetries(sqlConf)
+    val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(sqlConf)
+    val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
 
     val clientClass =
       sqlConf.getConfString("spark.delta.sharing.client.class",
@@ -177,10 +163,11 @@ private[sharing] object RemoteDeltaLog {
     val client: DeltaSharingClient =
       Class.forName(clientClass)
         .getConstructor(classOf[DeltaSharingProfileProvider],
-          classOf[Int], classOf[Int], classOf[Boolean], classOf[Boolean])
+          classOf[Int], classOf[Int], classOf[Long], classOf[Boolean], classOf[Boolean])
         .newInstance(profileProvider,
           java.lang.Integer.valueOf(timeoutInSeconds),
           java.lang.Integer.valueOf(numRetries),
+          java.lang.Long.valueOf(maxRetryDurationMillis),
           java.lang.Boolean.valueOf(sslTrustAll),
           java.lang.Boolean.valueOf(forStreaming))
         .asInstanceOf[DeltaSharingClient]
@@ -285,7 +272,16 @@ class RemoteSnapshot(
       val tableFiles = client.getFiles(
         table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints
       )
+      var minUrlExpirationTimestamp: Option[Long] = None
       val idToUrl = tableFiles.files.map { file =>
+        if (file.expirationTimestamp != null) {
+          minUrlExpirationTimestamp = if (minUrlExpirationTimestamp.isDefined &&
+            minUrlExpirationTimestamp.get < file.expirationTimestamp) {
+            minUrlExpirationTimestamp
+          } else {
+            Some(file.expirationTimestamp)
+          }
+        }
         file.id -> file.url
       }.toMap
       CachedTableManager.INSTANCE
@@ -295,10 +291,26 @@ class RemoteSnapshot(
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
           () => {
-            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints)
-            .files.map { add =>
+            val files = client.getFiles(
+              table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints).files
+            var minUrlExpiration: Option[Long] = None
+            val idToUrl = files.map { add =>
+              if (add.expirationTimestamp != null) {
+                minUrlExpiration = if (minUrlExpiration.isDefined
+                  && minUrlExpiration.get < add.expirationTimestamp) {
+                  minUrlExpiration
+                } else {
+                  Some(add.expirationTimestamp)
+                }
+              }
               add.id -> add.url
             }.toMap
+            (idToUrl, minUrlExpiration)
+          },
+          if (CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
+            minUrlExpirationTimestamp.get
+          } else {
+            System.currentTimeMillis() + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
           }
         )
       checkProtocolNotChange(tableFiles.protocol)

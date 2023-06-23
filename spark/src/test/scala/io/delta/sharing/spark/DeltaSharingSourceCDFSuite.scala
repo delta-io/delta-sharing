@@ -60,7 +60,6 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   lazy val toNotNullTable = testProfileFile.getCanonicalPath +
     "#share8.default.streaming_cdf_null_to_notnull"
 
-  // allowed to query starting from version 1
   // VERSION 1: INSERT 2 rows, 1 add file
   // VERSION 2: INSERT 3 rows, 1 add file
   // VERSION 3: UPDATE 4 rows, 4 cdf files, 8 cdf rows
@@ -596,4 +595,94 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       }
     }
   }
+
+  /**
+   * Test maxVersionsPerRpc
+   */
+  integrationTest("maxVersionsPerRpc - success") {
+    // VERSION 1: INSERT 2 rows, 1 add file
+    // VERSION 2: INSERT 3 rows, 1 add file
+    // VERSION 3: UPDATE 4 rows, 4 cdf files, 8 cdf rows
+    // VERSION 4: REMOVE 4 rows, 2 remove files
+    // maxVersionsPerRpc = 1
+    var processedRows = Seq(2, 3, 8, 4)
+    var query = withStreamReaderAtVersion()
+      .option("maxVersionsPerRpc", "1")
+      .load().writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === processedRows.size)
+      progress.zipWithIndex.map { case (p, index) =>
+        assert(p.numInputRows === processedRows(index))
+      }
+    } finally {
+      query.stop()
+    }
+
+    // maxVersionsPerRpc = 2
+    processedRows = Seq(2, 11, 4)
+    query = withStreamReaderAtVersion()
+      .option("maxVersionsPerRpc", "2")
+      .load().writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === processedRows.size)
+      progress.zipWithIndex.map { case (p, index) =>
+        assert(p.numInputRows === processedRows(index))
+      }
+    } finally {
+      query.stop()
+    }
+
+    // maxVersionsPerRpc = 3
+    processedRows = Seq(5, 12)
+    query = withStreamReaderAtVersion()
+      .option("maxVersionsPerRpc", "3")
+      .load().writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === processedRows.size)
+      progress.zipWithIndex.map { case (p, index) =>
+        assert(p.numInputRows === processedRows(index))
+      }
+    } finally {
+      query.stop()
+    }
+
+    // maxVersionsPerRpc = 4
+    processedRows = Seq(13, 4)
+    query = withStreamReaderAtVersion()
+      .option("maxVersionsPerRpc", "4")
+      .load().writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === processedRows.size)
+      progress.zipWithIndex.map { case (p, index) =>
+        assert(p.numInputRows === processedRows(index))
+      }
+    } finally {
+      query.stop()
+    }
+
+    // maxVersionsPerRpc = 5
+    processedRows = Seq(17)
+    query = withStreamReaderAtVersion()
+      .option("maxVersionsPerRpc", "5")
+      .load().writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === processedRows.size)
+      progress.zipWithIndex.map { case (p, index) =>
+        assert(p.numInputRows === processedRows(index))
+      }
+    } finally {
+      query.stop()
+    }
+  }
+
 }

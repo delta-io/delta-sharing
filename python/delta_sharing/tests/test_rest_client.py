@@ -569,6 +569,7 @@ def test_list_table_changes(
         ),
         configuration={"enableChangeDataFeed": "true"},
         partition_columns=["birthday"],
+        version=3
     )
     assert response.actions == [
         AddCdcFile(

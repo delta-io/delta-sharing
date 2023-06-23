@@ -187,7 +187,9 @@ class DeltaSharedTable(
       limitHint: Option[Long],
       version: Option[Long],
       timestamp: Option[String],
-      startingVersion: Option[Long]): (Long, Seq[model.SingleAction]) = withClassLoader {
+      startingVersion: Option[Long],
+      endingVersion: Option[Long]
+  ): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
@@ -233,7 +235,7 @@ class DeltaSharedTable(
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
-        queryDataChangeSinceStartVersion(startingVersion.get)
+        queryDataChangeSinceStartVersion(startingVersion.get, endingVersion)
       } else if (includeFiles) {
         val ts = if (isVersionQuery) {
           val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
@@ -269,7 +271,9 @@ class DeltaSharedTable(
         filteredFiles.map { addFile =>
           val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
           val signedUrl = fileSigner.sign(cloudPath)
-          val modelAddFile = model.AddFile(url = signedUrl,
+          val modelAddFile = model.AddFile(
+            url = signedUrl.url,
+            expirationTimestamp = signedUrl.expirationTimestamp,
             id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
             partitionValues = addFile.partitionValues,
             size = addFile.size,
@@ -287,11 +291,18 @@ class DeltaSharedTable(
     snapshot.version -> actions
   }
 
-  private def queryDataChangeSinceStartVersion(startingVersion: Long): Seq[model.SingleAction] = {
-    val latestVersion = tableVersion
+  private def queryDataChangeSinceStartVersion(
+      startingVersion: Long,
+      endingVersion: Option[Long]
+  ): Seq[model.SingleAction] = {
+    var latestVersion = tableVersion
     if (startingVersion > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
     }
+    if (endingVersion.isDefined && endingVersion.get > latestVersion) {
+      throw DeltaCDFErrors.endVersionAfterLatestVersion(endingVersion.get, latestVersion)
+    }
+    latestVersion = latestVersion.min(endingVersion.getOrElse(latestVersion))
     val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
       deltaLog.store,
       deltaLog.logPath,
@@ -301,14 +312,17 @@ class DeltaSharedTable(
     )
 
     val actions = ListBuffer[model.SingleAction]()
-    deltaLog.getChanges(startingVersion, true).asScala.toSeq.foreach{versionLog =>
+    deltaLog.getChanges(startingVersion, true).asScala.toSeq
+      .filter(_.getVersion <= latestVersion).foreach{ versionLog =>
       val v = versionLog.getVersion
       val versionActions = versionLog.getActions.asScala.map(x => ConversionUtils.convertActionJ(x))
       val ts = timestampsByVersion.get(v).orNull
       versionActions.foreach {
         case a: AddFile if a.dataChange =>
+          val signedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path))
           val modelAddFile = model.AddFileForCDF(
-            url = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path)),
+            url = signedUrl.url,
+            expirationTimestamp = signedUrl.expirationTimestamp,
             id = Hashing.md5().hashString(a.path, UTF_8).toString,
             partitionValues = a.partitionValues,
             size = a.size,
@@ -318,8 +332,10 @@ class DeltaSharedTable(
           )
           actions.append(modelAddFile.wrap)
         case r: RemoveFile if r.dataChange =>
+          val signedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path))
           val modelRemoveFile = model.RemoveFile(
-            url = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path)),
+            url = signedUrl.url,
+            expirationTimestamp = signedUrl.expirationTimestamp,
             id = Hashing.md5().hashString(r.path, UTF_8).toString,
             partitionValues = r.partitionValues,
             size = r.size.get,
@@ -407,7 +423,8 @@ class DeltaSharedTable(
         val cloudPath = absolutePath(deltaLog.dataPath, addCDCFile.path)
         val signedUrl = fileSigner.sign(cloudPath)
         val modelCDCFile = model.AddCDCFile(
-          url = signedUrl,
+          url = signedUrl.url,
+          expirationTimestamp = signedUrl.expirationTimestamp,
           id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
           partitionValues = addCDCFile.partitionValues,
           size = addCDCFile.size,
@@ -423,7 +440,8 @@ class DeltaSharedTable(
         val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
         val signedUrl = fileSigner.sign(cloudPath)
         val modelAddFile = model.AddFileForCDF(
-          url = signedUrl,
+          url = signedUrl.url,
+          expirationTimestamp = signedUrl.expirationTimestamp,
           id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
           partitionValues = addFile.partitionValues,
           size = addFile.size,
@@ -440,7 +458,8 @@ class DeltaSharedTable(
         val cloudPath = absolutePath(deltaLog.dataPath, removeFile.path)
         val signedUrl = fileSigner.sign(cloudPath)
         val modelRemoveFile = model.RemoveFile(
-          url = signedUrl,
+          url = signedUrl.url,
+          expirationTimestamp = signedUrl.expirationTimestamp,
           id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
           partitionValues = removeFile.partitionValues,
           size = removeFile.size.get,
