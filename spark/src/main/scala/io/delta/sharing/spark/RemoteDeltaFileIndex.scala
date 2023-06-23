@@ -16,17 +16,17 @@
 
 package io.delta.sharing.spark
 
-import java.lang.ref.WeakReference
-
 import org.apache.hadoop.fs.{FileStatus, Path}
-import org.apache.spark.delta.sharing.CachedTableManager
+import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{Column, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
-import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal, SubqueryExpression}
-import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
+import org.apache.spark.sql.catalyst.expressions.{And, Cast, Expression, GenericInternalRow, Literal}
+import org.apache.spark.sql.delta.DeltaLog
+import org.apache.spark.sql.delta.files.TahoeLogFileIndex
+import org.apache.spark.sql.execution.datasources.{FileIndex, PartitionDirectory}
 import org.apache.spark.sql.types.{DataType, StructType}
+import org.apache.spark.storage.{BlockId, StorageLevel}
 
 import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
 import io.delta.sharing.spark.model.{
@@ -59,6 +59,11 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
   override def rootPaths: Seq[Path] = params.path :: Nil
 
   protected def toDeltaSharingPath(f: FileAction): Path = {
+    DeltaSharingFileSystem.encode(
+      params.profileProvider.getCustomTablePath(params.path.toString), f)
+  }
+
+  protected def toDeltaSharingPath(f: dsmodel.FileAction): Path = {
     DeltaSharingFileSystem.encode(
       params.profileProvider.getCustomTablePath(params.path.toString), f)
   }
@@ -144,12 +149,15 @@ private[sharing] case class RemoteDeltaSnapshotFileIndex(
   override def listFiles(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
-    makePartitionDirectories(params.snapshotAtAnalysis.filesForScan(
+    val a = makePartitionDirectories(params.snapshotAtAnalysis.filesForScan(
       partitionFilters ++ dataFilters,
       limitHint,
       convertToJsonPredicate(partitionFilters),
       this
     ))
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----RemoteDeltaSnapshotFileIndex.listFiles:${a}")
+    a
   }
 }
 
@@ -282,22 +290,77 @@ private[sharing] case class TmpRemoteDeltaFileIndex(
     partitionFilters: Seq[Expression],
     dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     // scalastyle:off println
-    Console.println(s"----[linzhou]----TmpRemoteDeltaFileIndex.listFiles:${partitionFilters}")
+//    Console.println(s"----[linzhou]----TmpRemoteDeltaFileIndex.listFiles:${partitionFilters}")
     val deltaTableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, None)
-    Console.println(s"----[linzhou]----deltaTableFiles:${deltaTableFiles}")
-    Console.println(s"----[linzhou]----conf:${params.spark.sessionState.conf}")
-    Console.println(s"----[linzhou]----conf-1:${getConfiguredLocalDirs(
-      SparkSession.getActiveSession.map(_.sparkContext.getConf).get).toList}")
-    Console.println(s"----[linzhou]----conf-2:${getConfiguredLocalDirs(
-      params.spark.sparkContext.getConf).toList}")
+//    Console.println(s"----[linzhou]----deltaTableFiles:${deltaTableFiles}")
+//    Console.println(s"----[linzhou]----conf:${params.spark.sessionState.conf}")
+//    Console.println(s"----[linzhou]----conf-1:${getConfiguredLocalDirs(
+//      SparkSession.getActiveSession.map(_.sparkContext.getConf).get).toList}")
+//    Console.println(s"----[linzhou]----conf-2:${getConfiguredLocalDirs(
+//      params.spark.sparkContext.getConf).toList}")
 
-
-    import org.apache.spark.sql.delta.actions.Action
+    val jsonLogBuilder = new StringBuilder()
+    var jsonVersion = -1L
     deltaTableFiles.lines.foreach { line =>
-      val a = Action.fromJson(line)
-      Console.println(s"----[linzhou]----parsed action:${a}")
+      val a = JsonUtils.fromJson[dsmodel.SingleAction](line)
+//      Console.println(s"----[linzhou]----line:[${line}]")
+//      Console.println(s"----[linzhou]----parsed action:${a}")
+      if (a.add != null) {
+        jsonVersion = a.add.version
+//        Console.println(s"----[linzhou]----add.id:${a.add.id}")
+//        Console.println(s"----[linzhou]----add.path:${a.add.path}")
+//        Console.println(s"----[linzhou]----delta sharing path:" +
+//          s"${toDeltaSharingPath(a.add).toString}")
+        val newAdd = dsmodel.SingleAction(
+          add = a.add.copy(path = toDeltaSharingPath(a.add).toString)
+        )
+//        Console.println(s"----[linzhou]----new Add:[${newAdd}]")
+//        Console.println(s"----[linzhou]----new Json:[${JsonUtils.toJson(newAdd)}]")
+        jsonLogBuilder.append(JsonUtils.toJson(newAdd) + "\n")
+      } else {
+        jsonLogBuilder.append(line + "\n")
+      }
     }
-    throw new IllegalArgumentException("TmpRemoteDeltaFileIndex.listFiles is not fully supported.")
+    val jsonLog = jsonLogBuilder.toString
+//    Console.println(s"----[linzhou]----jsonVersion:${jsonVersion}")
+    Console.println(s"----[linzhou]----jsonLog:${jsonLog}")
+
+    val blockManager = SparkEnv.get.blockManager
+    val contentBlockId = BlockId(s"test_randomeQuery_${table.name}_0.json")
+    var blockStored = blockManager.putSingle[String](
+      contentBlockId,
+      jsonLog,
+      StorageLevel.MEMORY_AND_DISK_SER,
+      true
+    )
+    val sizeBlockId = BlockId(s"test_randomeQuery_cdf_table_cdf_enabled_0.json_size")
+    blockStored = blockManager.putSingle[Long](
+      sizeBlockId,
+      jsonLog.length,
+      StorageLevel.MEMORY_AND_DISK_SER,
+      true
+    )
+    val getBack = blockManager.getSingle[String](contentBlockId)
+
+    // TODO: create a local TahoeLogFileIndex and call listFiles of this class.
+    val deltaSharingLogPath = s"delta-sharing-log:///${table.name}"
+    val dL = DeltaLog.forTable(
+      params.spark,
+      deltaSharingLogPath,
+      Map.empty[String, String]
+    )
+//    Console.println(s"----[linzhou]----created DeltaLog:${dL}")
+    val tahoeLogFileIndex = TahoeLogFileIndex(
+      params.spark,
+      dL
+    )
+//    Console.println(s"----[linzhou]----created TahoeLogFileIndex:${tahoeLogFileIndex}")
+    val a = tahoeLogFileIndex.listFiles(partitionFilters, dataFilters)
+    Console.println(s"----[linzhou]----TmpRemoteDeltaFileIndex.listFiles: $a")
+    a
+
+    // throw new IllegalArgumentException(
+    // "TmpRemoteDeltaFileIndex.listFiles is not fully supported.")
   }
 
   import org.apache.spark.SparkConf
@@ -328,16 +391,16 @@ private[sharing] case class TmpRemoteDeltaFileIndex(
       // to what Yarn on this system said was available. Note this assumes that Yarn has
       // created the directories already, and that they are secured so that only the
       // user has access to them.
-      Console.println(s"----[linzhou]----return-1-yarn")
+//      Console.println(s"----[linzhou]----return-1-yarn")
       randomizeInPlace(getYarnLocalDirs(conf).split(","))
     } else if (System.getenv("SPARK_EXECUTOR_DIRS") != null) {
-      Console.println(s"----[linzhou]----return-2-executor-dirs")
+//      Console.println(s"----[linzhou]----return-2-executor-dirs")
       System.getenv("SPARK_EXECUTOR_DIRS").split(java.io.File.pathSeparator)
     } else if (System.getenv("SPARK_LOCAL_DIRS") != null) {
-      Console.println(s"----[linzhou]----return-3-local-dirs")
+//      Console.println(s"----[linzhou]----return-3-local-dirs")
       System.getenv("SPARK_LOCAL_DIRS").split(",")
     } else if (System.getenv("MESOS_SANDBOX") != null && !shuffleServiceEnabled) {
-      Console.println(s"----[linzhou]----return-4-mesos-sandbox")
+//      Console.println(s"----[linzhou]----return-4-mesos-sandbox")
       // Mesos already creates a directory per Mesos task. Spark should use that directory
       // instead so all temporary files are automatically cleaned up when the Mesos task ends.
       // Note that we don't want this if the shuffle service is enabled because we want to
@@ -345,12 +408,12 @@ private[sharing] case class TmpRemoteDeltaFileIndex(
       Array(System.getenv("MESOS_SANDBOX"))
     } else {
       if (System.getenv("MESOS_SANDBOX") != null && shuffleServiceEnabled) {
-        Console.println(s"----[linzhou]----return-5-just-logging")
+//        Console.println(s"----[linzhou]----return-5-just-logging")
       }
       // In non-Yarn mode (or for the driver in yarn-client mode), we cannot trust the user
       // configuration to point to a secure directory. So create a subdirectory with restricted
       // permissions under each listed directory.
-      Console.println(s"----[linzhou]----return-5-java.io.tmpdir")
+//      Console.println(s"----[linzhou]----return-5-java.io.tmpdir")
       conf.get("spark.local.dir", System.getProperty("java.io.tmpdir")).split(",")
     }
   }

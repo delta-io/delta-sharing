@@ -407,6 +407,18 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("table_changes: cdf_table_with_vacuum") {
+    import org.apache.spark.SparkEnv
+    import org.apache.spark.storage.{BlockId, StorageLevel}
+    val blockManager = SparkEnv.get.blockManager
+    val blockId = BlockId(s"test_randomeQuery")
+    val blockStored = blockManager.putSingle[String](
+      blockId,
+      "hello file system",
+      StorageLevel.MEMORY_AND_DISK_SER,
+      true
+    )
+    Console.println(s"----[linzhou]----blockStored:${blockStored}")
+
     val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_with_vacuum"
 
     val expected = Seq(
@@ -531,15 +543,28 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     assert(e.getMessage.contains("LOCATION must be specified"))
   }
 
-  integrationTest("queryDeltaLog test") {
-    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_with_partition"
+  override protected def sparkConf = super.sparkConf.set(
+    "spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+  )
 
+  integrationTest("queryDeltaLog test") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
     val expected = Seq(
       Row("1", 1, sqlDate("2020-01-01")),
       Row("2", 2, sqlDate("2020-02-02"))
     )
-    val result = spark.read.format("deltaSharing").load(tablePath)
-    checkAnswer(result, expected)
+    checkAnswer(spark.read.format("deltaSharing").load(tablePath), expected)
+
+    // ---------------------- real test ------
+    Console.println(s"----[linzhou]---- REAL TEST STARTS ----")
+    val result = spark.read.format("deltaSharing").option("queryDeltaLog", true).load(tablePath)
+    Console.println(s"----[linzhou]----result: $result")
+    val expected2 = Seq(
+      Row("1", 1, sqlDate("2020-01-01")),
+      Row("2", 2, sqlDate("2020-02-02"))
+    )
+    Console.println(s"----[linzhou]----result.count: ${result.count()}")
+    checkAnswer(result, expected2)
 
     // should work when filtering on partition columns
     val filtered = spark.read.format("deltaSharing")

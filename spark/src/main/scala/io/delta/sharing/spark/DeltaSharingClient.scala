@@ -39,12 +39,10 @@ import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, 
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.spark.internal.Logging
-import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 import io.delta.sharing.spark.model._
-import io.delta.sharing.spark.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
+import io.delta.sharing.spark.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
 
 /** An interface to fetch Delta metadata from remote server. */
 private[sharing] trait DeltaSharingClient {
@@ -52,7 +50,7 @@ private[sharing] trait DeltaSharingClient {
 
   def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long
 
-  def getMetadata(table: Table): DeltaTableMetadata
+  def getMetadata(table: Table, tmpQueryDeltaLog: Boolean = true): DeltaTableMetadata
 
   def getFiles(
       table: Table,
@@ -205,15 +203,18 @@ private[spark] class DeltaSharingRestClient(
   }
 
   // TODO: consider return (version, lines) as the response, and do the parsing outside.
-  def getMetadata(table: Table): DeltaTableMetadata = {
+  def getMetadata(table: Table, tmpQueryDeltaLog: Boolean = true): DeltaTableMetadata = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
+    val localQueryDeltaLog = queryDeltaLog && tmpQueryDeltaLog
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----client.getMetadata.queryDeltaLog:${localQueryDeltaLog}")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata?" +
-        s"queryDeltaLog=$queryDeltaLog")
+        s"queryDeltaLog=${localQueryDeltaLog}")
     val (version, lines) = getNDJson(target)
-    if (queryDeltaLog) {
+    if (localQueryDeltaLog) {
       val protocol = JsonUtils.fromJson[dsmodel.SingleAction](lines(0)).protocol
       checkProtocol(protocol)
       val metadata = JsonUtils.fromJson[dsmodel.SingleAction](lines(1)).metaData
@@ -260,6 +261,7 @@ private[spark] class DeltaSharingRestClient(
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
+    val localQueryDeltaLog = queryDeltaLog && limit.isEmpty
     val (version, lines) = getNDJson(
       target,
       QueryTableRequest(
@@ -270,13 +272,13 @@ private[spark] class DeltaSharingRestClient(
         None,
         None,
         jsonPredicateHints,
-        Some(queryDeltaLog)
+        Some(localQueryDeltaLog)
       )
     )
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     // scalastyle:off println
-    Console.println(s"----[linzhou]----getFiles.queryDeltaLog:$queryDeltaLog")
-    if (queryDeltaLog) {
+    Console.println(s"----[linzhou]----client.getFiles.queryDeltaLog:${localQueryDeltaLog}")
+    if (localQueryDeltaLog) {
       DeltaTableFiles(
         version,
         Protocol(1),
@@ -617,36 +619,28 @@ private[spark] object DeltaSharingRestClient extends Logging {
     // This is a flag to test the local https server. Should never be used in production.
     val sslTrustAll =
       sqlConf.getConfString("spark.delta.sharing.network.sslTrustAll", "false").toBoolean
-    val numRetries = sqlConf.getConfString("spark.delta.sharing.network.numRetries", "10").toInt
-    if (numRetries < 0) {
-      throw new IllegalArgumentException(
-        "spark.delta.sharing.network.numRetries must not be negative")
-    }
-    val timeoutInSeconds = {
-      val timeoutStr = sqlConf.getConfString("spark.delta.sharing.network.timeout", "320s")
-      val timeoutInSeconds = JavaUtils.timeStringAs(timeoutStr, TimeUnit.SECONDS)
-      if (timeoutInSeconds < 0) {
-        throw new IllegalArgumentException(
-          "spark.delta.sharing.network.timeout must not be negative")
-      }
-      if (timeoutInSeconds > Int.MaxValue) {
-        throw new IllegalArgumentException(
-          s"spark.delta.sharing.network.timeout is too big")
-      }
-      timeoutInSeconds.toInt
-    }
+    val numRetries = ConfUtils.numRetries(sqlConf)
+    val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(sqlConf)
+    val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
 
     // scalastyle:off println
     Console.println(s"----[linzhou]----client.queryDeltaLog:$queryDeltaLog")
     val clientClass =
       sqlConf.getConfString("spark.delta.sharing.client.class",
         "io.delta.sharing.spark.DeltaSharingRestClient")
-    Class.forName(clientClass)
-      .getConstructor(classOf[DeltaSharingProfileProvider],
-        classOf[Int], classOf[Int], classOf[Boolean], classOf[Boolean], classOf[Boolean])
+    Class.forName(clientClass).getConstructor(
+      classOf[DeltaSharingProfileProvider],
+      classOf[Int],
+      classOf[Int],
+      classOf[Long],
+      classOf[Boolean],
+      classOf[Boolean],
+      classOf[Boolean]
+    )
       .newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
+        java.lang.Long.valueOf(maxRetryDurationMillis),
         java.lang.Boolean.valueOf(sslTrustAll),
         java.lang.Boolean.valueOf(forStreaming),
         java.lang.Boolean.valueOf(queryDeltaLog))

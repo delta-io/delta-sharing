@@ -139,6 +139,8 @@ class CachedTableManager(
     val url = cachedTable.idToUrl.getOrElse(fileId, {
       throw new IllegalStateException(s"cannot find url for id $fileId in table $tablePath")
     })
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----CachedTableManager id:$fileId, url:$url")
     (url, cachedTable.expiration)
   }
 

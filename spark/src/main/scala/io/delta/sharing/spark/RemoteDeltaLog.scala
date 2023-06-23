@@ -45,7 +45,6 @@ import io.delta.sharing.spark.model.{
   Table => DeltaSharingTable
 }
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
-import io.delta.sharing.spark.util.ConfUtils
 
 
 /** Used to query the current state of the transaction logs of a remote shared Delta table. */
@@ -165,7 +164,12 @@ class RemoteSnapshot(
 
   lazy val (metadata, protocol, version) = getTableMetadata
 
-  lazy val schema: StructType = DeltaTableUtils.toSchema(metadata.schemaString)
+  lazy val schema: StructType = {
+    val a = DeltaTableUtils.toSchema(metadata.schemaString)
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----RemoteSnapshot.schema: $a")
+    a
+  }
 
   lazy val partitionSchema = new StructType(metadata.partitionColumns.map(c => schema(c)).toArray)
 
@@ -195,8 +199,9 @@ class RemoteSnapshot(
   }
 
   private def getTableMetadata: (Metadata, Protocol, Long) = {
+    Console.println(s"----[linzhou]----RemoteSnapshot.getTableMetadata executed")
     if (versionAsOf.isEmpty) {
-      val tableMetadata = client.getMetadata(table)
+      val tableMetadata = client.getMetadata(table, false)
       (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
     } else {
       // getMetadata doesn't support the parameter: versionAsOf

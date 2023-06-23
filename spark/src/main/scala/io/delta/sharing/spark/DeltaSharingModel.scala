@@ -16,7 +16,7 @@
 
 package io.delta.sharing.spark.dsmodel
 
-import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.{JsonIgnore, JsonInclude}
 import org.apache.spark.sql.types.{DataType, LongType, StringType}
 import org.codehaus.jackson.annotate.JsonRawValue
 
@@ -115,14 +115,18 @@ private[sharing] sealed abstract class FileAction(
   @JsonInclude(JsonInclude.Include.ALWAYS)
   val partitionValues: Map[String, String],
   val size: Long,
+  @JsonIgnore
   val version: Long,
+  @JsonIgnore
   val timestamp: Long,
+  @JsonIgnore
   val expirationTimestamp: Long) extends Action {
 
   // Returns the partition values to be used in a data frame.
   // By default, we return the input partition values.
   // Derived class can override this and add internal partitions values as needed.
   // For example, internal CDF columns such as commit version are modeled as partitions.
+  @JsonIgnore
   def getPartitionValuesInDF(): Map[String, String] = partitionValues
 }
 
@@ -132,8 +136,11 @@ private[sharing] case class AddFile(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     override val partitionValues: Map[String, String],
     override val size: Long,
+    @JsonIgnore
     override val version: Long,
+    @JsonIgnore
     override val timestamp: Long,
+    @JsonIgnore
     override val expirationTimestamp: Long,
     modificationTime: Long,
     dataChange: Boolean,
@@ -144,6 +151,7 @@ private[sharing] case class AddFile(
 
   override def wrap: SingleAction = SingleAction(add = this)
 
+  @JsonIgnore
   override def getPartitionValuesInDF(): Map[String, String] = {
     // The scala map operation "+" will override values of existing keys.
     // So the function is idempotent, and calling it multiple times does not change its output.
@@ -160,14 +168,18 @@ private[sharing] case class AddCDCFile(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     override val partitionValues: Map[String, String],
     override val size: Long,
+    @JsonIgnore
     override val version: Long,
+    @JsonIgnore
     override val timestamp: Long,
+    @JsonIgnore
     override val expirationTimestamp: Long,
     tags: Map[String, String] = null) extends
   FileAction(path, id, partitionValues, size, version, timestamp, expirationTimestamp) {
 
   override def wrap: SingleAction = SingleAction(cdc = this)
 
+  @JsonIgnore
   override def getPartitionValuesInDF(): Map[String, String] = {
     // The scala map operation "+" will override values of existing keys.
     // So the function is idempotent, and calling it multiple times does not change its output.
@@ -183,8 +195,11 @@ private[sharing] case class RemoveFile(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     override val partitionValues: Map[String, String],
     override val size: Long,
+    @JsonIgnore
     override val version: Long,
+    @JsonIgnore
     override val timestamp: Long,
+    @JsonIgnore
     override val expirationTimestamp: Long,
     deletionTimestamp: Option[Long],
     dataChange: Boolean,
@@ -194,6 +209,7 @@ private[sharing] case class RemoveFile(
 
   override def wrap: SingleAction = SingleAction(remove = this)
 
+  @JsonIgnore
   override def getPartitionValuesInDF(): Map[String, String] = {
     // The scala map operation "+" will override values of existing keys.
     // So the function is idempotent, and calling it multiple times does not change its output.

@@ -26,7 +26,7 @@ import org.apache.http.client.config.RequestConfig
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.{PreSignedUrlCache, PreSignedUrlFetcher}
-import org.apache.spark.network.util.JavaUtils
+import org.apache.spark.storage.{BlockId, StorageLevel}
 
 import io.delta.sharing.spark.model.FileAction
 import io.delta.sharing.spark.util.{ConfUtils, RetryUtils}
@@ -157,11 +157,34 @@ private[sharing] object DeltaSharingFileSystem {
     DeltaSharingPath(tablePath, action.id, action.size).toPath
   }
 
+  def encode(tablePath: String, action: dsmodel.FileAction): Path = {
+    DeltaSharingPath(tablePath, action.id, action.size).toPath
+  }
+
   def decode(path: Path): DeltaSharingPath = {
     val encodedPath = path.toString
       .stripPrefix(s"$SCHEME:///")
       .stripPrefix(s"$SCHEME:/")
-    val Array(encodedTablePath, encodedFileId, sizeString) = encodedPath.split("/")
+    // scalastyle:off println
+    var splits = encodedPath.split("/").toSeq
+//    Console.println(s"----[linzhou]----DSFS splits:$splits")
+
+    if (splits.size == 3) {
+      return DeltaSharingPath(
+        URLDecoder.decode(splits(0), "UTF-8"),
+        URLDecoder.decode(splits(1), "UTF-8"),
+        splits(2).toLong)
+    }
+
+    val sizeString = splits.last
+    splits = splits.dropRight(1)
+    val encodedFileId = splits.last
+    splits = splits.dropRight(1)
+    val encodedTablePath = splits.mkString("/")
+
+//    Console.println(s"----[linzhou]----DSFS decoded:" +
+//      s"${URLDecoder.decode(encodedTablePath, "UTF-8")}," +
+//      s"${URLDecoder.decode(encodedFileId, "UTF-8")},$sizeString")
     DeltaSharingPath(
       URLDecoder.decode(encodedTablePath, "UTF-8"),
       URLDecoder.decode(encodedFileId, "UTF-8"),

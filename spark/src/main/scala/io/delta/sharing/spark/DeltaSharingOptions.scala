@@ -63,6 +63,8 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
     }
   }
 
+  val queryDeltaLog = options.get(QUERY_DELTA_LOG).exists(toBoolean(_, QUERY_DELTA_LOG))
+
   val ignoreChanges = options.get(IGNORE_CHANGES_OPTION).exists(toBoolean(_, IGNORE_CHANGES_OPTION))
 
   val ignoreDeletes = options.get(IGNORE_DELETES_OPTION).exists(toBoolean(_, IGNORE_DELETES_OPTION))
@@ -169,6 +171,7 @@ object DeltaSharingOptions extends Logging {
   val IGNORE_CHANGES_OPTION = "ignoreChanges"
   val IGNORE_DELETES_OPTION = "ignoreDeletes"
   val SKIP_CHANGE_COMMITS_OPTION = "skipChangeCommits"
+  val QUERY_DELTA_LOG = "queryDeltaLog"
 
   val STARTING_VERSION_OPTION = "startingVersion"
   val STARTING_TIMESTAMP_OPTION = "startingTimestamp"

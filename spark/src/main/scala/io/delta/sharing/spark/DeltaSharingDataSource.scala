@@ -52,9 +52,11 @@ private[sharing] class DeltaSharingDataSource
     // TODO:
     //  1. create delta sharing client
     //  2. getMetadata
-    //  3. Prepare custom relation with custom file index
-    //  4. in file index class, getFiles, and prepare delta log.
-    val deltaLog = RemoteDeltaLog(path, queryDeltaLog = true)
+    //  3. Prepare custom file index.
+    //  4. return HadoopFsRelation with the customized file index.
+    //  5. In file index class, client.getFiles, prepare a DeltaLog, use it to prepare a
+    //     TahoeFileIndex, then return TahoeFileIndex.listFiles()
+    val deltaLog = RemoteDeltaLog(path, queryDeltaLog = options.queryDeltaLog)
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
   }
 
@@ -114,6 +116,8 @@ private[sharing] object DeltaSharingDataSource {
     // to make sure we set up `DeltaSharingFileSystem` correctly.
     sqlContext.sparkContext.hadoopConfiguration
       .setIfUnset("fs.delta-sharing.impl", "io.delta.sharing.spark.DeltaSharingFileSystem")
+    sqlContext.sparkContext.hadoopConfiguration
+      .setIfUnset("fs.delta-sharing-log.impl", "io.delta.sharing.spark.DeltaSharingLogFileSystem")
     PreSignedUrlCache.registerIfNeeded(SparkEnv.get)
   }
 }
