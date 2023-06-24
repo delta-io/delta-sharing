@@ -527,6 +527,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
         id = "061cb3683a467066995f8cdaabd8667d",
         partitionValues = Map.empty,
         size = 781,
@@ -534,12 +535,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(1).url,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
         id = "e268cbf70dbaa6143e7e9fa3e2d3b00e",
         partitionValues = Map.empty,
         size = 781,
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
       )
     )
+    assert(actualFiles.count(_.expirationTimestamp != null) == 2)
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 781)
     verifyPreSignedUrl(actualFiles(1).url, 781)
@@ -617,6 +620,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
         id = "9f1a49539c5cffe1ea7f9e055d5c003c",
         partitionValues = Map("date" -> "2021-04-28"),
         size = 573,
@@ -624,12 +628,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(1).url,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
         id = "cd2209b32f5ed5305922dd50f5908a75",
         partitionValues = Map("date" -> "2021-04-28"),
         size = 573,
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"maxValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"nullCount":{"eventTime":0}}"""
       )
     )
+    assert(actualFiles.count(_.expirationTimestamp != null) == 2)
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 573)
     verifyPreSignedUrl(actualFiles(1).url, 573)
@@ -727,6 +733,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
         id = "db213271abffec6fd6c7fc2aad9d4b3f",
         partitionValues = Map("date" -> "2021-04-28"),
         size = 778,
@@ -734,6 +741,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(1).url,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
         id = "f1f8be229d8b18eb6d6a34255f2d7089",
         partitionValues = Map("date" -> "2021-04-28"),
         size = 778,
@@ -741,12 +749,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(2).url,
+        expirationTimestamp = actualFiles(2).expirationTimestamp,
         id = "a892a55d770ee70b34ffb2ebf7dc2fd0",
         partitionValues = Map("date" -> "2021-04-28"),
         size = 573,
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:35:53.156Z"},"maxValues":{"eventTime":"2021-04-28T23:35:53.156Z"},"nullCount":{"eventTime":0}}"""
       )
     )
+    assert(actualFiles.count(_.expirationTimestamp != null) == 3)
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 778)
     verifyPreSignedUrl(actualFiles(1).url, 778)
@@ -806,6 +816,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
         id = "60d0cf57f3e4367db154aa2c36152a1f",
         partitionValues = Map.empty,
         size = 1030,
@@ -815,6 +826,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(1).url,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
         id = "d7ed708546dd70fdff9191b3e3d6448b",
         partitionValues = Map.empty,
         size = 1030,
@@ -824,6 +836,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(2).url,
+        expirationTimestamp = actualFiles(2).expirationTimestamp,
         id = "a6dc5694a4ebcc9a067b19c348526ad6",
         partitionValues = Map.empty,
         size = 1030,
@@ -832,6 +845,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         timestamp = 1651272635000L
       )
     )
+    assert(actualFiles.count(_.expirationTimestamp != null) == 3)
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 1030)
     verifyPreSignedUrl(actualFiles(1).url, 1030)
@@ -910,6 +924,33 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       expectedErrorCode = 400,
       expectedErrorMessage = "Not a numeric value: x3"
     )
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""
+        {"startingVersion": "3", "endingVersion": "x3"}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Not a numeric value: x3"
+    )
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""
+        {"startingVersion": 3, "endingVersion": 2}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "startingVersion(3) must be smaller than or equal to endingVersion(2)"
+    )
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"),
+      method = "POST",
+      data = Some("""
+        {"startingVersion": 2, "endingVersion": 10}
+      """),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "End version cannot be greater than the latest version"
+    )
 
     // timestamp before the earliest version
     assertHttpError(
@@ -943,11 +984,13 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("cdf_table_cdf_enabled - timestamp on version 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
     // 1651272635000, PST: 2022-04-29 15:50:35.0 -> version 1
+    // endingVersion is ignored
     val tsStr = new Timestamp(1651272635000L).toInstant.toString
     val p =
       s"""
          |{
-         | "timestamp": "$tsStr"
+         | "timestamp": "$tsStr",
+         | "endingVersion": 2
          |}
          |""".stripMargin
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/query"), Some("POST"), Some(p), Some(1))
@@ -969,6 +1012,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
         id = "60d0cf57f3e4367db154aa2c36152a1f",
         partitionValues = Map.empty,
         size = 1030,
@@ -978,6 +1022,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(1).url,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
         id = "d7ed708546dd70fdff9191b3e3d6448b",
         partitionValues = Map.empty,
         size = 1030,
@@ -987,6 +1032,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       ),
       AddFile(
         url = actualFiles(2).url,
+        expirationTimestamp = actualFiles(2).expirationTimestamp,
         id = "a6dc5694a4ebcc9a067b19c348526ad6",
         partitionValues = Map.empty,
         size = 1030,
@@ -995,6 +1041,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         timestamp = 1651272635000L
       )
     )
+    assert(actualFiles.count(_.expirationTimestamp != null) == 3)
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 1030)
     verifyPreSignedUrl(actualFiles(1).url, 1030)
@@ -1168,6 +1215,94 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedMetadata == actions(2).metaData)
 
     assert(actions(3).add != null)
+  }
+
+  integrationTest("streaming_table_metadata_protocol - startingVersion with endingVersion success") {
+    val p =
+      s"""
+         |{
+         | "startingVersion": 0,
+         | "endingVersion": 2
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"), Some("POST"), Some(p), Some(0))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 4)
+
+    // version 0: CREATE TABLE, protocol/metadata
+    // version 1: INSERT
+    // version 2: ALTER TABLE, metadata
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "eaca659e-28ac-4c68-8c72-0c96205c8160",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Nil,
+      version = 0)
+    assert(expectedMetadata == actions(1).metaData)
+
+    assert(actions(2).add != null)
+
+    // Check metadata for version 2.
+    expectedMetadata = expectedMetadata.copy(
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      version = 2)
+    assert(expectedMetadata == actions(3).metaData)
+  }
+
+  integrationTest("streaming_table_metadata_protocol - startingVersion equal endingVersion success 1") {
+    val p =
+      s"""
+         |{
+         | "startingVersion": 1,
+         | "endingVersion": 1
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"), Some("POST"), Some(p), Some(1))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 3)
+
+    // version 2: ALTER TABLE, metadata
+    // Check metadata for version 2.
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "eaca659e-28ac-4c68-8c72-0c96205c8160",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Nil,
+      version = 1)
+    assert(expectedMetadata == actions(1).metaData)
+
+    assert(actions(2).add != null)
+    assert(actions(2).add.version == 1)
+  }
+
+  integrationTest("streaming_table_metadata_protocol - startingVersion equal endingVersion success 2") {
+    val p =
+      s"""
+         |{
+         | "startingVersion": 2,
+         | "endingVersion": 2
+         |}
+         |""".stripMargin
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"), Some("POST"), Some(p), Some(2))
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 2)
+
+    // version 2: ALTER TABLE, metadata
+    // Check metadata for version 2.
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol == actions(0).protocol)
+    var expectedMetadata = Metadata(
+      id = "eaca659e-28ac-4c68-8c72-0c96205c8160",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Nil,
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      version = 2)
+    assert(expectedMetadata == actions(1).metaData)
   }
 
   integrationTest("streaming_notnull_to_null - no exceptions") {
@@ -1457,6 +1592,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(addFile.version == version)
     assert(addFile.timestamp == timestamp)
     verifyPreSignedUrl(addFile.url, size.toInt)
+    val timeToExpiration = addFile.expirationTimestamp - System.currentTimeMillis()
+    assert(timeToExpiration < 60 * 60 * 1000 && timeToExpiration > 50 * 60 * 1000)
   }
 
   private def verifyAddCDCFile(
@@ -1472,6 +1609,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(addCDCFile.version == version)
     assert(addCDCFile.timestamp == timestamp)
     verifyPreSignedUrl(addCDCFile.url, size.toInt)
+    val timeToExpiration = addCDCFile.expirationTimestamp - System.currentTimeMillis()
+    assert(timeToExpiration < 60 * 60 * 1000 && timeToExpiration > 50 * 60 * 1000)
   }
 
   private def verifyRemove(
@@ -1487,6 +1626,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(removeFile.version == version)
     assert(removeFile.timestamp == timestamp)
     verifyPreSignedUrl(removeFile.url, size.toInt)
+    val timeToExpiration = removeFile.expirationTimestamp - System.currentTimeMillis()
+    assert(timeToExpiration < 60 * 60 * 1000 && timeToExpiration > 50 * 60 * 1000)
   }
 
   integrationTest("table_data_loss_with_checkpoint - /shares/{share}/schemas/{schema}/tables/{table}/query") {
@@ -1800,6 +1941,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val expectedFiles = Seq(
         AddFile(
           url = actualFiles(0).url,
+          expirationTimestamp = actualFiles(0).expirationTimestamp,
           id = "84f5f9e4de01e99837f77bfc2b7215b0",
           partitionValues = Map("c2" -> "foo bar"),
           size = 568,
@@ -1831,6 +1973,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val expectedFiles = Seq(
       AddFile(
         url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
         id = "84f5f9e4de01e99837f77bfc2b7215b0",
         partitionValues = Map("c2" -> "foo bar"),
         size = 568,

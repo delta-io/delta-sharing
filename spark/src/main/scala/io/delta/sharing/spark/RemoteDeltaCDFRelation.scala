@@ -58,8 +58,18 @@ case class RemoteDeltaCDFRelation(
       false,
       () => {
         val d = client.getCDFFiles(table, cdfOptions, false)
-        DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
-      }).rdd
+        (
+          DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
+          DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles)
+        )
+      },
+      System.currentTimeMillis(),
+      DeltaSharingCDFReader.getMinUrlExpiration(
+        deltaTabelFiles.addFiles,
+        deltaTabelFiles.cdfFiles,
+        deltaTabelFiles.removeFiles
+      )
+    ).rdd
   }
 }
 
@@ -72,7 +82,10 @@ object DeltaSharingCDFReader {
       removeFiles: Seq[RemoveFile],
       schema: StructType,
       isStreaming: Boolean,
-      refresher: () => Map[String, String]): DataFrame = {
+      refresher: () => (Map[String, String], Option[Long]),
+      lastQueryTableTimestamp: Long,
+      expirationTimestamp: Option[Long]
+  ): DataFrame = {
     val dfs = ListBuffer[DataFrame]()
     val refs = ListBuffer[WeakReference[AnyRef]]()
 
@@ -93,7 +106,12 @@ object DeltaSharingCDFReader {
       getIdToUrl(addFiles, cdfFiles, removeFiles),
       refs,
       params.profileProvider,
-      refresher
+      refresher,
+      if (expirationTimestamp.isDefined) {
+        expirationTimestamp.get
+      } else {
+        lastQueryTableTimestamp + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
+      }
     )
 
     dfs.reduce((df1, df2) => df1.unionAll(df2))
@@ -107,6 +125,49 @@ object DeltaSharingCDFReader {
     addFiles.map(a => a.id -> a.url).toMap ++
       cdfFiles.map(c => c.id -> c.url).toMap ++
       removeFiles.map(r => r.id -> r.url).toMap
+  }
+
+  // Get the minimum url expiration time across all the cdf files returned from the server.
+  def getMinUrlExpiration(
+      addFiles: Seq[AddFileForCDF],
+      cdfFiles: Seq[AddCDCFile],
+      removeFiles: Seq[RemoveFile]
+  ): Option[Long] = {
+    var minUrlExpiration: Option[Long] = None
+    addFiles.foreach { a =>
+      if (a.expirationTimestamp != null) {
+        minUrlExpiration = if (
+          minUrlExpiration.isDefined && minUrlExpiration.get < a.expirationTimestamp) {
+          minUrlExpiration
+        } else {
+          Some(a.expirationTimestamp)
+        }
+      }
+    }
+    cdfFiles.foreach { c =>
+      if (c.expirationTimestamp != null) {
+        minUrlExpiration = if (
+          minUrlExpiration.isDefined && minUrlExpiration.get < c.expirationTimestamp) {
+          minUrlExpiration
+        } else {
+          Some(c.expirationTimestamp)
+        }
+      }
+    }
+    removeFiles.foreach { r =>
+      if (r.expirationTimestamp != null) {
+        minUrlExpiration = if (
+          minUrlExpiration.isDefined && minUrlExpiration.get < r.expirationTimestamp) {
+          minUrlExpiration
+        } else {
+          Some(r.expirationTimestamp)
+        }
+      }
+    }
+    if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpiration)) {
+      minUrlExpiration = None
+    }
+    minUrlExpiration
   }
 
   private def quoteIdentifier(part: String): String = s"`${part.replace("`", "``")}`"

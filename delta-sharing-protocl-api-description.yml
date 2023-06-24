@@ -1,0 +1,744 @@
+---
+openapi: "3.0.2"
+info:
+  description: |
+    The Delta Sharing protocol is still very early in its development.
+  version: "0.2"
+  title: Delta Sharing Protocol
+  contact:
+    email: ""
+  license:
+    name: "AGPL v3.0"
+    url: "https://www.gnu.org/licenses/agpl-3.0.en.html"
+
+servers:
+  - url: 'http://localhost:8000/api/v1'
+    description: Local dev server (APIv1)
+  - url: 'https://sharing.delta.io/delta-sharing/'
+    description: 'Demo Delta Sharing server'
+
+tags:
+- name: 'shares'
+  description: Share discovery APIs
+- name: 'schemas'
+  description: Schema discovery APIs
+- name: 'tables'
+  description: Table query and inspection APIs
+- name: 'official'
+  description: APIs which are part of published official document
+- name: 'proposed'
+  description: APIs which are part proposed and may or may not be part of official
+
+paths:
+  '/shares':
+    get:
+      operationId: 'ListShares'
+      summary: 'List the shares accessible to the recipient'
+      description: |
+        Without any query parameters the request will return the first page
+        of "shares" available to the authenticated recipient
+      tags:
+        - shares
+        - official
+      parameters: &pagination
+        - in: query
+          name: maxResults
+          required: false
+          description: |
+            The maximum number of results to be returned in a single page. If
+            the number of potential results exceeds the number of maximum
+            results, the response will contain a `nextpageToken` which can be
+            used in subsequent requests.
+          example: '30'
+          schema:
+            type: number
+            format: int32
+            default: 500
+        - in: query
+          name: pageToken
+          required: false
+          description: Optionally provided page token for requesting a subsequent page of results
+          schema:
+            type: string
+
+      responses:
+        '400':
+          $ref: "#/components/responses/400"
+        '401':
+          $ref: "#/components/responses/401"
+        '403':
+          $ref: "#/components/responses/403"
+        '404':
+          $ref: "#/components/responses/404"
+        '500':
+          $ref: "#/components/responses/500"
+        '200':
+          description: |
+            The user could successfully list the shares
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListShareResponse'
+
+  '/shares/{share}':
+    get:
+      operationId: 'GetShare'
+      summary: 'get the metadata of a share'
+      tags:
+        - shares
+        - official
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: 'Named share'
+          schema:
+            type: string
+      responses:
+        '400':
+          $ref: "#/components/responses/400"
+        '401':
+          $ref: "#/components/responses/401"
+        '403':
+          $ref: "#/components/responses/403"
+        '404':
+          $ref: "#/components/responses/404"
+        '500':
+          $ref: "#/components/responses/500"
+        '200':
+          description: 'The share''s metadata was successfully returned'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Share"
+
+  '/shares/{share}/schemas':
+    get:
+      operationId: 'ListSchemas'
+      summary: 'List the schemas in a share'
+      tags:
+        - shares
+        - official
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: 'Named share to list the schemas'
+          schema:
+            type: string
+        - in: query
+          name: maxResults
+          required: false
+          description: |
+            The maximum number of results to be returned in a single page. If
+            the number of potential results exceeds the number of maximum
+            results, the response will contain a `nextpageToken` which can be
+            used in subsequent requests.
+          example: '30'
+          schema:
+            type: number
+            format: int32
+            default: 500
+        - in: query
+          name: pageToken
+          required: false
+          description: Optionally provided page token for requesting a subsequent page of results
+          schema:
+            type: string
+      responses:
+        '400':
+          $ref: "#/components/responses/400"
+        '401':
+          $ref: "#/components/responses/401"
+        '403':
+          $ref: "#/components/responses/403"
+        '404':
+          $ref: "#/components/responses/404"
+        '500':
+          $ref: "#/components/responses/500"
+        '200':
+          description: |
+            The user could successfully list the schemas in the given share
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListSchemasResponse'
+
+  '/shares/{share}/schemas/{schema}/tables':
+    get:
+      operationId: 'ListTables'
+      summary: "List the tables in a given share's schema"
+      tags:
+        - schemas
+        - official
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: 'Named share for finding the named schema'
+          schema:
+            type: string
+        - in: path
+          name: schema
+          required: true
+          description: 'Named schema for listing tables'
+          schema:
+            type: string
+        - in: query
+          name: maxResults
+          required: false
+          description: |
+            The maximum number of results to be returned in a single page. If
+            the number of potential results exceeds the number of maximum
+            results, the response will contain a `nextpageToken` which can be
+            used in subsequent requests.
+          example: '30'
+          schema:
+            type: number
+            format: int32
+            default: 500
+        - in: query
+          name: pageToken
+          required: false
+          description: Optionally provided page token for requesting a subsequent page of results
+          schema:
+            type: string
+
+      responses:
+        '400':
+          $ref: "#/components/responses/400"
+        '401':
+          $ref: "#/components/responses/401"
+        '403':
+          $ref: "#/components/responses/403"
+        '404':
+          $ref: "#/components/responses/404"
+        '500':
+          $ref: "#/components/responses/500"
+        '200':
+          description: |
+            The user could successfully list the tables for the given schema in the given share
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListTablesResponse'
+
+  '/shares/{share}/all-tables':
+    get:
+      operationId: 'ListALLTables'
+      summary: "List the tables under all schemas in a share"
+      tags:
+        - shares
+        - official
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: 'Named share for finding the named schema'
+          schema:
+            type: string
+        - in: query
+          name: maxResults
+          required: false
+          description: |
+            The maximum number of results to be returned in a single page. If
+            the number of potential results exceeds the number of maximum
+            results, the response will contain a `nextpageToken` which can be
+            used in subsequent requests.
+          example: '30'
+          schema:
+            type: number
+            format: int32
+            default: 500
+        - in: query
+          name: pageToken
+          required: false
+          description: Optionally provided page token for requesting a subsequent page of results
+          schema:
+            type: string
+
+      responses:
+        '400':
+          $ref: "#/components/responses/400"
+        '401':
+          $ref: "#/components/responses/401"
+        '403':
+          $ref: "#/components/responses/403"
+        '404':
+          $ref: "#/components/responses/404"
+        '500':
+          $ref: "#/components/responses/500"
+        '200':
+          description: |
+            The user could successfully list the tables under all schemas in a share
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListTablesResponse'
+
+  '/shares/{share}/schemas/{schema}/tables/{table}/version':
+    get:
+      operationId: 'GetTableVersion'
+      summary: 'Return the table version'
+      description: |
+        This is the API for clients to get a table version without any other
+        extra information. The server usually can implement this API
+        effectively. If a client caches information about a shared table
+        locally, it can store the table version and use this cheap API to
+        quickly check whether their cache is stale and they should re-fetch the
+        data.
+      tags:
+        - tables
+        - official
+      parameters: &tableParameters
+        - in: path
+          name: share
+          required: true
+          description: 'Named share for finding the named schema'
+          schema:
+            type: string
+        - in: path
+          name: schema
+          required: true
+          description: 'Named schema for finding the named table'
+          schema:
+            type: string
+        - in: path
+          name: table
+          required: true
+          description: 'Named table'
+          schema:
+            type: string
+        - in: query
+          name: startingTimestamp
+          required: false
+          description: 'Starting Timestamp'
+          schema:
+            type: string
+      responses:
+        '400':
+          $ref: "#/components/responses/400"
+        '401':
+          $ref: "#/components/responses/401"
+        '403':
+          $ref: "#/components/responses/403"
+        '404':
+          $ref: "#/components/responses/404"
+        '500':
+          $ref: "#/components/responses/500"
+        '200':
+          description: 'The table was found and has a version'
+          headers:
+            Delta-Table-Version:
+              description: 'A long value which represents the current table version'
+              schema:
+                type: integer
+
+  '/shares/{share}/schemas/{schema}/tables/{table}/metadata':
+    get:
+      operationId: 'GetTableMetadata'
+      summary: 'Query the metadata and schema of the given table'
+      tags:
+        - tables
+        - official
+      parameters: *tableParameters
+      responses:
+        '400':
+          $ref: "#/components/responses/400"
+        '401':
+          $ref: "#/components/responses/401"
+        '403':
+          $ref: "#/components/responses/403"
+        '404':
+          $ref: "#/components/responses/404"
+        '500':
+          $ref: "#/components/responses/500"
+        '200':
+          description: |
+            A sequence of JSON strings containing the table protocol
+            and then the table metadata
+          headers:
+            Delta-Table-Version:
+              description: 'A long value which represents the current table version'
+              schema:
+                type: integer
+          content:
+            'application/x-ndjson':
+              schema:
+                $ref: '#/components/schemas/TableMetadataResponse'
+
+  '/shares/{share}/schemas/{schema}/tables/{table}/query':
+    post:
+      operationId: 'QueryTable'
+      summary: 'Query the table'
+      tags:
+        - tables
+        - official
+      parameters: *tableParameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '400':
+          $ref: "#/components/responses/400"
+        '401':
+          $ref: "#/components/responses/401"
+        '403':
+          $ref: "#/components/responses/403"
+        '404':
+          $ref: "#/components/responses/404"
+        '500':
+          $ref: "#/components/responses/500"
+        '200':
+          description: |
+            A sequence of JSON strings containing the table protocol, metadata,
+            and then a number of lines for each file in the table.
+          headers:
+            Delta-Table-Version:
+              description: 'A long value which represents the current table version'
+              schema:
+                type: integer
+          content:
+            'application/x-ndjson':
+              schema:
+                $ref: '#/components/schemas/TableQueryResponse'
+
+  '/shares/{share}/schemas/{schema}/tables/{table}/changes':
+    get:
+      operationId: 'GetTableChanges'
+      summary: 'Read Change Data Feed from a Table'
+      description: |
+        This is the API for clients to read change data feed from a table.
+        The API supports a start parameter and and an end parameter. The
+        start/end parameter can either be a version or a timestamp. The start
+        parameter must be provided. If the end parameter is not provided, the
+        API will use the latest table version for it. The parameter range is
+        inclusive in the query. You can specify a version as a Long or a
+        timestamp as a string in the Timestamp Format.
+        The change data feed represents row-level changes between versions of
+        a Delta table. It records change data for UPDATE, DELETE, and MERGE operations.
+        If you leverage the connectors provided by this library to read change data feed,
+        it results in three metadata columns that identify the type of change event, in
+        addition to the data columns:
+        _change_type (type: String): There are four values: insert, update_preimage, update_postimage, delete. preimage is the value before the udpate, postimage is the value after the update.
+        _commit_version (type: Long): The table version containing the change.
+        _commit_timestamp (type: Long): The unix timestamp associated when the commit of the change was created, in milliseconds.
+      tags:
+        - tables
+        - official
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: 'Named share for finding the named schema'
+          schema:
+            type: string
+        - in: path
+          name: schema
+          required: true
+          description: 'Named schema for finding the named table'
+          schema:
+            type: string
+        - in: path
+          name: table
+          required: true
+          description: 'Named table'
+          schema:
+            type: string
+        - in: query
+          name: startingTimestamp
+          required: false
+          description: 'The starting timestamp of the query, a string in the Timestamp Format, which will be converted to a version created greater or equal to this timestamp. '
+          schema:
+            type: string
+        - in: query
+          name: startingVersion
+          required: false
+          description: 'The starting version of the query, inclusive.'
+          schema:
+            type: integer
+        - in: query
+          name: endingVersion
+          required: false
+          description: 'The ending version of the query, inclusive.'
+          schema:
+            type: integer
+        - in: query
+          name: endingTimestamp
+          required: false
+          description: 'The starting timestamp of the query, a string in the Timestamp Format, which will be converted to a version created greater or equal to this timestamp. '
+          schema:
+            type: string
+        - in: query
+          name: includeHistoricalMetadata
+          required: false
+          description: 'If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible.'
+          schema:
+            type: boolean
+      responses:
+        '400':
+          $ref: "#/components/responses/400"
+        '401':
+          $ref: "#/components/responses/401"
+        '403':
+          $ref: "#/components/responses/403"
+        '404':
+          $ref: "#/components/responses/404"
+        '500':
+          $ref: "#/components/responses/500"
+        '200':
+          description: 'This is the API for clients to read change data feed from a table.'
+          content:
+            'application/x-ndjson':
+              schema:
+                $ref: '#/components/schemas/ChangeDataFeedResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    Ops:
+      type: string
+      enum:
+        - column
+        - literal
+        - isNull
+        - equal
+        - lessThan
+        - lessThanOrEqual
+        - greaterThan
+        - greaterThanOrEqual
+        - and
+        - or
+        - not
+      description: |
+        Op 	                Op Type 	Description
+        column 	            Leaf 	Represents a column. A column op has two fields: name and valueType. The column's value will be cast to the specified valueType during comparisons.
+        literal 	        Leaf    Represents a literal or fixed value. A literal op has two fields: value and valueType. The literal's value will be cast to the specified valueType during comparisons.
+        isNull 	            Unary 	Represents a null check on a column op. This op should have only one child, the column op.
+        equal 	            Binary 	Represents an equality ("=") check. This op should have two children, and both should be leaf ops.
+        lessThan 	        Binary 	Represents a less than ("<") check. This op should have two children, and both should be leaf ops.
+        lessThanOrEqual	    Binary 	Represents a less than or equal ("<=") check. This op should have two children, and both should be leaf ops.
+        greaterThan 	    Binary 	Represents a greater than (">") check. This op should have two children, and both should be leaf ops.
+        greaterThanOrEqual 	Binary 	Represents a greater than (">=") check. This op should have two children, and both should be leaf ops.
+        and 	            Nary 	Represents a logical and operation amongst its children. This op should have at least two children.
+        or 	                Nary 	Represents a logical or operation amongst its children. This op should have at least two children.
+        not 	            Unary 	Represents a logical not check. This op should have once child.
+        The supported value types:
+          ValueType 	Description
+          "bool" 	Represents an Boolean type.
+          "int" 	Represents an Integer type.
+          "long" 	Represents a Long type.
+          "string" 	Represents a String type.
+          "date" 	Represents a Date type in "yyyy-mm-dd" format.
+
+    ListShareResponse:
+      type: object
+      required:
+        - nextPageToken
+      properties:
+        nextPageToken: &nextPageToken
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Share'
+
+    Share:
+      type: object
+      required:
+      - name
+      properties:
+        name: &shareName
+          type: string
+          example: 'vaccine_share'
+        id:
+          type: string
+          example: 'edacc4a7-6600-4fbb-85f3-a62a5ce6761f'
+
+    ListSchemasResponse:
+      type: object
+      required:
+        - nextPageToken
+      properties:
+        nextPageToken: *nextPageToken
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Schema'
+
+    Schema:
+      type: object
+      properties:
+        name: &schemaName
+          type: string
+          example: 'acme_vaccine_data'
+        share: *shareName
+
+    ListTablesResponse:
+      type: object
+      required:
+        - nextPageToken
+      properties:
+        nextPageToken: *nextPageToken
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Table'
+    Table:
+      type: object
+      properties:
+        name: &tableName
+          type: string
+          example: 'vaccine_ingredients'
+        share: *shareName
+        schema: *schemaName
+
+    TableMetadataResponse:
+      type: string
+      example: |
+        {"protocol":{"minReaderVersion":1}}
+        {"metaData":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"]}}
+
+    QueryRequest:
+      type: object
+      properties:
+        predicateHints:
+          type: array
+          description: |
+            a list of SQL boolean expressions using a restricted subset of SQL, in a JSON array.
+            When it’s present, the server will use the provided predicates as a hint to apply the
+            SQL predicates on the returned files. Filtering files based on the SQL predicates
+            is BEST EFFORT. The server may return files that don’t satisfy the predicates.
+            If the server fails to parse one of the SQL predicates, or fails to evaluate it, the
+            server may skip it. Predicate expressions are conjunctive (AND-ed together).
+            When it’s absent, the server will return all of files in the table.
+            This will be deprecated once all the client and server implementation move to using jsonPredicateHints below.
+          example:
+            - 'col = 123'
+          items:
+            type: string
+        jsonPredicateHints:
+          type: object
+          description: |
+            query predicates on partition columns specified using a structured JSON format.
+            When it’s present, the server will try to use the predicates to filter table's
+            files, which could boost query performance.
+            As with predicateHints, this filtering is BEST EFFORT. The server may return files
+            that don’t satisfy the predicates.
+            If the server encounters any errors during predicate processing (for example, invalid
+            syntax or non existing columns), it will skip filtering and return all the files.
+            When it’s absent, the server will return all the files in the table.
+          properties:
+            op:
+              $ref: '#/components/schemas/Ops'
+            children:
+              type: string
+            name:
+              type: string
+            value:
+              type: string
+            valueType:
+              type: string
+        limitHint:
+          type: integer
+          example: 1000
+          description: |
+            It’s a hint from the client to tell the server how many rows the
+            client plans to read. The server can use this hint to return only
+            some files by using the stats in the Delta transaction logs. For
+            example, when running SELECT * FROM table LIMIT 1000, the client
+            can send limit=1000 to the server
+        version:
+          type: integer
+          description: |
+            an optional version number. If set, will return files as of the
+            specified version of the table. This is only supported on tables
+            with history sharing enabled.
+          example: 1005
+        timestamp:
+          type: string
+          example: yyyy-[m]m-[d]d hh:mm:ss[.f...]
+          description: |
+            an optional timestamp string in the Timestamp Format,. If set, will
+            return files as of the table version corresponding to the specified
+            timestamp. This is only supported on tables with history sharing enabled.
+        startingVersion:
+          type: integer
+          example: 1000
+          description: |
+            an optional version number. If set, will return all data change files
+            since startingVersion, inclusive, including historical metadata if seen
+            in the delta log.
+        endingVersion:
+          type: integer
+          example: 1000
+          description: |
+            an optional version number, only used if startingVersion is set. If set,
+            the server can use it as a hint to avoid returning data change files after
+            endingVersion. This is not enforcement. Hence, when sending the endingVersion
+            parameter, the client should still handle the case that it may receive files
+            after endingVersion.
+
+    TableQueryResponse:
+      type: string
+      example: |
+        {"protocol":{"minReaderVersion":1}}
+        {"metaData":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"]}}
+        {"file":{"url":"https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e","id":"8b0086f2-7b27-4935-ac5a-8ed6215a6640","partitionValues":{"date":"2021-04-28"},"size":573,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}"}}
+        {"file":{"url":"https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=899&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=0f7acecba5df7652457164533a58004936586186c56425d9d53c52db574f6b62","id":"591723a8-6a27-4240-a90e-57426f4736d2","partitionValues":{"date":"2021-04-28"},"size":573,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}"}}
+
+    ChangeDataFeedResponse:
+      type: string
+      example: |
+        {"protocol": {"minReaderVersion": 1}}
+        {"metaData": {"id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format": {"provider": "parquet"},"schemaString": "{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns": ["date"],"configuration": {"enableChangeDataFeed": "true"}}}{"add": {"url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e","id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640","partitionValues": {"date": "2021-04-28"},"size":573,"stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}","timestamp": 1652140000000,"version": 0}}
+        {"cdf": {"url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/_change_data/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=899&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=0f7acecba5df7652457164533a58004936586186c56425d9d53c52db574f6b62","id": "591723a8-6a27-4240-a90e-57426f4736d2","partitionValues": {"date": "2021-04-28"},"size": 689,"timestamp": 1652141000000,"version": 1}}
+        {"remove": {"url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e","id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640","partitionValues": {"date": "2021-04-28"},"size": 573,"timestamp": 1652142000000,"version": 2}}
+
+    CommonErrorResponse:
+      type: object
+      properties:
+        errorCode:
+          type: string
+        message:
+          type: string
+
+
+  responses:
+    400:
+      description: The request is malformed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonErrorResponse'
+    401:
+      description: The request is unauthenticated. The bearer token is missing or incorrect
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonErrorResponse'
+    403:
+      description: The request is forbidden from being fulfilled
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonErrorResponse'
+    404:
+      description: The specified resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonErrorResponse'
+    500:
+      description: The request is not handled correctly due to a server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonErrorResponse'
