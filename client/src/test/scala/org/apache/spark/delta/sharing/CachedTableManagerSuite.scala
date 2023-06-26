@@ -22,6 +22,8 @@ import org.apache.spark.SparkFunSuite
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.SpanSugar._
 
+import io.delta.sharing.client.{DeltaSharingProfile, DeltaSharingProfileProvider}
+
 private class TestDeltaSharingProfileProvider extends DeltaSharingProfileProvider {
   override def getProfile: DeltaSharingProfile = null
 

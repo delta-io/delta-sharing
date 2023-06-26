@@ -23,8 +23,6 @@ import org.apache.commons.io.FileUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkFunSuite
 
-import io.delta.sharing.client.{DeltaSharingFileProfileProvider, DeltaSharingProfile}
-
 class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
 
   private def testProfile(profile: String, expected: DeltaSharingProfile): Unit = {
