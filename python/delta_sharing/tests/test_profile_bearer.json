@@ -1,0 +1,7 @@
+{
+  "shareCredentialsVersion": 2,
+  "type": "bearer_token",
+  "endpoint": "https://localhost:12345/delta-sharing/",
+  "bearerToken": "dapi5e3574ec767ca1548ae5bbed1a2dc04d",
+  "expirationTime": "2021-11-12T00:12:29.0Z"
+}

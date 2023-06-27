@@ -16,6 +16,7 @@
 from typing import Any, Callable, Dict, Optional, Sequence
 from urllib.parse import urlparse
 from json import loads
+from urllib.request import getproxies
 
 import fsspec
 import pandas as pd
@@ -158,7 +159,11 @@ class DeltaSharingReader:
             import delta_sharing._yarl_patch  # noqa: F401
 
         protocol = url.scheme
-        filesystem = fsspec.filesystem(protocol)
+        proxy = getproxies()
+        if len(proxy) != 0:
+            filesystem = fsspec.filesystem(protocol, client_kwargs={"trust_env":True})
+        else:
+            filesystem = fsspec.filesystem(protocol)
 
         pa_dataset = dataset(source=action.url, format="parquet", filesystem=filesystem)
         pa_table = pa_dataset.head(limit) if limit is not None else pa_dataset.to_table()

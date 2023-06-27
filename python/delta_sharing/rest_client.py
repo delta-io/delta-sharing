@@ -143,16 +143,65 @@ class DataSharingRestClient:
         self._profile = profile
         self._num_retries = num_retries
         self._sleeper = lambda sleep_ms: time.sleep(sleep_ms / 1000)
+        self.auth_session(profile)
 
+    def auth_session(self, profile):
         self._session = requests.Session()
+        self.__auth_broker(profile)
+        if urlparse(profile.endpoint).hostname == "localhost":
+            self._session.verify = False
+
+    def __auth_broker(self, profile):
+        if profile.share_credentials_version == 2:
+            if profile.type == "persistent_oauth2.0":
+                self.__auth_persistent_oauth2(profile)
+            elif profile.type == "bearer_token":
+                self.__auth_bearer_token(profile)
+            elif profile.type == "basic":
+                self.__auth_basic(profile)
+            else:
+                self.__auth_bearer_token(profile)
+        else:
+            self.__auth_bearer_token(profile)
+
+    def __auth_bearer_token(self, profile):
         self._session.headers.update(
             {
                 "Authorization": f"Bearer {profile.bearer_token}",
                 "User-Agent": DataSharingRestClient.USER_AGENT,
             }
         )
-        if urlparse(profile.endpoint).hostname == "localhost":
-            self._session.verify = False
+
+    def __auth_persistent_oauth2(self, profile):
+        headers = {"Content-Type": "application/x-www-form-urlencoded",
+                   "Accept": "application/json"}
+
+        response = requests.post(profile.token_endpoint,
+                                 data={"grant_type": "client_credentials"},
+                                 headers=headers,
+                                 auth=(profile.client_id,
+                                       profile.client_secret),)
+
+        bearer_token = "{}".format(response.json()["access_token"])
+
+        self._session.headers.update(
+            {
+                "Authorization": f"Bearer {bearer_token}",
+                "User-Agent": DataSharingRestClient.USER_AGENT,
+            }
+        )
+
+    def __auth_basic(self, profile):
+        self._session.auth = (profile.username, profile.password)
+
+        response = self._session.post(profile.endpoint,
+                                      data={"grant_type": "client_credentials"},)
+
+        self._session.headers.update(
+            {
+                "User-Agent": DataSharingRestClient.USER_AGENT,
+            }
+        )
 
     @retry_with_exponential_backoff
     def list_shares(
