@@ -467,6 +467,8 @@ class DeltaSharingSourceSuite extends QueryTest
             f.getCanonicalPath.endsWith("metadata.crc"))) {
           f.delete()
         }
+        // The metadata contains a single line of json, which is the queryid:
+        //   {"id":"aaaabbbb-cccc-dddd-eeee-ffffgggghhhh"}
         // SparkStructuredStreaming requires query id match to reuse a checkpoint.
         if (f.getCanonicalPath.endsWith("metadata")) {
           FileUtils.writeStringToFile(f, s"""{"id":"${newQuery.id}"}""")
