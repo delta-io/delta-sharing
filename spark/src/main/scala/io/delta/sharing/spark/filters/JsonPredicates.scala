@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.client.filters
+package io.delta.sharing.spark.filters
 
 import scala.collection.mutable.ListBuffer
 

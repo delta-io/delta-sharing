@@ -16,7 +16,7 @@
 
 // scalastyle:off println
 
-package io.delta.sharing.client.filters
+package io.delta.sharing.spark.filters
 
 import org.apache.spark.SparkFunSuite
 

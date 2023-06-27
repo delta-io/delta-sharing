@@ -29,7 +29,6 @@ import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, Hadoop
 import org.apache.spark.sql.types.{DataType, StructType}
 
 import io.delta.sharing.client.{DeltaSharingFileSystem, DeltaSharingProfileProvider}
-import io.delta.sharing.client.filters.{BaseOp, OpConverter}
 import io.delta.sharing.client.model.{
   AddCDCFile,
   AddFile,
@@ -39,6 +38,7 @@ import io.delta.sharing.client.model.{
   RemoveFile
 }
 import io.delta.sharing.client.util.JsonUtils
+import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
 
 private[sharing] case class RemoteDeltaFileIndexParams(
     val spark: SparkSession,
