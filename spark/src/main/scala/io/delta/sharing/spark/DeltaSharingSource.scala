@@ -759,9 +759,9 @@ case class DeltaSharingSource(
     DeltaSharingCDFReader.changesToDF(
       new RemoteDeltaFileIndexParams(spark, initSnapshot, deltaLog.client.getProfileProvider),
       schema.fields.map(f => f.name),
-      addFiles,
-      cdfFiles,
-      removeFiles,
+      addFiles.toSeq,
+      cdfFiles.toSeq,
+      removeFiles.toSeq,
       schema,
       isStreaming = true,
       latestRefreshFunc,
