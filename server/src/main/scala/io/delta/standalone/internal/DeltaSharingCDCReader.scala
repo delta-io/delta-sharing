@@ -262,7 +262,7 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
         // generated, either of them will result in the correct cdc data.
         // If there are CDC actions, we read them exclusively, and ignore the add/remove actions.
         if (cdcActions.nonEmpty) {
-          changeFiles.append(CDCDataSpec(v, ts, cdcActions))
+          changeFiles.append(CDCDataSpec(v, ts, cdcActions.toSeq))
         } else {
           // MERGE will sometimes rewrite files in a way which *could* have changed data
           // (so dataChange = true) but did not actually do so (so no CDC will be produced).
@@ -294,8 +294,8 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
             val removeActions = actions.collect {
               case r: RemoveFile if r.dataChange => r
             }
-            addFiles.append(CDCDataSpec(v, ts, addActions))
-            removeFiles.append(CDCDataSpec(v, ts, removeActions))
+            addFiles.append(CDCDataSpec(v, ts, addActions.toSeq))
+            removeFiles.append(CDCDataSpec(v, ts, removeActions.toSeq))
           }
         }
     }

@@ -106,9 +106,9 @@ class SharedTableManager(serverConfig: ServerConfig) {
       nextPageToken: Option[String] = None,
       maxResults: Option[Int] = None): (Seq[Share], Option[String]) = {
     getPage(nextPageToken, None, None, maxResults, shares.size) { (start, end) =>
-      shares.asScala.map { share =>
+      shares.asScala.toSeq.map { share =>
         Share().withName(share.getName)
-      }.slice(start, end)
+      }.slice(start, end).seq
     }
   }
 
@@ -124,7 +124,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
     val shareConfig = getShareInternal(share)
     getPage(nextPageToken, Some(share), None, maxResults, shareConfig.getSchemas.size) {
       (start, end) =>
-        shareConfig.getSchemas.asScala.map { schemaConfig =>
+        shareConfig.getSchemas.asScala.toSeq.map { schemaConfig =>
           Schema().withName(schemaConfig.getName).withShare(share)
         }.slice(start, end)
     }
@@ -138,7 +138,7 @@ class SharedTableManager(serverConfig: ServerConfig) {
     val schemaConfig = getSchema(getShareInternal(share), schema)
     getPage(nextPageToken, Some(share), Some(schema), maxResults, schemaConfig.getTables.size) {
       (start, end) =>
-        schemaConfig.getTables.asScala.map {
+        schemaConfig.getTables.asScala.toSeq.map {
           tableConfig =>
             Table(
               name = Some(tableConfig.getName),
@@ -158,8 +158,8 @@ class SharedTableManager(serverConfig: ServerConfig) {
     val totalSize = shareConfig.schemas.asScala.map(_.tables.size).sum
     getPage(nextPageToken, Some(share), None, maxResults, totalSize) {
       (start, end) =>
-        shareConfig.schemas.asScala.flatMap { schema =>
-          schema.tables.asScala.map {
+        shareConfig.schemas.asScala.toSeq.flatMap { schema =>
+          schema.tables.asScala.toSeq.map {
             table =>
               Table(
                 name = Some(table.getName),
