@@ -18,11 +18,12 @@ import sbt.ExclusionRule
 
 ThisBuild / parallelExecution := false
 
-val sparkVersion = "3.1.1"
+val sparkVersion = "3.3.2"
+val scala212 = "2.12.10"
+val scala213 = "2.13.5"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
-  scalaVersion := "2.12.10",
   fork := true,
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
   scalacOptions += "-target:jvm-1.8",
@@ -68,10 +69,13 @@ lazy val client = (project in file("client")) settings(
 
 lazy val spark = (project in file("spark")) dependsOn(client) settings(
   name := "delta-sharing-spark",
+  crossScalaVersions := Seq(scala212, scala213),
   commonSettings,
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
+    "org.apache.httpcomponents" % "httpclient" % "4.5.13",
+    "org.codehaus.jackson" % "jackson-mapper-asl" % "1.9.13",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
@@ -93,6 +97,7 @@ lazy val spark = (project in file("spark")) dependsOn(client) settings(
 
 lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) settings(
   name := "delta-sharing-server",
+  scalaVersion := scala212,
   commonSettings,
   scalaStyleSettings,
   releaseSettings,

@@ -104,7 +104,7 @@ object DeltaSharingCDFReader {
     CachedTableManager.INSTANCE.register(
       params.path.toString,
       getIdToUrl(addFiles, cdfFiles, removeFiles),
-      refs,
+      refs.toSeq,
       params.profileProvider,
       refresher,
       if (expirationTimestamp.isDefined) {

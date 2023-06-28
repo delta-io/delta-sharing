@@ -25,7 +25,7 @@ import org.apache.hadoop.fs.Path
 import io.delta.sharing.client.util.JsonUtils
 
 case class DeltaSharingProfile(
-    shareCredentialsVersion: Option[Int] = Some(DeltaSharingProfile.CURRENT),
+    shareCredentialsVersion: Option[Int],
     endpoint: String = null,
     bearerToken: String = null,
     expirationTime: String = null)
