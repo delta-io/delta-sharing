@@ -103,18 +103,27 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   def readJson(url: String, expectedTableVersion: Option[Long] = None): String = {
-    readHttpContent(url, None, None, expectedTableVersion, "application/json; charset=utf-8")
+    readHttpContent(
+      url,
+      None,
+      None,
+      "parquet",
+      expectedTableVersion,
+      "application/json; charset=utf-8"
+    )
   }
 
   def readNDJson(
     url: String,
     method: Option[String] = None,
     data: Option[String] = None,
-    expectedTableVersion: Option[Long] = None): String = {
+    expectedTableVersion: Option[Long] = None,
+    responseFormat: String = "parquet"): String = {
     readHttpContent(
       url,
       method,
       data,
+      responseFormat,
       expectedTableVersion,
       "application/x-ndjson; charset=utf-8"
     )
@@ -125,10 +134,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     url: String,
     method: Option[String],
     data: Option[String] = None,
+    responseFormat: String,
     expectedTableVersion: Option[Long] = None,
     expectedContentType: String): String = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    if (responseFormat == "delta") {
+      connection.setRequestProperty("delta-sharing-capabilities", "format=delta")
+    }
     method.foreach(connection.setRequestMethod)
     data.foreach { d =>
       connection.setDoOutput(true)
@@ -487,10 +500,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
-    Seq(true, false).foreach { queryDeltaLog =>
-      val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/table1/metadata?queryDeltaLog=${queryDeltaLog}"), expectedTableVersion = Some(2))
+    Seq("parquet", "delta").foreach { responseFormat =>
+      val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/table1/metadata"), responseFormat = responseFormat, expectedTableVersion = Some(2))
       val Array(protocol, metadata) = response.split("\n")
-      if (queryDeltaLog) {
+      if (responseFormat == "delta") {
         val expectedProtocol = DeltaProtocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[DeltaSingleAction](protocol))
         val expectedMetadata = DeltaMetadata(
@@ -514,21 +527,20 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/query") {
-    Seq(true, false).foreach { queryDeltaLog =>
+    Seq("parquet", "delta").foreach { responseFormat =>
       val p =
         s"""
           |{
           |  "predicateHints": [
           |    "date = CAST('2021-04-28' AS DATE)"
-          |  ],
-          |  "queryDeltaLog": $queryDeltaLog
+          |  ]
           |}
           |""".stripMargin
-      val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table1/query"), Some("POST"), Some(p), Some(2))
+      val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table1/query"), Some("POST"), Some(p), Some(2), responseFormat)
       val lines = response.split("\n")
       val protocol = lines(0)
       val metadata = lines(1)
-      if (queryDeltaLog) {
+      if (responseFormat == "delta") {
         val expectedProtocol = DeltaProtocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[DeltaSingleAction](protocol))
         val expectedMetadata = DeltaMetadata(
@@ -561,7 +573,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
             stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
           )
         )
-        assert(actualFiles.count(_.expirationTimestamp != null) == 2)
+        assert(actualFiles.count(_.expirationTimestamp > System.currentTimeMillis()) == 2)
         assert(expectedFiles == actualFiles.toList)
         verifyPreSignedUrl(actualFiles(0).path, 781)
         verifyPreSignedUrl(actualFiles(1).path, 781)
@@ -1104,19 +1116,18 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("streaming_table_with_optimize - startingVersion success") {
-    Seq(true, false).foreach { queryDeltaLog =>
+    Seq("parquet", "delta").foreach { responseFormat =>
       val p =
         s"""
            |{
-           | "startingVersion": 0,
-           | "queryDeltaLog": $queryDeltaLog
+           | "startingVersion": 0
            |}
            |""".stripMargin
-      val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(0))
+      val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/streaming_table_with_optimize/query"), Some("POST"), Some(p), Some(0), responseFormat)
       val lines = response.split("\n")
       val protocol = lines(0)
       val metadata = lines(1)
-      if (queryDeltaLog) {
+      if (responseFormat == "delta") {
         val expectedProtocol = DeltaProtocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[DeltaSingleAction](protocol))
         val expectedMetadata = DeltaMetadata(
@@ -1156,7 +1167,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map.empty,
         version = 1,
         timestamp = 1664325366000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyAddFile(
         files(1),
@@ -1166,7 +1177,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map.empty,
         version = 2,
         timestamp = 1664325372000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyAddFile(
         files(2),
@@ -1176,7 +1187,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map.empty,
         version = 3,
         timestamp = 1664325375000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyRemove(
         files(3),
@@ -1184,7 +1195,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map.empty,
         version = 5,
         timestamp = 1664325546000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyAddFile(
         files(4),
@@ -1194,7 +1205,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map.empty,
         version = 5,
         timestamp = 1664325546000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyRemove(
         files(5),
@@ -1202,7 +1213,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map.empty,
         version = 6,
         timestamp = 1664325549000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyAddFile(
         files(6),
@@ -1212,7 +1223,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map.empty,
         version = 6,
         timestamp = 1664325549000L,
-        queryDeltaLog
+        responseFormat
       )
     }
   }
@@ -1465,12 +1476,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_cdf_enabled_changes - query table changes") {
-    Seq(true, false).foreach { queryDeltaLog =>
-      val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3&queryDeltaLog=$queryDeltaLog"), Some("GET"), None, Some(0))
+    Seq("parquet", "delta").foreach { responseFormat =>
+      val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, Some(0), responseFormat)
       val lines = response.split("\n")
       val protocol = lines(0)
       val metadata = lines(1)
-      if (queryDeltaLog) {
+      if (responseFormat == "delta") {
         val expectedProtocol = DeltaProtocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[DeltaSingleAction](protocol))
         val expectedMetadata = DeltaMetadata(
@@ -1502,7 +1513,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map.empty,
         version = 2,
         timestamp = 1651272655000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyAddCDCFile(
         files(1),
@@ -1510,7 +1521,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map.empty,
         version = 3,
         timestamp = 1651272660000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyAddFile(
         files(2),
@@ -1520,7 +1531,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map.empty,
         version = 1,
         timestamp = 1651272635000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyAddFile(
         files(3),
@@ -1530,7 +1541,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map.empty,
         version = 1,
         timestamp = 1651272635000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyAddFile(
         files(4),
@@ -1540,7 +1551,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map.empty,
         version = 1,
         timestamp = 1651272635000L,
-        queryDeltaLog
+        responseFormat
       )
     }
   }
@@ -1571,8 +1582,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_with_partition - query table changes") {
-    Seq(true, false).foreach { queryDeltaLog =>
-      val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3&queryDeltaLog=$queryDeltaLog"), Some("GET"), None, Some(1))
+    Seq("parquet", "delta").foreach { responseFormat =>
+      val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3"), Some("GET"), None, Some(1), responseFormat)
       val lines = response.split("\n")
       val files = lines.drop(2)
       assert(files.size == 6)
@@ -1584,7 +1595,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map("birthday" -> "2020-01-01"),
         version = 2,
         timestamp = 1651614986000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyAddCDCFile(
         files(1),
@@ -1592,7 +1603,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map("birthday" -> "2020-02-02"),
         version = 2,
         timestamp = 1651614986000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyAddFile(
         files(2),
@@ -1602,7 +1613,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map("birthday" -> "2020-01-01"),
         version = 1,
         timestamp = 1651614980000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyAddFile(
         files(3),
@@ -1612,7 +1623,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map("birthday" -> "2020-01-01"),
         version = 1,
         timestamp = 1651614980000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyAddFile(
         files(4),
@@ -1622,7 +1633,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map("birthday" -> "2020-03-03"),
         version = 1,
         timestamp = 1651614980000L,
-        queryDeltaLog
+        responseFormat
       )
       verifyRemove(
         files(5),
@@ -1630,7 +1641,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         partitionValues = Map("birthday" -> "2020-03-03"),
         version = 3,
         timestamp = 1651614994000L,
-        queryDeltaLog
+        responseFormat
       )
     }
   }
@@ -1692,9 +1703,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       partitionValues: Map[String, String],
       version: Long,
       timestamp: Long,
-      queryDeltaLog: Boolean = false): Unit = {
+      responseFormat: String = "parquet"): Unit = {
     assert(actionStr.startsWith("{\"add\":{"))
-    if (queryDeltaLog) {
+    if (responseFormat == "delta") {
       val addFile = JsonUtils.fromJson[DeltaSingleAction](actionStr).add
       assert(addFile.size == size)
       assert(addFile.stats == stats)
@@ -1723,8 +1734,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       partitionValues: Map[String, String],
       version: Long,
       timestamp: Long,
-      queryDeltaLog: Boolean = false): Unit = {
-    if (queryDeltaLog) {
+      responseFormat: String = "parquet"): Unit = {
+    if (responseFormat == "delta") {
       assert(actionStr.startsWith("{\"cdc\":{"))
       val addCDCFile = JsonUtils.fromJson[DeltaSingleAction](actionStr).cdc
       assert(addCDCFile.size == size)
@@ -1753,9 +1764,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       partitionValues: Map[String, String],
       version: Long,
       timestamp: Long,
-      queryDeltaLog: Boolean = false): Unit = {
+      responseFormat: String = "parquet"): Unit = {
     assert(actionStr.startsWith("{\"remove\":{"))
-    if (queryDeltaLog) {
+    if (responseFormat == "delta") {
       val removeFile = JsonUtils.fromJson[DeltaSingleAction](actionStr).remove
       assert(removeFile.size == Some(size))
       assert(removeFile.partitionValues == partitionValues)

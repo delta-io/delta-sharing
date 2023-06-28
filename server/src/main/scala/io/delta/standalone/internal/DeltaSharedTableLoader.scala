@@ -181,8 +181,8 @@ class DeltaSharedTable(
     snapshot.version
   }
 
-  private def getResponseProtocol(p: Protocol, queryDeltaLog: Boolean): Object = {
-    if (queryDeltaLog) {
+  private def getResponseProtocol(p: Protocol, responseFormat: String): Object = {
+    if (responseFormat == "delta") {
       model.DeltaProtocol(p.minReaderVersion).wrap
     } else {
       model.Protocol(p.minReaderVersion).wrap
@@ -192,9 +192,9 @@ class DeltaSharedTable(
   private def getResponseMetadata(
       m: Metadata,
       startingVersion: Option[Long],
-      queryDeltaLog: Boolean
+      responseFormat: String
   ): Object = {
-    if (queryDeltaLog) {
+    if (responseFormat == "delta") {
       model.DeltaMetadata(
         id = m.id,
         name = m.name,
@@ -233,9 +233,9 @@ class DeltaSharedTable(
       signedUrl: PreSignedUrl,
       version: java.lang.Long,
       timestamp: java.lang.Long,
-      queryDeltaLog: Boolean,
+      responseFormat: String,
       returnAddFileForCDF: Boolean = false): Object = {
-    if (queryDeltaLog) {
+    if (responseFormat == "delta") {
       model.DeltaAddFile(
         path = signedUrl.url,
         id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
@@ -278,8 +278,8 @@ class DeltaSharedTable(
     signedUrl: PreSignedUrl,
     version: java.lang.Long,
     timestamp: java.lang.Long,
-    queryDeltaLog: Boolean): Object = {
-    if (queryDeltaLog) {
+    responseFormat: String): Object = {
+    if (responseFormat == "delta") {
       model.DeltaRemoveFile(
         path = signedUrl.url,
         id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
@@ -310,9 +310,9 @@ class DeltaSharedTable(
     signedUrl: PreSignedUrl,
     version: java.lang.Long,
     timestamp: java.lang.Long,
-    queryDeltaLog: Boolean
+    responseFormat: String
   ): Object = {
-    if (queryDeltaLog) {
+    if (responseFormat == "delta") {
       model.DeltaAddCDCFile(
         path = signedUrl.url,
         id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
@@ -344,7 +344,7 @@ class DeltaSharedTable(
       timestamp: Option[String],
       startingVersion: Option[Long],
       endingVersion: Option[Long],
-      queryDeltaLog: Boolean): (Long, Seq[Object]) = withClassLoader {
+      responseFormat: String): (Long, Seq[Object]) = withClassLoader {
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
@@ -372,13 +372,13 @@ class DeltaSharedTable(
 
     val isVersionQuery = !Seq(version, timestamp).filter(_.isDefined).isEmpty
     val actions = Seq(
-      getResponseProtocol(snapshot.protocolScala, queryDeltaLog),
-      getResponseMetadata(snapshot.metadataScala, startingVersion, queryDeltaLog)
+      getResponseProtocol(snapshot.protocolScala, responseFormat),
+      getResponseMetadata(snapshot.metadataScala, startingVersion, responseFormat)
     ) ++ {
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
-        queryDataChangeSinceStartVersion(startingVersion.get, endingVersion, queryDeltaLog)
+        queryDataChangeSinceStartVersion(startingVersion.get, endingVersion, responseFormat)
       } else if (includeFiles) {
         val ts = if (isVersionQuery) {
           val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
@@ -419,7 +419,7 @@ class DeltaSharedTable(
             signedUrl,
             if (isVersionQuery) { snapshot.version } else null,
             if (isVersionQuery) { ts.get } else null,
-            queryDeltaLog
+            responseFormat
           )
         }
       } else {
@@ -433,7 +433,7 @@ class DeltaSharedTable(
   private def queryDataChangeSinceStartVersion(
       startingVersion: Long,
       endingVersion: Option[Long],
-      queryDeltaLog: Boolean
+      responseFormat: String
   ): Seq[Object] = {
     var latestVersion = tableVersion
     if (startingVersion > latestVersion) {
@@ -465,7 +465,7 @@ class DeltaSharedTable(
               fileSigner.sign(absolutePath(deltaLog.dataPath, a.path)),
               v,
               ts.getTime,
-              queryDeltaLog,
+              responseFormat,
               true
             )
           )
@@ -476,7 +476,7 @@ class DeltaSharedTable(
               fileSigner.sign(absolutePath(deltaLog.dataPath, r.path)),
               v,
               ts.getTime,
-              queryDeltaLog
+              responseFormat
             )
           )
         case p: Protocol =>
@@ -487,7 +487,7 @@ class DeltaSharedTable(
               getResponseMetadata(
                 m,
                 Some(v),
-                queryDeltaLog
+                responseFormat
               )
             )
           }
@@ -500,7 +500,7 @@ class DeltaSharedTable(
   def queryCDF(
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean = false,
-      queryDeltaLog: Boolean = false
+      responseFormat: String = "parquet"
   ): (Long, Seq[Object]) = withClassLoader {
     val actions = ListBuffer[Object]()
 
@@ -516,13 +516,12 @@ class DeltaSharedTable(
     } else {
       deltaLog.snapshot
     }
-    // linzhou
-    actions.append(getResponseProtocol(snapshot.protocolScala, queryDeltaLog))
+    actions.append(getResponseProtocol(snapshot.protocolScala, responseFormat))
     actions.append(
       getResponseMetadata(
         snapshot.metadataScala,
         Some(snapshot.version),
-        queryDeltaLog
+        responseFormat
       )
     )
 
@@ -537,7 +536,7 @@ class DeltaSharedTable(
           getResponseMetadata(
             metadata,
             Some(cdcDataSpec.version),
-            queryDeltaLog
+            responseFormat
           )
         )
       }
@@ -553,7 +552,7 @@ class DeltaSharedTable(
             signedUrl,
             cdcDataSpec.version,
             cdcDataSpec.timestamp.getTime,
-            queryDeltaLog
+            responseFormat
           )
         )
       }
@@ -569,7 +568,7 @@ class DeltaSharedTable(
             signedUrl,
             cdcDataSpec.version,
             cdcDataSpec.timestamp.getTime,
-            queryDeltaLog,
+            responseFormat,
             returnAddFileForCDF = true
           )
         )
@@ -586,7 +585,7 @@ class DeltaSharedTable(
             signedUrl,
             cdcDataSpec.version,
             cdcDataSpec.timestamp.getTime,
-            queryDeltaLog
+            responseFormat
           )
         )
       }

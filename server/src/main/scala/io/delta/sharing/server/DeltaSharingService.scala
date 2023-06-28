@@ -268,13 +268,30 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     HttpResponse.of(headers)
   }
 
+  private def getDeltaSharingCapabilitiesMap(headerString: String): Map[String, String] = {
+    if (headerString == null) {
+      return Map.empty[String, String]
+    }
+    headerString.split(",").map { capbility =>
+      val splits = capbility.split("=")
+      if (splits.size == 2) {
+        (splits(0), splits(1))
+      } else {
+        ("", "")
+      }
+    }.toMap
+  }
+
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/metadata")
   def getMetadata(
+      req: HttpRequest,
       @Param("share") share: String,
       @Param("schema") schema: String,
-      @Param("table") table: String,
-      @Param("queryDeltaLog") @Nullable queryDeltaLog: String): HttpResponse = processRequest {
+      @Param("table") table: String): HttpResponse = processRequest {
     import scala.collection.JavaConverters._
+    val capabilitiesMap = getDeltaSharingCapabilitiesMap(
+      req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
+    )
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = false,
@@ -285,17 +302,21 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       timestamp = None,
       startingVersion = None,
       endingVersion = None,
-      queryDeltaLog = Try(queryDeltaLog.toBoolean).getOrElse(false))
+      responseFormat = capabilitiesMap.get("format").getOrElse("parquet"))
     streamingOutput(Some(v), actions)
   }
 
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/query")
   @ConsumesJson
   def listFiles(
+      req: HttpRequest,
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
       request: QueryTableRequest): HttpResponse = processRequest {
+    val capabilitiesMap = getDeltaSharingCapabilitiesMap(
+      req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
+    )
     val numVersionParams = Seq(request.version, request.timestamp, request.startingVersion)
       .filter(_.isDefined).size
     if (numVersionParams > 1) {
@@ -341,7 +362,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.timestamp,
       request.startingVersion,
       request.endingVersion,
-      queryDeltaLog = request.queryDeltaLog.getOrElse(false))
+      responseFormat = capabilitiesMap.get("format").getOrElse("parquet"))
     if (version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(
         s"You can only query table data since version ${tableConfig.startVersion}."
@@ -355,6 +376,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/changes")
   @ConsumesJson
   def listCdfFiles(
+      req: HttpRequest,
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
@@ -362,9 +384,11 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("endingVersion") @Nullable endingVersion: String,
       @Param("startingTimestamp") @Nullable startingTimestamp: String,
       @Param("endingTimestamp") @Nullable endingTimestamp: String,
-      @Param("includeHistoricalMetadata") @Nullable includeHistoricalMetadata: String,
-      @Param("queryDeltaLog") @Nullable queryDeltaLog: String
+      @Param("includeHistoricalMetadata") @Nullable includeHistoricalMetadata: String
   ): HttpResponse = processRequest {
+    val capabilitiesMap = getDeltaSharingCapabilitiesMap(
+      req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
+    )
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     if (!tableConfig.cdfEnabled) {
@@ -380,7 +404,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Option(endingTimestamp)
       ),
       includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false),
-      queryDeltaLog = Try(queryDeltaLog.toBoolean).getOrElse(false)
+      responseFormat = capabilitiesMap.get("format").getOrElse("parquet")
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
@@ -415,8 +439,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 object DeltaSharingService {
   val DELTA_TABLE_VERSION_HEADER = "Delta-Table-Version"
   val DELTA_TABLE_METADATA_CONTENT_TYPE = "application/x-ndjson; charset=utf-8"
-
-  val SPARK_STRUCTURED_STREAMING = "SparkStructuredStreaming"
+  val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
 
   private val parser = {
     val parser = ArgumentParsers
