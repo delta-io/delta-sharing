@@ -42,15 +42,40 @@ lazy val commonSettings = Seq(
 
 lazy val root = (project in file(".")).aggregate(spark, server)
 
-lazy val spark = (project in file("spark")) settings(
-  name := "delta-sharing-spark",
-  crossScalaVersions := Seq(scala212, scala213),
+lazy val client = (project in file("client")) settings(
+  name := "delta-sharing-client",
   commonSettings,
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
     "org.apache.httpcomponents" % "httpclient" % "4.5.13",
     "org.codehaus.jackson" % "jackson-mapper-asl" % "1.9.13",
+    "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
+    "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
+    "org.scalatest" %% "scalatest" % "3.2.3" % "test"
+  ),
+  Compile / sourceGenerators += Def.task {
+    val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "client" / "package.scala"
+    IO.write(file,
+      s"""package io.delta.sharing
+         |
+         |package object client {
+         |  val VERSION = "${version.value}"
+         |}
+         |""".stripMargin)
+    Seq(file)
+  }
+)
+
+lazy val spark = (project in file("spark")) dependsOn(client) settings(
+  name := "delta-sharing-spark",
+  crossScalaVersions := Seq(scala212, scala213),
+  commonSettings,
+  scalaStyleSettings,
+  releaseSettings,
+  libraryDependencies ++= Seq(
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",

@@ -35,7 +35,7 @@ import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRela
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.types.StructType
 
-import io.delta.sharing.spark.model.{
+import io.delta.sharing.client.model.{
   AddCDCFile,
   AddFile,
   AddFileForCDF,
