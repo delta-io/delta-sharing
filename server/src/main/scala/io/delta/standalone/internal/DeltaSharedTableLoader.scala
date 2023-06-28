@@ -40,7 +40,6 @@ import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scala.collection.mutable.ListBuffer
 
 import io.delta.sharing.server.{
-  dsmodel,
   model,
   AbfsFileSigner,
   CausedBy,
@@ -184,7 +183,7 @@ class DeltaSharedTable(
 
   private def getResponseProtocol(p: Protocol, queryDeltaLog: Boolean): Object = {
     if (queryDeltaLog) {
-      dsmodel.DeltaSharingProtocol(p.minReaderVersion).wrap
+      model.DeltaProtocol(p.minReaderVersion).wrap
     } else {
       model.Protocol(p.minReaderVersion).wrap
     }
@@ -196,7 +195,7 @@ class DeltaSharedTable(
       queryDeltaLog: Boolean
   ): Object = {
     if (queryDeltaLog) {
-      dsmodel.DeltaSharingMetadata(
+      model.DeltaMetadata(
         id = m.id,
         name = m.name,
         description = m.description,
@@ -237,7 +236,7 @@ class DeltaSharedTable(
       queryDeltaLog: Boolean,
       returnAddFileForCDF: Boolean = false): Object = {
     if (queryDeltaLog) {
-      dsmodel.DeltaSharingAddFile(
+      model.DeltaAddFile(
         path = signedUrl.url,
         id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
         expirationTimestamp = signedUrl.expirationTimestamp,
@@ -247,8 +246,7 @@ class DeltaSharedTable(
         dataChange = addFile.dataChange,
         stats = addFile.stats,
         version = version,
-        timestamp = timestamp,
-        tags = addFile.tags
+        timestamp = timestamp
       ).wrap
     } else if (returnAddFileForCDF) {
       model.AddFileForCDF(
@@ -282,7 +280,7 @@ class DeltaSharedTable(
     timestamp: java.lang.Long,
     queryDeltaLog: Boolean): Object = {
     if (queryDeltaLog) {
-      dsmodel.DeltaSharingRemoveFile(
+      model.DeltaRemoveFile(
         path = signedUrl.url,
         id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
         expirationTimestamp = signedUrl.expirationTimestamp,
@@ -292,8 +290,7 @@ class DeltaSharedTable(
         partitionValues = removeFile.partitionValues,
         size = removeFile.size,
         version = version,
-        timestamp = timestamp,
-        tags = removeFile.tags
+        timestamp = timestamp
       ).wrap
     } else {
       model.RemoveFile(
@@ -316,15 +313,14 @@ class DeltaSharedTable(
     queryDeltaLog: Boolean
   ): Object = {
     if (queryDeltaLog) {
-      dsmodel.DeltaSharingAddCDCFile(
+      model.DeltaAddCDCFile(
         path = signedUrl.url,
         id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
         expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = addCDCFile.partitionValues,
         size = addCDCFile.size,
         version = version,
-        timestamp = timestamp,
-        tags = addCDCFile.tags
+        timestamp = timestamp
       ).wrap
     } else {
       model.AddCDCFile(

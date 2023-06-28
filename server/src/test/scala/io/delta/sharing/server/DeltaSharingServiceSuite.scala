@@ -26,18 +26,11 @@ import javax.net.ssl._
 import scala.collection.mutable.ArrayBuffer
 
 import com.linecorp.armeria.server.Server
-import io.delta.standalone.internal.DeltaCDFErrors
 import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import scalapb.json4s.JsonFormat
 
 import io.delta.sharing.server.config.ServerConfig
-import io.delta.sharing.server.dsmodel.{
-  DeltaSharingAddFile,
-  DeltaSharingMetadata,
-  DeltaSharingProtocol,
-  DeltaSharingSingleAction
-}
 import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol._
 import io.delta.sharing.server.util.JsonUtils
@@ -498,15 +491,15 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/table1/metadata?queryDeltaLog=${queryDeltaLog}"), expectedTableVersion = Some(2))
       val Array(protocol, metadata) = response.split("\n")
       if (queryDeltaLog) {
-        val expectedProtocol = DeltaSharingProtocol(minReaderVersion = 1).wrap
-        assert(expectedProtocol == JsonUtils.fromJson[DeltaSharingSingleAction](protocol))
-        val expectedMetadata = DeltaSharingMetadata(
+        val expectedProtocol = DeltaProtocol(minReaderVersion = 1).wrap
+        assert(expectedProtocol == JsonUtils.fromJson[DeltaSingleAction](protocol))
+        val expectedMetadata = DeltaMetadata(
           id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
           format = Format(),
           schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
           partitionColumns = Seq.empty,
           createdTime = Some(1619591469476L)).wrap
-        assert(expectedMetadata == JsonUtils.fromJson[DeltaSharingSingleAction](metadata))
+        assert(expectedMetadata == JsonUtils.fromJson[DeltaSingleAction](metadata))
       } else {
         val expectedProtocol = Protocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
@@ -536,18 +529,18 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val protocol = lines(0)
       val metadata = lines(1)
       if (queryDeltaLog) {
-        val expectedProtocol = DeltaSharingProtocol(minReaderVersion = 1).wrap
-        assert(expectedProtocol == JsonUtils.fromJson[DeltaSharingSingleAction](protocol))
-        val expectedMetadata = DeltaSharingMetadata(
+        val expectedProtocol = DeltaProtocol(minReaderVersion = 1).wrap
+        assert(expectedProtocol == JsonUtils.fromJson[DeltaSingleAction](protocol))
+        val expectedMetadata = DeltaMetadata(
           id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
           format = Format(),
           schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
           partitionColumns = Seq.empty,
           createdTime = Some(1619591469476L)).wrap
-        assert(expectedMetadata == JsonUtils.fromJson[DeltaSharingSingleAction](metadata))
-        val actualFiles = lines.drop(2).map(f => JsonUtils.fromJson[DeltaSharingSingleAction](f).add)
+        assert(expectedMetadata == JsonUtils.fromJson[DeltaSingleAction](metadata))
+        val actualFiles = lines.drop(2).map(f => JsonUtils.fromJson[DeltaSingleAction](f).add)
         val expectedFiles = Seq(
-          DeltaSharingAddFile(
+          DeltaAddFile(
             path = actualFiles(0).path,
             expirationTimestamp = actualFiles(0).expirationTimestamp,
             id = "061cb3683a467066995f8cdaabd8667d",
@@ -557,7 +550,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
             dataChange = false,
             stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
           ),
-          DeltaSharingAddFile(
+          DeltaAddFile(
             path = actualFiles(1).path,
             expirationTimestamp = actualFiles(1).expirationTimestamp,
             id = "e268cbf70dbaa6143e7e9fa3e2d3b00e",
@@ -1124,9 +1117,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val protocol = lines(0)
       val metadata = lines(1)
       if (queryDeltaLog) {
-        val expectedProtocol = DeltaSharingProtocol(minReaderVersion = 1).wrap
-        assert(expectedProtocol == JsonUtils.fromJson[DeltaSharingSingleAction](protocol))
-        val expectedMetadata = DeltaSharingMetadata(
+        val expectedProtocol = DeltaProtocol(minReaderVersion = 1).wrap
+        assert(expectedProtocol == JsonUtils.fromJson[DeltaSingleAction](protocol))
+        val expectedMetadata = DeltaMetadata(
           id = "4929d09e-b085-4d22-a95e-7416fb2f78ab",
           format = Format(),
           schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
@@ -1134,7 +1127,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
           partitionColumns = Seq.empty,
           createdTime = Some(1664325322573L),
           version = 0).wrap
-        assert(expectedMetadata == JsonUtils.fromJson[DeltaSharingSingleAction](metadata))
+        assert(expectedMetadata == JsonUtils.fromJson[DeltaSingleAction](metadata))
       } else {
         val expectedProtocol = Protocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
@@ -1478,9 +1471,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val protocol = lines(0)
       val metadata = lines(1)
       if (queryDeltaLog) {
-        val expectedProtocol = DeltaSharingProtocol(minReaderVersion = 1).wrap
-        assert(expectedProtocol == JsonUtils.fromJson[DeltaSharingSingleAction](protocol))
-        val expectedMetadata = DeltaSharingMetadata(
+        val expectedProtocol = DeltaProtocol(minReaderVersion = 1).wrap
+        assert(expectedProtocol == JsonUtils.fromJson[DeltaSingleAction](protocol))
+        val expectedMetadata = DeltaMetadata(
           id = "16736144-3306-4577-807a-d3f899b77670",
           format = Format(),
           schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
@@ -1488,7 +1481,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
           partitionColumns = Seq.empty,
           createdTime = Some(1651272615011L),
           version = 5).wrap
-          assert(expectedMetadata == JsonUtils.fromJson[DeltaSharingSingleAction](metadata))
+          assert(expectedMetadata == JsonUtils.fromJson[DeltaSingleAction](metadata))
       } else {
         val expectedProtocol = Protocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
@@ -1702,7 +1695,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       queryDeltaLog: Boolean = false): Unit = {
     assert(actionStr.startsWith("{\"add\":{"))
     if (queryDeltaLog) {
-      val addFile = JsonUtils.fromJson[DeltaSharingSingleAction](actionStr).add
+      val addFile = JsonUtils.fromJson[DeltaSingleAction](actionStr).add
       assert(addFile.size == size)
       assert(addFile.stats == stats)
       assert(addFile.partitionValues == partitionValues)
@@ -1733,7 +1726,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       queryDeltaLog: Boolean = false): Unit = {
     if (queryDeltaLog) {
       assert(actionStr.startsWith("{\"cdc\":{"))
-      val addCDCFile = JsonUtils.fromJson[DeltaSharingSingleAction](actionStr).cdc
+      val addCDCFile = JsonUtils.fromJson[DeltaSingleAction](actionStr).cdc
       assert(addCDCFile.size == size)
       assert(addCDCFile.partitionValues == partitionValues)
       assert(addCDCFile.version == version)
@@ -1763,7 +1756,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       queryDeltaLog: Boolean = false): Unit = {
     assert(actionStr.startsWith("{\"remove\":{"))
     if (queryDeltaLog) {
-      val removeFile = JsonUtils.fromJson[DeltaSharingSingleAction](actionStr).remove
+      val removeFile = JsonUtils.fromJson[DeltaSingleAction](actionStr).remove
       assert(removeFile.size == Some(size))
       assert(removeFile.partitionValues == partitionValues)
       assert(removeFile.version == version)

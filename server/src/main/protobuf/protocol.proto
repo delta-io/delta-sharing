@@ -64,7 +64,7 @@ message QueryTableRequest {
     // is set, otherwise will be ignored.
     optional int64 endingVersion = 7;
 
-    // Whether to treat the response as Delta Log
+    // TODO: update this. The format of the response, supported formats: parquet, delta.
     optional bool queryDeltaLog = 8;
 }
 
