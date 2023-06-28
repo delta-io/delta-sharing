@@ -22,9 +22,10 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.SparkFunSuite
 
-class RetryUtilsSuite extends SparkFunSuite {
-  import RetryUtils._
+import io.delta.sharing.client.util.{RetryUtils, UnexpectedHttpStatus}
+import io.delta.sharing.client.util.RetryUtils._
 
+class RetryUtilsSuite extends SparkFunSuite {
   test("shouldRetry") {
     assert(shouldRetry(new UnexpectedHttpStatus("error", 429)))
     assert(shouldRetry(new UnexpectedHttpStatus("error", 500)))

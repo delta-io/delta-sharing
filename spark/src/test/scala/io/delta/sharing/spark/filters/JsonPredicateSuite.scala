@@ -20,7 +20,7 @@ package io.delta.sharing.spark.filters
 
 import org.apache.spark.SparkFunSuite
 
-import io.delta.sharing.spark.util.JsonUtils
+import io.delta.sharing.client.util.JsonUtils
 
 class JsonPredicateSuite extends SparkFunSuite {
   /**

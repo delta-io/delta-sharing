@@ -22,7 +22,7 @@ import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset}
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
 
-import io.delta.sharing.spark.util.JsonUtils
+import io.delta.sharing.client.util.JsonUtils
 
 /**
  * Tracks how far we processed in when reading changes from the [[Delta Sharing Server]].
