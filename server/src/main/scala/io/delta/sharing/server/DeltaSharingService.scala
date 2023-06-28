@@ -272,7 +272,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     if (headerString == null) {
       return Map.empty[String, String]
     }
-    headerString.split(",").map { capbility =>
+    headerString.toLowerCase().split(",").map { capbility =>
       val splits = capbility.split("=")
       if (splits.size == 2) {
         (splits(0), splits(1))
@@ -302,7 +302,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       timestamp = None,
       startingVersion = None,
       endingVersion = None,
-      responseFormat = capabilitiesMap.get("format").getOrElse("parquet"))
+      responseFormat = capabilitiesMap.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse("parquet"))
     streamingOutput(Some(v), actions)
   }
 
@@ -362,7 +362,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.timestamp,
       request.startingVersion,
       request.endingVersion,
-      responseFormat = capabilitiesMap.get("format").getOrElse("parquet"))
+      responseFormat = capabilitiesMap.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse("parquet"))
     if (version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(
         s"You can only query table data since version ${tableConfig.startVersion}."
@@ -404,7 +404,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Option(endingTimestamp)
       ),
       includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false),
-      responseFormat = capabilitiesMap.get("format").getOrElse("parquet")
+      responseFormat = capabilitiesMap.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse("parquet")
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
@@ -440,6 +440,7 @@ object DeltaSharingService {
   val DELTA_TABLE_VERSION_HEADER = "Delta-Table-Version"
   val DELTA_TABLE_METADATA_CONTENT_TYPE = "application/x-ndjson; charset=utf-8"
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
+  val DELTA_SHARING_RESPONSE_FORMAT = "responseformat"
 
   private val parser = {
     val parser = ArgumentParsers

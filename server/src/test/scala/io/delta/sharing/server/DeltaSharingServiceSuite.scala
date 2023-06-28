@@ -140,7 +140,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
     if (responseFormat == "delta") {
-      connection.setRequestProperty("delta-sharing-capabilities", "format=delta")
+      connection.setRequestProperty("delta-sharing-capabilities", "responseFormat=delta")
     }
     method.foreach(connection.setRequestMethod)
     data.foreach { d =>
