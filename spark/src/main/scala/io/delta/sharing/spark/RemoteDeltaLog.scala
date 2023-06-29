@@ -131,9 +131,7 @@ private[sharing] object RemoteDeltaLog {
   }
 
   def apply(path: String, forStreaming: Boolean = false): RemoteDeltaLog = {
-    val sqlConf = SparkSession.active.sessionState.conf
     val (profileFile, share, schema, table) = parsePath(path)
-
     val client = DeltaSharingRestClient(profileFile, forStreaming)
     val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
     new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
