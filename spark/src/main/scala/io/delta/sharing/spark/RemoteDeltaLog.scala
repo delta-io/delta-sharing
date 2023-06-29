@@ -20,22 +20,21 @@ import java.lang.ref.WeakReference
 import java.util.concurrent.TimeUnit
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileStatus, Path}
+import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkException
 import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.internal.Logging
-import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.sql.{Column, Encoder, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
-import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal, SubqueryExpression}
-import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
+import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, Literal, SubqueryExpression}
+import org.apache.spark.sql.execution.datasources.{FileFormat, HadoopFsRelation}
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
-import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingProfileProvider}
+import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingProfileProvider, DeltaSharingRestClient}
 import io.delta.sharing.client.model.{
   AddFile,
   CDFColumnInfo,
@@ -138,40 +137,8 @@ private[sharing] object RemoteDeltaLog {
     val sqlConf = SparkSession.active.sessionState.conf
     val (profileFile, share, schema, table) = parsePath(path)
 
-    val profileProviderclass =
-      sqlConf.getConfString("spark.delta.sharing.profile.provider.class",
-        "io.delta.sharing.client.DeltaSharingFileProfileProvider")
-
-    val profileProvider: DeltaSharingProfileProvider =
-      Class.forName(profileProviderclass)
-        .getConstructor(classOf[Configuration], classOf[String])
-        .newInstance(SparkSession.active.sessionState.newHadoopConf(),
-          profileFile)
-        .asInstanceOf[DeltaSharingProfileProvider]
-
+    val client = DeltaSharingRestClient(profileFile, forStreaming)
     val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
-    // This is a flag to test the local https server. Should never be used in production.
-    val sslTrustAll =
-      sqlConf.getConfString("spark.delta.sharing.network.sslTrustAll", "false").toBoolean
-    val numRetries = ConfUtils.numRetries(sqlConf)
-    val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(sqlConf)
-    val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
-
-    val clientClass =
-      sqlConf.getConfString("spark.delta.sharing.client.class",
-        "io.delta.sharing.client.DeltaSharingRestClient")
-
-    val client: DeltaSharingClient =
-      Class.forName(clientClass)
-        .getConstructor(classOf[DeltaSharingProfileProvider],
-          classOf[Int], classOf[Int], classOf[Long], classOf[Boolean], classOf[Boolean])
-        .newInstance(profileProvider,
-          java.lang.Integer.valueOf(timeoutInSeconds),
-          java.lang.Integer.valueOf(numRetries),
-          java.lang.Long.valueOf(maxRetryDurationMillis),
-          java.lang.Boolean.valueOf(sslTrustAll),
-          java.lang.Boolean.valueOf(forStreaming))
-        .asInstanceOf[DeltaSharingClient]
     new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
   }
 }
