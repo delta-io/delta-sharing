@@ -549,27 +549,21 @@ object DeltaSharingRestClient extends Logging {
   def apply(profileFile: String, forStreaming: Boolean = false): DeltaSharingClient = {
     val sqlConf = SparkSession.active.sessionState.conf
 
-    val profileProviderclass =
-      sqlConf.getConfString("spark.delta.sharing.profile.provider.class",
-        "io.delta.sharing.client.DeltaSharingFileProfileProvider")
-
+    val profileProviderClass = ConfUtils.profileProviderClass(sqlConf)
     val profileProvider: DeltaSharingProfileProvider =
-      Class.forName(profileProviderclass)
+      Class.forName(profileProviderClass)
         .getConstructor(classOf[Configuration], classOf[String])
         .newInstance(SparkSession.active.sessionState.newHadoopConf(),
           profileFile)
         .asInstanceOf[DeltaSharingProfileProvider]
 
     // This is a flag to test the local https server. Should never be used in production.
-    val sslTrustAll =
-      sqlConf.getConfString("spark.delta.sharing.network.sslTrustAll", "false").toBoolean
+    val sslTrustAll = ConfUtils.sslTrustAll(sqlConf)
     val numRetries = ConfUtils.numRetries(sqlConf)
     val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(sqlConf)
     val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
 
-    val clientClass =
-      sqlConf.getConfString("spark.delta.sharing.client.class",
-        "io.delta.sharing.client.DeltaSharingRestClient")
+    val clientClass = ConfUtils.clientClass(sqlConf)
     Class.forName(clientClass)
       .getConstructor(classOf[DeltaSharingProfileProvider],
         classOf[Int], classOf[Int], classOf[Long], classOf[Boolean], classOf[Boolean])
