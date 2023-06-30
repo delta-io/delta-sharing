@@ -100,7 +100,8 @@ class DeltaSharingRestClient(
     numRetries: Int = 10,
     maxRetryDuration: Long = Long.MaxValue,
     sslTrustAll: Boolean = false,
-    forStreaming: Boolean = false) extends DeltaSharingClient {
+    forStreaming: Boolean = false,
+    responseFormat: String = "parquet") extends DeltaSharingClient {
 
   @volatile private var created = false
 
@@ -394,8 +395,7 @@ class DeltaSharingRestClient(
     }
   }
 
-  // TODO: [linzhou] mark this as private once tests are migrated.
-  def prepareHeaders(httpRequest: HttpRequestBase): HttpRequestBase = {
+  private[client] def prepareHeaders(httpRequest: HttpRequestBase): HttpRequestBase = {
     val customeHeaders = profileProvider.getCustomHeaders
     if (customeHeaders.contains(HttpHeaders.AUTHORIZATION)
       || customeHeaders.contains(HttpHeaders.USER_AGENT)) {
@@ -406,7 +406,8 @@ class DeltaSharingRestClient(
     }
     val headers = Map(
       HttpHeaders.AUTHORIZATION -> s"Bearer ${profileProvider.getProfile.bearerToken}",
-      HttpHeaders.USER_AGENT -> getUserAgent()
+      HttpHeaders.USER_AGENT -> getUserAgent(),
+      DeltaSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER -> getDeltaSharingCapabilities()
     ) ++ customeHeaders
     headers.foreach(header => httpRequest.setHeader(header._1, header._2))
 
@@ -494,6 +495,13 @@ class DeltaSharingRestClient(
     s"$sparkAgent/$VERSION" + DeltaSharingRestClient.USER_AGENT
   }
 
+  // The value for delta-sharing-capabilities header, semicolon separated capabilities.
+  // Each capability is in the format of "key=value1,value2", values are separated by comma.
+  // Example: "capability1=value1;capability2=value3,value4,value5"
+  private def getDeltaSharingCapabilities(): String = {
+    s"responseFormat=$responseFormat"
+  }
+
   def close(): Unit = {
     if (created) {
       try client.close() finally created = false
@@ -509,6 +517,7 @@ object DeltaSharingRestClient extends Logging {
   val CURRENT = 1
 
   val SPARK_STRUCTURED_STREAMING = "Delta-Sharing-SparkStructuredStreaming"
+  val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
 
   lazy val USER_AGENT = {
     try {
@@ -546,7 +555,10 @@ object DeltaSharingRestClient extends Logging {
     if (value == null) "<unknown>" else value.replace(' ', '_')
   }
 
-  def apply(profileFile: String, forStreaming: Boolean = false): DeltaSharingClient = {
+  def apply(
+      profileFile: String,
+      forStreaming: Boolean = false,
+      responseFormat: String = "parquet"): DeltaSharingClient = {
     val sqlConf = SparkSession.active.sessionState.conf
 
     val profileProviderclass =
@@ -571,14 +583,21 @@ object DeltaSharingRestClient extends Logging {
       sqlConf.getConfString("spark.delta.sharing.client.class",
         "io.delta.sharing.client.DeltaSharingRestClient")
     Class.forName(clientClass)
-      .getConstructor(classOf[DeltaSharingProfileProvider],
-        classOf[Int], classOf[Int], classOf[Long], classOf[Boolean], classOf[Boolean])
-      .newInstance(profileProvider,
+      .getConstructor(
+        classOf[DeltaSharingProfileProvider],
+        classOf[Int],
+        classOf[Int],
+        classOf[Long],
+        classOf[Boolean],
+        classOf[Boolean],
+        classOf[String]
+      ).newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
         java.lang.Long.valueOf(maxRetryDurationMillis),
         java.lang.Boolean.valueOf(sslTrustAll),
-        java.lang.Boolean.valueOf(forStreaming))
+        java.lang.Boolean.valueOf(forStreaming),
+        responseFormat)
       .asInstanceOf[DeltaSharingClient]
   }
 }
