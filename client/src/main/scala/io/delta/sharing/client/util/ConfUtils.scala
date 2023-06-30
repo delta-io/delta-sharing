@@ -36,6 +36,15 @@ object ConfUtils {
   val MAX_CONNECTION_CONF = "spark.delta.sharing.network.maxConnections"
   val MAX_CONNECTION_DEFAULT = 64
 
+  val SSL_TRUST_ALL_CONF = "spark.delta.sharing.network.sslTrustAll"
+  val SSL_TRUST_ALL_DEFAULT = "false"
+
+  val PROFILE_PROVIDER_CLASS_CONF = "spark.delta.sharing.profile.provider.class"
+  val PROFILE_PROVIDER_CLASS_DEFAULT = "io.delta.sharing.client.DeltaSharingFileProfileProvider"
+
+  val CLIENT_CLASS_CONF = "spark.delta.sharing.client.class"
+  val CLIENT_CLASS_DEFAULT = "io.delta.sharing.client.DeltaSharingRestClient"
+
   def numRetries(conf: Configuration): Int = {
     val numRetries = conf.getInt(NUM_RETRIES_CONF, NUM_RETRIES_DEFAULT)
     validateNonNeg(numRetries, NUM_RETRIES_CONF)
@@ -75,6 +84,18 @@ object ConfUtils {
     val maxConn = conf.getInt(MAX_CONNECTION_CONF, MAX_CONNECTION_DEFAULT)
     validateNonNeg(maxConn, MAX_CONNECTION_CONF)
     maxConn
+  }
+
+  def sslTrustAll(conf: SQLConf): Boolean = {
+    conf.getConfString(SSL_TRUST_ALL_CONF, SSL_TRUST_ALL_DEFAULT).toBoolean
+  }
+
+  def profileProviderClass(conf: SQLConf): String = {
+    conf.getConfString(PROFILE_PROVIDER_CLASS_CONF, PROFILE_PROVIDER_CLASS_DEFAULT)
+  }
+
+  def clientClass(conf: SQLConf): String = {
+    conf.getConfString(CLIENT_CLASS_CONF, CLIENT_CLASS_DEFAULT)
   }
 
   private def toTimeout(timeoutStr: String): Int = {
