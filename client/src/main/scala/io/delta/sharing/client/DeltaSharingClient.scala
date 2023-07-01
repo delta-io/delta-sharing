@@ -561,27 +561,21 @@ object DeltaSharingRestClient extends Logging {
       responseFormat: String = "parquet"): DeltaSharingClient = {
     val sqlConf = SparkSession.active.sessionState.conf
 
-    val profileProviderclass =
-      sqlConf.getConfString("spark.delta.sharing.profile.provider.class",
-        "io.delta.sharing.client.DeltaSharingFileProfileProvider")
-
+    val profileProviderClass = ConfUtils.profileProviderClass(sqlConf)
     val profileProvider: DeltaSharingProfileProvider =
-      Class.forName(profileProviderclass)
+      Class.forName(profileProviderClass)
         .getConstructor(classOf[Configuration], classOf[String])
         .newInstance(SparkSession.active.sessionState.newHadoopConf(),
           profileFile)
         .asInstanceOf[DeltaSharingProfileProvider]
 
     // This is a flag to test the local https server. Should never be used in production.
-    val sslTrustAll =
-      sqlConf.getConfString("spark.delta.sharing.network.sslTrustAll", "false").toBoolean
+    val sslTrustAll = ConfUtils.sslTrustAll(sqlConf)
     val numRetries = ConfUtils.numRetries(sqlConf)
     val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(sqlConf)
     val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
 
-    val clientClass =
-      sqlConf.getConfString("spark.delta.sharing.client.class",
-        "io.delta.sharing.client.DeltaSharingRestClient")
+    val clientClass = ConfUtils.clientClass(sqlConf)
     Class.forName(clientClass)
       .getConstructor(
         classOf[DeltaSharingProfileProvider],
@@ -591,13 +585,13 @@ object DeltaSharingRestClient extends Logging {
         classOf[Boolean],
         classOf[Boolean],
         classOf[String]
-      ).newInstance(profileProvider,
+      .newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
         java.lang.Long.valueOf(maxRetryDurationMillis),
         java.lang.Boolean.valueOf(sslTrustAll),
         java.lang.Boolean.valueOf(forStreaming),
-        responseFormat)
+        classOf[String])
       .asInstanceOf[DeltaSharingClient]
   }
 }
