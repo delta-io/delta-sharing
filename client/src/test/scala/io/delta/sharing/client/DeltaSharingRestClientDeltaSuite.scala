@@ -130,7 +130,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
   private def checkCdfTableCdfEnabledTableV0Metadata(line: String, version: String = "1"): Unit = {
     assert(line == """{"metaData":{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"version":""" + version + ""","createdTime":1651272615011}}""")
   }
-  
+
   private def checkCdfTableCdfEnabledTableV1(lines: Seq[String]): Unit = {
     // VERSION 1: INSERT 3 files
     val addFilePrefix = """{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/cdf_table_cdf_enabled/part-0000"""
