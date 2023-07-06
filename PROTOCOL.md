@@ -2328,7 +2328,7 @@ content-type: application/x-ndjson; charset=utf-8
 ```
 
 ### Timestamp Format
-Accepted timestamp format by a delta sharing server: `yyyy-[m]m-[d]d hh:mm:ss[.f...]`. The server will use its local time zone to parse the provided timestamp.   
+Accepted timestamp format by a delta sharing server: in the ISO8601 format, in the UTC timezone, such as `2022-01-01T00:00:00Z`.   
 
 ## API Response Format
 
