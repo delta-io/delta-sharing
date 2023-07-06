@@ -101,7 +101,7 @@ class DeltaSharingRestClient(
     maxRetryDuration: Long = Long.MaxValue,
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
-    responseFormat: String = "parquet") extends DeltaSharingClient {
+    responseFormat: String = DeltaSharingRestClient.PARQUET_FORMAT) extends DeltaSharingClient {
 
   @volatile private var created = false
 
@@ -207,6 +207,10 @@ class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata")
     val (version, lines) = getNDJson(target)
+    if (responseFormat == DeltaSharingRestClient.DELTA_FORMAT) {
+      return DeltaTableMetadata(version, lines = lines)
+    }
+
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
@@ -248,6 +252,9 @@ class DeltaSharingRestClient(
         jsonPredicateHints
       )
     )
+    if (responseFormat == DeltaSharingRestClient.DELTA_FORMAT) {
+      return DeltaTableFiles(version, lines = lines)
+    }
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
@@ -268,6 +275,9 @@ class DeltaSharingRestClient(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val (version, lines) = getNDJson(
       target, QueryTableRequest(Nil, None, None, None, Some(startingVersion), endingVersion, None))
+    if (responseFormat == DeltaSharingRestClient.DELTA_FORMAT) {
+      return DeltaTableFiles(version, lines = lines)
+    }
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
@@ -302,6 +312,9 @@ class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
     val (version, lines) = getNDJson(target, requireVersion = false)
+    if (responseFormat == DeltaSharingRestClient.DELTA_FORMAT) {
+      return DeltaTableFiles(version, lines = lines)
+    }
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
@@ -518,6 +531,8 @@ object DeltaSharingRestClient extends Logging {
 
   val SPARK_STRUCTURED_STREAMING = "Delta-Sharing-SparkStructuredStreaming"
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
+  val DELTA_FORMAT = "delta"
+  val PARQUET_FORMAT = "parquet"
 
   lazy val USER_AGENT = {
     try {
@@ -558,7 +573,7 @@ object DeltaSharingRestClient extends Logging {
   def apply(
       profileFile: String,
       forStreaming: Boolean = false,
-      responseFormat: String = "parquet"): DeltaSharingClient = {
+      responseFormat: String = DeltaSharingRestClient.PARQUET_FORMAT): DeltaSharingClient = {
     val sqlConf = SparkSession.active.sessionState.conf
 
     val profileProviderClass = ConfUtils.profileProviderClass(sqlConf)
@@ -585,13 +600,13 @@ object DeltaSharingRestClient extends Logging {
         classOf[Boolean],
         classOf[Boolean],
         classOf[String]
-      .newInstance(profileProvider,
+      ).newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
         java.lang.Long.valueOf(maxRetryDurationMillis),
         java.lang.Boolean.valueOf(sslTrustAll),
         java.lang.Boolean.valueOf(forStreaming),
-        classOf[String])
-      .asInstanceOf[DeltaSharingClient]
+        responseFormat
+      ).asInstanceOf[DeltaSharingClient]
   }
 }

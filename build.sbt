@@ -40,7 +40,7 @@ lazy val commonSettings = Seq(
   )
 )
 
-lazy val root = (project in file(".")).aggregate(spark, server)
+lazy val root = (project in file(".")).aggregate(client, spark, server)
 
 lazy val client = (project in file("client")) settings(
   name := "delta-sharing-client",
