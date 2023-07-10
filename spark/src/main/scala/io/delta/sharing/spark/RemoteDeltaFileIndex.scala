@@ -28,8 +28,8 @@ import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expressi
 import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
 import org.apache.spark.sql.types.{DataType, StructType}
 
-import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
-import io.delta.sharing.spark.model.{
+import io.delta.sharing.client.{DeltaSharingFileSystem, DeltaSharingProfileProvider}
+import io.delta.sharing.client.model.{
   AddCDCFile,
   AddFile,
   AddFileForCDF,
@@ -37,7 +37,8 @@ import io.delta.sharing.spark.model.{
   FileAction,
   RemoveFile
 }
-import io.delta.sharing.spark.util.JsonUtils
+import io.delta.sharing.client.util.JsonUtils
+import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
 
 private[sharing] case class RemoteDeltaFileIndexParams(
     val spark: SparkSession,
@@ -184,7 +185,8 @@ private[sharing] case class RemoteDeltaCDFAddFileIndex(
     // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
     // applied.
     val updatedFiles = addFiles.map { a =>
-      AddFileForCDF(a.url, a.id, a.getPartitionValuesInDF, a.size, a.version, a.timestamp, a.stats)
+      AddFileForCDF(a.url, a.id, a.getPartitionValuesInDF, a.size, a.version, a.timestamp, a.stats,
+        a.expirationTimestamp)
     }
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits
@@ -208,7 +210,8 @@ private[sharing] case class RemoteDeltaCDCFileIndex(
     // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
     // applied.
     val updatedFiles = cdfFiles.map { c =>
-      AddCDCFile(c.url, c.id, c.getPartitionValuesInDF, c.size, c.version, c.timestamp)
+      AddCDCFile(c.url, c.id, c.getPartitionValuesInDF, c.size, c.version, c.timestamp,
+        c.expirationTimestamp)
     }
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits
@@ -231,7 +234,8 @@ private[sharing] case class RemoteDeltaCDFRemoveFileIndex(
     // makePartitionDirectories and partitionSchema. So that partitionFilters can be correctly
     // applied.
     val updatedFiles = removeFiles.map { r =>
-      RemoveFile(r.url, r.id, r.getPartitionValuesInDF, r.size, r.version, r.timestamp)
+      RemoveFile(r.url, r.id, r.getPartitionValuesInDF, r.size, r.version, r.timestamp,
+        r.expirationTimestamp)
     }
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits

@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark
+package io.delta.sharing.client
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkFunSuite
 
-import io.delta.sharing.spark.model.{AddCDCFile, AddFile, AddFileForCDF, FileAction, RemoveFile}
+import io.delta.sharing.client.model.{AddCDCFile, AddFile, AddFileForCDF, FileAction, RemoveFile}
 
 class DeltaSharingFileSystemSuite extends SparkFunSuite {
   import DeltaSharingFileSystem._

@@ -27,6 +27,7 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{DateType, StringType, StructField, StructType, TimestampType}
 
+import io.delta.sharing.client.{InMemoryHttpInputStream, RandomAccessHttpInputStream}
 import io.delta.sharing.spark.TestUtils._
 
 class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaSharingIntegrationTest {
@@ -176,7 +177,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   integrationTest("cdf_table_cdf_enabled timestamp exception") {
     val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
     val expected = Seq()
-    var errorMessage = intercept[io.delta.sharing.spark.util.UnexpectedHttpStatus] {
+    var errorMessage = intercept[io.delta.sharing.client.util.UnexpectedHttpStatus] {
       checkAnswer(
         spark.read
           .format("deltaSharing")
@@ -441,7 +442,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_missing_log"
 
     // log file is missing
-    val ex = intercept[io.delta.sharing.spark.util.UnexpectedHttpStatus] {
+    val ex = intercept[io.delta.sharing.client.util.UnexpectedHttpStatus] {
       val df = spark.read.format("deltaSharing")
         .option("readChangeFeed", "true")
         .option("startingVersion", 0).load(tablePath)

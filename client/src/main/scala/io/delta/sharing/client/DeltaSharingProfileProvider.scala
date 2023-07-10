@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark
+package io.delta.sharing.client
 
 import java.nio.charset.StandardCharsets.UTF_8
 
@@ -22,10 +22,10 @@ import org.apache.commons.io.IOUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 
-import io.delta.sharing.spark.util.JsonUtils
+import io.delta.sharing.client.util.JsonUtils
 
 case class DeltaSharingProfile(
-    shareCredentialsVersion: Option[Int] = Some(DeltaSharingProfile.CURRENT),
+    shareCredentialsVersion: Option[Int],
     endpoint: String = null,
     bearerToken: String = null,
     expirationTime: String = null)
@@ -47,7 +47,10 @@ trait DeltaSharingProfileProvider {
 
   def getCustomTablePath(tablePath: String): String = tablePath
 
-  def getCustomRefresher(refresher: () => Map[String, String]): () => Map[String, String] = {
+  // Map[String, String] is the id to url map.
+  // Long is the minimum url expiration time for all the urls.
+  def getCustomRefresher(refresher: () => (Map[String, String], Option[Long])): () =>
+    (Map[String, String], Option[Long]) = {
     refresher
   }
 }

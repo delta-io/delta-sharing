@@ -1933,7 +1933,10 @@ The request body should be a JSON string containing the following optional field
 
 - **timestamp** (type: String, optional): an optional timestamp string in the [Timestamp Format](#timestamp-format),. If set, will return files as of the table version corresponding to the specified timestamp. This is only supported on tables with history sharing enabled.
 
-- **startingVersion** (type: Long, optional): an optional version number. If set, will return all data change files since startingVersion, including historical metadata if seen in the delta log.
+- **startingVersion** (type: Long, optional): an optional version number. If set, will return all data change files since startingVersion, inclusive, including historical metadata if seen in the delta log.
+
+- **endingVersion** (type: Long, optional): an optional version number, only used if startingVersion is set. If set, the server can use it as a hint to avoid returning data change files after `endingVersion`. This is not enforcement. Hence, when sending the `endingVersion` parameter, the client should still handle the case that it may receive files after `endingVersion`.
+  - The combination of `statingVersion` and `endingVersion` can be used as query window for delta sharing streaming rpcs.
 
 When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
@@ -2325,7 +2328,7 @@ content-type: application/x-ndjson; charset=utf-8
 ```
 
 ### Timestamp Format
-Accepted timestamp format by a delta sharing server: `yyyy-[m]m-[d]d hh:mm:ss[.f...]`. The server will use its local time zone to parse the provided timestamp.   
+Accepted timestamp format by a delta sharing server: in the ISO8601 format, in the UTC timezone, such as `2022-01-01T00:00:00Z`.   
 
 ## API Response Format
 
@@ -2411,6 +2414,7 @@ size | Long | The size of this file in bytes. | Required
 stats | String | Contains statistics (e.g., count, min/max values for columns) about the data in this file. This field may be missing. A file may or may not have stats. This is a serialized JSON string which can be deserialized to a [Statistics Struct](#per-file-statistics). A client can decide whether to use stats or drop it. | Optional
 version | Long | The table version of the file, returned when querying a table data with a version or timestamp parameter. | Optional
 timestamp | Long | The unix timestamp corresponding to the table version of the file, in milliseconds, returned when querying a table data with a version or timestamp parameter. | Optional
+expirationTimestamp | Long | The unix timestamp corresponding to the expiration of the url, in milliseconds, returned when the server supports the feature. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -2423,7 +2427,8 @@ Example (for illustration purposes; each JSON object must be a single line in th
     "partitionValues": {
       "date": "2021-04-28"
     },
-    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}"
+    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}",
+    "expirationTimestamp": 1652140800000
   }
 }
 ```
@@ -2440,6 +2445,7 @@ size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
 version | Int32 | The table version of this file. | Required
 stats | String | Contains statistics (e.g., count, min/max values for columns) about the data in this file. This field may be missing. A file may or may not have stats. This is a serialized JSON string which can be deserialized to a [Statistics Struct](#per-file-statistics). A client can decide whether to use stats or drop it. | Optional
+expirationTimestamp | Long | The unix timestamp corresponding to the expiration of the url, in milliseconds, returned when the server supports the feature. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -2454,7 +2460,8 @@ Example (for illustration purposes; each JSON object must be a single line in th
     },
     "timestamp": 1652140800000,
     "version": 1,
-    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}"
+    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}",
+    "expirationTimestamp": 1652144400000
   }
 }
 ```
@@ -2468,6 +2475,7 @@ partitionValues | Map<String, String> | A map from partition column to value for
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
 version | Int32 | The table version of this file. | Required
+expirationTimestamp | Long | The unix timestamp corresponding to the expiration of the url, in milliseconds, returned when the server supports the feature. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -2481,7 +2489,8 @@ Example (for illustration purposes; each JSON object must be a single line in th
       "date": "2021-04-28"
     },
     "timestamp": 1652140800000,
-    "version": 1
+    "version": 1,
+    "expirationTimestamp": 1652144400000
   }
 }
 ```
@@ -2495,6 +2504,7 @@ partitionValues | Map<String, String> | A map from partition column to value for
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
 version | Int32 | The table version of this file. | Required
+expirationTimestamp | Long | The unix timestamp corresponding to the expiration of the url, in milliseconds, returned when the server supports the feature. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -2508,7 +2518,8 @@ Example (for illustration purposes; each JSON object must be a single line in th
       "date": "2021-04-28"
     },
     "timestamp": 1652140800000,
-    "version": 1
+    "version": 1,
+    "expirationTimestamp": 1652144400000
   }
 }
 ```

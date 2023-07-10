@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark
+package io.delta.sharing.client
 
 import java.io.{BufferedReader, InputStream, InputStreamReader}
 import java.net.{URL, URLEncoder}
@@ -28,6 +28,7 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 import org.apache.commons.io.IOUtils
 import org.apache.commons.io.input.BoundedInputStream
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.util.VersionInfo
 import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
 import org.apache.http.client.config.RequestConfig
@@ -37,13 +38,13 @@ import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, 
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.util.CaseInsensitiveStringMap
+import org.apache.spark.sql.SparkSession
 
-import io.delta.sharing.spark.model._
-import io.delta.sharing.spark.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
+import io.delta.sharing.client.model._
+import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
 
 /** An interface to fetch Delta metadata from remote server. */
-private[sharing] trait DeltaSharingClient {
+trait DeltaSharingClient {
   def listAllTables(): Seq[Table]
 
   def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long
@@ -58,7 +59,7 @@ private[sharing] trait DeltaSharingClient {
     timestampAsOf: Option[String],
     jsonPredicateHints: Option[String]): DeltaTableFiles
 
-  def getFiles(table: Table, startingVersion: Long): DeltaTableFiles
+  def getFiles(table: Table, startingVersion: Long, endingVersion: Option[Long]): DeltaTableFiles
 
   def getCDFFiles(
       table: Table,
@@ -80,6 +81,7 @@ private[sharing] case class QueryTableRequest(
   version: Option[Long],
   timestamp: Option[String],
   startingVersion: Option[Long],
+  endingVersion: Option[Long],
   jsonPredicateHints: Option[String]
 )
 
@@ -92,7 +94,7 @@ private[sharing] case class ListAllTablesResponse(
     nextPageToken: Option[String]) extends PaginationResponse
 
 /** A REST client to fetch Delta metadata from remote server. */
-private[spark] class DeltaSharingRestClient(
+class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
@@ -153,7 +155,7 @@ private[spark] class DeltaSharingRestClient(
         shares ++= response.items
       }
     }
-    shares
+    shares.toSeq
   }
 
   private def listAllTablesInShare(share: Share): Seq[Table] = {
@@ -173,7 +175,7 @@ private[spark] class DeltaSharingRestClient(
         tables ++= response.items
       }
     }
-    tables
+    tables.toSeq
   }
 
   override def getForStreaming(): Boolean = forStreaming
@@ -235,7 +237,15 @@ private[spark] class DeltaSharingRestClient(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val (version, lines) = getNDJson(
       target,
-      QueryTableRequest(predicates, limit, versionAsOf, timestampAsOf, None, jsonPredicateHints)
+      QueryTableRequest(
+        predicates,
+        limit,
+        versionAsOf,
+        timestampAsOf,
+        None,
+        None,
+        jsonPredicateHints
+      )
     )
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
@@ -245,14 +255,18 @@ private[spark] class DeltaSharingRestClient(
     DeltaTableFiles(version, protocol, metadata, files)
   }
 
-  override def getFiles(table: Table, startingVersion: Long): DeltaTableFiles = {
+  override def getFiles(
+      table: Table,
+      startingVersion: Long,
+      endingVersion: Option[Long]
+  ): DeltaTableFiles = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val (version, lines) = getNDJson(
-      target, QueryTableRequest(Nil, None, None, None, Some(startingVersion), None))
+      target, QueryTableRequest(Nil, None, None, None, Some(startingVersion), endingVersion, None))
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
@@ -269,9 +283,9 @@ private[spark] class DeltaSharingRestClient(
       version,
       protocol,
       metadata,
-      addFiles = addFiles,
-      removeFiles = removeFiles,
-      additionalMetadatas = additionalMetadatas
+      addFiles = addFiles.toSeq,
+      removeFiles = removeFiles.toSeq,
+      additionalMetadatas = additionalMetadatas.toSeq
     )
   }
 
@@ -306,10 +320,10 @@ private[spark] class DeltaSharingRestClient(
       version,
       protocol,
       metadata,
-      addFiles = addFiles,
-      cdfFiles = cdfFiles,
-      removeFiles = removeFiles,
-      additionalMetadatas = additionalMetadatas
+      addFiles = addFiles.toSeq,
+      cdfFiles = cdfFiles.toSeq,
+      removeFiles = removeFiles.toSeq,
+      additionalMetadatas = additionalMetadatas.toSeq
     )
   }
 
@@ -380,7 +394,8 @@ private[spark] class DeltaSharingRestClient(
     }
   }
 
-  private[spark] def prepareHeaders(httpRequest: HttpRequestBase): HttpRequestBase = {
+  // TODO: [linzhou] mark this as private once tests are migrated.
+  def prepareHeaders(httpRequest: HttpRequestBase): HttpRequestBase = {
     val customeHeaders = profileProvider.getCustomHeaders
     if (customeHeaders.contains(HttpHeaders.AUTHORIZATION)
       || customeHeaders.contains(HttpHeaders.USER_AGENT)) {
@@ -490,7 +505,7 @@ private[spark] class DeltaSharingRestClient(
   }
 }
 
-private[spark] object DeltaSharingRestClient extends Logging {
+object DeltaSharingRestClient extends Logging {
   val CURRENT = 1
 
   val SPARK_STRUCTURED_STREAMING = "Delta-Sharing-SparkStructuredStreaming"
@@ -529,5 +544,35 @@ private[spark] object DeltaSharingRestClient extends Logging {
   def spaceFreeProperty(key: String): String = {
     val value = System.getProperty(key)
     if (value == null) "<unknown>" else value.replace(' ', '_')
+  }
+
+  def apply(profileFile: String, forStreaming: Boolean = false): DeltaSharingClient = {
+    val sqlConf = SparkSession.active.sessionState.conf
+
+    val profileProviderClass = ConfUtils.profileProviderClass(sqlConf)
+    val profileProvider: DeltaSharingProfileProvider =
+      Class.forName(profileProviderClass)
+        .getConstructor(classOf[Configuration], classOf[String])
+        .newInstance(SparkSession.active.sessionState.newHadoopConf(),
+          profileFile)
+        .asInstanceOf[DeltaSharingProfileProvider]
+
+    // This is a flag to test the local https server. Should never be used in production.
+    val sslTrustAll = ConfUtils.sslTrustAll(sqlConf)
+    val numRetries = ConfUtils.numRetries(sqlConf)
+    val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(sqlConf)
+    val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
+
+    val clientClass = ConfUtils.clientClass(sqlConf)
+    Class.forName(clientClass)
+      .getConstructor(classOf[DeltaSharingProfileProvider],
+        classOf[Int], classOf[Int], classOf[Long], classOf[Boolean], classOf[Boolean])
+      .newInstance(profileProvider,
+        java.lang.Integer.valueOf(timeoutInSeconds),
+        java.lang.Integer.valueOf(numRetries),
+        java.lang.Long.valueOf(maxRetryDurationMillis),
+        java.lang.Boolean.valueOf(sslTrustAll),
+        java.lang.Boolean.valueOf(forStreaming))
+      .asInstanceOf[DeltaSharingClient]
   }
 }

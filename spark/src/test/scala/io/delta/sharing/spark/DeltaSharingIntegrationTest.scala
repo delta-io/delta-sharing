@@ -29,6 +29,8 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkFunSuite
 import org.scalatest.BeforeAndAfterAll
 
+import io.delta.sharing.client.{DeltaSharingFileProfileProvider, DeltaSharingProfileProvider}
+
 trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
 
   def shouldRunIntegrationTest: Boolean = {

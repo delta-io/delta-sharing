@@ -23,12 +23,18 @@ import fsspec
 
 @dataclass(frozen=True)
 class DeltaSharingProfile:
-    CURRENT: ClassVar[int] = 1
+    CURRENT: ClassVar[int] = 2
 
     share_credentials_version: int
     endpoint: str
-    bearer_token: str
+    bearer_token: Optional[str] = None
     expiration_time: Optional[str] = None
+    type: Optional[str] = None
+    token_endpoint: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
 
     def __post_init__(self):
         if self.share_credentials_version > DeltaSharingProfile.CURRENT:
@@ -56,16 +62,60 @@ class DeltaSharingProfile:
     def from_json(json) -> "DeltaSharingProfile":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
+
+        share_credentials_version = int(json["shareCredentialsVersion"])
         endpoint = json["endpoint"]
-        if endpoint.endswith("/"):
+        if endpoint is not None and endpoint.endswith("/"):
             endpoint = endpoint[:-1]
-        expiration_time = json.get("expirationTime")
-        return DeltaSharingProfile(
-            share_credentials_version=int(json["shareCredentialsVersion"]),
-            endpoint=endpoint,
-            bearer_token=json["bearerToken"],
-            expiration_time=expiration_time,
-        )
+
+        if share_credentials_version == 1:
+            return DeltaSharingProfile(
+                share_credentials_version=share_credentials_version,
+                endpoint=endpoint,
+                bearer_token=json["bearerToken"],
+                expiration_time=json.get("expirationTime"),
+            )
+        elif share_credentials_version == 2:
+            type = json["type"]
+            if type == "persistent_oauth2.0":
+                token_endpoint = json["tokenEndpoint"]
+                if token_endpoint is not None and token_endpoint.endswith("/"):
+                    token_endpoint = token_endpoint[:-1]
+                return DeltaSharingProfile(
+                    share_credentials_version=share_credentials_version,
+                    type=type,
+                    endpoint=endpoint,
+                    token_endpoint=token_endpoint,
+                    client_id=json["clientId"],
+                    client_secret=json["clientSecret"],
+                )
+            elif type == "bearer_token":
+                return DeltaSharingProfile(
+                    share_credentials_version=share_credentials_version,
+                    type=type,
+                    endpoint=endpoint,
+                    bearer_token=json["bearerToken"],
+                    expiration_time=json.get("expirationTime")
+                )
+            elif type == "basic":
+                return DeltaSharingProfile(
+                    share_credentials_version=share_credentials_version,
+                    type=type,
+                    endpoint=endpoint,
+                    username=json["username"],
+                    password=json["password"],
+                )
+            else:
+                raise ValueError(
+                    "The current release does not supports {type} type. "
+                    "Please check type.")
+        else:
+            raise ValueError(
+                "'shareCredentialsVersion' in the profile is "
+                f"{share_credentials_version} which is too new. "
+                f"The current release supports version {DeltaSharingProfile.CURRENT} and below. "
+                "Please upgrade to a newer release."
+            )
 
 
 @dataclass(frozen=True)
@@ -101,7 +151,8 @@ class Table:
     def from_json(json) -> "Table":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        return Table(name=json["name"], share=json["share"], schema=json["schema"])
+        return Table(name=json["name"], share=json["share"],
+                     schema=json["schema"])
 
 
 @dataclass(frozen=True)
@@ -146,6 +197,9 @@ class Metadata:
     schema_string: Optional[str] = None
     configuration: Dict[str, str] = field(default_factory=dict)
     partition_columns: Sequence[str] = field(default_factory=list)
+    version: Optional[int] = None
+    size: Optional[int] = None
+    num_files: Optional[int] = None
 
     @staticmethod
     def from_json(json) -> "Metadata":
@@ -163,6 +217,9 @@ class Metadata:
             schema_string=json["schemaString"],
             configuration=configuration,
             partition_columns=json["partitionColumns"],
+            version=json.get("version", None),
+            size=json.get("size", None),
+            num_files=json.get("numFiles", None)
         )
 
 

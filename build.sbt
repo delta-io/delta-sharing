@@ -18,11 +18,12 @@ import sbt.ExclusionRule
 
 ThisBuild / parallelExecution := false
 
-val sparkVersion = "3.1.1"
+val sparkVersion = "3.3.2"
+val scala212 = "2.12.10"
+val scala213 = "2.13.5"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
-  scalaVersion := "2.12.10",
   fork := true,
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
   scalacOptions += "-target:jvm-1.8",
@@ -41,8 +42,36 @@ lazy val commonSettings = Seq(
 
 lazy val root = (project in file(".")).aggregate(spark, server)
 
-lazy val spark = (project in file("spark")) settings(
+lazy val client = (project in file("client")) settings(
+  name := "delta-sharing-client",
+  commonSettings,
+  scalaStyleSettings,
+  releaseSettings,
+  libraryDependencies ++= Seq(
+    "org.apache.httpcomponents" % "httpclient" % "4.5.13",
+    "org.codehaus.jackson" % "jackson-mapper-asl" % "1.9.13",
+    "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
+    "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
+    "org.scalatest" %% "scalatest" % "3.2.3" % "test"
+  ),
+  Compile / sourceGenerators += Def.task {
+    val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "client" / "package.scala"
+    IO.write(file,
+      s"""package io.delta.sharing
+         |
+         |package object client {
+         |  val VERSION = "${version.value}"
+         |}
+         |""".stripMargin)
+    Seq(file)
+  }
+)
+
+lazy val spark = (project in file("spark")) dependsOn(client) settings(
   name := "delta-sharing-spark",
+  crossScalaVersions := Seq(scala212, scala213),
   commonSettings,
   scalaStyleSettings,
   releaseSettings,
@@ -68,10 +97,12 @@ lazy val spark = (project in file("spark")) settings(
 
 lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) settings(
   name := "delta-sharing-server",
+  scalaVersion := scala212,
   commonSettings,
   scalaStyleSettings,
   releaseSettings,
   dockerUsername := Some("deltaio"),
+  dockerBuildxPlatforms := Seq("linux/arm64", "linux/amd64"),
   scriptClasspath ++= Seq("../conf"),
   libraryDependencies ++= Seq(
     // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a

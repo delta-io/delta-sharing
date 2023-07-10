@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark
+package io.delta.sharing.client
 
 import java.io.{ByteArrayInputStream, EOFException}
 import java.net.URI

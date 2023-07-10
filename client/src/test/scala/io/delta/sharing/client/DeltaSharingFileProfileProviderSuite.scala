@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark
+package io.delta.sharing.client
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
@@ -70,7 +70,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
     )
   }
 
-  test("version is missing") {
+  test("shareCredentialsVersion is missing") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         """{

@@ -37,7 +37,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.delta.sharing.spark
+package io.delta.sharing.client
 
 import java.io.{EOFException, InputStream, IOException}
 import java.nio.charset.StandardCharsets.UTF_8
@@ -51,7 +51,7 @@ import org.apache.http.conn.EofSensorInputStream
 import org.apache.spark.delta.sharing.PreSignedUrlFetcher
 import org.apache.spark.internal.Logging
 
-import io.delta.sharing.spark.util.{RetryUtils, UnexpectedHttpStatus}
+import io.delta.sharing.client.util.{RetryUtils, UnexpectedHttpStatus}
 
 /**
  * This is a special input stream to provide random access over HTTP. This class requires the server
