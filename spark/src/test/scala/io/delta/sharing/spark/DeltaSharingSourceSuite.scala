@@ -618,6 +618,84 @@ class DeltaSharingSourceSuite extends QueryTest
   }
 
   /**
+   * Test maxVersionsPerRpc
+   */
+  integrationTest("maxVersionsPerRpc - success") {
+    // VERSION 1: INSERT 2 rows, 1 add file
+    // VERSION 2: INSERT 3 rows, 1 add file
+    // VERSION 3: UPDATE 4 rows, 4 cdf files, 4 new rows
+    // VERSION 4: REMOVE 4 rows, 2 remove files, no new rows
+
+    // maxVersionsPerRpc = 1
+    var processedRows = Seq(2, 3, 5)
+    var query = withStreamReaderAtVersion(path = cdfTablePath)
+      .option("maxVersionsPerRpc", "1")
+      .load()
+      .writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === processedRows.size)
+      progress.zipWithIndex.map { case (p, index) =>
+        assert(p.numInputRows === processedRows(index))
+      }
+    } finally {
+      query.stop()
+    }
+
+    // maxVersionsPerRpc = 2
+    processedRows = Seq(2, 8)
+    query = withStreamReaderAtVersion(path = cdfTablePath)
+      .option("maxVersionsPerRpc", "2")
+      .load()
+      .writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === processedRows.size)
+      progress.zipWithIndex.map { case (p, index) =>
+        assert(p.numInputRows === processedRows(index))
+      }
+    } finally {
+      query.stop()
+    }
+
+    // maxVersionsPerRpc = 3
+    processedRows = Seq(5, 5)
+    query = withStreamReaderAtVersion(path = cdfTablePath)
+      .option("maxVersionsPerRpc", "3")
+      .load()
+      .writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === processedRows.size)
+      progress.zipWithIndex.map { case (p, index) =>
+        assert(p.numInputRows === processedRows(index))
+      }
+    } finally {
+      query.stop()
+    }
+
+    // maxVersionsPerRpc = 4
+    processedRows = Seq(10)
+    query = withStreamReaderAtVersion(path = cdfTablePath)
+      .option("maxVersionsPerRpc", "4")
+      .load()
+      .writeStream.format("console").start()
+    try {
+      query.processAllAvailable()
+      val progress = query.recentProgress.filter(_.numInputRows != 0)
+      assert(progress.length === processedRows.size)
+      progress.zipWithIndex.map { case (p, index) =>
+        assert(p.numInputRows === processedRows(index))
+      }
+    } finally {
+      query.stop()
+    }
+  }
+
+  /**
    * Test ignoreChanges/ignoreDeletes
    */
   integrationTest("ignoreDeletes/ignoreChanges - are needed to process deletes/updates") {
