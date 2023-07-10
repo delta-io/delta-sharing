@@ -28,6 +28,7 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 import org.apache.commons.io.IOUtils
 import org.apache.commons.io.input.BoundedInputStream
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.util.VersionInfo
 import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
 import org.apache.http.client.config.RequestConfig
@@ -37,10 +38,10 @@ import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, 
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.util.CaseInsensitiveStringMap
+import org.apache.spark.sql.SparkSession
 
 import io.delta.sharing.client.model._
-import io.delta.sharing.client.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
+import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
 
 /** An interface to fetch Delta metadata from remote server. */
 trait DeltaSharingClient {
@@ -543,5 +544,35 @@ object DeltaSharingRestClient extends Logging {
   def spaceFreeProperty(key: String): String = {
     val value = System.getProperty(key)
     if (value == null) "<unknown>" else value.replace(' ', '_')
+  }
+
+  def apply(profileFile: String, forStreaming: Boolean = false): DeltaSharingClient = {
+    val sqlConf = SparkSession.active.sessionState.conf
+
+    val profileProviderClass = ConfUtils.profileProviderClass(sqlConf)
+    val profileProvider: DeltaSharingProfileProvider =
+      Class.forName(profileProviderClass)
+        .getConstructor(classOf[Configuration], classOf[String])
+        .newInstance(SparkSession.active.sessionState.newHadoopConf(),
+          profileFile)
+        .asInstanceOf[DeltaSharingProfileProvider]
+
+    // This is a flag to test the local https server. Should never be used in production.
+    val sslTrustAll = ConfUtils.sslTrustAll(sqlConf)
+    val numRetries = ConfUtils.numRetries(sqlConf)
+    val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(sqlConf)
+    val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
+
+    val clientClass = ConfUtils.clientClass(sqlConf)
+    Class.forName(clientClass)
+      .getConstructor(classOf[DeltaSharingProfileProvider],
+        classOf[Int], classOf[Int], classOf[Long], classOf[Boolean], classOf[Boolean])
+      .newInstance(profileProvider,
+        java.lang.Integer.valueOf(timeoutInSeconds),
+        java.lang.Integer.valueOf(numRetries),
+        java.lang.Long.valueOf(maxRetryDurationMillis),
+        java.lang.Boolean.valueOf(sslTrustAll),
+        java.lang.Boolean.valueOf(forStreaming))
+      .asInstanceOf[DeltaSharingClient]
   }
 }
