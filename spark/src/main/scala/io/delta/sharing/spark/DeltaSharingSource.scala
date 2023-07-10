@@ -206,11 +206,26 @@ case class DeltaSharingSource(
       fromIndex: Long,
       isStartingVersion: Boolean): Unit = {
     if (!sortedFetchedFiles.isEmpty) {
-      return
+      // Clean up local sortedFileIndex, re-fetch files, to ensure the correct set of files are
+      // returned for latestOffset and getBatch.
+      // We need to apply this check because the spark streaming engine assumes the DataSource is
+      // stateless, and sortedFetchedFiles makes DeltaSharingSource stateful.
+      val headFile = sortedFetchedFiles.head
+      if (headFile.version > fromVersion || (
+        headFile.version == fromVersion && headFile.index > fromIndex && fromIndex != -1)) {
+        logWarning(s"The asked file($fromVersion, $fromIndex) is not included in " +
+          s"sortedFetchedFiles[(${headFile.version}, ${headFile.index}) to (" +
+          s"${sortedFetchedFiles.last.version}, ${sortedFetchedFiles.last.index})].")
+        sortedFetchedFiles = Seq.empty
+      } else {
+        return
+      }
     }
 
     val currentLatestVersion = getOrUpdateLatestTableVersion
     if (fromVersion > currentLatestVersion) {
+      logWarning(s"The asked table version($fromVersion) is after current latest version" +
+        s"($currentLatestVersion).")
       // If true, it means that there's no new data from the delta sharing server.
       return
     }
@@ -252,6 +267,8 @@ case class DeltaSharingSource(
       fromIndex: Long,
       isStartingVersion: Boolean,
       endingVersionForQuery: Long): Unit = {
+    logInfo(s"Fetching files with fromVersion($fromVersion), fromIndex($fromIndex), " +
+      s"isStartingVersion($isStartingVersion), endingVersionForQuery($endingVersionForQuery).")
     lastQueryTableTimestamp = System.currentTimeMillis()
     if (isStartingVersion) {
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
@@ -334,6 +351,8 @@ case class DeltaSharingSource(
       fromVersion: Long,
       fromIndex: Long,
       endingVersionForQuery: Long): Unit = {
+    logInfo(s"Fetching CDF files with fromVersion($fromVersion), fromIndex($fromIndex), " +
+      s"endingVersionForQuery($endingVersionForQuery).")
     lastQueryTableTimestamp = System.currentTimeMillis()
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table,
@@ -546,8 +565,11 @@ case class DeltaSharingSource(
 
     val fileActions = sortedFetchedFiles.takeWhile {
       case IndexedFile(version, index, _, _, _, _) =>
-        version < endOffset.tableVersion ||
-          (version == endOffset.tableVersion && index <= endOffset.index)
+        // Ensure (version, index) is in the range of
+        // [(startVersion, startIndex), (endVersion, endOffset)]
+        (version > startVersion || (version == startVersion && (index == -1 ||
+          index >= startIndex))) && (version < endOffset.tableVersion ||
+          (version == endOffset.tableVersion && index <= endOffset.index))
     }
     sortedFetchedFiles = sortedFetchedFiles.drop(fileActions.size)
     // Proceed the offset as the files before the endOffset are processed.
