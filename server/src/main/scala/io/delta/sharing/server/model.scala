@@ -161,7 +161,8 @@ case class DeltaProtocol(minReaderVersion: Int) extends DeltaAction {
 
 /**
  * DeltaAddFile used in delta sharing protocol, copied from AddFile in delta.
- *   Adding 4 fields: id/version/timestamp/expirationTimestamp.
+ *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp,
+ *       which will be redacted at the client side before writing to the delta log.
  *   Ignoring 1 field: tags.
  */
 case class DeltaAddFile(
@@ -184,7 +185,8 @@ case class DeltaAddFile(
 
 /**
  * DeltaRemoveFile used in delta sharing protocol, copied from RemoveFile in delta.
- *   Adding 4 fields: id/version/timestamp/expirationTimestamp.
+ *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp,
+ *       which will be redacted at the client side before writing to the delta log.
  *   Ignoring 1 field: tags.
  */
 case class DeltaRemoveFile(
@@ -203,7 +205,8 @@ case class DeltaRemoveFile(
 
 /**
  * DeltaAddCDCFile used in delta sharing protocol, copied from AddCDCFile in delta.
- *   Adding 4 fields: id/version/timestamp/expirationTimestamp.
+ *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp,
+ *       which will be redacted at the client side before writing to the delta log.
  *   Ignoring 1 field: tags.
  */
 case class DeltaAddCDCFile(
@@ -219,7 +222,8 @@ case class DeltaAddCDCFile(
 
 /**
  * DeltaMetadata used in delta sharing protocol, copied from Metadata in delta.
- *   Adding 1 field: version.
+ *   Adding 1 delta sharing related field: version,
+ *       which will be redacted at the client side before writing to the delta log.
  */
 case class DeltaMetadata(
     id: String,
