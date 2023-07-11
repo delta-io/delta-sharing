@@ -229,8 +229,6 @@ case class DeltaSharingSource(
 
     val currentLatestVersion = getOrUpdateLatestTableVersion
     if (fromVersion > currentLatestVersion) {
-      logWarning(s"The asked version($fromVersion) is after currentLatestVersion(" +
-        s"$currentLatestVersion), for table(id:$tableId, name:${deltaLog.table.toString})")
       // If true, it means that there's no new data from the delta sharing server.
       return
     }
@@ -539,6 +537,10 @@ case class DeltaSharingSource(
     if (refreshPresignedUrls &&
       (CachedTableManager.INSTANCE.preSignedUrlExpirationMs + lastQueryTableTimestamp -
         System.currentTimeMillis() < CachedTableManager.INSTANCE.refreshThresholdMs)) {
+      logInfo(s"Forcing a url refresh in createDataFrameFromOffset at (" +
+        s"${System.currentTimeMillis()}), lastQueryTableTimestamp($lastQueryTableTimestamp), " +
+        s"for table(id:$tableId, name:${deltaLog.table.toString})."
+      )
       // force a refresh if needed.
       lastQueryTableTimestamp = System.currentTimeMillis()
       val newIdToUrl = latestRefreshFunc()
@@ -859,6 +861,8 @@ case class DeltaSharingSource(
     } else {
       val startOffset = DeltaSharingSourceOffset(tableId, startOffsetOption.get)
       if (startOffset == endOffset) {
+        logInfo(s"startOffset($startOffset) is the same as endOffset($endOffset) in getBatch, " +
+          s"for table(id:$tableId, name:${deltaLog.table.toString})")
         previousOffset = endOffset
         // This happens only if we recover from a failure and `MicroBatchExecution` tries to call
         // us with the previous offsets. The returned DataFrame will be dropped immediately, so we
