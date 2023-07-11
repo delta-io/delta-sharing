@@ -272,8 +272,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     if (headerString == null) {
       return Map.empty[String, String]
     }
-    headerString.toLowerCase().split(",").map { capbility =>
-      val splits = capbility.split("=")
+    headerString.toLowerCase().split(",").map { capability =>
+      val splits = capability.split("=")
       if (splits.size == 2) {
         (splits(0), splits(1))
       } else {
@@ -293,6 +293,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
     )
     val tableConfig = sharedTableManager.getTable(share, schema, table)
+    val responseFormat = getResponseFormat(capabilitiesMap)
     val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = false,
       predicateHints = Nil,
@@ -302,8 +303,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       timestamp = None,
       startingVersion = None,
       endingVersion = None,
-      responseFormat = capabilitiesMap.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse("parquet"))
-    streamingOutput(Some(v), actions)
+      responseFormat = responseFormat)
+    streamingOutput(Some(v), responseFormat, actions)
   }
 
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/query")
@@ -353,6 +354,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         )
       }
     }
+    val responseFormat = getResponseFormat(capabilitiesMap)
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
       request.predicateHints,
@@ -362,7 +364,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.timestamp,
       request.startingVersion,
       request.endingVersion,
-      responseFormat = capabilitiesMap.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse("parquet"))
+      responseFormat = responseFormat)
     if (version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(
         s"You can only query table data since version ${tableConfig.startVersion}."
@@ -370,7 +372,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(version), actions)
+    streamingOutput(Some(version), responseFormat, actions)
   }
 
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/changes")
@@ -396,6 +398,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         s"$share.$schema.$table")
     }
 
+    val responseFormat = getResponseFormat(capabilitiesMap)
     val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
       getCdfOptionsMap(
         Option(startingVersion),
@@ -404,21 +407,26 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Option(endingTimestamp)
       ),
       includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false),
-      responseFormat = capabilitiesMap.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse("parquet")
+      responseFormat = responseFormat
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(v), actions)
+    streamingOutput(Some(v), responseFormat, actions)
   }
 
-  private def streamingOutput(version: Option[Long], actions: Seq[Object]): HttpResponse = {
+  private def streamingOutput(
+      version: Option[Long],
+      responseFormat: String,
+      actions: Seq[Object]): HttpResponse = {
     val headers = if (version.isDefined) {
       createHeadersBuilderForTableVersion(version.get)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
+      .set(DELTA_SHARING_CAPABILITIES_HEADER, s"$DELTA_SHARING_RESPONSE_FORMAT=$responseFormat")
       .build()
     } else {
       ResponseHeaders.builder(200)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
+      .set(DELTA_SHARING_CAPABILITIES_HEADER, s"$DELTA_SHARING_RESPONSE_FORMAT=$responseFormat")
       .build()
     }
     ResponseConversionUtil.streamingFrom(
@@ -558,6 +566,10 @@ object DeltaSharingService {
     endingVersion.map(DeltaDataSource.CDF_END_VERSION_KEY -> _) ++
     startingTimestamp.map(DeltaDataSource.CDF_START_TIMESTAMP_KEY -> _) ++
     endingTimestamp.map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> _)).toMap
+  }
+
+  private[server] def getResponseFormat(headerCapabilities: Map[String, String]): String = {
+    headerCapabilities.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse("parquet")
   }
 
   def main(args: Array[String]): Unit = {

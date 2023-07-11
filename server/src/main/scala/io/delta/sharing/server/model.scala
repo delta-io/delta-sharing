@@ -85,6 +85,8 @@ case class AddFile(
   override def wrap: SingleAction = SingleAction(file = this)
 }
 
+// This was added because when we develop cdf support in delta sharing, AddFile is used with "file"
+// key in the response json, so we need another action to be used with "add".
 case class AddFileForCDF(
     url: String,
     id: String,
@@ -161,8 +163,14 @@ case class DeltaProtocol(minReaderVersion: Int) extends DeltaAction {
 
 /**
  * DeltaAddFile used in delta sharing protocol, copied from AddFile in delta.
- *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp,
- *       which will be redacted at the client side before writing to the delta log.
+ *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp.
+ *   If the client uses delta kernel, it should redact these fields as needed.
+ *       - id: used to uniquely identify a file, and in idToUrl mapping for executor to get
+ *             presigned url.
+ *       - version/timestamp: the version and timestamp of the commit, used to generate faked delta
+ *                            log file on the client side.
+ *       - expirationTimestamp: indicate when the presigned url is going to expire and need a
+ *                              refresh.
  *   Ignoring 1 field: tags.
  */
 case class DeltaAddFile(
@@ -185,8 +193,8 @@ case class DeltaAddFile(
 
 /**
  * DeltaRemoveFile used in delta sharing protocol, copied from RemoveFile in delta.
- *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp,
- *       which will be redacted at the client side before writing to the delta log.
+ *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp.
+ *   If the client uses delta kernel, it should redact these fields as needed.
  *   Ignoring 1 field: tags.
  */
 case class DeltaRemoveFile(
@@ -205,8 +213,8 @@ case class DeltaRemoveFile(
 
 /**
  * DeltaAddCDCFile used in delta sharing protocol, copied from AddCDCFile in delta.
- *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp,
- *       which will be redacted at the client side before writing to the delta log.
+ *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp.
+ *   If the client uses delta kernel, it should redact these fields as needed.
  *   Ignoring 1 field: tags.
  */
 case class DeltaAddCDCFile(
@@ -222,8 +230,8 @@ case class DeltaAddCDCFile(
 
 /**
  * DeltaMetadata used in delta sharing protocol, copied from Metadata in delta.
- *   Adding 1 delta sharing related field: version,
- *       which will be redacted at the client side before writing to the delta log.
+ *   Adding 1 delta sharing related field: version.
+ *   If the client uses delta kernel, it should redact these fields as needed.
  */
 case class DeltaMetadata(
     id: String,

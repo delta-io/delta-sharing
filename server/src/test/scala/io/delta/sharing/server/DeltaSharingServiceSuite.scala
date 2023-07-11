@@ -163,6 +163,11 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(
       expectedContentType == contentType,
       s"Incorrect content type: $contentType. Error: $content")
+    if (expectedTableVersion.isDefined) {
+      val responseCapabilities = connection.getHeaderField("delta-sharing-capabilities")
+      assert(responseCapabilities == s"responseformat=$responseFormat",
+        s"Incorrect response format: $responseCapabilities")
+    }
     val deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
     expectedTableVersion.foreach { v =>
       assert(v.toString == deltaTableVersion)

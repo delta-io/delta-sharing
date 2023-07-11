@@ -63,9 +63,6 @@ message QueryTableRequest {
     // Query all data change files until endingVersion, inclusive. Only used when startingVersion
     // is set, otherwise will be ignored.
     optional int64 endingVersion = 7;
-
-    // TODO: update this. The format of the response, supported formats: parquet, delta.
-    optional bool queryDeltaLog = 8;
 }
 
 message ListSharesResponse {
