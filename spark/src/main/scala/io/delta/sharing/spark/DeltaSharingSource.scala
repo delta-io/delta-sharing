@@ -628,7 +628,9 @@ case class DeltaSharingSource(
         // This may happen when there's a protocol change of the table, or optimize of a table where
         // there are no data files with dataChange=true, so the server won't return any files for
         // the version.
-        appendToSortedFetchedFiles(IndexedFile(v, -1, add = null, isSnapshot = false, isLast = true))
+        appendToSortedFetchedFiles(
+          IndexedFile(v, -1, add = null, isSnapshot = false, isLast = true)
+        )
       }
     }
   }
