@@ -836,6 +836,8 @@ case class DeltaSharingSource(
   }
 
   override def getBatch(startOffsetOption: Option[Offset], end: Offset): DataFrame = {
+    logInfo(s"getBatch with startOffsetOption($startOffsetOption) and end($end), " +
+      s"for table(id:$tableId, name:${deltaLog.table.toString})")
     val endOffset = DeltaSharingSourceOffset(tableId, end)
 
     val (startVersion, startIndex, isStartingVersion, startSourceVersion) = if (
