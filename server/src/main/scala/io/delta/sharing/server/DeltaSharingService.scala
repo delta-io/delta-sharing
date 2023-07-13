@@ -35,6 +35,7 @@ import com.linecorp.armeria.server.auth.AuthService
 import io.delta.standalone.internal.DeltaCDFErrors
 import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
 import io.delta.standalone.internal.DeltaDataSource
+import io.delta.standalone.internal.DeltaSharedTable
 import io.delta.standalone.internal.DeltaSharedTableLoader
 import net.sourceforge.argparse4j.ArgumentParsers
 import org.apache.commons.io.FileUtils
@@ -569,7 +570,9 @@ object DeltaSharingService {
   }
 
   private[server] def getResponseFormat(headerCapabilities: Map[String, String]): String = {
-    headerCapabilities.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse("parquet")
+    headerCapabilities.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse(
+      DeltaSharedTable.RESPONSE_FORMAT_PARQUET
+    )
   }
 
   def main(args: Array[String]): Unit = {
