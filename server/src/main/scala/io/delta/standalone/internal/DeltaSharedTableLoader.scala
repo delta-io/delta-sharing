@@ -181,20 +181,24 @@ class DeltaSharedTable(
     snapshot.version
   }
 
+  // Construct and return the protocol class to be returned in the response based on the
+  // responseFormat.
   private def getResponseProtocol(p: Protocol, responseFormat: String): Object = {
-    if (responseFormat == "delta") {
+    if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       model.DeltaProtocol(p.minReaderVersion).wrap
     } else {
       model.Protocol(p.minReaderVersion).wrap
     }
   }
 
+  // Construct and return the metadata class to be returned in the response based on the
+  // responseFormat.
   private def getResponseMetadata(
       m: Metadata,
       startingVersion: Option[Long],
       responseFormat: String
   ): Object = {
-    if (responseFormat == "delta") {
+    if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       model.DeltaMetadata(
         id = m.id,
         name = m.name,
@@ -228,6 +232,8 @@ class DeltaSharedTable(
     }
   }
 
+  // Construct and return the AddFile class to be returned in the response based on the
+  // responseFormat.
   private def getResponseAddFile(
       addFile: AddFile,
       signedUrl: PreSignedUrl,
@@ -235,7 +241,7 @@ class DeltaSharedTable(
       timestamp: java.lang.Long,
       responseFormat: String,
       returnAddFileForCDF: Boolean = false): Object = {
-    if (responseFormat == "delta") {
+    if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       model.DeltaAddFile(
         path = signedUrl.url,
         id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
@@ -273,13 +279,15 @@ class DeltaSharedTable(
     }
   }
 
+  // Construct and return the RemoveFile class to be returned in the response based on the
+  // responseFormat.
   private def getResponseRemoveFile(
     removeFile: RemoveFile,
     signedUrl: PreSignedUrl,
     version: java.lang.Long,
     timestamp: java.lang.Long,
     responseFormat: String): Object = {
-    if (responseFormat == "delta") {
+    if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       model.DeltaRemoveFile(
         path = signedUrl.url,
         id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
@@ -305,6 +313,8 @@ class DeltaSharedTable(
     }
   }
 
+  // Construct and return the AddCDCFile class to be returned in the response based on the
+  // responseFormat.
   private def getResponseAddCDCFile(
     addCDCFile: AddCDCFile,
     signedUrl: PreSignedUrl,
@@ -312,7 +322,7 @@ class DeltaSharedTable(
     timestamp: java.lang.Long,
     responseFormat: String
   ): Object = {
-    if (responseFormat == "delta") {
+    if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       model.DeltaAddCDCFile(
         path = signedUrl.url,
         id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
@@ -500,7 +510,7 @@ class DeltaSharedTable(
   def queryCDF(
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean = false,
-      responseFormat: String = "parquet"
+      responseFormat: String = DeltaSharedTable.RESPONSE_FORMAT_PARQUET
   ): (Long, Seq[Object]) = withClassLoader {
     val actions = ListBuffer[Object]()
 
@@ -633,4 +643,9 @@ class DeltaSharedTable(
       new Path(path, p)
     }
   }
+}
+
+object DeltaSharedTable {
+  val RESPONSE_FORMAT_PARQUET = "parquet"
+  val RESPONSE_FORMAT_DELTA = "delta"
 }

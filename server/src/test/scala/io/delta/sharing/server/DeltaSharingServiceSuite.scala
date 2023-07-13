@@ -26,6 +26,7 @@ import javax.net.ssl._
 import scala.collection.mutable.ArrayBuffer
 
 import com.linecorp.armeria.server.Server
+import io.delta.standalone.internal.DeltaSharedTable.{RESPONSE_FORMAT_DELTA, RESPONSE_FORMAT_PARQUET}
 import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import scalapb.json4s.JsonFormat
@@ -107,7 +108,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       url,
       None,
       None,
-      "parquet",
+      RESPONSE_FORMAT_PARQUET,
       expectedTableVersion,
       "application/json; charset=utf-8"
     )
@@ -118,7 +119,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     method: Option[String] = None,
     data: Option[String] = None,
     expectedTableVersion: Option[Long] = None,
-    responseFormat: String = "parquet"): String = {
+    responseFormat: String = RESPONSE_FORMAT_PARQUET): String = {
     readHttpContent(
       url,
       method,
@@ -139,7 +140,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     expectedContentType: String): String = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
-    if (responseFormat == "delta") {
+    if (responseFormat == RESPONSE_FORMAT_DELTA) {
       connection.setRequestProperty("delta-sharing-capabilities", "responseFormat=delta")
     }
     method.foreach(connection.setRequestMethod)
@@ -163,6 +164,11 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(
       expectedContentType == contentType,
       s"Incorrect content type: $contentType. Error: $content")
+    if (expectedTableVersion.isDefined) {
+      val responseCapabilities = connection.getHeaderField("delta-sharing-capabilities")
+      assert(responseCapabilities == s"responseformat=$responseFormat",
+        s"Incorrect response format: $responseCapabilities")
+    }
     val deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
     expectedTableVersion.foreach { v =>
       assert(v.toString == deltaTableVersion)
@@ -500,10 +506,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
-    Seq("parquet", "delta").foreach { responseFormat =>
+    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
       val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/table1/metadata"), responseFormat = responseFormat, expectedTableVersion = Some(2))
       val Array(protocol, metadata) = response.split("\n")
-      if (responseFormat == "delta") {
+      if (responseFormat == RESPONSE_FORMAT_DELTA) {
         val expectedProtocol = DeltaProtocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[DeltaSingleAction](protocol))
         val expectedMetadata = DeltaMetadata(
@@ -527,7 +533,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/query") {
-    Seq("parquet", "delta").foreach { responseFormat =>
+    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
       val p =
         s"""
           |{
@@ -540,7 +546,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val lines = response.split("\n")
       val protocol = lines(0)
       val metadata = lines(1)
-      if (responseFormat == "delta") {
+      if (responseFormat == RESPONSE_FORMAT_DELTA) {
         val expectedProtocol = DeltaProtocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[DeltaSingleAction](protocol))
         val expectedMetadata = DeltaMetadata(
@@ -1116,7 +1122,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("streaming_table_with_optimize - startingVersion success") {
-    Seq("parquet", "delta").foreach { responseFormat =>
+    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
       val p =
         s"""
            |{
@@ -1127,7 +1133,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val lines = response.split("\n")
       val protocol = lines(0)
       val metadata = lines(1)
-      if (responseFormat == "delta") {
+      if (responseFormat == RESPONSE_FORMAT_DELTA) {
         val expectedProtocol = DeltaProtocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[DeltaSingleAction](protocol))
         val expectedMetadata = DeltaMetadata(
@@ -1476,12 +1482,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_cdf_enabled_changes - query table changes") {
-    Seq("parquet", "delta").foreach { responseFormat =>
+    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
       val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, Some(0), responseFormat)
       val lines = response.split("\n")
       val protocol = lines(0)
       val metadata = lines(1)
-      if (responseFormat == "delta") {
+      if (responseFormat == RESPONSE_FORMAT_DELTA) {
         val expectedProtocol = DeltaProtocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[DeltaSingleAction](protocol))
         val expectedMetadata = DeltaMetadata(
@@ -1582,7 +1588,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_with_partition - query table changes") {
-    Seq("parquet", "delta").foreach { responseFormat =>
+    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
       val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=1&endingVersion=3"), Some("GET"), None, Some(1), responseFormat)
       val lines = response.split("\n")
       val files = lines.drop(2)
@@ -1703,9 +1709,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       partitionValues: Map[String, String],
       version: Long,
       timestamp: Long,
-      responseFormat: String = "parquet"): Unit = {
+      responseFormat: String = RESPONSE_FORMAT_PARQUET): Unit = {
     assert(actionStr.startsWith("{\"add\":{"))
-    if (responseFormat == "delta") {
+    if (responseFormat == RESPONSE_FORMAT_DELTA) {
       val addFile = JsonUtils.fromJson[DeltaSingleAction](actionStr).add
       assert(addFile.size == size)
       assert(addFile.stats == stats)
@@ -1734,8 +1740,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       partitionValues: Map[String, String],
       version: Long,
       timestamp: Long,
-      responseFormat: String = "parquet"): Unit = {
-    if (responseFormat == "delta") {
+      responseFormat: String = RESPONSE_FORMAT_PARQUET): Unit = {
+    if (responseFormat == RESPONSE_FORMAT_DELTA) {
       assert(actionStr.startsWith("{\"cdc\":{"))
       val addCDCFile = JsonUtils.fromJson[DeltaSingleAction](actionStr).cdc
       assert(addCDCFile.size == size)
@@ -1764,9 +1770,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       partitionValues: Map[String, String],
       version: Long,
       timestamp: Long,
-      responseFormat: String = "parquet"): Unit = {
+      responseFormat: String = RESPONSE_FORMAT_PARQUET): Unit = {
     assert(actionStr.startsWith("{\"remove\":{"))
-    if (responseFormat == "delta") {
+    if (responseFormat == RESPONSE_FORMAT_DELTA) {
       val removeFile = JsonUtils.fromJson[DeltaSingleAction](actionStr).remove
       assert(removeFile.size == Some(size))
       assert(removeFile.partitionValues == partitionValues)
