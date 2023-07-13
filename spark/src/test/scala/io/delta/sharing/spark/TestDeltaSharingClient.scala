@@ -42,7 +42,8 @@ class TestDeltaSharingClient(
     maxRetryDuration: Long = Long.MaxValue,
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
-    responseFormat: String = "parquet") extends DeltaSharingClient {
+    responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET
+  ) extends DeltaSharingClient {
 
   private val metadataString =
     """{"metaData":{"id":"93351cf1-c931-4326-88f0-d10e29e71b21","format":

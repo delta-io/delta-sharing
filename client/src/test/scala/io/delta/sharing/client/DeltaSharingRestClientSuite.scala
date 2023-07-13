@@ -99,7 +99,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getTableVersion - exceptions") {
-    Seq(DeltaSharingRestClient.DELTA_FORMAT, DeltaSharingRestClient.PARQUET_FORMAT).foreach {
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
       responseFormat =>
         val client = new DeltaSharingRestClient(
           testProfileProvider,
@@ -245,7 +247,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getFiles with version exception") {
-    Seq(DeltaSharingRestClient.DELTA_FORMAT, DeltaSharingRestClient.PARQUET_FORMAT).foreach {
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
       responseFormat =>
         val client = new DeltaSharingRestClient(
           testProfileProvider,
@@ -271,7 +275,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getFiles with timestamp parsed, but too early") {
-    Seq(DeltaSharingRestClient.DELTA_FORMAT, DeltaSharingRestClient.PARQUET_FORMAT).foreach {
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
       responseFormat =>
         val client = new DeltaSharingRestClient(
           testProfileProvider,
@@ -300,7 +306,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getFiles with timestamp not supported on table1") {
-    Seq(DeltaSharingRestClient.DELTA_FORMAT, DeltaSharingRestClient.PARQUET_FORMAT).foreach {
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
       responseFormat =>
         val client = new DeltaSharingRestClient(
           testProfileProvider,
@@ -542,7 +550,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getFiles with startingVersion/endingVersion - exception") {
-    Seq(DeltaSharingRestClient.DELTA_FORMAT, DeltaSharingRestClient.PARQUET_FORMAT).foreach {
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
       responseFormat =>
         val client = new DeltaSharingRestClient(
           testProfileProvider,
@@ -752,7 +762,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getCDFFiles: cdf_table_missing_log") {
-    Seq(DeltaSharingRestClient.DELTA_FORMAT, DeltaSharingRestClient.PARQUET_FORMAT).foreach {
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
       responseFormat =>
         val client = new DeltaSharingRestClient(
           testProfileProvider,
@@ -777,7 +789,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getCDFFiles with startingTimestamp") {
-    Seq(DeltaSharingRestClient.DELTA_FORMAT, DeltaSharingRestClient.PARQUET_FORMAT).foreach {
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
       responseFormat =>
         val client = new DeltaSharingRestClient(
           testProfileProvider,
@@ -804,7 +818,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getCDFFiles with endingTimestamp") {
-    Seq(DeltaSharingRestClient.DELTA_FORMAT, DeltaSharingRestClient.PARQUET_FORMAT).foreach {
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
       responseFormat =>
         val client = new DeltaSharingRestClient(
           testProfileProvider,
@@ -831,7 +847,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getCDFFiles_exceptions") {
-    Seq(DeltaSharingRestClient.DELTA_FORMAT, DeltaSharingRestClient.PARQUET_FORMAT).foreach {
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
       responseFormat =>
         val client = new DeltaSharingRestClient(
           testProfileProvider,

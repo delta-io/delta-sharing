@@ -31,7 +31,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
     new DeltaSharingRestClient(
       testProfileProvider,
       sslTrustAll = true,
-      responseFormat = DeltaSharingRestClient.DELTA_FORMAT
+      responseFormat = DeltaSharingRestClient.RESPONSE_FORMAT_DELTA
     )
   }
 
@@ -40,14 +40,16 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
 
     val client = new DeltaSharingRestClient(testProfileProvider)
     var h = client.prepareHeaders(httpRequest).getFirstHeader(DeltaSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER)
-    assert(h.getValue.contains(s"responseFormat=${DeltaSharingRestClient.PARQUET_FORMAT}"))
+    // scalastyle:off caselocale
+    assert(h.getValue.toLowerCase().contains(s"responseformat=${DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET}"))
 
     val deltaClient = new DeltaSharingRestClient(
       testProfileProvider,
-      responseFormat = DeltaSharingRestClient.DELTA_FORMAT
+      responseFormat = DeltaSharingRestClient.RESPONSE_FORMAT_DELTA
     )
     h = deltaClient.prepareHeaders(httpRequest).getFirstHeader(DeltaSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER)
-    assert(h.getValue.contains(s"responseFormat=${DeltaSharingRestClient.DELTA_FORMAT}"))
+    // scalastyle:off caselocale
+    assert(h.getValue.toLowerCase().contains(s"responseformat=${DeltaSharingRestClient.RESPONSE_FORMAT_DELTA}"))
   }
 
   integrationTest("getMetadata") {
