@@ -35,6 +35,7 @@ import com.linecorp.armeria.server.auth.AuthService
 import io.delta.standalone.internal.DeltaCDFErrors
 import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
 import io.delta.standalone.internal.DeltaDataSource
+import io.delta.standalone.internal.DeltaSharedTable
 import io.delta.standalone.internal.DeltaSharedTableLoader
 import net.sourceforge.argparse4j.ArgumentParsers
 import org.apache.commons.io.FileUtils
@@ -268,13 +269,32 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     HttpResponse.of(headers)
   }
 
+  private def getDeltaSharingCapabilitiesMap(headerString: String): Map[String, String] = {
+    if (headerString == null) {
+      return Map.empty[String, String]
+    }
+    headerString.toLowerCase().split(",").map { capability =>
+      val splits = capability.split("=")
+      if (splits.size == 2) {
+        (splits(0), splits(1))
+      } else {
+        ("", "")
+      }
+    }.toMap
+  }
+
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/metadata")
   def getMetadata(
+      req: HttpRequest,
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String): HttpResponse = processRequest {
     import scala.collection.JavaConverters._
+    val capabilitiesMap = getDeltaSharingCapabilitiesMap(
+      req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
+    )
     val tableConfig = sharedTableManager.getTable(share, schema, table)
+    val responseFormat = getResponseFormat(capabilitiesMap)
     val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = false,
       predicateHints = Nil,
@@ -283,18 +303,22 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       version = None,
       timestamp = None,
       startingVersion = None,
-      endingVersion = None
-    )
-    streamingOutput(Some(v), actions)
+      endingVersion = None,
+      responseFormat = responseFormat)
+    streamingOutput(Some(v), responseFormat, actions)
   }
 
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/query")
   @ConsumesJson
   def listFiles(
+      req: HttpRequest,
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
       request: QueryTableRequest): HttpResponse = processRequest {
+    val capabilitiesMap = getDeltaSharingCapabilitiesMap(
+      req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
+    )
     val numVersionParams = Seq(request.version, request.timestamp, request.startingVersion)
       .filter(_.isDefined).size
     if (numVersionParams > 1) {
@@ -331,6 +355,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         )
       }
     }
+    val responseFormat = getResponseFormat(capabilitiesMap)
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
       request.predicateHints,
@@ -339,8 +364,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.version,
       request.timestamp,
       request.startingVersion,
-      request.endingVersion
-    )
+      request.endingVersion,
+      responseFormat = responseFormat)
     if (version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(
         s"You can only query table data since version ${tableConfig.startVersion}."
@@ -348,12 +373,13 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(version), actions)
+    streamingOutput(Some(version), responseFormat, actions)
   }
 
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/changes")
   @ConsumesJson
   def listCdfFiles(
+      req: HttpRequest,
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
@@ -363,6 +389,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("endingTimestamp") @Nullable endingTimestamp: String,
       @Param("includeHistoricalMetadata") @Nullable includeHistoricalMetadata: String
   ): HttpResponse = processRequest {
+    val capabilitiesMap = getDeltaSharingCapabilitiesMap(
+      req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
+    )
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     if (!tableConfig.cdfEnabled) {
@@ -370,6 +399,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         s"$share.$schema.$table")
     }
 
+    val responseFormat = getResponseFormat(capabilitiesMap)
     val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
       getCdfOptionsMap(
         Option(startingVersion),
@@ -377,28 +407,34 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Option(startingTimestamp),
         Option(endingTimestamp)
       ),
-      includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false)
+      includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false),
+      responseFormat = responseFormat
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(v), actions)
+    streamingOutput(Some(v), responseFormat, actions)
   }
 
-  private def streamingOutput(version: Option[Long], actions: Seq[SingleAction]): HttpResponse = {
+  private def streamingOutput(
+      version: Option[Long],
+      responseFormat: String,
+      actions: Seq[Object]): HttpResponse = {
     val headers = if (version.isDefined) {
       createHeadersBuilderForTableVersion(version.get)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
+      .set(DELTA_SHARING_CAPABILITIES_HEADER, s"$DELTA_SHARING_RESPONSE_FORMAT=$responseFormat")
       .build()
     } else {
       ResponseHeaders.builder(200)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
+      .set(DELTA_SHARING_CAPABILITIES_HEADER, s"$DELTA_SHARING_RESPONSE_FORMAT=$responseFormat")
       .build()
     }
     ResponseConversionUtil.streamingFrom(
       actions.asJava.stream(),
       headers,
       HttpHeaders.of(),
-      (o: SingleAction) => processRequest {
+      (o: Object) => processRequest {
         val out = new ByteArrayOutputStream
         JsonUtils.mapper.writeValue(out, o)
         out.write('\n')
@@ -412,8 +448,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 object DeltaSharingService {
   val DELTA_TABLE_VERSION_HEADER = "Delta-Table-Version"
   val DELTA_TABLE_METADATA_CONTENT_TYPE = "application/x-ndjson; charset=utf-8"
-
-  val SPARK_STRUCTURED_STREAMING = "SparkStructuredStreaming"
+  val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
+  val DELTA_SHARING_RESPONSE_FORMAT = "responseformat"
 
   private val parser = {
     val parser = ArgumentParsers
@@ -531,6 +567,12 @@ object DeltaSharingService {
     endingVersion.map(DeltaDataSource.CDF_END_VERSION_KEY -> _) ++
     startingTimestamp.map(DeltaDataSource.CDF_START_TIMESTAMP_KEY -> _) ++
     endingTimestamp.map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> _)).toMap
+  }
+
+  private[server] def getResponseFormat(headerCapabilities: Map[String, String]): String = {
+    headerCapabilities.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse(
+      DeltaSharedTable.RESPONSE_FORMAT_PARQUET
+    )
   }
 
   def main(args: Array[String]): Unit = {

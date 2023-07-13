@@ -85,6 +85,8 @@ case class AddFile(
   override def wrap: SingleAction = SingleAction(file = this)
 }
 
+// This was added because when we develop cdf support in delta sharing, AddFile is used with "file"
+// key in the response json, so we need another action to be used with "add".
 case class AddFileForCDF(
     url: String,
     id: String,
@@ -134,4 +136,137 @@ object Action {
   // The maximum writer version that this version of Delta Sharing Standalone supports.
   // Basically delta sharing doesn't support write for now.
   val maxWriterVersion = 0
+}
+
+/**
+ * Actions defined in delta format, used in response when requested format is delta.
+ */
+
+sealed trait DeltaAction {
+  /** Turn this object to the [[DeltaSingleAction]] wrap object. */
+  def wrap: DeltaSingleAction
+}
+
+/**
+ * Used to block older clients from reading the shared table when backwards
+ * incompatible changes are made to the protocol. Readers and writers are
+ * responsible for checking that they meet the minimum versions before performing
+ * any other operations.
+ *
+ * Since this action allows us to explicitly block older clients in the case of a
+ * breaking change to the protocol, clients should be tolerant of messages and
+ * fields that they do not understand.
+ */
+case class DeltaProtocol(minReaderVersion: Int) extends DeltaAction {
+  override def wrap: DeltaSingleAction = DeltaSingleAction(protocol = this)
+}
+
+/**
+ * DeltaAddFile used in delta sharing protocol, copied from AddFile in delta.
+ *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp.
+ *   If the client uses delta kernel, it should redact these fields as needed.
+ *       - id: used to uniquely identify a file, and in idToUrl mapping for executor to get
+ *             presigned url.
+ *       - version/timestamp: the version and timestamp of the commit, used to generate faked delta
+ *                            log file on the client side.
+ *       - expirationTimestamp: indicate when the presigned url is going to expire and need a
+ *                              refresh.
+ *   Ignoring 1 field: tags.
+ */
+case class DeltaAddFile(
+    path: String,
+    id: String,
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    partitionValues: Map[String, String],
+    size: Long,
+    modificationTime: Long,
+    dataChange: Boolean,
+    @JsonRawValue
+    stats: String = null,
+    version: java.lang.Long = null,
+    timestamp: java.lang.Long = null,
+    expirationTimestamp: Long) extends DeltaAction {
+  require(path.nonEmpty)
+
+  override def wrap: DeltaSingleAction = DeltaSingleAction(add = this)
+}
+
+/**
+ * DeltaRemoveFile used in delta sharing protocol, copied from RemoveFile in delta.
+ *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp.
+ *   If the client uses delta kernel, it should redact these fields as needed.
+ *   Ignoring 1 field: tags.
+ */
+case class DeltaRemoveFile(
+    path: String,
+    id: String,
+    deletionTimestamp: Option[Long],
+    dataChange: Boolean = true,
+    extendedFileMetadata: Boolean = false,
+    partitionValues: Map[String, String] = null,
+    size: Option[Long] = None,
+    version: Long,
+    timestamp: Long,
+    expirationTimestamp: Long) extends DeltaAction {
+  override def wrap: DeltaSingleAction = DeltaSingleAction(remove = this)
+}
+
+/**
+ * DeltaAddCDCFile used in delta sharing protocol, copied from AddCDCFile in delta.
+ *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp.
+ *   If the client uses delta kernel, it should redact these fields as needed.
+ *   Ignoring 1 field: tags.
+ */
+case class DeltaAddCDCFile(
+    path: String,
+    id: String,
+    partitionValues: Map[String, String],
+    size: Long,
+    version: Long,
+    timestamp: Long,
+    expirationTimestamp: Long) extends DeltaAction {
+  override def wrap: DeltaSingleAction = DeltaSingleAction(cdc = this)
+}
+
+/**
+ * DeltaMetadata used in delta sharing protocol, copied from Metadata in delta.
+ *   Adding 1 delta sharing related field: version.
+ *   If the client uses delta kernel, it should redact these fields as needed.
+ */
+case class DeltaMetadata(
+    id: String,
+    name: String = null,
+    description: String = null,
+    format: Format = Format(),
+    schemaString: String = null,
+    partitionColumns: Seq[String] = Nil,
+    configuration: Map[String, String] = Map.empty,
+    version: java.lang.Long = null,
+    createdTime: Option[Long] = Some(System.currentTimeMillis())) extends DeltaAction {
+  override def wrap: DeltaSingleAction = DeltaSingleAction(metaData = this)
+}
+
+/** A serialization helper to create a common action envelope. */
+case class DeltaSingleAction(
+    add: DeltaAddFile = null,
+    remove: DeltaRemoveFile = null,
+    metaData: DeltaMetadata = null,
+    protocol: DeltaProtocol = null,
+    cdc: DeltaAddCDCFile = null) {
+
+  def unwrap: DeltaAction = {
+    if (add != null) {
+      add
+    } else if (remove != null) {
+      remove
+    } else if (metaData != null) {
+      metaData
+    } else if (protocol != null) {
+      protocol
+    } else if (cdc != null) {
+      cdc
+    } else {
+      null
+    }
+  }
 }
