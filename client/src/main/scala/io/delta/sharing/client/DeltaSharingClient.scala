@@ -213,6 +213,7 @@ class DeltaSharingRestClient(
       logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
         s"$responseFormat) for getMetadata.${table.share}.${table.schema}.${table.name}.")
     }
+    // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == DeltaSharingRestClient.RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(version, lines = lines)
     }
@@ -263,6 +264,7 @@ class DeltaSharingRestClient(
         s"$responseFormat) for getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf " +
         s"for table ${table.share}.${table.schema}.${table.name}.")
     }
+    // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == DeltaSharingRestClient.RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(version, lines = lines)
     }
@@ -291,6 +293,7 @@ class DeltaSharingRestClient(
         s"$responseFormat) for getFiles(startingVersion-$startingVersion, endingVersion-" +
         s"$endingVersion) for table ${table.share}.${table.schema}.${table.name}.")
     }
+    // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == DeltaSharingRestClient.RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(version, lines = lines)
     }
@@ -333,6 +336,7 @@ class DeltaSharingRestClient(
         s"$responseFormat) for getCDFFiles(cdfOptions-$cdfOptions) for table " +
         s"${table.share}.${table.schema}.${table.name}.")
     }
+    // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == DeltaSharingRestClient.RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(version, lines = lines)
     }
