@@ -49,7 +49,7 @@ object App {
       .load(
         share + "/#delta_sharing.default.owid-covid-data"
       )
-      .where("iso_code == 'USA'")
+      .where($"iso_code" === "USA")
       .select(
         $"iso_code",
         $"total_cases",
