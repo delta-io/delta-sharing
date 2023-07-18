@@ -30,7 +30,14 @@ import org.apache.spark.sql.catalyst.expressions.{
   Literal => SqlLiteral
 }
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{IntegerType, LongType, StringType, StructField, StructType}
+import org.apache.spark.sql.types.{
+  FloatType,
+  IntegerType,
+  LongType,
+  StringType,
+  StructField,
+  StructType
+}
 
 import io.delta.sharing.client.DeltaSharingClient
 import io.delta.sharing.client.model.Table
@@ -114,6 +121,69 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     fileIndex.listFiles(Seq(sqlEq), Seq.empty)
     assert(TestDeltaSharingClient.jsonPredicateHints.size === 0)
   }
+
+  test("jsonPredicateV2Hints test") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "true")
+
+    val client = new TestDeltaSharingClient()
+    val snapshot = new RemoteSnapshot(new Path("test"), client, Table("fe", "fi", "fo"))
+    val fileIndex = {
+      val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
+      RemoteDeltaSnapshotFileIndex(params, Some(2L))
+    }
+
+    // We will send a simple equal op as a SQL expression tree for partition filters.
+    val partitionSqlEq = SqlEqualTo(
+      SqlAttributeReference("id", IntegerType)(),
+      SqlLiteral(23, IntegerType)
+    )
+
+    // We will send another equal op as a SQL expression tree for data filters.
+    val dataSqlEq = SqlEqualTo(
+      SqlAttributeReference("cost", FloatType)(),
+      SqlLiteral(23.5.toFloat, FloatType)
+    )
+
+    // With V2 predicates disabled, the client should get json for partition filters only.
+    val expectedJson =
+      """{"op":"equal",
+         |"children":[
+         |  {"op":"column","name":"id","valueType":"int"},
+         |  {"op":"literal","value":"23","valueType":"int"}]
+         |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+
+    fileIndex.listFiles(Seq(partitionSqlEq), Seq(dataSqlEq))
+    assert(TestDeltaSharingClient.jsonPredicateHints.size === 1)
+    val receivedJson = TestDeltaSharingClient.jsonPredicateHints(0)
+    assert(receivedJson == expectedJson)
+    client.clear()
+
+    // With V2 predicates enabled, the client should get json for partition and data filters
+    // joined at the top level by an AND operation.
+    val expectedJson2 =
+      """{"op":"and","children":[
+         |  {"op":"equal","children":[
+         |    {"op":"column","name":"id","valueType":"int"},
+         |    {"op":"literal","value":"23","valueType":"int"}]},
+         |  {"op":"equal","children":[
+         |    {"op":"column","name":"cost","valueType":"float"},
+         |    {"op":"literal","value":"23.5","valueType":"float"}]}
+         |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateV2Hints.enabled", "true")
+    fileIndex.listFiles(Seq(partitionSqlEq), Seq(dataSqlEq))
+    assert(TestDeltaSharingClient.jsonPredicateHints.size === 1)
+    val receivedJson2 = TestDeltaSharingClient.jsonPredicateHints(0)
+    assert(receivedJson2 == expectedJson2)
+    client.clear()
+
+    // With json predicates disabled, we should not get anything.
+    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "false")
+    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateV2Hints.enabled", "false")
+    fileIndex.listFiles(Seq(partitionSqlEq), Seq(dataSqlEq))
+    assert(TestDeltaSharingClient.jsonPredicateHints.size === 0)
+  }
+
 
   test("snapshot file index test") {
     val spark = SparkSession.active

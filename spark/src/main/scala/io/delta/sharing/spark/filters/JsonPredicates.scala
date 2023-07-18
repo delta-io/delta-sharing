@@ -36,8 +36,20 @@ object OpDataTypes {
   val LongType = "long"
   val StringType = "string"
   val DateType = "date"
+  val FloatType = "float"
+  val DoubleType = "double"
 
   val supportedTypes = Set(BoolType, IntType, LongType, StringType, DateType)
+  val supportedTypesV2 = supportedTypes ++ Set(FloatType, DoubleType)
+
+  // Returns true if the specified valueType is supported.
+  def isSupportedType(valueType: String, forV2: Boolean): Boolean = {
+    if (forV2) {
+      OpDataTypes.supportedTypesV2.contains(valueType)
+    } else {
+      OpDataTypes.supportedTypes.contains(valueType)
+    }
+  }
 }
 
 /**
@@ -72,7 +84,7 @@ trait BaseOp {
   //
   // The method throws an exception if any of the validations fail.
   @throws[IllegalArgumentException]
-  def validate(): Unit
+  def validate(forV2: Boolean = false): Unit
 
   // Evaluates this operation in the given context.
   //
@@ -105,39 +117,39 @@ trait NonLeafOp extends BaseOp;
 // Represents a unary operation.
 trait UnaryOp {
   // Validates number of children to be 1.
-  def validateChildren(children: Seq[BaseOp]): Unit = {
+  def validateChildren(children: Seq[BaseOp], forV2: Boolean = false): Unit = {
     if (children.size != 1) {
       throw new IllegalArgumentException(
           this + " : expected 1 but found " + children.size + " children"
       )
     }
-    children(0).validate()
+    children(0).validate(forV2)
   }
 }
 
 // Represents a binary operation.
 trait BinaryOp {
   // Validates number of children to be 2.
-  def validateChildren(children: Seq[BaseOp]): Unit = {
+  def validateChildren(children: Seq[BaseOp], forV2: Boolean = false): Unit = {
     if (children.size != 2) {
       throw new IllegalArgumentException(
           this + " : expected 2 but found " + children.size + " children"
       )
     }
-    children.map(c => c.validate())
+    children.map(c => c.validate(forV2))
   }
 }
 
 // Represents an operation involving two or more children.
 trait NaryOp {
   // Validates number of children to be at least 2.
-  def validateChildren(children: Seq[BaseOp]): Unit = {
+  def validateChildren(children: Seq[BaseOp], forV2: Boolean = false): Unit = {
     if (children.size < 2) {
       throw new IllegalArgumentException(
           this + " : expected at least 2 but found " + children.size + " children"
       )
     }
-    children.map(c => c.validate())
+    children.map(c => c.validate(forV2))
   }
 }
 
@@ -151,11 +163,11 @@ trait NaryOp {
  * value in the evaluation context.
  */
 case class ColumnOp(val name: String, val valueType: String) extends LeafOp {
-  override def validate(): Unit = {
+  override def validate(forV2: Boolean = false): Unit = {
     if (name == null) {
       throw new IllegalArgumentException("Name must be specified: " + this)
     }
-    if (!OpDataTypes.supportedTypes.contains(valueType)) {
+    if (!OpDataTypes.isSupportedType(valueType, forV2)) {
       throw new IllegalArgumentException("Unsupported type: " + valueType)
     }
   }
@@ -194,11 +206,11 @@ case class ColumnOp(val name: String, val valueType: String) extends LeafOp {
  */
 case class LiteralOp(val value: String, val valueType: String) extends LeafOp {
 
-  override def validate(): Unit = {
+  override def validate(forV2: Boolean = false): Unit = {
     if (value == null) {
       throw new IllegalArgumentException("Value must be specified: " + this)
     }
-    if (!OpDataTypes.supportedTypes.contains(valueType)) {
+    if (!OpDataTypes.isSupportedType(valueType, forV2)) {
       throw new IllegalArgumentException("Unsupported type: " + valueType)
     }
   }
@@ -214,7 +226,7 @@ case class LiteralOp(val value: String, val valueType: String) extends LeafOp {
  * Represents a null operation on its child.
  */
 case class IsNullOp(children: Seq[LeafOp]) extends NonLeafOp with UnaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = children(0).isNull(ctx)
 }
@@ -231,33 +243,33 @@ case class IsNullOp(children: Seq[LeafOp]) extends NonLeafOp with UnaryOp {
  */
 
 case class EqualOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = EvalHelper.equal(children, ctx)
 }
 
 case class LessThanOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = EvalHelper.lessThan(children, ctx)
 }
 
 case class LessThanOrEqualOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any =
     EvalHelper.lessThan(children, ctx) || EvalHelper.equal(children, ctx)
 }
 
 case class GreaterThanOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any =
     !EvalHelper.lessThan(children, ctx) && !EvalHelper.equal(children, ctx)
 }
 
 case class GreaterThanOrEqualOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = !EvalHelper.lessThan(children, ctx)
 }
@@ -269,7 +281,7 @@ case class GreaterThanOrEqualOp(children: Seq[LeafOp]) extends NonLeafOp with Bi
  */
 
 case class AndOp(val children: Seq[BaseOp]) extends NonLeafOp with NaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = {
     children.forall(c => c.evalExpectBoolean(ctx))
@@ -277,7 +289,7 @@ case class AndOp(val children: Seq[BaseOp]) extends NonLeafOp with NaryOp {
 }
 
 case class OrOp(val children: Seq[BaseOp]) extends NonLeafOp with NaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = {
     children.exists(c => c.evalExpectBoolean(ctx))
@@ -285,7 +297,7 @@ case class OrOp(val children: Seq[BaseOp]) extends NonLeafOp with NaryOp {
 }
 
 case class NotOp(val children: Seq[BaseOp]) extends NonLeafOp with UnaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = !children(0).evalExpectBoolean(ctx)
 }

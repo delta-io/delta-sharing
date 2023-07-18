@@ -42,6 +42,8 @@ import org.apache.spark.sql.types.{
   BooleanType => SqlBooleanType,
   DataType => SqlDataType,
   DateType => SqlDateType,
+  DoubleType => SqlDoubleType,
+  FloatType => SqlFloatType,
   IntegerType => SqlIntegerType,
   LongType => SqlLongType,
   StringType => SqlStringType
@@ -274,6 +276,24 @@ class OpConverterSuite extends SparkFunSuite {
     assert(op.evalExpectBoolean(EvalContext(Map.empty)) == false)
     assert(op.evalExpectBoolean(EvalContext(Map("userId" -> "23"))) == true)
     assert(op.evalExpectBoolean(EvalContext(Map("userId" -> "24"))) == false)
+  }
+
+  test("float test") {
+    val sqlColumn = SqlAttributeReference("cost", SqlFloatType)()
+    val sqlLiteral = SqlLiteral("100.5")
+    val sqlGTE = SqlGreaterThanOrEqual(sqlColumn, sqlLiteral)
+
+    val op = OpConverter.convert(Seq(sqlGTE)).get
+    op.validate(true)
+  }
+
+  test("Double test") {
+    val sqlColumn = SqlAttributeReference("cost", SqlDoubleType)()
+    val sqlLiteral = SqlLiteral("10.5")
+    val sqlEq = SqlEqualTo(sqlColumn, sqlLiteral)
+
+    val op = OpConverter.convert(Seq(sqlEq)).get
+    op.validate(true)
   }
 
   test("In test") {

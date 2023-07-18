@@ -41,6 +41,8 @@ import org.apache.spark.sql.types.{
   BooleanType => SqlBooleanType,
   DataType => SqlDataType,
   DateType => SqlDateType,
+  DoubleType => SqlDoubleType,
+  FloatType => SqlFloatType,
   IntegerType => SqlIntegerType,
   LongType => SqlLongType,
   StringType => SqlStringType
@@ -185,6 +187,8 @@ object OpConverter {
       case SqlLongType => OpDataTypes.LongType
       case SqlStringType => OpDataTypes.StringType
       case SqlDateType => OpDataTypes.DateType
+      case SqlDoubleType => OpDataTypes.DoubleType
+      case SqlFloatType => OpDataTypes.FloatType
 
       case _ =>
         throw new IllegalArgumentException("Unsupported data type " + sqlType)
