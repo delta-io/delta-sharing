@@ -210,6 +210,8 @@ class DeltaSharingRestClient(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata")
     val (version, respondedFormat, lines) = getNDJson(target)
     if (responseFormat != respondedFormat) {
+      // This could only happen when the asked format is delta and the server doesn't support
+      // the requested format.
       logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
         s"$responseFormat) for getMetadata.${table.share}.${table.schema}.${table.name}.")
     }
