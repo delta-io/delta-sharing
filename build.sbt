@@ -184,6 +184,8 @@ import ReleaseTransformations._
 
 lazy val releaseSettings = Seq(
   publishMavenStyle := true,
+  publishArtifact := true,
+  Test / publishArtifact := false,
 
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
@@ -193,6 +195,7 @@ lazy val releaseSettings = Seq(
       Some("releases"  at nexus + "service/local/staging/deploy/maven2")
     }
   },
+
 
   releasePublishArtifactsAction := PgpKeys.publishSigned.value,
 
@@ -261,7 +264,6 @@ releaseProcess := Seq[ReleaseStep](
   commitReleaseVersion,
   tagRelease,
   releaseStepCommandAndRemaining("+publishSigned"),
-  publishArtifacts,
   setNextVersion,
   commitNextVersion
 )
