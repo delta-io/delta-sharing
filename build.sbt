@@ -232,6 +232,16 @@ lazy val releaseSettings = Seq(
           <name>Shixiong Zhu</name>
           <url>https://github.com/zsxwing</url>
         </developer>
+        <developer>
+          <id>linzhou-db</id>
+          <name>Lin Zhou</name>
+          <url>https://github.com/linzhou-db</url>
+        </developer>
+        <developer>
+          <id>chakankardb</id>
+          <name>Abhijit Chakankar</name>
+          <url>https://github.com/chakankardb</url>
+        </developer>
       </developers>
 )
 
