@@ -250,6 +250,8 @@ publishArtifact := false  // Don't release the root project
 publish := {}
 publishTo := Some("snapshots" at "https://oss.sonatype.org/content/repositories/snapshots")
 releaseCrossBuild := false
+// crossScalaVersions must be set to Nil on the root project
+crossScalaVersions := Nil
 releaseProcess := Seq[ReleaseStep](
   checkSnapshotDependencies,
   inquireVersions,
@@ -258,6 +260,7 @@ releaseProcess := Seq[ReleaseStep](
   setReleaseVersion,
   commitReleaseVersion,
   tagRelease,
+  releaseStepCommandAndRemaining("+publishSigned"),
   publishArtifacts,
   setNextVersion,
   commitNextVersion

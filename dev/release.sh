@@ -26,7 +26,7 @@ git add python/delta_sharing/version.py
 # Use --allow-empty so that we can re-run this script even if the Python connector version has been updated
 git commit -m "Update Python connector version to $VERSION" --allow-empty
 
-build/sbt "+ release skip-tests"
+build/sbt " release skip-tests"
 
 # Switch to the release commit
 git checkout v$VERSION
