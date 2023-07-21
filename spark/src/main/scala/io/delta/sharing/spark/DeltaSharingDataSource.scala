@@ -98,7 +98,7 @@ private[sharing] class DeltaSharingDataSource
     DeltaSharingSource(SparkSession.active, deltaLog, options)
   }
 
-  override def shortName: String = "deltaSharing"
+  override def shortName(): String = "deltaSharing"
 }
 
 private[sharing] object DeltaSharingDataSource {
