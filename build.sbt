@@ -20,7 +20,7 @@ ThisBuild / parallelExecution := false
 
 val sparkVersion = "3.3.2"
 val scala212 = "2.12.10"
-val scala213 = "2.13.5"
+val scala213 = "2.13.11"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
