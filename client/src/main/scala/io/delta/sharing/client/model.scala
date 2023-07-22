@@ -38,18 +38,20 @@ private[sharing] object CDFColumnInfo {
 
 private[sharing] case class DeltaTableMetadata(
     version: Long,
-    protocol: Protocol,
-    metadata: Metadata)
+    protocol: Protocol = null,
+    metadata: Metadata = null,
+    lines: Seq[String] = Nil)
 
 private[sharing] case class DeltaTableFiles(
     version: Long,
-    protocol: Protocol,
-    metadata: Metadata,
+    protocol: Protocol = null,
+    metadata: Metadata = null,
     files: Seq[AddFile] = Nil,
     addFiles: Seq[AddFileForCDF] = Nil,
     cdfFiles: Seq[AddCDCFile] = Nil,
     removeFiles: Seq[RemoveFile] = Nil,
-    additionalMetadatas: Seq[Metadata] = Nil)
+    additionalMetadatas: Seq[Metadata] = Nil,
+    lines: Seq[String] = Nil)
 
 private[sharing] case class Share(name: String)
 
