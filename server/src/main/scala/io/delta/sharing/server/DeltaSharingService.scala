@@ -304,6 +304,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       timestamp = None,
       startingVersion = None,
       endingVersion = None,
+      maxFiles = None,
+      pageToken = None,
       responseFormat = responseFormat)
     streamingOutput(Some(v), responseFormat, actions)
   }
@@ -331,6 +333,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     if (request.startingVersion.isDefined && request.startingVersion.get < 0) {
       throw new DeltaSharingIllegalArgumentException("startingVersion cannot be negative.")
+    }
+    if (request.maxFiles.exists(_ <= 0)) {
+      throw new DeltaSharingIllegalArgumentException("maxFiles must be positive.")
     }
 
     val start = System.currentTimeMillis
@@ -365,6 +370,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.timestamp,
       request.startingVersion,
       request.endingVersion,
+      request.maxFiles,
+      request.pageToken,
       responseFormat = responseFormat)
     if (version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(

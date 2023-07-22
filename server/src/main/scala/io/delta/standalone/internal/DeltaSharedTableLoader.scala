@@ -19,6 +19,8 @@ package io.delta.standalone.internal
 
 import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
+import java.text.SimpleDateFormat
+import java.util.{Base64, TimeZone}
 import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConverters._
@@ -31,6 +33,7 @@ import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, Metadata, Protocol, RemoveFile}
 import io.delta.standalone.internal.exception.DeltaErrors
 import io.delta.standalone.internal.util.ConversionUtils
+import org.apache.commons.codec.digest.DigestUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.azure.NativeAzureFileSystem
@@ -52,6 +55,8 @@ import io.delta.sharing.server.{
   WasbFileSigner
 }
 import io.delta.sharing.server.config.{ServerConfig, TableConfig}
+import io.delta.sharing.server.protocol.QueryTablePageToken
+import io.delta.sharing.server.util.JsonUtils
 
 /**
  * A class to load Delta tables from `TableConfig`. It also caches the loaded tables internally
@@ -68,24 +73,45 @@ class DeltaSharedTableLoader(serverConfig: ServerConfig) {
   def loadTable(tableConfig: TableConfig): DeltaSharedTable = {
     try {
       val deltaSharedTable =
-        deltaSharedTableCache.get(tableConfig.location, () => {
-          new DeltaSharedTable(
-            tableConfig,
-            serverConfig.preSignedUrlTimeoutSeconds,
-            serverConfig.evaluatePredicateHints,
-            serverConfig.evaluateJsonPredicateHints)
-        })
+        deltaSharedTableCache.get(
+          tableConfig.location,
+          () => {
+            new DeltaSharedTable(
+              tableConfig,
+              serverConfig.preSignedUrlTimeoutSeconds,
+              serverConfig.evaluatePredicateHints,
+              serverConfig.evaluateJsonPredicateHints,
+              serverConfig.queryTablePageSizeLimit,
+              serverConfig.queryTablePageTokenTtlMs
+            )
+          }
+        )
       if (!serverConfig.stalenessAcceptable) {
         deltaSharedTable.update()
       }
       deltaSharedTable
-    }
-    catch {
+    } catch {
       case CausedBy(e: DeltaSharingUnsupportedOperationException) => throw e
       case e: Throwable => throw e
     }
   }
 }
+
+/**
+ * A util class stores all query parameters. Used to compute the checksum in the page token for
+ * query validation.
+ */
+private case class QueryParamChecksum(
+    version: Option[Long],
+    timestamp: Option[String],
+    startingVersion: Option[Long],
+    startingTimestamp: Option[String],
+    endingVersion: Option[Long],
+    endingTimestamp: Option[String],
+    predicateHints: Seq[String],
+    jsonPredicateHints: Option[String],
+    limitHint: Option[Long],
+    includeHistoricalMetadata: Option[Boolean])
 
 /**
  * A table class that wraps `DeltaLog` to provide the methods used by the server.
@@ -94,7 +120,9 @@ class DeltaSharedTable(
     tableConfig: TableConfig,
     preSignedUrlTimeoutSeconds: Long,
     evaluatePredicateHints: Boolean,
-    evaluateJsonPredicateHints: Boolean) {
+    evaluateJsonPredicateHints: Boolean,
+    queryTablePageSizeLimit: Int,
+    queryTablePageTokenTtlMs: Int) {
 
   private val conf = withClassLoader {
     new Configuration()
@@ -345,6 +373,7 @@ class DeltaSharedTable(
     }
   }
 
+  // scalastyle:off argcount
   def query(
       includeFiles: Boolean,
       predicateHints: Seq[String],
@@ -354,28 +383,55 @@ class DeltaSharedTable(
       timestamp: Option[String],
       startingVersion: Option[Long],
       endingVersion: Option[Long],
+      maxFiles: Option[Int],
+      pageToken: Option[String],
       responseFormat: String): (Long, Seq[Object]) = withClassLoader {
+    // scalastyle:on argcount
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
         ErrorStrings.multipleParametersSetErrorMsg(Seq("version", "timestamp", "startingVersion"))
       )
     }
-    val snapshot = if (version.orElse(startingVersion).isDefined) {
-      deltaLog.getSnapshotForVersionAsOf(version.orElse(startingVersion).get)
-    } else if (timestamp.isDefined) {
-      val ts = DeltaSharingHistoryManager.getTimestamp("timestamp", timestamp.get)
-      try {
-        deltaLog.getSnapshotForTimestampAsOf(ts.getTime())
-      } catch {
-        // Convert to DeltaSharingIllegalArgumentException to return 4xx instead of 5xx error code
-        // Only convert known exceptions around timestamp too late or too early
-        case e: IllegalArgumentException =>
-          throw new DeltaSharingIllegalArgumentException(e.getMessage)
+    // Validate pageToken if it's specified
+    lazy val queryParamChecksum = computeChecksum(
+      QueryParamChecksum(
+        version = version,
+        timestamp = timestamp,
+        startingVersion = startingVersion,
+        startingTimestamp = None,
+        endingVersion = endingVersion,
+        endingTimestamp = None,
+        predicateHints = predicateHints,
+        jsonPredicateHints = jsonPredicateHints,
+        limitHint = limitHint,
+        includeHistoricalMetadata = None
+      )
+    )
+    val pageTokenOpt = pageToken.map(decodeAndValidatePageToken(_, queryParamChecksum))
+    // For queryTable at snapshot, override version in subsequent page calls using the version
+    // in the pageToken to make sure we're querying the same version across pages. Especially
+    // when the first page is querying the latest snapshot, table changes that are committed
+    // after the first page call should be ignored.
+    val versionFromPageToken = pageTokenOpt.flatMap(_.version)
+    val snapshot =
+      if (versionFromPageToken.orElse(version).orElse(startingVersion).isDefined) {
+        deltaLog.getSnapshotForVersionAsOf(
+          versionFromPageToken.orElse(version).orElse(startingVersion).get
+        )
+      } else if (timestamp.isDefined) {
+        val ts = DeltaSharingHistoryManager.getTimestamp("timestamp", timestamp.get)
+        try {
+          deltaLog.getSnapshotForTimestampAsOf(ts.getTime())
+        } catch {
+          // Convert to DeltaSharingIllegalArgumentException to return 4xx instead of 5xx error code
+          // Only convert known exceptions around timestamp too late or too early
+          case e: IllegalArgumentException =>
+            throw new DeltaSharingIllegalArgumentException(e.getMessage)
+        }
+      } else {
+        deltaLog.snapshot
       }
-    } else {
-      deltaLog.snapshot
-    }
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
@@ -402,35 +458,66 @@ class DeltaSharedTable(
         } else {
           None
         }
+        // Enforce page size only when `maxFiles` is specified for backwards compatibility.
+        val pageSizeOpt = maxFiles.map(_.min(queryTablePageSizeLimit))
+        var nextPageTokenStr: String = null
 
-        var selectedFiles = state.activeFiles.toSeq
-        var filteredFiles =
+        // Skip files that are already processed in previous pages
+        val selectedIndexedFiles = state.activeFiles.toSeq.zipWithIndex
+          .drop(pageTokenOpt.map(_.getStartingActionIndex).getOrElse(0))
+        // Select files that satisfy partition and predicate hints
+        var filteredIndexedFiles =
           if (evaluateJsonPredicateHints && snapshot.metadataScala.partitionColumns.nonEmpty) {
-            JsonPredicateFilterUtils.evaluatePredicate(jsonPredicateHints, selectedFiles)
+            JsonPredicateFilterUtils.evaluatePredicate(jsonPredicateHints, selectedIndexedFiles)
           } else {
-            selectedFiles
+            selectedIndexedFiles
           }
-        filteredFiles =
+        filteredIndexedFiles =
           if (evaluatePredicateHints && snapshot.metadataScala.partitionColumns.nonEmpty) {
             PartitionFilterUtils.evaluatePredicate(
               snapshot.metadataScala.schemaString,
               snapshot.metadataScala.partitionColumns,
               predicateHints,
-              filteredFiles
+              filteredIndexedFiles
             )
           } else {
-            filteredFiles
+            filteredIndexedFiles
           }
-        filteredFiles.map { addFile =>
-          val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
-          val signedUrl = fileSigner.sign(cloudPath)
-          getResponseAddFile(
-            addFile,
-            signedUrl,
-            if (isVersionQuery) { snapshot.version } else null,
-            if (isVersionQuery) { ts.get } else null,
-            responseFormat
+        // If number of valid files is greater than page size, generate nextPageToken and
+        // drop additional files.
+        if (pageSizeOpt.exists(_ < filteredIndexedFiles.length)) {
+          nextPageTokenStr = encodeQueryTablePageToken(
+            QueryTablePageToken(
+              id = Some(tableConfig.id),
+              version = Some(snapshot.version),
+              checksum = Some(queryParamChecksum),
+              startingActionIndex = Some(filteredIndexedFiles(pageSizeOpt.get)._2),
+              expirationTimestamp = Some(System.currentTimeMillis() + queryTablePageTokenTtlMs)
+            )
           )
+          filteredIndexedFiles = filteredIndexedFiles.take(pageSizeOpt.get)
+        }
+        val filteredFiles = filteredIndexedFiles.map {
+          case (addFile, _) =>
+            val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
+            val signedUrl = fileSigner.sign(cloudPath)
+            getResponseAddFile(
+              addFile,
+              signedUrl,
+              if (isVersionQuery) { snapshot.version } else null,
+              if (isVersionQuery) { ts.get } else null,
+              responseFormat
+            )
+        }
+        // Return `nextPageToken` object only when `maxFiles` is specified for backwards
+        // compatibility. If this is the last page, an empty `nextPageToken` object will
+        // be returned to explicitly indicate that there are no more pages.
+        filteredFiles ++ {
+          if (maxFiles.isDefined) {
+            Seq(model.NextPageToken(nextPageTokenStr).wrap)
+          } else {
+            Nil
+          }
         }
       } else {
         Nil
@@ -642,6 +729,45 @@ class DeltaSharedTable(
     } else {
       new Path(path, p)
     }
+  }
+
+  private def computeChecksum(queryParamChecksum: QueryParamChecksum): String = {
+    DigestUtils.sha256Hex(JsonUtils.toJson(queryParamChecksum))
+  }
+
+  private def decodeAndValidatePageToken(
+                                          tokenStr: String,
+                                          expectedChecksum: String): QueryTablePageToken = {
+    val token = decodeQueryTablePageToken(tokenStr)
+    val timestampFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z")
+    timestampFormat.setTimeZone(TimeZone.getTimeZone("UTC"))
+    if (token.getExpirationTimestamp < System.currentTimeMillis()) {
+      throw new DeltaSharingIllegalArgumentException(
+        s"""The next page token has already expired at
+           |${timestampFormat.format(token.getExpirationTimestamp)}. Please restart the
+           |query.""".stripMargin
+      )
+    }
+    if (token.getId != tableConfig.id) {
+      throw new DeltaSharingIllegalArgumentException(
+        "The table specified in the next page token does not match the table being queried."
+      )
+    }
+    if (token.getChecksum != expectedChecksum) {
+      throw new DeltaSharingIllegalArgumentException(
+        """Query parameter mismatch detected for the next page token query. The query parameter
+          |cannot change when querying the next page results.""".stripMargin
+      )
+    }
+    token
+  }
+
+  private def encodeQueryTablePageToken(token: QueryTablePageToken): String = {
+    Base64.getUrlEncoder.encodeToString(token.toByteArray)
+  }
+
+  private def decodeQueryTablePageToken(tokenStr: String): QueryTablePageToken = {
+    QueryTablePageToken.parseFrom(Base64.getUrlDecoder.decode(tokenStr))
   }
 }
 
