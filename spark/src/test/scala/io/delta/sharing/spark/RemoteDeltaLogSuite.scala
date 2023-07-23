@@ -170,7 +170,9 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
          |    {"op":"column","name":"cost","valueType":"float"},
          |    {"op":"literal","value":"23.5","valueType":"float"}]}
          |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
-    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateV2Hints.enabled", "true")
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.jsonPredicateV2Hints.enabled", "true"
+    )
     fileIndex.listFiles(Seq(partitionSqlEq), Seq(dataSqlEq))
     assert(TestDeltaSharingClient.jsonPredicateHints.size === 1)
     val receivedJson2 = TestDeltaSharingClient.jsonPredicateHints(0)
@@ -179,7 +181,9 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
     // With json predicates disabled, we should not get anything.
     spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "false")
-    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateV2Hints.enabled", "false")
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.jsonPredicateV2Hints.enabled", "false"
+    )
     fileIndex.listFiles(Seq(partitionSqlEq), Seq(dataSqlEq))
     assert(TestDeltaSharingClient.jsonPredicateHints.size === 0)
   }
