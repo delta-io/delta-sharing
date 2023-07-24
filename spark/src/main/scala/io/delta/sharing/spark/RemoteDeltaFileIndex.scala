@@ -37,8 +37,8 @@ import io.delta.sharing.client.model.{
   FileAction,
   RemoveFile
 }
-import io.delta.sharing.client.util.JsonUtils
-import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
+import io.delta.sharing.client.util.{ConfUtils, JsonUtils}
+import io.delta.sharing.spark.filters.{AndOp, BaseOp, OpConverter}
 
 private[sharing] case class RemoteDeltaFileIndexParams(
     val spark: SparkSession,
@@ -108,24 +108,55 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
 
   // Converts the specified SQL expressions to a json predicate.
   //
+  // If jsonPredicatesV2 are enabled, converts both partition and data filters
+  // and combines them using an AND.
+  //
   // If the conversion fails, returns a None, which will imply that we will
   // not perform json predicate based filtering.
-  protected def convertToJsonPredicate(partitionFilters: Seq[Expression]) : Option[String] = {
-    if (!params.spark.sessionState.conf.getConfString(
-      "spark.delta.sharing.jsonPredicateHints.enabled", "true").toBoolean) {
+  protected def convertToJsonPredicate(
+      partitionFilters: Seq[Expression],
+      dataFilters: Seq[Expression] = Seq.empty) : Option[String] = {
+    if (!ConfUtils.jsonPredicatesEnabled(params.spark.sessionState.conf)) {
       return None
     }
-    try {
-      val op = OpConverter.convert(partitionFilters)
-      if (op.isDefined) {
-        Some(JsonUtils.toJson[BaseOp](op.get))
+
+    // Convert the partition filters.
+    val partitionOp = try {
+      OpConverter.convert(partitionFilters)
+    } catch {
+      case e: Exception =>
+        log.error("Error while converting partition filters: " + e)
+        None
+    }
+
+    // If V2 predicates are enabled, also convert the data filters.
+    val dataOp = try {
+      if (ConfUtils.jsonPredicatesV2Enabled(params.spark.sessionState.conf)) {
+        log.info("Converting data filters")
+        OpConverter.convert(dataFilters)
       } else {
         None
       }
     } catch {
       case e: Exception =>
-        log.error("Error while converting partition filters: " + e)
+        log.error("Error while converting data filters: " + e)
         None
+    }
+
+    // Combine partition and data filters using an AND operation.
+    val combinedOp = if (partitionOp.isDefined && dataOp.isDefined) {
+      Some(AndOp(Seq(partitionOp.get, dataOp.get)))
+    } else if (partitionOp.isDefined) {
+      partitionOp
+    } else {
+      dataOp
+    }
+    log.info("Using combined predicate: " + combinedOp)
+
+    if (combinedOp.isDefined) {
+      Some(JsonUtils.toJson[BaseOp](combinedOp.get))
+    } else {
+      None
     }
   }
 }
@@ -147,7 +178,7 @@ private[sharing] case class RemoteDeltaSnapshotFileIndex(
     makePartitionDirectories(params.snapshotAtAnalysis.filesForScan(
       partitionFilters ++ dataFilters,
       limitHint,
-      convertToJsonPredicate(partitionFilters),
+      convertToJsonPredicate(partitionFilters, dataFilters),
       this
     ))
   }
