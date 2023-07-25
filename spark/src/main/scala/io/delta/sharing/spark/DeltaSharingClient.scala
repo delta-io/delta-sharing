@@ -154,7 +154,7 @@ private[spark] class DeltaSharingRestClient(
         shares ++= response.items
       }
     }
-    shares
+    shares.toSeq
   }
 
   private def listAllTablesInShare(share: Share): Seq[Table] = {
@@ -174,7 +174,7 @@ private[spark] class DeltaSharingRestClient(
         tables ++= response.items
       }
     }
-    tables
+    tables.toSeq
   }
 
   override def getForStreaming(): Boolean = forStreaming
@@ -282,9 +282,9 @@ private[spark] class DeltaSharingRestClient(
       version,
       protocol,
       metadata,
-      addFiles = addFiles,
-      removeFiles = removeFiles,
-      additionalMetadatas = additionalMetadatas
+      addFiles = addFiles.toSeq,
+      removeFiles = removeFiles.toSeq,
+      additionalMetadatas = additionalMetadatas.toSeq
     )
   }
 
@@ -319,10 +319,10 @@ private[spark] class DeltaSharingRestClient(
       version,
       protocol,
       metadata,
-      addFiles = addFiles,
-      cdfFiles = cdfFiles,
-      removeFiles = removeFiles,
-      additionalMetadatas = additionalMetadatas
+      addFiles = addFiles.toSeq,
+      cdfFiles = cdfFiles.toSeq,
+      removeFiles = removeFiles.toSeq,
+      additionalMetadatas = additionalMetadatas.toSeq
     )
   }
 
