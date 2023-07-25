@@ -67,7 +67,8 @@ private[sharing] case class SingleAction(
     cdf: AddCDCFile = null,
     remove: RemoveFile = null,
     metaData: Metadata = null,
-    protocol: Protocol = null) {
+    protocol: Protocol = null,
+    nextPageToken: NextPageToken = null) {
 
   def unwrap: Action = {
     if (file != null) {
@@ -111,6 +112,10 @@ private[sharing] sealed trait Action {
 
 private[sharing] case class Protocol(minReaderVersion: Int) extends Action {
   override def wrap: SingleAction = SingleAction(protocol = this)
+}
+
+private[sharing] case class NextPageToken(token: String) extends Action {
+  override def wrap: SingleAction = SingleAction(nextPageToken = this)
 }
 
 // A common base class for all file actions.

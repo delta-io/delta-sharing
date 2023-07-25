@@ -82,7 +82,9 @@ private[sharing] case class QueryTableRequest(
   timestamp: Option[String],
   startingVersion: Option[Long],
   endingVersion: Option[Long],
-  jsonPredicateHints: Option[String]
+  jsonPredicateHints: Option[String],
+  maxFiles: Option[Int] = None,
+  pageToken: Option[String] = None
 )
 
 private[sharing] case class ListSharesResponse(
@@ -101,7 +103,9 @@ class DeltaSharingRestClient(
     maxRetryDuration: Long = Long.MaxValue,
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
-    responseFormat: String = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    responseFormat: String = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
+    queryTablePaginationEnabled: Boolean = false,
+    maxFilesPerReq: Int = 10000
   ) extends DeltaSharingClient with Logging {
 
   @volatile private var created = false
@@ -249,18 +253,21 @@ class DeltaSharingRestClient(
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
-    val (version, respondedFormat, lines) = getNDJson(
-      target,
-      QueryTableRequest(
-        predicates,
-        limit,
-        versionAsOf,
-        timestampAsOf,
-        None,
-        None,
-        jsonPredicateHints
-      )
+    val request = QueryTableRequest(
+      predicates,
+      limit,
+      versionAsOf,
+      timestampAsOf,
+      None,
+      None,
+      jsonPredicateHints
     )
+    val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
+      getFilesByPage(target, request)
+    } else {
+      getNDJson(target, request)
+    }
+
     if (responseFormat != respondedFormat) {
       logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
         s"$responseFormat) for getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf " +
@@ -288,8 +295,13 @@ class DeltaSharingRestClient(
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
-    val (version, respondedFormat, lines) = getNDJson(
-      target, QueryTableRequest(Nil, None, None, None, Some(startingVersion), endingVersion, None))
+    val request =
+      QueryTableRequest(Nil, None, None, None, Some(startingVersion), endingVersion, None)
+    val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
+      getFilesByPage(target, request)
+    } else {
+      getNDJson(target, request)
+    }
     if (responseFormat != respondedFormat) {
       logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
         s"$responseFormat) for getFiles(startingVersion-$startingVersion, endingVersion-" +
@@ -321,6 +333,31 @@ class DeltaSharingRestClient(
     )
   }
 
+  private def getFilesByPage(
+      targetUrl: String,
+      request: QueryTableRequest): (Long, String, Seq[String]) = {
+    val allLines = ArrayBuffer[String]()
+    var updatedRequest = request.copy(maxFiles = Some(maxFilesPerReq))
+    var (version, respondedFormat, lines) = getNDJson(targetUrl, updatedRequest)
+    allLines.appendAll(lines)
+    var nextPageToken = JsonUtils.fromJson[SingleAction](lines.last).nextPageToken
+    while (nextPageToken != null && nextPageToken.token != null && nextPageToken.token.nonEmpty) {
+      // remove last line (nextPageToken) in previous page
+      allLines.remove(allLines.length - 1)
+      updatedRequest = updatedRequest.copy(pageToken = Some(nextPageToken.token))
+      lines = getNDJson(targetUrl, updatedRequest)._3
+      // remove first two lines (protocol + metadata) in subsequent pages
+      allLines.appendAll(lines.drop(2))
+      nextPageToken = JsonUtils.fromJson[SingleAction](lines.last).nextPageToken
+    }
+    // remove last line if the last page returns an empty nextPageToken object in the end
+    if (nextPageToken != null) {
+      allLines.remove(allLines.length - 1)
+    }
+
+    (version, respondedFormat, allLines.toSeq)
+  }
+
   override def getCDFFiles(
       table: Table,
       cdfOptions: Map[String, String],
@@ -332,7 +369,11 @@ class DeltaSharingRestClient(
 
     val target = getTargetUrl(
       s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
-    val (version, respondedFormat, lines) = getNDJson(target, requireVersion = false)
+    val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
+      getCDFFilesByPage(target)
+    } else {
+      getNDJson(target, requireVersion = false)
+    }
     if (responseFormat != respondedFormat) {
       logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
         s"$responseFormat) for getCDFFiles(cdfOptions-$cdfOptions) for table " +
@@ -366,6 +407,29 @@ class DeltaSharingRestClient(
       removeFiles = removeFiles.toSeq,
       additionalMetadatas = additionalMetadatas.toSeq
     )
+  }
+
+  private def getCDFFilesByPage(targetUrl: String): (Long, String, Seq[String]) = {
+    val allLines = ArrayBuffer[String]()
+    var updatedUrl = s"$targetUrl&maxFiles=$maxFilesPerReq"
+    var (version, respondedFormat, lines) = getNDJson(updatedUrl, requireVersion = false)
+    allLines.appendAll(lines)
+    var nextPageToken = JsonUtils.fromJson[SingleAction](lines.last).nextPageToken
+    while (nextPageToken != null && nextPageToken.token != null && nextPageToken.token.nonEmpty) {
+      // remove last line (nextPageToken) in previous page
+      allLines.remove(allLines.length - 1)
+      updatedUrl = s"$targetUrl&maxFiles=$maxFilesPerReq&pageToken=${nextPageToken.token}"
+      lines = getNDJson(updatedUrl, requireVersion = false)._3
+      // remove first two lines (protocol + metadata) in subsequent pages
+      allLines.appendAll(lines.drop(2))
+      nextPageToken = JsonUtils.fromJson[SingleAction](lines.last).nextPageToken
+    }
+    // remove last line if the last page returns an empty nextPageToken object in the end
+    if (nextPageToken != null) {
+      allLines.remove(allLines.length - 1)
+    }
+
+    (version, respondedFormat, allLines.toSeq)
   }
 
   private def getEncodedCDFParams(
@@ -657,6 +721,8 @@ object DeltaSharingRestClient extends Logging {
     val numRetries = ConfUtils.numRetries(sqlConf)
     val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(sqlConf)
     val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
+    val queryTablePaginationEnabled = ConfUtils.queryTablePaginationEnabled(sqlConf)
+    val maxFilesPerReq = ConfUtils.maxFilesPerQueryRequest(sqlConf)
 
     val clientClass = ConfUtils.clientClass(sqlConf)
     Class.forName(clientClass)
@@ -667,14 +733,18 @@ object DeltaSharingRestClient extends Logging {
         classOf[Long],
         classOf[Boolean],
         classOf[Boolean],
-        classOf[String]
+        classOf[String],
+        classOf[Boolean],
+        classOf[Int]
       ).newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
         java.lang.Long.valueOf(maxRetryDurationMillis),
         java.lang.Boolean.valueOf(sslTrustAll),
         java.lang.Boolean.valueOf(forStreaming),
-        responseFormat
+        responseFormat,
+        java.lang.Boolean.valueOf(queryTablePaginationEnabled),
+        java.lang.Integer.valueOf(maxFilesPerReq)
       ).asInstanceOf[DeltaSharingClient]
   }
 }
