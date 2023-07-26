@@ -50,7 +50,6 @@ lazy val spark = (project in file("spark")) settings(
   releaseSettings,
   libraryDependencies ++= Seq(
     "org.apache.httpcomponents" % "httpclient" % "4.5.13",
-    "org.codehaus.jackson" % "jackson-mapper-asl" % "1.9.13",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
