@@ -45,7 +45,8 @@ import org.apache.spark.sql.types.{
   FloatType => SqlFloatType,
   IntegerType => SqlIntegerType,
   LongType => SqlLongType,
-  StringType => SqlStringType
+  StringType => SqlStringType,
+  TimestampType => SqlTimestampType
 }
 
 // A set of utilites that convert SQL expressions to Json predicate Ops.
@@ -164,7 +165,7 @@ object OpConverter {
         Some(ColumnOp(attr.name, convertDataType(sqlType)))
       case lit: SqlLiteral =>
         // This represents a constant value to be used in comparisons.
-        Some(LiteralOp(lit.toString, convertDataType(sqlType)))
+        Some(LiteralOp(convertLiteralValue(lit, sqlType), convertDataType(sqlType)))
       case c: SqlCast =>
         // A cast operation which triggers type conversion.
         Some(convertAsLeaf(c.child, sqlTypeOpt = Some(c.dataType)))
@@ -189,9 +190,21 @@ object OpConverter {
       case SqlDateType => OpDataTypes.DateType
       case SqlDoubleType => OpDataTypes.DoubleType
       case SqlFloatType => OpDataTypes.FloatType
+      case SqlTimestampType => OpDataTypes.TimestampType
 
       case _ =>
         throw new IllegalArgumentException("Unsupported data type " + sqlType)
+    }
+  }
+
+  // Converts a literal value into its string representation.
+  private def convertLiteralValue(lit: SqlLiteral, sqlType: SqlDataType): String = {
+    sqlType match {
+      case SqlTimestampType =>
+        // Literal expressions store timestamp in microseconds as its value.
+        // We convert it to jave.time.Instant, which formats it to ISO-8601 representation.
+        java.time.Instant.ofEpochMilli(lit.value.asInstanceOf[Long] / 1000).toString()
+      case _ => lit.toString
     }
   }
 }
