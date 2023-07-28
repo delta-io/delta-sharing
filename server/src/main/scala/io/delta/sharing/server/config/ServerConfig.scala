@@ -81,7 +81,7 @@ case class ServerConfig(
       evaluatePredicateHints = false,
       evaluateJsonPredicateHints = false,
       requestTimeoutSeconds = 30,
-      queryTablePageSizeLimit = 500,
+      queryTablePageSizeLimit = 10000,
       queryTablePageTokenTtlMs = 259200000 // 3 days
     )
   }

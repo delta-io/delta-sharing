@@ -19,8 +19,7 @@ package io.delta.standalone.internal
 
 import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
-import java.text.SimpleDateFormat
-import java.util.{Base64, TimeZone}
+import java.util.Base64
 import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConverters._
@@ -41,6 +40,7 @@ import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem
 import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scala.collection.mutable.ListBuffer
+import scala.util.control.NonFatal
 
 import io.delta.sharing.server.{
   model,
@@ -736,26 +736,22 @@ class DeltaSharedTable(
   }
 
   private def decodeAndValidatePageToken(
-                                          tokenStr: String,
-                                          expectedChecksum: String): QueryTablePageToken = {
+      tokenStr: String,
+      expectedChecksum: String): QueryTablePageToken = {
     val token = decodeQueryTablePageToken(tokenStr)
-    val timestampFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z")
-    timestampFormat.setTimeZone(TimeZone.getTimeZone("UTC"))
     if (token.getExpirationTimestamp < System.currentTimeMillis()) {
       throw new DeltaSharingIllegalArgumentException(
-        s"""The next page token has already expired at
-           |${timestampFormat.format(token.getExpirationTimestamp)}. Please restart the
-           |query.""".stripMargin
+        "The page token has expired. Please restart the query."
       )
     }
     if (token.getId != tableConfig.id) {
       throw new DeltaSharingIllegalArgumentException(
-        "The table specified in the next page token does not match the table being queried."
+        "The table specified in the page token does not match the table being queried."
       )
     }
     if (token.getChecksum != expectedChecksum) {
       throw new DeltaSharingIllegalArgumentException(
-        """Query parameter mismatch detected for the next page token query. The query parameter
+        """Query parameter mismatch detected for the next page query. The query parameter
           |cannot change when querying the next page results.""".stripMargin
       )
     }
@@ -767,7 +763,14 @@ class DeltaSharedTable(
   }
 
   private def decodeQueryTablePageToken(tokenStr: String): QueryTablePageToken = {
-    QueryTablePageToken.parseFrom(Base64.getUrlDecoder.decode(tokenStr))
+    try {
+      QueryTablePageToken.parseFrom(Base64.getUrlDecoder.decode(tokenStr))
+    } catch {
+      case NonFatal(_) =>
+        throw new DeltaSharingIllegalArgumentException(
+          s"Error decoding the page token: $tokenStr."
+        )
+    }
   }
 }
 

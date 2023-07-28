@@ -1023,6 +1023,70 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedNextPageToken == actions(3).nextPageToken)
   }
 
+  integrationTest("paginated query - exceptions") {
+    // invalid page token
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some("""{"pageToken": "randomPageToken"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Error decoding the page token"
+    )
+
+    // invalid query parameters
+    var response = readNDJson(
+      requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      Some("POST"),
+      Some("""{"maxFiles": 1}"""),
+      Some(2)
+    )
+    var lines = response.split("\n")
+    assert(lines.length == 4)
+    var nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
+    assert(nextPageToken != null && nextPageToken.token != null)
+
+    assertHttpError(
+      url = requestPath("/shares/share2/schemas/default/tables/table2/query"),
+      method = "POST",
+      data = Some(s"""{"pageToken": "${nextPageToken.token}"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "The table specified in the page token does not match the table being queried"
+    )
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some(s"""{"limitHint": 123, "pageToken": "${nextPageToken.token}"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Query parameter mismatch detected for the next page query"
+    )
+
+    // page token expired
+    val updatedServerConfig = serverConfig.copy(queryTablePageTokenTtlMs = 0)
+    server.stop().get()
+    server = DeltaSharingService.start(updatedServerConfig)
+    response = readNDJson(
+      requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      Some("POST"),
+      Some("""{"maxFiles": 1}"""),
+      Some(2)
+    )
+    lines = response.split("\n")
+    assert(lines.length == 4)
+    nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
+    assert(nextPageToken != null && nextPageToken.token != null)
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some(s"""{"pageToken": "${nextPageToken.token}"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "The page token has expired"
+    )
+
+    server.stop().get()
+    server = DeltaSharingService.start(serverConfig)
+  }
+
   integrationTest("table3 - different data file schemas - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table3/metadata"), expectedTableVersion = Some(4))
     val Array(protocol, metadata) = response.split("\n")

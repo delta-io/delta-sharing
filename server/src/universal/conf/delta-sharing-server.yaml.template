@@ -58,6 +58,6 @@ evaluatePredicateHints: false
 # Whether to evaluate user provided `jsonPredicateHints`
 evaluateJsonPredicateHints: false
 # The maximum page size permitted by queryTable/queryTableChanges API.
-queryTablePageSizeLimit: 500
+queryTablePageSizeLimit: 10000
 # The TTL of the page token generated in queryTable/queryTableChanges API (in milliseconds).
 queryTablePageTokenTtlMs: 259200000
