@@ -552,7 +552,7 @@ class DeltaSharedTable(
     if (endingVersion.isDefined && endingVersion.get > latestVersion) {
       throw DeltaCDFErrors.endVersionAfterLatestVersion(endingVersion.get, latestVersion)
     }
-    // We override (start, end) in subsequent page calls because:
+    // We use (start, end) from the page token instead of the original request because:
     // - Versions that are processed in previous pages can be skipped.
     // - Versions that are committed after the first page call should be ignored, especially
     //   when the endingVersion is not specified and resolved to latestVersion.
