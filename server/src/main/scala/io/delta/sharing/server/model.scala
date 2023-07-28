@@ -25,7 +25,8 @@ case class SingleAction(
     cdf: AddCDCFile = null,
     remove: RemoveFile = null,
     metaData: Metadata = null,
-    protocol: Protocol = null) {
+    protocol: Protocol = null,
+    nextPageToken: NextPageToken = null) {
 
   def unwrap: Action = {
     if (file != null) {
@@ -40,6 +41,8 @@ case class SingleAction(
       metaData
     } else if (protocol != null) {
       protocol
+    } else if (nextPageToken != null) {
+      nextPageToken
     } else {
       null
     }
@@ -128,6 +131,15 @@ case class RemoveFile(
     extends Action {
 
   override def wrap: SingleAction = SingleAction(remove = this)
+}
+
+/**
+ * A token to retrieve the subsequent page of a query. The server that supports pagination will
+ * return a nextPageToken at the end of the response when there are more files available than
+ * the page size specified by the user.
+ */
+case class NextPageToken(token: String) extends Action {
+  override def wrap: SingleAction = SingleAction(nextPageToken = this)
 }
 
 object Action {
