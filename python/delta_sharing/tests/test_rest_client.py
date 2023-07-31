@@ -572,24 +572,8 @@ def test_list_table_changes(
         version=3
     )
     assert response.actions == [
-        AddCdcFile(
-            url=response.actions[0].url,
-            id="d5fc796b3c044f7061702525435e43b7",
-            partition_values={"birthday": "2020-01-01"},
-            size=1125,
-            timestamp=1651614986000,
-            version=2,
-        ),
-        AddCdcFile(
-            url=response.actions[1].url,
-            id="6f8084143b699c5b808eb00db211c85c",
-            partition_values={"birthday": "2020-02-02"},
-            size=1132,
-            timestamp=1651614986000,
-            version=2,
-        ),
         AddFile(
-            url=response.actions[2].url,
+            url=response.actions[0].url,
             id='a04d61f17541fac1f9b5df5b8d26fff8',
             partition_values={'birthday': '2020-01-01'},
             size=791,
@@ -603,7 +587,7 @@ def test_list_table_changes(
             ),
         ),
         AddFile(
-            url=response.actions[3].url,
+            url=response.actions[1].url,
             id='f206a7168597c4db5956b2b11ed5cbb2',
             partition_values={'birthday': '2020-01-01'},
             size=791,
@@ -617,7 +601,7 @@ def test_list_table_changes(
             ),
         ),
         AddFile(
-            url=response.actions[4].url,
+            url=response.actions[2].url,
             id='9410d65d7571842eb7fb6b1ac01af372',
             partition_values={'birthday': '2020-03-03'},
             size=791,
@@ -629,6 +613,22 @@ def test_list_table_changes(
                 r'"maxValues":{"name":"3","age":3},'
                 r'"nullCount":{"name":0,"age":0}}'
             ),
+        ),
+        AddCdcFile(
+            url=response.actions[3].url,
+            id="d5fc796b3c044f7061702525435e43b7",
+            partition_values={"birthday": "2020-01-01"},
+            size=1125,
+            timestamp=1651614986000,
+            version=2,
+        ),
+        AddCdcFile(
+            url=response.actions[4].url,
+            id="6f8084143b699c5b808eb00db211c85c",
+            partition_values={"birthday": "2020-02-02"},
+            size=1132,
+            timestamp=1651614986000,
+            version=2,
         ),
         RemoveFile(
             url=response.actions[5].url,
