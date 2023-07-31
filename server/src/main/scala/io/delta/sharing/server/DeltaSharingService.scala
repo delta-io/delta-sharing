@@ -139,7 +139,7 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
               "errorCode" -> ErrorCode.MALFORMED_REQUEST,
               "message" -> cause.getMessage)))
       case _: NumberFormatException =>
-        // `maxResults` is not an int.
+        // `maxResults`/`maxFiles` is not an int.
         HttpResponse.of(
           HttpStatus.BAD_REQUEST,
           MediaType.JSON_UTF_8,
@@ -383,6 +383,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     streamingOutput(Some(version), responseFormat, actions)
   }
 
+  // scalastyle:off argcount
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/changes")
   @ConsumesJson
   def listCdfFiles(
@@ -394,8 +395,14 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("endingVersion") @Nullable endingVersion: String,
       @Param("startingTimestamp") @Nullable startingTimestamp: String,
       @Param("endingTimestamp") @Nullable endingTimestamp: String,
-      @Param("includeHistoricalMetadata") @Nullable includeHistoricalMetadata: String
+      @Param("includeHistoricalMetadata") @Nullable includeHistoricalMetadata: String,
+      @Param("maxFiles") @Nullable maxFiles: java.lang.Integer,
+      @Param("pageToken") @Nullable pageToken: String
   ): HttpResponse = processRequest {
+    // scalastyle:on argcount
+    if (maxFiles != null && maxFiles <= 0) {
+      throw new DeltaSharingIllegalArgumentException("maxFiles must be positive.")
+    }
     val capabilitiesMap = getDeltaSharingCapabilitiesMap(
       req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
     )
@@ -415,6 +422,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Option(endingTimestamp)
       ),
       includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false),
+      Option(maxFiles).map(_.toInt),
+      Option(pageToken),
       responseFormat = responseFormat
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
