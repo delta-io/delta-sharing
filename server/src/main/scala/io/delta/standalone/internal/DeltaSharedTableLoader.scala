@@ -373,6 +373,16 @@ class DeltaSharedTable(
     }
   }
 
+  // Construct and return the end action of the streaming response.
+  private def getEndStreamAction(
+      nextPageTokenStr: String,
+      minUrlExpirationTimestamp: Long): model.SingleAction = {
+    model.EndStreamAction(
+      nextPageTokenStr,
+      if (minUrlExpirationTimestamp == Long.MaxValue) null else minUrlExpirationTimestamp
+    ).wrap
+  }
+
   // scalastyle:off argcount
   def query(
       includeFiles: Boolean,
@@ -468,6 +478,7 @@ class DeltaSharedTable(
         // Enforce page size only when `maxFiles` is specified for backwards compatibility.
         val pageSizeOpt = maxFiles.map(_.min(queryTablePageSizeLimit))
         var nextPageTokenStr: String = null
+        var minUrlExpirationTimestamp = Long.MaxValue
 
         // Skip files that are already processed in previous pages
         val selectedIndexedFiles = state.activeFiles.toSeq.zipWithIndex
@@ -508,6 +519,7 @@ class DeltaSharedTable(
           case (addFile, _) =>
             val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
             val signedUrl = fileSigner.sign(cloudPath)
+            minUrlExpirationTimestamp = minUrlExpirationTimestamp.min(signedUrl.expirationTimestamp)
             getResponseAddFile(
               addFile,
               signedUrl,
@@ -516,12 +528,11 @@ class DeltaSharedTable(
               responseFormat
             )
         }
-        // Return `nextPageToken` object only when `maxFiles` is specified for backwards
-        // compatibility. If this is the last page, an empty `nextPageToken` object will
-        // be returned to explicitly indicate that there are no more pages.
+        // Return an `endStreamAction` object only when `maxFiles` is specified for backwards
+        // compatibility.
         filteredFiles ++ {
           if (maxFiles.isDefined) {
-            Seq(model.NextPageToken(nextPageTokenStr).wrap)
+            Seq(getEndStreamAction(nextPageTokenStr, minUrlExpirationTimestamp))
           } else {
             Nil
           }
@@ -573,7 +584,7 @@ class DeltaSharedTable(
     // Enforce page size only when `maxFiles` is specified for backwards compatibility.
     val pageSizeOpt = maxFilesOpt.map(_.min(queryTablePageSizeLimit))
     val tokenGenerator = { (v: Long, idx: Int) =>
-      val nextPageTokenStr = encodeQueryTablePageToken(
+      encodeQueryTablePageToken(
         QueryTablePageToken(
           id = Some(tableConfig.id),
           startingVersion = Some(v),
@@ -584,8 +595,8 @@ class DeltaSharedTable(
           expirationTimestamp = Some(System.currentTimeMillis() + queryTablePageTokenTtlMs)
         )
       )
-      model.NextPageToken(nextPageTokenStr).wrap
     }
+    var minUrlExpirationTimestamp = Long.MaxValue
     var numSignedFiles = 0
     val actions = ListBuffer[Object]()
     deltaLog
@@ -607,13 +618,16 @@ class DeltaSharedTable(
           case (a: AddFile, idx) if a.dataChange =>
             // Return early if we already have enough files in the current page
             if (pageSizeOpt.contains(numSignedFiles)) {
-              actions.append(tokenGenerator(v, idx))
+              actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
               return actions.toSeq
             }
+            val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path))
+            minUrlExpirationTimestamp =
+              minUrlExpirationTimestamp.min(preSignedUrl.expirationTimestamp)
             actions.append(
               getResponseAddFile(
                 a,
-                fileSigner.sign(absolutePath(deltaLog.dataPath, a.path)),
+                preSignedUrl,
                 v,
                 ts.getTime,
                 responseFormat,
@@ -624,13 +638,16 @@ class DeltaSharedTable(
           case (r: RemoveFile, idx) if r.dataChange =>
             // Return early if we already have enough files in the current page
             if (pageSizeOpt.contains(numSignedFiles)) {
-              actions.append(tokenGenerator(v, idx))
+              actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
               return actions.toSeq
             }
+            val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path))
+            minUrlExpirationTimestamp =
+              minUrlExpirationTimestamp.min(preSignedUrl.expirationTimestamp)
             actions.append(
               getResponseRemoveFile(
                 r,
-                fileSigner.sign(absolutePath(deltaLog.dataPath, r.path)),
+                preSignedUrl,
                 v,
                 ts.getTime,
                 responseFormat
@@ -652,10 +669,10 @@ class DeltaSharedTable(
           case _ => ()
         }
       }
-    // Return an empty `nextPageToken` object only when `maxFiles` is specified for
+    // Return an `endStreamAction` object only when `maxFiles` is specified for
     // backwards compatibility.
     if (maxFilesOpt.isDefined) {
-      actions.append(model.NextPageToken(null).wrap)
+      actions.append(getEndStreamAction(null, minUrlExpirationTimestamp))
     }
     actions.toSeq
   }
@@ -713,7 +730,7 @@ class DeltaSharedTable(
     // Enforce page size only when `maxFiles` is specified for backwards compatibility.
     val pageSizeOpt = maxFiles.map(_.min(queryTablePageSizeLimit))
     val tokenGenerator = { (v: Long, idx: Int) =>
-      val nextPageTokenStr = encodeQueryTablePageToken(
+      encodeQueryTablePageToken(
         QueryTablePageToken(
           id = Some(tableConfig.id),
           startingVersion = Some(v),
@@ -724,8 +741,8 @@ class DeltaSharedTable(
           expirationTimestamp = Some(System.currentTimeMillis() + queryTablePageTokenTtlMs)
         )
       )
-      model.NextPageToken(nextPageTokenStr).wrap
     }
+    var minUrlExpirationTimestamp = Long.MaxValue
     var numSignedFiles = 0
     // We use (start, end) from the page token instead of the original request because:
     // - Versions that are processed in previous pages can be skipped.
@@ -757,13 +774,16 @@ class DeltaSharedTable(
         case (c: AddCDCFile, idx) =>
           // Return early if we already have enough files in the current page
           if (pageSizeOpt.contains(numSignedFiles)) {
-            actions.append(tokenGenerator(v, idx))
+            actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
             return start -> actions.toSeq
           }
+          val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, c.path))
+          minUrlExpirationTimestamp =
+            minUrlExpirationTimestamp.min(preSignedUrl.expirationTimestamp)
           actions.append(
             getResponseAddCDCFile(
               c,
-              fileSigner.sign(absolutePath(deltaLog.dataPath, c.path)),
+              preSignedUrl,
               v,
               ts.getTime,
               responseFormat
@@ -773,13 +793,16 @@ class DeltaSharedTable(
         case (a: AddFile, idx) =>
           // Return early if we already have enough files in the current page
           if (pageSizeOpt.contains(numSignedFiles)) {
-            actions.append(tokenGenerator(v, idx))
+            actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
             return start -> actions.toSeq
           }
+          val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path))
+          minUrlExpirationTimestamp =
+            minUrlExpirationTimestamp.min(preSignedUrl.expirationTimestamp)
           actions.append(
             getResponseAddFile(
               a,
-              fileSigner.sign(absolutePath(deltaLog.dataPath, a.path)),
+              preSignedUrl,
               v,
               ts.getTime,
               responseFormat,
@@ -790,13 +813,16 @@ class DeltaSharedTable(
         case (r: RemoveFile, idx) =>
           // Return early if we already have enough files in the current page
           if (pageSizeOpt.contains(numSignedFiles)) {
-            actions.append(tokenGenerator(v, idx))
+            actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
             return start -> actions.toSeq
           }
+          val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path))
+          minUrlExpirationTimestamp =
+            minUrlExpirationTimestamp.min(preSignedUrl.expirationTimestamp)
           actions.append(
             getResponseRemoveFile(
               r,
-              fileSigner.sign(absolutePath(deltaLog.dataPath, r.path)),
+              preSignedUrl,
               v,
               ts.getTime,
               responseFormat
@@ -806,10 +832,10 @@ class DeltaSharedTable(
         case _ => ()
       }
     }
-    // Return an empty `nextPageToken` object only when `maxFiles` is specified for
+    // Return an `endStreamAction` object only when `maxFiles` is specified for
     // backwards compatibility.
     if (maxFiles.isDefined) {
-      actions.append(model.NextPageToken(null).wrap)
+      actions.append(getEndStreamAction(null, minUrlExpirationTimestamp))
     }
     start -> actions.toSeq
   }

@@ -636,14 +636,15 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val metadata = lines(1)
       val files = ArrayBuffer[String]()
       files.append(lines(2))
-      var nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
+      var endAction = JsonUtils.fromJson[SingleAction](lines(3)).endStreamAction
+      assert(endAction.minUrlExpirationTimestamp != null)
       var numPages = 1
-      while (nextPageToken != null && nextPageToken.token != null) {
+      while (endAction.nextPageToken != null) {
         numPages += 1
         response = readNDJson(
           requestPath("/shares/share1/schemas/default/tables/table1/query"),
           Some("POST"),
-          Some(s"""{"maxFiles": 1, "pageToken": "${nextPageToken.token}"}"""),
+          Some(s"""{"maxFiles": 1, "pageToken": "${endAction.nextPageToken}"}"""),
           Some(2),
           responseFormat
         )
@@ -652,7 +653,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         assert(protocol == lines(0))
         assert(metadata == lines(1))
         files.append(lines(2))
-        nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
+        endAction = JsonUtils.fromJson[SingleAction](lines(3)).endStreamAction
+        assert(endAction.minUrlExpirationTimestamp != null)
       }
       assert(numPages == 2)
 
@@ -852,9 +854,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val metadata = lines(1)
     val files = ArrayBuffer[String]()
     files.append(lines(2))
-    var nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
+    var endAction = JsonUtils.fromJson[SingleAction](lines(3)).endStreamAction
+    assert(endAction.minUrlExpirationTimestamp != null)
     var numPages = 1
-    while (nextPageToken != null && nextPageToken.token != null) {
+    while (endAction.nextPageToken != null) {
       numPages += 1
       body =
         s"""
@@ -863,7 +866,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
            |    "date = CAST('2021-04-28' AS DATE)"
            |  ],
            |  "maxFiles": 1,
-           |  "pageToken": "${nextPageToken.token}"
+           |  "pageToken": "${endAction.nextPageToken}"
            |}
            |""".stripMargin
       response = readNDJson(
@@ -877,7 +880,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       assert(protocol == lines(0))
       assert(metadata == lines(1))
       files.append(lines(2))
-      nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
+      endAction = JsonUtils.fromJson[SingleAction](lines(3)).endStreamAction
+      assert(endAction.minUrlExpirationTimestamp != null)
     }
     assert(numPages == 2)
 
@@ -1019,8 +1023,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         """{"numRecords":1,"minValues":{"name":"1","age":1},"maxValues":{"name":"1","age":1},"nullCount":{"name":0,"age":0}}"""
     )
     assert(expectedAddFile == actualFile)
-    val expectedNextPageToken = NextPageToken(token = null)
-    assert(expectedNextPageToken == actions(3).nextPageToken)
+    val endAction = actions(3).endStreamAction
+    assert(endAction.nextPageToken == null)
+    assert(endAction.minUrlExpirationTimestamp == actualFile.expirationTimestamp)
   }
 
   integrationTest("paginated query - exceptions") {
@@ -1042,20 +1047,20 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
     var lines = response.split("\n")
     assert(lines.length == 4)
-    var nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
-    assert(nextPageToken != null && nextPageToken.token != null)
+    var endAction = JsonUtils.fromJson[SingleAction](lines(3)).endStreamAction
+    assert(endAction.nextPageToken != null)
 
     assertHttpError(
       url = requestPath("/shares/share2/schemas/default/tables/table2/query"),
       method = "POST",
-      data = Some(s"""{"pageToken": "${nextPageToken.token}"}"""),
+      data = Some(s"""{"pageToken": "${endAction.nextPageToken}"}"""),
       expectedErrorCode = 400,
       expectedErrorMessage = "The table specified in the page token does not match the table being queried"
     )
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
       method = "POST",
-      data = Some(s"""{"limitHint": 123, "pageToken": "${nextPageToken.token}"}"""),
+      data = Some(s"""{"limitHint": 123, "pageToken": "${endAction.nextPageToken}"}"""),
       expectedErrorCode = 400,
       expectedErrorMessage = "Query parameter mismatch detected for the next page query"
     )
@@ -1072,13 +1077,13 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
     lines = response.split("\n")
     assert(lines.length == 4)
-    nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
-    assert(nextPageToken != null && nextPageToken.token != null)
+    endAction = JsonUtils.fromJson[SingleAction](lines(3)).endStreamAction
+    assert(endAction.nextPageToken != null)
 
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
       method = "POST",
-      data = Some(s"""{"pageToken": "${nextPageToken.token}"}"""),
+      data = Some(s"""{"pageToken": "${endAction.nextPageToken}"}"""),
       expectedErrorCode = 400,
       expectedErrorMessage = "The page token has expired"
     )
@@ -1563,14 +1568,15 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val metadata = lines(1)
       val files = ArrayBuffer[String]()
       files.append(lines(2))
-      var nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
+      var endAction = JsonUtils.fromJson[SingleAction](lines(3)).endStreamAction
+      assert(endAction.minUrlExpirationTimestamp != null)
       var numPages = 1
-      while (nextPageToken != null && nextPageToken.token != null) {
+      while (endAction.nextPageToken != null) {
         numPages += 1
         response = readNDJson(
           requestPath("/shares/share8/schemas/default/tables/streaming_table_with_optimize/query"),
           Some("POST"),
-          Some(s"""{"startingVersion": 6, "maxFiles": 1, "pageToken": "${nextPageToken.token}"}"""),
+          Some(s"""{"startingVersion": 6, "maxFiles": 1, "pageToken": "${endAction.nextPageToken}"}"""),
           Some(6),
           responseFormat
         )
@@ -1579,7 +1585,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         assert(protocol == lines(0))
         assert(metadata == lines(1))
         files.append(lines(2))
-        nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
+        endAction = JsonUtils.fromJson[SingleAction](lines(3)).endStreamAction
+        assert(endAction.minUrlExpirationTimestamp != null)
       }
       assert(numPages == 2)
 
@@ -1648,14 +1655,15 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val metadata = lines(1)
     val files = ArrayBuffer[String]()
     files.append(lines(2))
-    var nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
+    var endAction = JsonUtils.fromJson[SingleAction](lines(3)).endStreamAction
+    assert(endAction.minUrlExpirationTimestamp != null)
     var numPages = 1
-    while (nextPageToken != null && nextPageToken.token != null) {
+    while (endAction.nextPageToken != null) {
       numPages += 1
       response = readNDJson(
         requestPath("/shares/share8/schemas/default/tables/streaming_table_with_optimize/query"),
         Some("POST"),
-        Some(s"""{"startingVersion": 2, "endingVersion": 3, "maxFiles": 1, "pageToken": "${nextPageToken.token}"}"""),
+        Some(s"""{"startingVersion": 2, "endingVersion": 3, "maxFiles": 1, "pageToken": "${endAction.nextPageToken}"}"""),
         Some(2)
       )
       lines = response.split("\n")
@@ -1663,7 +1671,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       assert(protocol == lines(0))
       assert(metadata == lines(1))
       files.append(lines(2))
-      nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
+      endAction = JsonUtils.fromJson[SingleAction](lines(3)).endStreamAction
+      assert(endAction.minUrlExpirationTimestamp != null)
     }
     assert(numPages == 2)
 
@@ -1775,15 +1784,15 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedMetadata.copy(configuration = Map("enableChangeDataFeed" -> "true"), version = 2) == actions(3).metaData)
     // Check metadata for version 3.
     assert(expectedMetadata.copy(configuration = Map.empty, version = 3) == actions(4).metaData)
-    var nextPageToken = actions(5).nextPageToken
-    assert(nextPageToken != null)
-    assert(nextPageToken.token != null)
+    var endAction = actions(5).endStreamAction
+    assert(endAction.nextPageToken != null)
+    assert(endAction.minUrlExpirationTimestamp == actions(2).add.expirationTimestamp)
 
     // Page 2
     response = readNDJson(
       requestPath("/shares/share8/schemas/default/tables/streaming_table_metadata_protocol/query"),
       Some("POST"),
-      Some(s"""{"startingVersion": 0, "maxFiles": 1, "pageToken": "${nextPageToken.token}"}"""),
+      Some(s"""{"startingVersion": 0, "maxFiles": 1, "pageToken": "${endAction.nextPageToken}"}"""),
       Some(0)
     )
     actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
@@ -1792,9 +1801,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedMetadata == actions(1).metaData)
     assert(actions(2).add != null)
     // Check this is the last page (token is empty)
-    nextPageToken = actions(3).nextPageToken
-    assert(nextPageToken != null)
-    assert(nextPageToken.token == null)
+    endAction = actions(3).endStreamAction
+    assert(endAction.nextPageToken == null)
+    assert(endAction.minUrlExpirationTimestamp == actions(2).add.expirationTimestamp)
   }
 
   integrationTest("streaming_table_metadata_protocol - startingVersion 2 success") {
@@ -2099,13 +2108,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val metadata = lines(1)
       val files = ArrayBuffer[String]()
       files.appendAll(Seq(lines(2), lines(3)))
-      var nextPageToken = JsonUtils.fromJson[SingleAction](lines(4)).nextPageToken
+      var endAction = JsonUtils.fromJson[SingleAction](lines(4)).endStreamAction
+      assert(endAction.minUrlExpirationTimestamp != null)
       var numPages = 1
-      while (nextPageToken != null && nextPageToken.token != null) {
+      while (endAction.nextPageToken != null) {
         numPages += 1
         response = readNDJson(
           requestPath(
-            s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=2&maxFiles=2&pageToken=${nextPageToken.token}"
+            s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=2&maxFiles=2&pageToken=${endAction.nextPageToken}"
           ),
           Some("GET"),
           None,
@@ -2117,7 +2127,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         assert(protocol == lines(0))
         assert(metadata == lines(1))
         files.appendAll(Seq(lines(2), lines(3)))
-        nextPageToken = JsonUtils.fromJson[SingleAction](lines(4)).nextPageToken
+        endAction = JsonUtils.fromJson[SingleAction](lines(4)).endStreamAction
+        assert(endAction.minUrlExpirationTimestamp != null)
       }
       assert(numPages == 2)
 
@@ -2299,13 +2310,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val metadata = lines(1)
       val files = ArrayBuffer[String]()
       files.append(lines(2))
-      var nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
+      var endAction = JsonUtils.fromJson[SingleAction](lines(3)).endStreamAction
+      assert(endAction.minUrlExpirationTimestamp != null)
       var numPages = 1
-      while (nextPageToken != null && nextPageToken.token != null) {
+      while (endAction.nextPageToken != null) {
         numPages += 1
         response = readNDJson(
           requestPath(
-            s"/shares/share8/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=2&maxFiles=1&pageToken=${nextPageToken.token}"
+            s"/shares/share8/schemas/default/tables/cdf_table_with_partition/changes?startingVersion=2&maxFiles=1&pageToken=${endAction.nextPageToken}"
           ),
           Some("GET"),
           None,
@@ -2317,7 +2329,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         assert(protocol == lines(0))
         assert(metadata == lines(1))
         files.append(lines(2))
-        nextPageToken = JsonUtils.fromJson[SingleAction](lines(3)).nextPageToken
+        endAction = JsonUtils.fromJson[SingleAction](lines(3)).endStreamAction
+        assert(endAction.minUrlExpirationTimestamp != null)
       }
       assert(numPages == 3)
 
@@ -2412,14 +2425,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         version = 2
       )
     )
-    var nextPageToken = actions(4).nextPageToken
-    assert(nextPageToken != null)
-    assert(nextPageToken.token != null)
+    var endAction = actions(4).endStreamAction
+    assert(endAction.nextPageToken != null)
+    assert(endAction.minUrlExpirationTimestamp == actions(2).add.expirationTimestamp)
 
     // page 2
     response = readNDJson(
       requestPath(
-        s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0&includeHistoricalMetadata=true&maxFiles=1&pageToken=${nextPageToken.token}"
+        s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0&includeHistoricalMetadata=true&maxFiles=1&pageToken=${endAction.nextPageToken}"
       ),
       Some("GET"),
       None,
@@ -2430,9 +2443,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedProtocol == actions(0).protocol)
     assert(expectedMetadata == actions(1).metaData)
     assert(actions(2).add != null)
-    nextPageToken = actions(3).nextPageToken
-    assert(nextPageToken != null)
-    assert(nextPageToken.token == null)
+    endAction = actions(3).endStreamAction
+    assert(endAction.nextPageToken == null)
+    assert(endAction.minUrlExpirationTimestamp == actions(2).add.expirationTimestamp)
   }
 
   integrationTest("streaming_notnull_to_null - additional metadata not returned") {
@@ -2482,14 +2495,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedProtocol == actions(0).protocol)
     assert(expectedMetadata == actions(1).metaData)
     assert(actions(2).add != null)
-    var nextPageToken = actions(3).nextPageToken
-    assert(nextPageToken != null)
-    assert(nextPageToken.token != null)
+    var endAction = actions(3).endStreamAction
+    assert(endAction.nextPageToken != null)
+    assert(endAction.minUrlExpirationTimestamp == actions(2).add.expirationTimestamp)
 
     // page 2
     response = readNDJson(
       requestPath(
-        s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0&maxFiles=1&pageToken=${nextPageToken.token}"
+        s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes?startingVersion=0&maxFiles=1&pageToken=${endAction.nextPageToken}"
       ),
       Some("GET"),
       None,
@@ -2500,9 +2513,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedProtocol == actions(0).protocol)
     assert(expectedMetadata == actions(1).metaData)
     assert(actions(2).add != null)
-    nextPageToken = actions(3).nextPageToken
-    assert(nextPageToken != null)
-    assert(nextPageToken.token == null)
+    endAction = actions(3).endStreamAction
+    assert(endAction.nextPageToken == null)
+    assert(endAction.minUrlExpirationTimestamp == actions(2).add.expirationTimestamp)
   }
 
   private def verifyAddFile(
