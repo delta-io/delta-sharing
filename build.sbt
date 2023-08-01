@@ -44,8 +44,10 @@ lazy val root = (project in file(".")).aggregate(client, spark, server)
 
 lazy val client = (project in file("client")) settings(
   name := "delta-sharing-client",
+  crossScalaVersions := Seq(scala212, scala213),
   commonSettings,
   scalaStyleSettings,
+  releaseSettings,
   libraryDependencies ++= Seq(
     "org.apache.httpcomponents" % "httpclient" % "4.5.13",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
