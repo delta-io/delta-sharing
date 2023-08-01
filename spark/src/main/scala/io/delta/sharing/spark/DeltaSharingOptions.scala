@@ -102,8 +102,8 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
   // The input string is quite flexible, and can be in any timezone, examples of accepted format:
   // "2022", "2022-01-01", "2022-01-01 00:00:00" "2022-01-01T00:00:00-08:00", etc.
   private def getFormattedTimestamp(str: String): String = {
-    val castResult = Cast(
-    Literal(str), TimestampType, Option(SQLConf.get.sessionLocalTimeZone), false).eval()
+    val castResult = new Cast(
+    Literal(str), TimestampType, Option(SQLConf.get.sessionLocalTimeZone)).eval()
     if (castResult == null) {
       throw DeltaSharingErrors.timestampInvalid(str)
     }
