@@ -44,12 +44,12 @@ lazy val root = (project in file(".")).aggregate(client, spark, server)
 
 lazy val client = (project in file("client")) settings(
   name := "delta-sharing-client",
+  crossScalaVersions := Seq(scala212, scala213),
   commonSettings,
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
     "org.apache.httpcomponents" % "httpclient" % "4.5.13",
-    "org.codehaus.jackson" % "jackson-mapper-asl" % "1.9.13",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
@@ -210,6 +210,8 @@ import ReleaseTransformations._
 
 lazy val releaseSettings = Seq(
   publishMavenStyle := true,
+  publishArtifact := true,
+  Test / publishArtifact := false,
 
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
@@ -258,6 +260,31 @@ lazy val releaseSettings = Seq(
           <name>Shixiong Zhu</name>
           <url>https://github.com/zsxwing</url>
         </developer>
+        <developer>
+          <id>linzhou-db</id>
+          <name>Lin Zhou</name>
+          <url>https://github.com/linzhou-db</url>
+        </developer>
+        <developer>
+          <id>chakankardb</id>
+          <name>Abhijit Chakankar</name>
+          <url>https://github.com/chakankardb</url>
+        </developer>
+        <developer>
+          <id>charlenelyu-db</id>
+          <name>Charlene Lyu</name>
+          <url>https://github.com/charlenelyu-db</url>
+        </developer>
+        <developer>
+          <id>zhuansunxt</id>
+          <name>Xiaotong Sun</name>
+          <url>https://github.com/zhuansunxt</url>
+        </developer>
+        <developer>
+          <id>wchau</id>
+          <name>William Chau</name>
+          <url>https://github.com/wchau</url>
+        </developer>
       </developers>
 )
 
@@ -266,6 +293,8 @@ publishArtifact := false  // Don't release the root project
 publish := {}
 publishTo := Some("snapshots" at "https://oss.sonatype.org/content/repositories/snapshots")
 releaseCrossBuild := false
+// crossScalaVersions must be set to Nil on the root project
+crossScalaVersions := Nil
 releaseProcess := Seq[ReleaseStep](
   checkSnapshotDependencies,
   inquireVersions,
@@ -274,7 +303,7 @@ releaseProcess := Seq[ReleaseStep](
   setReleaseVersion,
   commitReleaseVersion,
   tagRelease,
-  publishArtifacts,
+  releaseStepCommandAndRemaining("+publishSigned"),
   setNextVersion,
   commitNextVersion
 )

@@ -16,9 +16,8 @@
 
 package io.delta.sharing.client.model
 
-import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.{JsonInclude, JsonRawValue}
 import org.apache.spark.sql.types.{DataType, LongType, StringType}
-import org.codehaus.jackson.annotate.JsonRawValue
 
 // Information about CDF columns.
 private[sharing] object CDFColumnInfo {
