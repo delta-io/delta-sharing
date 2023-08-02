@@ -26,7 +26,7 @@ case class SingleAction(
     remove: RemoveFile = null,
     metaData: Metadata = null,
     protocol: Protocol = null,
-    nextPageToken: NextPageToken = null) {
+    endStreamAction: EndStreamAction = null) {
 
   def unwrap: Action = {
     if (file != null) {
@@ -41,8 +41,8 @@ case class SingleAction(
       metaData
     } else if (protocol != null) {
       protocol
-    } else if (nextPageToken != null) {
-      nextPageToken
+    } else if (endStreamAction != null) {
+      endStreamAction
     } else {
       null
     }
@@ -134,12 +134,18 @@ case class RemoveFile(
 }
 
 /**
- * A token to retrieve the subsequent page of a query. The server that supports pagination will
- * return a nextPageToken at the end of the response when there are more files available than
- * the page size specified by the user.
+ * An action that is returned as the last line of the streaming response. It allows the server
+ * to include additional data that might be dynamically generated while the streaming message
+ * is sent, such as:
+ *  - nextPageToken: a token used to retrieve the subsequent page of a query
+ *  - minUrlExpirationTimestamp: the minimum url expiration timestamp of the urls returned in
+ *    current response
  */
-case class NextPageToken(token: String) extends Action {
-  override def wrap: SingleAction = SingleAction(nextPageToken = this)
+case class EndStreamAction(
+    nextPageToken: String,
+    minUrlExpirationTimestamp: java.lang.Long
+  ) extends Action {
+  override def wrap: SingleAction = SingleAction(endStreamAction = this)
 }
 
 object Action {
