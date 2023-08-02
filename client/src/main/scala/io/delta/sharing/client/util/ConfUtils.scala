@@ -55,7 +55,7 @@ object ConfUtils {
   val QUERY_PAGINATION_ENABLED_DEFAULT = "false"
 
   val MAX_FILES_CONF = "spark.delta.sharing.maxFilesPerQueryRequest"
-  val MAX_FILES_DEFAULT = 10000
+  val MAX_FILES_DEFAULT = 100000
 
   def numRetries(conf: Configuration): Int = {
     val numRetries = conf.getInt(NUM_RETRIES_CONF, NUM_RETRIES_DEFAULT)

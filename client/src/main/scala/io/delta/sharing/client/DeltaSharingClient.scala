@@ -105,7 +105,7 @@ class DeltaSharingRestClient(
     forStreaming: Boolean = false,
     responseFormat: String = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
     queryTablePaginationEnabled: Boolean = false,
-    maxFilesPerReq: Int = 10000
+    maxFilesPerReq: Int = 100000
   ) extends DeltaSharingClient with Logging {
 
   @volatile private var created = false
@@ -263,6 +263,10 @@ class DeltaSharingRestClient(
       jsonPredicateHints
     )
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
+      logInfo(
+        s"Making paginated queryTable requests for table " +
+        s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
+      )
       getFilesByPage(target, request)
     } else {
       getNDJson(target, request)
@@ -298,6 +302,10 @@ class DeltaSharingRestClient(
     val request =
       QueryTableRequest(Nil, None, None, None, Some(startingVersion), endingVersion, None)
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
+      logInfo(
+        s"Making paginated queryTable requests for table " +
+        s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
+      )
       getFilesByPage(target, request)
     } else {
       getNDJson(target, request)
@@ -333,28 +341,56 @@ class DeltaSharingRestClient(
     )
   }
 
+  // Send paginated queryTable requests. Loop internally to fetch and concatenate all pages,
+  // then return (version, respondedFormat, actions) tuple.
   private def getFilesByPage(
       targetUrl: String,
       request: QueryTableRequest): (Long, String, Seq[String]) = {
     val allLines = ArrayBuffer[String]()
+    val start = System.currentTimeMillis()
+    var numPages = 1
+
+    // Fetch first page
     var updatedRequest = request.copy(maxFiles = Some(maxFilesPerReq))
-    var (version, respondedFormat, lines) = getNDJson(targetUrl, updatedRequest)
-    allLines.appendAll(lines)
-    var nextPageToken = JsonUtils.fromJson[SingleAction](lines.last).nextPageToken
-    while (nextPageToken != null && nextPageToken.token != null && nextPageToken.token.nonEmpty) {
-      // remove last line (nextPageToken) in previous page
-      allLines.remove(allLines.length - 1)
-      updatedRequest = updatedRequest.copy(pageToken = Some(nextPageToken.token))
-      lines = getNDJson(targetUrl, updatedRequest)._3
-      // remove first two lines (protocol + metadata) in subsequent pages
-      allLines.appendAll(lines.drop(2))
-      nextPageToken = JsonUtils.fromJson[SingleAction](lines.last).nextPageToken
+    val (version, respondedFormat, lines) = getNDJson(targetUrl, updatedRequest)
+    val protocol = lines(0)
+    val metadata = lines(1)
+    var endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
+    if (endAction == null) {
+      logWarning("EndStreamAction is not returned in the response for paginated query.")
     }
-    // remove last line if the last page returns an empty nextPageToken object in the end
-    if (nextPageToken != null) {
-      allLines.remove(allLines.length - 1)
+    val minUrlExpirationTimestamp = if (endAction != null) {
+      Option(endAction.minUrlExpirationTimestamp)
+    } else {
+      None
+    }
+    allLines.appendAll(if (endAction != null) lines.init else lines)
+
+    // Fetch subsequent pages and concatenate all pages
+    while (endAction != null &&
+      endAction.nextPageToken != null &&
+      endAction.nextPageToken.nonEmpty) {
+      numPages += 1
+      updatedRequest = updatedRequest.copy(pageToken = Some(endAction.nextPageToken))
+      val res = fetchNextPageFiles(
+        targetUrl = targetUrl,
+        requestBody = Some(updatedRequest),
+        expectedVersion = version,
+        expectedRespondedFormat = respondedFormat,
+        expectedProtocol = protocol,
+        expectedMetadata = metadata
+      )
+      allLines.appendAll(res._1)
+      endAction = res._2
+      // Throw an error if the first page is expiring before we get all pages
+      if (minUrlExpirationTimestamp.exists(_ <= System.currentTimeMillis())) {
+        throw new IllegalStateException("Unable to fetch all pages before minimum url expiration.")
+      }
     }
 
+    // TODO: remove logging once changes are rolled out
+    logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages of files, " +
+      s"total lines in the response: ${allLines.size}.")
     (version, respondedFormat, allLines.toSeq)
   }
 
@@ -370,6 +406,11 @@ class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
+      // TODO: remove logging once changes are rolled out
+      logInfo(
+        s"Sending paginated queryTableChanges requests for table " +
+          s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
+      )
       getCDFFilesByPage(target)
     } else {
       getNDJson(target, requireVersion = false)
@@ -409,27 +450,91 @@ class DeltaSharingRestClient(
     )
   }
 
+  // Send paginated queryTableChanges requests. Loop internally to fetch and concatenate all pages,
+  // then return (version, respondedFormat, actions) tuple.
   private def getCDFFilesByPage(targetUrl: String): (Long, String, Seq[String]) = {
     val allLines = ArrayBuffer[String]()
+    val start = System.currentTimeMillis()
+    var numPages = 1
+
+    // Fetch first page
     var updatedUrl = s"$targetUrl&maxFiles=$maxFilesPerReq"
-    var (version, respondedFormat, lines) = getNDJson(updatedUrl, requireVersion = false)
-    allLines.appendAll(lines)
-    var nextPageToken = JsonUtils.fromJson[SingleAction](lines.last).nextPageToken
-    while (nextPageToken != null && nextPageToken.token != null && nextPageToken.token.nonEmpty) {
-      // remove last line (nextPageToken) in previous page
-      allLines.remove(allLines.length - 1)
-      updatedUrl = s"$targetUrl&maxFiles=$maxFilesPerReq&pageToken=${nextPageToken.token}"
-      lines = getNDJson(updatedUrl, requireVersion = false)._3
-      // remove first two lines (protocol + metadata) in subsequent pages
-      allLines.appendAll(lines.drop(2))
-      nextPageToken = JsonUtils.fromJson[SingleAction](lines.last).nextPageToken
+    val (version, respondedFormat, lines) = getNDJson(updatedUrl, requireVersion = false)
+    val protocol = lines(0)
+    val metadata = lines(1)
+    var endAction: EndStreamAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
+    if (endAction == null) {
+      logWarning("EndStreamAction is not returned in the response for paginated query.")
     }
-    // remove last line if the last page returns an empty nextPageToken object in the end
-    if (nextPageToken != null) {
-      allLines.remove(allLines.length - 1)
+    val minUrlExpirationTimestamp = if (endAction != null) {
+      Option(endAction.minUrlExpirationTimestamp)
+    } else {
+      None
+    }
+    allLines.appendAll(if (endAction != null) lines.init else lines)
+
+    // Fetch subsequent pages and concatenate all pages
+    while (endAction != null &&
+      endAction.nextPageToken != null &&
+      endAction.nextPageToken.nonEmpty) {
+      numPages += 1
+      updatedUrl = s"$targetUrl&maxFiles=$maxFilesPerReq&pageToken=${endAction.nextPageToken}"
+      val res = fetchNextPageFiles(
+        targetUrl = updatedUrl,
+        requestBody = None,
+        expectedVersion = version,
+        expectedRespondedFormat = respondedFormat,
+        expectedProtocol = protocol,
+        expectedMetadata = metadata)
+      allLines.appendAll(res._1)
+      endAction = res._2
+      // Throw an error if the first page is expiring before we get all pages
+      if (minUrlExpirationTimestamp.exists(_ <= System.currentTimeMillis())) {
+        throw new IllegalStateException("Unable to fetch all pages before minimum url expiration.")
+      }
     }
 
+    // TODO: remove logging once changes are rolled out
+    logInfo(
+      s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages of cdf files, " +
+      s"total lines in the response: ${allLines.size}."
+    )
     (version, respondedFormat, allLines.toSeq)
+  }
+
+  // Send next page query request. Validate the response and return next page files
+  // (as original json string) with EndStreamAction. EndStreamAction might be null
+  // if it's not returned in the response.
+  private def fetchNextPageFiles(
+      targetUrl: String,
+      requestBody: Option[QueryTableRequest],
+      expectedVersion: Long,
+      expectedRespondedFormat: String,
+      expectedProtocol: String,
+      expectedMetadata: String): (Seq[String], EndStreamAction) = {
+    val (version, respondedFormat, lines) = if (requestBody.isDefined) {
+      getNDJson(targetUrl, requestBody.get)
+    } else {
+      getNDJson(targetUrl, requireVersion = false)
+    }
+
+    // Validate that version/format/protocol/metadata in the response don't change across pages
+    if (version != expectedVersion ||
+      respondedFormat != expectedRespondedFormat ||
+      lines(0) != expectedProtocol ||
+      lines(1) != expectedMetadata) {
+      throw new IllegalStateException(
+        "Received inconsistent version/format/protocol/metadata across pages."
+      )
+    }
+
+    val endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
+    if (endAction == null) {
+      logWarning("EndStreamAction is not returned in the response for paginated query.")
+      (lines.drop(2), null)
+    } else {
+      (lines.drop(2).init, endAction)
+    }
   }
 
   private def getEncodedCDFParams(
