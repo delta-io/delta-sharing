@@ -389,8 +389,8 @@ class DeltaSharingRestClient(
     }
 
     // TODO: remove logging once changes are rolled out
-    logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages of files, " +
-      s"total lines in the response: ${allLines.size}.")
+    logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages" +
+      s"of ${allLines.size} files")
     (version, respondedFormat, allLines.toSeq)
   }
 
@@ -408,7 +408,7 @@ class DeltaSharingRestClient(
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       // TODO: remove logging once changes are rolled out
       logInfo(
-        s"Sending paginated queryTableChanges requests for table " +
+        s"Making paginated queryTableChanges requests for table " +
           s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
       )
       getCDFFilesByPage(target)
@@ -496,8 +496,8 @@ class DeltaSharingRestClient(
 
     // TODO: remove logging once changes are rolled out
     logInfo(
-      s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages of cdf files, " +
-      s"total lines in the response: ${allLines.size}."
+      s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages" +
+      s"of ${allLines.size} files"
     )
     (version, respondedFormat, allLines.toSeq)
   }
@@ -523,9 +523,14 @@ class DeltaSharingRestClient(
       respondedFormat != expectedRespondedFormat ||
       lines(0) != expectedProtocol ||
       lines(1) != expectedMetadata) {
-      throw new IllegalStateException(
-        "Received inconsistent version/format/protocol/metadata across pages."
-      )
+      val errorMsg = s"""
+        |Received inconsistent version/format/protocol/metadata across pages.
+        |Expected: version $expectedVersion, $expectedRespondedFormat,
+        |$expectedProtocol, $expectedMetadata. Actual: version $version,
+        |$respondedFormat, ${lines(0)}, ${lines(1)}""".stripMargin
+      logError(s"Error while fetching next page files at url $targetUrl " +
+        s"with body(${JsonUtils.toJson(requestBody.orNull)}: $errorMsg)")
+      throw new IllegalStateException(errorMsg)
     }
 
     val endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
