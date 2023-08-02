@@ -369,6 +369,30 @@ class JsonPredicateSuite extends SparkFunSuite {
     test_op(op)
   }
 
+  test("Float test") {
+    val op = ColumnOp(name = "cost", valueType = "float")
+    op.validate(true)
+
+    // Check that we can convert to json and back.
+    val op_json = JsonUtils.toJson[BaseOp](op)
+    val expected_json = """{"op":"column","name":"cost","valueType":"float"}"""
+    assert(op_json == expected_json)
+    val op_from_json = JsonUtils.fromJson[BaseOp](op_json)
+    op_from_json.validate(true)
+  }
+
+  test("Double test") {
+    val op = LiteralOp(value = "2.0005", valueType = "double")
+    op.validate(true)
+
+    // Check that we can convert to json and back.
+    val op_json = JsonUtils.toJson[BaseOp](op)
+    val expected_json = """{"op":"literal","value":"2.0005","valueType":"double"}"""
+    assert(op_json == expected_json)
+    val op_from_json = JsonUtils.fromJson[BaseOp](op_json)
+    op_from_json.validate(true)
+  }
+
   test("stress test") {
     val op = AndOp(Seq(
       GreaterThanOp(Seq(

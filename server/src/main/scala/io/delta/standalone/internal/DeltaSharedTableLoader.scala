@@ -19,6 +19,7 @@ package io.delta.standalone.internal
 
 import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
+import java.util.Base64
 import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConverters._
@@ -31,6 +32,7 @@ import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, Metadata, Protocol, RemoveFile}
 import io.delta.standalone.internal.exception.DeltaErrors
 import io.delta.standalone.internal.util.ConversionUtils
+import org.apache.commons.codec.digest.DigestUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.azure.NativeAzureFileSystem
@@ -38,6 +40,7 @@ import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem
 import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scala.collection.mutable.ListBuffer
+import scala.util.control.NonFatal
 
 import io.delta.sharing.server.{
   model,
@@ -52,6 +55,8 @@ import io.delta.sharing.server.{
   WasbFileSigner
 }
 import io.delta.sharing.server.config.{ServerConfig, TableConfig}
+import io.delta.sharing.server.protocol.QueryTablePageToken
+import io.delta.sharing.server.util.JsonUtils
 
 /**
  * A class to load Delta tables from `TableConfig`. It also caches the loaded tables internally
@@ -68,24 +73,45 @@ class DeltaSharedTableLoader(serverConfig: ServerConfig) {
   def loadTable(tableConfig: TableConfig): DeltaSharedTable = {
     try {
       val deltaSharedTable =
-        deltaSharedTableCache.get(tableConfig.location, () => {
-          new DeltaSharedTable(
-            tableConfig,
-            serverConfig.preSignedUrlTimeoutSeconds,
-            serverConfig.evaluatePredicateHints,
-            serverConfig.evaluateJsonPredicateHints)
-        })
+        deltaSharedTableCache.get(
+          tableConfig.location,
+          () => {
+            new DeltaSharedTable(
+              tableConfig,
+              serverConfig.preSignedUrlTimeoutSeconds,
+              serverConfig.evaluatePredicateHints,
+              serverConfig.evaluateJsonPredicateHints,
+              serverConfig.queryTablePageSizeLimit,
+              serverConfig.queryTablePageTokenTtlMs
+            )
+          }
+        )
       if (!serverConfig.stalenessAcceptable) {
         deltaSharedTable.update()
       }
       deltaSharedTable
-    }
-    catch {
+    } catch {
       case CausedBy(e: DeltaSharingUnsupportedOperationException) => throw e
       case e: Throwable => throw e
     }
   }
 }
+
+/**
+ * A util class stores all query parameters. Used to compute the checksum in the page token for
+ * query validation.
+ */
+private case class QueryParamChecksum(
+    version: Option[Long],
+    timestamp: Option[String],
+    startingVersion: Option[Long],
+    startingTimestamp: Option[String],
+    endingVersion: Option[Long],
+    endingTimestamp: Option[String],
+    predicateHints: Seq[String],
+    jsonPredicateHints: Option[String],
+    limitHint: Option[Long],
+    includeHistoricalMetadata: Option[Boolean])
 
 /**
  * A table class that wraps `DeltaLog` to provide the methods used by the server.
@@ -94,7 +120,9 @@ class DeltaSharedTable(
     tableConfig: TableConfig,
     preSignedUrlTimeoutSeconds: Long,
     evaluatePredicateHints: Boolean,
-    evaluateJsonPredicateHints: Boolean) {
+    evaluateJsonPredicateHints: Boolean,
+    queryTablePageSizeLimit: Int,
+    queryTablePageTokenTtlMs: Int) {
 
   private val conf = withClassLoader {
     new Configuration()
@@ -345,6 +373,17 @@ class DeltaSharedTable(
     }
   }
 
+  // Construct and return the end action of the streaming response.
+  private def getEndStreamAction(
+      nextPageTokenStr: String,
+      minUrlExpirationTimestamp: Long): model.SingleAction = {
+    model.EndStreamAction(
+      nextPageTokenStr,
+      if (minUrlExpirationTimestamp == Long.MaxValue) null else minUrlExpirationTimestamp
+    ).wrap
+  }
+
+  // scalastyle:off argcount
   def query(
       includeFiles: Boolean,
       predicateHints: Seq[String],
@@ -354,28 +393,55 @@ class DeltaSharedTable(
       timestamp: Option[String],
       startingVersion: Option[Long],
       endingVersion: Option[Long],
+      maxFiles: Option[Int],
+      pageToken: Option[String],
       responseFormat: String): (Long, Seq[Object]) = withClassLoader {
+    // scalastyle:on argcount
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
         ErrorStrings.multipleParametersSetErrorMsg(Seq("version", "timestamp", "startingVersion"))
       )
     }
-    val snapshot = if (version.orElse(startingVersion).isDefined) {
-      deltaLog.getSnapshotForVersionAsOf(version.orElse(startingVersion).get)
-    } else if (timestamp.isDefined) {
-      val ts = DeltaSharingHistoryManager.getTimestamp("timestamp", timestamp.get)
-      try {
-        deltaLog.getSnapshotForTimestampAsOf(ts.getTime())
-      } catch {
-        // Convert to DeltaSharingIllegalArgumentException to return 4xx instead of 5xx error code
-        // Only convert known exceptions around timestamp too late or too early
-        case e: IllegalArgumentException =>
-          throw new DeltaSharingIllegalArgumentException(e.getMessage)
+    // Validate pageToken if it's specified
+    lazy val queryParamChecksum = computeChecksum(
+      QueryParamChecksum(
+        version = version,
+        timestamp = timestamp,
+        startingVersion = startingVersion,
+        startingTimestamp = None,
+        endingVersion = endingVersion,
+        endingTimestamp = None,
+        predicateHints = predicateHints,
+        jsonPredicateHints = jsonPredicateHints,
+        limitHint = limitHint,
+        includeHistoricalMetadata = None
+      )
+    )
+    val pageTokenOpt = pageToken.map(decodeAndValidatePageToken(_, queryParamChecksum))
+    // For queryTable at snapshot, override version in subsequent page calls using the version
+    // in the pageToken to make sure we're querying the same version across pages. Especially
+    // when the first page is querying the latest snapshot, table changes that are committed
+    // after the first page call should be ignored.
+    val versionFromPageToken = pageTokenOpt.flatMap(_.version)
+    val snapshot =
+      if (versionFromPageToken.orElse(version).orElse(startingVersion).isDefined) {
+        deltaLog.getSnapshotForVersionAsOf(
+          versionFromPageToken.orElse(version).orElse(startingVersion).get
+        )
+      } else if (timestamp.isDefined) {
+        val ts = DeltaSharingHistoryManager.getTimestamp("timestamp", timestamp.get)
+        try {
+          deltaLog.getSnapshotForTimestampAsOf(ts.getTime())
+        } catch {
+          // Convert to DeltaSharingIllegalArgumentException to return 4xx instead of 5xx error code
+          // Only convert known exceptions around timestamp too late or too early
+          case e: IllegalArgumentException =>
+            throw new DeltaSharingIllegalArgumentException(e.getMessage)
+        }
+      } else {
+        deltaLog.snapshot
       }
-    } else {
-      deltaLog.snapshot
-    }
     // TODO Open the `state` field in Delta Standalone library.
     val stateMethod = snapshot.getClass.getMethod("state")
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
@@ -388,7 +454,14 @@ class DeltaSharedTable(
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
-        queryDataChangeSinceStartVersion(startingVersion.get, endingVersion, responseFormat)
+        queryDataChangeSinceStartVersion(
+          startingVersion.get,
+          endingVersion,
+          maxFiles,
+          pageTokenOpt,
+          queryParamChecksum,
+          responseFormat
+        )
       } else if (includeFiles) {
         val ts = if (isVersionQuery) {
           val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
@@ -402,35 +475,67 @@ class DeltaSharedTable(
         } else {
           None
         }
+        // Enforce page size only when `maxFiles` is specified for backwards compatibility.
+        val pageSizeOpt = maxFiles.map(_.min(queryTablePageSizeLimit))
+        var nextPageTokenStr: String = null
+        var minUrlExpirationTimestamp = Long.MaxValue
 
-        var selectedFiles = state.activeFiles.toSeq
-        var filteredFiles =
+        // Skip files that are already processed in previous pages
+        val selectedIndexedFiles = state.activeFiles.toSeq.zipWithIndex
+          .drop(pageTokenOpt.map(_.getStartingActionIndex).getOrElse(0))
+        // Select files that satisfy partition and predicate hints
+        var filteredIndexedFiles =
           if (evaluateJsonPredicateHints && snapshot.metadataScala.partitionColumns.nonEmpty) {
-            JsonPredicateFilterUtils.evaluatePredicate(jsonPredicateHints, selectedFiles)
+            JsonPredicateFilterUtils.evaluatePredicate(jsonPredicateHints, selectedIndexedFiles)
           } else {
-            selectedFiles
+            selectedIndexedFiles
           }
-        filteredFiles =
+        filteredIndexedFiles =
           if (evaluatePredicateHints && snapshot.metadataScala.partitionColumns.nonEmpty) {
             PartitionFilterUtils.evaluatePredicate(
               snapshot.metadataScala.schemaString,
               snapshot.metadataScala.partitionColumns,
               predicateHints,
-              filteredFiles
+              filteredIndexedFiles
             )
           } else {
-            filteredFiles
+            filteredIndexedFiles
           }
-        filteredFiles.map { addFile =>
-          val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
-          val signedUrl = fileSigner.sign(cloudPath)
-          getResponseAddFile(
-            addFile,
-            signedUrl,
-            if (isVersionQuery) { snapshot.version } else null,
-            if (isVersionQuery) { ts.get } else null,
-            responseFormat
+        // If number of valid files is greater than page size, generate nextPageToken and
+        // drop additional files.
+        if (pageSizeOpt.exists(_ < filteredIndexedFiles.length)) {
+          nextPageTokenStr = encodeQueryTablePageToken(
+            QueryTablePageToken(
+              id = Some(tableConfig.id),
+              version = Some(snapshot.version),
+              checksum = Some(queryParamChecksum),
+              startingActionIndex = Some(filteredIndexedFiles(pageSizeOpt.get)._2),
+              expirationTimestamp = Some(System.currentTimeMillis() + queryTablePageTokenTtlMs)
+            )
           )
+          filteredIndexedFiles = filteredIndexedFiles.take(pageSizeOpt.get)
+        }
+        val filteredFiles = filteredIndexedFiles.map {
+          case (addFile, _) =>
+            val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
+            val signedUrl = fileSigner.sign(cloudPath)
+            minUrlExpirationTimestamp = minUrlExpirationTimestamp.min(signedUrl.expirationTimestamp)
+            getResponseAddFile(
+              addFile,
+              signedUrl,
+              if (isVersionQuery) { snapshot.version } else null,
+              if (isVersionQuery) { ts.get } else null,
+              responseFormat
+            )
+        }
+        // Return an `endStreamAction` object only when `maxFiles` is specified for backwards
+        // compatibility.
+        filteredFiles ++ {
+          if (maxFiles.isDefined) {
+            Seq(getEndStreamAction(nextPageTokenStr, minUrlExpirationTimestamp))
+          } else {
+            Nil
+          }
         }
       } else {
         Nil
@@ -443,66 +548,131 @@ class DeltaSharedTable(
   private def queryDataChangeSinceStartVersion(
       startingVersion: Long,
       endingVersion: Option[Long],
+      maxFilesOpt: Option[Int],
+      pageTokenOpt: Option[QueryTablePageToken],
+      queryParamChecksum: String,
       responseFormat: String
-  ): Seq[Object] = {
-    var latestVersion = tableVersion
+    ): Seq[Object] = {
+    // For subsequent page calls, instead of using the current latestVersion, use latestVersion in
+    // the pageToken (which is equal to the latestVersion when the first page call is received),
+    // in case the latestVersion changes after the first page call.
+    val latestVersion = pageTokenOpt.map(_.getLatestVersion).getOrElse(tableVersion)
     if (startingVersion > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(startingVersion, latestVersion)
     }
     if (endingVersion.isDefined && endingVersion.get > latestVersion) {
       throw DeltaCDFErrors.endVersionAfterLatestVersion(endingVersion.get, latestVersion)
     }
-    latestVersion = latestVersion.min(endingVersion.getOrElse(latestVersion))
+    // We use (start, end) from the page token instead of the original request because:
+    // - Versions that are processed in previous pages can be skipped.
+    // - Versions that are committed after the first page call should be ignored, especially
+    //   when the endingVersion is not specified and resolved to latestVersion.
+    val start = pageTokenOpt.map(_.getStartingVersion).getOrElse(startingVersion)
+    val end = pageTokenOpt
+      .map(_.getEndingVersion)
+      .orElse(endingVersion)
+      .getOrElse(latestVersion)
+      .min(latestVersion)
     val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
       deltaLog.store,
       deltaLog.logPath,
-      startingVersion,
-      latestVersion + 1,
+      start,
+      end + 1,
       conf
     )
 
+    // Enforce page size only when `maxFiles` is specified for backwards compatibility.
+    val pageSizeOpt = maxFilesOpt.map(_.min(queryTablePageSizeLimit))
+    val tokenGenerator = { (v: Long, idx: Int) =>
+      encodeQueryTablePageToken(
+        QueryTablePageToken(
+          id = Some(tableConfig.id),
+          startingVersion = Some(v),
+          endingVersion = Some(end),
+          latestVersion = Some(latestVersion),
+          checksum = Some(queryParamChecksum),
+          startingActionIndex = Some(idx),
+          expirationTimestamp = Some(System.currentTimeMillis() + queryTablePageTokenTtlMs)
+        )
+      )
+    }
+    var minUrlExpirationTimestamp = Long.MaxValue
+    var numSignedFiles = 0
     val actions = ListBuffer[Object]()
-    deltaLog.getChanges(startingVersion, true).asScala.toSeq
-      .filter(_.getVersion <= latestVersion).foreach{ versionLog =>
-      val v = versionLog.getVersion
-      val versionActions = versionLog.getActions.asScala.map(x => ConversionUtils.convertActionJ(x))
-      val ts = timestampsByVersion.get(v).orNull
-      versionActions.foreach {
-        case a: AddFile if a.dataChange =>
-          actions.append(
-            getResponseAddFile(
-              a,
-              fileSigner.sign(absolutePath(deltaLog.dataPath, a.path)),
-              v,
-              ts.getTime,
-              responseFormat,
-              true
-            )
-          )
-        case r: RemoveFile if r.dataChange =>
-          actions.append(
-            getResponseRemoveFile(
-              r,
-              fileSigner.sign(absolutePath(deltaLog.dataPath, r.path)),
-              v,
-              ts.getTime,
-              responseFormat
-            )
-          )
-        case p: Protocol =>
-          assertProtocolRead(p)
-        case m: Metadata =>
-          if (v > startingVersion) {
+    deltaLog
+      .getChanges(start, true)
+      .asScala
+      .toSeq
+      .filter(_.getVersion <= end)
+      .foreach { versionLog =>
+        val v = versionLog.getVersion
+        var indexedVersionActions =
+          versionLog.getActions.asScala.map(x => ConversionUtils.convertActionJ(x)).zipWithIndex
+        val ts = timestampsByVersion.get(v).orNull
+        if (pageTokenOpt.exists(_.getStartingVersion == v)) {
+          // Skip actions that are already processed in previous pages
+          indexedVersionActions =
+            indexedVersionActions.drop(pageTokenOpt.get.getStartingActionIndex)
+        }
+        indexedVersionActions.foreach {
+          case (a: AddFile, idx) if a.dataChange =>
+            // Return early if we already have enough files in the current page
+            if (pageSizeOpt.contains(numSignedFiles)) {
+              actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
+              return actions.toSeq
+            }
+            val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path))
+            minUrlExpirationTimestamp =
+              minUrlExpirationTimestamp.min(preSignedUrl.expirationTimestamp)
             actions.append(
-              getResponseMetadata(
-                m,
-                Some(v),
+              getResponseAddFile(
+                a,
+                preSignedUrl,
+                v,
+                ts.getTime,
+                responseFormat,
+                true
+              )
+            )
+            numSignedFiles += 1
+          case (r: RemoveFile, idx) if r.dataChange =>
+            // Return early if we already have enough files in the current page
+            if (pageSizeOpt.contains(numSignedFiles)) {
+              actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
+              return actions.toSeq
+            }
+            val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path))
+            minUrlExpirationTimestamp =
+              minUrlExpirationTimestamp.min(preSignedUrl.expirationTimestamp)
+            actions.append(
+              getResponseRemoveFile(
+                r,
+                preSignedUrl,
+                v,
+                ts.getTime,
                 responseFormat
               )
             )
-          }
-        case _ => ()
+            numSignedFiles += 1
+          case (p: Protocol, _) =>
+            assertProtocolRead(p)
+          case (m: Metadata, _) =>
+            if (v > startingVersion) {
+              actions.append(
+                getResponseMetadata(
+                  m,
+                  Some(v),
+                  responseFormat
+                )
+              )
+            }
+          case _ => ()
+        }
       }
+    // Return an `endStreamAction` object only when `maxFiles` is specified for
+    // backwards compatibility.
+    if (maxFilesOpt.isDefined) {
+      actions.append(getEndStreamAction(null, minUrlExpirationTimestamp))
     }
     actions.toSeq
   }
@@ -510,22 +680,43 @@ class DeltaSharedTable(
   def queryCDF(
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean = false,
+      maxFiles: Option[Int],
+      pageToken: Option[String],
       responseFormat: String = DeltaSharedTable.RESPONSE_FORMAT_PARQUET
   ): (Long, Seq[Object]) = withClassLoader {
-    val actions = ListBuffer[Object]()
+    // Step 1: validate pageToken if it's specified
+    lazy val queryParamChecksum = computeChecksum(
+      QueryParamChecksum(
+        version = None,
+        timestamp = None,
+        startingVersion = cdfOptions.get(DeltaDataSource.CDF_START_VERSION_KEY).map(_.toLong),
+        startingTimestamp = cdfOptions.get(DeltaDataSource.CDF_START_TIMESTAMP_KEY),
+        endingVersion = cdfOptions.get(DeltaDataSource.CDF_END_VERSION_KEY).map(_.toLong),
+        endingTimestamp = cdfOptions.get(DeltaDataSource.CDF_END_TIMESTAMP_KEY),
+        predicateHints = Nil,
+        jsonPredicateHints = None,
+        limitHint = None,
+        includeHistoricalMetadata = Some(includeHistoricalMetadata)
+      )
+    )
+    val pageTokenOpt = pageToken.map(decodeAndValidatePageToken(_, queryParamChecksum))
 
-    // First: validate cdf options are greater than startVersion
+    // Step 2: validate cdfOptions
     val cdcReader = new DeltaSharingCDCReader(deltaLog, conf)
-    val latestVersion = tableVersion
+    // For subsequent page calls, instead of using the current latestVersion, use latestVersion in
+    // the pageToken (which is equal to the latestVersion when the first page call is received),
+    // in case the latestVersion changes after the first page call.
+    val latestVersion = pageTokenOpt.map(_.getLatestVersion).getOrElse(tableVersion)
     val (start, end) = cdcReader.validateCdfOptions(
       cdfOptions, latestVersion, tableConfig.startVersion)
 
-    // Second: get Protocol and Metadata
+    // Step 3: get Protocol and Metadata
     val snapshot = if (includeHistoricalMetadata) {
       deltaLog.getSnapshotForVersionAsOf(start)
     } else {
-      deltaLog.snapshot
+      deltaLog.getSnapshotForVersionAsOf(latestVersion)
     }
+    val actions = ListBuffer[Object]()
     actions.append(getResponseProtocol(snapshot.protocolScala, responseFormat))
     actions.append(
       getResponseMetadata(
@@ -535,70 +726,116 @@ class DeltaSharedTable(
       )
     )
 
-    // Third: get files
-    val (changeFiles, addFiles, removeFiles, metadatas) = cdcReader.queryCDF(
-      start, end, latestVersion, includeHistoricalMetadata)
-    // If includeHistoricalMetadata is not true, metadatas will be empty.
-    metadatas.foreach { cdcDataSpec =>
-      cdcDataSpec.actions.foreach { action =>
-        val metadata = action.asInstanceOf[Metadata]
-        actions.append(
-          getResponseMetadata(
-            metadata,
-            Some(cdcDataSpec.version),
-            responseFormat
-          )
+    // Step 4: get files
+    // Enforce page size only when `maxFiles` is specified for backwards compatibility.
+    val pageSizeOpt = maxFiles.map(_.min(queryTablePageSizeLimit))
+    val tokenGenerator = { (v: Long, idx: Int) =>
+      encodeQueryTablePageToken(
+        QueryTablePageToken(
+          id = Some(tableConfig.id),
+          startingVersion = Some(v),
+          endingVersion = Some(pageTokenOpt.map(_.getEndingVersion).getOrElse(end)),
+          latestVersion = Some(latestVersion),
+          checksum = Some(queryParamChecksum),
+          startingActionIndex = Some(idx),
+          expirationTimestamp = Some(System.currentTimeMillis() + queryTablePageTokenTtlMs)
         )
+      )
+    }
+    var minUrlExpirationTimestamp = Long.MaxValue
+    var numSignedFiles = 0
+    // We use (start, end) from the page token instead of the original request because:
+    // - Versions that are processed in previous pages can be skipped.
+    // - Versions that are committed after the first page call should be ignored, especially
+    //   when the endingVersion is not specified and resolved to latestVersion.
+    val changes = cdcReader.queryCDF(
+      pageTokenOpt.map(_.getStartingVersion).getOrElse(start),
+      pageTokenOpt.map(_.getEndingVersion).getOrElse(end).min(latestVersion),
+      latestVersion,
+      includeHistoricalMetadata
+    )
+    changes.foreach { cdcDataSpec =>
+      val v = cdcDataSpec.version
+      val ts = cdcDataSpec.timestamp
+      var indexedActions = cdcDataSpec.actions.zipWithIndex
+      if (pageTokenOpt.exists(_.getStartingVersion == v)) {
+        // Skip actions that are already processed in previous pages
+        indexedActions = indexedActions.drop(pageTokenOpt.get.getStartingActionIndex)
+      }
+      indexedActions.foreach {
+        case (m: Metadata, _) =>
+          actions.append(
+            getResponseMetadata(
+              m,
+              Some(v),
+              responseFormat
+            )
+          )
+        case (c: AddCDCFile, idx) =>
+          // Return early if we already have enough files in the current page
+          if (pageSizeOpt.contains(numSignedFiles)) {
+            actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
+            return start -> actions.toSeq
+          }
+          val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, c.path))
+          minUrlExpirationTimestamp =
+            minUrlExpirationTimestamp.min(preSignedUrl.expirationTimestamp)
+          actions.append(
+            getResponseAddCDCFile(
+              c,
+              preSignedUrl,
+              v,
+              ts.getTime,
+              responseFormat
+            )
+          )
+          numSignedFiles += 1
+        case (a: AddFile, idx) =>
+          // Return early if we already have enough files in the current page
+          if (pageSizeOpt.contains(numSignedFiles)) {
+            actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
+            return start -> actions.toSeq
+          }
+          val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path))
+          minUrlExpirationTimestamp =
+            minUrlExpirationTimestamp.min(preSignedUrl.expirationTimestamp)
+          actions.append(
+            getResponseAddFile(
+              a,
+              preSignedUrl,
+              v,
+              ts.getTime,
+              responseFormat,
+              returnAddFileForCDF = true
+            )
+          )
+          numSignedFiles += 1
+        case (r: RemoveFile, idx) =>
+          // Return early if we already have enough files in the current page
+          if (pageSizeOpt.contains(numSignedFiles)) {
+            actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
+            return start -> actions.toSeq
+          }
+          val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path))
+          minUrlExpirationTimestamp =
+            minUrlExpirationTimestamp.min(preSignedUrl.expirationTimestamp)
+          actions.append(
+            getResponseRemoveFile(
+              r,
+              preSignedUrl,
+              v,
+              ts.getTime,
+              responseFormat
+            )
+          )
+          numSignedFiles += 1
+        case _ => ()
       }
     }
-    changeFiles.foreach { cdcDataSpec =>
-      cdcDataSpec.actions.foreach { action =>
-        val addCDCFile = action.asInstanceOf[AddCDCFile]
-        val cloudPath = absolutePath(deltaLog.dataPath, addCDCFile.path)
-        val signedUrl = fileSigner.sign(cloudPath)
-        actions.append(
-          getResponseAddCDCFile(
-            addCDCFile,
-            signedUrl,
-            cdcDataSpec.version,
-            cdcDataSpec.timestamp.getTime,
-            responseFormat
-          )
-        )
-      }
-    }
-    addFiles.foreach { cdcDataSpec =>
-      cdcDataSpec.actions.foreach { action =>
-        val addFile = action.asInstanceOf[AddFile]
-        val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
-        val signedUrl = fileSigner.sign(cloudPath)
-        actions.append(
-          getResponseAddFile(
-            addFile,
-            signedUrl,
-            cdcDataSpec.version,
-            cdcDataSpec.timestamp.getTime,
-            responseFormat,
-            returnAddFileForCDF = true
-          )
-        )
-      }
-    }
-    removeFiles.foreach { cdcDataSpec =>
-      cdcDataSpec.actions.foreach { action =>
-        val removeFile = action.asInstanceOf[RemoveFile]
-        val cloudPath = absolutePath(deltaLog.dataPath, removeFile.path)
-        val signedUrl = fileSigner.sign(cloudPath)
-        actions.append(
-          getResponseRemoveFile(
-            removeFile,
-            signedUrl,
-            cdcDataSpec.version,
-            cdcDataSpec.timestamp.getTime,
-            responseFormat
-          )
-        )
-      }
+    // Return an `endStreamAction` object only when `maxFiles` is specified for
+    // backwards compatibility.
+    if (maxFiles.isDefined) {
+      actions.append(getEndStreamAction(null, minUrlExpirationTimestamp))
     }
     start -> actions.toSeq
   }
@@ -641,6 +878,48 @@ class DeltaSharedTable(
       throw new IllegalStateException("table containing absolute paths cannot be shared")
     } else {
       new Path(path, p)
+    }
+  }
+
+  private def computeChecksum(queryParamChecksum: QueryParamChecksum): String = {
+    DigestUtils.sha256Hex(JsonUtils.toJson(queryParamChecksum))
+  }
+
+  private def decodeAndValidatePageToken(
+      tokenStr: String,
+      expectedChecksum: String): QueryTablePageToken = {
+    val token = decodeQueryTablePageToken(tokenStr)
+    if (token.getExpirationTimestamp < System.currentTimeMillis()) {
+      throw new DeltaSharingIllegalArgumentException(
+        "The page token has expired. Please restart the query."
+      )
+    }
+    if (token.getId != tableConfig.id) {
+      throw new DeltaSharingIllegalArgumentException(
+        "The table specified in the page token does not match the table being queried."
+      )
+    }
+    if (token.getChecksum != expectedChecksum) {
+      throw new DeltaSharingIllegalArgumentException(
+        """Query parameter mismatch detected for the next page query. The query parameter
+          |cannot change when querying the next page results.""".stripMargin
+      )
+    }
+    token
+  }
+
+  private def encodeQueryTablePageToken(token: QueryTablePageToken): String = {
+    Base64.getUrlEncoder.encodeToString(token.toByteArray)
+  }
+
+  private def decodeQueryTablePageToken(tokenStr: String): QueryTablePageToken = {
+    try {
+      QueryTablePageToken.parseFrom(Base64.getUrlDecoder.decode(tokenStr))
+    } catch {
+      case NonFatal(_) =>
+        throw new DeltaSharingIllegalArgumentException(
+          s"Error decoding the page token: $tokenStr."
+        )
     }
   }
 }

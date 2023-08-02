@@ -28,7 +28,7 @@ class JsonPredicateFilterUtilsSuite extends FunSuite {
   test("evaluatePredicate") {
     val add1 = AddFile("foo1", Map("c2" -> "0"), 1, 1, true)
     val add2 = AddFile("foo2", Map("c2" -> "1"), 1, 1, true)
-    val addFiles = add1 :: add2 :: Nil
+    val addFiles = Seq(add1, add2).zipWithIndex
 
     val hints1 =
       """{"op":"and","children":[
@@ -39,7 +39,7 @@ class JsonPredicateFilterUtilsSuite extends FunSuite {
            |    {"op":"column","name":"c2","valueType":"int"},
            |    {"op":"literal","value":"0","valueType":"int"}]}
            |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
-    assert(add1 :: Nil == evaluatePredicate(Some(hints1), addFiles))
+    assert(Seq(addFiles(0)) == evaluatePredicate(Some(hints1), addFiles))
 
     val hints2 =
       """{"op":"and","children":[
@@ -50,7 +50,7 @@ class JsonPredicateFilterUtilsSuite extends FunSuite {
            |    {"op":"column","name":"c2","valueType":"int"},
            |    {"op":"literal","value":"1","valueType":"int"}]}
            |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
-    assert(add2 :: Nil == evaluatePredicate(Some(hints2), addFiles))
+    assert(Seq(addFiles(1)) == evaluatePredicate(Some(hints2), addFiles))
 
     val hints3 =
       """{"op":"and","children":[

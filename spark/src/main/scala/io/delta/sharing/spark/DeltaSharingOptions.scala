@@ -95,6 +95,8 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
 
   val timestampAsOf = options.get(TIME_TRAVEL_TIMESTAMP).map(getFormattedTimestamp(_))
 
+  val responseFormat = options.get(RESPONSE_FORMAT).getOrElse(RESPONSE_FORMAT_PARQUET)
+
   def isTimeTravel: Boolean = versionAsOf.isDefined || timestampAsOf.isDefined
 
   // Parse the input timestamp string and TimestampType, and generate a formatted timestamp string
@@ -181,6 +183,11 @@ object DeltaSharingOptions extends Logging {
 
   val TIME_TRAVEL_VERSION = "versionAsOf"
   val TIME_TRAVEL_TIMESTAMP = "timestampAsOf"
+
+  val RESPONSE_FORMAT = "responseFormat"
+
+  val RESPONSE_FORMAT_PARQUET = "parquet"
+  val RESPONSE_FORMAT_DELTA = "delta"
 
   val validCdfOptions = Map(
     CDF_READ_OPTION -> "",
