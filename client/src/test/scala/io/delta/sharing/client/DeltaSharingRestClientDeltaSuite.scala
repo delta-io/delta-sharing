@@ -244,8 +244,8 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 0, expectedNumLines = 7)
       checkCdfTableCdfEnabledTableV5Metadata(tableFiles.lines(1))
-      checkCdfTableCdfEnabledTableV2V3Cdc(tableFiles.lines.slice(2, 4))
-      checkCdfTableCdfEnabledTableV1(tableFiles.lines.slice(4, 7))
+      checkCdfTableCdfEnabledTableV1(tableFiles.lines.slice(2, 5))
+      checkCdfTableCdfEnabledTableV2V3Cdc(tableFiles.lines.slice(5, 7))
     } finally {
       client.close()
     }
@@ -279,8 +279,8 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 0, expectedNumLines = 5)
       checkNotnullToNullTableV0Metadata(tableFiles.lines(1))
-      checkNotnullToNullTableV2V3Metadata(tableFiles.lines(2), version = "2")
-      checkNotnullToNullTableAddFiles(tableFiles.lines.slice(3, 5))
+      checkNotnullToNullTableV2V3Metadata(tableFiles.lines(3), version = "2")
+      checkNotnullToNullTableAddFiles(Seq(tableFiles.lines(2), tableFiles.lines(4)))
     } finally {
       client.close()
     }
@@ -315,18 +315,19 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 0, expectedNumLines = 8)
       assert(tableFiles.lines(1) == """{"metaData":{"id":"b960061d-dc64-4b29-8fb0-d0ddc1b29cc2","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"version":4,"createdTime":1655408042120}}""")
       val cdcFilePrefix = """{"cdc":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/cdf_table_with_vacuum/_change_data/cdc-00000"""
-      assert(tableFiles.lines(2).startsWith(cdcFilePrefix))
-      assert(tableFiles.lines(2).contains(""""version":2,"timestamp":1655410824000,"expirationTimestamp":"""))
-      assert(tableFiles.lines(3).startsWith(cdcFilePrefix))
-      assert(tableFiles.lines(3).contains(""""version":4,"timestamp":1655410847000,"expirationTimestamp":"""))
+      assert(tableFiles.lines(4).startsWith(cdcFilePrefix))
+      assert(tableFiles.lines(4).contains(""""version":2,"timestamp":1655410824000,"expirationTimestamp":"""))
+      assert(tableFiles.lines(7).startsWith(cdcFilePrefix))
+      assert(tableFiles.lines(7).contains(""""version":4,"timestamp":1655410847000,"expirationTimestamp":"""))
       val addFilePrefix = """{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/cdf_table_with_vacuum/part-0000"""
-      for (lineNum <- 4 to 7) {
+      for (lineNum <- 2 to 3) {
         assert(tableFiles.lines(lineNum).startsWith(addFilePrefix))
+        assert(tableFiles.lines(lineNum).contains(""""version":1,"timestamp":1655408048000,"expirationTimestamp":"""))
       }
-      assert(tableFiles.lines(4).contains(""""version":1,"timestamp":1655408048000,"expirationTimestamp":"""))
-      assert(tableFiles.lines(5).contains(""""version":1,"timestamp":1655408048000,"expirationTimestamp":"""))
-      assert(tableFiles.lines(6).contains(""""version":3,"timestamp":1655410829000,"expirationTimestamp":"""))
-      assert(tableFiles.lines(7).contains(""""version":3,"timestamp":1655410829000,"expirationTimestamp":"""))
+      for (lineNum <- 5 to 6) {
+        assert(tableFiles.lines(lineNum).startsWith(addFilePrefix))
+        assert(tableFiles.lines(lineNum).contains(""""version":3,"timestamp":1655410829000,"expirationTimestamp":"""))
+      }
     } finally {
       client.close()
     }
