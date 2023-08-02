@@ -42,7 +42,9 @@ class TestDeltaSharingClient(
     maxRetryDuration: Long = Long.MaxValue,
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
-    responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET
+    responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET,
+    queryTablePaginationEnabled: Boolean = false,
+    maxFilesPerReq: Int = 10000
   ) extends DeltaSharingClient {
 
   private val metadataString =

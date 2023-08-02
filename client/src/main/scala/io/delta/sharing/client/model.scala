@@ -66,7 +66,8 @@ private[sharing] case class SingleAction(
     cdf: AddCDCFile = null,
     remove: RemoveFile = null,
     metaData: Metadata = null,
-    protocol: Protocol = null) {
+    protocol: Protocol = null,
+    endStreamAction: EndStreamAction = null) {
 
   def unwrap: Action = {
     if (file != null) {
@@ -110,6 +111,13 @@ private[sharing] sealed trait Action {
 
 private[sharing] case class Protocol(minReaderVersion: Int) extends Action {
   override def wrap: SingleAction = SingleAction(protocol = this)
+}
+
+private[sharing] case class EndStreamAction(
+    nextPageToken: String,
+    minUrlExpirationTimestamp: java.lang.Long)
+  extends Action {
+  override def wrap: SingleAction = SingleAction(endStreamAction = this)
 }
 
 // A common base class for all file actions.

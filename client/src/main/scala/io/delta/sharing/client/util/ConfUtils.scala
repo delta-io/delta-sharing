@@ -51,6 +51,12 @@ object ConfUtils {
   val JSON_PREDICATE_V2_CONF = "spark.delta.sharing.jsonPredicateV2Hints.enabled"
   val JSON_PREDICATE_V2_DEFAULT = "false"
 
+  val QUERY_PAGINATION_ENABLED_CONF = "spark.delta.sharing.queryPagination.enabled"
+  val QUERY_PAGINATION_ENABLED_DEFAULT = "false"
+
+  val MAX_FILES_CONF = "spark.delta.sharing.maxFilesPerQueryRequest"
+  val MAX_FILES_DEFAULT = 100000
+
   def numRetries(conf: Configuration): Int = {
     val numRetries = conf.getInt(NUM_RETRIES_CONF, NUM_RETRIES_DEFAULT)
     validateNonNeg(numRetries, NUM_RETRIES_CONF)
@@ -112,6 +118,16 @@ object ConfUtils {
     conf.getConfString(JSON_PREDICATE_V2_CONF, JSON_PREDICATE_V2_DEFAULT).toBoolean
   }
 
+  def queryTablePaginationEnabled(conf: SQLConf): Boolean = {
+    conf.getConfString(QUERY_PAGINATION_ENABLED_CONF, QUERY_PAGINATION_ENABLED_DEFAULT).toBoolean
+  }
+
+  def maxFilesPerQueryRequest(conf: SQLConf): Int = {
+    val maxFiles = conf.getConfString(MAX_FILES_CONF, MAX_FILES_DEFAULT.toString).toInt
+    validatePositive(maxFiles, MAX_FILES_CONF)
+    maxFiles
+  }
+
   private def toTimeout(timeoutStr: String): Int = {
     val timeoutInSeconds = JavaUtils.timeStringAs(timeoutStr, TimeUnit.SECONDS)
     validateNonNeg(timeoutInSeconds, TIMEOUT_CONF)
@@ -124,6 +140,12 @@ object ConfUtils {
   private def validateNonNeg(value: Long, conf: String): Unit = {
     if (value < 0L) {
       throw new IllegalArgumentException(conf + " must not be negative")
+    }
+  }
+
+  private def validatePositive(value: Int, conf: String): Unit = {
+    if (value <= 0) {
+      throw new IllegalArgumentException(conf + " must be positive")
     }
   }
 }
