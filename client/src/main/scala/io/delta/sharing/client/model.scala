@@ -16,9 +16,8 @@
 
 package io.delta.sharing.client.model
 
-import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.{JsonInclude, JsonRawValue}
 import org.apache.spark.sql.types.{DataType, LongType, StringType}
-import org.codehaus.jackson.annotate.JsonRawValue
 
 // Information about CDF columns.
 private[sharing] object CDFColumnInfo {
@@ -38,18 +37,20 @@ private[sharing] object CDFColumnInfo {
 
 private[sharing] case class DeltaTableMetadata(
     version: Long,
-    protocol: Protocol,
-    metadata: Metadata)
+    protocol: Protocol = null,
+    metadata: Metadata = null,
+    lines: Seq[String] = Nil)
 
 private[sharing] case class DeltaTableFiles(
     version: Long,
-    protocol: Protocol,
-    metadata: Metadata,
+    protocol: Protocol = null,
+    metadata: Metadata = null,
     files: Seq[AddFile] = Nil,
     addFiles: Seq[AddFileForCDF] = Nil,
     cdfFiles: Seq[AddCDCFile] = Nil,
     removeFiles: Seq[RemoveFile] = Nil,
-    additionalMetadatas: Seq[Metadata] = Nil)
+    additionalMetadatas: Seq[Metadata] = Nil,
+    lines: Seq[String] = Nil)
 
 private[sharing] case class Share(name: String)
 
@@ -65,7 +66,8 @@ private[sharing] case class SingleAction(
     cdf: AddCDCFile = null,
     remove: RemoveFile = null,
     metaData: Metadata = null,
-    protocol: Protocol = null) {
+    protocol: Protocol = null,
+    endStreamAction: EndStreamAction = null) {
 
   def unwrap: Action = {
     if (file != null) {
@@ -109,6 +111,13 @@ private[sharing] sealed trait Action {
 
 private[sharing] case class Protocol(minReaderVersion: Int) extends Action {
   override def wrap: SingleAction = SingleAction(protocol = this)
+}
+
+private[sharing] case class EndStreamAction(
+    nextPageToken: String,
+    minUrlExpirationTimestamp: java.lang.Long)
+  extends Action {
+  override def wrap: SingleAction = SingleAction(endStreamAction = this)
 }
 
 // A common base class for all file actions.

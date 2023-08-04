@@ -99,16 +99,25 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getTableVersion - exceptions") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      val errorMessage = intercept[UnexpectedHttpStatus] {
-        client.getTableVersion(Table(name = "table1", schema = "default", share = "share1"),
-          startingTimestamp = Some("2020-01-01T00:00:00Z"))
-      }.getMessage
-      assert(errorMessage.contains("400 Bad Request"))
-      assert(errorMessage.contains("Reading table by version or timestamp is not supported"))
-    } finally {
-      client.close()
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
+      responseFormat =>
+        val client = new DeltaSharingRestClient(
+          testProfileProvider,
+          sslTrustAll = true,
+          responseFormat = responseFormat
+        )
+        try {
+          val errorMessage = intercept[UnexpectedHttpStatus] {
+            client.getTableVersion(Table(name = "table1", schema = "default", share = "share1"),
+              startingTimestamp = Some("2020-01-01T00:00:00Z"))
+          }.getMessage
+          assert(errorMessage.contains("400 Bad Request"))
+          assert(errorMessage.contains("Reading table by version or timestamp is not supported"))
+        } finally {
+          client.close()
+        }
     }
   }
 
@@ -148,41 +157,59 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getFiles") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      val tableFiles =
-        client.getFiles(Table(name = "table2", schema = "default", share = "share2"), Nil, None, None, None, None)
-      assert(tableFiles.version == 2)
-      assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
-      val expectedMetadata = Metadata(
-        id = "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
-        format = Format(),
-        schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
-        partitionColumns = Seq("date"))
-      assert(expectedMetadata == tableFiles.metadata)
-      assert(tableFiles.files.size == 2)
-      val expectedFiles = Seq(
-        AddFile(
-          url = tableFiles.files(0).url,
-          expirationTimestamp = tableFiles.files(0).expirationTimestamp,
-          id = "9f1a49539c5cffe1ea7f9e055d5c003c",
-          partitionValues = Map("date" -> "2021-04-28"),
-          size = 573,
-          stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:57.955Z"},"maxValues":{"eventTime":"2021-04-28T23:33:57.955Z"},"nullCount":{"eventTime":0}}"""
-        ),
-        AddFile(
-          url = tableFiles.files(1).url,
-          expirationTimestamp = tableFiles.files(1).expirationTimestamp,
-          id = "cd2209b32f5ed5305922dd50f5908a75",
-          partitionValues = Map("date" -> "2021-04-28"),
-          size = 573,
-          stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"maxValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"nullCount":{"eventTime":0}}"""
-        )
+    Seq(true, false).foreach { paginationEnabled =>
+      val client = new DeltaSharingRestClient(
+        testProfileProvider,
+        sslTrustAll = true,
+        queryTablePaginationEnabled = paginationEnabled,
+        maxFilesPerReq = 1
       )
-      assert(expectedFiles == tableFiles.files.toList)
-      assert(tableFiles.files(0).expirationTimestamp > System.currentTimeMillis())
-    } finally {
-      client.close()
+      try {
+        val tableFiles =
+          client.getFiles(
+            Table(name = "table2", schema = "default", share = "share2"),
+            Nil,
+            None,
+            None,
+            None,
+            None
+          )
+        assert(tableFiles.version == 2)
+        assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
+        val expectedMetadata = Metadata(
+          id = "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+          format = Format(),
+          schemaString =
+            """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
+          partitionColumns = Seq("date")
+        )
+        assert(expectedMetadata == tableFiles.metadata)
+        assert(tableFiles.files.size == 2)
+        val expectedFiles = Seq(
+          AddFile(
+            url = tableFiles.files(0).url,
+            expirationTimestamp = tableFiles.files(0).expirationTimestamp,
+            id = "9f1a49539c5cffe1ea7f9e055d5c003c",
+            partitionValues = Map("date" -> "2021-04-28"),
+            size = 573,
+            stats =
+              """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:57.955Z"},"maxValues":{"eventTime":"2021-04-28T23:33:57.955Z"},"nullCount":{"eventTime":0}}"""
+          ),
+          AddFile(
+            url = tableFiles.files(1).url,
+            expirationTimestamp = tableFiles.files(1).expirationTimestamp,
+            id = "cd2209b32f5ed5305922dd50f5908a75",
+            partitionValues = Map("date" -> "2021-04-28"),
+            size = 573,
+            stats =
+              """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"maxValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"nullCount":{"eventTime":0}}"""
+          )
+        )
+        assert(expectedFiles == tableFiles.files.toList)
+        assert(tableFiles.files(0).expirationTimestamp > System.currentTimeMillis())
+      } finally {
+        client.close()
+      }
     }
   }
 
@@ -238,159 +265,201 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getFiles with version exception") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      val errorMessage = intercept[UnexpectedHttpStatus] {
-        client.getFiles(
-          Table(name = "table1", schema = "default", share = "share1"),
-          Nil,
-          None,
-          Some(1L),
-          None,
-          None
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
+      responseFormat =>
+        val client = new DeltaSharingRestClient(
+          testProfileProvider,
+          sslTrustAll = true,
+          responseFormat = responseFormat
         )
-      }.getMessage
-      assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
-    } finally {
-      client.close()
+        try {
+          val errorMessage = intercept[UnexpectedHttpStatus] {
+            client.getFiles(
+              Table(name = "table1", schema = "default", share = "share1"),
+              Nil,
+              None,
+              Some(1L),
+              None,
+              None
+            )
+          }.getMessage
+          assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
+        } finally {
+          client.close()
+        }
     }
   }
 
   integrationTest("getFiles with timestamp parsed, but too early") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      // This is to test that timestamp is correctly passed to the server and parsed.
-      // The error message is expected as we are using a timestamp much smaller than the earliest
-      // version of the table.
-      // Because with undecided timezone, the timestamp string can be mapped to different versions
-      val errorMessage = intercept[UnexpectedHttpStatus] {
-        client.getFiles(
-          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-          Nil,
-          None,
-          None,
-          Some("2000-01-01T00:00:00Z"),
-          None)
-      }.getMessage
-      assert(errorMessage.contains("The provided timestamp"))
-    } finally {
-      client.close()
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
+      responseFormat =>
+        val client = new DeltaSharingRestClient(
+          testProfileProvider,
+          sslTrustAll = true,
+          responseFormat = responseFormat
+        )
+        try {
+          // This is to test that timestamp is correctly passed to the server and parsed.
+          // The error message is expected as we are using a timestamp much smaller than the earliest
+          // version of the table.
+          // Because with undecided timezone, the timestamp string can be mapped to different versions
+          val errorMessage = intercept[UnexpectedHttpStatus] {
+            client.getFiles(
+              Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
+              Nil,
+              None,
+              None,
+              Some("2000-01-01T00:00:00Z"),
+              None)
+          }.getMessage
+          assert(errorMessage.contains("The provided timestamp"))
+        } finally {
+          client.close()
+        }
     }
   }
 
   integrationTest("getFiles with timestamp not supported on table1") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      val errorMessage = intercept[UnexpectedHttpStatus] {
-        client.getFiles(
-          Table(name = "table1", schema = "default", share = "share1"),
-          Nil,
-          None,
-          None,
-          Some("abc"),
-          None
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
+      responseFormat =>
+        val client = new DeltaSharingRestClient(
+          testProfileProvider,
+          sslTrustAll = true,
+          responseFormat = responseFormat
         )
-      }.getMessage
-      assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
-    } finally {
-      client.close()
+        try {
+          val errorMessage = intercept[UnexpectedHttpStatus] {
+            client.getFiles(
+              Table(name = "table1", schema = "default", share = "share1"),
+              Nil,
+              None,
+              None,
+              Some("abc"),
+              None
+            )
+          }.getMessage
+          assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
+        } finally {
+          client.close()
+        }
     }
   }
 
   integrationTest("getFiles with startingVersion - success") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      val tableFiles = client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 1L, None
+    Seq(true, false).foreach { paginationEnabled =>
+      val client = new DeltaSharingRestClient(
+        testProfileProvider,
+        sslTrustAll = true,
+        queryTablePaginationEnabled = paginationEnabled,
+        maxFilesPerReq = 1
       )
-      assert(tableFiles.version == 1)
-      assert(tableFiles.addFiles.size == 4)
-      val expectedAddFiles = Seq(
-        AddFileForCDF(
-          url = tableFiles.addFiles(0).url,
-          expirationTimestamp = tableFiles.addFiles(0).expirationTimestamp,
-          id = "60d0cf57f3e4367db154aa2c36152a1f",
-          partitionValues = Map.empty,
-          size = 1030,
-          stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-          version = 1,
-          timestamp = 1651272635000L
-        ),
-        AddFileForCDF(
-          url = tableFiles.addFiles(1).url,
-          expirationTimestamp = tableFiles.addFiles(1).expirationTimestamp,
-          id = "a6dc5694a4ebcc9a067b19c348526ad6",
-          partitionValues = Map.empty,
-          size = 1030,
-          stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-          version = 1,
-          timestamp = 1651272635000L
-        ),
-        AddFileForCDF(
-          url = tableFiles.addFiles(2).url,
-          expirationTimestamp = tableFiles.addFiles(2).expirationTimestamp,
-          id = "d7ed708546dd70fdff9191b3e3d6448b",
-          partitionValues = Map.empty,
-          size = 1030,
-          stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-          version = 1,
-          timestamp = 1651272635000L
-        ),
-        AddFileForCDF(
-          url = tableFiles.addFiles(3).url,
-          expirationTimestamp = tableFiles.addFiles(3).expirationTimestamp,
-          id = "b875623be22c1fa1dfdeb0480fae6117",
-          partitionValues = Map.empty,
-          size = 1247,
-          stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-02-02"},"maxValues":{"name":"2","age":2,"birthday":"2020-02-02"},"nullCount":{"name":0,"age":0,"birthday":0,"_change_type":1}}""",
-          version = 3,
-          timestamp = 1651272660000L
+      try {
+        val tableFiles = client.getFiles(
+          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
+          1L,
+          None
         )
-      )
-      assert(expectedAddFiles == tableFiles.addFiles.toList)
-      assert(tableFiles.addFiles(0).expirationTimestamp > System.currentTimeMillis())
-
-      assert(tableFiles.removeFiles.size == 2)
-      val expectedRemoveFiles = Seq(
-        RemoveFile(
-          url = tableFiles.removeFiles(0).url,
-          expirationTimestamp = tableFiles.removeFiles(0).expirationTimestamp,
-          id = "d7ed708546dd70fdff9191b3e3d6448b",
-          partitionValues = Map.empty,
-          size = 1030,
-          version = 2,
-          timestamp = 1651272655000L
-        ),
-        RemoveFile(
-          url = tableFiles.removeFiles(1).url,
-          expirationTimestamp = tableFiles.removeFiles(1).expirationTimestamp,
-          id = "a6dc5694a4ebcc9a067b19c348526ad6",
-          partitionValues = Map.empty,
-          size = 1030,
-          version = 3,
-          timestamp = 1651272660000L
+        assert(tableFiles.version == 1)
+        assert(tableFiles.addFiles.size == 4)
+        val expectedAddFiles = Seq(
+          AddFileForCDF(
+            url = tableFiles.addFiles(0).url,
+            expirationTimestamp = tableFiles.addFiles(0).expirationTimestamp,
+            id = "60d0cf57f3e4367db154aa2c36152a1f",
+            partitionValues = Map.empty,
+            size = 1030,
+            stats =
+              """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+            version = 1,
+            timestamp = 1651272635000L
+          ),
+          AddFileForCDF(
+            url = tableFiles.addFiles(1).url,
+            expirationTimestamp = tableFiles.addFiles(1).expirationTimestamp,
+            id = "a6dc5694a4ebcc9a067b19c348526ad6",
+            partitionValues = Map.empty,
+            size = 1030,
+            stats =
+              """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+            version = 1,
+            timestamp = 1651272635000L
+          ),
+          AddFileForCDF(
+            url = tableFiles.addFiles(2).url,
+            expirationTimestamp = tableFiles.addFiles(2).expirationTimestamp,
+            id = "d7ed708546dd70fdff9191b3e3d6448b",
+            partitionValues = Map.empty,
+            size = 1030,
+            stats =
+              """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+            version = 1,
+            timestamp = 1651272635000L
+          ),
+          AddFileForCDF(
+            url = tableFiles.addFiles(3).url,
+            expirationTimestamp = tableFiles.addFiles(3).expirationTimestamp,
+            id = "b875623be22c1fa1dfdeb0480fae6117",
+            partitionValues = Map.empty,
+            size = 1247,
+            stats =
+              """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-02-02"},"maxValues":{"name":"2","age":2,"birthday":"2020-02-02"},"nullCount":{"name":0,"age":0,"birthday":0,"_change_type":1}}""",
+            version = 3,
+            timestamp = 1651272660000L
+          )
         )
-      )
-      assert(expectedRemoveFiles == tableFiles.removeFiles.toList)
-      assert(tableFiles.removeFiles(0).expirationTimestamp > System.currentTimeMillis())
+        assert(expectedAddFiles == tableFiles.addFiles.toList)
+        assert(tableFiles.addFiles(0).expirationTimestamp > System.currentTimeMillis())
 
-      assert(tableFiles.additionalMetadatas.size == 2)
-      val v4Metadata = Metadata(
-        id = "16736144-3306-4577-807a-d3f899b77670",
-        format = Format(),
-        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
-        configuration = Map.empty,
-        partitionColumns = Nil,
-        version = 4)
-      assert(v4Metadata == tableFiles.additionalMetadatas(0))
+        assert(tableFiles.removeFiles.size == 2)
+        val expectedRemoveFiles = Seq(
+          RemoveFile(
+            url = tableFiles.removeFiles(0).url,
+            expirationTimestamp = tableFiles.removeFiles(0).expirationTimestamp,
+            id = "d7ed708546dd70fdff9191b3e3d6448b",
+            partitionValues = Map.empty,
+            size = 1030,
+            version = 2,
+            timestamp = 1651272655000L
+          ),
+          RemoveFile(
+            url = tableFiles.removeFiles(1).url,
+            expirationTimestamp = tableFiles.removeFiles(1).expirationTimestamp,
+            id = "a6dc5694a4ebcc9a067b19c348526ad6",
+            partitionValues = Map.empty,
+            size = 1030,
+            version = 3,
+            timestamp = 1651272660000L
+          )
+        )
+        assert(expectedRemoveFiles == tableFiles.removeFiles.toList)
+        assert(tableFiles.removeFiles(0).expirationTimestamp > System.currentTimeMillis())
 
-      val v5Metadata = v4Metadata.copy(
-        configuration = Map("enableChangeDataFeed" -> "true"),
-        version = 5
-      )
-      assert(v5Metadata == tableFiles.additionalMetadatas(1))
-    } finally {
-      client.close()
+        assert(tableFiles.additionalMetadatas.size == 2)
+        val v4Metadata = Metadata(
+          id = "16736144-3306-4577-807a-d3f899b77670",
+          format = Format(),
+          schemaString =
+            """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+          configuration = Map.empty,
+          partitionColumns = Nil,
+          version = 4
+        )
+        assert(v4Metadata == tableFiles.additionalMetadatas(0))
+
+        val v5Metadata = v4Metadata.copy(
+          configuration = Map("enableChangeDataFeed" -> "true"),
+          version = 5
+        )
+        assert(v5Metadata == tableFiles.additionalMetadatas(1))
+      } finally {
+        client.close()
+      }
     }
   }
 
@@ -514,120 +583,141 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getFiles with startingVersion/endingVersion - exception") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      var errorMessage = intercept[UnexpectedHttpStatus] {
-        client.getFiles(
-          Table(name = "table1", schema = "default", share = "share1"),
-          1,
-          None
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
+      responseFormat =>
+        val client = new DeltaSharingRestClient(
+          testProfileProvider,
+          sslTrustAll = true,
+          responseFormat = responseFormat
         )
-      }.getMessage
-      assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
+        try {
+          var errorMessage = intercept[UnexpectedHttpStatus] {
+            client.getFiles(
+              Table(name = "table1", schema = "default", share = "share1"),
+              1,
+              None
+            )
+          }.getMessage
+          assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
 
-      errorMessage = intercept[UnexpectedHttpStatus] {
-        client.getFiles(
-          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-          -1,
-          None
-        )
-      }.getMessage
-      assert(errorMessage.contains("startingVersion cannot be negative"))
+          errorMessage = intercept[UnexpectedHttpStatus] {
+            client.getFiles(
+              Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
+              -1,
+              None
+            )
+          }.getMessage
+          assert(errorMessage.contains("startingVersion cannot be negative"))
 
-      errorMessage = intercept[UnexpectedHttpStatus] {
-        client.getFiles(
-          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-          2,
-          Some(1)
-        )
-      }.getMessage
-      assert(errorMessage.contains("startingVersion(2) must be smaller than or equal to " +
-        "endingVersion(1)"))
-    } finally {
-      client.close()
+          errorMessage = intercept[UnexpectedHttpStatus] {
+            client.getFiles(
+              Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
+              2,
+              Some(1)
+            )
+          }.getMessage
+          assert(errorMessage.contains("startingVersion(2) must be smaller than or equal to " +
+            "endingVersion(1)"))
+        } finally {
+          client.close()
+        }
     }
   }
 
   integrationTest("getCDFFiles") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      val cdfOptions = Map("startingVersion" -> "0", "endingVersion" -> "3")
-      val tableFiles = client.getCDFFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-        cdfOptions,
-        false
+    Seq(true, false).foreach { paginationEnabled =>
+      val client = new DeltaSharingRestClient(
+        testProfileProvider,
+        sslTrustAll = true,
+        queryTablePaginationEnabled = paginationEnabled,
+        maxFilesPerReq = 1
       )
-      assert(tableFiles.version == 0)
-      assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
-      val expectedMetadata = Metadata(
-        id = "16736144-3306-4577-807a-d3f899b77670",
-        format = Format(),
-        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
-        configuration = Map("enableChangeDataFeed" -> "true"),
-        partitionColumns = Nil,
-        version = 5)
-      assert(expectedMetadata == tableFiles.metadata)
-      assert(tableFiles.cdfFiles.size == 2)
-      val expectedCdfFiles = Seq(
-        AddCDCFile(
-          url = tableFiles.cdfFiles(0).url,
-          expirationTimestamp = tableFiles.cdfFiles(0).expirationTimestamp,
-          id = "6521ba910108d4b54d27beaa9fc2373f",
-          partitionValues = Map.empty,
-          size = 1301,
-          version = 2,
-          timestamp = 1651272655000L
-        ),
-        AddCDCFile(
-          url = tableFiles.cdfFiles(1).url,
-          expirationTimestamp = tableFiles.cdfFiles(1).expirationTimestamp,
-          id = "2508998dce55bd726369e53761c4bc3f",
-          partitionValues = Map.empty,
-          size = 1416,
-          version = 3,
-          timestamp = 1651272660000L
+      try {
+        val cdfOptions = Map("startingVersion" -> "0", "endingVersion" -> "3")
+        val tableFiles = client.getCDFFiles(
+          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
+          cdfOptions,
+          false
         )
-      )
-      assert(expectedCdfFiles == tableFiles.cdfFiles.toList)
-      assert(tableFiles.cdfFiles(1).expirationTimestamp > System.currentTimeMillis())
+        assert(tableFiles.version == 0)
+        assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
+        val expectedMetadata = Metadata(
+          id = "16736144-3306-4577-807a-d3f899b77670",
+          format = Format(),
+          schemaString =
+            """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+          configuration = Map("enableChangeDataFeed" -> "true"),
+          partitionColumns = Nil,
+          version = 5
+        )
+        assert(expectedMetadata == tableFiles.metadata)
+        assert(tableFiles.cdfFiles.size == 2)
+        val expectedCdfFiles = Seq(
+          AddCDCFile(
+            url = tableFiles.cdfFiles(0).url,
+            expirationTimestamp = tableFiles.cdfFiles(0).expirationTimestamp,
+            id = "6521ba910108d4b54d27beaa9fc2373f",
+            partitionValues = Map.empty,
+            size = 1301,
+            version = 2,
+            timestamp = 1651272655000L
+          ),
+          AddCDCFile(
+            url = tableFiles.cdfFiles(1).url,
+            expirationTimestamp = tableFiles.cdfFiles(1).expirationTimestamp,
+            id = "2508998dce55bd726369e53761c4bc3f",
+            partitionValues = Map.empty,
+            size = 1416,
+            version = 3,
+            timestamp = 1651272660000L
+          )
+        )
+        assert(expectedCdfFiles == tableFiles.cdfFiles.toList)
+        assert(tableFiles.cdfFiles(1).expirationTimestamp > System.currentTimeMillis())
 
-      assert(tableFiles.addFiles.size == 3)
-      val expectedAddFiles = Seq(
-        AddFileForCDF(
-          url = tableFiles.addFiles(0).url,
-          expirationTimestamp = tableFiles.addFiles(0).expirationTimestamp,
-          id = "60d0cf57f3e4367db154aa2c36152a1f",
-          partitionValues = Map.empty,
-          size = 1030,
-          stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-          version = 1,
-          timestamp = 1651272635000L
-        ),
-        AddFileForCDF(
-          url = tableFiles.addFiles(1).url,
-          expirationTimestamp = tableFiles.addFiles(1).expirationTimestamp,
-          id = "a6dc5694a4ebcc9a067b19c348526ad6",
-          partitionValues = Map.empty,
-          size = 1030,
-          stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-          version = 1,
-          timestamp = 1651272635000L
-        ),
-        AddFileForCDF(
-          url = tableFiles.addFiles(2).url,
-          expirationTimestamp = tableFiles.addFiles(2).expirationTimestamp,
-          id = "d7ed708546dd70fdff9191b3e3d6448b",
-          partitionValues = Map.empty,
-          size = 1030,
-          stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-          version = 1,
-          timestamp = 1651272635000L
+        assert(tableFiles.addFiles.size == 3)
+        val expectedAddFiles = Seq(
+          AddFileForCDF(
+            url = tableFiles.addFiles(0).url,
+            expirationTimestamp = tableFiles.addFiles(0).expirationTimestamp,
+            id = "60d0cf57f3e4367db154aa2c36152a1f",
+            partitionValues = Map.empty,
+            size = 1030,
+            stats =
+              """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+            version = 1,
+            timestamp = 1651272635000L
+          ),
+          AddFileForCDF(
+            url = tableFiles.addFiles(1).url,
+            expirationTimestamp = tableFiles.addFiles(1).expirationTimestamp,
+            id = "a6dc5694a4ebcc9a067b19c348526ad6",
+            partitionValues = Map.empty,
+            size = 1030,
+            stats =
+              """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+            version = 1,
+            timestamp = 1651272635000L
+          ),
+          AddFileForCDF(
+            url = tableFiles.addFiles(2).url,
+            expirationTimestamp = tableFiles.addFiles(2).expirationTimestamp,
+            id = "d7ed708546dd70fdff9191b3e3d6448b",
+            partitionValues = Map.empty,
+            size = 1030,
+            stats =
+              """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+            version = 1,
+            timestamp = 1651272635000L
+          )
         )
-      )
-      assert(expectedAddFiles == tableFiles.addFiles.toList)
-      assert(tableFiles.addFiles(0).expirationTimestamp > System.currentTimeMillis())
-    } finally {
-      client.close()
+        assert(expectedAddFiles == tableFiles.addFiles.toList)
+        assert(tableFiles.addFiles(0).expirationTimestamp > System.currentTimeMillis())
+      } finally {
+        client.close()
+      }
     }
   }
 
@@ -717,77 +807,113 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getCDFFiles: cdf_table_missing_log") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      val errorMessage = intercept[UnexpectedHttpStatus] {
-        val cdfOptions = Map("startingVersion" -> "1")
-        client.getCDFFiles(
-          Table(name = "cdf_table_missing_log", schema = "default", share = "share8"),
-          cdfOptions,
-          false
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
+      responseFormat =>
+        val client = new DeltaSharingRestClient(
+          testProfileProvider,
+          sslTrustAll = true,
+          responseFormat = responseFormat
         )
-      }.getMessage
-      assert(errorMessage.contains("""400 Bad Request {"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
-      assert(errorMessage.contains("table files missing"))
-    } finally {
-      client.close()
+        try {
+          val errorMessage = intercept[UnexpectedHttpStatus] {
+            val cdfOptions = Map("startingVersion" -> "1")
+            client.getCDFFiles(
+              Table(name = "cdf_table_missing_log", schema = "default", share = "share8"),
+              cdfOptions,
+              false
+            )
+          }.getMessage
+          assert(errorMessage.contains("""400 Bad Request {"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
+          assert(errorMessage.contains("table files missing"))
+        } finally {
+          client.close()
+        }
     }
   }
 
   integrationTest("getCDFFiles with startingTimestamp") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      // This is to test that timestamp is correctly passed to the server and parsed.
-      // The error message is expected as we are using a timestamp much smaller than the earliest
-      // version of the table.
-      val cdfOptions = Map("startingTimestamp" -> "2000-01-01T00:00:00Z")
-      val errorMessage = intercept[UnexpectedHttpStatus] {
-        val tableFiles = client.getCDFFiles(
-          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-          cdfOptions,
-          false
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
+      responseFormat =>
+        val client = new DeltaSharingRestClient(
+          testProfileProvider,
+          sslTrustAll = true,
+          responseFormat = responseFormat
         )
-      }.getMessage
-      assert(errorMessage.contains("Please use a timestamp greater"))
-    } finally {
-      client.close()
+        try {
+          // This is to test that timestamp is correctly passed to the server and parsed.
+          // The error message is expected as we are using a timestamp much smaller than the earliest
+          // version of the table.
+          val cdfOptions = Map("startingTimestamp" -> "2000-01-01T00:00:00Z")
+          val errorMessage = intercept[UnexpectedHttpStatus] {
+            val tableFiles = client.getCDFFiles(
+              Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
+              cdfOptions,
+              false
+            )
+          }.getMessage
+          assert(errorMessage.contains("Please use a timestamp greater"))
+        } finally {
+          client.close()
+        }
     }
   }
 
   integrationTest("getCDFFiles with endingTimestamp") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      // This is to test that timestamp is correctly passed to the server and parsed.
-      // The error message is expected as we are using a timestamp much larger than the latest
-      // version of the table.
-      val cdfOptions = Map("startingVersion" -> "0", "endingTimestamp" -> "2100-01-01T00:00:00Z")
-      val errorMessage = intercept[UnexpectedHttpStatus] {
-        val tableFiles = client.getCDFFiles(
-          Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-          cdfOptions,
-          false
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
+      responseFormat =>
+        val client = new DeltaSharingRestClient(
+          testProfileProvider,
+          sslTrustAll = true,
+          responseFormat = responseFormat
         )
-      }.getMessage
-      assert(errorMessage.contains("Please use a timestamp less than or equal to"))
-    } finally {
-      client.close()
+        try {
+          // This is to test that timestamp is correctly passed to the server and parsed.
+          // The error message is expected as we are using a timestamp much larger than the latest
+          // version of the table.
+          val cdfOptions = Map("startingVersion" -> "0", "endingTimestamp" -> "2100-01-01T00:00:00Z")
+          val errorMessage = intercept[UnexpectedHttpStatus] {
+            val tableFiles = client.getCDFFiles(
+              Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
+              cdfOptions,
+              false
+            )
+          }.getMessage
+          assert(errorMessage.contains("Please use a timestamp less than or equal to"))
+        } finally {
+          client.close()
+        }
     }
   }
 
   integrationTest("getCDFFiles_exceptions") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      val cdfOptions = Map("startingVersion" -> "0")
-      val errorMessage = intercept[UnexpectedHttpStatus] {
-        client.getCDFFiles(
-          Table(name = "table1", schema = "default", share = "share1"),
-          cdfOptions,
-          false
+    Seq(
+      DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+    ).foreach {
+      responseFormat =>
+        val client = new DeltaSharingRestClient(
+          testProfileProvider,
+          sslTrustAll = true,
+          responseFormat = responseFormat
         )
-      }.getMessage
-      assert(errorMessage.contains("cdf is not enabled on table share1.default.table1"))
-    } finally {
-      client.close()
+        try {
+          val cdfOptions = Map("startingVersion" -> "0")
+          val errorMessage = intercept[UnexpectedHttpStatus] {
+            client.getCDFFiles(
+              Table(name = "table1", schema = "default", share = "share1"),
+              cdfOptions,
+              false
+            )
+          }.getMessage
+          assert(errorMessage.contains("cdf is not enabled on table share1.default.table1"))
+        } finally {
+          client.close()
+        }
     }
   }
 }

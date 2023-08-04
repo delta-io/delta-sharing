@@ -1658,7 +1658,11 @@ This is the API for clients to read data from a table.
 </tr>
 <tr>
 <td>Method</td>
-<td>`POST`</td>
+<td>
+
+`POST`
+
+</td>
 </tr>
 <tr>
 <td>Headers</td>
@@ -1666,7 +1670,7 @@ This is the API for clients to read data from a table.
 
 `Authorization: Bearer {token}`
 
-`Content-Type: application/json; charset=utf-8`
+Optional: `Content-Type: application/json; charset=utf-8`
 
 </td>
 </tr>

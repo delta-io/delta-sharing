@@ -183,7 +183,7 @@ class DeltaSharingReader:
 
         if for_cdf:
             # Add the change type col name to non cdc actions.
-            if type(action) != AddCdcFile:
+            if not isinstance(action, AddCdcFile):
                 pdf[DeltaSharingReader._change_type_col_name()] = action.get_change_type_col_value()
 
             # If available, add timestamp and version columns from the action.

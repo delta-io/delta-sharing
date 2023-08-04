@@ -38,7 +38,7 @@ object PartitionFilterUtils {
       schemaString: String,
       partitionColumns: Seq[String],
       partitionFilters: Seq[String],
-      addFiles: Seq[AddFile]): Seq[AddFile] = {
+      addFiles: Seq[(AddFile, Int)]): Seq[(AddFile, Int)] = {
     try {
       val tableSchema = DataType.fromJson(schemaString).asInstanceOf[StructType]
       val partitionSchema = new StructType(partitionColumns.map(c => tableSchema(c)).toArray)
@@ -58,9 +58,10 @@ object PartitionFilterUtils {
       } else {
         val predicate = InterpretedPredicate.create(exprs.reduce(And), attrs)
         predicate.initialize(0)
-        addFiles.filter { addFile =>
-          val converter = CatalystTypeConverters.createToCatalystConverter(addSchema)
-          predicate.eval(converter(addFile).asInstanceOf[InternalRow])
+        addFiles.filter {
+          case (addFile, _) =>
+            val converter = CatalystTypeConverters.createToCatalystConverter(addSchema)
+            predicate.eval(converter(addFile).asInstanceOf[InternalRow])
         }
       }
     } catch {

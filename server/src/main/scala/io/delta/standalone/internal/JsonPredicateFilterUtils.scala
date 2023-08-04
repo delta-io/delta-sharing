@@ -37,14 +37,15 @@ object JsonPredicateFilterUtils {
   // Returns the add files that match json predicates.
   def evaluatePredicate(
       jsonPredicateHints: Option[String],
-      addFiles: Seq[AddFile]): Seq[AddFile] = {
+      addFiles: Seq[(AddFile, Int)]): Seq[(AddFile, Int)] = {
     if (!jsonPredicateHints.isDefined) {
       return addFiles
     }
     val op = maybeCreateJsonPredicateOp(jsonPredicateHints)
-    addFiles.filter(addFile => {
-      matchJsonPredicate(op, addFile.partitionValues)
-    })
+    addFiles.filter {
+      case (addFile, _) =>
+        matchJsonPredicate(op, addFile.partitionValues)
+    }
   }
 
   // Creates a json predicate op from the specified jsonPredicateHints.
@@ -58,7 +59,7 @@ object JsonPredicateFilterUtils {
       if (opJson.size > jsonPredicateHintsSizeLimit) {
         throw new IllegalArgumentException(
           "The jsonPredicateHints size is " + opJson.size +
-          " which exceeds the limit of " + jsonPredicateHintsSizeLimit
+            " which exceeds the limit of " + jsonPredicateHintsSizeLimit
         )
       }
       val op = JsonUtils.fromJson[BaseOp](opJson)

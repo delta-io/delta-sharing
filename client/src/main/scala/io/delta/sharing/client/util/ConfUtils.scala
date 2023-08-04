@@ -45,6 +45,18 @@ object ConfUtils {
   val CLIENT_CLASS_CONF = "spark.delta.sharing.client.class"
   val CLIENT_CLASS_DEFAULT = "io.delta.sharing.client.DeltaSharingRestClient"
 
+  val JSON_PREDICATE_CONF = "spark.delta.sharing.jsonPredicateHints.enabled"
+  val JSON_PREDICATE_DEFAULT = "true"
+
+  val JSON_PREDICATE_V2_CONF = "spark.delta.sharing.jsonPredicateV2Hints.enabled"
+  val JSON_PREDICATE_V2_DEFAULT = "false"
+
+  val QUERY_PAGINATION_ENABLED_CONF = "spark.delta.sharing.queryPagination.enabled"
+  val QUERY_PAGINATION_ENABLED_DEFAULT = "false"
+
+  val MAX_FILES_CONF = "spark.delta.sharing.maxFilesPerQueryRequest"
+  val MAX_FILES_DEFAULT = 100000
+
   def numRetries(conf: Configuration): Int = {
     val numRetries = conf.getInt(NUM_RETRIES_CONF, NUM_RETRIES_DEFAULT)
     validateNonNeg(numRetries, NUM_RETRIES_CONF)
@@ -98,6 +110,24 @@ object ConfUtils {
     conf.getConfString(CLIENT_CLASS_CONF, CLIENT_CLASS_DEFAULT)
   }
 
+  def jsonPredicatesEnabled(conf: SQLConf): Boolean = {
+    conf.getConfString(JSON_PREDICATE_CONF, JSON_PREDICATE_DEFAULT).toBoolean
+  }
+
+  def jsonPredicatesV2Enabled(conf: SQLConf): Boolean = {
+    conf.getConfString(JSON_PREDICATE_V2_CONF, JSON_PREDICATE_V2_DEFAULT).toBoolean
+  }
+
+  def queryTablePaginationEnabled(conf: SQLConf): Boolean = {
+    conf.getConfString(QUERY_PAGINATION_ENABLED_CONF, QUERY_PAGINATION_ENABLED_DEFAULT).toBoolean
+  }
+
+  def maxFilesPerQueryRequest(conf: SQLConf): Int = {
+    val maxFiles = conf.getConfString(MAX_FILES_CONF, MAX_FILES_DEFAULT.toString).toInt
+    validatePositive(maxFiles, MAX_FILES_CONF)
+    maxFiles
+  }
+
   private def toTimeout(timeoutStr: String): Int = {
     val timeoutInSeconds = JavaUtils.timeStringAs(timeoutStr, TimeUnit.SECONDS)
     validateNonNeg(timeoutInSeconds, TIMEOUT_CONF)
@@ -107,10 +137,15 @@ object ConfUtils {
     timeoutInSeconds.toInt
   }
 
-
   private def validateNonNeg(value: Long, conf: String): Unit = {
     if (value < 0L) {
       throw new IllegalArgumentException(conf + " must not be negative")
+    }
+  }
+
+  private def validatePositive(value: Int, conf: String): Unit = {
+    if (value <= 0) {
+      throw new IllegalArgumentException(conf + " must be positive")
     }
   }
 }

@@ -185,12 +185,11 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
    * @param includeHistoricalMetadata if true, it need to include metadata for schema compatibility
    *                                  check. Otherwise, no need to include metadata.
    */
-  def queryCDF(start: Long, end: Long, latestVersion: Long, includeHistoricalMetadata: Boolean): (
-    Seq[CDCDataSpec[AddCDCFile]],
-    Seq[CDCDataSpec[AddFile]],
-    Seq[CDCDataSpec[RemoveFile]],
-    Seq[CDCDataSpec[Metadata]]
-  ) = {
+  def queryCDF(
+    start: Long,
+    end: Long,
+    latestVersion: Long,
+    includeHistoricalMetadata: Boolean): Seq[CDCDataSpec] = {
     if (start > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(start, latestVersion)
     }
@@ -213,10 +212,7 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
       conf
     )
 
-    val changeFiles = ListBuffer[CDCDataSpec[AddCDCFile]]()
-    val addFiles = ListBuffer[CDCDataSpec[AddFile]]()
-    val removeFiles = ListBuffer[CDCDataSpec[RemoveFile]]()
-    val metaDatas = ListBuffer[CDCDataSpec[Metadata]]()
+    val cdcSpecs = ListBuffer[CDCDataSpec]()
 
     changes.foreach {versionLog =>
         val v = versionLog.getVersion
@@ -233,25 +229,17 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
           throw DeltaCDFErrors.changeDataNotRecordedException(v, start, end)
         }
 
-        // Set up buffers for all action types to avoid multiple passes.
-        val cdcActions = ListBuffer[AddCDCFile]()
-        val addActions = ListBuffer[AddFile]()
-        val removeActions = ListBuffer[RemoveFile]()
         val ts = timestampsByVersion.get(v).orNull
+        val selectedActions = ListBuffer[Action]()
 
         // Note that the CommitInfo is *not* guaranteed to be generated in 100% of cases.
         // We are using it only for a hotfix-safe mitigation/defense-in-depth - the value
         // extracted here cannot be relied on for correctness.
         var commitInfo: Option[CommitInfo] = None
+        var containsCDCAction: Boolean = false
         actions.foreach {
-          case c: AddCDCFile =>
-            cdcActions.append(c)
-          case a: AddFile =>
-            addActions.append(a)
-          case r: RemoveFile =>
-            removeActions.append(r)
-          case m: Metadata if (includeHistoricalMetadata && v > start) =>
-            metaDatas.append(CDCDataSpec(v, ts, Seq(m)))
+          case _: AddCDCFile =>
+            containsCDCAction = true
           case i: CommitInfo => commitInfo = Some(i)
           case _ => // do nothing
         }
@@ -261,49 +249,67 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
         // For INSERT or DELETE, most of the times both cdc and add/remove actions will be
         // generated, either of them will result in the correct cdc data.
         // If there are CDC actions, we read them exclusively, and ignore the add/remove actions.
-        if (cdcActions.nonEmpty) {
-          changeFiles.append(CDCDataSpec(v, ts, cdcActions.toSeq))
-        } else {
-          // MERGE will sometimes rewrite files in a way which *could* have changed data
-          // (so dataChange = true) but did not actually do so (so no CDC will be produced).
-          // In this case the correct CDC output is empty - we shouldn't serve it from
-          // those files.
-          // This should be handled within the command, but as a hotfix-safe fix, we check the
-          // metrics. If the command reported 0 rows inserted, updated, or deleted, then CDC
-          // shouldn't be produced.
-          val isMerge = commitInfo.isDefined && commitInfo.get.operation == "MERGE"
-          val knownToHaveNoChangedRows = {
-            val metrics = commitInfo.flatMap(_.operationMetrics).getOrElse(Map.empty)
-            // Note that if any metrics are missing, this condition will be false and we won't skip.
-            // Unfortunately there are no predefined constants for these metric values.
-            Seq("numTargetRowsInserted", "numTargetRowsUpdated", "numTargetRowsDeleted").forall {
-              metrics.get(_).contains("0")
-            }
+        if (containsCDCAction) {
+          actions.foreach {
+            case c: AddCDCFile =>
+              selectedActions.append(c)
+            case m: Metadata if (includeHistoricalMetadata && v > start) =>
+              selectedActions.append(m)
+            case _ => ()
           }
-          if (isMerge && knownToHaveNoChangedRows) {
+        } else {
+          if (commitInfo.exists(shouldSkipFileActionsInCommit)) {
             // This was introduced for a hotfix, so we're mirroring the existing logic as closely
-            // as possible - it'd likely be safe to just return an empty dataframe here.
-            addFiles.append(CDCDataSpec(v, ts, Nil))
-            removeFiles.append(CDCDataSpec(v, ts, Nil))
+            // as possible - we skip all file actions and return metadata only.
+            actions.foreach {
+              case m: Metadata if (includeHistoricalMetadata && v > start) =>
+                selectedActions.append(m)
+              case _ => ()
+            }
           } else {
             // Otherwise, we take the AddFile and RemoveFile actions with dataChange = true and
             // infer CDC from them.
-            val addActions = actions.collect {
-              case a: AddFile if a.dataChange => a
+            actions.foreach {
+              case a: AddFile if a.dataChange =>
+                selectedActions.append(a)
+              case r: RemoveFile if r.dataChange =>
+                selectedActions.append(r)
+              case m: Metadata if (includeHistoricalMetadata && v > start) =>
+                selectedActions.append(m)
+              case _ => ()
             }
-            val removeActions = actions.collect {
-              case r: RemoveFile if r.dataChange => r
-            }
-            addFiles.append(CDCDataSpec(v, ts, addActions.toSeq))
-            removeFiles.append(CDCDataSpec(v, ts, removeActions.toSeq))
           }
         }
+        cdcSpecs.append(CDCDataSpec(v, ts, selectedActions.toSeq))
     }
 
-    (changeFiles.toSeq, addFiles.toSeq, removeFiles.toSeq, metaDatas.toSeq)
+    cdcSpecs.toSeq
   }
 
-  case class CDCDataSpec[T <: Action](version: Long, timestamp: Timestamp, actions: Seq[T])
+  case class CDCDataSpec(version: Long, timestamp: Timestamp, actions: Seq[Action])
+
+  /**
+   * Function to check if file actions should be skipped for no-op merges based on
+   * CommitInfo metrics.
+   * MERGE will sometimes rewrite files in a way which *could* have changed data
+   * (so dataChange = true) but did not actually do so (so no CDC will be produced).
+   * In this case the correct CDC output is empty - we shouldn't serve it from
+   * those files. This should be handled within the command, but as a hotfix-safe fix, we check
+   * the metrics. If the command reported 0 rows inserted, updated, or deleted, then CDC
+   * shouldn't be produced.
+   */
+  private def shouldSkipFileActionsInCommit(commitInfo: CommitInfo): Boolean = {
+    val isMerge = commitInfo.operation == "MERGE"
+    val knownToHaveNoChangedRows = {
+      val metrics = commitInfo.operationMetrics.getOrElse(Map.empty)
+      // Note that if any metrics are missing, this condition will be false and we won't skip.
+      // Unfortunately there are no predefined constants for these metric values.
+      Seq("numTargetRowsInserted", "numTargetRowsUpdated", "numTargetRowsDeleted").forall {
+        metrics.get(_).contains("0")
+      }
+    }
+    isMerge && knownToHaveNoChangedRows
+  }
 
   /**
    * Determine if the metadata provided has cdc enabled or not.
