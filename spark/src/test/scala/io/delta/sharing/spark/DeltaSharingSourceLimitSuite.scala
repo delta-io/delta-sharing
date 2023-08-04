@@ -37,7 +37,7 @@ class DeltaSharingSourceLimitSuite extends QueryTest
   // VERSION 3: UPDATE 1 row, 1 remove file and 1 add file
   lazy val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
 
-  val streamingTimeout = 30.seconds
+  val streamingTimeout = 20.seconds
 
   /**
    * Test maxFilesPerTrigger and maxBytesPerTrigger
