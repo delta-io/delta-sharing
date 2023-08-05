@@ -46,7 +46,8 @@ import org.apache.spark.sql.types.{
   FloatType => SqlFloatType,
   IntegerType => SqlIntegerType,
   LongType => SqlLongType,
-  StringType => SqlStringType
+  StringType => SqlStringType,
+  TimestampType => SqlTimestampType
 }
 
 class OpConverterSuite extends SparkFunSuite {
@@ -294,6 +295,25 @@ class OpConverterSuite extends SparkFunSuite {
 
     val op = OpConverter.convert(Seq(sqlEq)).get
     op.validate(true)
+  }
+
+  test("Timestamp test") {
+    val formatter = java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME
+    val tsStr = "2023-06-07T04:27:03.234Z"
+    val tsMicros = java.time.OffsetDateTime.parse(tsStr, formatter).toInstant.toEpochMilli * 1000L
+    assert(tsMicros == 1686112023234000L)
+    val sqlColumn = SqlAttributeReference("ts", SqlTimestampType)()
+    val sqlLiteral = SqlLiteral(tsMicros, SqlLongType)
+    val sqlEq = SqlEqualTo(
+      SqlCast(sqlColumn, SqlTimestampType),
+      SqlCast(sqlLiteral, SqlTimestampType)
+    )
+
+    val op = OpConverter.convert(Seq(sqlEq)).get.asInstanceOf[EqualOp]
+    op.validate(true)
+    assert(op.children(0).asInstanceOf[ColumnOp].valueType == OpDataTypes.TimestampType)
+    assert(op.children(1).asInstanceOf[LiteralOp].valueType == OpDataTypes.TimestampType)
+    assert(op.children(1).asInstanceOf[LiteralOp].value == tsStr)
   }
 
   test("In test") {
