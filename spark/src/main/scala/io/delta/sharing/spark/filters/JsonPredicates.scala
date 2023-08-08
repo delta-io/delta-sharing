@@ -38,9 +38,10 @@ object OpDataTypes {
   val DateType = "date"
   val FloatType = "float"
   val DoubleType = "double"
+  val TimestampType = "timestamp"
 
   val supportedTypes = Set(BoolType, IntType, LongType, StringType, DateType)
-  val supportedTypesV2 = supportedTypes ++ Set(FloatType, DoubleType)
+  val supportedTypesV2 = supportedTypes ++ Set(FloatType, DoubleType, TimestampType)
 
   // Returns true if the specified valueType is supported.
   def isSupportedType(valueType: String, forV2: Boolean): Boolean = {
