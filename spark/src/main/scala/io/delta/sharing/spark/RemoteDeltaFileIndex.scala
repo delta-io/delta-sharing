@@ -97,7 +97,8 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
     val rewrittenFilters = DeltaTableUtils.rewritePartitionFilters(
       params.snapshotAtAnalysis.partitionSchema,
       params.spark.sessionState.conf.resolver,
-      partitionFilters)
+      partitionFilters,
+      params.spark.sessionState.conf.sessionLocalTimeZone)
     new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
   }
 
