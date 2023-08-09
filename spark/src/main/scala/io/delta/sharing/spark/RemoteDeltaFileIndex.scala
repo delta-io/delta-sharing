@@ -16,16 +16,12 @@
 
 package io.delta.sharing.spark
 
-import java.lang.ref.WeakReference
-
 import org.apache.hadoop.fs.{FileStatus, Path}
-import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{Column, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
-import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, GenericInternalRow, Literal, SubqueryExpression}
-import org.apache.spark.sql.execution.datasources.{FileFormat, FileIndex, HadoopFsRelation, PartitionDirectory}
+import org.apache.spark.sql.catalyst.expressions.{And, Cast, Expression, GenericInternalRow, Literal}
+import org.apache.spark.sql.execution.datasources.{FileIndex, PartitionDirectory}
 import org.apache.spark.sql.types.{DataType, StructType}
 
 import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
@@ -70,7 +66,7 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
     actions.groupBy(_.getPartitionValuesInDF()).map {
       case (partitionValues, files) =>
         val rowValues: Array[Any] = partitionSchema.map { p =>
-          Cast(Literal(partitionValues(p.name)), p.dataType, Option(timeZone)).eval()
+          new Cast(Literal(partitionValues(p.name)), p.dataType, Option(timeZone)).eval()
         }.toArray
 
         val fileStats = files.map { f =>
@@ -101,7 +97,8 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
     val rewrittenFilters = DeltaTableUtils.rewritePartitionFilters(
       params.snapshotAtAnalysis.partitionSchema,
       params.spark.sessionState.conf.resolver,
-      partitionFilters)
+      partitionFilters,
+      params.spark.sessionState.conf.sessionLocalTimeZone)
     new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
   }
 
