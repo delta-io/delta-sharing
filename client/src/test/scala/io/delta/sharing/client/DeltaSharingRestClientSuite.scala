@@ -36,32 +36,6 @@ import io.delta.sharing.client.util.UnexpectedHttpStatus
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
-  test("parsePath") {
-    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c") == ("file:///foo/bar", "a", "b", "c"))
-    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#bar#a.b.c") ==
-      ("file:///foo/bar#bar", "a", "b", "c"))
-    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#bar#a.b.c ") ==
-      ("file:///foo/bar#bar", "a", "b", "c "))
-    intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("file:///foo/bar")
-    }
-    intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("file:///foo/bar#a.b")
-    }
-    intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c.d")
-    }
-    intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("#a.b.c")
-    }
-    intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("foo#a.b.")
-    }
-    intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("foo#a.b.c.")
-    }
-  }
-
   integrationTest("Check headers") {
     val httpRequest = new HttpGet("random_url")
 

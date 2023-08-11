@@ -46,6 +46,32 @@ import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
+  test("parsePath") {
+    assert(RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c") == ("file:///foo/bar", "a", "b", "c"))
+    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c") ==
+      ("file:///foo/bar#bar", "a", "b", "c"))
+    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c ") ==
+      ("file:///foo/bar#bar", "a", "b", "c "))
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("file:///foo/bar")
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("file:///foo/bar#a.b")
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c.d")
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("#a.b.c")
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("foo#a.b.")
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("foo#a.b.c.")
+    }
+  }
+
   test("RemoteSnapshot getFiles with limit and jsonPredicateHints") {
     val spark = SparkSession.active
     spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "true")

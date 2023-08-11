@@ -109,11 +109,32 @@ private[sharing] object RemoteDeltaLog {
     _addFileEncoder.copy()
   }
 
+  /**
+   * Parse the user provided path `profile_file#share.schema.share` to
+   * `(profile_file, share, schema, share)`.
+   */
+  def parsePath(path: String): (String, String, String, String) = {
+    val shapeIndex = path.lastIndexOf('#')
+    if (shapeIndex < 0) {
+      throw new IllegalArgumentException(s"path $path is not valid")
+    }
+    val profileFile = path.substring(0, shapeIndex)
+    val tableSplits = path.substring(shapeIndex + 1).split("\\.", -1)
+    if (tableSplits.length != 3) {
+      throw new IllegalArgumentException(s"path $path is not valid")
+    }
+    if (profileFile.isEmpty || tableSplits(0).isEmpty ||
+      tableSplits(1).isEmpty || tableSplits(2).isEmpty) {
+      throw new IllegalArgumentException(s"path $path is not valid")
+    }
+    (profileFile, tableSplits(0), tableSplits(1), tableSplits(2))
+  }
+
   def apply(
       path: String,
       forStreaming: Boolean = false,
       responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET): RemoteDeltaLog = {
-    val (profileFile, share, schema, table) = DeltaSharingRestClient.parsePath(path)
+    val (profileFile, share, schema, table) = parsePath(path)
     val client = DeltaSharingRestClient(profileFile, forStreaming, responseFormat)
     val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
     new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
