@@ -37,28 +37,28 @@ import io.delta.sharing.client.util.UnexpectedHttpStatus
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("parsePath") {
-    assert(RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c") == ("file:///foo/bar", "a", "b", "c"))
-    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c") ==
+    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c") == ("file:///foo/bar", "a", "b", "c"))
+    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#bar#a.b.c") ==
       ("file:///foo/bar#bar", "a", "b", "c"))
-    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c ") ==
+    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#bar#a.b.c ") ==
       ("file:///foo/bar#bar", "a", "b", "c "))
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("file:///foo/bar")
+      DeltaSharingRestClient.parsePath("file:///foo/bar")
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("file:///foo/bar#a.b")
+      DeltaSharingRestClient.parsePath("file:///foo/bar#a.b")
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c.d")
+      DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c.d")
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("#a.b.c")
+      DeltaSharingRestClient.parsePath("#a.b.c")
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("foo#a.b.")
+      DeltaSharingRestClient.parsePath("foo#a.b.")
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("foo#a.b.c.")
+      DeltaSharingRestClient.parsePath("foo#a.b.c.")
     }
   }
 
