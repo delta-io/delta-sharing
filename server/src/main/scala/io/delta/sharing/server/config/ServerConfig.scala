@@ -41,6 +41,7 @@ case class ServerConfig(
     @BeanProperty var version: java.lang.Integer,
     @BeanProperty var shares: java.util.List[ShareConfig],
     @BeanProperty var authorization: Authorization,
+    @BeanProperty var tokenAuthorization: TokenAuthorization,
     @BeanProperty var ssl: SSLConfig,
     @BeanProperty var host: String,
     @BeanProperty var port: Int,
@@ -71,6 +72,7 @@ case class ServerConfig(
       version = null,
       shares = Collections.emptyList(),
       authorization = null,
+      tokenAuthorization = null,
       ssl = null,
       host = "localhost",
       port = 80,
@@ -109,6 +111,9 @@ case class ServerConfig(
     shares.forEach(_.checkConfig())
     if (authorization != null) {
       authorization.checkConfig()
+    }
+    if (tokenAuthorization != null) {
+      tokenAuthorization.checkConfig()
     }
     if (ssl != null) {
       ssl.checkConfig()
@@ -163,6 +168,37 @@ case class Authorization(@BeanProperty var bearerToken: String) extends ConfigIt
   override def checkConfig(): Unit = {
     if (bearerToken == null) {
       throw new IllegalArgumentException("'bearerToken' in 'authorization' must be provided")
+    }
+  }
+}
+
+case class TokenAuthorization(
+  @BeanProperty var tokenInstrospectionUri: String,
+  @BeanProperty var tokenIntrospectionEndpoint: String,
+  @BeanProperty var clientId: String,
+  @BeanProperty var clientSecret: String)
+  extends ConfigItem {
+
+  def this() {
+    this(null, null, null, null)
+  }
+
+  override def checkConfig(): Unit = {
+    if (tokenInstrospectionUri == null) {
+      throw new IllegalArgumentException(
+        "'tokenIntrospectionUri' in 'tokenAuthorization' must be provided"
+      )
+    }
+    if (tokenIntrospectionEndpoint == null) {
+      throw new IllegalArgumentException(
+        "'tokenIntrospectionEndpoint' in 'tokenAuthorization' must be provided"
+      )
+    }
+    if (clientId == null) {
+      throw new IllegalArgumentException("'clientId' in 'tokenAuthorization' must be provided")
+    }
+    if (clientSecret == null) {
+      throw new IllegalArgumentException("'clientSecret' in 'tokenAuthorization' must be provided")
     }
   }
 }

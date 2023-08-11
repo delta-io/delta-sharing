@@ -26,12 +26,14 @@ import javax.annotation.Nullable
 import scala.collection.JavaConverters._
 import scala.util.Try
 
+import com.linecorp.armeria.client.WebClient
 import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
 import com.linecorp.armeria.common.auth.OAuth2Token
 import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
 import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
 import com.linecorp.armeria.server.auth.AuthService
+import com.linecorp.armeria.server.auth.oauth2.OAuth2TokenIntrospectionAuthorizer
 import io.delta.standalone.internal.DeltaCDFErrors
 import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
 import io.delta.standalone.internal.DeltaDataSource
@@ -530,6 +532,22 @@ object DeltaSharingService {
               serverConfig.getAuthorization.getBearerToken.getBytes(UTF_8))
             CompletableFuture.completedFuture(authorized)
           })
+        builder.decorator(authServiceBuilder.newDecorator)
+      }
+      if (serverConfig.getTokenAuthorization != null) {
+        val tokenAuth = serverConfig.getTokenAuthorization
+        val introspectClient: WebClient = WebClient.of(tokenAuth.tokenInstrospectionUri)
+        val authServiceBuilder =
+          AuthService.builder.addOAuth2(
+            OAuth2TokenIntrospectionAuthorizer.builder(
+              introspectClient,
+              tokenAuth.tokenIntrospectionEndpoint
+            )
+            .clientCredentials(() => java.util.Map.entry(
+              tokenAuth.clientId, tokenAuth.clientSecret
+            ))
+            .build()
+          )
         builder.decorator(authServiceBuilder.newDecorator)
       }
       builder.build()

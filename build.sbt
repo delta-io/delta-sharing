@@ -120,6 +120,7 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("org.json4s")
     ),
+    "com.linecorp.armeria" % "armeria-oauth2" % "1.24.3",
     "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
