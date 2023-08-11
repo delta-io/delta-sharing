@@ -234,7 +234,7 @@ class DeltaSharingRestClient(
   }
 
   private def checkProtocol(protocol: Protocol): Unit = {
-    if (protocol.minReaderVersion > DeltaSharingRestClient.CURRENT) {
+    if (protocol.minReaderVersion > DeltaSharingProfile.CURRENT) {
       throw new IllegalArgumentException(s"The table requires a newer version" +
         s" ${protocol.minReaderVersion} to read. But the current release supports version " +
         s"is ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer release.")
@@ -766,8 +766,6 @@ class DeltaSharingRestClient(
 }
 
 object DeltaSharingRestClient extends Logging {
-  val CURRENT = 1
-
   val SPARK_STRUCTURED_STREAMING = "Delta-Sharing-SparkStructuredStreaming"
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
   val RESPONSE_TABLE_VERSION_HEADER_KEY = "Delta-Table-Version"
