@@ -19,7 +19,7 @@ package io.delta.sharing.client
 import java.sql.Timestamp
 
 import org.apache.http.HttpHeaders
-import org.apache.http.client.methods.HttpGet
+import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
 
 import io.delta.sharing.client.model.{
   AddCDCFile,
@@ -35,6 +35,8 @@ import io.delta.sharing.client.util.UnexpectedHttpStatus
 
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
+
+  import DeltaSharingRestClient._
 
   test("parsePath") {
     assert(DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c") == ("file:///foo/bar", "a", "b", "c"))
@@ -65,13 +67,31 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   integrationTest("Check headers") {
     val httpRequest = new HttpGet("random_url")
 
-    val client = new DeltaSharingRestClient(testProfileProvider, forStreaming = false)
-    var h = client.prepareHeaders(httpRequest).getFirstHeader(HttpHeaders.USER_AGENT)
-    assert(!h.getValue.contains(DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING))
+    def checkUserAgent(request: HttpRequestBase, containsStreaming: Boolean): Unit = {
+      val h = request.getFirstHeader(HttpHeaders.USER_AGENT)
+      assert(h.getValue.contains(SPARK_STRUCTURED_STREAMING) == containsStreaming)
+    }
 
-    val streamingClient = new DeltaSharingRestClient(testProfileProvider, forStreaming = true)
-    h = streamingClient.prepareHeaders(httpRequest).getFirstHeader(HttpHeaders.USER_AGENT)
-    assert(h.getValue.contains(DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING))
+    def checkDeltaSharingCapabilities(request: HttpRequestBase, expected: String): Unit = {
+      val h = request.getFirstHeader(DELTA_SHARING_CAPABILITIES_HEADER)
+      assert(h.getValue == expected)
+    }
+
+    var httpRequestBase = new DeltaSharingRestClient(
+      testProfileProvider, forStreaming = false, readerFeatures = "willBeIgnored").prepareHeaders(httpRequest)
+    checkUserAgent(httpRequestBase, false)
+    checkDeltaSharingCapabilities(httpRequestBase, "responseformat=parquet")
+
+    val readerFeatures = "deletionVectors,columnMapping,timestampNTZ"
+    httpRequestBase = new DeltaSharingRestClient(
+      testProfileProvider,
+      forStreaming = true,
+      responseFormat = RESPONSE_FORMAT_DELTA,
+      readerFeatures = readerFeatures).prepareHeaders(httpRequest)
+    checkUserAgent(httpRequestBase, true)
+    checkDeltaSharingCapabilities(
+      httpRequestBase, s"responseformat=delta;readerfeatures=$readerFeatures"
+    )
   }
 
   integrationTest("listAllTables") {
