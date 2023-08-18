@@ -104,9 +104,12 @@ class DeltaSharingRestClient(
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
     responseFormat: String = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
+    readerFeatures: String = "",
     queryTablePaginationEnabled: Boolean = false,
     maxFilesPerReq: Int = 100000
   ) extends DeltaSharingClient with Logging {
+
+  import DeltaSharingRestClient._
 
   @volatile private var created = false
 
@@ -202,7 +205,7 @@ class DeltaSharingRestClient(
     val (version, _, _) = getResponse(new HttpGet(target), true, true)
     version.getOrElse {
       throw new IllegalStateException(s"Cannot find " +
-        s"${DeltaSharingRestClient.RESPONSE_TABLE_VERSION_HEADER_KEY} in the header")
+        s"${RESPONSE_TABLE_VERSION_HEADER_KEY} in the header")
     }
   }
 
@@ -220,7 +223,7 @@ class DeltaSharingRestClient(
         s"$responseFormat) for getMetadata.${table.share}.${table.schema}.${table.name}.")
     }
     // To ensure that it works with delta sharing server that doesn't support the requested format.
-    if (respondedFormat == DeltaSharingRestClient.RESPONSE_FORMAT_DELTA) {
+    if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(version, lines = lines)
     }
 
@@ -278,7 +281,7 @@ class DeltaSharingRestClient(
         s"for table ${table.share}.${table.schema}.${table.name}.")
     }
     // To ensure that it works with delta sharing server that doesn't support the requested format.
-    if (respondedFormat == DeltaSharingRestClient.RESPONSE_FORMAT_DELTA) {
+    if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(version, lines = lines)
     }
     require(versionAsOf.isEmpty || versionAsOf.get == version)
@@ -316,7 +319,7 @@ class DeltaSharingRestClient(
         s"$endingVersion) for table ${table.share}.${table.schema}.${table.name}.")
     }
     // To ensure that it works with delta sharing server that doesn't support the requested format.
-    if (respondedFormat == DeltaSharingRestClient.RESPONSE_FORMAT_DELTA) {
+    if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(version, lines = lines)
     }
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
@@ -421,7 +424,7 @@ class DeltaSharingRestClient(
         s"${table.share}.${table.schema}.${table.name}.")
     }
     // To ensure that it works with delta sharing server that doesn't support the requested format.
-    if (respondedFormat == DeltaSharingRestClient.RESPONSE_FORMAT_DELTA) {
+    if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(version, lines = lines)
     }
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
@@ -562,7 +565,7 @@ class DeltaSharingRestClient(
       version.getOrElse {
         if (requireVersion) {
           throw new IllegalStateException(s"Cannot find " +
-            s"${DeltaSharingRestClient.RESPONSE_TABLE_VERSION_HEADER_KEY} in the header")
+            s"${RESPONSE_TABLE_VERSION_HEADER_KEY} in the header")
         } else {
           0L
         }
@@ -589,22 +592,18 @@ class DeltaSharingRestClient(
 
   private def getRespondedFormat(capabilities: Option[String]): String = {
     val capabilitiesMap = getDeltaSharingCapabilitiesMap(capabilities)
-    capabilitiesMap.get(DeltaSharingRestClient.RESPONSE_FORMAT).getOrElse(
-      DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
-    )
+    capabilitiesMap.get(RESPONSE_FORMAT).getOrElse(RESPONSE_FORMAT_PARQUET)
   }
   private def getDeltaSharingCapabilitiesMap(capabilities: Option[String]): Map[String, String] = {
     if (capabilities.isEmpty) {
       return Map.empty[String, String]
     }
-    capabilities.get.toLowerCase().split(",").map { capability =>
-      val splits = capability.split("=")
-      if (splits.size == 2) {
+    capabilities.get.toLowerCase().split(DELTA_SHARING_CAPABILITIES_DELIMITER)
+      .map(_.split("="))
+      .filter(_.size == 2)
+      .map { splits =>
         (splits(0), splits(1))
-      } else {
-        ("", "")
-      }
-    }.toMap
+      }.toMap
   }
 
   private def getJson[R: Manifest](target: String): R = {
@@ -651,7 +650,7 @@ class DeltaSharingRestClient(
     val headers = Map(
       HttpHeaders.AUTHORIZATION -> s"Bearer ${profileProvider.getProfile.bearerToken}",
       HttpHeaders.USER_AGENT -> getUserAgent(),
-      DeltaSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER -> getDeltaSharingCapabilities()
+      DELTA_SHARING_CAPABILITIES_HEADER -> getDeltaSharingCapabilities()
     ) ++ customeHeaders
     headers.foreach(header => httpRequest.setHeader(header._1, header._2))
 
@@ -723,10 +722,10 @@ class DeltaSharingRestClient(
         }
         (
           Option(
-            response.getFirstHeader(DeltaSharingRestClient.RESPONSE_TABLE_VERSION_HEADER_KEY)
+            response.getFirstHeader(RESPONSE_TABLE_VERSION_HEADER_KEY)
           ).map(_.getValue.toLong),
           Option(
-            response.getFirstHeader(DeltaSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER)
+            response.getFirstHeader(DELTA_SHARING_CAPABILITIES_HEADER)
           ).map(_.getValue),
           lines
         )
@@ -740,18 +739,22 @@ class DeltaSharingRestClient(
   // to recognize the request for streaming, and take corresponding actions.
   private def getUserAgent(): String = {
     val sparkAgent = if (forStreaming) {
-      DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING
+      SPARK_STRUCTURED_STREAMING
     } else {
       "Delta-Sharing-Spark"
     }
-    s"$sparkAgent/$VERSION" + DeltaSharingRestClient.USER_AGENT
+    s"$sparkAgent/$VERSION" + USER_AGENT
   }
 
   // The value for delta-sharing-capabilities header, semicolon separated capabilities.
   // Each capability is in the format of "key=value1,value2", values are separated by comma.
   // Example: "capability1=value1;capability2=value3,value4,value5"
   private def getDeltaSharingCapabilities(): String = {
-    s"${DeltaSharingRestClient.RESPONSE_FORMAT}=$responseFormat"
+    var capabilities = Seq[String](s"${RESPONSE_FORMAT}=$responseFormat")
+    if (responseFormat == RESPONSE_FORMAT_DELTA && readerFeatures.nonEmpty) {
+      capabilities = capabilities :+ s"$READER_FEATURES=$readerFeatures"
+    }
+    capabilities.mkString(DELTA_SHARING_CAPABILITIES_DELIMITER)
   }
 
   def close(): Unit = {
@@ -770,8 +773,10 @@ object DeltaSharingRestClient extends Logging {
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
   val RESPONSE_TABLE_VERSION_HEADER_KEY = "Delta-Table-Version"
   val RESPONSE_FORMAT = "responseformat"
+  val READER_FEATURES = "readerfeatures"
   val RESPONSE_FORMAT_DELTA = "delta"
   val RESPONSE_FORMAT_PARQUET = "parquet"
+  val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
 
   lazy val USER_AGENT = {
     try {
@@ -833,7 +838,8 @@ object DeltaSharingRestClient extends Logging {
   def apply(
       profileFile: String,
       forStreaming: Boolean = false,
-      responseFormat: String = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
+      responseFormat: String = RESPONSE_FORMAT_PARQUET,
+      readerFeatures: String = ""
   ): DeltaSharingClient = {
     val sqlConf = SparkSession.active.sessionState.conf
 
@@ -863,6 +869,7 @@ object DeltaSharingRestClient extends Logging {
         classOf[Boolean],
         classOf[Boolean],
         classOf[String],
+        classOf[String],
         classOf[Boolean],
         classOf[Int]
       ).newInstance(profileProvider,
@@ -872,6 +879,7 @@ object DeltaSharingRestClient extends Logging {
         java.lang.Boolean.valueOf(sslTrustAll),
         java.lang.Boolean.valueOf(forStreaming),
         responseFormat,
+        readerFeatures,
         java.lang.Boolean.valueOf(queryTablePaginationEnabled),
         java.lang.Integer.valueOf(maxFilesPerReq)
       ).asInstanceOf[DeltaSharingClient]

@@ -43,6 +43,7 @@ class TestDeltaSharingClient(
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
     responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET,
+    readerFeatures: String = "",
     queryTablePaginationEnabled: Boolean = false,
     maxFilesPerReq: Int = 10000
   ) extends DeltaSharingClient {
