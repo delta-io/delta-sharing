@@ -49,7 +49,10 @@ trait DeltaSharingClient {
 
   def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long
 
-  def getMetadata(table: Table): DeltaTableMetadata
+  def getMetadata(
+      table: Table,
+      versionAsOf: Option[Long] = None,
+      timestampAsOf: Option[String] = None): DeltaTableMetadata
 
   def getFiles(
     table: Table,
@@ -209,12 +212,18 @@ class DeltaSharingRestClient(
     }
   }
 
-  def getMetadata(table: Table): DeltaTableMetadata = {
+  def getMetadata(
+      table: Table,
+      versionAsOf: Option[Long] = None,
+      timestampAsOf: Option[String] = None): DeltaTableMetadata = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
+    val encodedParams = getEncodedMetadataParams(versionAsOf, timestampAsOf)
+
     val target = getTargetUrl(
-      s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata")
+      s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata" +
+        s"$encodedParams")
     val (version, respondedFormat, lines) = getNDJson(target)
     if (responseFormat != respondedFormat) {
       // This could only happen when the asked format is delta and the server doesn't support
@@ -543,6 +552,16 @@ class DeltaSharingRestClient(
     } else {
       (lines.drop(2).init, endAction)
     }
+  }
+
+  private def getEncodedMetadataParams(
+      versionAsOf: Option[Long], timestampAsOf: Option[String]): String = {
+    val paramMap = versionAsOf.map("version" -> _.toString).toMap ++
+      timestampAsOf.map("timestamp" -> _).toMap
+    val params = paramMap.map {
+      case (key, value) => s"$key=${URLEncoder.encode(value)}"
+    }.mkString("&")
+    Option(params).map{x => if (x.nonEmpty) { "?" + x } else { "" }}.get
   }
 
   private def getEncodedCDFParams(
