@@ -762,24 +762,35 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-  integrationTest("table2 - version 1 : cdfEnabled is false") {
+  integrationTest("table2 - version 1 : historyShared is false") {
     assertHttpError(
       url = requestPath("/shares/share2/schemas/default/tables/table2/query"),
       method = "POST",
       data = Some("""{"version": 1}"""),
       expectedErrorCode = 400,
-      expectedErrorMessage = "Reading table by version or timestamp is not supported because change data feed is not enabled on table: share2.default.table2"
+      expectedErrorMessage = "Reading table by version or timestamp is not supported because history sharing is not enabled on table: share2.default.table2"
     )
   }
 
-  integrationTest("table2 - timestamp not supported: cdfEnabled is false") {
+  integrationTest("table2 - timestamp not supported: historyShared is false") {
     // timestamp can be any string here, it's resolved in DeltaSharedTableLoader
     assertHttpError(
       url = requestPath("/shares/share2/schemas/default/tables/table2/query"),
       method = "POST",
       data = Some("""{"timestamp": "abc"}"""),
       expectedErrorCode = 400,
-      expectedErrorMessage = "Reading table by version or timestamp is not supported because change data feed is not enabled on table: share2.default.table2"
+      expectedErrorMessage = "Reading table by version or timestamp is not supported because history sharing is not enabled on table: share2.default.table2"
+    )
+  }
+
+  integrationTest("table2 - time travel metadata not supported: historyShared is false") {
+    // timestamp can be any string here, it's resolved in DeltaSharedTableLoader
+    assertHttpError(
+      url = requestPath("/shares/share2/schemas/default/tables/table2/metadata?version=1"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Reading table by version or timestamp is not supported because history sharing is not enabled on table: share2.default.table2"
     )
   }
 
@@ -1928,6 +1939,106 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       configuration = Map("enableChangeDataFeed" -> "true"),
       version = 2)
     assert(expectedMetadata == actions(1).metaData)
+  }
+
+  integrationTest("streaming_notnull_to_null - metadata of different versions") {
+    def getMetadataResponse(version: Long): String = {
+      readNDJson(
+        requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?version=$version"),
+        expectedTableVersion = Some(version)
+      )
+    }
+    def verifyMetadata(version: Long, expectedMetadata: Metadata): Unit = {
+      val response = getMetadataResponse(version)
+      val Array(protocol, metadata) = response.split("\n")
+      val expectedProtocol = Protocol(minReaderVersion = 1)
+      assert(expectedProtocol.wrap == JsonUtils.fromJson[SingleAction](protocol))
+      assert(expectedMetadata.wrap == JsonUtils.fromJson[SingleAction](metadata))
+    }
+
+    val metadataV0 = Metadata(
+      id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      partitionColumns = Nil
+    )
+    val metadataV2 = metadataV0.copy(
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+    )
+
+    verifyMetadata(0, metadataV0)
+    verifyMetadata(1, metadataV0)
+    verifyMetadata(2, metadataV2)
+    verifyMetadata(3, metadataV2)
+    assertHttpError(
+      url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?version=4"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Cannot time travel Delta table to version 4"
+    )
+  }
+
+  integrationTest("streaming_notnull_to_null - metadata of different timestamp") {
+    def getMetadataResponse(timestamp: String, version: Long): String = {
+      readNDJson(
+        requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=$timestamp"),
+        expectedTableVersion = Some(version)
+      )
+    }
+
+    def verifyMetadata(timestamp: String, version: Long, expectedMetadata: Metadata): Unit = {
+      val response = getMetadataResponse(timestamp, version)
+      val Array(protocol, metadata) = response.split("\n")
+      val expectedProtocol = Protocol(minReaderVersion = 1)
+      assert(expectedProtocol.wrap == JsonUtils.fromJson[SingleAction](protocol))
+      assert(expectedMetadata.wrap == JsonUtils.fromJson[SingleAction](metadata))
+    }
+
+    val metadataV0 = Metadata(
+      id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      partitionColumns = Nil
+    )
+    val metadataV2 = metadataV0.copy(
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+    )
+
+    verifyMetadata("2022-11-13T08:10:41Z", 0, metadataV0)
+    verifyMetadata("2022-11-13T08:10:46Z", 1, metadataV0)
+    verifyMetadata("2022-11-13T08:10:48Z", 2, metadataV2)
+    verifyMetadata("2022-11-13T08:10:50Z", 3, metadataV2)
+    assertHttpError(
+      url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=2021-01-01"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Invalid timestamp"
+    )
+    assertHttpError(
+      url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=2021-01-01T00:00:00Z"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "is before the earliest version available"
+    )
+    assertHttpError(
+      url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=2024-01-01T00:00:00Z"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "is after the latest version available"
+    )
+    assertHttpError(
+      url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=2024-01-01T00:00:00Z"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "is after the latest version available"
+    )
   }
 
   integrationTest("streaming_notnull_to_null - no exceptions") {

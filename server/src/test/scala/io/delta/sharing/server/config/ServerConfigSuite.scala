@@ -71,7 +71,7 @@ class ServerConfigSuite extends FunSuite {
               "table3",
               "abfss://<container-name>@<account-name}.dfs.core.windows.net/<the-table-path>",
               id = "00000000-0000-0000-0000-000000000002",
-              cdfEnabled = true
+              historyShared = true
             )
           ))
         )),

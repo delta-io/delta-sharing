@@ -426,9 +426,14 @@ class DeltaSharedTable(
     val versionFromPageToken = pageTokenOpt.flatMap(_.version)
     val snapshot =
       if (versionFromPageToken.orElse(version).orElse(startingVersion).isDefined) {
-        deltaLog.getSnapshotForVersionAsOf(
-          versionFromPageToken.orElse(version).orElse(startingVersion).get
-        )
+        try {
+          deltaLog.getSnapshotForVersionAsOf(
+            versionFromPageToken.orElse(version).orElse(startingVersion).get
+          )
+        } catch {
+          case e: io.delta.standalone.exceptions.DeltaStandaloneException =>
+            throw new DeltaSharingIllegalArgumentException(e.getMessage)
+        }
       } else if (timestamp.isDefined) {
         val ts = DeltaSharingHistoryManager.getTimestamp("timestamp", timestamp.get)
         try {
@@ -853,7 +858,7 @@ class DeltaSharedTable(
   }
 
   private def getMetadataConfiguration(tableConf: Map[String, String]): Map[String, String ] = {
-    if (tableConfig.cdfEnabled &&
+    if (tableConfig.historyShared &&
       tableConf.getOrElse("delta.enableChangeDataFeed", "false") == "true") {
       Map("enableChangeDataFeed" -> "true")
     } else {
