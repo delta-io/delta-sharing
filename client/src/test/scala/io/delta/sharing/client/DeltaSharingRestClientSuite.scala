@@ -210,31 +210,29 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         format = Format(),
         schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
         configuration = Map("enableChangeDataFeed" -> "true"),
-        partitionColumns = Nil)
-      val responseV0 =
-        client.getMetadata(
-          Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
-          versionAsOf = Some(0)
-        )
+        partitionColumns = Nil
+      )
+      val responseV0 = client.getMetadata(
+        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
+        versionAsOf = Some(0)
+      )
       assert(Protocol(minReaderVersion = 1) == responseV0.protocol)
       assert(metadataV0 == responseV0.metadata)
 
       val metadataV2 = metadataV0.copy(
         schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
       )
-      val responseV2 =
-        client.getMetadata(
-          Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
-          versionAsOf = Some(2)
-        )
+      val responseV2 = client.getMetadata(
+        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
+        versionAsOf = Some(2)
+      )
       assert(Protocol(minReaderVersion = 1) == responseV0.protocol)
       assert(metadataV2 == responseV2.metadata)
 
-      val responseTimestamp =
-        client.getMetadata(
-          Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
-          timestampAsOf = Some("2022-11-13T08:10:50Z")
-        )
+      val responseTimestamp = client.getMetadata(
+        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
+        timestampAsOf = Some("2022-11-13T08:10:50Z")
+      )
       assert(Protocol(minReaderVersion = 1) == responseV0.protocol)
       assert(metadataV2 == responseTimestamp.metadata)
     } finally {

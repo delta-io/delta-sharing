@@ -1941,21 +1941,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedMetadata == actions(1).metaData)
   }
 
-  integrationTest("streaming_notnull_to_null - metadata of different versions") {
-    def getMetadataResponse(version: Long): String = {
-      readNDJson(
-        requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?version=$version"),
-        expectedTableVersion = Some(version)
-      )
-    }
-    def verifyMetadata(version: Long, expectedMetadata: Metadata): Unit = {
-      val response = getMetadataResponse(version)
-      val Array(protocol, metadata) = response.split("\n")
-      val expectedProtocol = Protocol(minReaderVersion = 1)
-      assert(expectedProtocol.wrap == JsonUtils.fromJson[SingleAction](protocol))
-      assert(expectedMetadata.wrap == JsonUtils.fromJson[SingleAction](metadata))
-    }
-
+  object StreamingNotnullToNull {
     val metadataV0 = Metadata(
       id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
       format = Format(),
@@ -1966,11 +1952,28 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val metadataV2 = metadataV0.copy(
       schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
     )
+  }
 
-    verifyMetadata(0, metadataV0)
-    verifyMetadata(1, metadataV0)
-    verifyMetadata(2, metadataV2)
-    verifyMetadata(3, metadataV2)
+  def getMetadataResponse(version: Long): String = {
+    readNDJson(
+      requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?version=$version"),
+      expectedTableVersion = Some(version)
+    )
+  }
+
+  def verifyMetadata(version: Long, expectedMetadata: Metadata): Unit = {
+    val response = getMetadataResponse(version)
+    val Array(protocol, metadata) = response.split("\n")
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol.wrap == JsonUtils.fromJson[SingleAction](protocol))
+    assert(expectedMetadata.wrap == JsonUtils.fromJson[SingleAction](metadata))
+  }
+
+  integrationTest("streaming_notnull_to_null - metadata of different versions") {
+    verifyMetadata(0, StreamingNotnullToNull.metadataV0)
+    verifyMetadata(1, StreamingNotnullToNull.metadataV0)
+    verifyMetadata(2, StreamingNotnullToNull.metadataV2)
+    verifyMetadata(3, StreamingNotnullToNull.metadataV2)
     assertHttpError(
       url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?version=4"),
       method = "GET",
@@ -1980,37 +1983,26 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
+  def getMetadataResponse(timestamp: String, version: Long): String = {
+    readNDJson(
+      requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=$timestamp"),
+      expectedTableVersion = Some(version)
+    )
+  }
+
+  def verifyMetadata(timestamp: String, version: Long, expectedMetadata: Metadata): Unit = {
+    val response = getMetadataResponse(timestamp, version)
+    val Array(protocol, metadata) = response.split("\n")
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    assert(expectedProtocol.wrap == JsonUtils.fromJson[SingleAction](protocol))
+    assert(expectedMetadata.wrap == JsonUtils.fromJson[SingleAction](metadata))
+  }
+
   integrationTest("streaming_notnull_to_null - metadata of different timestamp") {
-    def getMetadataResponse(timestamp: String, version: Long): String = {
-      readNDJson(
-        requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=$timestamp"),
-        expectedTableVersion = Some(version)
-      )
-    }
-
-    def verifyMetadata(timestamp: String, version: Long, expectedMetadata: Metadata): Unit = {
-      val response = getMetadataResponse(timestamp, version)
-      val Array(protocol, metadata) = response.split("\n")
-      val expectedProtocol = Protocol(minReaderVersion = 1)
-      assert(expectedProtocol.wrap == JsonUtils.fromJson[SingleAction](protocol))
-      assert(expectedMetadata.wrap == JsonUtils.fromJson[SingleAction](metadata))
-    }
-
-    val metadataV0 = Metadata(
-      id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
-      format = Format(),
-      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
-      configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil
-    )
-    val metadataV2 = metadataV0.copy(
-      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
-    )
-
-    verifyMetadata("2022-11-13T08:10:41Z", 0, metadataV0)
-    verifyMetadata("2022-11-13T08:10:46Z", 1, metadataV0)
-    verifyMetadata("2022-11-13T08:10:48Z", 2, metadataV2)
-    verifyMetadata("2022-11-13T08:10:50Z", 3, metadataV2)
+    verifyMetadata("2022-11-13T08:10:41Z", 0, StreamingNotnullToNull.metadataV0)
+    verifyMetadata("2022-11-13T08:10:46Z", 1, StreamingNotnullToNull.metadataV0)
+    verifyMetadata("2022-11-13T08:10:48Z", 2, StreamingNotnullToNull.metadataV2)
+    verifyMetadata("2022-11-13T08:10:50Z", 3, StreamingNotnullToNull.metadataV2)
     assertHttpError(
       url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=2021-01-01"),
       method = "GET",
