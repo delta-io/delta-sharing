@@ -220,7 +220,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(metadataV0 == responseV0.metadata)
 
       val metadataV2 = metadataV0.copy(
-        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}"""
       )
       val responseV2 = client.getMetadata(
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
