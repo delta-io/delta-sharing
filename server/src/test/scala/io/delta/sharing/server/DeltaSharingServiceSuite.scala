@@ -1950,7 +1950,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       partitionColumns = Nil
     )
     val metadataV2 = metadataV0.copy(
-      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}"""
     )
   }
 
