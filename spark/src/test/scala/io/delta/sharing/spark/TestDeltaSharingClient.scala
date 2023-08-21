@@ -16,24 +16,10 @@
 
 package io.delta.sharing.spark
 
-import io.delta.sharing.client.{
-  DeltaSharingClient,
-  DeltaSharingProfile,
-  DeltaSharingProfileProvider
-}
-import io.delta.sharing.client.model.{
-  AddCDCFile,
-  AddFile,
-  AddFileForCDF,
-  DeltaTableFiles,
-  DeltaTableMetadata,
-  Metadata,
-  Protocol,
-  RemoveFile,
-  SingleAction,
-  Table
-}
+import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingProfile, DeltaSharingProfileProvider}
+import io.delta.sharing.client.model.{AddCDCFile, AddFile, AddFileForCDF, DeltaTableFiles, DeltaTableMetadata, Metadata, Protocol, RemoveFile, SingleAction, Table}
 import io.delta.sharing.client.util.JsonUtils
+import io.delta.sharing.spark.TestDeltaSharingClient.TESTING_TIMESTAMP
 
 class TestDeltaSharingClient(
     profileProvider: DeltaSharingProfileProvider = new TestDeltaSharingProfileProvider,
@@ -56,7 +42,19 @@ class TestDeltaSharingClient(
       |\"metadata\":{}}]}","partitionColumns":[],"configuration":{},
       |"size": 100,"numFiles": 2,"createdTime":1603723967515}}"""
       .stripMargin.replaceAll("\n", "")
+  // Note the difference on the nullable field.
+  private val schemaStringV1 = """{"type":"struct",
+      |"fields":[{"name":"col1","type":"integer","nullable":false,
+      |"metadata":{}},{"name":"col2","type":"string","nullable":false,
+      |"metadata":{}}]}""".stripMargin.replaceAll("\n", "")
+  private val schemaStringV2 =
+    """{"type":"struct",
+      |"fields":[{"name":"col1","type":"integer","nullable":true,
+      |"metadata":{}},{"name":"col2","type":"string","nullable":false,
+      |"metadata":{}}]}""".stripMargin.replaceAll("\n", "")
   private val metadata = JsonUtils.fromJson[SingleAction](metadataString).metaData
+  private val metadataV1 = metadata.copy(schemaString = schemaStringV1)
+  private val metadataV2 = metadata.copy(schemaString = schemaStringV2)
 
   override def listAllTables(): Seq[Table] = Nil
 
@@ -64,7 +62,13 @@ class TestDeltaSharingClient(
       table: Table,
       versionAsOf: Option[Long] = None,
       timestampAsOf: Option[String] = None): DeltaTableMetadata = {
-    DeltaTableMetadata(0, Protocol(0), metadata)
+    if (versionAsOf.exists(_ == 1)) {
+      DeltaTableMetadata(1, Protocol(0), metadataV1)
+    } else if (timestampAsOf.exists(_ == TESTING_TIMESTAMP)) {
+      DeltaTableMetadata(1, Protocol(0), metadataV2)
+    } else {
+      DeltaTableMetadata(0, Protocol(0), metadata)
+    }
   }
 
   override def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long = 0
@@ -97,7 +101,13 @@ class TestDeltaSharingClient(
       ).take(limit.getOrElse(4L).toInt)
     }
 
-    DeltaTableFiles(0, Protocol(0), metadata, addFiles)
+    if (versionAsOf.exists(_ == 1)) {
+      DeltaTableFiles(0, Protocol(0), metadataV1, addFiles)
+    } else if (timestampAsOf.exists(_ == TESTING_TIMESTAMP)) {
+      DeltaTableFiles(0, Protocol(0), metadataV2, addFiles)
+    } else {
+      DeltaTableFiles(0, Protocol(0), metadata, addFiles)
+    }
   }
 
   override def getFiles(
@@ -149,4 +159,6 @@ class TestDeltaSharingProfileProvider extends DeltaSharingProfileProvider {
 object TestDeltaSharingClient {
   var limits = Seq.empty[Long]
   var jsonPredicateHints = Seq.empty[String]
+
+  val TESTING_TIMESTAMP = "2022-01-01 00:00:00.0"
 }
