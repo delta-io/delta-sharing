@@ -21,7 +21,7 @@ shares:
     - name: "table3"
       # Azure Data Lake Storage Gen2. See https://github.com/delta-io/delta-sharing#azure-data-lake-storage-gen2 for how to config the credentials
       location: "abfss://<container-name>@<account-name}.dfs.core.windows.net/<the-table-path>"
-      cdfEnabled: true
+      historyShared: true
       id: "00000000-0000-0000-0000-000000000002"
 - name: "share3"
   schemas:

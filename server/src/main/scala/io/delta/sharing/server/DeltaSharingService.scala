@@ -251,9 +251,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     @Param("startingTimestamp") @Nullable startingTimestamp: String
   ): HttpResponse = processRequest {
     val tableConfig = sharedTableManager.getTable(share, schema, table)
-    if (startingTimestamp != null && !tableConfig.cdfEnabled) {
+    if (startingTimestamp != null && !tableConfig.historyShared) {
       throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +
-        " not supported because change data feed is not enabled on table: " +
+        " not supported because history sharing is not enabled on table: " +
         s"$share.$schema.$table")
     }
     val version = deltaSharedTableLoader.loadTable(tableConfig).getTableVersion(
@@ -288,20 +288,35 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       req: HttpRequest,
       @Param("share") share: String,
       @Param("schema") schema: String,
-      @Param("table") table: String): HttpResponse = processRequest {
+      @Param("table") table: String,
+      @Param("version") @Nullable version: java.lang.Long,
+      @Param("timestamp") @Nullable timestamp: String): HttpResponse = processRequest {
     import scala.collection.JavaConverters._
+    if (version != null && timestamp != null) {
+      throw new DeltaSharingIllegalArgumentException(ErrorStrings.multipleParametersSetErrorMsg(
+        Seq("version", "timestamp"))
+      )
+    }
+    if (version != null && version < 0) {
+      throw new DeltaSharingIllegalArgumentException("version cannot be negative.")
+    }
     val capabilitiesMap = getDeltaSharingCapabilitiesMap(
       req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
     )
     val tableConfig = sharedTableManager.getTable(share, schema, table)
+    if ((version != null || timestamp != null) && !tableConfig.historyShared) {
+      throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +
+        " not supported because history sharing is not enabled on table: " +
+        s"$share.$schema.$table")
+    }
     val responseFormat = getResponseFormat(capabilitiesMap)
     val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = false,
       predicateHints = Nil,
       jsonPredicateHints = None,
       limitHint = None,
-      version = None,
-      timestamp = None,
+      version = Option(version).map(_.toLong),
+      timestamp = Option(timestamp),
       startingVersion = None,
       endingVersion = None,
       maxFiles = None,
@@ -341,9 +356,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     if (numVersionParams > 0) {
-      if (!tableConfig.cdfEnabled) {
+      if (!tableConfig.historyShared) {
         throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +
-          " not supported because change data feed is not enabled on table: " +
+          " not supported because history sharing is not enabled on table: " +
           s"$share.$schema.$table")
       }
       if (request.version.exists(_ < tableConfig.startVersion) ||
@@ -408,7 +423,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     )
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
-    if (!tableConfig.cdfEnabled) {
+    if (!tableConfig.historyShared) {
       throw new DeltaSharingIllegalArgumentException("cdf is not enabled on table " +
         s"$share.$schema.$table")
     }

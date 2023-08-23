@@ -228,7 +228,7 @@ case class TableConfig(
     @BeanProperty var name: String,
     @BeanProperty var location: String,
     @BeanProperty var id: String = "",
-    @BeanProperty var cdfEnabled: Boolean = false,
+    @BeanProperty var historyShared: Boolean = false,
     @BeanProperty var startVersion: Long = 0) extends ConfigItem {
 
   def this() {
