@@ -292,6 +292,11 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("version") @Nullable version: java.lang.Long,
       @Param("timestamp") @Nullable timestamp: String): HttpResponse = processRequest {
     import scala.collection.JavaConverters._
+    if (version != null && timestamp != null) {
+      throw new DeltaSharingIllegalArgumentException(ErrorStrings.multipleParametersSetErrorMsg(
+        Seq("version", "timestamp"))
+      )
+    }
     if (version != null && version < 0) {
       throw new DeltaSharingIllegalArgumentException("version cannot be negative.")
     }
@@ -299,7 +304,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
     )
     val tableConfig = sharedTableManager.getTable(share, schema, table)
-    if ((version != null || timestamp != null ) && !tableConfig.historyShared) {
+    if ((version != null || timestamp != null) && !tableConfig.historyShared) {
       throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +
         " not supported because history sharing is not enabled on table: " +
         s"$share.$schema.$table")
