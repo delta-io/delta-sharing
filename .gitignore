@@ -4,3 +4,7 @@
 *.venv
 .metals/
 .vscode/
+/target/
+/project/target/
+/.idea/
+/.bsp/sbt.json
