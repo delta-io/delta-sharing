@@ -13,6 +13,12 @@ This repository contains:
 - a reference implementation of a server that implements both protocols
 - lake-sharing clients
 
+# Protocols
+
+The original delta-sharing protocol is rendered [here](https://agile-lab-dev.github.io/lake-sharing/delta-sharing.html)
+
+Lake-sharing protocol is rendered [here](https://agile-lab-dev.github.io/lake-sharing/)
+
 
 # Reporting Issues
 

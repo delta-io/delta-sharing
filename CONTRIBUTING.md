@@ -25,3 +25,16 @@ skip these steps and jump straight to submitting a pull request.
    3. add tests
    4. add documentation
 3. mention a committer (@tmnd1991, @erond) and ask for a review
+
+
+# General advice
+
+Under .vscode/extension.json we keep suggested vscode extensions.
+
+# Protocol
+
+The protocol is developed using openapi 3.0 and a textual description in markdwon format.
+
+We copy-paste delta-sharing openapi protocol from the [original repo](https://github.com/delta-io/delta-sharing/blob/main/delta-sharing-protocl-api-description.yml) and the same happens for the [textual representation](https://github.com/delta-io/delta-sharing/blob/main/PROTOCOL.md).
+
+Both protocols are checked on every push by spectral using `.spectral.yaml` ruleset, they are also deployed as github pages.

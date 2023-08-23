@@ -3,20 +3,20 @@ openapi: "3.0.2"
 info:
   description: |
     The Delta Sharing protocol is still very early in its development.
+  contact:
+    email: info@delta.io
+    name: Delta
+    url: https://delta.io/sharing
   version: "0.2"
   title: Delta Sharing Protocol
-  contact:
-    email: ""
   license:
     name: "AGPL v3.0"
     url: "https://www.gnu.org/licenses/agpl-3.0.en.html"
 
 servers:
-  - url: 'http://localhost:8000/api/v1'
+  - url: 'http://localhost:8000/delta-api/v1'
     description: Local dev server (APIv1)
-  - url: 'https://sharing.delta.io/delta-sharing/'
-    description: 'Demo Delta Sharing server'
-
+  
 tags:
 - name: 'shares'
   description: Share discovery APIs
@@ -49,7 +49,7 @@ paths:
             the number of potential results exceeds the number of maximum
             results, the response will contain a `nextpageToken` which can be
             used in subsequent requests.
-          example: '30'
+          example: 30
           schema:
             type: number
             format: int32
@@ -83,7 +83,7 @@ paths:
   '/shares/{share}':
     get:
       operationId: 'GetShare'
-      summary: 'get the metadata of a share'
+      description: 'get the metadata of a share'
       tags:
         - shares
         - official
@@ -115,7 +115,7 @@ paths:
   '/shares/{share}/schemas':
     get:
       operationId: 'ListSchemas'
-      summary: 'List the schemas in a share'
+      description: 'List the schemas in a share'
       tags:
         - shares
         - official
@@ -134,7 +134,7 @@ paths:
             the number of potential results exceeds the number of maximum
             results, the response will contain a `nextpageToken` which can be
             used in subsequent requests.
-          example: '30'
+          example: 30
           schema:
             type: number
             format: int32
@@ -167,7 +167,7 @@ paths:
   '/shares/{share}/schemas/{schema}/tables':
     get:
       operationId: 'ListTables'
-      summary: "List the tables in a given share's schema"
+      description: "List the tables in a given share's schema"
       tags:
         - schemas
         - official
@@ -192,7 +192,7 @@ paths:
             the number of potential results exceeds the number of maximum
             results, the response will contain a `nextpageToken` which can be
             used in subsequent requests.
-          example: '30'
+          example: 30
           schema:
             type: number
             format: int32
@@ -226,7 +226,7 @@ paths:
   '/shares/{share}/all-tables':
     get:
       operationId: 'ListALLTables'
-      summary: "List the tables under all schemas in a share"
+      description: "List the tables under all schemas in a share"
       tags:
         - shares
         - official
@@ -245,7 +245,7 @@ paths:
             the number of potential results exceeds the number of maximum
             results, the response will contain a `nextpageToken` which can be
             used in subsequent requests.
-          example: '30'
+          example: 30
           schema:
             type: number
             format: int32
@@ -337,7 +337,7 @@ paths:
   '/shares/{share}/schemas/{schema}/tables/{table}/metadata':
     get:
       operationId: 'GetTableMetadata'
-      summary: 'Query the metadata and schema of the given table'
+      description: 'Query the metadata and schema of the given table'
       tags:
         - tables
         - official
@@ -370,7 +370,7 @@ paths:
   '/shares/{share}/schemas/{schema}/tables/{table}/query':
     post:
       operationId: 'QueryTable'
-      summary: 'Query the table'
+      description: 'Query the table'
       tags:
         - tables
         - official
@@ -712,31 +712,31 @@ components:
 
 
   responses:
-    400:
+    "400":
       description: The request is malformed
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/CommonErrorResponse'
-    401:
+    "401":
       description: The request is unauthenticated. The bearer token is missing or incorrect
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/CommonErrorResponse'
-    403:
+    "403":
       description: The request is forbidden from being fulfilled
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/CommonErrorResponse'
-    404:
+    "404":
       description: The specified resource was not found
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/CommonErrorResponse'
-    500:
+    "500":
       description: The request is not handled correctly due to a server error
       content:
         application/json:

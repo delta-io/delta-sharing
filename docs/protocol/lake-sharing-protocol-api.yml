@@ -1,0 +1,1130 @@
+openapi: "3.0.2"
+info:
+  title: lake-sharing
+  version: "1.0"
+  description: additive extension to delta-sharing API with the aim to provide a full-fledged experience (both publishers and consumers) and open to table formats different from Delta Lake
+  contact:
+    email: communityimpact@agilelab.it
+    name: Agile Lab
+    url: https://www.agilelab.it
+servers:
+  - url: 'http://localhost:8000/lake-api/v1'
+tags:
+  - name: lake-sharing
+  - name: provider
+  - name: table
+  - name: metastore
+  - name: storage
+  - name: share
+  - name: schema
+paths:
+  /providers:
+    post:
+      tags:
+        - lake-sharing
+        - provider
+      operationId: AddProvider
+      description: Add a new provider
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Provider"
+        "403":
+          description: Provider already exists
+    get:
+      operationId: ListProviders
+      description: List all providers
+      tags:
+        - lake-sharing
+        - provider
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Provider"
+  /providers/{id}:
+    patch:
+      description: Update an existing provider
+      operationId: UpdateProvider
+      tags:
+        - lake-sharing
+        - provider
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderInput"
+      responses:
+        "200":
+          description: OK, provider updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Provider"
+        "404":
+          description: "Provider not found"
+    delete:
+      operationId: DeleteProvider
+      description: Delete a provider
+      tags:
+        - lake-sharing
+        - provider
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: force
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: deleted
+        "404":
+          description: Provider does not exist
+    get:
+      operationId: GetProvider
+      description: Get a provider related info
+      tags:
+        - lake-sharing
+        - provider
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Provider"
+        "404":
+          description: Provider does not exist
+  /providers/{providerId}/tables:
+    post:
+      description: Create a new table for provider
+      operationId: CreateTableInProvider
+      tags:
+        - lake-sharing
+        - table
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTableInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableInfo"
+    get:
+      tags:
+        - lake-sharing
+        - table
+      description: get the list of tables declared by this provider
+      operationId: ListTablesInProvider
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TableInfo"
+  /providers/{providerId}/tables/{tableName}/validate:
+    post:
+      description: Validate the table
+      operationId: ValidateTable
+      tags:
+        - lake-sharing
+        - table
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tableName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
+                    enum:
+                      - success
+                      - failure
+                  message:
+                    type: string
+  /providers/{providerId}/tables/{tableName}:
+    patch:
+      operationId: PatchTableInProvider
+      description: Update a table in a Provider
+      tags:
+        - lake-sharing
+        - table
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tableName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchTableInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableInfo"
+    delete:
+      operationId: DeleteTableInProvider
+      description: Delete a table from a provider
+      tags:
+        - lake-sharing
+        - table
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tableName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: force
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+    get:
+      description: get the description of a table in a provider
+      operationId: DescribeTableInProvider
+      tags:
+        - lake-sharing
+        - table
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tableName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableInfo"
+  /metastores:
+    post:
+      description: Create a new metastore
+      operationId: CreateMetastore
+      tags:
+        - lake-sharing
+        - metastore
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                comment:
+                  type: string
+                type:
+                  type: string
+                  enum:
+                    - glue
+                    - hive2
+                    - hive3
+                    - iceberg_hadoop
+                    - iceberg_hive
+                    - iceberg_jdbc
+                    - iceberg_nessie
+                properties:
+                  anyOf:
+                    - $ref: "#/components/schemas/GlueProperties"
+                    - $ref: "#/components/schemas/Hive2Properties"
+                    - $ref: "#/components/schemas/Hive3Properties"
+                    - $ref: "#/components/schemas/IcebergHadoopProperties"
+                    - $ref: "#/components/schemas/IcebergJdbcProperties"
+                    - $ref: "#/components/schemas/IcebergNessieProperties"
+                skipValidation:
+                  type: boolean
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Metastore"
+        "403":
+          description: Storage already exists
+    get:
+      description: list all metastores
+      operationId: ListMetastores
+      tags:
+        - lake-sharing
+        - metastore
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Metastore"
+  /metastores/{id}:
+    patch:
+      description: update an existing metastore
+      operationId: UpdateMetastore
+      tags:
+        - lake-sharing
+        - metastore
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                comment:
+                  type: string
+                owner:
+                  type: string
+                type:
+                  type: string
+                properties:
+                  anyOf:
+                    - $ref: "#/components/schemas/GlueProperties"
+                    - $ref: "#/components/schemas/Hive2Properties"
+                    - $ref: "#/components/schemas/Hive3Properties"
+                    - $ref: "#/components/schemas/IcebergHadoopProperties"
+                    - $ref: "#/components/schemas/IcebergJdbcProperties"
+                    - $ref: "#/components/schemas/IcebergNessieProperties"
+                skipValidation:
+                  type: boolean
+                force:
+                  type: boolean
+      responses:
+        "200":
+          description: OK, metastore updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Metastore"
+        "404":
+          description: "Metastore not found"
+    delete:
+      operationId: DeleteMetastore
+      description: delete a metastore
+      tags:
+        - lake-sharing
+        - metastore
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: force
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: deleted
+        "404":
+          description: metastore does not exists
+    get:
+      operationId: DescribeMetastore
+      description: Get info about a given metastore
+      tags:
+        - lake-sharing
+        - metastore
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Metastore"
+        "404":
+          description: Metastore does not exist
+  /metastores/{id}/validate:
+    post:
+      operationId: ValidateMetastore
+      description: Validate a metastore
+      tags:
+        - lake-sharing
+        - metastore
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
+                    enum:
+                      - success
+                      - failure
+                  message:
+                    type: string
+  /storage:
+    post:
+      operationId: CreateStorage
+      description: Add a new storage
+      tags:
+        - lake-sharing
+        - storage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                comment:
+                  type: string
+                type:
+                  type: string
+                  enum:
+                    - gcs
+                    - s3
+                    - abfs
+                credentials:
+                  oneOf:
+                    - $ref: "#/components/schemas/SimpleAwsCredentials"
+                uri:
+                  type: string
+                  example: s3://my-nice-bucket/some/prefix
+                skipValidation:
+                  type: boolean
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Storage"
+        "403":
+          description: Storage already exists
+    get:
+      operationId: ListStorage
+      description: List storage
+      tags:
+        - lake-sharing
+        - storage
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Storage"
+
+  /storage/{id}:
+    patch:
+      operationId: UpdateStorage
+      description: Update an existing storage
+      tags:
+        - lake-sharing
+        - storage
+      parameters:
+        - required: true
+          name: id
+          in: path
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                comment:
+                  type: string
+                type:
+                  type: string
+                  enum:
+                    - gcs
+                    - s3
+                    - abfs
+                credentials:
+                  oneOf:
+                    - $ref: "#/components/schemas/SimpleAwsCredentials"
+                uri:
+                  type: string
+                  example: s3://my-nice-bucket/some/prefix
+                skipValidation:
+                  type: boolean
+                force:
+                  type: boolean
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Storage"
+        "404":
+          description: Storage does not exists
+    delete:
+      operationId: DeleteStorage
+      description: Delete an existing storage
+      tags:
+        - lake-sharing
+        - storage
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: force
+          required: false
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: deleted
+        "404":
+          description: Storage does not exists
+    get:
+      operationId: DescribeStorage
+      description: Describe storage
+      tags:
+        - lake-sharing
+        - storage
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Storage"
+        "404":
+          description: Storage does not exist
+  /storage/{id}/validate:
+    post:
+      operationId: ValidateStorage
+      description: Validate an existing storage
+      tags:
+        - lake-sharing
+        - storage
+      parameters:
+        - required: true
+          name: id
+          in: path
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
+                    enum:
+                      - success
+                      - failure
+                  message:
+                    type: string
+        "404":
+          description: storage does not exist
+  /shares:
+    post:
+      operationId: CreateShare
+      description: Create a new share
+      tags:
+        - lake-sharing
+        - share
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShareInput"
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareInfo"
+  /shares/{share}:
+    delete:
+      operationId: DeleteShare
+      description: Delete a share
+      tags:
+        - lake-sharing
+        - share
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: "Named share"
+          schema:
+            type: string
+      responses:
+        "200":
+          description: schema deleted
+    patch:
+      operationId: UpdateShare
+      description: update an existing share
+      tags:
+        - lake-sharing
+        - share
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: "Named share"
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShareInput"
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareInfo"
+  /shares/{share}/recipients:
+    put:
+      operationId: AddRecipientToShare
+      description: add a recipient to share
+      tags:
+        - lake-sharing
+        - share
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: "Named share"
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                principals:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: recipients added
+          content:
+            application/json:
+              schema:
+                type: object
+                description: all the recipients currently part of the share
+                properties:
+                  principals:
+                    type: array
+                    items:
+                      type: string
+  /shares/{share}/{schema}:
+    post:
+      operationId: CreateSchema
+      description: create a schema in a share
+      tags:
+        - lake-sharing
+        - share
+        - schema
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: name of the share
+          schema:
+            type: string
+        - in: path
+          name: schema
+          required: true
+          description: name of the schema to be created
+          schema:
+            type: string
+      responses:
+        "200":
+          description: schema created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareInfo"
+    delete:
+      operationId: DeleteSchema
+      description: delete a schema from a share
+      tags:
+        - lake-sharing
+        - share
+        - schema
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: name of the share
+          schema:
+            type: string
+        - in: path
+          name: schema
+          required: true
+          description: name of the schema to be deleted
+          schema:
+            type: string
+      responses:
+        "204":
+          description: schema deleted
+        "404":
+          description: schema not found
+  /shares/{share}/{schema}/tables:
+    post:
+      operationId: AddTableToSchema
+      description: add a table to a schema
+      tags:
+        - lake-sharing
+        - share
+        - schema
+        - table
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: name of the share
+          schema:
+            type: string
+        - in: path
+          name: schema
+          required: true
+          description: name of the schema where the table will be added
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TableReference"
+      responses:
+        "200":
+          description: table added to schema
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableInfo"
+    get:
+      operationId: ListTablesInSchema
+      description: list tables within a schema
+      tags:
+        - lake-sharing
+        - share
+        - schema
+        - table
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: name of the share
+          schema:
+            type: string
+        - in: path
+          name: schema
+          required: true
+          description: name of the schema for which tables will be listed
+          schema:
+            type: string
+      responses:
+        "200":
+          description: list of tables within the schema
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TableInfo"
+
+  /shares/{share}/{schema}/tables/{table}:
+    delete:
+      operationId: DeleteTableFromSchema
+      tags:
+        - lake-sharing
+        - share
+        - schema
+        - table
+      description: delete a table from a schema
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: name of the share
+          schema:
+            type: string
+        - in: path
+          name: schema
+          required: true
+          description: name of the schema from which the table will be deleted
+          schema:
+            type: string
+        - in: path
+          name: table
+          required: true
+          description: name of the table to be deleted
+          schema:
+            type: string
+      responses:
+        "204":
+          description: table deleted
+        "404":
+          description: table not found
+components:
+  schemas:
+    Hive2Properties:
+      type: object
+      properties: {}
+    Hive3Properties:
+      type: object
+      properties: {}
+    GlueProperties:
+      type: object
+      properties:
+        catalogId:
+          type: string
+        credentials:
+          $ref: "#/components/schemas/SimpleAwsCredentials"
+    IcebergHadoopProperties:
+      type: object
+      properties: {}
+    IcebergJdbcProperties:
+      type: object
+      properties: {}
+    IcebergNessieProperties:
+      type: object
+      properties: {}
+    Metastore:
+      type: object
+      properties:
+        name:
+          type: string
+        comment:
+          type: string
+        owner:
+          type: string
+        id:
+          type: string
+        type:
+          type: string
+        properties:
+          anyOf:
+            - $ref: "#/components/schemas/GlueProperties"
+            - $ref: "#/components/schemas/Hive2Properties"
+            - $ref: "#/components/schemas/Hive3Properties"
+            - $ref: "#/components/schemas/IcebergHadoopProperties"
+            - $ref: "#/components/schemas/IcebergJdbcProperties"
+            - $ref: "#/components/schemas/IcebergNessieProperties"
+        validatedAt:
+          type: integer
+          format: int64
+        createdAt:
+          type: integer
+          format: int64
+        createdBy:
+          type: string
+        updatedAt:
+          type: integer
+          format: int64
+        updatedBy:
+          type: string
+    SimpleAwsCredentials:
+      type: object
+      properties:
+        awsAccessKeyId:
+          type: string
+        awsSecretAccessKey:
+          type: string
+        region:
+          type: string
+    Storage:
+      type: object
+      properties:
+        name:
+          type: string
+        comment:
+          type: string
+        owner:
+          type: string
+        id:
+          type: string
+        type:
+          type: string
+        uri:
+          type: string
+          example: s3://my-nice-bucket/some/prefix
+        validatedAt:
+          type: integer
+          format: int64
+        createdAt:
+          type: integer
+          format: int64
+        createdBy:
+          type: string
+        updatedAt:
+          type: integer
+          format: int64
+        updatedBy:
+          type: string
+    Provider:
+      type: object
+      properties:
+        id:
+          type: string
+        storage:
+          $ref: "#/components/schemas/Storage"
+        metastore:
+          $ref: "#/components/schemas/Metastore"
+        createdAt:
+          type: integer
+          format: int64
+        createdBy:
+          type: string
+        updatedAt:
+          type: integer
+          format: int64
+        updatedBy:
+          type: string
+    CreateShareInput:
+      type: object
+      properties:
+        name:
+          type: string
+        comment:
+          type: string
+        recipients:
+          type: array
+          items:
+            type: string
+        schemas:
+          type: array
+          items:
+            type: string
+    TableReference:
+      type: object
+      properties:
+        providerId:
+          type: string
+        name:
+          type: string
+    ShareInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        comment:
+          type: string
+        recipients:
+          type: array
+          items:
+            type: string
+        schemas:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: integer
+          format: int64
+        createdBy:
+          type: string
+        updatedAt:
+          type: integer
+          format: int64
+        updatedBy:
+          type: string
+
+    TableInfo:
+      type: object
+      properties:
+        providerId:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+        validatedAt:
+          type: integer
+          format: int64
+        createdAt:
+          type: integer
+          format: int64
+        createdBy:
+          type: string
+        updatedAt:
+          type: integer
+          format: int64
+        updatedBy:
+          type: string
+    CreateTableInput:
+      type: object
+      properties:
+        name:
+          type: string
+          description: alias inside this provider of this table, must be unique
+        comment:
+          type: string
+        skipValidation:
+          type: boolean
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+      example:
+        name: customer
+        properties:
+          database: finance
+          tableName: customer_123
+          type: iceberg
+    PatchTableInput:
+      type: object
+      properties:
+        providerId:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        skipValidation:
+          type: boolean
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+    ProviderInput:
+      type: object
+      properties:
+        storageId:
+          type: string
+        metastoreId:
+          type: string

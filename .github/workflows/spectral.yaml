@@ -1,0 +1,31 @@
+name: Run Spectral
+
+on:
+  - push
+
+jobs:
+  # build:
+  #   name: Run Spectral
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     # Check out the repository
+  #     - uses: actions/checkout@v2
+
+  #     # Run Spectral
+  #     - uses: stoplightio/spectral-action@latest
+  #       with:
+  #         file_glob: 'docs/protocol/*.yml'
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      # Check out repository under $GITHUB_WORKSPACE
+      - uses: actions/checkout@v3
+
+      # Install Spectral
+      - id: install_spectral
+        run: npm install -g @stoplight/spectral-cli
+
+      # Run Spectral
+      - id: run_spectral
+        run: spectral lint ./docs/protocol/*.{yml,yaml} --fail-severity=info
