@@ -162,15 +162,8 @@ class RemoteSnapshot(
   }
 
   private def getTableMetadata: (Metadata, Protocol, Long) = {
-    if (versionAsOf.isEmpty) {
-      val tableMetadata = client.getMetadata(table)
-      (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
-    } else {
-      // getMetadata doesn't support the parameter: versionAsOf
-      // Leveraging getFiles to get the metadata, so setting the limitHint to 1 for efficiency.
-      val tableFiles = client.getFiles(table, Nil, Some(1L), versionAsOf, timestampAsOf, None)
-      (tableFiles.metadata, tableFiles.protocol, tableFiles.version)
-    }
+    val tableMetadata = client.getMetadata(table, versionAsOf, timestampAsOf)
+    (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
   }
 
   private def checkProtocolNotChange(newProtocol: Protocol): Unit = {
