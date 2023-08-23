@@ -210,86 +210,86 @@ object TestResource {
                 "cdf_table_cdf_enabled",
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_cdf_enabled",
                 "00000000-0000-0000-0000-000000000095",
-                cdfEnabled = true
+                historyShared = true
               ),
               TableConfig(
                 "cdf_table_with_partition",
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_partition",
                 "00000000-0000-0000-0000-000000000094",
-                cdfEnabled = true,
+                historyShared = true,
                 startVersion = 1
               ),
               TableConfig(
                 "cdf_table_with_vacuum",
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_vacuum",
                 "00000000-0000-0000-0000-000000000093",
-                cdfEnabled = true
+                historyShared = true
               ),
               TableConfig(
                 "cdf_table_missing_log",
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_missing_log",
                 "00000000-0000-0000-0000-000000000092",
-                cdfEnabled = true
+                historyShared = true
               ),
               TableConfig(
                 "streaming_table_with_optimize",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_table_with_optimize",
                 "00000000-0000-0000-0000-000000000091",
-                cdfEnabled = true
+                historyShared = true
               ),
               TableConfig(
                 "streaming_table_metadata_protocol",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_table_metadata_protocol",
                 "00000000-0000-0000-0000-000000000090",
-                cdfEnabled = true
+                historyShared = true
               ),
               TableConfig(
                 "streaming_notnull_to_null",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_notnull_to_null",
                 "00000000-0000-0000-0000-000000000089",
-                cdfEnabled = true
+                historyShared = true
               ),
               TableConfig(
                 "streaming_null_to_notnull",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_null_to_notnull",
                 "00000000-0000-0000-0000-000000000088",
-                cdfEnabled = true
+                historyShared = true
               ),
               TableConfig(
                 "streaming_cdf_null_to_notnull",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_cdf_null_to_notnull",
                 "00000000-0000-0000-0000-000000000087",
-                cdfEnabled = true
+                historyShared = true
               ),
               TableConfig(
                 "streaming_cdf_table",
                 s"s3a://${AWS.bucket}/delta-exchange-test/streaming_cdf_table",
                 "00000000-0000-0000-0000-000000000086",
-                cdfEnabled = true
+                historyShared = true
               ),
               TableConfig(
                 "table_reader_version_increased",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_reader_version_increased",
                 "00000000-0000-0000-0000-000000000085",
-                cdfEnabled = true
+                historyShared = true
               ),
               TableConfig(
                 "table_with_no_metadata",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_with_no_metadata",
                 "00000000-0000-0000-0000-000000000084",
-                cdfEnabled = true
+                historyShared = true
               ),
               TableConfig(
                 "table_data_loss_with_checkpoint",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_data_loss_with_checkpoint",
                 "00000000-0000-0000-0000-000000000083",
-                cdfEnabled = true
+                historyShared = true
               ),
               TableConfig(
                 "table_data_loss_no_checkpoint",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_data_loss_no_checkpoint",
                 "00000000-0000-0000-0000-000000000082",
-                cdfEnabled = true
+                historyShared = true
               )
             )
           )

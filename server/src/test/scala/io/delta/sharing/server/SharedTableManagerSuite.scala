@@ -221,7 +221,7 @@ class SharedTableManagerSuite extends FunSuite {
                 "table0",
                 "location0",
                 "00000000-0000-0000-0000-000000000000",
-                cdfEnabled = true
+                historyShared = true
               )
             )
           )
@@ -238,7 +238,7 @@ class SharedTableManagerSuite extends FunSuite {
         "table0",
         "location0",
         "00000000-0000-0000-0000-000000000000",
-        cdfEnabled = true
+        historyShared = true
       )
     )
 

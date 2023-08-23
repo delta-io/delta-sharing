@@ -60,7 +60,10 @@ class TestDeltaSharingClient(
 
   override def listAllTables(): Seq[Table] = Nil
 
-  override def getMetadata(table: Table): DeltaTableMetadata = {
+  override def getMetadata(
+      table: Table,
+      versionAsOf: Option[Long] = None,
+      timestampAsOf: Option[String] = None): DeltaTableMetadata = {
     DeltaTableMetadata(0, Protocol(0), metadata)
   }
 

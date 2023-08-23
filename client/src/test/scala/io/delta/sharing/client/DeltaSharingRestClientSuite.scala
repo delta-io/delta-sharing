@@ -202,6 +202,63 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
+  integrationTest("getMetadata with parameters") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    try {
+      val metadataV0 = Metadata(
+        id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
+        configuration = Map("enableChangeDataFeed" -> "true"),
+        partitionColumns = Nil
+      )
+      val responseV0 = client.getMetadata(
+        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
+        versionAsOf = Some(0)
+      )
+      assert(Protocol(minReaderVersion = 1) == responseV0.protocol)
+      assert(metadataV0 == responseV0.metadata)
+
+      val metadataV2 = metadataV0.copy(
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}"""
+      )
+      val responseV2 = client.getMetadata(
+        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
+        versionAsOf = Some(2)
+      )
+      assert(Protocol(minReaderVersion = 1) == responseV0.protocol)
+      assert(metadataV2 == responseV2.metadata)
+
+      val responseTimestamp = client.getMetadata(
+        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
+        timestampAsOf = Some("2022-11-13T08:10:50Z")
+      )
+      assert(Protocol(minReaderVersion = 1) == responseV0.protocol)
+      assert(metadataV2 == responseTimestamp.metadata)
+    } finally {
+      client.close()
+    }
+  }
+
+  integrationTest("getMetadata with parameters - exceptions") {
+    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
+    var errorMessage = intercept[UnexpectedHttpStatus] {
+      client.getMetadata(
+        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
+        versionAsOf = Some(6)
+      )
+    }.getMessage
+    assert(errorMessage.contains("Cannot time travel Delta table to version 6"))
+
+    errorMessage = intercept[UnexpectedHttpStatus] {
+      client.getMetadata(
+        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
+        timestampAsOf = Some("2021-01-01T00:00:00Z")
+      )
+    }.getMessage
+    assert(errorMessage.contains("is before the earliest version available"))
+  }
+
   integrationTest("getFiles") {
     Seq(true, false).foreach { paginationEnabled =>
       val client = new DeltaSharingRestClient(
@@ -331,7 +388,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               None
             )
           }.getMessage
-          assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
+          assert(errorMessage.contains("Reading table by version or timestamp is not supported because history sharing is not enabled on table: share1.default.table1"))
         } finally {
           client.close()
         }
@@ -390,7 +447,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               None
             )
           }.getMessage
-          assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
+          assert(errorMessage.contains("Reading table by version or timestamp is not supported because history sharing is not enabled on table: share1.default.table1"))
         } finally {
           client.close()
         }
@@ -646,7 +703,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               None
             )
           }.getMessage
-          assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
+          assert(errorMessage.contains("Reading table by version or timestamp is not supported because history sharing is not enabled on table: share1.default.table1"))
 
           errorMessage = intercept[UnexpectedHttpStatus] {
             client.getFiles(
