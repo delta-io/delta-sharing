@@ -1961,8 +1961,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-  def verifyMetadata(version: Long, expectedMetadata: Metadata): Unit = {
-    val response = getMetadataResponse(version)
+  def verifyMetadata(response: String, expectedMetadata: Metadata): Unit = {
     val Array(protocol, metadata) = response.split("\n")
     val expectedProtocol = Protocol(minReaderVersion = 1)
     assert(expectedProtocol.wrap == JsonUtils.fromJson[SingleAction](protocol))
@@ -1970,10 +1969,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("streaming_notnull_to_null - metadata of different versions") {
-    verifyMetadata(0, StreamingNotnullToNull.metadataV0)
-    verifyMetadata(1, StreamingNotnullToNull.metadataV0)
-    verifyMetadata(2, StreamingNotnullToNull.metadataV2)
-    verifyMetadata(3, StreamingNotnullToNull.metadataV2)
+    verifyMetadata(getMetadataResponse(0), StreamingNotnullToNull.metadataV0)
+    verifyMetadata(getMetadataResponse(1), StreamingNotnullToNull.metadataV0)
+    verifyMetadata(getMetadataResponse(2), StreamingNotnullToNull.metadataV2)
+    verifyMetadata(getMetadataResponse(3), StreamingNotnullToNull.metadataV2)
     assertHttpError(
       url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?version=4"),
       method = "GET",
@@ -1990,19 +1989,19 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-  def verifyMetadata(timestamp: String, version: Long, expectedMetadata: Metadata): Unit = {
-    val response = getMetadataResponse(timestamp, version)
-    val Array(protocol, metadata) = response.split("\n")
-    val expectedProtocol = Protocol(minReaderVersion = 1)
-    assert(expectedProtocol.wrap == JsonUtils.fromJson[SingleAction](protocol))
-    assert(expectedMetadata.wrap == JsonUtils.fromJson[SingleAction](metadata))
-  }
-
   integrationTest("streaming_notnull_to_null - metadata of different timestamp") {
-    verifyMetadata("2022-11-13T08:10:41Z", 0, StreamingNotnullToNull.metadataV0)
-    verifyMetadata("2022-11-13T08:10:46Z", 1, StreamingNotnullToNull.metadataV0)
-    verifyMetadata("2022-11-13T08:10:48Z", 2, StreamingNotnullToNull.metadataV2)
-    verifyMetadata("2022-11-13T08:10:50Z", 3, StreamingNotnullToNull.metadataV2)
+    verifyMetadata(
+      getMetadataResponse("2022-11-13T08:10:41Z", 0), StreamingNotnullToNull.metadataV0
+    )
+    verifyMetadata(
+      getMetadataResponse("2022-11-13T08:10:46Z", 1), StreamingNotnullToNull.metadataV0
+    )
+    verifyMetadata(
+      getMetadataResponse("2022-11-13T08:10:48Z", 2), StreamingNotnullToNull.metadataV2
+    )
+    verifyMetadata(
+      getMetadataResponse("2022-11-13T08:10:50Z", 3), StreamingNotnullToNull.metadataV2
+    )
     assertHttpError(
       url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=2021-01-01"),
       method = "GET",
@@ -2030,6 +2029,23 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       data = None,
       expectedErrorCode = 400,
       expectedErrorMessage = "is after the latest version available"
+    )
+  }
+
+  integrationTest("getMetadata - exceptions with parameters") {
+    assertHttpError(
+      url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?version=-1"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "version cannot be negative"
+    )
+    assertHttpError(
+      url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?version=-1&timestamp=abc"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Please only provide one of"
     )
   }
 
