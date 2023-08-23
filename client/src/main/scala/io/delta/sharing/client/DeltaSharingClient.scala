@@ -561,7 +561,11 @@ class DeltaSharingRestClient(
     val params = paramMap.map {
       case (key, value) => s"$key=${URLEncoder.encode(value)}"
     }.mkString("&")
-    Option(params).map{x => if (x.nonEmpty) { "?" + x } else { "" }}.get
+    if (params.nonEmpty) {
+      "?" + params
+    } else {
+      ""
+    }
   }
 
   private def getEncodedCDFParams(

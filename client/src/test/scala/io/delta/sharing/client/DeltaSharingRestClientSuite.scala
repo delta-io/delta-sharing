@@ -388,7 +388,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               None
             )
           }.getMessage
-          assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
+          assert(errorMessage.contains("Reading table by version or timestamp is not supported because history sharing is not enabled on table: share1.default.table1"))
         } finally {
           client.close()
         }
@@ -447,7 +447,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               None
             )
           }.getMessage
-          assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
+          assert(errorMessage.contains("Reading table by version or timestamp is not supported because history sharing is not enabled on table: share1.default.table1"))
         } finally {
           client.close()
         }
@@ -703,7 +703,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               None
             )
           }.getMessage
-          assert(errorMessage.contains("Reading table by version or timestamp is not supported because change data feed is not enabled on table: share1.default.table1"))
+          assert(errorMessage.contains("Reading table by version or timestamp is not supported because history sharing is not enabled on table: share1.default.table1"))
 
           errorMessage = intercept[UnexpectedHttpStatus] {
             client.getFiles(

@@ -16,8 +16,23 @@
 
 package io.delta.sharing.spark
 
-import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingProfile, DeltaSharingProfileProvider}
-import io.delta.sharing.client.model.{AddCDCFile, AddFile, AddFileForCDF, DeltaTableFiles, DeltaTableMetadata, Metadata, Protocol, RemoveFile, SingleAction, Table}
+import io.delta.sharing.client.{
+  DeltaSharingClient,
+  DeltaSharingProfile,
+  DeltaSharingProfileProvider
+}
+import io.delta.sharing.client.model.{
+  AddCDCFile,
+  AddFile,
+  AddFileForCDF,
+  DeltaTableFiles,
+  DeltaTableMetadata,
+  Metadata,
+  Protocol,
+  RemoveFile,
+  SingleAction,
+  Table
+}
 import io.delta.sharing.client.util.JsonUtils
 import io.delta.sharing.spark.TestDeltaSharingClient.TESTING_TIMESTAMP
 
