@@ -10,7 +10,6 @@ info:
 servers:
   - url: 'http://localhost:8000/lake-api/v1'
 tags:
-  - name: lake-sharing
   - name: provider
   - name: table
   - name: metastore
@@ -21,7 +20,6 @@ paths:
   /providers:
     post:
       tags:
-        - lake-sharing
         - provider
       operationId: AddProvider
       description: Add a new provider
@@ -43,7 +41,6 @@ paths:
       operationId: ListProviders
       description: List all providers
       tags:
-        - lake-sharing
         - provider
       responses:
         "200":
@@ -57,15 +54,14 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Provider"
-  /providers/{id}:
+  /providers/{name}:
     patch:
       description: Update an existing provider
       operationId: UpdateProvider
       tags:
-        - lake-sharing
         - provider
       parameters:
-        - name: id
+        - name: name
           in: path
           required: true
           schema:
@@ -88,10 +84,9 @@ paths:
       operationId: DeleteProvider
       description: Delete a provider
       tags:
-        - lake-sharing
         - provider
       parameters:
-        - name: id
+        - name: name
           in: path
           required: true
           schema:
@@ -110,10 +105,9 @@ paths:
       operationId: GetProvider
       description: Get a provider related info
       tags:
-        - lake-sharing
         - provider
       parameters:
-        - name: id
+        - name: name
           in: path
           required: true
           schema:
@@ -127,15 +121,14 @@ paths:
                 $ref: "#/components/schemas/Provider"
         "404":
           description: Provider does not exist
-  /providers/{providerId}/tables:
+  /providers/{providerName}/tables:
     post:
       description: Create a new table for provider
       operationId: CreateTableInProvider
       tags:
-        - lake-sharing
         - table
       parameters:
-        - name: providerId
+        - name: providerName
           in: path
           required: true
           schema:
@@ -154,12 +147,11 @@ paths:
                 $ref: "#/components/schemas/TableInfo"
     get:
       tags:
-        - lake-sharing
         - table
       description: get the list of tables declared by this provider
       operationId: ListTablesInProvider
       parameters:
-        - name: providerId
+        - name: providerName
           in: path
           required: true
           schema:
@@ -173,15 +165,14 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/TableInfo"
-  /providers/{providerId}/tables/{tableName}/validate:
+  /providers/{providerName}/tables/{tableName}/validate:
     post:
       description: Validate the table
       operationId: ValidateTable
       tags:
-        - lake-sharing
         - table
       parameters:
-        - name: providerId
+        - name: providerName
           in: path
           required: true
           schema:
@@ -197,24 +188,15 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  result:
-                    type: string
-                    enum:
-                      - success
-                      - failure
-                  message:
-                    type: string
-  /providers/{providerId}/tables/{tableName}:
+                $ref: "#/components/schemas/ValidationResult"
+  /providers/{providerName}/tables/{tableName}:
     patch:
       operationId: PatchTableInProvider
       description: Update a table in a Provider
       tags:
-        - lake-sharing
         - table
       parameters:
-        - name: providerId
+        - name: providerName
           in: path
           required: true
           schema:
@@ -240,10 +222,9 @@ paths:
       operationId: DeleteTableInProvider
       description: Delete a table from a provider
       tags:
-        - lake-sharing
         - table
       parameters:
-        - name: providerId
+        - name: providerName
           in: path
           required: true
           schema:
@@ -265,10 +246,9 @@ paths:
       description: get the description of a table in a provider
       operationId: DescribeTableInProvider
       tags:
-        - lake-sharing
         - table
       parameters:
-        - name: providerId
+        - name: providerName
           in: path
           required: true
           schema:
@@ -290,38 +270,12 @@ paths:
       description: Create a new metastore
       operationId: CreateMetastore
       tags:
-        - lake-sharing
         - metastore
       requestBody:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                comment:
-                  type: string
-                type:
-                  type: string
-                  enum:
-                    - glue
-                    - hive2
-                    - hive3
-                    - iceberg_hadoop
-                    - iceberg_hive
-                    - iceberg_jdbc
-                    - iceberg_nessie
-                properties:
-                  anyOf:
-                    - $ref: "#/components/schemas/GlueProperties"
-                    - $ref: "#/components/schemas/Hive2Properties"
-                    - $ref: "#/components/schemas/Hive3Properties"
-                    - $ref: "#/components/schemas/IcebergHadoopProperties"
-                    - $ref: "#/components/schemas/IcebergJdbcProperties"
-                    - $ref: "#/components/schemas/IcebergNessieProperties"
-                skipValidation:
-                  type: boolean
+              $ref: "#/components/schemas/CreateMetastore"
       responses:
         "200":
           description: OK
@@ -335,7 +289,6 @@ paths:
       description: list all metastores
       operationId: ListMetastores
       tags:
-        - lake-sharing
         - metastore
       responses:
         "200":
@@ -349,15 +302,14 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Metastore"
-  /metastores/{id}:
+  /metastores/{name}:
     patch:
       description: update an existing metastore
       operationId: UpdateMetastore
       tags:
-        - lake-sharing
         - metastore
       parameters:
-        - name: id
+        - name: name
           in: path
           required: true
           schema:
@@ -366,28 +318,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                comment:
-                  type: string
-                owner:
-                  type: string
-                type:
-                  type: string
-                properties:
-                  anyOf:
-                    - $ref: "#/components/schemas/GlueProperties"
-                    - $ref: "#/components/schemas/Hive2Properties"
-                    - $ref: "#/components/schemas/Hive3Properties"
-                    - $ref: "#/components/schemas/IcebergHadoopProperties"
-                    - $ref: "#/components/schemas/IcebergJdbcProperties"
-                    - $ref: "#/components/schemas/IcebergNessieProperties"
-                skipValidation:
-                  type: boolean
-                force:
-                  type: boolean
+              $ref: "#/components/schemas/UpdateMetastore"
       responses:
         "200":
           description: OK, metastore updated
@@ -401,10 +332,9 @@ paths:
       operationId: DeleteMetastore
       description: delete a metastore
       tags:
-        - lake-sharing
         - metastore
       parameters:
-        - name: id
+        - name: name
           in: path
           required: true
           schema:
@@ -423,10 +353,9 @@ paths:
       operationId: DescribeMetastore
       description: Get info about a given metastore
       tags:
-        - lake-sharing
         - metastore
       parameters:
-        - name: id
+        - name: name
           in: path
           required: true
           schema:
@@ -440,15 +369,14 @@ paths:
                 $ref: "#/components/schemas/Metastore"
         "404":
           description: Metastore does not exist
-  /metastores/{id}/validate:
+  /metastores/{name}/validate:
     post:
       operationId: ValidateMetastore
       description: Validate a metastore
       tags:
-        - lake-sharing
         - metastore
       parameters:
-        - name: id
+        - name: name
           in: path
           required: true
           schema:
@@ -459,21 +387,12 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  result:
-                    type: string
-                    enum:
-                      - success
-                      - failure
-                  message:
-                    type: string
+                $ref: "#/components/schemas/ValidationResult"
   /storage:
     post:
       operationId: CreateStorage
       description: Add a new storage
       tags:
-        - lake-sharing
         - storage
       requestBody:
         content:
@@ -512,7 +431,6 @@ paths:
       operationId: ListStorage
       description: List storage
       tags:
-        - lake-sharing
         - storage
       responses:
         "200":
@@ -527,16 +445,15 @@ paths:
                     items:
                       $ref: "#/components/schemas/Storage"
 
-  /storage/{id}:
+  /storage/{name}:
     patch:
       operationId: UpdateStorage
       description: Update an existing storage
       tags:
-        - lake-sharing
         - storage
       parameters:
         - required: true
-          name: id
+          name: name
           in: path
           schema:
             type: string
@@ -579,10 +496,9 @@ paths:
       operationId: DeleteStorage
       description: Delete an existing storage
       tags:
-        - lake-sharing
         - storage
       parameters:
-        - name: id
+        - name: name
           required: true
           in: path
           schema:
@@ -601,10 +517,9 @@ paths:
       operationId: DescribeStorage
       description: Describe storage
       tags:
-        - lake-sharing
         - storage
       parameters:
-        - name: id
+        - name: name
           required: true
           in: path
           schema:
@@ -618,16 +533,15 @@ paths:
                 $ref: "#/components/schemas/Storage"
         "404":
           description: Storage does not exist
-  /storage/{id}/validate:
+  /storage/{name}/validate:
     post:
       operationId: ValidateStorage
       description: Validate an existing storage
       tags:
-        - lake-sharing
         - storage
       parameters:
         - required: true
-          name: id
+          name: name
           in: path
           schema:
             type: string
@@ -637,15 +551,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  result:
-                    type: string
-                    enum:
-                      - success
-                      - failure
-                  message:
-                    type: string
+                $ref: "#/components/schemas/ValidationResult"
         "404":
           description: storage does not exist
   /shares:
@@ -653,7 +559,6 @@ paths:
       operationId: CreateShare
       description: Create a new share
       tags:
-        - lake-sharing
         - share
       requestBody:
         content:
@@ -672,7 +577,6 @@ paths:
       operationId: DeleteShare
       description: Delete a share
       tags:
-        - lake-sharing
         - share
       parameters:
         - in: path
@@ -683,12 +587,11 @@ paths:
             type: string
       responses:
         "200":
-          description: schema deleted
+          description: share deleted
     patch:
       operationId: UpdateShare
       description: update an existing share
       tags:
-        - lake-sharing
         - share
       parameters:
         - in: path
@@ -714,7 +617,6 @@ paths:
       operationId: AddRecipientToShare
       description: add a recipient to share
       tags:
-        - lake-sharing
         - share
       parameters:
         - in: path
@@ -751,7 +653,6 @@ paths:
       operationId: CreateSchema
       description: create a schema in a share
       tags:
-        - lake-sharing
         - share
         - schema
       parameters:
@@ -778,7 +679,6 @@ paths:
       operationId: DeleteSchema
       description: delete a schema from a share
       tags:
-        - lake-sharing
         - share
         - schema
       parameters:
@@ -804,7 +704,6 @@ paths:
       operationId: AddTableToSchema
       description: add a table to a schema
       tags:
-        - lake-sharing
         - share
         - schema
         - table
@@ -837,7 +736,6 @@ paths:
       operationId: ListTablesInSchema
       description: list tables within a schema
       tags:
-        - lake-sharing
         - share
         - schema
         - table
@@ -868,7 +766,6 @@ paths:
     delete:
       operationId: DeleteTableFromSchema
       tags:
-        - lake-sharing
         - share
         - schema
         - table
@@ -899,6 +796,56 @@ paths:
           description: table not found
 components:
   schemas:
+    CreateMetastore:
+      type: object
+      properties:
+        name:
+          type: string
+        comment:
+          type: string
+        type:
+          type: string
+          enum:
+            - glue
+            - hive2
+            - hive3
+            - iceberg_hadoop
+            - iceberg_hive
+            - iceberg_jdbc
+            - iceberg_nessie
+        properties:
+          anyOf:
+            - $ref: "#/components/schemas/GlueProperties"
+            - $ref: "#/components/schemas/Hive2Properties"
+            - $ref: "#/components/schemas/Hive3Properties"
+            - $ref: "#/components/schemas/IcebergHadoopProperties"
+            - $ref: "#/components/schemas/IcebergJdbcProperties"
+            - $ref: "#/components/schemas/IcebergNessieProperties"
+        skipValidation:
+          type: boolean
+    UpdateMetastore:          
+      type: object
+      properties:
+        name:
+          type: string
+        comment:
+          type: string
+        owner:
+          type: string
+        type:
+          type: string
+        properties:
+          anyOf:
+            - $ref: "#/components/schemas/GlueProperties"
+            - $ref: "#/components/schemas/Hive2Properties"
+            - $ref: "#/components/schemas/Hive3Properties"
+            - $ref: "#/components/schemas/IcebergHadoopProperties"
+            - $ref: "#/components/schemas/IcebergJdbcProperties"
+            - $ref: "#/components/schemas/IcebergNessieProperties"
+        skipValidation:
+          type: boolean
+        force:
+          type: boolean
     Hive2Properties:
       type: object
       properties: {}
@@ -929,8 +876,6 @@ components:
         comment:
           type: string
         owner:
-          type: string
-        id:
           type: string
         type:
           type: string
@@ -973,8 +918,6 @@ components:
           type: string
         owner:
           type: string
-        id:
-          type: string
         type:
           type: string
         uri:
@@ -996,7 +939,7 @@ components:
     Provider:
       type: object
       properties:
-        id:
+        name:
           type: string
         storage:
           $ref: "#/components/schemas/Storage"
@@ -1030,7 +973,7 @@ components:
     TableReference:
       type: object
       properties:
-        providerId:
+        providerName:
           type: string
         name:
           type: string
@@ -1063,7 +1006,7 @@ components:
     TableInfo:
       type: object
       properties:
-        providerId:
+        providerName:
           type: string
         name:
           type: string
@@ -1109,10 +1052,6 @@ components:
     PatchTableInput:
       type: object
       properties:
-        providerId:
-          type: string
-        name:
-          type: string
         comment:
           type: string
         skipValidation:
@@ -1124,7 +1063,19 @@ components:
     ProviderInput:
       type: object
       properties:
-        storageId:
+        name: 
           type: string
-        metastoreId:
+        storageName:
+          type: string
+        metastoreName:
+          type: string
+    ValidationResult:
+      type: object
+      properties:
+        result:
+          type: string
+          enum:
+            - success
+            - failure
+        message:
           type: string
