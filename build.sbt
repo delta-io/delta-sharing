@@ -176,6 +176,8 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
     "org.slf4j" % "slf4j-api" % "1.6.1",
     "org.slf4j" % "slf4j-simple" % "1.6.1",
     "net.sourceforge.argparse4j" % "argparse4j" % "0.9.0",
+    "io.delta" % "delta-kernel-api" % "3.0.0-SNAPSHOT",
+    "io.delta" % "delta-kernel-defaults" % "3.0.0-SNAPSHOT",
 
     "org.scalatest" %% "scalatest" % "3.0.5" % "test"
   ),

@@ -32,6 +32,7 @@ import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
 import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
 import com.linecorp.armeria.server.auth.AuthService
+import io.delta.kernel.data.Row
 import io.delta.standalone.internal.DeltaCDFErrors
 import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
 import io.delta.standalone.internal.DeltaDataSource
@@ -45,7 +46,7 @@ import scalapb.json4s.Printer
 import io.delta.sharing.server.config.ServerConfig
 import io.delta.sharing.server.model.SingleAction
 import io.delta.sharing.server.protocol._
-import io.delta.sharing.server.util.JsonUtils
+import io.delta.sharing.server.util.{JsonUtils, KernelUtils}
 
 object ErrorCode {
   val UNSUPPORTED_OPERATION = "UNSUPPORTED_OPERATION"
@@ -355,6 +356,14 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
+
+    val (scanState: Row, scanFiles: Seq[Row]) =
+      KernelUtils.getScanStateAndFiles(tableConfig.location)
+
+    val serializedScanState = KernelUtils.serializeRowToJson(scanState)
+    val serializedScanFiles =
+      scanFiles.map(fileRow => KernelUtils.serializeRowToJson(fileRow)).toSeq
+
     if (numVersionParams > 0) {
       if (!tableConfig.historyShared) {
         throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +
