@@ -158,6 +158,15 @@ class DeltaSharedTable(
   }
 
   /**
+   * Return the pre-signed url given a data file path under the current table.
+   * @param path Relative path of the file to be signed
+   */
+  def pathToSignedUrl(path: String): String = {
+    val cloudPath = absolutePath(deltaLog.dataPath, path)
+    fileSigner.sign(cloudPath).url
+  }
+
+  /**
    * Run `func` under the classloader of `DeltaSharedTable`. We cannot use the classloader set by
    * Armeria as Hadoop needs to search the classpath to find its classes.
    */

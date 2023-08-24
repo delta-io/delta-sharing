@@ -360,6 +360,11 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         )
       }
     }
+    // Sign file example
+//    val deltaSharedTable = deltaSharedTableLoader.loadTable(tableConfig)
+//    val url = deltaSharedTable.pathToSignedUrl(
+//      "part-00000-7d93fddb-fc8b-4922-9ac9-5eab51368afa-c000.snappy.parquet"
+//    )
     val responseFormat = getResponseFormat(capabilitiesMap)
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
