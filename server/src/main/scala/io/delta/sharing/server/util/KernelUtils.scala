@@ -16,7 +16,7 @@
 package io.delta.sharing.server.util
 
 import java.io.UncheckedIOException
-import java.util
+import java.net.{URI, URL, URLEncoder}
 import java.util.Objects.requireNonNull
 
 import com.fasterxml.jackson.core.JsonProcessingException
@@ -30,19 +30,41 @@ import io.delta.kernel.defaults.internal.data.DefaultJsonRow
 import io.delta.kernel.internal.types.TableSchemaSerDe
 import io.delta.kernel.types._
 import io.delta.kernel.utils.CloseableIterator
+import java.util
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.s3a.S3AFileSystem
 
-object KernelUtils {
-  private val OBJECT_MAPPER = new ObjectMapper()
+import io.delta.sharing.server.{CloudFileSigner, S3FileSigner}
+import io.delta.sharing.server.util.KernelUtils.{signedDeltaSharingURL, OBJECT_MAPPER}
+
+class KernelUtils(tableRoot: Path) {
+  private val hadoopConf = new Configuration() {
+    {
+      set("spark.hadoop.fs.s3a.aws.credentials.provider",
+        "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
+    }
+  }
+
+  private val fileSigner = {
+    val fs = tableRoot.getFileSystem(hadoopConf)
+    fs match {
+      case _: S3AFileSystem =>
+        new S3FileSigner(tableRoot.toUri, hadoopConf, 10)
+      case _ =>
+        throw new IllegalStateException(s"File system ${fs.getClass} is not supported")
+    }
+  }
+
+  val fileSystem = tableRoot.getFileSystem(hadoopConf)
 
   /**
    * Utility method to get the scan state and scan files to read Delta table at the
    * given location.
    */
-  def getScanStateAndFiles(location: String): (Row, Seq[Row]) = {
-    val hadoopConf = new Configuration()
+  def getScanStateAndFiles(): (Row, Seq[Row]) = {
     val tableClient = DefaultTableClient.create(hadoopConf)
-    val table = Table.forPath(location)
+    val table = Table.forPath(tableRoot.toUri.toString)
     val snapshot = table.getLatestSnapshot(tableClient)
 
     val scan = snapshot.getScanBuilder(tableClient).build()
@@ -56,8 +78,9 @@ object KernelUtils {
   /**
    * Utility method to serialize a {@link Row} as a JSON string
    */
-  def serializeRowToJson(row: Row): String = {
-    val rowObject: util.HashMap[String, Object] = convertRowToJsonObject(row)
+  def serializeRowToJson(row: Row, pathColumns: Seq[String]): String = {
+    val rowObject: util.HashMap[String, Object] =
+      convertRowToJsonObject(row, pathColumns)
     try {
       val rowWithSchema = new util.HashMap[String, Object]
       rowWithSchema.put("schema", TableSchemaSerDe.toJson(row.getSchema))
@@ -82,11 +105,12 @@ object KernelUtils {
       throw new UncheckedIOException(ex)
   }
 
-  private def convertRowToJsonObject(row: Row): util.HashMap[String, Object] = {
+  private def convertRowToJsonObject(
+    row: Row, pathColumns: Seq[String]): util.HashMap[String, Object] = {
     val rowType = row.getSchema
     val rowObject = new util.HashMap[String, Object]()
 
-    Seq(0, rowType.length()).foreach {
+    Seq(0, rowType.length() - 1).foreach {
       fieldId => {
         val field = rowType.at(fieldId)
         val fieldType = field.getDataType
@@ -109,12 +133,19 @@ object KernelUtils {
             row.getFloat(fieldId).floatValue().asInstanceOf[Object]
           else if (fieldType.isInstanceOf[DoubleType]) value =
             row.getDouble(fieldId).doubleValue().asInstanceOf[Object]
-          else if (fieldType.isInstanceOf[StringType]) value = row.getString(fieldId)
+          else if (fieldType.isInstanceOf[StringType]) value = {
+            val baseValue = row.getString(fieldId);
+            if (pathColumns.contains(name)) {
+              val absPath = KernelUtils.absolutePath(tableRoot, baseValue);
+              val fileStatus = fileSystem.getFileStatus(absPath);
+              signedDeltaSharingURL(absPath, fileStatus.getLen, fileSigner)
+            } else baseValue
+          }
           else if (fieldType.isInstanceOf[ArrayType]) value = row.getArray(fieldId)
           else if (fieldType.isInstanceOf[MapType]) value = row.getMap(fieldId)
           else if (fieldType.isInstanceOf[StructType]) {
             val subRow = row.getStruct(fieldId)
-            value = convertRowToJsonObject(subRow)
+            value = convertRowToJsonObject(subRow, pathColumns)
           }
           else throw new UnsupportedOperationException("NYI");
           rowObject.put(name, value)
@@ -153,5 +184,26 @@ object KernelUtils {
     }
 
     scanFileRows.result()
+  }
+}
+
+object KernelUtils {
+  private val OBJECT_MAPPER = new ObjectMapper()
+
+  private def signedDeltaSharingURL(path: Path, size: Long, signer: CloudFileSigner): String = {
+    val signedURL = signer.sign(path);
+
+    s"delta-sharing://${URLEncoder.encode(signedURL.url)}/${size}"
+  }
+
+  private def absolutePath(root: Path, child: String): Path = {
+    val p = new Path(new URI(child))
+    if (p.isAbsolute) {
+      // throw new IllegalStateException("table containing absolute paths cannot be shared")
+      // TODO: fix the above - Kernel already returns a absolute path
+      p
+    } else {
+      new Path(root, p)
+    }
   }
 }

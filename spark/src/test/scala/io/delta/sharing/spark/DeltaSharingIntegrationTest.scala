@@ -74,7 +74,7 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
             Seq(
               "/bin/bash",
               "-c",
-              s"cd .. && build/sbt 'server / Test / runMain " +
+              s"""cd .. && build/sbt 'server / Test / runMain """ +
                 s"io.delta.sharing.server.TestDeltaSharingServer ${pidFile.getCanonicalPath}'")
               .run(processLogger)
           process.exitValue()

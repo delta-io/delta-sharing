@@ -155,7 +155,7 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")
     ),
-    "org.apache.parquet" % "parquet-hadoop" % "1.10.1" excludeAll(
+    "org.apache.parquet" % "parquet-hadoop" % "1.12.3" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")
@@ -177,7 +177,11 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
     "org.slf4j" % "slf4j-simple" % "1.6.1",
     "net.sourceforge.argparse4j" % "argparse4j" % "0.9.0",
     "io.delta" % "delta-kernel-api" % "3.0.0-SNAPSHOT",
-    "io.delta" % "delta-kernel-defaults" % "3.0.0-SNAPSHOT",
+    "io.delta" % "delta-kernel-defaults" % "3.0.0-SNAPSHOT" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("org.apache.hadoop")
+    ),
 
     "org.scalatest" %% "scalatest" % "3.0.5" % "test"
   ),
