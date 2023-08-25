@@ -18,6 +18,8 @@ package io.delta.sharing.client
 
 import java.net.{URI, URLDecoder, URLEncoder}
 import java.util.concurrent.TimeUnit
+import org.apache.hadoop.fs.Path
+
 
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
@@ -66,25 +68,26 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
   override def getUri(): URI = URI.create(s"$SCHEME:///")
 
   override def open(f: Path, bufferSize: Int): FSDataInputStream = {
-    val path = DeltaSharingFileSystem.decode(f)
-    val fetcher =
-      new PreSignedUrlFetcher(preSignedUrlCacheRef, path.tablePath, path.fileId, refreshThresholdMs)
-    if (getConf.getBoolean("spark.delta.sharing.loadDataFilesInMemory", false)) {
-      // `InMemoryHttpInputStream` loads the content into the memory immediately, so we don't need
-      // to refresh urls.
-      new FSDataInputStream(new InMemoryHttpInputStream(new URI(fetcher.getUrl())))
-    } else {
-      new FSDataInputStream(
-        new RandomAccessHttpInputStream(
-          httpClient,
-          fetcher,
-          path.fileSize,
-          statistics,
-          numRetries,
-          maxRetryDurationMillis
-        )
-      )
-    }
+    val (url, size) = DeltaSharingFileSystem.decodeKernel(f)
+//    val fetcher =
+//      new PreSignedUrlFetcher(preSignedUrlCacheRef, path.tablePath, path.fileId, refreshThresholdMs)
+    new FSDataInputStream(new InMemoryHttpInputStream(new URI(url)))
+//    if (getConf.getBoolean("spark.delta.sharing.loadDataFilesInMemory", false)) {
+//      // `InMemoryHttpInputStream` loads the content into the memory immediately, so we don't need
+//      // to refresh urls.
+//      new FSDataInputStream(new InMemoryHttpInputStream(new URI(url)))
+//    } else {
+//      new FSDataInputStream(
+//        new RandomAccessHttpInputStream(
+//          httpClient,
+//          fetcher,
+//          path.fileSize,
+//          statistics,
+//          numRetries,
+//          maxRetryDurationMillis
+//        )
+//      )
+//    }
   }
 
   override def create(
@@ -155,6 +158,14 @@ private[sharing] object DeltaSharingFileSystem {
 
   def encode(tablePath: String, action: FileAction): Path = {
     DeltaSharingPath(tablePath, action.id, action.size).toPath
+  }
+
+  def decodeKernel(path: Path): (String, Long) = {
+    val encodedPath = path.toString
+      .stripPrefix(s"$SCHEME:///")
+      .stripPrefix(s"$SCHEME:/")
+    val Array(encodedUrl, sizeString) = encodedPath.split("/")
+    (URLDecoder.decode(encodedUrl, "UTF-8"), sizeString.toLong)
   }
 
   def decode(path: Path): DeltaSharingPath = {

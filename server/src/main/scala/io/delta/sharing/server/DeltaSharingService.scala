@@ -370,6 +370,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     val serializedScanFiles =
       scanFiles.map(fileRow => kernelUtils.serializeRowToJson(fileRow, pathColumns)).toSeq
 
+
     if (numVersionParams > 0) {
       if (!tableConfig.historyShared) {
         throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +

@@ -1,22 +1,30 @@
-package io.delta.sharing.client
+package io.delta.sharing.client.util
 
 import org.apache.spark.SparkFunSuite
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
+
 
 import io.delta.kernel.client.DefaultTableClient
 import io.delta.kernel.client.TableClient
 import io.delta.kernel.Table
+import io.delta.sharing.client.util.KernelUtils
+import io.delta.sharing.client.DeltaSharingFileSystem
+
 
 class KernelUtilsSuite extends SparkFunSuite {
-  test("read a delta table") {
-    val myTablePath = "s3://delta-exchange-test/delta-exchange-test/table1/" // fully qualified table path. Ex: file:/user/tables/myTable
+  test("deserialize scan state and scan file") {
     val hadoopConf: Configuration = new Configuration()
     val myTableClient: TableClient = DefaultTableClient.create(hadoopConf)
-    val myTable: Table = Table.forPath(myTablePath);
+    val scanStateStr = "{\"schema\":\"{\\n  \\\"type\\\" : \\\"struct\\\",\\n  \\\"fields\\\" : [ {\\n  \\\"name\\\" : \\\"configuration\\\",\\n  \\\"type\\\" : {\\\"type\\\": \\\"map\\\",\\\"keyType\\\": \\\"string\\\",\\\"valueType\\\": \\\"string\\\",\\\"valueContainsNull\\\": false},\\n  \\\"nullable\\\" : true, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"logicalSchemaString\\\",\\n  \\\"type\\\" : \\\"string\\\",\\n  \\\"nullable\\\" : true, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"physicalSchemaString\\\",\\n  \\\"type\\\" : \\\"string\\\",\\n  \\\"nullable\\\" : true, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"partitionColumns\\\",\\n  \\\"type\\\" : {\\\"type\\\": \\\"array\\\",\\\"elementType\\\": \\\"string\\\",\\\"containsNull\\\": false},\\n  \\\"nullable\\\" : true, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"minReaderVersion\\\",\\n  \\\"type\\\" : \\\"integer\\\",\\n  \\\"nullable\\\" : true, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"minWriterVersion\\\",\\n  \\\"type\\\" : \\\"integer\\\",\\n  \\\"nullable\\\" : true, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"tablePath\\\",\\n  \\\"type\\\" : \\\"string\\\",\\n  \\\"nullable\\\" : true, \\n  \\\"metadata\\\" : {  }\\n} ]\\n}\",\"row\":{\"tablePath\":\"s3a://delta-exchange-test/delta-exchange-test/table1\",\"configuration\":{}}}"
+    val scanFileStrs = Seq(
+      "{\"schema\":\"{\\n  \\\"type\\\" : \\\"struct\\\",\\n  \\\"fields\\\" : [ {\\n  \\\"name\\\" : \\\"path\\\",\\n  \\\"type\\\" : \\\"string\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"partitionValues\\\",\\n  \\\"type\\\" : {\\\"type\\\": \\\"map\\\",\\\"keyType\\\": \\\"string\\\",\\\"valueType\\\": \\\"string\\\",\\\"valueContainsNull\\\": true},\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"size\\\",\\n  \\\"type\\\" : \\\"long\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"modificationTime\\\",\\n  \\\"type\\\" : \\\"long\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"dataChange\\\",\\n  \\\"type\\\" : \\\"boolean\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"deletionVector\\\",\\n  \\\"type\\\" : {\\n  \\\"type\\\" : \\\"struct\\\",\\n  \\\"fields\\\" : [ {\\n  \\\"name\\\" : \\\"storageType\\\",\\n  \\\"type\\\" : \\\"string\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"pathOrInlineDv\\\",\\n  \\\"type\\\" : \\\"string\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"offset\\\",\\n  \\\"type\\\" : \\\"integer\\\",\\n  \\\"nullable\\\" : true, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"sizeInBytes\\\",\\n  \\\"type\\\" : \\\"integer\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"cardinality\\\",\\n  \\\"type\\\" : \\\"long\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n} ]\\n},\\n  \\\"nullable\\\" : true, \\n  \\\"metadata\\\" : {  }\\n} ]\\n}\",\"row\":{\"path\":\"delta-sharing:///https%3A%2F%2Fdelta-exchange-test.s3.us-west-2.amazonaws.com%2Fdelta-exchange-test%2Ftable1%2Fpart-00000-7d93fddb-fc8b-4922-9ac9-5eab51368afa-c000.snappy.parquet%3FX-Amz-Algorithm%3DAWS4-HMAC-SHA256%26X-Amz-Date%3D20230825T210334Z%26X-Amz-SignedHeaders%3Dhost%26X-Amz-Expires%3D9%26X-Amz-Credential%3DAKIA2JMHUIXT4N7WUROI%252F20230825%252Fus-west-2%252Fs3%252Faws4_request%26X-Amz-Signature%3Dabc8bb35029b8509edb42fe84804734a0090882c41d8c05706fa5e5fd25273b9/781\",\"size\":781,\"dataChange\":true,\"modificationTime\":1619591525000,\"deletionVector\":null,\"partitionValues\":{}}}",
+      "{\"schema\":\"{\\n  \\\"type\\\" : \\\"struct\\\",\\n  \\\"fields\\\" : [ {\\n  \\\"name\\\" : \\\"path\\\",\\n  \\\"type\\\" : \\\"string\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"partitionValues\\\",\\n  \\\"type\\\" : {\\\"type\\\": \\\"map\\\",\\\"keyType\\\": \\\"string\\\",\\\"valueType\\\": \\\"string\\\",\\\"valueContainsNull\\\": true},\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"size\\\",\\n  \\\"type\\\" : \\\"long\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"modificationTime\\\",\\n  \\\"type\\\" : \\\"long\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"dataChange\\\",\\n  \\\"type\\\" : \\\"boolean\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"deletionVector\\\",\\n  \\\"type\\\" : {\\n  \\\"type\\\" : \\\"struct\\\",\\n  \\\"fields\\\" : [ {\\n  \\\"name\\\" : \\\"storageType\\\",\\n  \\\"type\\\" : \\\"string\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"pathOrInlineDv\\\",\\n  \\\"type\\\" : \\\"string\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"offset\\\",\\n  \\\"type\\\" : \\\"integer\\\",\\n  \\\"nullable\\\" : true, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"sizeInBytes\\\",\\n  \\\"type\\\" : \\\"integer\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n},\\n{\\n  \\\"name\\\" : \\\"cardinality\\\",\\n  \\\"type\\\" : \\\"long\\\",\\n  \\\"nullable\\\" : false, \\n  \\\"metadata\\\" : {  }\\n} ]\\n},\\n  \\\"nullable\\\" : true, \\n  \\\"metadata\\\" : {  }\\n} ]\\n}\",\"row\":{\"path\":\"delta-sharing:///https%3A%2F%2Fdelta-exchange-test.s3.us-west-2.amazonaws.com%2Fdelta-exchange-test%2Ftable1%2Fpart-00000-feb9b2f7-4f80-455c-860d-04530534753e-c000.snappy.parquet%3FX-Amz-Algorithm%3DAWS4-HMAC-SHA256%26X-Amz-Date%3D20230825T210334Z%26X-Amz-SignedHeaders%3Dhost%26X-Amz-Expires%3D10%26X-Amz-Credential%3DAKIA2JMHUIXT4N7WUROI%252F20230825%252Fus-west-2%252Fs3%252Faws4_request%26X-Amz-Signature%3D220e0c9b7e0755efd97601459d978887e2c373c0ce2818c29c439463a422ff15/781\",\"size\":781,\"dataChange\":true,\"modificationTime\":1619591543000,\"deletionVector\":null,\"partitionValues\":{}}}"
+    )
 
-    val mySnapshot = myTable.getLatestSnapshot(myTableClient)
-    val version = mySnapshot.getVersion(myTableClient)
-
-    println(version)
+    val scanState = KernelUtils.deserializeRowFromJson(myTableClient, scanStateStr)
+    val scanFiles = scanFileStrs.map {str =>
+      KernelUtils.deserializeRowFromJson(myTableClient, str)
+    }
   }
 }

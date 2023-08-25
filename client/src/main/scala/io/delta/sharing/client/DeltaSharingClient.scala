@@ -290,8 +290,10 @@ class DeltaSharingRestClient(
         s"for table ${table.share}.${table.schema}.${table.name}.")
     }
     // To ensure that it works with delta sharing server that doesn't support the requested format.
-    if (respondedFormat == RESPONSE_FORMAT_DELTA) {
+    if (respondedFormat == RESPONSE_FORMAT) {
       return DeltaTableFiles(version, lines = lines)
+    } else if(respondedFormat == RESPONSE_FORMAT_KERNEL) {
+      
     }
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
@@ -799,6 +801,7 @@ object DeltaSharingRestClient extends Logging {
   val READER_FEATURES = "readerfeatures"
   val RESPONSE_FORMAT_DELTA = "delta"
   val RESPONSE_FORMAT_PARQUET = "parquet"
+  val RESPONSE_FORMAT_KERNEL = "kernel"
   val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
 
   lazy val USER_AGENT = {
