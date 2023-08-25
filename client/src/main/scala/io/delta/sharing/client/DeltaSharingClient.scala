@@ -274,6 +274,11 @@ class DeltaSharingRestClient(
       None,
       jsonPredicateHints
     )
+
+    if (responseFormat == RESPONSE_FORMAT_KERNEL) {
+      return getKernelFormatOutput(target, request)
+    }
+
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       logInfo(
         s"Making paginated queryTable requests for table " +
@@ -613,6 +618,18 @@ class DeltaSharingRestClient(
     )
   }
 
+  private def getKernelFormatOutput(target: String, data: QueryTableRequest): DeltaTableFiles = {
+    val httpPost = new HttpPost(target)
+    val json = JsonUtils.toJson(data)
+    httpPost.setHeader("Content-type", "application/json")
+    httpPost.setEntity(new StringEntity(json, UTF_8))
+    val (version, capabilities, lines) = getResponse(httpPost)
+    DeltaTableFiles(
+      version = version.getOrElse(0),
+      kernelStateAndScanFiles = lines
+    )
+  }
+
   private def getRespondedFormat(capabilities: Option[String]): String = {
     val capabilitiesMap = getDeltaSharingCapabilitiesMap(capabilities)
     capabilitiesMap.get(RESPONSE_FORMAT).getOrElse(RESPONSE_FORMAT_PARQUET)
@@ -799,6 +816,7 @@ object DeltaSharingRestClient extends Logging {
   val READER_FEATURES = "readerfeatures"
   val RESPONSE_FORMAT_DELTA = "delta"
   val RESPONSE_FORMAT_PARQUET = "parquet"
+  val RESPONSE_FORMAT_KERNEL = "kernel"
   val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
 
   lazy val USER_AGENT = {

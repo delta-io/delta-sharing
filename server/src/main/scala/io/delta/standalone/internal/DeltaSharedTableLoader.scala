@@ -921,6 +921,7 @@ class DeltaSharedTable(
 object DeltaSharedTable {
   val RESPONSE_FORMAT_PARQUET = "parquet"
   val RESPONSE_FORMAT_DELTA = "delta"
+  val RESPONSE_FORMAT_KERNEL = "kernel"
 
   def getFileSigner(tablePath: Path, hadoopConf: Configuration): CloudFileSigner = {
     val fs = tablePath.getFileSystem(hadoopConf)

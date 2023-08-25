@@ -18,6 +18,7 @@ package io.delta.sharing.server.util
 import java.io.UncheckedIOException
 import java.net.{URI, URL, URLEncoder}
 import java.util.Objects.requireNonNull
+import java.util.UUID
 
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
@@ -27,6 +28,7 @@ import io.delta.kernel.client.TableClient
 import io.delta.kernel.data.{ColumnarBatch, Row}
 import io.delta.kernel.defaults.client.DefaultTableClient
 import io.delta.kernel.defaults.internal.data.DefaultJsonRow
+import io.delta.kernel.internal.deletionvectors.Base85Codec
 import io.delta.kernel.internal.types.TableSchemaSerDe
 import io.delta.kernel.types._
 import io.delta.kernel.utils.CloseableIterator
@@ -36,7 +38,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.s3a.S3AFileSystem
 
 import io.delta.sharing.server.{CloudFileSigner, S3FileSigner}
-import io.delta.sharing.server.util.KernelUtils.{signedDeltaSharingURL, OBJECT_MAPPER}
+import io.delta.sharing.server.util.KernelUtils.{signedDeltaSharingURL, withClassLoader, OBJECT_MAPPER}
 
 class KernelUtils(tableRoot: Path) {
   private val hadoopConf = new Configuration() {
@@ -46,7 +48,7 @@ class KernelUtils(tableRoot: Path) {
     }
   }
 
-  private val fileSigner = {
+  private val fileSigner = withClassLoader {
     val fs = tableRoot.getFileSystem(hadoopConf)
     fs match {
       case _: S3AFileSystem =>
@@ -62,7 +64,7 @@ class KernelUtils(tableRoot: Path) {
    * Utility method to get the scan state and scan files to read Delta table at the
    * given location.
    */
-  def getScanStateAndFiles(): (Row, Seq[Row]) = {
+  def getScanStateAndFiles(): (Long, Row, Seq[Row]) = {
     val tableClient = DefaultTableClient.create(hadoopConf)
     val table = Table.forPath(tableRoot.toUri.toString)
     val snapshot = table.getLatestSnapshot(tableClient)
@@ -70,6 +72,7 @@ class KernelUtils(tableRoot: Path) {
     val scan = snapshot.getScanBuilder(tableClient).build()
 
     (
+      snapshot.getVersion(tableClient),
       scan.getScanState(tableClient),
       toScanFilesSeq(scan.getScanFiles(tableClient))
     )
@@ -97,7 +100,7 @@ class KernelUtils(tableRoot: Path) {
     val rowType = row.getSchema
     val rowObject = new util.HashMap[String, Object]()
 
-    Seq(0, rowType.length() - 1).foreach {
+    Seq.range(0, rowType.length()).foreach {
       fieldId => {
         val field = rowType.at(fieldId)
         val fieldType = field.getDataType
@@ -123,7 +126,21 @@ class KernelUtils(tableRoot: Path) {
           else if (fieldType.isInstanceOf[StringType]) value = {
             val baseValue = row.getString(fieldId);
             if (pathColumns.contains(name)) {
-              val absPath = KernelUtils.absolutePath(tableRoot, baseValue);
+              var absPath: Path = null
+              if (name.equals("pathOrInlineDv")) {
+                val randomPrefixLength = baseValue.length - Base85Codec.ENCODED_UUID_LENGTH
+                val randomPrefix = baseValue.substring(0, randomPrefixLength)
+                val encodedUuid = baseValue.substring(randomPrefixLength)
+                val uuid = Base85Codec.decodeUUID(encodedUuid)
+                val fileName = String.format("%s_%s.bin", "deletion_vector", uuid.toString)
+                absPath = if (randomPrefix.length > 0) {
+                  new Path(new Path(tableRoot, randomPrefix), fileName)
+                } else {
+                  new Path(tableRoot, fileName)
+                }
+              } else {
+                absPath = KernelUtils.absolutePath(tableRoot, baseValue)
+              }
               val fileStatus = fileSystem.getFileStatus(absPath);
               signedDeltaSharingURL(absPath, fileStatus.getLen, fileSigner)
             } else baseValue
@@ -201,5 +218,21 @@ object KernelUtils {
   } catch {
     case ex: JsonProcessingException =>
       throw new UncheckedIOException(ex)
+  }
+
+  /**
+   * Run `func` under the classloader of `DeltaSharedTable`. We cannot use the classloader set by
+   * Armeria as Hadoop needs to search the classpath to find its classes.
+   */
+  private def withClassLoader[T](func: => T): T = {
+    val classLoader = Thread.currentThread().getContextClassLoader
+    if (classLoader == null) {
+      Thread.currentThread().setContextClassLoader(this.getClass.getClassLoader)
+      try func finally {
+        Thread.currentThread().setContextClassLoader(null)
+      }
+    } else {
+      func
+    }
   }
 }
