@@ -47,7 +47,7 @@ lazy val client = (project in file("client")) settings(
   crossScalaVersions := Seq(scala212, scala213),
   commonSettings,
   scalaStyleSettings,
-  releaseSettings,
+  javaOnlyReleaseSettings,
   libraryDependencies ++= Seq(
     "org.apache.httpcomponents" % "httpclient" % "4.5.13",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
@@ -286,6 +286,13 @@ lazy val releaseSettings = Seq(
           <url>https://github.com/wchau</url>
         </developer>
       </developers>
+)
+
+lazy val javaOnlyReleaseSettings = releaseSettings ++ Seq(
+  // drop off Scala suffix from artifact names
+  crossPaths := false,
+  // exclude scala-library from dependencies in generated pom.xml
+  autoScalaLibrary := false,
 )
 
 // Looks like some of release settings should be set for the root project as well.
