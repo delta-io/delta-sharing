@@ -32,6 +32,7 @@ import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
 import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
 import com.linecorp.armeria.server.auth.AuthService
+import io.delta.kernel.data.Row
 import io.delta.standalone.internal.DeltaCDFErrors
 import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
 import io.delta.standalone.internal.DeltaDataSource
@@ -39,13 +40,14 @@ import io.delta.standalone.internal.DeltaSharedTable
 import io.delta.standalone.internal.DeltaSharedTableLoader
 import net.sourceforge.argparse4j.ArgumentParsers
 import org.apache.commons.io.FileUtils
+import org.apache.hadoop.fs.Path
 import org.slf4j.LoggerFactory
 import scalapb.json4s.Printer
 
 import io.delta.sharing.server.config.ServerConfig
 import io.delta.sharing.server.model.SingleAction
 import io.delta.sharing.server.protocol._
-import io.delta.sharing.server.util.JsonUtils
+import io.delta.sharing.server.util.{JsonUtils, KernelUtils}
 
 object ErrorCode {
   val UNSUPPORTED_OPERATION = "UNSUPPORTED_OPERATION"
@@ -355,6 +357,19 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
+
+    val kernelUtils = new KernelUtils(new Path(tableConfig.location));
+    val (scanState: Row, scanFiles: Seq[Row]) =
+      kernelUtils.getScanStateAndFiles()
+
+    val pathColumns = Seq(
+      "path",
+      "pathOrInlineDv"
+    )
+    val serializedScanState = kernelUtils.serializeRowToJson(scanState, pathColumns)
+    val serializedScanFiles =
+      scanFiles.map(fileRow => kernelUtils.serializeRowToJson(fileRow, pathColumns)).toSeq
+
     if (numVersionParams > 0) {
       if (!tableConfig.historyShared) {
         throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +
@@ -395,7 +410,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(version), responseFormat, actions)
+    streamingOutput(Some(version), responseFormat, Seq(serializedScanState, serializedScanFiles))
   }
 
   // scalastyle:off argcount

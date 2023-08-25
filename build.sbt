@@ -68,128 +68,130 @@ lazy val client = (project in file("client")) settings (
          |package object client {
          |  val VERSION = "${version.value}"
          |}
-         |""".stripMargin
-      )
-      Seq(file)
-    }
+         |""".stripMargin)
+    Seq(file)
+  }
 )
 
-lazy val spark = (project in file("spark")) dependsOn (client) settings (
-    name := "delta-sharing-spark",
-    crossScalaVersions := Seq(scala212, scala213),
-    commonSettings,
-    scalaStyleSettings,
-    releaseSettings,
-    libraryDependencies ++= Seq(
-      "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-      "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
-      "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
-      "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
-      "org.scalatest" %% "scalatest" % "3.2.3" % "test"
-    ),
-    Compile / sourceGenerators += Def.task {
-      val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "spark" / "package.scala"
-      IO.write(
-        file,
-        s"""package io.delta.sharing
+lazy val spark = (project in file("spark")) dependsOn(client) settings(
+  name := "delta-sharing-spark",
+  crossScalaVersions := Seq(scala212, scala213),
+  commonSettings,
+  scalaStyleSettings,
+  releaseSettings,
+  libraryDependencies ++= Seq(
+    "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
+    "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
+    "org.scalatest" %% "scalatest" % "3.2.3" % "test"
+  ),
+  Compile / sourceGenerators += Def.task {
+    val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "spark" / "package.scala"
+    IO.write(file,
+      s"""package io.delta.sharing
          |
          |package object spark {
          |  val VERSION = "${version.value}"
          |}
-         |""".stripMargin
-      )
-      Seq(file)
-    }
+         |""".stripMargin)
+    Seq(file)
+  }
 )
 
-lazy val server = (project in file("server")) enablePlugins (JavaAppPackaging) settings (
-    name := "delta-sharing-server",
-    scalaVersion := scala212,
-    commonSettings,
-    scalaStyleSettings,
-    releaseSettings,
-    dockerUsername := Some("deltaio"),
-    dockerBuildxPlatforms := Seq("linux/arm64", "linux/amd64"),
-    scriptClasspath ++= Seq("../conf"),
-    libraryDependencies ++= Seq(
-      // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a
-      // breaking change making us not able to use `delta-standalone`.
-      "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7",
-      "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7.3",
-      "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.6.7.1",
-      "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.6.7",
-      "org.json4s" %% "json4s-jackson" % "3.5.3" excludeAll (
-        ExclusionRule("com.fasterxml.jackson.core"),
-        ExclusionRule("com.fasterxml.jackson.module")
-      ),
-      "com.linecorp.armeria" %% "armeria-scalapb" % "1.6.0" excludeAll (
-        ExclusionRule("com.fasterxml.jackson.core"),
-        ExclusionRule("com.fasterxml.jackson.module"),
-        ExclusionRule("org.json4s")
-      ),
-      "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf" excludeAll (
-        ExclusionRule("com.fasterxml.jackson.core"),
-        ExclusionRule("com.fasterxml.jackson.module"),
-        ExclusionRule("org.json4s")
-      ),
-      "org.apache.hadoop" % "hadoop-aws" % "2.10.1" excludeAll (
-        ExclusionRule("com.fasterxml.jackson.core"),
-        ExclusionRule("com.fasterxml.jackson.module"),
-        ExclusionRule("com.google.guava", "guava"),
-        ExclusionRule("com.amazonaws", "aws-java-sdk-bundle")
-      ),
-      "com.amazonaws" % "aws-java-sdk-bundle" % "1.12.189",
-      "org.apache.hadoop" % "hadoop-azure" % "2.10.1" excludeAll (
-        ExclusionRule("com.fasterxml.jackson.core"),
-        ExclusionRule("com.fasterxml.jackson.module"),
-        ExclusionRule("com.google.guava", "guava")
-      ),
-      "com.google.cloud" % "google-cloud-storage" % "2.2.2" excludeAll (
-        ExclusionRule("com.fasterxml.jackson.core"),
-        ExclusionRule("com.fasterxml.jackson.module")
-      ),
-      "com.google.cloud.bigdataoss" % "gcs-connector" % "hadoop2-2.2.4" excludeAll (
-        ExclusionRule("com.fasterxml.jackson.core"),
-        ExclusionRule("com.fasterxml.jackson.module")
-      ),
-      "org.apache.hadoop" % "hadoop-common" % "2.10.1" excludeAll (
-        ExclusionRule("com.fasterxml.jackson.core"),
-        ExclusionRule("com.fasterxml.jackson.module"),
-        ExclusionRule("com.google.guava", "guava")
-      ),
-      "org.apache.hadoop" % "hadoop-client" % "2.10.1" excludeAll (
-        ExclusionRule("com.fasterxml.jackson.core"),
-        ExclusionRule("com.fasterxml.jackson.module"),
-        ExclusionRule("com.google.guava", "guava")
-      ),
-      "org.apache.parquet" % "parquet-hadoop" % "1.10.1" excludeAll (
-        ExclusionRule("com.fasterxml.jackson.core"),
-        ExclusionRule("com.fasterxml.jackson.module"),
-        ExclusionRule("com.google.guava", "guava")
-      ),
-      "io.delta" %% "delta-standalone" % "0.5.0" excludeAll (
-        ExclusionRule("com.fasterxml.jackson.core"),
-        ExclusionRule("com.fasterxml.jackson.module"),
-        ExclusionRule("com.google.guava", "guava")
-      ),
-      "org.apache.spark" %% "spark-sql" % "2.4.7" excludeAll (
-        ExclusionRule("org.slf4j"),
-        ExclusionRule("io.netty"),
-        ExclusionRule("com.fasterxml.jackson.core"),
-        ExclusionRule("com.fasterxml.jackson.module"),
-        ExclusionRule("org.json4s"),
-        ExclusionRule("com.google.guava", "guava")
-      ),
-      "org.slf4j" % "slf4j-api" % "1.6.1",
-      "org.slf4j" % "slf4j-simple" % "1.6.1",
-      "net.sourceforge.argparse4j" % "argparse4j" % "0.9.0",
-      "io.delta" % "delta-kernel-api" % "3.0.0rc1",
-      "io.delta" % "delta-kernel-default" % "3.0.0rc1",
-      "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) settings(
+  name := "delta-sharing-server",
+  scalaVersion := scala212,
+  commonSettings,
+  scalaStyleSettings,
+  releaseSettings,
+  dockerUsername := Some("deltaio"),
+  dockerBuildxPlatforms := Seq("linux/arm64", "linux/amd64"),
+  scriptClasspath ++= Seq("../conf"),
+  libraryDependencies ++= Seq(
+    // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a
+    // breaking change making us not able to use `delta-standalone`.
+    "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7",
+    "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7.3",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.6.7.1",
+    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.6.7",
+    "org.json4s" %% "json4s-jackson" % "3.5.3" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module")
     ),
-    Compile / PB.targets := Seq(
-      scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
-    )
+    "com.linecorp.armeria" %% "armeria-scalapb" % "1.6.0" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("org.json4s")
+    ),
+    "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("org.json4s")
+    ),
+    "org.apache.hadoop" % "hadoop-aws" % "2.10.1" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava"),
+      ExclusionRule("com.amazonaws", "aws-java-sdk-bundle")
+    ),
+    "com.amazonaws" % "aws-java-sdk-bundle" % "1.12.189",
+    "org.apache.hadoop" % "hadoop-azure" % "2.10.1" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
+    ),
+    "com.google.cloud" % "google-cloud-storage" % "2.2.2" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module")
+    ),
+    "com.google.cloud.bigdataoss" % "gcs-connector" % "hadoop2-2.2.4" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module")
+    ),
+    "org.apache.hadoop" % "hadoop-common" % "2.10.1" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
+    ),
+    "org.apache.hadoop" % "hadoop-client" % "2.10.1" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
+    ),
+    "org.apache.parquet" % "parquet-hadoop" % "1.12.3" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
+    ),
+    "io.delta" %% "delta-standalone" % "0.5.0" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
+    ),
+    "org.apache.spark" %% "spark-sql" % "2.4.7" excludeAll(
+      ExclusionRule("org.slf4j"),
+      ExclusionRule("io.netty"),
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("org.json4s"),
+      ExclusionRule("com.google.guava", "guava")
+    ),
+    "org.slf4j" % "slf4j-api" % "1.6.1",
+    "org.slf4j" % "slf4j-simple" % "1.6.1",
+    "net.sourceforge.argparse4j" % "argparse4j" % "0.9.0",
+    "io.delta" % "delta-kernel-api" % "3.0.0-SNAPSHOT",
+    "io.delta" % "delta-kernel-defaults" % "3.0.0-SNAPSHOT" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("org.apache.hadoop")
+    ),
+
+    "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+  ),
+  Compile / PB.targets := Seq(
+    scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
+  )
 )
 
 /*
@@ -220,19 +222,24 @@ lazy val releaseSettings = Seq(
   publishMavenStyle := true,
   publishArtifact := true,
   Test / publishArtifact := false,
+
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
     if (isSnapshot.value) {
       Some("snapshots" at nexus + "content/repositories/snapshots")
     } else {
-      Some("releases" at nexus + "service/local/staging/deploy/maven2")
+      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
     }
   },
+
   releasePublishArtifactsAction := PgpKeys.publishSigned.value,
+
   releaseCrossBuild := true,
+
   licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
+
   pomExtra :=
-  <url>https://github.com/delta-io/delta-sharing</url>
+    <url>https://github.com/delta-io/delta-sharing</url>
       <scm>
         <url>git@github.com:delta-io/delta-sharing.git</url>
         <connection>scm:git:git@github.com:delta-io/delta-sharing.git</connection>
@@ -292,7 +299,7 @@ lazy val releaseSettings = Seq(
 )
 
 // Looks like some of release settings should be set for the root project as well.
-publishArtifact := false // Don't release the root project
+publishArtifact := false  // Don't release the root project
 publish := {}
 publishTo := Some("snapshots" at "https://oss.sonatype.org/content/repositories/snapshots")
 releaseCrossBuild := false

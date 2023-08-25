@@ -42,18 +42,7 @@ import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scala.collection.mutable.ListBuffer
 import scala.util.control.NonFatal
 
-import io.delta.sharing.server.{
-  model,
-  AbfsFileSigner,
-  CausedBy,
-  DeltaSharingIllegalArgumentException,
-  DeltaSharingUnsupportedOperationException,
-  ErrorStrings,
-  GCSFileSigner,
-  PreSignedUrl,
-  S3FileSigner,
-  WasbFileSigner
-}
+import io.delta.sharing.server.{model, AbfsFileSigner, CausedBy, CloudFileSigner, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, GCSFileSigner, PreSignedUrl, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.{ServerConfig, TableConfig}
 import io.delta.sharing.server.protocol.QueryTablePageToken
 import io.delta.sharing.server.util.JsonUtils
@@ -140,7 +129,7 @@ class DeltaSharedTable(
     }
   }
 
-  private val fileSigner = withClassLoader {
+   val fileSigner = withClassLoader {
     val tablePath = new Path(tableConfig.getLocation)
     val fs = tablePath.getFileSystem(conf)
     fs match {
@@ -932,4 +921,14 @@ class DeltaSharedTable(
 object DeltaSharedTable {
   val RESPONSE_FORMAT_PARQUET = "parquet"
   val RESPONSE_FORMAT_DELTA = "delta"
+
+  def getFileSigner(tablePath: Path, hadoopConf: Configuration): CloudFileSigner = {
+    val fs = tablePath.getFileSystem(hadoopConf)
+    fs match {
+      case _: S3AFileSystem =>
+        new S3FileSigner(tablePath.toUri, hadoopConf, 10)
+      case _ =>
+        throw new IllegalStateException(s"File system ${fs.getClass} is not supported")
+    }
+  }
 }
