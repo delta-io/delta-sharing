@@ -92,19 +92,6 @@ class KernelUtils(tableRoot: Path) {
     }
   }
 
-  /**
-   * Utility method to deserialize a {@link Row} object from the JSON form.
-   */
-  def deserializeRowFromJson(tableClient: TableClient, jsonRowWithSchema: String): Row = try {
-    val jsonNode: JsonNode = OBJECT_MAPPER.readTree(jsonRowWithSchema)
-    val schemaNode = jsonNode.get("schema")
-    val schema = TableSchemaSerDe.fromJson(tableClient.getJsonHandler, schemaNode.asText)
-    parseRowFromJsonWithSchema(jsonNode.get("row").asInstanceOf[ObjectNode], schema)
-  } catch {
-    case ex: JsonProcessingException =>
-      throw new UncheckedIOException(ex)
-  }
-
   private def convertRowToJsonObject(
     row: Row, pathColumns: Seq[String]): util.HashMap[String, Object] = {
     val rowType = row.getSchema
@@ -155,10 +142,6 @@ class KernelUtils(tableRoot: Path) {
     rowObject
   }
 
-  private def parseRowFromJsonWithSchema(rowJsonNode: ObjectNode, rowType: StructType): Row = {
-    new DefaultJsonRow(rowJsonNode, rowType)
-  }
-
   /**
    * Iterate over the scan file batches and return a sequence of scan file rows.
    * TODO: This could end up in OOM. Figure out a way to paginate the results.
@@ -205,5 +188,18 @@ object KernelUtils {
     } else {
       new Path(root, p)
     }
+  }
+
+  /**
+   * Utility method to deserialize a {@link Row} object from the JSON form.
+   */
+  def deserializeRowFromJson(tableClient: TableClient, jsonRowWithSchema: String): Row = try {
+    val jsonNode: JsonNode = OBJECT_MAPPER.readTree(jsonRowWithSchema)
+    val schemaNode = jsonNode.get("schema")
+    val schema = TableSchemaSerDe.fromJson(tableClient.getJsonHandler, schemaNode.asText)
+    new DefaultJsonRow(jsonNode.get("row").asInstanceOf[ObjectNode], schema)
+  } catch {
+    case ex: JsonProcessingException =>
+      throw new UncheckedIOException(ex)
   }
 }
