@@ -54,8 +54,8 @@ lazy val client = (project in file("client")) settings (
       "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
       "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
       "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
-      "io.delta" % "delta-kernel-api" % "3.0.0rc1",
-      "io.delta" % "delta-kernel-default" % "3.0.0rc1",
+      "io.delta" % "delta-kernel-api" % "3.0.0-SNAPSHOT",
+      "io.delta" % "delta-kernel-defaults" % "3.0.0-SNAPSHOT",
       "org.apache.hadoop" % "hadoop-aws" % "3.3.1",
       "org.scalatest" %% "scalatest" % "3.2.3" % "test"
     ),
