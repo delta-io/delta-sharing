@@ -1071,12 +1071,7 @@ integrationTest("kernel:getFiles") {
           data.asInstanceOf[Closeable].close()
         }
       }
-
-      try {
-        // ... any other code that might be here ...
-      } finally {
-        client.close()
-      }
+      client.close()
     }
   }
 }
