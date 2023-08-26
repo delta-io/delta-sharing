@@ -193,7 +193,7 @@ object KernelUtils {
   private def signedDeltaSharingURL(path: Path, size: Long, signer: CloudFileSigner): String = {
     val signedURL = signer.sign(path);
 
-    s"delta-sharing://${URLEncoder.encode(signedURL.url)}/${size}"
+    s"delta-sharing:///${URLEncoder.encode(signedURL.url)}/${size}"
   }
 
   private def absolutePath(root: Path, child: String): Path = {

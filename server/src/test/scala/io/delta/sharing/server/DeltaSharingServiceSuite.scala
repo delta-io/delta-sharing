@@ -635,7 +635,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
          |}
          |""".stripMargin
 
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/hackathon_dv_table/query"), Some("POST"), Some(p), Some(2), responseFormat)
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/hackathon_dv_table/query"), Some("POST"), Some(p), Some(4), responseFormat)
     val lines = response.split("\n")
     // deserialize scan state and files
     val protocol = lines(0)
