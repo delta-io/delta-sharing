@@ -358,19 +358,6 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     val start = System.currentTimeMillis
     val tableConfig = sharedTableManager.getTable(share, schema, table)
 
-    val kernelUtils = new KernelUtils(new Path(tableConfig.location));
-    val (scanState: Row, scanFiles: Seq[Row]) =
-      kernelUtils.getScanStateAndFiles()
-
-    val pathColumns = Seq(
-      "path",
-      "pathOrInlineDv"
-    )
-    val serializedScanState = kernelUtils.serializeRowToJson(scanState, pathColumns)
-    val serializedScanFiles =
-      scanFiles.map(fileRow => kernelUtils.serializeRowToJson(fileRow, pathColumns)).toSeq
-
-
     if (numVersionParams > 0) {
       if (!tableConfig.historyShared) {
         throw new DeltaSharingIllegalArgumentException("Reading table by version or timestamp is" +
@@ -392,18 +379,33 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       }
     }
     val responseFormat = getResponseFormat(capabilitiesMap)
-    val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
-      includeFiles = true,
-      request.predicateHints,
-      request.jsonPredicateHints,
-      request.limitHint,
-      request.version,
-      request.timestamp,
-      request.startingVersion,
-      request.endingVersion,
-      request.maxFiles,
-      request.pageToken,
-      responseFormat = responseFormat)
+    val (version, actions) = if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_KERNEL) {
+      val kernelUtils = new KernelUtils(new Path(tableConfig.location));
+      val (versionFromKernel: Long, scanState: Row, scanFiles: Seq[Row]) = kernelUtils
+        .getScanStateAndFiles()
+
+      val pathColumns = Seq(
+        "path",
+        "pathOrInlineDv"
+      )
+      val serializedScanState = kernelUtils.serializeRowToJson(scanState, pathColumns)
+      val serializedScanFiles =
+        scanFiles.map(fileRow => kernelUtils.serializeRowToJson(fileRow, pathColumns)).toSeq
+      (versionFromKernel, Seq(serializedScanState) ++ serializedScanFiles)
+    } else {
+      deltaSharedTableLoader.loadTable(tableConfig).query(
+        includeFiles = true,
+        request.predicateHints,
+        request.jsonPredicateHints,
+        request.limitHint,
+        request.version,
+        request.timestamp,
+        request.startingVersion,
+        request.endingVersion,
+        request.maxFiles,
+        request.pageToken,
+        responseFormat = responseFormat)
+    }
     if (version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(
         s"You can only query table data since version ${tableConfig.startVersion}."
@@ -411,7 +413,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(version), responseFormat, Seq(serializedScanState, serializedScanFiles))
+    streamingOutput(Some(version), responseFormat, actions)
   }
 
   // scalastyle:off argcount
@@ -618,7 +620,7 @@ object DeltaSharingService {
 
   private[server] def getResponseFormat(headerCapabilities: Map[String, String]): String = {
     headerCapabilities.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse(
-      DeltaSharedTable.RESPONSE_FORMAT_PARQUET
+      DeltaSharedTable.RESPONSE_FORMAT_PARQUET,
     )
   }
 

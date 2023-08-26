@@ -81,6 +81,11 @@ object TestResource {
                 "table7",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table7",
                 "00000000-0000-0000-0000-000000000007"
+              ),
+              TableConfig(
+                "hackathon_dv_table",
+                s"s3a://${AWS.bucket}/delta-exchange-test/hackathon_dv_table",
+                "00000000-0000-0000-0000-000000000786"
               )
             )
           )

@@ -16,6 +16,7 @@
 
 package io.delta.sharing.client
 
+import io.delta.sharing.client.util
 import java.io.{BufferedReader, InputStream, InputStreamReader}
 import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
@@ -274,6 +275,11 @@ class DeltaSharingRestClient(
       None,
       jsonPredicateHints
     )
+
+    if (responseFormat == RESPONSE_FORMAT_KERNEL) {
+      return getKernelFormatOutput(target, request)
+    }
+
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       logInfo(
         s"Making paginated queryTable requests for table " +
@@ -292,8 +298,6 @@ class DeltaSharingRestClient(
     // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT) {
       return DeltaTableFiles(version, lines = lines)
-    } else if(respondedFormat == RESPONSE_FORMAT_KERNEL) {
-      
     }
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
@@ -612,6 +616,18 @@ class DeltaSharingRestClient(
       },
       getRespondedFormat(capabilities),
       lines
+    )
+  }
+
+  private def getKernelFormatOutput(target: String, data: QueryTableRequest): DeltaTableFiles = {
+    val httpPost = new HttpPost(target)
+    val json = JsonUtils.toJson(data)
+    httpPost.setHeader("Content-type", "application/json")
+    httpPost.setEntity(new StringEntity(json, UTF_8))
+    val (version, capabilities, lines) = getResponse(httpPost)
+    DeltaTableFiles(
+      version = version.getOrElse(0),
+      kernelStateAndScanFiles = lines
     )
   }
 

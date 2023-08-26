@@ -26,7 +26,7 @@ import javax.net.ssl._
 import scala.collection.mutable.ArrayBuffer
 
 import com.linecorp.armeria.server.Server
-import io.delta.standalone.internal.DeltaSharedTable.{RESPONSE_FORMAT_DELTA, RESPONSE_FORMAT_PARQUET}
+import io.delta.standalone.internal.DeltaSharedTable.{RESPONSE_FORMAT_DELTA, RESPONSE_FORMAT_KERNEL, RESPONSE_FORMAT_PARQUET}
 import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import scalapb.json4s.JsonFormat
@@ -142,6 +142,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
     if (responseFormat == RESPONSE_FORMAT_DELTA) {
       connection.setRequestProperty("delta-sharing-capabilities", "responseFormat=delta")
+    } else if (responseFormat == RESPONSE_FORMAT_KERNEL) {
+      connection.setRequestProperty("delta-sharing-capabilities", "responseFormat=kernel")
     }
     method.foreach(connection.setRequestMethod)
     data.foreach { d =>
@@ -619,6 +621,25 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         verifyPreSignedUrl(actualFiles(1).url, 781)
       }
     }
+  }
+
+  integrationTest("kernel - table with dvs - " +
+    "/shares/{share}/schemas/{schema}/tables/{table}/query") {
+    val responseFormat = RESPONSE_FORMAT_KERNEL;
+    val p =
+      s"""
+         |{
+         |  "predicateHints": [
+         |    "date = CAST('2021-04-28' AS DATE)"
+         |  ]
+         |}
+         |""".stripMargin
+
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/hackathon_dv_table/query"), Some("POST"), Some(p), Some(2), responseFormat)
+    val lines = response.split("\n")
+    // deserialize scan state and files
+    val protocol = lines(0)
+    val metadata = lines(1)
   }
 
   integrationTest("table1 - non partitioned - paginated query") {
