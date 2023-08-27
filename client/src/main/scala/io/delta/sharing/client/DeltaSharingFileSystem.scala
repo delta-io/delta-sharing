@@ -137,14 +137,16 @@ private[sharing] object DeltaSharingFileSystem {
       new Path(s"$SCHEME:///$encodedTablePath/$encodedFileId/$fileSize")
     }
 
-    def toUrl(): String = {
-      // Ensure there's only one '/' between tablePath and fileId
-      if (tablePath.endsWith("/") && fileId.startsWith("/")) {
-        tablePath + fileId.substring(1)
-      } else if (!tablePath.endsWith("/") && !fileId.startsWith("/")) {
-        tablePath + "/" + fileId
+   def toUrl(): String = {
+      val combinedPath = tablePath + "/" + fileId
+
+      // Check if the path has the incorrect format "https:/"
+      if (combinedPath.contains("https:/") && !combinedPath.contains("https://")) {
+        // Fix the path
+        combinedPath.replaceFirst("https:/", "https://")
       } else {
-        tablePath + fileId
+        // If the path is correct, return it as-is
+        combinedPath
       }
     }
   }
