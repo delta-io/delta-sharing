@@ -1051,6 +1051,7 @@ integrationTest("kernel:getFiles") {
         {
           set("spark.hadoop.fs.s3a.aws.credentials.provider",
             "com.amazonaws.auth.EnvironmentVariableCredentialsProvider")
+          set("fs.s3a.endpoint", "s3.us-west-2.amazonaws.com")
         }
       }
       val tableClient = DefaultTableClient.create(hadoopConf)
@@ -1060,10 +1061,13 @@ integrationTest("kernel:getFiles") {
         KernelUtils.deserializeRowFromJson(tableClient, scanFileJson)
       }
 
-      import io.delta.kernel.data.DataReadResult
       var readRecordCount = 0
       val maxRowCount = 100
-      val data = Scan.readData(tableClient, scanState, KernelUtils.convertToCloseableIterator(scanFiles), Optional.empty())
+      val data = Scan.readData(
+        tableClient,
+        scanState,
+        KernelUtils.convertToCloseableIterator(scanFiles),
+        Optional.empty())
       breakable {
         try {
           while (data.hasNext) {
