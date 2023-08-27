@@ -623,8 +623,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
-  integrationTest("kernel - table with dvs - " +
-    "/shares/{share}/schemas/{schema}/tables/{table}/query") {
+  integrationTest("kernel test") {
     val responseFormat = RESPONSE_FORMAT_KERNEL;
     val p =
       s"""

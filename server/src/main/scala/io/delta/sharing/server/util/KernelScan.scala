@@ -127,7 +127,7 @@ class KernelScan(tableRoot: Path) {
           else if (fieldType.isInstanceOf[StringType]) value = {
             val baseValue = row.getString(fieldId)
             if (currentColumnPath.equals(FILE_PATH_COL)) {
-              KernelScan.absolutePath(tableRoot, baseValue)
+              KernelScan.absolutePath(tableRoot, baseValue).toUri.toString
             } else if (currentColumnPath.equals(DV_FILE_PATH_COL)) {
               // TODO: Add support for inline DVs.
               // TODO (for Kernel): We need to make the paths absolute in LogReplay
