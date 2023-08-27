@@ -82,16 +82,26 @@ class KernelUtils(tableRoot: Path) {
    * Utility method to serialize a {@link Row} as a JSON string
    */
   def serializeRowToJson(row: Row, pathColumns: Seq[String]): String = {
-    val rowObject: util.HashMap[String, Object] =
-      convertRowToJsonObject(row, pathColumns)
+    val rowObject: util.HashMap[String, Object] = convertRowToJsonObject(row, pathColumns)
     try {
       val rowWithSchema = new util.HashMap[String, Object]
       rowWithSchema.put("schema", TableSchemaSerDe.toJson(row.getSchema))
       rowWithSchema.put("row", rowObject)
-      OBJECT_MAPPER.writeValueAsString(rowWithSchema)
+
+      // Convert the rowWithSchema to a JsonNode
+      val rootNode: JsonNode = OBJECT_MAPPER.valueToTree(rowWithSchema)
+
+      // Navigate to the 'storageType' field and modify its value
+      val deletionVectorNode = rootNode.get("row").get("deletionVector").asInstanceOf[ObjectNode]
+      if (deletionVectorNode != null && deletionVectorNode.has("storageType")) {
+        deletionVectorNode.put("storageType", "p")
+      }
+
+      // Serialize the modified tree back to a JSON string
+      OBJECT_MAPPER.writeValueAsString(rootNode)
     } catch {
       case e: JsonProcessingException =>
-        throw new UncheckedIOException(e);
+        throw new UncheckedIOException(e)
     }
   }
 

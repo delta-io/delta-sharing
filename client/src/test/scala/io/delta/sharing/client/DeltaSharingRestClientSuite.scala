@@ -1051,10 +1051,10 @@ integrationTest("kernel:getFiles") {
 
       val scanState = KernelUtils.deserializeRowFromJson(tableClient, scanStateJson)
       val scanFiles = scanFilesJson.map { scanFileJson =>
-        KernelUtils.deserializeRowFromJson(tableClient, scanFileJson)
+        val scanFile = KernelUtils.deserializeRowFromJson(tableClient, scanFileJson)
+        scanFile
       }
 
-      import io.delta.kernel.data.DataReadResult
       var readRecordCount = 0
       val maxRowCount = 100
       val data = Scan.readData(tableClient, scanState, KernelUtils.convertToCloseableIterator(scanFiles), Optional.empty())
