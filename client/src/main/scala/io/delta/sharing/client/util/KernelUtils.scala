@@ -45,7 +45,7 @@ object KernelUtils {
     val data = dataReadResult.getData
     val selectionVector = dataReadResult.getSelectionVector
     for (rowId <- 0 until data.getSize if printedRowCount < maxRowsToPrint) {
-      if (selectionVector.isEmpty || selectionVector.get.getBoolean(rowId)) {
+      if (!selectionVector.isPresent || selectionVector.get.getBoolean(rowId)) {
         printRow(data, rowId)
         printedRowCount += 1
       }
@@ -58,7 +58,8 @@ object KernelUtils {
     val rowValues = (0 until numCols).map { colOrdinal =>
       val columnVector = batch.getColumnVector(colOrdinal)
       // Assuming you have a utility function in Scala similar to VectorUtils.getValueAsObject
-      // If not, you'll need to implement the conversion from ColumnVector to the desired object type.
+      // If not, you'll need to implement the conversion from ColumnVector to
+      // the desired object type.
       getValueAsObject(columnVector, rowId)
     }.toArray
     println(formatter(numCols).format(rowValues: _*))

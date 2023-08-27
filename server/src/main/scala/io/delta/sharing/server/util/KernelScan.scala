@@ -16,9 +16,8 @@
 package io.delta.sharing.server.util
 
 import java.io.UncheckedIOException
-import java.net.{URI, URL, URLEncoder}
+import java.net.{URI, URLEncoder}
 import java.util.Objects.requireNonNull
-import java.util.UUID
 
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
@@ -38,9 +37,9 @@ import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.s3a.S3AFileSystem
 
 import io.delta.sharing.server.{CloudFileSigner, S3FileSigner}
-import io.delta.sharing.server.util.KernelUtils.{signedDeltaSharingURL, withClassLoader, OBJECT_MAPPER}
+import io.delta.sharing.server.util.KernelScan._
 
-class KernelUtils(tableRoot: Path) {
+class KernelScan(tableRoot: Path) {
   private val hadoopConf = new Configuration() {
     {
       set("spark.hadoop.fs.s3a.aws.credentials.provider",
@@ -81,7 +80,7 @@ class KernelUtils(tableRoot: Path) {
   /**
    * Utility method to serialize a {@link Row} as a JSON string
    */
-  def serializeRowToJson(row: Row, pathColumns: Seq[String]): String = {
+  def serializeRowToJson(row: Row, pathColumns: Seq[String] = Seq.empty): String = {
     val rowObject: util.HashMap[String, Object] =
       convertRowToJsonObject(row, pathColumns)
     try {
@@ -96,7 +95,7 @@ class KernelUtils(tableRoot: Path) {
   }
 
   private def convertRowToJsonObject(
-    row: Row, pathColumns: Seq[String]): util.HashMap[String, Object] = {
+    row: Row, columnPath: Seq[String]): util.HashMap[String, Object] = {
     val rowType = row.getSchema
     val rowObject = new util.HashMap[String, Object]()
 
@@ -105,6 +104,8 @@ class KernelUtils(tableRoot: Path) {
         val field = rowType.at(fieldId)
         val fieldType = field.getDataType
         val name = field.getName
+        val currentColumnPath = columnPath :+ name
+
         if (row.isNullAt(fieldId)) {
           rowObject.put(name, null)
         } else {
@@ -124,32 +125,34 @@ class KernelUtils(tableRoot: Path) {
           else if (fieldType.isInstanceOf[DoubleType]) value =
             row.getDouble(fieldId).doubleValue().asInstanceOf[Object]
           else if (fieldType.isInstanceOf[StringType]) value = {
-            val baseValue = row.getString(fieldId);
-            if (pathColumns.contains(name)) {
-              var absPath: Path = null
-              if (name.equals("pathOrInlineDv")) {
-                val randomPrefixLength = baseValue.length - Base85Codec.ENCODED_UUID_LENGTH
-                val randomPrefix = baseValue.substring(0, randomPrefixLength)
-                val encodedUuid = baseValue.substring(randomPrefixLength)
-                val uuid = Base85Codec.decodeUUID(encodedUuid)
-                val fileName = String.format("%s_%s.bin", "deletion_vector", uuid.toString)
-                absPath = if (randomPrefix.length > 0) {
-                  new Path(new Path(tableRoot, randomPrefix), fileName)
-                } else {
-                  new Path(tableRoot, fileName)
-                }
+            val baseValue = row.getString(fieldId)
+            if (currentColumnPath.equals(FILE_PATH_COL)) {
+              KernelScan.absolutePath(tableRoot, baseValue)
+            } else if (currentColumnPath.equals(DV_FILE_PATH_COL)) {
+              // TODO: Add support for inline DVs.
+              // TODO (for Kernel): We need to make the paths absolute in LogReplay
+              // Currently we do it we actually reading the DV file on executor side.
+              val randomPrefixLength = baseValue.length - Base85Codec.ENCODED_UUID_LENGTH
+              val randomPrefix = baseValue.substring(0, randomPrefixLength)
+              val encodedUuid = baseValue.substring(randomPrefixLength)
+              val uuid = Base85Codec.decodeUUID(encodedUuid)
+              val fileName = String.format("%s_%s.bin", "deletion_vector", uuid.toString)
+              val absPath = if (randomPrefix.length > 0) {
+                new Path(new Path(tableRoot, randomPrefix), fileName)
               } else {
-                absPath = KernelUtils.absolutePath(tableRoot, baseValue)
+                new Path(tableRoot, fileName)
               }
               val fileStatus = fileSystem.getFileStatus(absPath);
               signedDeltaSharingURL(absPath, fileStatus.getLen, fileSigner)
+            } else if (currentColumnPath.equals(DV_FILE_STORAGE_TYPE_COL)) {
+              "p" // return path as the deletion vector type.
             } else baseValue
           }
           else if (fieldType.isInstanceOf[ArrayType]) value = row.getArray(fieldId)
           else if (fieldType.isInstanceOf[MapType]) value = row.getMap(fieldId)
           else if (fieldType.isInstanceOf[StructType]) {
             val subRow = row.getStruct(fieldId)
-            value = convertRowToJsonObject(subRow, pathColumns)
+            value = convertRowToJsonObject(subRow, currentColumnPath)
           }
           else throw new UnsupportedOperationException("NYI");
           rowObject.put(name, value)
@@ -187,8 +190,11 @@ class KernelUtils(tableRoot: Path) {
   }
 }
 
-object KernelUtils {
+object KernelScan {
   private val OBJECT_MAPPER = new ObjectMapper()
+  private val FILE_PATH_COL = Seq("path")
+  private val DV_FILE_PATH_COL = Seq("deletionVector", "pathOrInlineDv")
+  private val DV_FILE_STORAGE_TYPE_COL = Seq("deletionVector", "storageType")
 
   private def signedDeltaSharingURL(path: Path, size: Long, signer: CloudFileSigner): String = {
     val signedURL = signer.sign(path);
