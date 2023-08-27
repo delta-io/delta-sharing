@@ -68,7 +68,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
   override def getUri(): URI = URI.create(s"$SCHEME:///")
 
   override def open(f: Path, bufferSize: Int): FSDataInputStream = {
-    val (url, size) = DeltaSharingFileSystem.decodeKernel(f)
+    val url = DeltaSharingFileSystem.decodeKernel(f).toUrl()
     new FSDataInputStream(new InMemoryHttpInputStream(new URI(url)))
   }
 
@@ -104,7 +104,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
 
   override def getFileStatus(f: Path): FileStatus = {
     val resolved = makeQualified(f)
-    new FileStatus(decode(resolved).fileSize, false, 0, 1, 0, f)
+    new FileStatus(decodeKernel(resolved).fileSize, false, 0, 1, 0, f)
   }
 
   override def finalize(): Unit = {
@@ -136,18 +136,36 @@ private[sharing] object DeltaSharingFileSystem {
       val encodedFileId = URLEncoder.encode(fileId, "UTF-8")
       new Path(s"$SCHEME:///$encodedTablePath/$encodedFileId/$fileSize")
     }
+
+    def toUrl(): String = {
+      // Ensure there's only one '/' between tablePath and fileId
+      if (tablePath.endsWith("/") && fileId.startsWith("/")) {
+        tablePath + fileId.substring(1)
+      } else if (!tablePath.endsWith("/") && !fileId.startsWith("/")) {
+        tablePath + "/" + fileId
+      } else {
+        tablePath + fileId
+      }
+    }
   }
 
   def encode(tablePath: String, action: FileAction): Path = {
     DeltaSharingPath(tablePath, action.id, action.size).toPath
   }
 
-  def decodeKernel(path: Path): (String, Long) = {
+  def decodeKernel(path: Path): DeltaSharingPath = {
     val encodedPath = path.toString
       .stripPrefix(s"$SCHEME:///")
       .stripPrefix(s"$SCHEME:/")
-    val Array(encodedUrl, sizeString) = encodedPath.split("/")
-    (URLDecoder.decode(encodedUrl, "UTF-8"), sizeString.toLong)
+    val parts = encodedPath.split("/")
+    val sizeString = if (parts.last.matches("\\d+")) parts.last else "0"
+    val encodedFileId = if (sizeString == "0") parts.last else parts(parts.length - 2)
+    val encodedTablePath = parts.dropRight(if (sizeString == "0") 1 else 2).mkString("/")
+    DeltaSharingPath(
+      URLDecoder.decode(encodedTablePath, "UTF-8"),
+      URLDecoder.decode(encodedFileId, "UTF-8"),
+      sizeString.toLong
+    )
   }
 
   def decode(path: Path): DeltaSharingPath = {
