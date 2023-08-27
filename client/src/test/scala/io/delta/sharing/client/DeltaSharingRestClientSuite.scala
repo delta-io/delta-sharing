@@ -1047,7 +1047,13 @@ integrationTest("kernel:getFiles") {
       val scanStateJson = tableFiles.kernelStateAndScanFiles.head
       val scanFilesJson = tableFiles.kernelStateAndScanFiles.drop(1)
 
-      val tableClient = DefaultTableClient.create(new Configuration())
+      val hadoopConf = new Configuration() {
+        {
+          set("spark.hadoop.fs.s3a.aws.credentials.provider",
+            "com.amazonaws.auth.EnvironmentVariableCredentialsProvider")
+        }
+      }
+      val tableClient = DefaultTableClient.create(hadoopConf)
 
       val scanState = KernelUtils.deserializeRowFromJson(tableClient, scanStateJson)
       val scanFiles = scanFilesJson.map { scanFileJson =>
