@@ -1047,7 +1047,14 @@ integrationTest("kernel:getFiles") {
       val scanStateJson = tableFiles.kernelStateAndScanFiles.head
       val scanFilesJson = tableFiles.kernelStateAndScanFiles.drop(1)
 
-      val tableClient = DefaultTableClient.create(new Configuration())
+      val hadoopConf = new Configuration() {
+        {
+          set("spark.hadoop.fs.s3a.aws.credentials.provider",
+            "com.amazonaws.auth.EnvironmentVariableCredentialsProvider")
+          set("fs.s3a.endpoint", "s3.us-west-2.amazonaws.com")
+        }
+      }
+      val tableClient = DefaultTableClient.create(hadoopConf)
 
       val scanState = KernelUtils.deserializeRowFromJson(tableClient, scanStateJson)
       val scanFiles = scanFilesJson.map { scanFileJson =>
@@ -1057,7 +1064,11 @@ integrationTest("kernel:getFiles") {
 
       var readRecordCount = 0
       val maxRowCount = 100
-      val data = Scan.readData(tableClient, scanState, KernelUtils.convertToCloseableIterator(scanFiles), Optional.empty())
+      val data = Scan.readData(
+        tableClient,
+        scanState,
+        KernelUtils.convertToCloseableIterator(scanFiles),
+        Optional.empty())
       breakable {
         try {
           while (data.hasNext) {

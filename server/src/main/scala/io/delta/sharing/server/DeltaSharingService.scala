@@ -47,7 +47,7 @@ import scalapb.json4s.Printer
 import io.delta.sharing.server.config.ServerConfig
 import io.delta.sharing.server.model.SingleAction
 import io.delta.sharing.server.protocol._
-import io.delta.sharing.server.util.{JsonUtils, KernelUtils}
+import io.delta.sharing.server.util.{JsonUtils, KernelScan}
 
 object ErrorCode {
   val UNSUPPORTED_OPERATION = "UNSUPPORTED_OPERATION"
@@ -380,17 +380,13 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     val responseFormat = getResponseFormat(capabilitiesMap)
     val (version, actions) = if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_KERNEL) {
-      val kernelUtils = new KernelUtils(new Path(tableConfig.location));
+      val kernelUtils = new KernelScan(new Path(tableConfig.location));
       val (versionFromKernel: Long, scanState: Row, scanFiles: Seq[Row]) = kernelUtils
         .getScanStateAndFiles()
 
-      val pathColumns = Seq(
-        "path",
-        "pathOrInlineDv"
-      )
-      val serializedScanState = kernelUtils.serializeRowToJson(scanState, pathColumns)
+      val serializedScanState = kernelUtils.serializeRowToJson(scanState)
       val serializedScanFiles =
-        scanFiles.map(fileRow => kernelUtils.serializeRowToJson(fileRow, pathColumns)).toSeq
+        scanFiles.map(fileRow => kernelUtils.serializeRowToJson(fileRow)).toSeq
       (versionFromKernel, Seq(serializedScanState) ++ serializedScanFiles)
     } else {
       deltaSharedTableLoader.loadTable(tableConfig).query(
