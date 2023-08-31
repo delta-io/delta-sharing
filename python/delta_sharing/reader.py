@@ -106,12 +106,18 @@ class DeltaSharingReader:
                 if left == 0:
                     break
 
-        return pd.concat(
+        merged = pd.concat(
             pdfs,
             axis=0,
             ignore_index=True,
             copy=False,
-        )[[field["name"] for field in schema_json["fields"]]]
+        )
+        
+        col_map = {}
+        for col in merged.columns:
+            col_map[col.lower()] = col
+
+        return merged[[col_map[field["name"].lower()] for field in schema_json["fields"]]]
 
     def table_changes_to_pandas(self, cdfOptions: CdfOptions) -> pd.DataFrame:
         response = self._rest_client.list_table_changes(self._table, cdfOptions)
@@ -171,8 +177,13 @@ class DeltaSharingReader:
             date_as_object=True, use_threads=False, split_blocks=True, self_destruct=True
         )
 
+        lowered_cols = set()
+        for col in pdf.columns:
+            lowered_cols.add(col.lower())
+
         for col, converter in converters.items():
-            if col not in pdf.columns:
+            lowered = col.lower()
+            if lowered not in lowered_cols:
                 if col in action.partition_values:
                     if converter is not None:
                         pdf[col] = converter(action.partition_values[col])
