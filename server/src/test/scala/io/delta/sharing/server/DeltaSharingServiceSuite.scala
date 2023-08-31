@@ -739,6 +739,119 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  integrationTest("refresh query returns the same set of files as initial query") {
+    val initialResponse = readNDJson(
+      requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      Some("POST"),
+      Some("""{"includeRefreshToken": true}"""),
+      Some(2)
+    ).split("\n")
+    assert(initialResponse.length == 5)
+    val endAction = JsonUtils.fromJson[SingleAction](initialResponse.last).endStreamAction
+    assert(endAction.refreshToken != null)
+
+    val refreshResponse = readNDJson(
+      requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      Some("POST"),
+      Some(s"""{"includeRefreshToken": true, "refreshToken": "${endAction.refreshToken}"}"""),
+      Some(2)
+    ).split("\n")
+    assert(refreshResponse.length == 5)
+    // protocol
+    assert(initialResponse(0) == refreshResponse(0))
+    // metadata
+    assert(initialResponse(1) == refreshResponse(1))
+    // files
+    val initialFiles = initialResponse.slice(2, 4).map(f => JsonUtils.fromJson[SingleAction](f).file)
+    val refreshedFiles = refreshResponse.slice(2, 4).map(f => JsonUtils.fromJson[SingleAction](f).file)
+    assert(initialFiles.map(_.id) sameElements refreshedFiles.map(_.id))
+  }
+
+  integrationTest("refresh query - exception") {
+    // invalid refresh token
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some("""{"includeRefreshToken": true, "refreshToken": "foo"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Error decoding refresh token"
+    )
+
+    // invalid query parameters
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/query"),
+      method = "POST",
+      data = Some("""{"version": 1, "includeRefreshToken": true}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "includeRefreshToken must be used in latest version query"
+    )
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some("""{"pageToken": "foo", "includeRefreshToken": true}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "includeRefreshToken must be used in the first page request"
+    )
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/query"),
+      method = "POST",
+      data = Some("""{"startingVersion": 1, "refreshToken": "foo"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "refreshToken must be used in latest version query"
+    )
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some("""{"pageToken": "foo", "refreshToken": "foo"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "refreshToken must be used in the first page request"
+    )
+
+    var response = readNDJson(
+      requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      Some("POST"),
+      Some("""{"includeRefreshToken": true}"""),
+      Some(2)
+    )
+    var lines = response.split("\n")
+    assert(lines.length == 5)
+    var endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
+    assert(endAction.refreshToken != null)
+    assertHttpError(
+      url = requestPath("/shares/share2/schemas/default/tables/table2/query"),
+      method = "POST",
+      data = Some(s"""{"includeRefreshToken": true, "refreshToken": "${endAction.refreshToken}"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "The table specified in the refresh token does not match the table being queried"
+    )
+
+    // refresh token expired
+    val updatedServerConfig = serverConfig.copy(refreshTokenTtlMs = 0)
+    server.stop().get()
+    server = DeltaSharingService.start(updatedServerConfig)
+    response = readNDJson(
+      requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      Some("POST"),
+      Some("""{"includeRefreshToken": true}"""),
+      Some(2)
+    )
+    lines = response.split("\n")
+    assert(lines.length == 5)
+    endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
+    assert(endAction.refreshToken != null)
+
+    assertHttpError(
+      url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
+      method = "POST",
+      data = Some(s"""{"includeRefreshToken": true, "refreshToken": "${endAction.refreshToken}"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "The refresh token has expired"
+    )
+
+    server.stop().get()
+    server = DeltaSharingService.start(serverConfig)
+  }
+
   integrationTest("table2 - partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val response = readNDJson(requestPath("/shares/share2/schemas/default/tables/table2/metadata"), expectedTableVersion = Some(2))
     val Array(protocol, metadata) = response.split("\n")
