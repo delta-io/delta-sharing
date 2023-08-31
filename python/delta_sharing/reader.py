@@ -112,7 +112,7 @@ class DeltaSharingReader:
             ignore_index=True,
             copy=False,
         )
-        
+
         col_map = {}
         for col in merged.columns:
             col_map[col.lower()] = col
