@@ -28,6 +28,12 @@ import org.apache.spark.util.{RpcUtils, ThreadUtils}
 
 import io.delta.sharing.client.DeltaSharingProfileProvider
 
+case class TableRefreshResult(
+    idToUrl: Map[String, String],
+    expirationTimestamp: Option[Long],
+    refreshToken: Option[String]
+)
+
 /**
  * @param expiration the expiration time of the pre signed urls
  * @param idToUrl the file id to pre sign url map
@@ -45,7 +51,7 @@ class CachedTable(
     val idToUrl: Map[String, String],
     val refs: Seq[WeakReference[AnyRef]],
     @volatile var lastAccess: Long,
-    val refresher: Option[String] => (Map[String, String], Option[Long], Option[String]),
+    val refresher: Option[String] => TableRefreshResult,
     val refreshToken: Option[String])
 
 class CachedTableManager(
@@ -99,18 +105,18 @@ class CachedTableManager(
         logInfo(s"Updating pre signed urls for $tablePath (expiration time: " +
           s"${new java.util.Date(cachedTable.expiration)})")
         try {
-          val (idToUrl, expOpt, refreshToken) = cachedTable.refresher(cachedTable.refreshToken)
+          val refreshRes = cachedTable.refresher(cachedTable.refreshToken)
           val newTable = new CachedTable(
-            if (isValidUrlExpirationTime(expOpt)) {
-              expOpt.get
+            if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
+              refreshRes.expirationTimestamp.get
             } else {
               preSignedUrlExpirationMs + System.currentTimeMillis()
             },
-            idToUrl,
+            refreshRes.idToUrl,
             cachedTable.refs,
             cachedTable.lastAccess,
             cachedTable.refresher,
-            refreshToken
+            refreshRes.refreshToken
           )
           // Failing to replace the table is fine because if it did happen, we would retry after
           // `refreshCheckIntervalMs` milliseconds.
@@ -168,7 +174,7 @@ class CachedTableManager(
       idToUrl: Map[String, String],
       refs: Seq[WeakReference[AnyRef]],
       profileProvider: DeltaSharingProfileProvider,
-      refresher: Option[String] => (Map[String, String], Option[Long], Option[String]),
+      refresher: Option[String] => TableRefreshResult,
       expirationTimestamp: Long = System.currentTimeMillis() + preSignedUrlExpirationMs,
       refreshToken: Option[String]
     ): Unit = {
@@ -177,11 +183,15 @@ class CachedTableManager(
 
     val (resolvedIdToUrl, resolvedExpiration, resolvedRefreshToken) =
       if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
-        val (refreshedIdToUrl, expOpt, newRefreshToken) = customRefresher(refreshToken)
-        if (isValidUrlExpirationTime(expOpt)) {
-          (refreshedIdToUrl, expOpt.get, newRefreshToken)
+        val refreshRes = customRefresher(refreshToken)
+        if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
+          (refreshRes.idToUrl, refreshRes.expirationTimestamp.get, refreshRes.refreshToken)
         } else {
-          (refreshedIdToUrl, System.currentTimeMillis() + preSignedUrlExpirationMs, newRefreshToken)
+          (
+            refreshRes.idToUrl,
+            System.currentTimeMillis() + preSignedUrlExpirationMs,
+            refreshRes.refreshToken
+          )
         }
       } else {
         (idToUrl, expirationTimestamp, refreshToken)

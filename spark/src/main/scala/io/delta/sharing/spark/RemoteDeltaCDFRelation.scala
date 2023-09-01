@@ -20,7 +20,7 @@ import java.lang.ref.WeakReference
 
 import scala.collection.mutable.ListBuffer
 
-import org.apache.spark.delta.sharing.CachedTableManager
+import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, Row, SparkSession, SQLContext}
 import org.apache.spark.sql.execution.LogicalRDD
@@ -58,7 +58,7 @@ case class RemoteDeltaCDFRelation(
       false,
       _ => {
         val d = client.getCDFFiles(table, cdfOptions, false)
-        (
+        TableRefreshResult(
           DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
           DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles),
           None
@@ -83,7 +83,7 @@ object DeltaSharingCDFReader {
       removeFiles: Seq[RemoveFile],
       schema: StructType,
       isStreaming: Boolean,
-      refresher: Option[String] => (Map[String, String], Option[Long], Option[String]),
+      refresher: Option[String] => TableRefreshResult,
       lastQueryTableTimestamp: Long,
       expirationTimestamp: Option[Long]
   ): DataFrame = {

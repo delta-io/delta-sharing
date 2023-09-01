@@ -20,7 +20,7 @@ import java.lang.ref.WeakReference
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkException
-import org.apache.spark.delta.sharing.CachedTableManager
+import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{Column, Encoder, SparkSession}
 import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
@@ -32,15 +32,7 @@ import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingProfileProvider, DeltaSharingRestClient}
-import io.delta.sharing.client.model.{
-  AddFile,
-  CDFColumnInfo,
-  DeltaTableFiles,
-  FileAction,
-  Metadata,
-  Protocol,
-  Table => DeltaSharingTable
-}
+import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, DeltaTableFiles, FileAction, Metadata, Protocol, Table => DeltaSharingTable}
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 
@@ -252,7 +244,7 @@ class RemoteSnapshot(
               }
               add.id -> add.url
             }.toMap
-            (idToUrl, minUrlExpiration, tableFiles.refreshToken)
+            TableRefreshResult(idToUrl, minUrlExpiration, tableFiles.refreshToken)
           },
           if (CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
             minUrlExpirationTimestamp.get

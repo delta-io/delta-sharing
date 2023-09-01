@@ -48,7 +48,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Seq(new WeakReference(ref)),
         provider,
         _ => {
-          (Map("id1" -> "url1", "id2" -> "url2"), None, None)
+          TableRefreshResult(Map("id1" -> "url1", "id2" -> "url2"), None, None)
         },
         refreshToken = None)
       assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path"),
@@ -62,7 +62,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Seq(new WeakReference(ref)),
         provider,
         _ => {
-          (Map("id1" -> "url3", "id2" -> "url4"), None, None)
+          TableRefreshResult(Map("id1" -> "url3", "id2" -> "url4"), None, None)
         },
         refreshToken = None)
       // We should get the new urls eventually
@@ -79,7 +79,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Seq(new WeakReference(new AnyRef)),
         provider,
         _ => {
-          (Map("id1" -> "url3", "id2" -> "url4"), None, None)
+          TableRefreshResult(Map("id1" -> "url3", "id2" -> "url4"), None, None)
         },
         refreshToken = None)
       // We should remove the cached table eventually
@@ -97,7 +97,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Seq(new WeakReference(ref)),
         provider,
         _ => {
-          (Map("id1" -> "url3", "id2" -> "url4"), None, None)
+          TableRefreshResult(Map("id1" -> "url3", "id2" -> "url4"), None, None)
         },
         -1,
         refreshToken = None
@@ -130,7 +130,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         provider,
         _ => {
           refreshTime += 1
-          (
+          TableRefreshResult(
             Map("id1" -> ("url" + refreshTime.toString), "id2" -> "url4"),
             Some(System.currentTimeMillis() + 1900),
             None
@@ -156,7 +156,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         provider,
         _ => {
           refreshTime2 += 1
-          (
+          TableRefreshResult(
             Map("id1" -> ("url" + refreshTime2.toString), "id2" -> "url4"),
             Some(System.currentTimeMillis() + 4900),
             None
@@ -181,7 +181,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         provider,
         _ => {
           refreshTime3 += 1
-          (
+          TableRefreshResult(
             Map("id1" -> ("url" + refreshTime3.toString), "id2" -> "url4"),
             Some(System.currentTimeMillis() - 4900),
             None
@@ -224,9 +224,17 @@ class CachedTableManagerSuite extends SparkFunSuite {
         provider,
         refreshToken => {
           if (refreshToken.contains("refresh-token-1")) {
-            (Map("id1" -> "url3", "id2" -> "url4"), None, Some("refresh-token-2"))
+            TableRefreshResult(
+              Map("id1" -> "url3", "id2" -> "url4"),
+              None,
+              Some("refresh-token-2")
+            )
           } else if (refreshToken.contains("refresh-token-2")) {
-            (Map("id1" -> "url5", "id2" -> "url6"), None, Some("refresh-token-2"))
+            TableRefreshResult(
+              Map("id1" -> "url5", "id2" -> "url6"),
+              None,
+              Some("refresh-token-2")
+            )
           } else {
             fail("Expecting to refresh with a refresh token")
           }
@@ -262,7 +270,7 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Seq(new WeakReference(ref)),
         provider,
         _ => {
-          (Map("id1" -> "url1", "id2" -> "url2"), None, None)
+          TableRefreshResult(Map("id1" -> "url1", "id2" -> "url2"), None, None)
         },
         refreshToken = None)
       Thread.sleep(1000)

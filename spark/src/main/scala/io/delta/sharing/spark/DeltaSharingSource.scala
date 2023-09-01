@@ -21,28 +21,16 @@ import java.lang.ref.WeakReference
 
 import scala.collection.mutable.ArrayBuffer
 
-import org.apache.spark.delta.sharing.CachedTableManager
+import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, SparkSession}
 import org.apache.spark.sql.connector.read.streaming
-import org.apache.spark.sql.connector.read.streaming.{
-  ReadAllAvailable,
-  ReadLimit,
-  ReadMaxFiles,
-  SupportsAdmissionControl
-}
+import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl}
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.types.StructType
 
-import io.delta.sharing.client.model.{
-  AddCDCFile,
-  AddFile,
-  AddFileForCDF,
-  DeltaTableFiles,
-  FileAction,
-  RemoveFile
-}
+import io.delta.sharing.client.model.{AddCDCFile, AddFile, AddFileForCDF, DeltaTableFiles, FileAction, RemoveFile}
 import io.delta.sharing.spark.util.SchemaUtils
 
 /**
@@ -163,7 +151,7 @@ case class DeltaSharingSource(
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
   // runs for a long time.
   private var latestRefreshFunc = (_: Option[String]) => {
-    (Map.empty[String, String], Option.empty[Long], Option.empty[String])
+    TableRefreshResult(Map.empty[String, String], None, None)
   }
 
   // Check the latest table version from the delta sharing server through the client.getTableVersion
@@ -441,7 +429,7 @@ case class DeltaSharingSource(
 
         refreshSortedFetchedFiles(idToUrl, queryTimestamp, minUrlExpiration)
 
-        (idToUrl, minUrlExpiration, None)
+        TableRefreshResult(idToUrl, minUrlExpiration, None)
       }
 
       val numFiles = tableFiles.files.size
@@ -495,7 +483,7 @@ case class DeltaSharingSource(
 
         refreshSortedFetchedFiles(idToUrl, queryTimestamp, minUrlExpiration)
 
-        (idToUrl, minUrlExpiration, None)
+        TableRefreshResult(idToUrl, minUrlExpiration, None)
       }
       val allAddFiles = validateCommitAndFilterAddFiles(tableFiles).groupBy(a => a.version)
       for (v <- fromVersion to endingVersionForQuery) {
@@ -564,7 +552,7 @@ case class DeltaSharingSource(
         d.addFiles, d.cdfFiles, d.removeFiles)
       refreshSortedFetchedFiles(idToUrl, queryTimestamp, minUrlExpiration)
 
-      (idToUrl, minUrlExpiration, None)
+      TableRefreshResult(idToUrl, minUrlExpiration, None)
     }
 
     (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
