@@ -100,14 +100,16 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       assert(tableFiles.lines(2).contains("""","id":"9f1a49539c5cffe1ea7f9e055d5c003c","partitionValues":{"date":"2021-04-28"},"size":573,"modificationTime":1619652839000,"dataChange":false,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}","expirationTimestamp":"""))
       assert(tableFiles.lines(3).startsWith("""{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm="""))
       assert(tableFiles.lines(3).contains("""","id":"cd2209b32f5ed5305922dd50f5908a75","partitionValues":{"date":"2021-04-28"},"size":573,"modificationTime":1619652832000,"dataChange":false,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}","expirationTimestamp":"""))
+      // Refresh token should be returned in latest snapshot query
       assert(tableFiles.refreshToken.nonEmpty)
     }
 
     val client = getDeltaSharingClientWithDeltaResponse
+    val table = Table(name = "table2", schema = "default", share = "share2")
     try {
       val tableFiles =
         client.getFiles(
-          table = Table(name = "table2", schema = "default", share = "share2"),
+          table,
           predicates = Nil,
           limit = None,
           versionAsOf = None,
@@ -116,7 +118,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
           refreshToken = None)
       verifyTableFiles(tableFiles)
       val refreshedTableFiles = client.getFiles(
-        table = Table(name = "table2", schema = "default", share = "share2"),
+        table,
         predicates = Nil,
         limit = None,
         versionAsOf = None,
@@ -147,6 +149,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       assert(tableFiles.lines(2).startsWith(commonPrefix))
       assert(tableFiles.lines(3).startsWith(commonPrefix))
       assert(tableFiles.lines(4).startsWith(commonPrefix))
+      // Refresh token shouldn't be returned in version query
       assert(tableFiles.refreshToken.isEmpty)
     } finally {
       client.close()

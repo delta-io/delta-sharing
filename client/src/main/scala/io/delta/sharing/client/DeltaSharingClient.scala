@@ -412,11 +412,12 @@ class DeltaSharingRestClient(
       logWarning("EndStreamAction is not returned in the response for paginated query.")
     }
     // Extract refresh token if available
-    val refreshToken = if (endAction != null) {
-      Option(endAction.refreshToken)
-    } else {
-      None
-    }
+    val refreshToken =
+      if (endAction != null && endAction.refreshToken != null && endAction.refreshToken.nonEmpty) {
+        Some(endAction.refreshToken)
+      } else {
+        None
+      }
     val minUrlExpirationTimestamp = if (endAction != null) {
       Option(endAction.minUrlExpirationTimestamp)
     } else {

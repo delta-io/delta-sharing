@@ -295,6 +295,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       )
       assert(expectedFiles == tableFiles.files.toList)
       assert(tableFiles.files(0).expirationTimestamp > System.currentTimeMillis())
+      // Refresh token should be returned in latest snapshot query
       assert(tableFiles.refreshToken.nonEmpty)
     }
 
@@ -305,10 +306,11 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         queryTablePaginationEnabled = paginationEnabled,
         maxFilesPerReq = 1
       )
+      val table = Table(name = "table2", schema = "default", share = "share2")
       try {
         val tableFiles =
           client.getFiles(
-            table = Table(name = "table2", schema = "default", share = "share2"),
+            table,
             predicates = Nil,
             limit = None,
             versionAsOf = None,
@@ -319,7 +321,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         verifyTableFiles(tableFiles)
         val refreshedTableFiles =
           client.getFiles(
-            table = Table(name = "table2", schema = "default", share = "share2"),
+            table,
             predicates = Nil,
             limit = None,
             versionAsOf = None,
@@ -382,6 +384,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       )
       assert(expectedFiles == tableFiles.files.toList)
       assert(tableFiles.files(0).expirationTimestamp > System.currentTimeMillis())
+      // Refresh token shouldn't be returned in version query
+      assert(tableFiles.refreshToken.isEmpty)
     } finally {
       client.close()
     }
