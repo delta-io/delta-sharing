@@ -56,11 +56,12 @@ case class RemoteDeltaCDFRelation(
       deltaTabelFiles.removeFiles,
       DeltaTableUtils.addCdcSchema(deltaTabelFiles.metadata.schemaString),
       false,
-      () => {
+      _ => {
         val d = client.getCDFFiles(table, cdfOptions, false)
         (
           DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
-          DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles)
+          DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles),
+          None
         )
       },
       System.currentTimeMillis(),
@@ -82,7 +83,7 @@ object DeltaSharingCDFReader {
       removeFiles: Seq[RemoveFile],
       schema: StructType,
       isStreaming: Boolean,
-      refresher: () => (Map[String, String], Option[Long]),
+      refresher: Option[String] => (Map[String, String], Option[Long], Option[String]),
       lastQueryTableTimestamp: Long,
       expirationTimestamp: Option[Long]
   ): DataFrame = {
@@ -111,7 +112,8 @@ object DeltaSharingCDFReader {
         expirationTimestamp.get
       } else {
         lastQueryTableTimestamp + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
-      }
+      },
+      None
     )
 
     dfs.reduce((df1, df2) => df1.unionAll(df2))

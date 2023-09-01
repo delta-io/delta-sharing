@@ -236,12 +236,12 @@ class RemoteSnapshot(
           idToUrl,
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
-          () => {
-            // TODO: use tableFiles.refreshToken
-            val files = client.getFiles(
-              table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints, None).files
+          refreshToken => {
+            val tableFiles = client.getFiles(
+              table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints, refreshToken
+            )
             var minUrlExpiration: Option[Long] = None
-            val idToUrl = files.map { add =>
+            val idToUrl = tableFiles.files.map { add =>
               if (add.expirationTimestamp != null) {
                 minUrlExpiration = if (minUrlExpiration.isDefined
                   && minUrlExpiration.get < add.expirationTimestamp) {
@@ -252,13 +252,14 @@ class RemoteSnapshot(
               }
               add.id -> add.url
             }.toMap
-            (idToUrl, minUrlExpiration)
+            (idToUrl, minUrlExpiration, tableFiles.refreshToken)
           },
           if (CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
             minUrlExpirationTimestamp.get
           } else {
             System.currentTimeMillis() + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
-          }
+          },
+          tableFiles.refreshToken
         )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
