@@ -292,24 +292,14 @@ class DeltaSharingRestClient(
       getFilesByPage(target, request)
     } else {
       val (version, respondedFormat, lines) = getNDJson(target, request)
-      val endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
-      if (endAction == null) {
-        if (includeRefreshToken) {
-          logWarning("includeRefreshToken=true but refresh token is not returned.")
-        }
-        (version, respondedFormat, lines, None)
-      } else {
-        val refreshTokenOpt =
-          if (endAction.refreshToken != null && endAction.refreshToken.nonEmpty) {
-            Some(endAction.refreshToken)
-          } else {
-            None
-          }
-        if (includeRefreshToken && refreshTokenOpt.isEmpty) {
-          logWarning("includeRefreshToken=true but refresh token is not returned.")
-        }
-        (version, respondedFormat, lines.init, refreshTokenOpt)
+      val (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
+      val refreshTokenOpt = endStreamAction.flatMap { e =>
+        Option(e.refreshToken)
       }
+      if (includeRefreshToken && refreshTokenOpt.isEmpty) {
+        logWarning("includeRefreshToken=true but refresh token is not returned.")
+      }
+      (version, respondedFormat, filteredLines, refreshTokenOpt)
     }
 
     if (responseFormat != respondedFormat) {
@@ -405,33 +395,28 @@ class DeltaSharingRestClient(
     // Fetch first page
     var updatedRequest = request.copy(maxFiles = Some(maxFilesPerReq))
     val (version, respondedFormat, lines) = getNDJson(targetUrl, updatedRequest)
-    val protocol = lines(0)
-    val metadata = lines(1)
-    var endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
-    if (endAction == null) {
+    var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
+    if (endStreamAction.isEmpty) {
       logWarning("EndStreamAction is not returned in the response for paginated query.")
     }
+    val protocol = filteredLines(0)
+    val metadata = filteredLines(1)
     // Extract refresh token if available
-    val refreshToken =
-      if (endAction != null && endAction.refreshToken != null && endAction.refreshToken.nonEmpty) {
-        Some(endAction.refreshToken)
-      } else {
-        None
-      }
-    val minUrlExpirationTimestamp = if (endAction != null) {
-      Option(endAction.minUrlExpirationTimestamp)
-    } else {
-      None
+    val refreshToken = endStreamAction.flatMap { e =>
+      Option(e.refreshToken)
     }
-    allLines.appendAll(if (endAction != null) lines.init else lines)
+    val minUrlExpirationTimestamp = endStreamAction.flatMap { e =>
+      Option(e.minUrlExpirationTimestamp)
+    }
+    allLines.appendAll(filteredLines)
 
     // Fetch subsequent pages and concatenate all pages
-    while (endAction != null &&
-      endAction.nextPageToken != null &&
-      endAction.nextPageToken.nonEmpty) {
+    while (endStreamAction.isDefined &&
+      endStreamAction.get.nextPageToken != null &&
+      endStreamAction.get.nextPageToken.nonEmpty) {
       numPages += 1
       updatedRequest = updatedRequest.copy(
-        pageToken = Some(endAction.nextPageToken),
+        pageToken = Some(endStreamAction.get.nextPageToken),
         // Unset includeRefreshToken and refreshToken because they can only be used in
         // the first page request.
         includeRefreshToken = None,
@@ -446,7 +431,10 @@ class DeltaSharingRestClient(
         expectedMetadata = metadata
       )
       allLines.appendAll(res._1)
-      endAction = res._2
+      endStreamAction = res._2
+      if (endStreamAction.isEmpty) {
+        logWarning("EndStreamAction is not returned in the response for paginated query.")
+      }
       // Throw an error if the first page is expiring before we get all pages
       if (minUrlExpirationTimestamp.exists(_ <= System.currentTimeMillis())) {
         throw new IllegalStateException("Unable to fetch all pages before minimum url expiration.")
@@ -525,34 +513,37 @@ class DeltaSharingRestClient(
     // Fetch first page
     var updatedUrl = s"$targetUrl&maxFiles=$maxFilesPerReq"
     val (version, respondedFormat, lines) = getNDJson(updatedUrl, requireVersion = false)
-    val protocol = lines(0)
-    val metadata = lines(1)
-    var endAction: EndStreamAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
-    if (endAction == null) {
+    var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
+    if (endStreamAction.isEmpty) {
       logWarning("EndStreamAction is not returned in the response for paginated query.")
     }
-    val minUrlExpirationTimestamp = if (endAction != null) {
-      Option(endAction.minUrlExpirationTimestamp)
-    } else {
-      None
+    val protocol = filteredLines(0)
+    val metadata = filteredLines(1)
+    val minUrlExpirationTimestamp = endStreamAction.flatMap { e =>
+      Option(e.minUrlExpirationTimestamp)
     }
-    allLines.appendAll(if (endAction != null) lines.init else lines)
+    allLines.appendAll(filteredLines)
 
     // Fetch subsequent pages and concatenate all pages
-    while (endAction != null &&
-      endAction.nextPageToken != null &&
-      endAction.nextPageToken.nonEmpty) {
+    while (endStreamAction.isDefined &&
+      endStreamAction.get.nextPageToken != null &&
+      endStreamAction.get.nextPageToken.nonEmpty) {
       numPages += 1
-      updatedUrl = s"$targetUrl&maxFiles=$maxFilesPerReq&pageToken=${endAction.nextPageToken}"
+      updatedUrl =
+        s"$targetUrl&maxFiles=$maxFilesPerReq&pageToken=${endStreamAction.get.nextPageToken}"
       val res = fetchNextPageFiles(
         targetUrl = updatedUrl,
         requestBody = None,
         expectedVersion = version,
         expectedRespondedFormat = respondedFormat,
         expectedProtocol = protocol,
-        expectedMetadata = metadata)
+        expectedMetadata = metadata
+      )
       allLines.appendAll(res._1)
-      endAction = res._2
+      endStreamAction = res._2
+      if (endStreamAction.isEmpty) {
+        logWarning("EndStreamAction is not returned in the response for paginated query.")
+      }
       // Throw an error if the first page is expiring before we get all pages
       if (minUrlExpirationTimestamp.exists(_ <= System.currentTimeMillis())) {
         throw new IllegalStateException("Unable to fetch all pages before minimum url expiration.")
@@ -576,7 +567,7 @@ class DeltaSharingRestClient(
       expectedVersion: Long,
       expectedRespondedFormat: String,
       expectedProtocol: String,
-      expectedMetadata: String): (Seq[String], EndStreamAction) = {
+      expectedMetadata: String): (Seq[String], Option[EndStreamAction]) = {
     val (version, respondedFormat, lines) = if (requestBody.isDefined) {
       getNDJson(targetUrl, requestBody.get)
     } else {
@@ -598,12 +589,18 @@ class DeltaSharingRestClient(
       throw new IllegalStateException(errorMsg)
     }
 
-    val endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
-    if (endAction == null) {
-      logWarning("EndStreamAction is not returned in the response for paginated query.")
-      (lines.drop(2), null)
+    // Drop protocol + metadata, then extract endStreamAction if there's any
+    maybeExtractEndStreamAction(lines.drop(2))
+  }
+
+  // Check the last line and extract EndStreamAction if there is one.
+  private def maybeExtractEndStreamAction(
+      lines: Seq[String]): (Seq[String], Option[EndStreamAction]) = {
+    val endStreamAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
+    if (endStreamAction == null) {
+      (lines, None)
     } else {
-      (lines.drop(2).init, endAction)
+      (lines.init, Some(endStreamAction))
     }
   }
 
