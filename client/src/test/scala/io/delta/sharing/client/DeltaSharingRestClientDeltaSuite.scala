@@ -93,16 +93,38 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getFiles") {
-    val client = getDeltaSharingClientWithDeltaResponse
-    try {
-      val tableFiles =
-        client.getFiles(Table(name = "table2", schema = "default", share = "share2"), Nil, None, None, None, None)
+    def verifyTableFiles(tableFiles: DeltaTableFiles): Unit = {
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 2, expectedNumLines = 4)
       assert(tableFiles.lines(1) == """{"metaData":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"],"configuration":{},"createdTime":1619652806049}}""")
       assert(tableFiles.lines(2).startsWith("""{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm="""))
       assert(tableFiles.lines(2).contains("""","id":"9f1a49539c5cffe1ea7f9e055d5c003c","partitionValues":{"date":"2021-04-28"},"size":573,"modificationTime":1619652839000,"dataChange":false,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}","expirationTimestamp":"""))
       assert(tableFiles.lines(3).startsWith("""{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm="""))
       assert(tableFiles.lines(3).contains("""","id":"cd2209b32f5ed5305922dd50f5908a75","partitionValues":{"date":"2021-04-28"},"size":573,"modificationTime":1619652832000,"dataChange":false,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}","expirationTimestamp":"""))
+      assert(tableFiles.refreshToken.nonEmpty)
+    }
+
+    val client = getDeltaSharingClientWithDeltaResponse
+    try {
+      val tableFiles =
+        client.getFiles(
+          table = Table(name = "table2", schema = "default", share = "share2"),
+          predicates = Nil,
+          limit = None,
+          versionAsOf = None,
+          timestampAsOf = None,
+          jsonPredicateHints = None,
+          refreshToken = None)
+      verifyTableFiles(tableFiles)
+      val refreshedTableFiles = client.getFiles(
+        table = Table(name = "table2", schema = "default", share = "share2"),
+        predicates = Nil,
+        limit = None,
+        versionAsOf = None,
+        timestampAsOf = None,
+        jsonPredicateHints = None,
+        refreshToken = tableFiles.refreshToken
+      )
+      verifyTableFiles(refreshedTableFiles)
     } finally {
       client.close()
     }
@@ -112,18 +134,20 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
     val client = getDeltaSharingClientWithDeltaResponse
     try {
       val tableFiles = client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-        Nil,
-        None,
-        Some(1L),
-        None,
-        None)
+        table = Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
+        predicates = Nil,
+        limit = None,
+        versionAsOf = Some(1L),
+        timestampAsOf = None,
+        jsonPredicateHints = None,
+        refreshToken = None)
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 1, expectedNumLines = 5)
       assert(tableFiles.lines(1) == """{"metaData":{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1651272615011}}""")
       val commonPrefix = """{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/cdf_table_cdf_enabled/part-"""
       assert(tableFiles.lines(2).startsWith(commonPrefix))
       assert(tableFiles.lines(3).startsWith(commonPrefix))
       assert(tableFiles.lines(4).startsWith(commonPrefix))
+      assert(tableFiles.refreshToken.isEmpty)
     } finally {
       client.close()
     }

@@ -154,7 +154,15 @@ class RemoteSnapshot(
       metadata.size
     } else {
       log.warn("Getting table size from a full file scan for table: " + table)
-      val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, None, None)
+      val tableFiles = client.getFiles(
+        table = table,
+        predicates = Nil,
+        limit = None,
+        versionAsOf,
+        timestampAsOf,
+        jsonPredicateHints = None,
+        refreshToken = None
+      )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.map(_.size).sum

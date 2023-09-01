@@ -271,7 +271,7 @@ class DeltaSharingRestClient(
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
-    val request = QueryTableRequest(
+    val request: QueryTableRequest = QueryTableRequest(
       predicateHints = predicates,
       limitHint = limit,
       version = versionAsOf,
@@ -339,7 +339,7 @@ class DeltaSharingRestClient(
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
-    val request = QueryTableRequest(
+    val request: QueryTableRequest = QueryTableRequest(
       predicateHints = Nil,
       limitHint = None,
       version = None,
