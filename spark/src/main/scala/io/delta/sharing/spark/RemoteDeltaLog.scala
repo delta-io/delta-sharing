@@ -154,7 +154,7 @@ class RemoteSnapshot(
       metadata.size
     } else {
       log.warn("Getting table size from a full file scan for table: " + table)
-      val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, None)
+      val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, None, None)
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.map(_.size).sum
@@ -208,7 +208,7 @@ class RemoteSnapshot(
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(
-        table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints
+        table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints, None
       )
       var minUrlExpirationTimestamp: Option[Long] = None
       val idToUrl = tableFiles.files.map { file =>
@@ -229,8 +229,9 @@ class RemoteSnapshot(
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
           () => {
+            // TODO: use tableFiles.refreshToken
             val files = client.getFiles(
-              table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints).files
+              table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints, None).files
             var minUrlExpiration: Option[Long] = None
             val idToUrl = files.map { add =>
               if (add.expirationTimestamp != null) {

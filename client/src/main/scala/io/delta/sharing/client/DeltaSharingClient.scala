@@ -60,7 +60,8 @@ trait DeltaSharingClient {
     limit: Option[Long],
     versionAsOf: Option[Long],
     timestampAsOf: Option[String],
-    jsonPredicateHints: Option[String]): DeltaTableFiles
+    jsonPredicateHints: Option[String],
+    refreshToken: Option[String]): DeltaTableFiles
 
   def getFiles(table: Table, startingVersion: Long, endingVersion: Option[Long]): DeltaTableFiles
 
@@ -86,8 +87,10 @@ private[sharing] case class QueryTableRequest(
   startingVersion: Option[Long],
   endingVersion: Option[Long],
   jsonPredicateHints: Option[String],
-  maxFiles: Option[Int] = None,
-  pageToken: Option[String] = None
+  maxFiles: Option[Int],
+  pageToken: Option[String],
+  includeRefreshToken: Option[Boolean],
+  refreshToken: Option[String]
 )
 
 private[sharing] case class ListSharesResponse(
@@ -259,29 +262,54 @@ class DeltaSharingRestClient(
       limit: Option[Long],
       versionAsOf: Option[Long],
       timestampAsOf: Option[String],
-      jsonPredicateHints: Option[String]): DeltaTableFiles = {
+      jsonPredicateHints: Option[String],
+      refreshToken: Option[String]): DeltaTableFiles = {
+    // Retrieve refresh token when querying the latest snapshot.
+    val includeRefreshToken = versionAsOf.isEmpty && timestampAsOf.isEmpty
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val request = QueryTableRequest(
-      predicates,
-      limit,
-      versionAsOf,
-      timestampAsOf,
-      None,
-      None,
-      jsonPredicateHints
+      predicateHints = predicates,
+      limitHint = limit,
+      version = versionAsOf,
+      timestamp = timestampAsOf,
+      startingVersion = None,
+      endingVersion = None,
+      jsonPredicateHints = jsonPredicateHints,
+      maxFiles = None,
+      pageToken = None,
+      includeRefreshToken = Some(includeRefreshToken),
+      refreshToken = refreshToken
     )
-    val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
+    val (version, respondedFormat, lines, refreshTokenOpt) = if (queryTablePaginationEnabled) {
       logInfo(
         s"Making paginated queryTable requests for table " +
         s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
       )
       getFilesByPage(target, request)
     } else {
-      getNDJson(target, request)
+      val (version, respondedFormat, lines) = getNDJson(target, request)
+      val endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
+      if (endAction == null) {
+        if (includeRefreshToken) {
+          logWarning("includeRefreshToken=true but refresh token is not returned.")
+        }
+        (version, respondedFormat, lines, None)
+      } else {
+        val refreshTokenOpt =
+          if (endAction.refreshToken != null && endAction.refreshToken.nonEmpty) {
+            Some(endAction.refreshToken)
+          } else {
+            None
+          }
+        if (includeRefreshToken && refreshTokenOpt.isEmpty) {
+          logWarning("includeRefreshToken=true but refresh token is not returned.")
+        }
+        (version, respondedFormat, lines.init, refreshTokenOpt)
+      }
     }
 
     if (responseFormat != respondedFormat) {
@@ -291,14 +319,14 @@ class DeltaSharingRestClient(
     }
     // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
-      return DeltaTableFiles(version, lines = lines)
+      return DeltaTableFiles(version, lines = lines, refreshToken = refreshTokenOpt)
     }
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
     val files = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
-    DeltaTableFiles(version, protocol, metadata, files)
+    DeltaTableFiles(version, protocol, metadata, files, refreshToken = refreshTokenOpt)
   }
 
   override def getFiles(
@@ -311,14 +339,26 @@ class DeltaSharingRestClient(
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
-    val request =
-      QueryTableRequest(Nil, None, None, None, Some(startingVersion), endingVersion, None)
+    val request = QueryTableRequest(
+      predicateHints = Nil,
+      limitHint = None,
+      version = None,
+      timestamp = None,
+      startingVersion = Some(startingVersion),
+      endingVersion = endingVersion,
+      jsonPredicateHints = None,
+      maxFiles = None,
+      pageToken = None,
+      includeRefreshToken = None,
+      refreshToken = None
+    )
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       logInfo(
         s"Making paginated queryTable requests for table " +
         s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
       )
-      getFilesByPage(target, request)
+      val (version, respondedFormat, lines, _) = getFilesByPage(target, request)
+      (version, respondedFormat, lines)
     } else {
       getNDJson(target, request)
     }
@@ -354,10 +394,10 @@ class DeltaSharingRestClient(
   }
 
   // Send paginated queryTable requests. Loop internally to fetch and concatenate all pages,
-  // then return (version, respondedFormat, actions) tuple.
+  // then return (version, respondedFormat, actions, refreshToken) tuple.
   private def getFilesByPage(
       targetUrl: String,
-      request: QueryTableRequest): (Long, String, Seq[String]) = {
+      request: QueryTableRequest): (Long, String, Seq[String], Option[String]) = {
     val allLines = ArrayBuffer[String]()
     val start = System.currentTimeMillis()
     var numPages = 1
@@ -371,6 +411,12 @@ class DeltaSharingRestClient(
     if (endAction == null) {
       logWarning("EndStreamAction is not returned in the response for paginated query.")
     }
+    // Extract refresh token if available
+    val refreshToken = if (endAction != null) {
+      Option(endAction.refreshToken)
+    } else {
+      None
+    }
     val minUrlExpirationTimestamp = if (endAction != null) {
       Option(endAction.minUrlExpirationTimestamp)
     } else {
@@ -383,7 +429,13 @@ class DeltaSharingRestClient(
       endAction.nextPageToken != null &&
       endAction.nextPageToken.nonEmpty) {
       numPages += 1
-      updatedRequest = updatedRequest.copy(pageToken = Some(endAction.nextPageToken))
+      updatedRequest = updatedRequest.copy(
+        pageToken = Some(endAction.nextPageToken),
+        // Unset includeRefreshToken and refreshToken because they can only be used in
+        // the first page request.
+        includeRefreshToken = None,
+        refreshToken = None
+      )
       val res = fetchNextPageFiles(
         targetUrl = targetUrl,
         requestBody = Some(updatedRequest),
@@ -403,7 +455,7 @@ class DeltaSharingRestClient(
     // TODO: remove logging once changes are rolled out
     logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages" +
       s"of ${allLines.size} files")
-    (version, respondedFormat, allLines.toSeq)
+    (version, respondedFormat, allLines.toSeq, refreshToken)
   }
 
   override def getCDFFiles(

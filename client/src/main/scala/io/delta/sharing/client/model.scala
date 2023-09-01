@@ -50,7 +50,8 @@ private[sharing] case class DeltaTableFiles(
     cdfFiles: Seq[AddCDCFile] = Nil,
     removeFiles: Seq[RemoveFile] = Nil,
     additionalMetadatas: Seq[Metadata] = Nil,
-    lines: Seq[String] = Nil)
+    lines: Seq[String] = Nil,
+    refreshToken: Option[String] = None)
 
 private[sharing] case class Share(name: String)
 
@@ -114,6 +115,7 @@ private[sharing] case class Protocol(minReaderVersion: Int) extends Action {
 }
 
 private[sharing] case class EndStreamAction(
+    refreshToken: String,
     nextPageToken: String,
     minUrlExpirationTimestamp: java.lang.Long)
   extends Action {
