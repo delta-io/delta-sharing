@@ -113,9 +113,13 @@ private[sharing] object RemoteDeltaLog {
       path: String,
       forStreaming: Boolean = false,
       responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET): RemoteDeltaLog = {
-    val (profileFile, share, schema, table) = DeltaSharingRestClient.parsePath(path)
-    val client = DeltaSharingRestClient(profileFile, forStreaming, responseFormat)
-    val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
+    val parsedPath = DeltaSharingRestClient.parsePath(path)
+    val client = DeltaSharingRestClient(parsedPath.profileFile, forStreaming, responseFormat)
+    val deltaSharingTable = DeltaSharingTable(
+      name = parsedPath.table,
+      schema = parsedPath.schema,
+      share = parsedPath.share
+    )
     new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
   }
 }

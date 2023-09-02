@@ -39,11 +39,12 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   import DeltaSharingRestClient._
 
   test("parsePath") {
-    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c") == ("file:///foo/bar", "a", "b", "c"))
+    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c") ==
+      ParsedDeltaSharingTablePath("file:///foo/bar", "a", "b", "c"))
     assert(DeltaSharingRestClient.parsePath("file:///foo/bar#bar#a.b.c") ==
-      ("file:///foo/bar#bar", "a", "b", "c"))
+      ParsedDeltaSharingTablePath("file:///foo/bar#bar", "a", "b", "c"))
     assert(DeltaSharingRestClient.parsePath("file:///foo/bar#bar#a.b.c ") ==
-      ("file:///foo/bar#bar", "a", "b", "c "))
+      ParsedDeltaSharingTablePath("file:///foo/bar#bar", "a", "b", "c "))
     intercept[IllegalArgumentException] {
       DeltaSharingRestClient.parsePath("file:///foo/bar")
     }

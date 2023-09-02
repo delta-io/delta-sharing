@@ -74,6 +74,12 @@ trait DeltaSharingClient {
   def getProfileProvider: DeltaSharingProfileProvider = null
 }
 
+case class ParsedDeltaSharingTablePath(
+    profileFile: String,
+    share: String,
+    schema: String,
+    table: String)
+
 private[sharing] trait PaginationResponse {
   def nextPageToken: Option[String]
 }
@@ -841,7 +847,7 @@ object DeltaSharingRestClient extends Logging {
    * Parse the user provided path `profile_file#share.schema.share` to
    * `(profile_file, share, schema, share)`.
    */
-  def parsePath(path: String): (String, String, String, String) = {
+  def parsePath(path: String): ParsedDeltaSharingTablePath = {
     val shapeIndex = path.lastIndexOf('#')
     if (shapeIndex < 0) {
       throw new IllegalArgumentException(s"path $path is not valid")
@@ -855,7 +861,12 @@ object DeltaSharingRestClient extends Logging {
       tableSplits(1).isEmpty || tableSplits(2).isEmpty) {
       throw new IllegalArgumentException(s"path $path is not valid")
     }
-    (profileFile, tableSplits(0), tableSplits(1), tableSplits(2))
+    ParsedDeltaSharingTablePath(
+      profileFile = profileFile,
+      share = tableSplits(0),
+      schema = tableSplits(1),
+      table = tableSplits(2)
+    )
   }
 
   def apply(
