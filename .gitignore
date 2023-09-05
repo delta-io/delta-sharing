@@ -8,3 +8,5 @@
 /project/target/
 /.idea/
 /.bsp/sbt.json
+build/
+.gradle
