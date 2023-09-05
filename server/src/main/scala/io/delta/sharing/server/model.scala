@@ -137,11 +137,13 @@ case class RemoveFile(
  * An action that is returned as the last line of the streaming response. It allows the server
  * to include additional data that might be dynamically generated while the streaming message
  * is sent, such as:
+ *  - refreshToken: a token used to refresh pre-signed urls for a long running query
  *  - nextPageToken: a token used to retrieve the subsequent page of a query
  *  - minUrlExpirationTimestamp: the minimum url expiration timestamp of the urls returned in
  *    current response
  */
 case class EndStreamAction(
+    refreshToken: String,
     nextPageToken: String,
     minUrlExpirationTimestamp: java.lang.Long
   ) extends Action {

@@ -61,7 +61,9 @@ case class ServerConfig(
     // The maximum page size permitted by queryTable/queryTableChanges API.
     @BeanProperty var queryTablePageSizeLimit: Int,
     // The TTL of the page token generated in queryTable/queryTableChanges API (in milliseconds).
-    @BeanProperty var queryTablePageTokenTtlMs: Int
+    @BeanProperty var queryTablePageTokenTtlMs: Int,
+    // The TTL of the refresh token generated in queryTable API (in milliseconds).
+    @BeanProperty var refreshTokenTtlMs: Int
 ) extends ConfigItem {
   import ServerConfig._
 
@@ -82,7 +84,8 @@ case class ServerConfig(
       evaluateJsonPredicateHints = false,
       requestTimeoutSeconds = 30,
       queryTablePageSizeLimit = 10000,
-      queryTablePageTokenTtlMs = 259200000 // 3 days
+      queryTablePageTokenTtlMs = 259200000, // 3 days
+      refreshTokenTtlMs = 3600000 // 1 hour
     )
   }
 

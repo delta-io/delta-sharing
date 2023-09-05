@@ -321,6 +321,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       endingVersion = None,
       maxFiles = None,
       pageToken = None,
+      includeRefreshToken = false,
+      refreshToken = None,
       responseFormat = responseFormat)
     streamingOutput(Some(v), responseFormat, actions)
   }
@@ -336,8 +338,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     val capabilitiesMap = getDeltaSharingCapabilitiesMap(
       req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
     )
-    val numVersionParams = Seq(request.version, request.timestamp, request.startingVersion)
-      .filter(_.isDefined).size
+    val numVersionParams =
+      Seq(request.version, request.timestamp, request.startingVersion).count(_.isDefined)
     if (numVersionParams > 1) {
       throw new DeltaSharingIllegalArgumentException(ErrorStrings.multipleParametersSetErrorMsg(
         Seq("version", "timestamp", "startingVersion"))
@@ -351,6 +353,26 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     if (request.maxFiles.exists(_ <= 0)) {
       throw new DeltaSharingIllegalArgumentException("maxFiles must be positive.")
+    }
+    if (numVersionParams > 0 && request.includeRefreshToken.contains(true)) {
+      throw new DeltaSharingIllegalArgumentException(
+        "includeRefreshToken cannot be used when querying a specific version."
+      )
+    }
+    if (request.pageToken.isDefined && request.includeRefreshToken.contains(true)) {
+      throw new DeltaSharingIllegalArgumentException(
+        "includeRefreshToken must be used in the first page request."
+      )
+    }
+    if (numVersionParams > 0 && request.refreshToken.isDefined) {
+      throw new DeltaSharingIllegalArgumentException(
+        "refreshToken cannot be used when querying a specific version."
+      )
+    }
+    if (request.pageToken.isDefined && request.refreshToken.isDefined) {
+      throw new DeltaSharingIllegalArgumentException(
+        "refreshToken must be used in the first page request."
+      )
     }
 
     val start = System.currentTimeMillis
@@ -387,6 +409,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.endingVersion,
       request.maxFiles,
       request.pageToken,
+      request.includeRefreshToken.getOrElse(false),
+      request.refreshToken,
       responseFormat = responseFormat)
     if (version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(

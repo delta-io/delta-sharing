@@ -61,3 +61,5 @@ evaluateJsonPredicateHints: false
 queryTablePageSizeLimit: 10000
 # The TTL of the page token generated in queryTable/queryTableChanges API (in milliseconds).
 queryTablePageTokenTtlMs: 259200000
+# The TTL of the refresh token generated in queryTable API (in milliseconds).
+refreshTokenTtlMs: 3600000
