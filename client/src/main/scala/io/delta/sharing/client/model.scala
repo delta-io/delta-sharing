@@ -83,6 +83,8 @@ private[sharing] case class SingleAction(
       metaData
     } else if (protocol != null) {
       protocol
+    } else if (endStreamAction != null) {
+      endStreamAction
     } else {
       null
     }
