@@ -21,28 +21,16 @@ import java.lang.ref.WeakReference
 
 import scala.collection.mutable.ArrayBuffer
 
-import org.apache.spark.delta.sharing.CachedTableManager
+import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, SparkSession}
 import org.apache.spark.sql.connector.read.streaming
-import org.apache.spark.sql.connector.read.streaming.{
-  ReadAllAvailable,
-  ReadLimit,
-  ReadMaxFiles,
-  SupportsAdmissionControl
-}
+import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl}
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.types.StructType
 
-import io.delta.sharing.client.model.{
-  AddCDCFile,
-  AddFile,
-  AddFileForCDF,
-  DeltaTableFiles,
-  FileAction,
-  RemoveFile
-}
+import io.delta.sharing.client.model.{AddCDCFile, AddFile, AddFileForCDF, DeltaTableFiles, FileAction, RemoveFile}
 import io.delta.sharing.spark.util.SchemaUtils
 
 /**
@@ -162,7 +150,9 @@ case class DeltaSharingSource(
   // The latest function used to fetch presigned urls for the delta sharing table, record it in
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
   // runs for a long time.
-  private var latestRefreshFunc = () => { (Map.empty[String, String], None: Option[Long]) }
+  private var latestRefreshFunc = (_: Option[String]) => {
+    TableRefreshResult(Map.empty[String, String], None, None)
+  }
 
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
@@ -413,7 +403,7 @@ case class DeltaSharingSource(
         jsonPredicateHints = None,
         refreshToken = None
       )
-      latestRefreshFunc = () => {
+      latestRefreshFunc = _ => {
         val queryTimestamp = System.currentTimeMillis()
         val files = deltaLog.client.getFiles(
           table = deltaLog.table,
@@ -439,7 +429,7 @@ case class DeltaSharingSource(
 
         refreshSortedFetchedFiles(idToUrl, queryTimestamp, minUrlExpiration)
 
-        (idToUrl, minUrlExpiration)
+        TableRefreshResult(idToUrl, minUrlExpiration, None)
       }
 
       val numFiles = tableFiles.files.size
@@ -473,7 +463,7 @@ case class DeltaSharingSource(
       val tableFiles = deltaLog.client.getFiles(
         deltaLog.table, fromVersion, Some(endingVersionForQuery)
       )
-      latestRefreshFunc = () => {
+      latestRefreshFunc = _ => {
         val queryTimestamp = System.currentTimeMillis()
         val addFiles = deltaLog.client.getFiles(
           deltaLog.table, fromVersion, Some(endingVersionForQuery)
@@ -493,7 +483,7 @@ case class DeltaSharingSource(
 
         refreshSortedFetchedFiles(idToUrl, queryTimestamp, minUrlExpiration)
 
-        (idToUrl, minUrlExpiration)
+        TableRefreshResult(idToUrl, minUrlExpiration, None)
       }
       val allAddFiles = validateCommitAndFilterAddFiles(tableFiles).groupBy(a => a.version)
       for (v <- fromVersion to endingVersionForQuery) {
@@ -545,7 +535,7 @@ case class DeltaSharingSource(
       ),
       true
     )
-    latestRefreshFunc = () => {
+    latestRefreshFunc = _ => {
       val queryTimestamp = System.currentTimeMillis()
       val d = deltaLog.client.getCDFFiles(
         deltaLog.table,
@@ -562,10 +552,7 @@ case class DeltaSharingSource(
         d.addFiles, d.cdfFiles, d.removeFiles)
       refreshSortedFetchedFiles(idToUrl, queryTimestamp, minUrlExpiration)
 
-      (
-        idToUrl,
-        minUrlExpiration
-      )
+      TableRefreshResult(idToUrl, minUrlExpiration, None)
     }
 
     (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
@@ -774,7 +761,8 @@ case class DeltaSharingSource(
         urlExpirationTimestamp.get
       } else {
         lastQueryTimestamp + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
-      }
+      },
+      None
     )
 
 
