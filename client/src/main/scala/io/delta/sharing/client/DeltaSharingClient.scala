@@ -294,7 +294,9 @@ class DeltaSharingRestClient(
       val (version, respondedFormat, lines) = getNDJson(target, request)
       val (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
       val refreshTokenOpt = endStreamAction.flatMap { e =>
-        Option(e.refreshToken)
+        Option(e.refreshToken).flatMap { token =>
+          if (token.isEmpty) None else Some(token)
+        }
       }
       if (includeRefreshToken && refreshTokenOpt.isEmpty) {
         logWarning("includeRefreshToken=true but refresh token is not returned.")
@@ -403,7 +405,9 @@ class DeltaSharingRestClient(
     val metadata = filteredLines(1)
     // Extract refresh token if available
     val refreshToken = endStreamAction.flatMap { e =>
-      Option(e.refreshToken)
+      Option(e.refreshToken).flatMap { token =>
+        if (token.isEmpty) None else Some(token)
+      }
     }
     val minUrlExpirationTimestamp = endStreamAction.flatMap { e =>
       Option(e.minUrlExpirationTimestamp)

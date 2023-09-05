@@ -297,6 +297,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(tableFiles.files(0).expirationTimestamp > System.currentTimeMillis())
       // Refresh token should be returned in latest snapshot query
       assert(tableFiles.refreshToken.nonEmpty)
+      assert(tableFiles.refreshToken.get.nonEmpty)
     }
 
     Seq(true, false).foreach { paginationEnabled =>
