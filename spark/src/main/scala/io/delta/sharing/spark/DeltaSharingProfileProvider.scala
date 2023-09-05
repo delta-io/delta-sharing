@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+import org.apache.spark.delta.sharing.TableRefreshResult
 
 import io.delta.sharing.spark.util.JsonUtils
 
@@ -47,7 +48,8 @@ trait DeltaSharingProfileProvider {
 
   def getCustomTablePath(tablePath: String): String = tablePath
 
-  def getCustomRefresher(refresher: () => Map[String, String]): () => Map[String, String] = {
+  def getCustomRefresher(
+      refresher: Option[String] => TableRefreshResult): Option[String] => TableRefreshResult = {
     refresher
   }
 }

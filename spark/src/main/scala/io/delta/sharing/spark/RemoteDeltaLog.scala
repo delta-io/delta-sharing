@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.SparkException
-import org.apache.spark.delta.sharing.CachedTableManager
+import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.internal.Logging
 import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.sql.{Column, Encoder, SparkSession}
@@ -209,7 +209,15 @@ class RemoteSnapshot(
       metadata.size
     } else {
       log.warn("Getting table size from a full file scan for table: " + table)
-      val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, None)
+      val tableFiles = client.getFiles(
+        table,
+        predicates = Nil,
+        limit = None,
+        versionAsOf,
+        timestampAsOf,
+        jsonPredicateHints = None,
+        refreshToken = None
+      )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.map(_.size).sum
@@ -223,7 +231,7 @@ class RemoteSnapshot(
     } else {
       // getMetadata doesn't support the parameter: versionAsOf
       // Leveraging getFiles to get the metadata, so setting the limitHint to 1 for efficiency.
-      val tableFiles = client.getFiles(table, Nil, Some(1L), versionAsOf, timestampAsOf, None)
+      val tableFiles = client.getFiles(table, Nil, Some(1L), versionAsOf, timestampAsOf, None, None)
       (tableFiles.metadata, tableFiles.protocol, tableFiles.version)
     }
   }
@@ -270,7 +278,7 @@ class RemoteSnapshot(
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(
-        table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints
+        table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints, None
       )
       val idToUrl = tableFiles.files.map { file =>
         file.id -> file.url
@@ -281,12 +289,18 @@ class RemoteSnapshot(
           idToUrl,
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
-          () => {
-            client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints)
-            .files.map { add =>
-              add.id -> add.url
-            }.toMap
-          }
+          refreshToken => {
+            val tableFiles = client.getFiles(
+              table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints, refreshToken
+            )
+            TableRefreshResult(
+              tableFiles.files.map { add =>
+                add.id -> add.url
+              }.toMap,
+              tableFiles.refreshToken
+            )
+          },
+          refreshToken = tableFiles.refreshToken
         )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
