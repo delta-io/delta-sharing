@@ -783,7 +783,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "POST",
       data = Some("""{"version": 1, "includeRefreshToken": true}"""),
       expectedErrorCode = 400,
-      expectedErrorMessage = "includeRefreshToken must be used in latest version query"
+      expectedErrorMessage = "includeRefreshToken cannot be used when querying a specific version"
     )
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/table1/query"),
@@ -797,7 +797,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "POST",
       data = Some("""{"startingVersion": 1, "refreshToken": "foo"}"""),
       expectedErrorCode = 400,
-      expectedErrorMessage = "refreshToken must be used in latest version query"
+      expectedErrorMessage = "refreshToken cannot be used when querying a specific version"
     )
     assertHttpError(
       url = requestPath("/shares/share1/schemas/default/tables/table1/query"),

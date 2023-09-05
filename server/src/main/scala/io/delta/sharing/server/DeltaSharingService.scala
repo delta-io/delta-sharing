@@ -356,7 +356,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     if (numVersionParams > 0 && request.includeRefreshToken.contains(true)) {
       throw new DeltaSharingIllegalArgumentException(
-        "includeRefreshToken must be used in latest version query."
+        "includeRefreshToken cannot be used when querying a specific version."
       )
     }
     if (request.pageToken.isDefined && request.includeRefreshToken.contains(true)) {
@@ -366,7 +366,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     if (numVersionParams > 0 && request.refreshToken.isDefined) {
       throw new DeltaSharingIllegalArgumentException(
-        "refreshToken must be used in latest version query."
+        "refreshToken cannot be used when querying a specific version."
       )
     }
     if (request.pageToken.isDefined && request.refreshToken.isDefined) {
