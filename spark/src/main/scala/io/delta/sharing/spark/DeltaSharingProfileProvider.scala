@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+import org.apache.spark.delta.sharing.TableRefreshResult
 
 import io.delta.sharing.spark.util.JsonUtils
 
@@ -47,10 +48,10 @@ trait DeltaSharingProfileProvider {
 
   def getCustomTablePath(tablePath: String): String = tablePath
 
-  // Map[String, String] is the id to url map.
-  // Long is the minimum url expiration time for all the urls.
-  def getCustomRefresher(refresher: () => (Map[String, String], Option[Long])): () =>
-    (Map[String, String], Option[Long]) = {
+  // `refresher` takes an optional refreshToken, and returns
+  // (idToUrlMap, minUrlExpirationTimestamp, refreshToken)
+  def getCustomRefresher(
+      refresher: Option[String] => TableRefreshResult): Option[String] => TableRefreshResult = {
     refresher
   }
 }
