@@ -47,6 +47,15 @@ message QueryTableRequest {
     repeated string predicateHints = 1;
     optional string jsonPredicateHints = 6;
     optional int64 limitHint = 2;
+    // Whether or not to return a refresh token in the response. Only used in latest snapshot query
+    // AND first page query. For long running queries, delta sharing spark may make additional request
+    // to refresh pre-signed urls, and there might be table changes between the initial request and
+    // the refresh request. The refresh token will contain version information to make sure that
+    // the refresh request returns the same set of files.
+    optional bool includeRefreshToken = 8;
+    // The refresh token used to refresh pre-signed urls. Only used in latest snapshot query AND
+    // first page query.
+    optional string refreshToken = 9;
 
     // Only one of the three parameters can be supported in a single query.
     // If none of them is specified, the query is for the latest version.
@@ -97,4 +106,14 @@ message PageToken {
     optional string id = 1;
     optional string share = 2;
     optional string schema = 3;
+}
+
+// Define a special class to generate the refresh token for latest snapshot query.
+message RefreshToken {
+    // Id of the table being queried.
+    optional string id = 1;
+    // Only used in queryTable at snapshot, refers to the version being queried.
+    optional int64 version = 2;
+    // The expiration timestamp of the refresh token in milliseconds.
+    optional int64 expiration_timestamp = 3;
 }

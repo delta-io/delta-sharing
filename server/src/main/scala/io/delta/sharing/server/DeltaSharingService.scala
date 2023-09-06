@@ -283,7 +283,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       version = None,
       timestamp = None,
       startingVersion = None,
-      endingVersion = None
+      endingVersion = None,
+      includeRefreshToken = false,
+      refreshToken = None
     )
     streamingOutput(Some(v), actions)
   }
@@ -295,8 +297,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("schema") schema: String,
       @Param("table") table: String,
       request: QueryTableRequest): HttpResponse = processRequest {
-    val numVersionParams = Seq(request.version, request.timestamp, request.startingVersion)
-      .filter(_.isDefined).size
+    val numVersionParams =
+      Seq(request.version, request.timestamp, request.startingVersion).count(_.isDefined)
     if (numVersionParams > 1) {
       throw new DeltaSharingIllegalArgumentException(ErrorStrings.multipleParametersSetErrorMsg(
         Seq("version", "timestamp", "startingVersion"))
@@ -307,6 +309,16 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     if (request.startingVersion.isDefined && request.startingVersion.get < 0) {
       throw new DeltaSharingIllegalArgumentException("startingVersion cannot be negative.")
+    }
+    if (numVersionParams > 0 && request.includeRefreshToken.contains(true)) {
+      throw new DeltaSharingIllegalArgumentException(
+        "includeRefreshToken cannot be used when querying a specific version."
+      )
+    }
+    if (numVersionParams > 0 && request.refreshToken.isDefined) {
+      throw new DeltaSharingIllegalArgumentException(
+        "refreshToken cannot be used when querying a specific version."
+      )
     }
 
     val start = System.currentTimeMillis
@@ -339,7 +351,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.version,
       request.timestamp,
       request.startingVersion,
-      request.endingVersion
+      request.endingVersion,
+      request.includeRefreshToken.getOrElse(false),
+      request.refreshToken
     )
     if (version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(
