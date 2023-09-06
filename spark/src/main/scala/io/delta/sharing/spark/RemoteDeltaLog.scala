@@ -293,12 +293,10 @@ class RemoteSnapshot(
             val tableFiles = client.getFiles(
               table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints, refreshToken
             )
-            TableRefreshResult(
-              tableFiles.files.map { add =>
-                add.id -> add.url
-              }.toMap,
-              tableFiles.refreshToken
-            )
+            val idToUrl = tableFiles.files.map { add =>
+              add.id -> add.url
+            }.toMap
+            TableRefreshResult(idToUrl, tableFiles.refreshToken)
           },
           refreshToken = tableFiles.refreshToken
         )

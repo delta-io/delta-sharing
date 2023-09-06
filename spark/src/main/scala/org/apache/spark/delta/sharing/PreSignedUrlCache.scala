@@ -41,7 +41,7 @@ case class TableRefreshResult(
  * @param lastAccess When the table was accessed last time. We will remove old tables that are not
  *                   accessed after `expireAfterAccessMs` milliseconds.
  * @param refresher the function to generate a new file id to pre sign url map, with the new
- *                  expiration timestamp of the urls and the new refresh token.
+ *                  refresh token.
  * @param refreshToken the optional refresh token that can be used by the refresher to retrieve
  *                     the same set of files with refreshed urls.
  */

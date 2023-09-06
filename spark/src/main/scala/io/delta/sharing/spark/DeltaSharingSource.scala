@@ -290,25 +290,23 @@ case class DeltaSharingSource(
         jsonPredicateHints = None,
         refreshToken = None
       )
-      latestRefreshFunc = (_: Option[String]) => {
-        TableRefreshResult(
-          deltaLog.client
-            .getFiles(
-              table = deltaLog.table,
-              predicates = Nil,
-              limit = None,
-              versionAsOf = Some(fromVersion),
-              timestampAsOf = None,
-              jsonPredicateHints = None,
-              refreshToken = None
-            )
-            .files
-            .map { f =>
-              f.id -> f.url
-            }
-            .toMap,
-          refreshToken = None
-        )
+      latestRefreshFunc = _ => {
+        val idToUrl = deltaLog.client
+          .getFiles(
+            table = deltaLog.table,
+            predicates = Nil,
+            limit = None,
+            versionAsOf = Some(fromVersion),
+            timestampAsOf = None,
+            jsonPredicateHints = None,
+            refreshToken = None
+          )
+          .files
+          .map { f =>
+            f.id -> f.url
+          }
+          .toMap
+        TableRefreshResult(idToUrl, None)
       }
 
       val numFiles = tableFiles.files.size
@@ -338,21 +336,19 @@ case class DeltaSharingSource(
       val tableFiles = deltaLog.client.getFiles(
         deltaLog.table, fromVersion, Some(endingVersionForQuery)
       )
-      latestRefreshFunc = (_: Option[String]) => {
-        TableRefreshResult(
-          deltaLog.client
-            .getFiles(
-              deltaLog.table,
-              fromVersion,
-              Some(endingVersionForQuery)
-            )
-            .addFiles
-            .map { a =>
-              a.id -> a.url
-            }
-            .toMap,
-          refreshToken = None
-        )
+      latestRefreshFunc = _ => {
+        val idToUrl = deltaLog.client
+          .getFiles(
+            deltaLog.table,
+            fromVersion,
+            Some(endingVersionForQuery)
+          )
+          .addFiles
+          .map { a =>
+            a.id -> a.url
+          }
+          .toMap
+        TableRefreshResult(idToUrl, None)
       }
       val allAddFiles = validateCommitAndFilterAddFiles(tableFiles).groupBy(a => a.version)
       for (v <- fromVersion to endingVersionForQuery) {
@@ -403,7 +399,7 @@ case class DeltaSharingSource(
       ),
       true
     )
-    latestRefreshFunc = (_: Option[String]) => {
+    latestRefreshFunc = _ => {
       val d = deltaLog.client.getCDFFiles(
         deltaLog.table,
         Map(
@@ -414,7 +410,7 @@ case class DeltaSharingSource(
       )
       TableRefreshResult(
         DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
-        refreshToken = None
+        None
       )
     }
 
