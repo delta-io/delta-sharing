@@ -60,7 +60,8 @@ trait DeltaSharingClient {
     limit: Option[Long],
     versionAsOf: Option[Long],
     timestampAsOf: Option[String],
-    jsonPredicateHints: Option[String]): DeltaTableFiles
+    jsonPredicateHints: Option[String],
+    refreshToken: Option[String]): DeltaTableFiles
 
   def getFiles(table: Table, startingVersion: Long, endingVersion: Option[Long]): DeltaTableFiles
 
@@ -74,6 +75,12 @@ trait DeltaSharingClient {
   def getProfileProvider: DeltaSharingProfileProvider = null
 }
 
+case class ParsedDeltaSharingTablePath(
+    profileFile: String,
+    share: String,
+    schema: String,
+    table: String)
+
 private[sharing] trait PaginationResponse {
   def nextPageToken: Option[String]
 }
@@ -86,8 +93,10 @@ private[sharing] case class QueryTableRequest(
   startingVersion: Option[Long],
   endingVersion: Option[Long],
   jsonPredicateHints: Option[String],
-  maxFiles: Option[Int] = None,
-  pageToken: Option[String] = None
+  maxFiles: Option[Int],
+  pageToken: Option[String],
+  includeRefreshToken: Option[Boolean],
+  refreshToken: Option[String]
 )
 
 private[sharing] case class ListSharesResponse(
@@ -259,29 +268,46 @@ class DeltaSharingRestClient(
       limit: Option[Long],
       versionAsOf: Option[Long],
       timestampAsOf: Option[String],
-      jsonPredicateHints: Option[String]): DeltaTableFiles = {
+      jsonPredicateHints: Option[String],
+      refreshToken: Option[String]): DeltaTableFiles = {
+    // Retrieve refresh token when querying the latest snapshot.
+    val includeRefreshToken = versionAsOf.isEmpty && timestampAsOf.isEmpty
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
-    val request = QueryTableRequest(
-      predicates,
-      limit,
-      versionAsOf,
-      timestampAsOf,
-      None,
-      None,
-      jsonPredicateHints
+    val request: QueryTableRequest = QueryTableRequest(
+      predicateHints = predicates,
+      limitHint = limit,
+      version = versionAsOf,
+      timestamp = timestampAsOf,
+      startingVersion = None,
+      endingVersion = None,
+      jsonPredicateHints = jsonPredicateHints,
+      maxFiles = None,
+      pageToken = None,
+      includeRefreshToken = Some(includeRefreshToken),
+      refreshToken = refreshToken
     )
-    val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
+    val (version, respondedFormat, lines, refreshTokenOpt) = if (queryTablePaginationEnabled) {
       logInfo(
         s"Making paginated queryTable requests for table " +
         s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
       )
       getFilesByPage(target, request)
     } else {
-      getNDJson(target, request)
+      val (version, respondedFormat, lines) = getNDJson(target, request)
+      val (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
+      val refreshTokenOpt = endStreamAction.flatMap { e =>
+        Option(e.refreshToken).flatMap { token =>
+          if (token.isEmpty) None else Some(token)
+        }
+      }
+      if (includeRefreshToken && refreshTokenOpt.isEmpty) {
+        logWarning("includeRefreshToken=true but refresh token is not returned.")
+      }
+      (version, respondedFormat, filteredLines, refreshTokenOpt)
     }
 
     if (responseFormat != respondedFormat) {
@@ -291,14 +317,14 @@ class DeltaSharingRestClient(
     }
     // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
-      return DeltaTableFiles(version, lines = lines)
+      return DeltaTableFiles(version, lines = lines, refreshToken = refreshTokenOpt)
     }
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
     val files = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
-    DeltaTableFiles(version, protocol, metadata, files)
+    DeltaTableFiles(version, protocol, metadata, files, refreshToken = refreshTokenOpt)
   }
 
   override def getFiles(
@@ -311,14 +337,26 @@ class DeltaSharingRestClient(
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
-    val request =
-      QueryTableRequest(Nil, None, None, None, Some(startingVersion), endingVersion, None)
+    val request: QueryTableRequest = QueryTableRequest(
+      predicateHints = Nil,
+      limitHint = None,
+      version = None,
+      timestamp = None,
+      startingVersion = Some(startingVersion),
+      endingVersion = endingVersion,
+      jsonPredicateHints = None,
+      maxFiles = None,
+      pageToken = None,
+      includeRefreshToken = None,
+      refreshToken = None
+    )
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       logInfo(
         s"Making paginated queryTable requests for table " +
         s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
       )
-      getFilesByPage(target, request)
+      val (version, respondedFormat, lines, _) = getFilesByPage(target, request)
+      (version, respondedFormat, lines)
     } else {
       getNDJson(target, request)
     }
@@ -354,10 +392,10 @@ class DeltaSharingRestClient(
   }
 
   // Send paginated queryTable requests. Loop internally to fetch and concatenate all pages,
-  // then return (version, respondedFormat, actions) tuple.
+  // then return (version, respondedFormat, actions, refreshToken) tuple.
   private def getFilesByPage(
       targetUrl: String,
-      request: QueryTableRequest): (Long, String, Seq[String]) = {
+      request: QueryTableRequest): (Long, String, Seq[String], Option[String]) = {
     val allLines = ArrayBuffer[String]()
     val start = System.currentTimeMillis()
     var numPages = 1
@@ -365,25 +403,35 @@ class DeltaSharingRestClient(
     // Fetch first page
     var updatedRequest = request.copy(maxFiles = Some(maxFilesPerReq))
     val (version, respondedFormat, lines) = getNDJson(targetUrl, updatedRequest)
-    val protocol = lines(0)
-    val metadata = lines(1)
-    var endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
-    if (endAction == null) {
+    var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
+    if (endStreamAction.isEmpty) {
       logWarning("EndStreamAction is not returned in the response for paginated query.")
     }
-    val minUrlExpirationTimestamp = if (endAction != null) {
-      Option(endAction.minUrlExpirationTimestamp)
-    } else {
-      None
+    val protocol = filteredLines(0)
+    val metadata = filteredLines(1)
+    // Extract refresh token if available
+    val refreshToken = endStreamAction.flatMap { e =>
+      Option(e.refreshToken).flatMap { token =>
+        if (token.isEmpty) None else Some(token)
+      }
     }
-    allLines.appendAll(if (endAction != null) lines.init else lines)
+    val minUrlExpirationTimestamp = endStreamAction.flatMap { e =>
+      Option(e.minUrlExpirationTimestamp)
+    }
+    allLines.appendAll(filteredLines)
 
     // Fetch subsequent pages and concatenate all pages
-    while (endAction != null &&
-      endAction.nextPageToken != null &&
-      endAction.nextPageToken.nonEmpty) {
+    while (endStreamAction.isDefined &&
+      endStreamAction.get.nextPageToken != null &&
+      endStreamAction.get.nextPageToken.nonEmpty) {
       numPages += 1
-      updatedRequest = updatedRequest.copy(pageToken = Some(endAction.nextPageToken))
+      updatedRequest = updatedRequest.copy(
+        pageToken = Some(endStreamAction.get.nextPageToken),
+        // Unset includeRefreshToken and refreshToken because they can only be used in
+        // the first page request.
+        includeRefreshToken = None,
+        refreshToken = None
+      )
       val res = fetchNextPageFiles(
         targetUrl = targetUrl,
         requestBody = Some(updatedRequest),
@@ -393,7 +441,10 @@ class DeltaSharingRestClient(
         expectedMetadata = metadata
       )
       allLines.appendAll(res._1)
-      endAction = res._2
+      endStreamAction = res._2
+      if (endStreamAction.isEmpty) {
+        logWarning("EndStreamAction is not returned in the response for paginated query.")
+      }
       // Throw an error if the first page is expiring before we get all pages
       if (minUrlExpirationTimestamp.exists(_ <= System.currentTimeMillis())) {
         throw new IllegalStateException("Unable to fetch all pages before minimum url expiration.")
@@ -403,7 +454,7 @@ class DeltaSharingRestClient(
     // TODO: remove logging once changes are rolled out
     logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages" +
       s"of ${allLines.size} files")
-    (version, respondedFormat, allLines.toSeq)
+    (version, respondedFormat, allLines.toSeq, refreshToken)
   }
 
   override def getCDFFiles(
@@ -472,34 +523,37 @@ class DeltaSharingRestClient(
     // Fetch first page
     var updatedUrl = s"$targetUrl&maxFiles=$maxFilesPerReq"
     val (version, respondedFormat, lines) = getNDJson(updatedUrl, requireVersion = false)
-    val protocol = lines(0)
-    val metadata = lines(1)
-    var endAction: EndStreamAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
-    if (endAction == null) {
+    var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
+    if (endStreamAction.isEmpty) {
       logWarning("EndStreamAction is not returned in the response for paginated query.")
     }
-    val minUrlExpirationTimestamp = if (endAction != null) {
-      Option(endAction.minUrlExpirationTimestamp)
-    } else {
-      None
+    val protocol = filteredLines(0)
+    val metadata = filteredLines(1)
+    val minUrlExpirationTimestamp = endStreamAction.flatMap { e =>
+      Option(e.minUrlExpirationTimestamp)
     }
-    allLines.appendAll(if (endAction != null) lines.init else lines)
+    allLines.appendAll(filteredLines)
 
     // Fetch subsequent pages and concatenate all pages
-    while (endAction != null &&
-      endAction.nextPageToken != null &&
-      endAction.nextPageToken.nonEmpty) {
+    while (endStreamAction.isDefined &&
+      endStreamAction.get.nextPageToken != null &&
+      endStreamAction.get.nextPageToken.nonEmpty) {
       numPages += 1
-      updatedUrl = s"$targetUrl&maxFiles=$maxFilesPerReq&pageToken=${endAction.nextPageToken}"
+      updatedUrl =
+        s"$targetUrl&maxFiles=$maxFilesPerReq&pageToken=${endStreamAction.get.nextPageToken}"
       val res = fetchNextPageFiles(
         targetUrl = updatedUrl,
         requestBody = None,
         expectedVersion = version,
         expectedRespondedFormat = respondedFormat,
         expectedProtocol = protocol,
-        expectedMetadata = metadata)
+        expectedMetadata = metadata
+      )
       allLines.appendAll(res._1)
-      endAction = res._2
+      endStreamAction = res._2
+      if (endStreamAction.isEmpty) {
+        logWarning("EndStreamAction is not returned in the response for paginated query.")
+      }
       // Throw an error if the first page is expiring before we get all pages
       if (minUrlExpirationTimestamp.exists(_ <= System.currentTimeMillis())) {
         throw new IllegalStateException("Unable to fetch all pages before minimum url expiration.")
@@ -523,7 +577,7 @@ class DeltaSharingRestClient(
       expectedVersion: Long,
       expectedRespondedFormat: String,
       expectedProtocol: String,
-      expectedMetadata: String): (Seq[String], EndStreamAction) = {
+      expectedMetadata: String): (Seq[String], Option[EndStreamAction]) = {
     val (version, respondedFormat, lines) = if (requestBody.isDefined) {
       getNDJson(targetUrl, requestBody.get)
     } else {
@@ -545,12 +599,18 @@ class DeltaSharingRestClient(
       throw new IllegalStateException(errorMsg)
     }
 
-    val endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
-    if (endAction == null) {
-      logWarning("EndStreamAction is not returned in the response for paginated query.")
-      (lines.drop(2), null)
+    // Drop protocol + metadata, then extract endStreamAction if there's any
+    maybeExtractEndStreamAction(lines.drop(2))
+  }
+
+  // Check the last line and extract EndStreamAction if there is one.
+  private def maybeExtractEndStreamAction(
+      lines: Seq[String]): (Seq[String], Option[EndStreamAction]) = {
+    val endStreamAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
+    if (endStreamAction == null) {
+      (lines, None)
     } else {
-      (lines.drop(2).init, endAction)
+      (lines.init, Some(endStreamAction))
     }
   }
 
@@ -841,7 +901,7 @@ object DeltaSharingRestClient extends Logging {
    * Parse the user provided path `profile_file#share.schema.share` to
    * `(profile_file, share, schema, share)`.
    */
-  def parsePath(path: String): (String, String, String, String) = {
+  def parsePath(path: String): ParsedDeltaSharingTablePath = {
     val shapeIndex = path.lastIndexOf('#')
     if (shapeIndex < 0) {
       throw new IllegalArgumentException(s"path $path is not valid")
@@ -855,7 +915,12 @@ object DeltaSharingRestClient extends Logging {
       tableSplits(1).isEmpty || tableSplits(2).isEmpty) {
       throw new IllegalArgumentException(s"path $path is not valid")
     }
-    (profileFile, tableSplits(0), tableSplits(1), tableSplits(2))
+    ParsedDeltaSharingTablePath(
+      profileFile = profileFile,
+      share = tableSplits(0),
+      schema = tableSplits(1),
+      table = tableSplits(2)
+    )
   }
 
   def apply(

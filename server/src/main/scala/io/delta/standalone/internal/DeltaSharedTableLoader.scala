@@ -27,7 +27,6 @@ import scala.collection.JavaConverters._
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
 import com.google.common.cache.CacheBuilder
 import com.google.common.hash.Hashing
-import com.google.common.util.concurrent.UncheckedExecutionException
 import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, Metadata, Protocol, RemoveFile}
 import io.delta.standalone.internal.exception.DeltaErrors
@@ -41,21 +40,11 @@ import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scala.collection.mutable.ListBuffer
 import scala.util.control.NonFatal
+import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
-import io.delta.sharing.server.{
-  model,
-  AbfsFileSigner,
-  CausedBy,
-  DeltaSharingIllegalArgumentException,
-  DeltaSharingUnsupportedOperationException,
-  ErrorStrings,
-  GCSFileSigner,
-  PreSignedUrl,
-  S3FileSigner,
-  WasbFileSigner
-}
+import io.delta.sharing.server.{model, AbfsFileSigner, CausedBy, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, GCSFileSigner, PreSignedUrl, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.{ServerConfig, TableConfig}
-import io.delta.sharing.server.protocol.QueryTablePageToken
+import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
 import io.delta.sharing.server.util.JsonUtils
 
 /**
@@ -82,7 +71,8 @@ class DeltaSharedTableLoader(serverConfig: ServerConfig) {
               serverConfig.evaluatePredicateHints,
               serverConfig.evaluateJsonPredicateHints,
               serverConfig.queryTablePageSizeLimit,
-              serverConfig.queryTablePageTokenTtlMs
+              serverConfig.queryTablePageTokenTtlMs,
+              serverConfig.refreshTokenTtlMs
             )
           }
         )
@@ -122,7 +112,8 @@ class DeltaSharedTable(
     evaluatePredicateHints: Boolean,
     evaluateJsonPredicateHints: Boolean,
     queryTablePageSizeLimit: Int,
-    queryTablePageTokenTtlMs: Int) {
+    queryTablePageTokenTtlMs: Int,
+    refreshTokenTtlMs: Int) {
 
   private val conf = withClassLoader {
     new Configuration()
@@ -376,8 +367,10 @@ class DeltaSharedTable(
   // Construct and return the end action of the streaming response.
   private def getEndStreamAction(
       nextPageTokenStr: String,
-      minUrlExpirationTimestamp: Long): model.SingleAction = {
+      minUrlExpirationTimestamp: Long,
+      refreshTokenStr: String = null): model.SingleAction = {
     model.EndStreamAction(
+      refreshTokenStr,
       nextPageTokenStr,
       if (minUrlExpirationTimestamp == Long.MaxValue) null else minUrlExpirationTimestamp
     ).wrap
@@ -395,6 +388,8 @@ class DeltaSharedTable(
       endingVersion: Option[Long],
       maxFiles: Option[Int],
       pageToken: Option[String],
+      includeRefreshToken: Boolean,
+      refreshToken: Option[String],
       responseFormat: String): (Long, Seq[Object]) = withClassLoader {
     // scalastyle:on argcount
     // TODO Support `limitHint`
@@ -419,17 +414,23 @@ class DeltaSharedTable(
       )
     )
     val pageTokenOpt = pageToken.map(decodeAndValidatePageToken(_, queryParamChecksum))
-    // For queryTable at snapshot, override version in subsequent page calls using the version
-    // in the pageToken to make sure we're querying the same version across pages. Especially
-    // when the first page is querying the latest snapshot, table changes that are committed
-    // after the first page call should be ignored.
-    val versionFromPageToken = pageTokenOpt.flatMap(_.version)
+    // Validate refreshToken if it's specified
+    val refreshTokenOpt = refreshToken.map(decodeAndValidateRefreshToken)
+    // The version of the snapshot should follow the below precedence:
+    // 1. Use version specified in the pageToken, which is equal to the version we use in the
+    //    first page request. This is to make sure that responses are consistent across pages.
+    // 2. Use version/timestamp/startingVersion specified by the user.
+    // 3. Use version specified in the refreshToken, which is equal to latest table version upon
+    //    initial request. In this case, it must be a latest snapshot query and version/timestamp/
+    //    startingVersion must not be specified.
+    val specifiedVersion = pageTokenOpt.flatMap(_.version)
+      .orElse(version)
+      .orElse(startingVersion)
+      .orElse(refreshTokenOpt.map(_.getVersion))
     val snapshot =
-      if (versionFromPageToken.orElse(version).orElse(startingVersion).isDefined) {
+      if (specifiedVersion.isDefined) {
         try {
-          deltaLog.getSnapshotForVersionAsOf(
-            versionFromPageToken.orElse(version).orElse(startingVersion).get
-          )
+          deltaLog.getSnapshotForVersionAsOf(specifiedVersion.get)
         } catch {
           case e: io.delta.standalone.exceptions.DeltaStandaloneException =>
             throw new DeltaSharingIllegalArgumentException(e.getMessage)
@@ -509,7 +510,7 @@ class DeltaSharedTable(
         // If number of valid files is greater than page size, generate nextPageToken and
         // drop additional files.
         if (pageSizeOpt.exists(_ < filteredIndexedFiles.length)) {
-          nextPageTokenStr = encodeQueryTablePageToken(
+          nextPageTokenStr = DeltaSharedTable.encodeToken(
             QueryTablePageToken(
               id = Some(tableConfig.id),
               version = Some(snapshot.version),
@@ -533,11 +534,22 @@ class DeltaSharedTable(
               responseFormat
             )
         }
-        // Return an `endStreamAction` object only when `maxFiles` is specified for backwards
-        // compatibility.
+        val refreshTokenStr = if (includeRefreshToken) {
+          DeltaSharedTable.encodeToken(
+            RefreshToken(
+              id = Some(tableConfig.id),
+              version = Some(snapshot.version),
+              expirationTimestamp = Some(System.currentTimeMillis() + refreshTokenTtlMs)
+            )
+          )
+        } else {
+          null
+        }
+        // For backwards compatibility, return an `endStreamAction` object only when
+        // `includeRefreshToken` is true or `maxFiles` is specified
         filteredFiles ++ {
-          if (maxFiles.isDefined) {
-            Seq(getEndStreamAction(nextPageTokenStr, minUrlExpirationTimestamp))
+          if (includeRefreshToken || maxFiles.isDefined) {
+            Seq(getEndStreamAction(nextPageTokenStr, minUrlExpirationTimestamp, refreshTokenStr))
           } else {
             Nil
           }
@@ -589,7 +601,7 @@ class DeltaSharedTable(
     // Enforce page size only when `maxFiles` is specified for backwards compatibility.
     val pageSizeOpt = maxFilesOpt.map(_.min(queryTablePageSizeLimit))
     val tokenGenerator = { (v: Long, idx: Int) =>
-      encodeQueryTablePageToken(
+      DeltaSharedTable.encodeToken(
         QueryTablePageToken(
           id = Some(tableConfig.id),
           startingVersion = Some(v),
@@ -735,7 +747,7 @@ class DeltaSharedTable(
     // Enforce page size only when `maxFiles` is specified for backwards compatibility.
     val pageSizeOpt = maxFiles.map(_.min(queryTablePageSizeLimit))
     val tokenGenerator = { (v: Long, idx: Int) =>
-      encodeQueryTablePageToken(
+      DeltaSharedTable.encodeToken(
         QueryTablePageToken(
           id = Some(tableConfig.id),
           startingVersion = Some(v),
@@ -893,7 +905,14 @@ class DeltaSharedTable(
   private def decodeAndValidatePageToken(
       tokenStr: String,
       expectedChecksum: String): QueryTablePageToken = {
-    val token = decodeQueryTablePageToken(tokenStr)
+    val token = try {
+      DeltaSharedTable.decodeToken[QueryTablePageToken](tokenStr)
+    } catch {
+      case NonFatal(_) =>
+        throw new DeltaSharingIllegalArgumentException(
+          s"Error decoding the page token: $tokenStr."
+        )
+    }
     if (token.getExpirationTimestamp < System.currentTimeMillis()) {
       throw new DeltaSharingIllegalArgumentException(
         "The page token has expired. Please restart the query."
@@ -913,23 +932,39 @@ class DeltaSharedTable(
     token
   }
 
-  private def encodeQueryTablePageToken(token: QueryTablePageToken): String = {
-    Base64.getUrlEncoder.encodeToString(token.toByteArray)
-  }
-
-  private def decodeQueryTablePageToken(tokenStr: String): QueryTablePageToken = {
-    try {
-      QueryTablePageToken.parseFrom(Base64.getUrlDecoder.decode(tokenStr))
+  private def decodeAndValidateRefreshToken(tokenStr: String): RefreshToken = {
+    val token = try {
+      DeltaSharedTable.decodeToken[RefreshToken](tokenStr)
     } catch {
       case NonFatal(_) =>
         throw new DeltaSharingIllegalArgumentException(
-          s"Error decoding the page token: $tokenStr."
+          s"Error decoding refresh token: $tokenStr."
         )
     }
+    if (token.getExpirationTimestamp < System.currentTimeMillis()) {
+      throw new DeltaSharingIllegalArgumentException(
+        "The refresh token has expired. Please restart the query."
+      )
+    }
+    if (token.getId != tableConfig.id) {
+      throw new DeltaSharingIllegalArgumentException(
+        "The table specified in the refresh token does not match the table being queried."
+      )
+    }
+    token
   }
 }
 
 object DeltaSharedTable {
   val RESPONSE_FORMAT_PARQUET = "parquet"
   val RESPONSE_FORMAT_DELTA = "delta"
+
+  private def encodeToken[T <: GeneratedMessage](token: T): String = {
+    Base64.getUrlEncoder.encodeToString(token.toByteArray)
+  }
+
+  private def decodeToken[T <: GeneratedMessage](tokenStr: String)(
+    implicit protoCompanion: GeneratedMessageCompanion[T]): T = {
+    protoCompanion.parseFrom(Base64.getUrlDecoder.decode(tokenStr))
+  }
 }

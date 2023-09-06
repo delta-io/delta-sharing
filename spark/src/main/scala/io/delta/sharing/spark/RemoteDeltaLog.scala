@@ -20,7 +20,7 @@ import java.lang.ref.WeakReference
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkException
-import org.apache.spark.delta.sharing.CachedTableManager
+import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{Column, Encoder, SparkSession}
 import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
@@ -32,15 +32,7 @@ import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingProfileProvider, DeltaSharingRestClient}
-import io.delta.sharing.client.model.{
-  AddFile,
-  CDFColumnInfo,
-  DeltaTableFiles,
-  FileAction,
-  Metadata,
-  Protocol,
-  Table => DeltaSharingTable
-}
+import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, DeltaTableFiles, FileAction, Metadata, Protocol, Table => DeltaSharingTable}
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 
@@ -113,9 +105,13 @@ private[sharing] object RemoteDeltaLog {
       path: String,
       forStreaming: Boolean = false,
       responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET): RemoteDeltaLog = {
-    val (profileFile, share, schema, table) = DeltaSharingRestClient.parsePath(path)
-    val client = DeltaSharingRestClient(profileFile, forStreaming, responseFormat)
-    val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
+    val parsedPath = DeltaSharingRestClient.parsePath(path)
+    val client = DeltaSharingRestClient(parsedPath.profileFile, forStreaming, responseFormat)
+    val deltaSharingTable = DeltaSharingTable(
+      name = parsedPath.table,
+      schema = parsedPath.schema,
+      share = parsedPath.share
+    )
     new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
   }
 }
@@ -154,7 +150,15 @@ class RemoteSnapshot(
       metadata.size
     } else {
       log.warn("Getting table size from a full file scan for table: " + table)
-      val tableFiles = client.getFiles(table, Nil, None, versionAsOf, timestampAsOf, None)
+      val tableFiles = client.getFiles(
+        table = table,
+        predicates = Nil,
+        limit = None,
+        versionAsOf,
+        timestampAsOf,
+        jsonPredicateHints = None,
+        refreshToken = None
+      )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.map(_.size).sum
@@ -208,7 +212,7 @@ class RemoteSnapshot(
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(
-        table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints
+        table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints, None
       )
       var minUrlExpirationTimestamp: Option[Long] = None
       val idToUrl = tableFiles.files.map { file =>
@@ -228,11 +232,12 @@ class RemoteSnapshot(
           idToUrl,
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
-          () => {
-            val files = client.getFiles(
-              table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints).files
+          refreshToken => {
+            val tableFiles = client.getFiles(
+              table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints, refreshToken
+            )
             var minUrlExpiration: Option[Long] = None
-            val idToUrl = files.map { add =>
+            val idToUrl = tableFiles.files.map { add =>
               if (add.expirationTimestamp != null) {
                 minUrlExpiration = if (minUrlExpiration.isDefined
                   && minUrlExpiration.get < add.expirationTimestamp) {
@@ -243,13 +248,14 @@ class RemoteSnapshot(
               }
               add.id -> add.url
             }.toMap
-            (idToUrl, minUrlExpiration)
+            TableRefreshResult(idToUrl, minUrlExpiration, tableFiles.refreshToken)
           },
           if (CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
             minUrlExpirationTimestamp.get
           } else {
             System.currentTimeMillis() + CachedTableManager.INSTANCE.preSignedUrlExpirationMs
-          }
+          },
+          tableFiles.refreshToken
         )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
