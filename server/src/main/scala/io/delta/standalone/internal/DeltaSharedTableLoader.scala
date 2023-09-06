@@ -19,6 +19,7 @@ package io.delta.standalone.internal
 
 import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
+import java.util.Base64
 import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConverters._
@@ -38,6 +39,7 @@ import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem
 import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scala.collection.mutable.ListBuffer
+import scala.util.control.NonFatal
 
 import io.delta.sharing.server.{
   model,
@@ -51,6 +53,7 @@ import io.delta.sharing.server.{
   WasbFileSigner
 }
 import io.delta.sharing.server.config.{ServerConfig, TableConfig}
+import io.delta.sharing.server.protocol.RefreshToken
 
 /**
  * A class to load Delta tables from `TableConfig`. It also caches the loaded tables internally
@@ -72,7 +75,8 @@ class DeltaSharedTableLoader(serverConfig: ServerConfig) {
             tableConfig,
             serverConfig.preSignedUrlTimeoutSeconds,
             serverConfig.evaluatePredicateHints,
-            serverConfig.evaluateJsonPredicateHints)
+            serverConfig.evaluateJsonPredicateHints,
+            serverConfig.refreshTokenTtlMs)
         })
       if (!serverConfig.stalenessAcceptable) {
         deltaSharedTable.update()
@@ -93,7 +97,8 @@ class DeltaSharedTable(
     tableConfig: TableConfig,
     preSignedUrlTimeoutSeconds: Long,
     evaluatePredicateHints: Boolean,
-    evaluateJsonPredicateHints: Boolean) {
+    evaluateJsonPredicateHints: Boolean,
+    refreshTokenTtlMs: Int) {
 
   private val conf = withClassLoader {
     new Configuration()
@@ -188,7 +193,9 @@ class DeltaSharedTable(
       version: Option[Long],
       timestamp: Option[String],
       startingVersion: Option[Long],
-      endingVersion: Option[Long]
+      endingVersion: Option[Long],
+      includeRefreshToken: Boolean,
+      refreshToken: Option[String]
   ): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
@@ -196,8 +203,11 @@ class DeltaSharedTable(
         ErrorStrings.multipleParametersSetErrorMsg(Seq("version", "timestamp", "startingVersion"))
       )
     }
-    val snapshot = if (version.orElse(startingVersion).isDefined) {
-      deltaLog.getSnapshotForVersionAsOf(version.orElse(startingVersion).get)
+    // Validate refreshToken if it's specified
+    val refreshTokenOpt = refreshToken.map(decodeAndValidateRefreshToken)
+    val specifiedVersion = version.orElse(startingVersion).orElse(refreshTokenOpt.map(_.getVersion))
+    val snapshot = if (specifiedVersion.isDefined) {
+      deltaLog.getSnapshotForVersionAsOf(specifiedVersion.get)
     } else if (timestamp.isDefined) {
       val ts = DeltaSharingHistoryManager.getTimestamp("timestamp", timestamp.get)
       try {
@@ -268,7 +278,7 @@ class DeltaSharedTable(
           } else {
             filteredFiles
           }
-        filteredFiles.map { addFile =>
+        val signedFiles = filteredFiles.map { addFile =>
           val cloudPath = absolutePath(deltaLog.dataPath, addFile.path)
           val signedUrl = fileSigner.sign(cloudPath)
           val modelAddFile = model.AddFile(
@@ -282,6 +292,22 @@ class DeltaSharedTable(
             timestamp = if (isVersionQuery) { ts.get} else null
           )
           modelAddFile.wrap
+        }
+        signedFiles ++ {
+          // For backwards compatibility, return an `endStreamAction` object only when
+          // `includeRefreshToken` is true
+          if (includeRefreshToken) {
+            val refreshTokenStr = encodeRefreshToken(
+              RefreshToken(
+                id = Some(tableConfig.id),
+                version = Some(snapshot.version),
+                expirationTimestamp = Some(System.currentTimeMillis() + refreshTokenTtlMs)
+              )
+            )
+            Seq(model.EndStreamAction(refreshTokenStr).wrap)
+          } else {
+            Nil
+          }
         }
       } else {
         Nil
@@ -511,5 +537,31 @@ class DeltaSharedTable(
     } else {
       new Path(path, p)
     }
+  }
+
+  private def decodeAndValidateRefreshToken(tokenStr: String): RefreshToken = {
+    val token = try {
+      RefreshToken.parseFrom(Base64.getUrlDecoder.decode(tokenStr))
+    } catch {
+      case NonFatal(_) =>
+        throw new DeltaSharingIllegalArgumentException(
+          s"Error decoding refresh token: $tokenStr."
+        )
+    }
+    if (token.getExpirationTimestamp < System.currentTimeMillis()) {
+      throw new DeltaSharingIllegalArgumentException(
+        "The refresh token has expired. Please restart the query."
+      )
+    }
+    if (token.getId != tableConfig.id) {
+      throw new DeltaSharingIllegalArgumentException(
+        "The table specified in the refresh token does not match the table being queried."
+      )
+    }
+    token
+  }
+
+  private def encodeRefreshToken(token: RefreshToken): String = {
+    Base64.getUrlEncoder.encodeToString(token.toByteArray)
   }
 }

@@ -25,7 +25,8 @@ case class SingleAction(
     cdf: AddCDCFile = null,
     remove: RemoveFile = null,
     metaData: Metadata = null,
-    protocol: Protocol = null) {
+    protocol: Protocol = null,
+    endStreamAction: EndStreamAction = null) {
 
   def unwrap: Action = {
     if (file != null) {
@@ -40,6 +41,8 @@ case class SingleAction(
       metaData
     } else if (protocol != null) {
       protocol
+    } else if (endStreamAction != null) {
+      endStreamAction
     } else {
       null
     }
@@ -126,6 +129,12 @@ case class RemoveFile(
     extends Action {
 
   override def wrap: SingleAction = SingleAction(remove = this)
+}
+
+case class EndStreamAction(
+    refreshToken: String
+) extends Action {
+  override def wrap: SingleAction = SingleAction(endStreamAction = this)
 }
 
 object Action {
