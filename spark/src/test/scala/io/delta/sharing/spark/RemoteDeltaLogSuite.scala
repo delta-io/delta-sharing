@@ -70,8 +70,12 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
     // sanity check for dummy client
     val client = new TestDeltaSharingClient()
-    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(2L), None, None, Some("jsonPredicate1"))
-    client.getFiles(Table("fe", "fi", "fo"), Nil, Some(3L), None, None, Some("jsonPredicate2"))
+    client.getFiles(
+      Table("fe", "fi", "fo"), Nil, Some(2L), None, None, Some("jsonPredicate1"), None
+    )
+    client.getFiles(
+      Table("fe", "fi", "fo"), Nil, Some(3L), None, None, Some("jsonPredicate2"), None
+    )
     assert(TestDeltaSharingClient.limits === Seq(2L, 3L))
     assert(TestDeltaSharingClient.jsonPredicateHints === Seq("jsonPredicate1", "jsonPredicate2"))
     client.clear()
