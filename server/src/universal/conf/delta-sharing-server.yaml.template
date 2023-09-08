@@ -57,3 +57,5 @@ stalenessAcceptable: false
 evaluatePredicateHints: false
 # Whether to evaluate user provided `jsonPredicateHints`
 evaluateJsonPredicateHints: false
+# The TTL of the refresh token generated in queryTable API (in milliseconds).
+refreshTokenTtlMs: 3600000

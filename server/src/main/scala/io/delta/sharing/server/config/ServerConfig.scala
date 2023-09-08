@@ -57,7 +57,9 @@ case class ServerConfig(
     // Whether to evaluate user provided `jsonPredicateHints`
     @BeanProperty var evaluateJsonPredicateHints: Boolean,
     // The timeout of an incoming web request in seconds. Set to 0 for no timeout
-    @BeanProperty var requestTimeoutSeconds: Long
+    @BeanProperty var requestTimeoutSeconds: Long,
+    // The TTL of the refresh token generated in queryTable API (in milliseconds).
+    @BeanProperty var refreshTokenTtlMs: Int
 ) extends ConfigItem {
   import ServerConfig._
 
@@ -76,7 +78,8 @@ case class ServerConfig(
       stalenessAcceptable = false,
       evaluatePredicateHints = false,
       evaluateJsonPredicateHints = false,
-      requestTimeoutSeconds = 30
+      requestTimeoutSeconds = 30,
+      refreshTokenTtlMs = 3600000 // 1 hour
     )
   }
 

@@ -56,7 +56,8 @@ private[sharing] trait DeltaSharingClient {
     limit: Option[Long],
     versionAsOf: Option[Long],
     timestampAsOf: Option[String],
-    jsonPredicateHints: Option[String]): DeltaTableFiles
+    jsonPredicateHints: Option[String],
+    refreshToken: Option[String]): DeltaTableFiles
 
   def getFiles(table: Table, startingVersion: Long, endingVersion: Option[Long]): DeltaTableFiles
 
@@ -81,7 +82,9 @@ private[sharing] case class QueryTableRequest(
   timestamp: Option[String],
   startingVersion: Option[Long],
   endingVersion: Option[Long],
-  jsonPredicateHints: Option[String]
+  jsonPredicateHints: Option[String],
+  includeRefreshToken: Option[Boolean],
+  refreshToken: Option[String]
 )
 
 private[sharing] case class ListSharesResponse(
@@ -99,7 +102,8 @@ private[spark] class DeltaSharingRestClient(
     numRetries: Int = 10,
     maxRetryDuration: Long = Long.MaxValue,
     sslTrustAll: Boolean = false,
-    forStreaming: Boolean = false) extends DeltaSharingClient {
+    forStreaming: Boolean = false
+  ) extends DeltaSharingClient with Logging {
 
   @volatile private var created = false
 
@@ -228,7 +232,10 @@ private[spark] class DeltaSharingRestClient(
       limit: Option[Long],
       versionAsOf: Option[Long],
       timestampAsOf: Option[String],
-      jsonPredicateHints: Option[String]): DeltaTableFiles = {
+      jsonPredicateHints: Option[String],
+      refreshToken: Option[String]): DeltaTableFiles = {
+    // Retrieve refresh token when querying the latest snapshot.
+    val includeRefreshToken = versionAsOf.isEmpty && timestampAsOf.isEmpty
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
@@ -243,15 +250,26 @@ private[spark] class DeltaSharingRestClient(
         timestampAsOf,
         None,
         None,
-        jsonPredicateHints
+        jsonPredicateHints,
+        Some(includeRefreshToken),
+        refreshToken
       )
     )
+    val (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
+    val refreshTokenOpt = endStreamAction.flatMap { e =>
+      Option(e.refreshToken).flatMap { token =>
+        if (token.isEmpty) None else Some(token)
+      }
+    }
+    if (includeRefreshToken && refreshTokenOpt.isEmpty) {
+      logWarning("includeRefreshToken=true but refresh token is not returned.")
+    }
     require(versionAsOf.isEmpty || versionAsOf.get == version)
-    val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
+    val protocol = JsonUtils.fromJson[SingleAction](filteredLines(0)).protocol
     checkProtocol(protocol)
-    val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
-    val files = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
-    DeltaTableFiles(version, protocol, metadata, files)
+    val metadata = JsonUtils.fromJson[SingleAction](filteredLines(1)).metaData
+    val files = filteredLines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
+    DeltaTableFiles(version, protocol, metadata, files, refreshToken = refreshTokenOpt)
   }
 
   override def getFiles(
@@ -265,7 +283,19 @@ private[spark] class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
     val (version, lines) = getNDJson(
-      target, QueryTableRequest(Nil, None, None, None, Some(startingVersion), endingVersion, None))
+      target,
+      QueryTableRequest(
+        /* predicateHint */ Nil,
+        /* limitHint */ None,
+        /* version */ None,
+        /* timestamp */ None,
+        Some(startingVersion),
+        endingVersion,
+        /* jsonPredicateHints */ None,
+        /* includeRefreshToken */ None,
+        /* refreshToken */ None
+      )
+    )
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
@@ -324,6 +354,17 @@ private[spark] class DeltaSharingRestClient(
       removeFiles = removeFiles.toSeq,
       additionalMetadatas = additionalMetadatas.toSeq
     )
+  }
+
+  // Check the last line and extract EndStreamAction if there is one.
+  private def maybeExtractEndStreamAction(
+      lines: Seq[String]): (Seq[String], Option[EndStreamAction]) = {
+    val endStreamAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
+    if (endStreamAction == null) {
+      (lines, None)
+    } else {
+      (lines.init, Some(endStreamAction))
+    }
   }
 
   private def getEncodedCDFParams(

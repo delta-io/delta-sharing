@@ -62,7 +62,8 @@ class TestDeltaSharingClient(
     limit: Option[Long],
     versionAsOf: Option[Long],
     timestampAsOf: Option[String],
-    jsonPredicateHints: Option[String]): DeltaTableFiles = {
+    jsonPredicateHints: Option[String],
+    refreshToken: Option[String]): DeltaTableFiles = {
     limit.foreach(lim => TestDeltaSharingClient.limits = TestDeltaSharingClient.limits :+ lim)
     jsonPredicateHints.foreach(p => {
       TestDeltaSharingClient.jsonPredicateHints = TestDeltaSharingClient.jsonPredicateHints :+ p

@@ -28,6 +28,12 @@ import org.apache.spark.util.{RpcUtils, ThreadUtils}
 
 import io.delta.sharing.spark.DeltaSharingProfileProvider
 
+case class TableRefreshResult(
+    idToUrl: Map[String, String],
+    expirationTimestamp: Option[Long],
+    refreshToken: Option[String]
+)
+
 /**
  * @param expiration the expiration time of the pre signed urls
  * @param idToUrl the file id to pre sign url map
@@ -35,15 +41,18 @@ import io.delta.sharing.spark.DeltaSharingProfileProvider
  *             remove the cached table from our cache.
  * @param lastAccess When the table was accessed last time. We will remove old tables that are not
  *                   accessed after `expireAfterAccessMs` milliseconds.
- * @param refresher the function to generate a new file id to pre sign url map, as long as the new
- *                  expiration timestamp of the urls.
+ * @param refresher the function to generate a new file id to pre sign url map, with the new
+ *                  expiration timestamp of the urls and the new refresh token.
+ * @param refreshToken the optional refresh token that can be used by the refresher to retrieve
+ *                     the same set of files with refreshed urls.
  */
 class CachedTable(
     val expiration: Long,
     val idToUrl: Map[String, String],
     val refs: Seq[WeakReference[AnyRef]],
     @volatile var lastAccess: Long,
-    val refresher: () => (Map[String, String], Option[Long]))
+    val refresher: Option[String] => TableRefreshResult,
+    val refreshToken: Option[String])
 
 class CachedTableManager(
     val preSignedUrlExpirationMs: Long,
@@ -96,17 +105,18 @@ class CachedTableManager(
         logInfo(s"Updating pre signed urls for $tablePath (expiration time: " +
           s"${new java.util.Date(cachedTable.expiration)})")
         try {
-          val (idToUrl, expOpt) = cachedTable.refresher()
+          val refreshRes = cachedTable.refresher(cachedTable.refreshToken)
           val newTable = new CachedTable(
-            if (isValidUrlExpirationTime(expOpt)) {
-              expOpt.get
+            if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
+              refreshRes.expirationTimestamp.get
             } else {
               preSignedUrlExpirationMs + System.currentTimeMillis()
             },
-            idToUrl,
+            refreshRes.idToUrl,
             cachedTable.refs,
             cachedTable.lastAccess,
-            cachedTable.refresher
+            cachedTable.refresher,
+            refreshRes.refreshToken
           )
           // Failing to replace the table is fine because if it did happen, we would retry after
           // `refreshCheckIntervalMs` milliseconds.
@@ -153,31 +163,38 @@ class CachedTableManager(
    *                still needed. When all the weak references return null, we will remove the pre
    *                signed url cache of this table form the cache.
    * @param profileProvider a profile Provider that can provide customized refresher function.
-   * @param refresher                 A function to re-generate pre signed urls for the table.
-   * @param expirationTimestamp   Optional, If set, it's a timestamp to indicate the expiration
-   *                              timestamp of the idToUrl.
+   * @param refresher A function to re-generate pre signed urls for the table.
+   * @param expirationTimestamp Optional, If set, it's a timestamp to indicate the expiration
+   *                            timestamp of the idToUrl.
+   * @param refreshToken an optional refresh token that can be used by the refresher to retrieve
+   *                     the same set of files with refreshed urls.
    */
   def register(
       tablePath: String,
       idToUrl: Map[String, String],
       refs: Seq[WeakReference[AnyRef]],
       profileProvider: DeltaSharingProfileProvider,
-      refresher: () => (Map[String, String], Option[Long]),
-      expirationTimestamp: Long = System.currentTimeMillis() + preSignedUrlExpirationMs
+      refresher: Option[String] => TableRefreshResult,
+      expirationTimestamp: Long = System.currentTimeMillis() + preSignedUrlExpirationMs,
+      refreshToken: Option[String]
   ): Unit = {
     val customTablePath = profileProvider.getCustomTablePath(tablePath)
     val customRefresher = profileProvider.getCustomRefresher(refresher)
 
-    val (resolvedIdToUrl, resolvedExpiration) =
+    val (resolvedIdToUrl, resolvedExpiration, resolvedRefreshToken) =
       if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
-        val (refreshedIdToUrl, expOpt) = customRefresher()
-        if (isValidUrlExpirationTime(expOpt)) {
-          (refreshedIdToUrl, expOpt.get)
+        val refreshRes = customRefresher(refreshToken)
+        if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
+          (refreshRes.idToUrl, refreshRes.expirationTimestamp.get, refreshRes.refreshToken)
         } else {
-          (refreshedIdToUrl, System.currentTimeMillis() + preSignedUrlExpirationMs)
+          (
+            refreshRes.idToUrl,
+            System.currentTimeMillis() + preSignedUrlExpirationMs,
+            refreshRes.refreshToken
+          )
         }
       } else {
-        (idToUrl, expirationTimestamp)
+        (idToUrl, expirationTimestamp, refreshToken)
       }
 
     val cachedTable = new CachedTable(
@@ -185,7 +202,8 @@ class CachedTableManager(
       idToUrl = resolvedIdToUrl,
       refs,
       System.currentTimeMillis(),
-      customRefresher
+      customRefresher,
+      resolvedRefreshToken
     )
     var oldTable = cache.putIfAbsent(customTablePath, cachedTable)
     if (oldTable == null) {
@@ -203,7 +221,8 @@ class CachedTableManager(
         // Try to avoid storing duplicate references
         refs.filterNot(ref => oldTable.refs.exists(_.get eq ref.get)) ++ oldTable.refs,
         lastAccess = System.currentTimeMillis(),
-        customRefresher
+        customRefresher,
+        cachedTable.refreshToken
       )
       if (cache.replace(customTablePath, oldTable, mergedTable)) {
         // Put the merged one to the cache

@@ -48,7 +48,8 @@ private[sharing] case class DeltaTableFiles(
     addFiles: Seq[AddFileForCDF] = Nil,
     cdfFiles: Seq[AddCDCFile] = Nil,
     removeFiles: Seq[RemoveFile] = Nil,
-    additionalMetadatas: Seq[Metadata] = Nil)
+    additionalMetadatas: Seq[Metadata] = Nil,
+    refreshToken: Option[String] = None)
 
 private[sharing] case class Share(name: String)
 
@@ -64,7 +65,8 @@ private[sharing] case class SingleAction(
     cdf: AddCDCFile = null,
     remove: RemoveFile = null,
     metaData: Metadata = null,
-    protocol: Protocol = null) {
+    protocol: Protocol = null,
+    endStreamAction: EndStreamAction = null) {
 
   def unwrap: Action = {
     if (file != null) {
@@ -79,6 +81,8 @@ private[sharing] case class SingleAction(
       metaData
     } else if (protocol != null) {
       protocol
+    } else if (endStreamAction != null) {
+      endStreamAction
     } else {
       null
     }
@@ -108,6 +112,12 @@ private[sharing] sealed trait Action {
 
 private[sharing] case class Protocol(minReaderVersion: Int) extends Action {
   override def wrap: SingleAction = SingleAction(protocol = this)
+}
+
+private[sharing] case class EndStreamAction(
+    refreshToken: String)
+  extends Action {
+  override def wrap: SingleAction = SingleAction(endStreamAction = this)
 }
 
 // A common base class for all file actions.
