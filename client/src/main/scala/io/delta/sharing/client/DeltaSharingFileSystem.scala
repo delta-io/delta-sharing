@@ -65,7 +65,10 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
 
   override def getUri(): URI = URI.create(s"$SCHEME:///")
 
-  // delta-sharing:///
+  // open a file path with the format below:
+  // ```
+  // delta-sharing:///<url encoded table path>/<url encoded file id>/<size>
+  // ```
   override def open(f: Path, bufferSize: Int): FSDataInputStream = {
     val path = DeltaSharingFileSystem.decode(f)
     val fetcher =
