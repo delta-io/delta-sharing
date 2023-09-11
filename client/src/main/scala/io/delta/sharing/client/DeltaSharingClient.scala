@@ -75,6 +75,8 @@ trait DeltaSharingClient {
   def getProfileProvider: DeltaSharingProfileProvider = null
 }
 
+// A case class containing parameters parsed from the input delta sharing table path with the
+// format of "profile_file#share.schema.table".
 case class ParsedDeltaSharingTablePath(
     profileFile: String,
     share: String,
@@ -614,6 +616,7 @@ class DeltaSharingRestClient(
     }
   }
 
+  // Get encoded parameters for getMetadata rpc, "version=3" or "timestamp=2023-01-01T00:00:00Z".
   private def getEncodedMetadataParams(
       versionAsOf: Option[Long], timestampAsOf: Option[String]): String = {
     val paramMap = versionAsOf.map("version" -> _.toString).toMap ++
@@ -898,8 +901,8 @@ object DeltaSharingRestClient extends Logging {
   }
 
   /**
-   * Parse the user provided path `profile_file#share.schema.share` to
-   * `(profile_file, share, schema, share)`.
+   * Parse the user provided path `profile_file#share.schema.table` to
+   * ParsedDeltaSharingTablePath.
    */
   def parsePath(path: String): ParsedDeltaSharingTablePath = {
     val shapeIndex = path.lastIndexOf('#')

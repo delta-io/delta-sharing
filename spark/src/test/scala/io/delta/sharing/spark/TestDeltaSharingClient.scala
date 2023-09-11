@@ -73,10 +73,13 @@ class TestDeltaSharingClient(
 
   override def listAllTables(): Seq[Table] = Nil
 
+  // This function returns the mocked response from delta sharing server.
   override def getMetadata(
       table: Table,
       versionAsOf: Option[Long] = None,
       timestampAsOf: Option[String] = None): DeltaTableMetadata = {
+    // Different metadata are returned for rpcs with different parameters to test the parameters
+    // are set properly.
     if (versionAsOf.exists(_ == 1)) {
       DeltaTableMetadata(1, Protocol(0), metadataV1)
     } else if (timestampAsOf.exists(_ == TESTING_TIMESTAMP)) {
@@ -118,9 +121,9 @@ class TestDeltaSharingClient(
     }
 
     if (versionAsOf.exists(_ == 1)) {
-      DeltaTableFiles(0, Protocol(0), metadataV1, addFiles)
+      DeltaTableFiles(1, Protocol(0), metadataV1, addFiles)
     } else if (timestampAsOf.exists(_ == TESTING_TIMESTAMP)) {
-      DeltaTableFiles(0, Protocol(0), metadataV2, addFiles)
+      DeltaTableFiles(1, Protocol(0), metadataV2, addFiles)
     } else {
       DeltaTableFiles(0, Protocol(0), metadata, addFiles)
     }
