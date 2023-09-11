@@ -952,13 +952,7 @@ case class DeltaSharingSource(
     new AdmissionLimits().toReadLimit
   }
 
-  def debug(str: String): Unit = {
-    // scalastyle:off println
-    Console.println(s"----[linzhou]----SharingSource: $str")
-  }
-
   override def latestOffset(startOffset: streaming.Offset, limit: ReadLimit): streaming.Offset = {
-    debug(s"latestOffset, startOffset:$startOffset, limit:$limit")
     val limits = AdmissionLimits(limit)
 
     val currentOffset = if (previousOffset == null) {
@@ -967,9 +961,7 @@ case class DeltaSharingSource(
       getNextOffsetFromPreviousOffset(limits)
     }
     logDebug(s"previousOffset -> currentOffset: $previousOffset -> $currentOffset")
-    val a = currentOffset.orNull
-    debug(s"latestOffset, return :$a")
-    a
+    currentOffset.orNull
   }
 
   override def getOffset: Option[Offset] = {
