@@ -107,8 +107,8 @@ def test_to_pandas_partitioned(tmp_path):
             metadata = Metadata(
                 schema_string=(
                     '{"fields":['
-                    '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
-                    '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
+                    '{"metadata":{},"name":"A","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"B","nullable":true,"type":"string"}'
                     '],"type":"struct"}'
                 )
             )
@@ -116,14 +116,14 @@ def test_to_pandas_partitioned(tmp_path):
                 AddFile(
                     url=str(tmp_path / "pdf1.parquet"),
                     id="pdf1",
-                    partition_values={"b": "x"},
+                    partition_values={"B": "x"},
                     size=0,
                     stats="",
                 ),
                 AddFile(
                     url=str(tmp_path / "pdf2.parquet"),
                     id="pdf2",
-                    partition_values={"b": "y"},
+                    partition_values={"B": "y"},
                     size=0,
                     stats="",
                 ),
@@ -136,9 +136,9 @@ def test_to_pandas_partitioned(tmp_path):
     pdf = reader.to_pandas()
 
     expected1 = pdf1.copy()
-    expected1["b"] = "x"
+    expected1["B"] = "x"
     expected2 = pdf2.copy()
-    expected2["b"] = "y"
+    expected2["B"] = "y"
     expected = pd.concat([expected1, expected2]).reset_index(drop=True)
 
     pd.testing.assert_frame_equal(pdf, expected)
