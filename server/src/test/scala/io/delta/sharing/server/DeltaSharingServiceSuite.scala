@@ -40,9 +40,9 @@ import io.delta.sharing.server.util.JsonUtils
 class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   def shouldRunIntegrationTest: Boolean = {
-    sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) // &&
-      // sys.env.get("AZURE_TEST_ACCOUNT_KEY").exists(_.length > 0) &&
-      // sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
+    sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) &&
+      sys.env.get("AZURE_TEST_ACCOUNT_KEY").exists(_.length > 0) &&
+      sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
   }
 
   private var serverConfig: ServerConfig = _
