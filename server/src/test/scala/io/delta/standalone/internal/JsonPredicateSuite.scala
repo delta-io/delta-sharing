@@ -31,14 +31,24 @@ class JsonPredicateSuite extends FunSuite {
    * An error implies that the file represented by ctx will not get filtered.
    */
   def evalExpectBoolean(op: NonLeafOp, ctx: EvalContext, expectError: Boolean = false): Boolean = {
+    // Evaluate V2. We do not expect any errors from V2 evaluation, since it dynamically
+    // prunes evaluations from nodes in the tree that trigger errors.
+    val evalV2 = new JsonPredicateEvaluatorV2(op)
+    val resV2 = evalV2.eval(ctx)
+
     try {
       val res = op.evalExpectBoolean(ctx)
       if (expectError) {
         throw new IllegalArgumentException("Expected error for " + op)
       }
+      // If there are no errors, the two evaluations must match.
+      assert(resV2 == res)
       res
     } catch {
       case e: IllegalArgumentException =>
+        // If the legacy evaluation returned an error, V2 evaluator would return true which
+        // implies that the file will not be skipped.
+        assert(resV2 == true)
         if (expectError) {
           // This implies we include the file represented by the context.
           true
@@ -147,7 +157,7 @@ class JsonPredicateSuite extends FunSuite {
       EqualOp(
         Seq(
           ColumnOp(name = "hireDate", valueType = "date"),
-          LiteralOp(value = "2021-04-29", valueType = "int")
+          LiteralOp(value = "24", valueType = "int")
         )
       ).validate()
     }.getMessage.contains("Type mismatch"))

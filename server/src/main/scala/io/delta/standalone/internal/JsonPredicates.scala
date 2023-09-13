@@ -27,8 +27,14 @@ import com.fasterxml.jackson.annotation.{JsonIgnore, JsonSubTypes, JsonTypeInfo}
  * The evaluation context in which operations will be evaluated.
  *
  * @param partitionValues The partition values associated with parquet files.
+ * @param statsValues The stats values associated with parquet files.
+ *                    These are presented as a min/max range.
+ *                    Stats values are applicable to non-partition columns.
  */
-case class EvalContext(partitionValues: Map[String, String])
+case class EvalContext(
+    partitionValues: Map[String, String],
+    statsValues: Map[String, (String, String)] = Map.empty
+)
 
 /**
  * The data types supported by the filtering operations.
@@ -39,8 +45,21 @@ object OpDataTypes {
   val LongType = "long"
   val StringType = "string"
   val DateType = "date"
+  val FloatType = "float"
+  val DoubleType = "double"
+  val TimestampType = "timestamp"
 
   val supportedTypes = Set(BoolType, IntType, LongType, StringType, DateType)
+  val supportedTypesV2 = supportedTypes ++ Set(FloatType, DoubleType, TimestampType)
+
+  // Returns true if the specified valueType is supported.
+  def isSupportedType(valueType: String, forV2: Boolean): Boolean = {
+    if (forV2) {
+      OpDataTypes.supportedTypesV2.contains(valueType)
+    } else {
+      OpDataTypes.supportedTypes.contains(valueType)
+    }
+  }
 }
 
 /**
@@ -72,7 +91,7 @@ trait BaseOp {
   //
   // The method throws an exception if any of the validations fail.
   @throws[IllegalArgumentException]
-  def validate(): Unit
+  def validate(forV2: Boolean = false): Unit
 
   // Evaluates this operation in the given context.
   //
@@ -128,26 +147,26 @@ trait NonLeafOp extends BaseOp;
 // Represents a unary operation.
 trait UnaryOp {
   // Validates number of children to be 1.
-  def validateChildren(children: Seq[BaseOp]): Unit = {
+  def validateChildren(children: Seq[BaseOp], forV2: Boolean = false): Unit = {
     if (children.size != 1) {
       throw new IllegalArgumentException(
         this + " : expected 1 but found " + children.size + " children"
       )
     }
-    children(0).validate()
+    children(0).validate(forV2)
   }
 }
 
 // Represents a binary operation.
 trait BinaryOp {
   // Validates number of children to be 2.
-  def validateChildren(children: Seq[BaseOp]): Unit = {
+  def validateChildren(children: Seq[BaseOp], forV2: Boolean = false): Unit = {
     if (children.size != 2) {
       throw new IllegalArgumentException(
         this + " : expected 2 but found " + children.size + " children"
       )
     }
-    children.map(c => c.validate())
+    children.map(c => c.validate(forV2))
     if (children(0).isInstanceOf[LeafOp] && children(1).isInstanceOf[LeafOp]) {
       val leftType = children(0).asInstanceOf[LeafOp].getOpValueType()
       val rightType = children(1).asInstanceOf[LeafOp].getOpValueType()
@@ -164,13 +183,13 @@ trait BinaryOp {
 // Represents an operation involving two or more children.
 trait NaryOp {
   // Validates number of children to be at least 2.
-  def validateChildren(children: Seq[BaseOp]): Unit = {
+  def validateChildren(children: Seq[BaseOp], forV2: Boolean = false): Unit = {
     if (children.size < 2) {
       throw new IllegalArgumentException(
         this + " : expected at least 2 but found " + children.size + " children"
       )
     }
-    children.map(c => c.validate())
+    children.map(c => c.validate(forV2))
   }
 }
 
@@ -184,11 +203,11 @@ trait NaryOp {
  * value in the evaluation context.
  */
 case class ColumnOp(val name: String, val valueType: String) extends LeafOp {
-  override def validate(): Unit = {
+  override def validate(forV2: Boolean = false): Unit = {
     if (name == null) {
       throw new IllegalArgumentException("Name must be specified: " + this)
     }
-    if (!OpDataTypes.supportedTypes.contains(valueType)) {
+    if (!OpDataTypes.isSupportedType(valueType, forV2)) {
       throw new IllegalArgumentException("Unsupported type: " + valueType)
     }
   }
@@ -229,13 +248,14 @@ case class ColumnOp(val name: String, val valueType: String) extends LeafOp {
  */
 case class LiteralOp(val value: String, val valueType: String) extends LeafOp {
 
-  override def validate(): Unit = {
+  override def validate(forV2: Boolean = false): Unit = {
     if (value == null) {
       throw new IllegalArgumentException("Value must be specified: " + this)
     }
-    if (!OpDataTypes.supportedTypes.contains(valueType)) {
+    if (!OpDataTypes.isSupportedType(valueType, forV2)) {
       throw new IllegalArgumentException("Unsupported type: " + valueType)
     }
+    EvalHelper.validateValue(value, valueType);
   }
 
   // Returns the value and its type.
@@ -251,7 +271,7 @@ case class LiteralOp(val value: String, val valueType: String) extends LeafOp {
  * Represents a null operation on its child.
  */
 case class IsNullOp(children: Seq[LeafOp]) extends NonLeafOp with UnaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = children(0).isNull(ctx)
 
@@ -269,7 +289,7 @@ case class IsNullOp(children: Seq[LeafOp]) extends NonLeafOp with UnaryOp {
  * @param children Expected size is 2.
  */
 case class EqualOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = EvalHelper.equal(children, ctx)
 
@@ -277,7 +297,7 @@ case class EqualOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
 }
 
 case class LessThanOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = EvalHelper.lessThan(children, ctx)
 
@@ -285,7 +305,7 @@ case class LessThanOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
 }
 
 case class LessThanOrEqualOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any =
     EvalHelper.lessThan(children, ctx) || EvalHelper.equal(children, ctx)
@@ -294,7 +314,7 @@ case class LessThanOrEqualOp(children: Seq[LeafOp]) extends NonLeafOp with Binar
 }
 
 case class GreaterThanOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any =
     !EvalHelper.lessThan(children, ctx) && !EvalHelper.equal(children, ctx)
@@ -303,7 +323,7 @@ case class GreaterThanOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp 
 }
 
 case class GreaterThanOrEqualOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = !EvalHelper.lessThan(children, ctx)
 
@@ -316,7 +336,7 @@ case class GreaterThanOrEqualOp(children: Seq[LeafOp]) extends NonLeafOp with Bi
  *   "&&", "||", "!"
  */
 case class AndOp(val children: Seq[BaseOp]) extends NonLeafOp with NaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = {
     children.forall(c => c.evalExpectBoolean(ctx))
@@ -326,7 +346,7 @@ case class AndOp(val children: Seq[BaseOp]) extends NonLeafOp with NaryOp {
 }
 
 case class OrOp(val children: Seq[BaseOp]) extends NonLeafOp with NaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = {
     children.exists(c => c.evalExpectBoolean(ctx))
@@ -336,7 +356,7 @@ case class OrOp(val children: Seq[BaseOp]) extends NonLeafOp with NaryOp {
 }
 
 case class NotOp(val children: Seq[BaseOp]) extends NonLeafOp with UnaryOp {
-  override def validate(): Unit = validateChildren(children)
+  override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = !children(0).evalExpectBoolean(ctx)
 
@@ -412,6 +432,30 @@ object EvalHelper {
         java.sql.Date.valueOf(leftVal).before(java.sql.Date.valueOf(rightVal))
       case _ =>
         throw new IllegalArgumentException("Unsupported type: " + leftType)
+    }
+  }
+
+  // Validates that the specified value is in the correct format.
+  // Throws an exception otherwise.
+  def validateValue(value: String, valueType: String): Unit = {
+    try {
+      valueType match {
+        case OpDataTypes.BoolType => value.toBoolean
+        case OpDataTypes.IntType => value.toInt
+        case OpDataTypes.LongType => value.toLong
+        case OpDataTypes.StringType =>
+        case OpDataTypes.DateType => java.sql.Date.valueOf(value)
+        case OpDataTypes.FloatType => value.toFloat
+        case OpDataTypes.DoubleType => value.toDouble
+        case OpDataTypes.TimestampType => TimestampUtils.parse(value)
+        case _ =>
+          throw new IllegalArgumentException("Unsupported type: " + valueType)
+      }
+    } catch {
+      case e: Exception =>
+        throw new IllegalArgumentException(
+          "Error validating " + value + " for type " + valueType + ": " + e
+        )
     }
   }
 }

@@ -56,6 +56,8 @@ case class ServerConfig(
     @BeanProperty var evaluatePredicateHints: Boolean,
     // Whether to evaluate user provided `jsonPredicateHints`
     @BeanProperty var evaluateJsonPredicateHints: Boolean,
+    // Whether to evaluate user provided `jsonPredicateHints` with V2 evaluator.
+    @BeanProperty var evaluateJsonPredicateHintsV2: Boolean,
     // The timeout of an incoming web request in seconds. Set to 0 for no timeout
     @BeanProperty var requestTimeoutSeconds: Long,
     // The maximum page size permitted by queryTable/queryTableChanges API.
@@ -82,6 +84,7 @@ case class ServerConfig(
       stalenessAcceptable = false,
       evaluatePredicateHints = false,
       evaluateJsonPredicateHints = false,
+      evaluateJsonPredicateHintsV2 = false,
       requestTimeoutSeconds = 30,
       queryTablePageSizeLimit = 10000,
       queryTablePageTokenTtlMs = 259200000, // 3 days

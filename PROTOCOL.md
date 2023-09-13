@@ -2869,6 +2869,9 @@ ValueType | Description
 "long" | Represents a Long type.
 "string" | Represents a String type.
 "date" | Represents a Date type in "yyyy-mm-dd" format.
+"float" | Represents a Float type.
+"double" | Represents a Double type.
+"timestamp" | Represents a timestamp in [Timestamp Format](#timestamp-format).
 
 
 Examples

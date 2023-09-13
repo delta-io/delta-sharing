@@ -70,6 +70,7 @@ class DeltaSharedTableLoader(serverConfig: ServerConfig) {
               serverConfig.preSignedUrlTimeoutSeconds,
               serverConfig.evaluatePredicateHints,
               serverConfig.evaluateJsonPredicateHints,
+              serverConfig.evaluateJsonPredicateHintsV2,
               serverConfig.queryTablePageSizeLimit,
               serverConfig.queryTablePageTokenTtlMs,
               serverConfig.refreshTokenTtlMs
@@ -111,6 +112,7 @@ class DeltaSharedTable(
     preSignedUrlTimeoutSeconds: Long,
     evaluatePredicateHints: Boolean,
     evaluateJsonPredicateHints: Boolean,
+    evaluateJsonPredicateHintsV2: Boolean,
     queryTablePageSizeLimit: Int,
     queryTablePageTokenTtlMs: Int,
     refreshTokenTtlMs: Int) {
@@ -489,13 +491,23 @@ class DeltaSharedTable(
         // Skip files that are already processed in previous pages
         val selectedIndexedFiles = state.activeFiles.toSeq.zipWithIndex
           .drop(pageTokenOpt.map(_.getStartingActionIndex).getOrElse(0))
-        // Select files that satisfy partition and predicate hints
+
+        // Select files that satisfy predicate hints
+        val useJsonPredicateHints =
+          (evaluateJsonPredicateHints && snapshot.metadataScala.partitionColumns.nonEmpty) ||
+          evaluateJsonPredicateHintsV2
         var filteredIndexedFiles =
-          if (evaluateJsonPredicateHints && snapshot.metadataScala.partitionColumns.nonEmpty) {
-            JsonPredicateFilterUtils.evaluatePredicate(jsonPredicateHints, selectedIndexedFiles)
+          if (useJsonPredicateHints) {
+            JsonPredicateFilterUtils.evaluatePredicate(
+              jsonPredicateHints,
+              evaluateJsonPredicateHintsV2,
+              selectedIndexedFiles
+            )
           } else {
             selectedIndexedFiles
           }
+
+        // Select files that satisfy partition hints
         filteredIndexedFiles =
           if (evaluatePredicateHints && snapshot.metadataScala.partitionColumns.nonEmpty) {
             PartitionFilterUtils.evaluatePredicate(
