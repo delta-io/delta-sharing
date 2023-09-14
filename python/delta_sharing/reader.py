@@ -153,6 +153,7 @@ class DeltaSharingReader:
         self,
         *,
         predicateHints: Optional[Sequence[str]],
+        jsonPredicateHints: Optional[str],
         limit: Optional[int],
         version: Optional[int],
         timestamp: Optional[str]

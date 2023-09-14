@@ -92,7 +92,7 @@ def test_to_pandas_non_partitioned(tmp_path):
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"),
         RestClientMock(),
-        jsonPredicateHints = "dummy_hints"
+        jsonPredicateHints="dummy_hints"
     )
     pdf = reader.to_pandas()
     expected = pd.concat([pdf1]).reset_index(drop=True)
@@ -101,7 +101,7 @@ def test_to_pandas_non_partitioned(tmp_path):
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"),
         RestClientMock(),
-        predicateHints = "dummy_hints"
+        predicateHints="dummy_hints"
     )
     pdf = reader.to_pandas()
     expected = pd.concat([pdf2]).reset_index(drop=True)
