@@ -42,7 +42,7 @@ import org.apache.spark.sql.types.{
 import io.delta.sharing.client.DeltaSharingClient
 import io.delta.sharing.client.model.Table
 import io.delta.sharing.client.util.JsonUtils
-import io.delta.sharing.spark.filters.{BaseOp, OpConverter}
+import io.delta.sharing.filters.{BaseOp, OpConverter}
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 

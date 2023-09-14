@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-// scalastyle:off println
-
-package io.delta.sharing.spark.filters
+package io.delta.sharing.filters
 
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.sql.catalyst.expressions.{
