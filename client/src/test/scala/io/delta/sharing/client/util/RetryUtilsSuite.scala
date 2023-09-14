@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.spark.util
+package io.delta.sharing.client.util
 
 import java.io.{InterruptedIOException, IOException}
 
