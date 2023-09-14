@@ -509,13 +509,13 @@ def test_list_files_with_json_predicates(
         )
 
         # validate that we get back all expected files.
-        assert(len(expected_dates) == len(response.add_files))
+        assert len(expected_dates) == len(response.add_files)
         for date in expected_dates:
             found = False
             for file in response.add_files:
                 if date in file.url:
                     found = True
-            assert(found)
+            assert found
 
     # Without predicates, we should get back all the files.
     test_hints(None, ["2020-01-01", "2020-02-02"])
