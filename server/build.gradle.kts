@@ -1,11 +1,18 @@
 import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
 
-val generatedSourcesDir = "${layout.buildDirectory.get()}/generated/openapi"
+val openApiGeneratedSourcesRelativeToBuildPath = "generated/openapi"
+
+val openApiGeneratedSourcesAbsolutePath =
+    "${layout.buildDirectory.get()}/${openApiGeneratedSourcesRelativeToBuildPath}"
+
+val openApiGeneratedSourcesRelativeToProjectPath =
+    "${layout.buildDirectory.get().asFile.toRelativeString(layout.projectDirectory.asFile)}/${openApiGeneratedSourcesRelativeToBuildPath}"
 
 plugins {
     java
     id("io.quarkus")
     id("org.openapi.generator")
+    id("com.diffplug.spotless")
 }
 
 repositories {
@@ -46,25 +53,22 @@ buildscript {
 tasks.register<GenerateTask>("openapiGenerateLakeSharing") {
     generatorName.set("jaxrs-spec")
     inputSpec.set("$rootDir/docs/protocol/lake-sharing-protocol-api.yml")
-    outputDir.set(generatedSourcesDir)
+    outputDir.set(openApiGeneratedSourcesAbsolutePath)
     additionalProperties.set(
-            mapOf(
-                    "apiPackage" to "io.lake.sharing.api.server",
-                    "dateLibrary" to "java8",
-                    "disallowAdditionalPropertiesIfNotPresent" to "false",
-                    "generateBuilders" to "true",
-                    "generatePom" to "false",
-                    "interfaceOnly" to "true",
-//                    "legacyDiscriminatorBehavior" to "false",
-                    "library" to "quarkus",
-                    "modelPackage" to "io.lake.sharing.api.server.model",
-                    "returnResponse" to "true",
-                    "supportAsync" to "true",
-                    "useJakartaEe" to "true",
-//                    "useMicroProfileOpenAPIAnnotations" to "false",
-//                    "useOneOfInterfaces" to "true",
-                    "useSwaggerAnnotations" to "false"
-            )
+        mapOf(
+            "apiPackage" to "io.lake.sharing.api.server",
+            "dateLibrary" to "java8",
+            "disallowAdditionalPropertiesIfNotPresent" to "false",
+            "generateBuilders" to "true",
+            "generatePom" to "false",
+            "interfaceOnly" to "true",
+            "library" to "quarkus",
+            "modelPackage" to "io.lake.sharing.api.server.model",
+            "returnResponse" to "true",
+            "supportAsync" to "true",
+            "useJakartaEe" to "true",
+            "useSwaggerAnnotations" to "false"
+        )
     )
 }
 
@@ -72,32 +76,28 @@ tasks.register<GenerateTask>("openapiGenerateLakeSharing") {
 tasks.register<GenerateTask>("openapiGenerateDeltaSharing") {
     generatorName.set("jaxrs-spec")
     inputSpec.set("$rootDir/docs/protocol/delta-sharing-protocol-api.yml")
-    outputDir.set(generatedSourcesDir)
+    outputDir.set(openApiGeneratedSourcesAbsolutePath)
     additionalProperties.set(
-            mapOf(
-                    "apiPackage" to "io.delta.sharing.api.server",
-                    "dateLibrary" to "java8",
-                    "disallowAdditionalPropertiesIfNotPresent" to "false",
-                    "generateBuilders" to "true",
-                    "generatePom" to "false",
-                    "interfaceOnly" to "true",
-//                    "legacyDiscriminatorBehavior" to "false",
-                    "library" to "quarkus",
-                    "modelPackage" to "io.delta.sharing.api.server.model",
-                    "returnResponse" to "true",
-                    "supportAsync" to "true",
-                    "useJakartaEe" to "true",
-//                    "useMicroProfileOpenAPIAnnotations" to "false",
-//                    "useOneOfInterfaces" to "true",
-                    "useSwaggerAnnotations" to "false"
-            )
+        mapOf(
+            "apiPackage" to "io.delta.sharing.api.server",
+            "dateLibrary" to "java8",
+            "disallowAdditionalPropertiesIfNotPresent" to "false",
+            "generateBuilders" to "true",
+            "generatePom" to "false",
+            "interfaceOnly" to "true",
+            "library" to "quarkus",
+            "modelPackage" to "io.delta.sharing.api.server.model",
+            "returnResponse" to "true",
+            "supportAsync" to "true",
+            "useJakartaEe" to "true",
+            "useSwaggerAnnotations" to "false"
+        )
     )
 }
 
 tasks.withType<Test> {
     systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
 }
-
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
     options.compilerArgs.add("-parameters")
@@ -113,7 +113,17 @@ tasks.quarkusBuild {
 sourceSets {
     getByName("main") {
         java {
-            srcDir("$generatedSourcesDir/src/gen/java")
+            srcDir("$openApiGeneratedSourcesAbsolutePath/src/gen/java")
         }
+    }
+}
+spotless {
+    java {
+        targetExclude("$openApiGeneratedSourcesRelativeToProjectPath/**/*.java")
+        importOrder()
+        removeUnusedImports()
+        cleanthat()          // has its own section below
+        googleJavaFormat()   // has its own section below
+        formatAnnotations()  // fixes formatting of type annotations, see below
     }
 }
