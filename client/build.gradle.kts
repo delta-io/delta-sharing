@@ -5,7 +5,7 @@ val generatedSourcesDir = "${layout.buildDirectory.get()}/generated/openapi"
 plugins {
     java
     id("io.quarkus")
-    id("org.openapi.generator") version "6.6.0"
+    id("org.openapi.generator")
 }
 buildscript {
     configurations.all {
