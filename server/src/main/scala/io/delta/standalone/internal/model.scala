@@ -22,7 +22,7 @@ import io.delta.standalone.internal.actions.{
 }
 
 /**
- * Actions defined in delta format, used in response when requested format is delta.
+ * Actions defined to use in the response for delta format sharing.
  */
 
 sealed trait DeltaResponseAction {
@@ -31,30 +31,22 @@ sealed trait DeltaResponseAction {
 }
 
 /**
- * Used to block older clients from reading the shared table when backwards
- * incompatible changes are made to the protocol. Readers and writers are
- * responsible for checking that they meet the minimum versions before performing
- * any other operations.
- *
- * Since this action allows us to explicitly block older clients in the case of a
- * breaking change to the protocol, clients should be tolerant of messages and
- * fields that they do not understand.
+ * DeltaResponseProtocol which is part of the delta Protocol.
  */
 case class DeltaResponseProtocol(minReaderVersion: Int) extends DeltaResponseAction {
   override def wrap: DeltaResponseSingleAction = DeltaResponseSingleAction(protocol = this)
 }
 
 /**
- * DeltaAddFile used in delta sharing protocol, copied from AddFile in delta.
- *   Adding 4 delta sharing related fields: id/version/timestamp/expirationTimestamp.
- *   If the client uses delta kernel, it should redact these fields as needed.
+ * DeltaResponseFileAction used in delta sharing protocol. It wraps a delta action,
+ *   and adds 4 delta sharing related fields: id/version/timestamp/expirationTimestamp.
  *       - id: used to uniquely identify a file, and in idToUrl mapping for executor to get
  *             presigned url.
  *       - version/timestamp: the version and timestamp of the commit, used to generate faked delta
  *                            log file on the client side.
  *       - expirationTimestamp: indicate when the presigned url is going to expire and need a
  *                              refresh.
- *   Ignoring 1 field: tags.
+ *   Suggest to redact the tags field before returning if there are sensitive info.
  */
 case class DeltaResponseFileAction(
     id: String,
@@ -66,9 +58,8 @@ case class DeltaResponseFileAction(
 }
 
 /**
- * DeltaResponseMetadata used in delta sharing protocol, copied from Metadata in delta.
+ * DeltaResponseMetadata used in delta sharing protocol, it wraps the Metadata in delta.
  *   Adding 1 delta sharing related field: version.
- *   If the client uses delta kernel, it should redact these fields as needed.
  */
 case class DeltaResponseMetadata(
     version: java.lang.Long = null,
