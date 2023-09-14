@@ -480,6 +480,74 @@ def test_list_files_in_table_version(
         ),
     ]
 
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_list_files_with_json_predicates(
+    rest_client: DataSharingRestClient,
+):
+    # This function invokes the client with the specified json predicate hints
+    # on the test table which is partitioned by date. The function validates
+    # that the retuned files contains the expected dates.
+    def test_hints(hints, expected_dates):
+      response = rest_client.list_files_in_table(
+          Table(name="cdf_table_with_partition", share="share8", schema="default"),
+          jsonPredicateHints=hints
+      )
+      assert response.protocol == Protocol(min_reader_version=1)
+      assert response.metadata == Metadata(
+          id="e21eb083-6976-4159-90f2-ad88d06b7c7f",
+          format=Format(provider="parquet", options={}),
+          schema_string=(
+              '{"type":"struct","fields":['
+              '{"name":"name","type":"string","nullable":true,"metadata":{}},'
+              '{"name":"age","type":"integer","nullable":true,"metadata":{}},'
+              '{"name":"birthday","type":"date","nullable":true,"metadata":{}}'
+              "]}"
+          ),
+          configuration={"enableChangeDataFeed": "true"},
+          partition_columns=["birthday"]
+      )
+
+      # validate that we get back all expected files.
+      assert(len(expected_dates) == len(response.add_files))
+      for date in expected_dates:
+        found = False
+        for file in response.add_files:
+          if date in file.url:
+            found = True
+        assert(found)
+
+    # Without predicates, we should get back all the files.
+    test_hints(None, ["2020-01-01", "2020-02-02"])
+
+    # These predicates should return file with date 2020-01-01.
+    hints1=(
+      '{"op":"and","children":['
+        '{"op":"not","children":['
+          '{"op":"isNull","children":['
+            '{"op":"column","name":"birthday","valueType":"date"}]}]},'
+        '{"op":"equal","children":['
+          '{"op":"column","name":"birthday","valueType":"date"},'
+          '{"op":"literal","value":"2020-01-01","valueType":"date"}]}'
+      ']}'
+    )
+    test_hints(hints1, ["2020-01-01"])
+
+    # These predicates should return file with date 2020-02-02.
+    hints2=(
+      '{"op":"and","children":['
+        '{"op":"not","children":['
+          '{"op":"isNull","children":['
+            '{"op":"column","name":"birthday","valueType":"date"}]}]},'
+        '{"op":"greaterThan","children":['
+          '{"op":"column","name":"birthday","valueType":"date"},'
+          '{"op":"literal","value":"2020-01-01","valueType":"date"}]}'
+      ']}'
+    )
+    test_hints(hints2, ["2020-02-02"])
+
+    # Invalid predicates should return all the files.
+    test_hints("bad-predicates", ["2020-01-01", "2020-02-02"])
+
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_files_in_table_version_exception(

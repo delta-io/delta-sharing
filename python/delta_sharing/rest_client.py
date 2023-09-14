@@ -322,6 +322,7 @@ class DataSharingRestClient:
         table: Table,
         *,
         predicateHints: Optional[Sequence[str]] = None,
+        jsonPredicateHints: Optional[str] = None,
         limitHint: Optional[int] = None,
         version: Optional[int] = None,
         timestamp: Optional[str] = None,
@@ -329,6 +330,8 @@ class DataSharingRestClient:
         data: Dict = {}
         if predicateHints is not None:
             data["predicateHints"] = predicateHints
+        if jsonPredicateHints is not None:
+            data["jsonPredicateHints"] = jsonPredicateHints
         if limitHint is not None:
             data["limitHint"] = limitHint
         if version is not None:

@@ -43,6 +43,7 @@ def test_to_pandas_non_partitioned(tmp_path):
             table: Table,
             *,
             predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
             limitHint: Optional[int] = None,
             version: Optional[int] = None,
             timestamp: Optional[int] = None,
@@ -57,31 +58,53 @@ def test_to_pandas_non_partitioned(tmp_path):
                     '],"type":"struct"}'
                 )
             )
-            add_files = [
-                AddFile(
-                    url=str(tmp_path / "pdf1.parquet"),
-                    id="pdf1",
-                    partition_values={},
-                    size=0,
-                    stats="",
-                ),
-                AddFile(
-                    url=str(tmp_path / "pdf2.parquet"),
-                    id="pdf2",
-                    partition_values={},
-                    size=0,
-                    stats="",
-                ),
-            ]
+            add_file1 = AddFile(
+                url=str(tmp_path / "pdf1.parquet"),
+                id="pdf1",
+                partition_values={},
+                size=0,
+                stats="",
+            )
+            add_file2 = AddFile(
+                url=str(tmp_path / "pdf2.parquet"),
+                id="pdf2",
+                partition_values={},
+                size=0,
+                stats="",
+            )
+
+            add_files = [add_file1, add_file2]
+
+            if jsonPredicateHints is not None:
+                add_files = [add_file1]
+            elif predicateHints is not None:
+                add_files = [add_file2]
+
             return ListFilesInTableResponse(
                 delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
             )
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.to_pandas()
-
     expected = pd.concat([pdf1, pdf2]).reset_index(drop=True)
+    pd.testing.assert_frame_equal(pdf, expected)
 
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"),
+        RestClientMock(),
+        jsonPredicateHints = "dummy_hints"
+    )
+    pdf = reader.to_pandas()
+    expected = pd.concat([pdf1]).reset_index(drop=True)
+    pd.testing.assert_frame_equal(pdf, expected)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"),
+        RestClientMock(),
+        predicateHints = "dummy_hints"
+    )
+    pdf = reader.to_pandas()
+    expected = pd.concat([pdf2]).reset_index(drop=True)
     pd.testing.assert_frame_equal(pdf, expected)
 
 
@@ -98,6 +121,7 @@ def test_to_pandas_partitioned(tmp_path):
             table: Table,
             *,
             predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
             limitHint: Optional[int] = None,
             version: Optional[int] = None,
             timestamp: Optional[int] = None,
@@ -157,6 +181,7 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
             table: Table,
             *,
             predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
             limitHint: Optional[int] = None,
             version: Optional[int] = None,
             timestamp: Optional[int] = None,
@@ -212,6 +237,7 @@ def test_to_pandas_empty(rest_client: DataSharingRestClient):
             table: Table,
             *,
             predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
             limitHint: Optional[int] = None,
             version: Optional[int] = None,
             timestamp: Optional[int] = None,

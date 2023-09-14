@@ -304,6 +304,7 @@ object TestResource {
     serverConfig.setPort(TEST_PORT)
     serverConfig.setSsl(SSLConfig(selfSigned = true, null, null, null))
     serverConfig.setEvaluatePredicateHints(true)
+    serverConfig.setEvaluateJsonPredicateHints(true)
 
     serverConfig.save(testConfigFile.getCanonicalPath)
     testConfigFile
