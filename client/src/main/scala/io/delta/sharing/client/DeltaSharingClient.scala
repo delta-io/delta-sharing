@@ -239,8 +239,12 @@ class DeltaSharingRestClient(
     if (responseFormat != respondedFormat) {
       // This could only happen when the asked format is delta and the server doesn't support
       // the requested format.
-      logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
+      logError(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
         s"$responseFormat) for getMetadata.${table.share}.${table.schema}.${table.name}.")
+      throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
+        s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
+        s" != requestedFormat($responseFormat)." +
+        s"This is likely because the server is not upgraded to support delta format sharing.")
     }
     // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
@@ -313,9 +317,13 @@ class DeltaSharingRestClient(
     }
 
     if (responseFormat != respondedFormat) {
-      logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
+      logError(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
         s"$responseFormat) for getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf " +
         s"for table ${table.share}.${table.schema}.${table.name}.")
+      throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
+        s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
+        s" != requestedFormat($responseFormat)." +
+        s"This is likely because the server is not upgraded to support delta format sharing.")
     }
     // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
@@ -363,9 +371,13 @@ class DeltaSharingRestClient(
       getNDJson(target, request)
     }
     if (responseFormat != respondedFormat) {
-      logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
+      logError(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
         s"$responseFormat) for getFiles(startingVersion-$startingVersion, endingVersion-" +
         s"$endingVersion) for table ${table.share}.${table.schema}.${table.name}.")
+      throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
+        s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
+        s" != requestedFormat($responseFormat)." +
+        s"This is likely because the server is not upgraded to support delta format sharing.")
     }
     // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
@@ -481,9 +493,13 @@ class DeltaSharingRestClient(
       getNDJson(target, requireVersion = false)
     }
     if (responseFormat != respondedFormat) {
-      logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
+      logError(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
         s"$responseFormat) for getCDFFiles(cdfOptions-$cdfOptions) for table " +
         s"${table.share}.${table.schema}.${table.name}.")
+      throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
+        s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
+        s" != requestedFormat($responseFormat)." +
+        s"This is likely because the server is not upgraded to support delta format sharing.")
     }
     // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {

@@ -273,14 +273,12 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     if (headerString == null) {
       return Map.empty[String, String]
     }
-    headerString.toLowerCase().split(",").map { capability =>
-      val splits = capability.split("=")
-      if (splits.size == 2) {
+    headerString.toLowerCase().split(";")
+      .map(_.split("="))
+      .filter(_.size == 2)
+      .map { splits =>
         (splits(0), splits(1))
-      } else {
-        ("", "")
-      }
-    }.toMap
+      }.toMap
   }
 
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/metadata")
