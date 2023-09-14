@@ -2,7 +2,7 @@ package io.lake.sharing.api.client;
 
 import io.delta.sharing.api.client.OfficialApi;
 import io.delta.sharing.api.model.QueryRequest;
-import io.lake.sharing.api.model.*;
+import io.lake.sharing.api.client.model.*;
 
 import java.util.List;
 import java.util.Map;
@@ -23,12 +23,12 @@ public class SoundnessTest {
                         .skipValidation(false)
         );
         Storage storage = storageApi.createStorage(
-                new CreateStorageRequest()
+                new CreateStorage()
                         .name("s3StorageDefault")
-                        .type(CreateStorageRequest.TypeEnum.S3)
+                        .type(CreateStorage.TypeEnum.S3)
                         .uri("s3://my-test-bucket")
                         .credentials(
-                                new CreateStorageRequestCredentials(
+                                new StorageCredentials(
                                         new SimpleAwsCredentials()
                                                 .awsAccessKeyId("1234")
                                                 .awsSecretAccessKey("secret")

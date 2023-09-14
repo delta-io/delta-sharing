@@ -398,26 +398,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                comment:
-                  type: string
-                type:
-                  type: string
-                  enum:
-                    - gcs
-                    - s3
-                    - abfs
-                credentials:
-                  oneOf:
-                    - $ref: "#/components/schemas/SimpleAwsCredentials"
-                uri:
-                  type: string
-                  example: s3://my-nice-bucket/some/prefix
-                skipValidation:
-                  type: boolean
+              $ref: "#/components/schemas/CreateStorage"
       responses:
         "200":
           description: OK
@@ -461,28 +442,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                comment:
-                  type: string
-                type:
-                  type: string
-                  enum:
-                    - gcs
-                    - s3
-                    - abfs
-                credentials:
-                  oneOf:
-                    - $ref: "#/components/schemas/SimpleAwsCredentials"
-                uri:
-                  type: string
-                  example: s3://my-nice-bucket/some/prefix
-                skipValidation:
-                  type: boolean
-                force:
-                  type: boolean
+              $ref: "#/components/schemas/UpdateStorage"
       responses:
         "200":
           description: OK
@@ -796,6 +756,52 @@ paths:
           description: table not found
 components:
   schemas:
+    StorageCredentials:
+      oneOf:
+        - $ref: "#/components/schemas/SimpleAwsCredentials"
+        - $ref: "#/components/schemas/SimpleAzureCredentials"
+    UpdateStorage:
+      type: object
+      properties:
+        name:
+          type: string
+        comment:
+          type: string
+        type:
+          type: string
+          enum:
+            - gcs
+            - s3
+            - abfs
+        credentials:
+          $ref: "#/components/schemas/StorageCredentials"
+        uri:
+          type: string
+          example: s3://my-nice-bucket/some/prefix
+        skipValidation:
+          type: boolean
+        force:
+          type: boolean
+    CreateStorage:
+      type: object
+      properties:
+        name:
+          type: string
+        comment:
+          type: string
+        type:
+          type: string
+          enum:
+            - gcs
+            - s3
+            - abfs
+        credentials:
+          $ref: "#/components/schemas/StorageCredentials"
+        uri:
+          type: string
+          example: s3://my-nice-bucket/some/prefix
+        skipValidation:
+          type: boolean
     CreateMetastore:
       type: object
       properties:
@@ -908,6 +914,13 @@ components:
         awsSecretAccessKey:
           type: string
         region:
+          type: string
+    SimpleAzureCredentials:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
           type: string
     Storage:
       type: object
