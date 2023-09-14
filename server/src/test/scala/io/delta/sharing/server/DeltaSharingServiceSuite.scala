@@ -93,6 +93,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val serverConfigPath = TestResource.setupTestTables().getCanonicalPath
       serverConfig = ServerConfig.load(serverConfigPath)
       serverConfig.evaluateJsonPredicateHints = true
+      serverConfig.evaluateJsonPredicateHintsV2 = true
       server = DeltaSharingService.start(serverConfig)
     }
   }
@@ -1104,6 +1105,45 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
            |    {"op":"literal","value":"2020-01-01","valueType":"date"}]}
            |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
     testPredicateHints(hints3, Seq("2020-01-01", "2020-02-02"))
+
+    // hints on stats column age.
+    val hints4 =
+      """{"op":"and","children":[
+           |  {"op":"not","children":[
+           |    {"op":"isNull","children":[
+           |      {"op":"column","name":"birthday","valueType":"date"}]}]},
+           |  {"op":"equal","children":[
+           |    {"op":"column","name":"age","valueType":"int"},
+           |    {"op":"literal","value":"2","valueType":"int"}]}
+           |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    testPredicateHints(hints4, Seq("2020-02-02"))
+
+    // hints on stats column age.
+    val hints5 =
+      """{"op":"and","children":[
+           |  {"op":"not","children":[
+           |    {"op":"isNull","children":[
+           |      {"op":"column","name":"birthday","valueType":"date"}]}]},
+           |  {"op":"lessThan","children":[
+           |    {"op":"column","name":"age","valueType":"int"},
+           |    {"op":"literal","value":"3","valueType":"int"}]}
+           |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    testPredicateHints(hints5, Seq("2020-01-01", "2020-02-02"))
+
+    // hints on stats and partition columns.
+    val hints6 =
+      """{"op":"and","children":[
+           |  {"op":"lessThan","children":[
+           |    {"op":"column","name":"birthday","valueType":"date"},
+           |    {"op":"literal","value":"2020-02-03","valueType":"date"}]},
+           |  {"op":"greaterThanOrEqual","children":[
+           |    {"op":"column","name":"birthday","valueType":"date"},
+           |    {"op":"literal","value":"2020-01-01","valueType":"date"}]},
+           |  {"op":"lessThan","children":[
+           |    {"op":"column","name":"age","valueType":"int"},
+           |    {"op":"literal","value":"2","valueType":"int"}]}
+           |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    testPredicateHints(hints6, Seq("2020-01-01"))
   }
 
   integrationTest("paginated query with jsonPredicates") {

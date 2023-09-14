@@ -21,6 +21,12 @@ import org.slf4j.LoggerFactory
 
 import io.delta.sharing.server.util.JsonUtils
 
+// This is used to unpack stats from delta actions.
+case class ActionStats(
+    numRecords: Long,
+    minValues: Map[String, String],
+    maxValues: Map[String, String])
+
 object JsonPredicateFilterUtils {
   private val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -37,14 +43,23 @@ object JsonPredicateFilterUtils {
   // Returns the add files that match json predicates.
   def evaluatePredicate(
       jsonPredicateHints: Option[String],
+      useV2Evaluator: Boolean,
       addFiles: Seq[(AddFile, Int)]): Seq[(AddFile, Int)] = {
     if (!jsonPredicateHints.isDefined) {
       return addFiles
     }
+
     val op = maybeCreateJsonPredicateOp(jsonPredicateHints)
+    val evalV2 = if (op.isDefined && useV2Evaluator) {
+      logger.info("Json predicates V2 have been enabled")
+      Some(new JsonPredicateEvaluatorV2(op.get, Some(reportJsonPredicateEvalError)))
+    } else {
+      None
+    }
+
     addFiles.filter {
       case (addFile, _) =>
-        matchJsonPredicate(op, addFile.partitionValues)
+        matchJsonPredicate(op, evalV2, addFile.partitionValues, addFile.stats)
     }
   }
 
@@ -84,24 +99,62 @@ object JsonPredicateFilterUtils {
   // If we encounter any errors, the filtering will be skipped.
   private def matchJsonPredicate(
       op: Option[BaseOp],
-      partitionValues: Map[String, String]): Boolean = {
+      evalV2: Option[JsonPredicateEvaluatorV2],
+      partitionValues: Map[String, String],
+      statsJsonStr: String): Boolean = {
     if (op.isEmpty || numJsonPredicateErrors >= kMaxNumJsonPredicateErrors) {
       return true
     }
     try {
-      op.get.evalExpectBoolean(EvalContext(partitionValues))
+      val ctx = createEvalContext(partitionValues, statsJsonStr, evalV2.isDefined)
+      if (evalV2.isDefined) {
+        evalV2.get.eval(ctx)
+      } else {
+        op.get.evalExpectBoolean(ctx)
+      }
     } catch {
       case e: Exception =>
-        numJsonPredicateErrors += 1
-        // In order to avoid error explosion in logs, we will only log the first few errors.
-        if (numJsonPredicateErrorsLogged < kMaxNumJsonPredicateErrorsToLog) {
-          val errStr =
-            "failed to evaluate op " + op + " on partition values " + partitionValues + ": " + e
-          logger.warn(errStr)
-          numJsonPredicateErrorsLogged += 1
-        }
+        reportJsonPredicateEvalError(
+          "failed to evaluate op " + op + " on partition values " + partitionValues + ": " + e
+        )
         true
     }
   }
 
+  // Creates evaluation context in which to perform predicate based filtering.
+  // The context consists of:
+  //   - Partition column info (if the table was partitioned).
+  //   - Column stats (min/max values): Only if V2 optimizations are enabled.
+  private def createEvalContext(
+      partitionValues: Map[String, String],
+      statsJsonStr: String,
+      forV2: Boolean): EvalContext = {
+    if (!forV2) {
+      return EvalContext(partitionValues)
+    }
+    try {
+      val statsValues = scala.collection.mutable.Map[String, (String, String)]()
+      val actionStats = JsonUtils.fromJson[ActionStats](statsJsonStr)
+      actionStats.minValues.foreach {
+        case (colName, colMinVal) =>
+          statsValues(colName) = (colMinVal, actionStats.maxValues.get(colName).get)
+      }
+      EvalContext(partitionValues, statsValues.toMap)
+    } catch {
+      case e: Exception =>
+        // If there are any errors, we fall back to using partition based filtering.
+        logger.warn("Error extracting stats: " + statsJsonStr + e)
+        EvalContext(partitionValues)
+    }
+  }
+
+  // Reports the specified error if the number of errors has not exceeded a threshold.
+  private def reportJsonPredicateEvalError(errStr: String): Unit = {
+    numJsonPredicateErrors += 1
+    // In order to avoid error explosion in logs, we will only log the first few errors.
+    if (numJsonPredicateErrorsLogged < kMaxNumJsonPredicateErrorsToLog) {
+      logger.warn(errStr)
+      numJsonPredicateErrorsLogged += 1
+    }
+  }
 }
