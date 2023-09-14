@@ -34,6 +34,7 @@ class DeltaSharingReader:
         rest_client: DataSharingRestClient,
         *,
         predicateHints: Optional[Sequence[str]] = None,
+        jsonPredicateHints: Optional[str] = None,
         limit: Optional[int] = None,
         version: Optional[int] = None,
         timestamp: Optional[str] = None,
@@ -45,6 +46,7 @@ class DeltaSharingReader:
             assert isinstance(predicateHints, Sequence)
             assert all(isinstance(predicateHint, str) for predicateHint in predicateHints)
         self._predicateHints = predicateHints
+        self._jsonPredicateHints = jsonPredicateHints
 
         if limit is not None:
             assert isinstance(limit, int) and limit >= 0, "'limit' must be a non-negative int"
@@ -59,6 +61,16 @@ class DeltaSharingReader:
     def predicateHints(self, predicateHints: Optional[Sequence[str]]) -> "DeltaSharingReader":
         return self._copy(
             predicateHints=predicateHints,
+            jsonPredicateHints=self._jsonPredicateHints,
+            limit=self._limit,
+            version=self._version,
+            timestamp=self._timestamp
+        )
+
+    def jsonPredicateHints(self, jsonPredicateHints: Optional[str]) -> "DeltaSharingReader":
+        return self._copy(
+            predicateHints=self._predicateHints,
+            jsonPredicateHints=jsonPredicateHints,
             limit=self._limit,
             version=self._version,
             timestamp=self._timestamp
@@ -67,6 +79,7 @@ class DeltaSharingReader:
     def limit(self, limit: Optional[int]) -> "DeltaSharingReader":
         return self._copy(
             predicateHints=self._predicateHints,
+            jsonPredicateHints=self._jsonPredicateHints,
             limit=limit,
             version=self._version,
             timestamp=self._timestamp
@@ -76,6 +89,7 @@ class DeltaSharingReader:
         response = self._rest_client.list_files_in_table(
             self._table,
             predicateHints=self._predicateHints,
+            jsonPredicateHints=self._jsonPredicateHints,
             limitHint=self._limit,
             version=self._version,
             timestamp=self._timestamp
@@ -139,6 +153,7 @@ class DeltaSharingReader:
         self,
         *,
         predicateHints: Optional[Sequence[str]],
+        jsonPredicateHints: Optional[str],
         limit: Optional[int],
         version: Optional[int],
         timestamp: Optional[str]
