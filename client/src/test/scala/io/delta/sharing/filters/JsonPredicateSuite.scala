@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-// scalastyle:off println
-
-package io.delta.sharing.spark.filters
+package io.delta.sharing.filters
 
 import org.apache.spark.SparkFunSuite
 
@@ -423,6 +421,8 @@ class JsonPredicateSuite extends SparkFunSuite {
       evalExpectBoolean(op, EvalContext(Map("date" -> dates(i % dates.size))))
     }
     val t = System.currentTimeMillis() - start
+
+    // scalastyle:off println
     println("Stress test took " + t + " millis")
   }
 }
