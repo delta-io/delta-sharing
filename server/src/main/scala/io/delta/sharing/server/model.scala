@@ -16,8 +16,7 @@
 
 package io.delta.sharing.server.model
 
-import com.fasterxml.jackson.annotation.JsonInclude
-import org.codehaus.jackson.annotate.JsonRawValue
+import com.fasterxml.jackson.annotation.{JsonInclude, JsonRawValue}
 
 case class SingleAction(
     file: AddFile = null,

@@ -31,9 +31,8 @@ import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
-import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingProfileProvider, DeltaSharingRestClient}
-import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, DeltaTableFiles, FileAction, Metadata, Protocol, Table => DeltaSharingTable}
-import io.delta.sharing.client.util.ConfUtils
+import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingRestClient}
+import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, Metadata, Protocol, Table => DeltaSharingTable}
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 
 
@@ -201,7 +200,8 @@ class RemoteSnapshot(
     val rewrittenFilters = DeltaTableUtils.rewritePartitionFilters(
       partitionSchema,
       spark.sessionState.conf.resolver,
-      partitionFilters)
+      partitionFilters,
+      spark.sessionState.conf.sessionLocalTimeZone)
 
     val predicates = rewrittenFilters.map(_.sql)
     if (predicates.nonEmpty) {
@@ -364,7 +364,8 @@ private[sharing] object DeltaTableUtils {
   def rewritePartitionFilters(
     partitionSchema: StructType,
     resolver: Resolver,
-    partitionFilters: Seq[Expression]): Seq[Expression] = {
+    partitionFilters: Seq[Expression],
+    timeZone: String): Seq[Expression] = {
     partitionFilters.map(_.transformUp {
       case a: Attribute =>
         // If we have a special column name, e.g. `a.a`, then an UnresolvedAttribute returns
@@ -373,9 +374,7 @@ private[sharing] object DeltaTableUtils {
         val partitionCol = partitionSchema.find { field => resolver(field.name, unquoted) }
         partitionCol match {
           case Some(StructField(name, dataType, _, _)) =>
-            Cast(
-              UnresolvedAttribute(Seq("partitionValues", name)),
-              dataType)
+            new Cast(UnresolvedAttribute(Seq("partitionValues", name)), dataType, Option(timeZone))
           case None =>
             // This should not be able to happen, but the case was present in the original code so
             // we kept it to be safe.
