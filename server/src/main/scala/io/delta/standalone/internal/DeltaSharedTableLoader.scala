@@ -202,38 +202,29 @@ class DeltaSharedTable(
     snapshot.version
   }
 
-  // Construct and return the protocol class to be returned in the response based on the
-  // responseFormat.
+  // Construct the protocol class to be returned in the response based on the responseFormat.
   private def getResponseProtocol(p: Protocol, responseFormat: String): Object = {
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
-      model.DeltaProtocol(p.minReaderVersion).wrap
+      DeltaResponseProtocol(deltaProtocol = p).wrap
     } else {
       model.Protocol(p.minReaderVersion).wrap
     }
   }
 
-  // Construct and return the metadata class to be returned in the response based on the
-  // responseFormat.
+  // Construct the metadata class to be returned in the response based on the responseFormat.
   private def getResponseMetadata(
       m: Metadata,
       startingVersion: Option[Long],
       responseFormat: String
   ): Object = {
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
-      model.DeltaMetadata(
-        id = m.id,
-        name = m.name,
-        description = m.description,
-        format = model.Format(),
-        schemaString = cleanUpTableSchema(m.schemaString),
-        partitionColumns = m.partitionColumns,
-        configuration = m.configuration,
+      DeltaResponseMetadata(
         version = if (startingVersion.isDefined) {
           startingVersion.get
         } else {
           null
         },
-        createdTime = m.createdTime
+        deltaMetadata = m
       ).wrap
     } else {
       model.Metadata(
@@ -253,8 +244,7 @@ class DeltaSharedTable(
     }
   }
 
-  // Construct and return the AddFile class to be returned in the response based on the
-  // responseFormat.
+  // Construct the returning class for addFile based on requested responseFormat.
   private def getResponseAddFile(
       addFile: AddFile,
       signedUrl: PreSignedUrl,
@@ -263,17 +253,12 @@ class DeltaSharedTable(
       responseFormat: String,
       returnAddFileForCDF: Boolean = false): Object = {
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
-      model.DeltaAddFile(
-        path = signedUrl.url,
+      DeltaResponseFileAction(
         id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
         expirationTimestamp = signedUrl.expirationTimestamp,
-        partitionValues = addFile.partitionValues,
-        size = addFile.size,
-        modificationTime = addFile.modificationTime,
-        dataChange = addFile.dataChange,
-        stats = addFile.stats,
         version = version,
-        timestamp = timestamp
+        timestamp = timestamp,
+        deltaSingleAction = addFile.copy(path = signedUrl.url).wrap
       ).wrap
     } else if (returnAddFileForCDF) {
       model.AddFileForCDF(
@@ -309,17 +294,12 @@ class DeltaSharedTable(
     timestamp: java.lang.Long,
     responseFormat: String): Object = {
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
-      model.DeltaRemoveFile(
-        path = signedUrl.url,
+      DeltaResponseFileAction(
         id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
         expirationTimestamp = signedUrl.expirationTimestamp,
-        deletionTimestamp = removeFile.deletionTimestamp,
-        dataChange = removeFile.dataChange,
-        extendedFileMetadata = removeFile.extendedFileMetadata,
-        partitionValues = removeFile.partitionValues,
-        size = removeFile.size,
         version = version,
-        timestamp = timestamp
+        timestamp = timestamp,
+        deltaSingleAction = removeFile.copy(path = signedUrl.url).wrap
       ).wrap
     } else {
       model.RemoveFile(
@@ -344,14 +324,12 @@ class DeltaSharedTable(
     responseFormat: String
   ): Object = {
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
-      model.DeltaAddCDCFile(
-        path = signedUrl.url,
+      DeltaResponseFileAction(
         id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
         expirationTimestamp = signedUrl.expirationTimestamp,
-        partitionValues = addCDCFile.partitionValues,
-        size = addCDCFile.size,
         version = version,
-        timestamp = timestamp
+        timestamp = timestamp,
+        deltaSingleAction = addCDCFile.copy(path = signedUrl.url).wrap
       ).wrap
     } else {
       model.AddCDCFile(
