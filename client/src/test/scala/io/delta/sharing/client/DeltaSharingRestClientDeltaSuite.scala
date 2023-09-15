@@ -60,7 +60,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       assert(null == tableMatadata.protocol)
       assert(null == tableMatadata.metadata)
       assert(2 == tableMatadata.lines.size)
-      assert(tableMatadata.lines(0) == """{"protocol":{"minReaderVersion":1}}""")
+      assert(tableMatadata.lines(0) == """{"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":2}}}""")
       assert(tableMatadata.lines(1).contains("""{"deltaMetadata":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"],"configuration":{},"createdTime":1619652806049"""))
     } finally {
       client.close()
@@ -81,26 +81,27 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
   private def checkDeltaTableFilesBasics(
     tableFiles: DeltaTableFiles,
     expectedVersion: Int,
-    expectedNumLines: Int): Unit = {
+    expectedNumLines: Int,
+    minWriterVersion: Int = 4): Unit = {
     assert(expectedVersion == tableFiles.version)
     assert(null == tableFiles.protocol)
     assert(null == tableFiles.metadata)
     assert(Nil == tableFiles.files)
     assert(expectedNumLines == tableFiles.lines.size)
     if (expectedNumLines > 0) {
-      assert(tableFiles.lines(0) == """{"protocol":{"minReaderVersion":1}}""")
+      assert(tableFiles.lines(0) == s"""{"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":$minWriterVersion}}}""")
     }
   }
 
   integrationTest("getFiles") {
     def verifyTableFiles(tableFiles: DeltaTableFiles): Unit = {
-      checkDeltaTableFilesBasics(tableFiles, expectedVersion = 2, expectedNumLines = 4)
+      checkDeltaTableFilesBasics(tableFiles, expectedVersion = 2, expectedNumLines = 4, minWriterVersion = 2)
       assert(tableFiles.lines(1).contains("""{"deltaMetadata":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"],"configuration":{},"createdTime":1619652806049"""))
       assert(tableFiles.lines(2).startsWith("""{"file":{"id":"9f1a49539c5cffe1ea7f9e055d5c003c","""))
-      assert(tableFiles.lines(2).contains("""deltaAction":{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm="""))
+      assert(tableFiles.lines(2).contains("""deltaSingleAction":{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm="""))
       assert(tableFiles.lines(2).contains(""","partitionValues":{"date":"2021-04-28"},"size":573,"modificationTime":1619652839000,"dataChange":false,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}""""))
       assert(tableFiles.lines(3).startsWith("""{"file":{"id":"cd2209b32f5ed5305922dd50f5908a75","""))
-      assert(tableFiles.lines(3).contains(""""deltaAction":{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm="""))
+      assert(tableFiles.lines(3).contains(""""deltaSingleAction":{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm="""))
       assert(tableFiles.lines(3).contains(""","partitionValues":{"date":"2021-04-28"},"size":573,"modificationTime":1619652832000,"dataChange":false,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}""""))
       // Refresh token should be returned in latest snapshot query
       assert(tableFiles.refreshToken.nonEmpty)

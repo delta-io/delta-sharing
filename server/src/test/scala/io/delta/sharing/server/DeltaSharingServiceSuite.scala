@@ -511,8 +511,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/table1/metadata"), responseFormat = responseFormat, expectedTableVersion = Some(2))
       val Array(protocol, metadata) = response.split("\n")
       if (responseFormat == RESPONSE_FORMAT_DELTA) {
-        val expectedProtocol = DeltaResponseProtocol(minReaderVersion = 1).wrap
-        assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
+        val responseProtocol = JsonUtils.fromJson[DeltaResponseSingleAction](protocol).protocol
+        assert(responseProtocol.deltaProtocol.minReaderVersion == 1)
         val responseMetadata = JsonUtils.fromJson[DeltaResponseSingleAction](metadata).metaData
         assert(responseMetadata.deltaMetadata.id == "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf")
         assert(responseMetadata.deltaMetadata.schemaString == """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""")
@@ -544,8 +544,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val protocol = lines(0)
       val metadata = lines(1)
       if (responseFormat == RESPONSE_FORMAT_DELTA) {
-        val expectedProtocol = DeltaResponseProtocol(minReaderVersion = 1).wrap
-        assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
+        val responseProtocol = JsonUtils.fromJson[DeltaResponseSingleAction](protocol).protocol
+        assert(responseProtocol.deltaProtocol.minReaderVersion == 1)
 
         // unable to construct the delta action because the cases classes like AddFile/Metadata
         // are private to io.delta.standalone.internal.
@@ -555,12 +555,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
         val actualFiles = lines.drop(2).map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
         assert(actualFiles(0).id == "061cb3683a467066995f8cdaabd8667d")
-        assert(actualFiles(0).deltaAction.add != null)
+        assert(actualFiles(0).deltaSingleAction.add != null)
         assert(actualFiles(1).id == "e268cbf70dbaa6143e7e9fa3e2d3b00e")
-        assert(actualFiles(1).deltaAction.add != null)
+        assert(actualFiles(1).deltaSingleAction.add != null)
         assert(actualFiles.count(_.expirationTimestamp > System.currentTimeMillis()) == 2)
-        verifyPreSignedUrl(actualFiles(0).deltaAction.add.path, 781)
-        verifyPreSignedUrl(actualFiles(1).deltaAction.add.path, 781)
+        verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 781)
+        verifyPreSignedUrl(actualFiles(1).deltaSingleAction.add.path, 781)
       } else {
         val expectedProtocol = Protocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
@@ -637,8 +637,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       assert(numPages == 2)
 
       if (responseFormat == RESPONSE_FORMAT_DELTA) {
-        val expectedProtocol = DeltaResponseProtocol(minReaderVersion = 1).wrap
-        assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
+        val responseProtocol = JsonUtils.fromJson[DeltaResponseSingleAction](protocol).protocol
+        assert(responseProtocol.deltaProtocol.minReaderVersion == 1)
 
         // unable to construct the delta action because the cases classes like AddFile/Metadata
         // are private to io.delta.standalone.internal.
@@ -648,12 +648,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
         val actualFiles = files.map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
         assert(actualFiles(0).id == "061cb3683a467066995f8cdaabd8667d")
-        assert(actualFiles(0).deltaAction.add != null)
+        assert(actualFiles(0).deltaSingleAction.add != null)
         assert(actualFiles(1).id == "e268cbf70dbaa6143e7e9fa3e2d3b00e")
-        assert(actualFiles(1).deltaAction.add != null)
+        assert(actualFiles(1).deltaSingleAction.add != null)
         assert(actualFiles.count(_.expirationTimestamp > System.currentTimeMillis()) == 2)
-        verifyPreSignedUrl(actualFiles(0).deltaAction.add.path, 781)
-        verifyPreSignedUrl(actualFiles(1).deltaAction.add.path, 781)
+        verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 781)
+        verifyPreSignedUrl(actualFiles(1).deltaSingleAction.add.path, 781)
       } else {
         val expectedProtocol = Protocol(minReaderVersion = 1).wrap
         assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
@@ -1531,8 +1531,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val protocol = lines(0)
       val metadata = lines(1)
       if (responseFormat == RESPONSE_FORMAT_DELTA) {
-        val expectedProtocol = DeltaResponseProtocol(minReaderVersion = 1).wrap
-        assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
+        val responseProtocol = JsonUtils.fromJson[DeltaResponseSingleAction](protocol).protocol
+        assert(responseProtocol.deltaProtocol.minReaderVersion == 1)
 
         // unable to construct the delta action because the cases classes like AddFile/Metadata
         // are private to io.delta.standalone.internal.
@@ -1668,8 +1668,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       assert(numPages == 2)
 
       if (responseFormat == RESPONSE_FORMAT_DELTA) {
-        val expectedProtocol = DeltaResponseProtocol(minReaderVersion = 1).wrap
-        assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
+        val responseProtocol = JsonUtils.fromJson[DeltaResponseSingleAction](protocol).protocol
+        assert(responseProtocol.deltaProtocol.minReaderVersion == 1)
 
         // unable to construct the delta action because the cases classes like AddFile/Metadata
         // are private to io.delta.standalone.internal.
@@ -2198,8 +2198,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val protocol = lines(0)
       val metadata = lines(1)
       if (responseFormat == RESPONSE_FORMAT_DELTA) {
-        val expectedProtocol = DeltaResponseProtocol(minReaderVersion = 1).wrap
-        assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
+        val responseProtocol = JsonUtils.fromJson[DeltaResponseSingleAction](protocol).protocol
+        assert(responseProtocol.deltaProtocol.minReaderVersion == 1)
 
         // unable to construct the delta action because the cases classes like AddFile/Metadata
         // are private to io.delta.standalone.internal.
@@ -2312,8 +2312,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       assert(numPages == 2)
 
       if (responseFormat == RESPONSE_FORMAT_DELTA) {
-        val expectedProtocol = DeltaResponseProtocol(minReaderVersion = 1).wrap
-        assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
+        val responseProtocol = JsonUtils.fromJson[DeltaResponseSingleAction](protocol).protocol
+        assert(responseProtocol.deltaProtocol.minReaderVersion == 1)
 
         // unable to construct the delta action because the cases classes like AddFile/Metadata
         // are private to io.delta.standalone.internal.
@@ -2703,7 +2703,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       responseFormat: String = RESPONSE_FORMAT_PARQUET): Unit = {
     if (responseFormat == RESPONSE_FORMAT_DELTA) {
       val responseFileAction = JsonUtils.fromJson[DeltaResponseSingleAction](actionStr).file
-      val addFile = responseFileAction.deltaAction.add
+      val addFile = responseFileAction.deltaSingleAction.add
       assert(addFile.size == size)
       assert(addFile.stats == stats)
       assert(addFile.partitionValues == partitionValues)
@@ -2735,7 +2735,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       responseFormat: String = RESPONSE_FORMAT_PARQUET): Unit = {
     if (responseFormat == RESPONSE_FORMAT_DELTA) {
       val responseFileAction = JsonUtils.fromJson[DeltaResponseSingleAction](actionStr).file
-      val addCDCFile = responseFileAction.deltaAction.cdc
+      val addCDCFile = responseFileAction.deltaSingleAction.cdc
       assert(addCDCFile.size == size)
       assert(addCDCFile.partitionValues == partitionValues)
       verifyPreSignedUrl(addCDCFile.path, size.toInt)
@@ -2765,7 +2765,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       responseFormat: String = RESPONSE_FORMAT_PARQUET): Unit = {
     if (responseFormat == RESPONSE_FORMAT_DELTA) {
       val responseFileAction = JsonUtils.fromJson[DeltaResponseSingleAction](actionStr).file
-      val removeFile = responseFileAction.deltaAction.remove
+      val removeFile = responseFileAction.deltaSingleAction.remove
       assert(removeFile.size == Some(size))
       assert(removeFile.partitionValues == partitionValues)
       verifyPreSignedUrl(removeFile.path, size.toInt)

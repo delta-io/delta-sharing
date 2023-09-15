@@ -18,6 +18,7 @@ package io.delta.standalone.internal
 
 import io.delta.standalone.internal.actions.{
   Metadata => DeltaMetadata,
+  Protocol => DeltaProtocol,
   SingleAction => DeltaSingleAction
 }
 
@@ -33,7 +34,7 @@ sealed trait DeltaResponseAction {
 /**
  * DeltaResponseProtocol which is part of the delta Protocol.
  */
-case class DeltaResponseProtocol(minReaderVersion: Int) extends DeltaResponseAction {
+case class DeltaResponseProtocol(deltaProtocol: DeltaProtocol) extends DeltaResponseAction {
   override def wrap: DeltaResponseSingleAction = DeltaResponseSingleAction(protocol = this)
 }
 
@@ -53,7 +54,7 @@ case class DeltaResponseFileAction(
     version: java.lang.Long = null,
     timestamp: java.lang.Long = null,
     expirationTimestamp: Long,
-    deltaAction: DeltaSingleAction) extends DeltaResponseAction {
+    deltaSingleAction: DeltaSingleAction) extends DeltaResponseAction {
   override def wrap: DeltaResponseSingleAction = DeltaResponseSingleAction(file = this)
 }
 

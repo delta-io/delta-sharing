@@ -200,18 +200,16 @@ class DeltaSharedTable(
     snapshot.version
   }
 
-  // Construct and return the protocol class to be returned in the response based on the
-  // responseFormat.
+  // Construct the protocol class to be returned in the response based on the responseFormat.
   private def getResponseProtocol(p: Protocol, responseFormat: String): Object = {
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
-      DeltaResponseProtocol(p.minReaderVersion).wrap
+      DeltaResponseProtocol(deltaProtocol = p).wrap
     } else {
       model.Protocol(p.minReaderVersion).wrap
     }
   }
 
-  // Construct and return the metadata class to be returned in the response based on the
-  // responseFormat.
+  // Construct the metadata class to be returned in the response based on the responseFormat.
   private def getResponseMetadata(
       m: Metadata,
       startingVersion: Option[Long],
@@ -244,8 +242,7 @@ class DeltaSharedTable(
     }
   }
 
-  // Construct and return the AddFile class to be returned in the response based on the
-  // responseFormat.
+  // Construct the returning class for addFile based on requested responseFormat.
   private def getResponseAddFile(
       addFile: AddFile,
       signedUrl: PreSignedUrl,
@@ -259,7 +256,7 @@ class DeltaSharedTable(
         expirationTimestamp = signedUrl.expirationTimestamp,
         version = version,
         timestamp = timestamp,
-        deltaAction = addFile.copy(path = signedUrl.url).wrap
+        deltaSingleAction = addFile.copy(path = signedUrl.url).wrap
       ).wrap
     } else if (returnAddFileForCDF) {
       model.AddFileForCDF(
@@ -300,7 +297,7 @@ class DeltaSharedTable(
         expirationTimestamp = signedUrl.expirationTimestamp,
         version = version,
         timestamp = timestamp,
-        deltaAction = removeFile.copy(path = signedUrl.url).wrap
+        deltaSingleAction = removeFile.copy(path = signedUrl.url).wrap
       ).wrap
     } else {
       model.RemoveFile(
@@ -330,7 +327,7 @@ class DeltaSharedTable(
         expirationTimestamp = signedUrl.expirationTimestamp,
         version = version,
         timestamp = timestamp,
-        deltaAction = addCDCFile.copy(path = signedUrl.url).wrap
+        deltaSingleAction = addCDCFile.copy(path = signedUrl.url).wrap
       ).wrap
     } else {
       model.AddCDCFile(
