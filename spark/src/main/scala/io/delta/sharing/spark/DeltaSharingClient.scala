@@ -250,7 +250,14 @@ private[spark] class DeltaSharingRestClient(
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
-    val files = lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
+    val files = lines.drop(2).map{ line =>
+      val action = JsonUtils.fromJson[SingleAction](line)
+      if (action.file != null) {
+        action.file
+      } else {
+        throw new IllegalStateException(s"Unexpected Line:${line}")
+      }
+    }
     DeltaTableFiles(version, protocol, metadata, files)
   }
 
