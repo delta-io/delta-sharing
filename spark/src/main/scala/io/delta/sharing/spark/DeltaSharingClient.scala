@@ -272,11 +272,14 @@ private[spark] class DeltaSharingRestClient(
     val addFiles = ArrayBuffer[AddFileForCDF]()
     val removeFiles = ArrayBuffer[RemoveFile]()
     val additionalMetadatas = ArrayBuffer[Metadata]()
-    lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).unwrap).foreach{
-      case a: AddFileForCDF => addFiles.append(a)
-      case r: RemoveFile => removeFiles.append(r)
-      case m: Metadata => additionalMetadatas.append(m)
-      case f => throw new IllegalStateException(s"Unexpected File:${f}")
+    lines.drop(2).foreach { line =>
+      val action = JsonUtils.fromJson[SingleAction](line).unwrap
+      action match {
+        case a: AddFileForCDF => addFiles.append(a)
+        case r: RemoveFile => removeFiles.append(r)
+        case m: Metadata => additionalMetadatas.append(m)
+        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
+      }
     }
     DeltaTableFiles(
       version,
@@ -308,12 +311,15 @@ private[spark] class DeltaSharingRestClient(
     val cdfFiles = ArrayBuffer[AddCDCFile]()
     val removeFiles = ArrayBuffer[RemoveFile]()
     val additionalMetadatas = ArrayBuffer[Metadata]()
-    lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).unwrap).foreach{
-      case c: AddCDCFile => cdfFiles.append(c)
-      case a: AddFileForCDF => addFiles.append(a)
-      case r: RemoveFile => removeFiles.append(r)
-      case m: Metadata => additionalMetadatas.append(m)
-      case f => throw new IllegalStateException(s"Unexpected File:${f}")
+    lines.drop(2).foreach { line =>
+      val action = JsonUtils.fromJson[SingleAction](line).unwrap
+      action match {
+        case c: AddCDCFile => cdfFiles.append(c)
+        case a: AddFileForCDF => addFiles.append(a)
+        case r: RemoveFile => removeFiles.append(r)
+        case m: Metadata => additionalMetadatas.append(m)
+        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
+      }
     }
     DeltaTableFiles(
       version,
