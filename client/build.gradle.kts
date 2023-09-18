@@ -1,11 +1,25 @@
 import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
 
-val generatedSourcesDir = "${layout.buildDirectory.get()}/generated/openapi"
+val openApiCodeGenDir = "generated/openapi"
+
+
+val clientGeneratorProperties = mapOf(
+    "apiPackage" to "io.lake.sharing.api.client",
+    "invokerPackage" to "io.lake.sharing.api.utils",
+    "modelPackage" to "io.lake.sharing.api.client.model",
+    "dateLibrary" to "java8",
+    "sourceFolder" to "src/gen/java",
+    "openApiNullable" to "true",
+    "annotationLibrary" to "none",
+    "serializationLibrary" to "jackson",
+    "useJakartaEe" to "true",
+    "useRuntimeException" to "true"
+)
 
 plugins {
     java
     id("io.quarkus")
-    id("org.openapi.generator")
+    id("lakesharing.java-conventions")
 }
 
 repositories {
@@ -44,42 +58,16 @@ tasks.register<GenerateTask>("openapiGenerateLakeSharing") {
     generatorName.set("java")
     inputSpec.set("$rootDir/docs/protocol/lake-sharing-protocol-api.yml")
     library.set("native")
-    outputDir.set(generatedSourcesDir)
-    additionalProperties.set(
-        mapOf(
-            "apiPackage" to "io.lake.sharing.api.client",
-            "invokerPackage" to "io.lake.sharing.api.utils",
-            "modelPackage" to "io.lake.sharing.api.client.model",
-            "dateLibrary" to "java8",
-            "sourceFolder" to "src/gen/java",
-            "openApiNullable" to "true",
-            "annotationLibrary" to "none",
-            "serializationLibrary" to "jackson",
-            "useJakartaEe" to "true",
-            "useRuntimeException" to "true"
-        )
-    )
+    outputDir.set(generatedCodeDirectory(layout, openApiCodeGenDir))
+    additionalProperties.set(clientGeneratorProperties)
 }
 
 tasks.register<GenerateTask>("openapiGenerateDeltaSharing") {
     generatorName.set("java")
     inputSpec.set("$rootDir/docs/protocol/delta-sharing-protocol-api.yml")
     library.set("native")
-    outputDir.set(generatedSourcesDir)
-    additionalProperties.set(
-        mapOf(
-            "apiPackage" to "io.delta.sharing.api.client",
-            "invokerPackage" to "io.delta.sharing.api.utils",
-            "modelPackage" to "io.delta.sharing.api.model",
-            "dateLibrary" to "java8",
-            "openApiNullable" to "true",
-            "sourceFolder" to "src/gen/java",
-            "annotationLibrary" to "none",
-            "serializationLibrary" to "jackson",
-            "useJakartaEe" to "true",
-            "useRuntimeException" to "true"
-        )
-    )
+    outputDir.set(generatedCodeDirectory(layout, openApiCodeGenDir))
+    additionalProperties.set(clientGeneratorProperties)
 }
 
 tasks.withType<Test> {
@@ -91,10 +79,16 @@ tasks.withType<JavaCompile> {
     dependsOn(tasks.named("openapiGenerateLakeSharing"), tasks.named("openapiGenerateDeltaSharing"))
 }
 
+spotless {
+    java {
+        targetExclude("${relativeGeneratedCodeDirectory(layout, openApiCodeGenDir)}/**/*.java")
+    }
+}
+
 sourceSets {
     getByName("main") {
         java {
-            srcDir("$generatedSourcesDir/src/gen/java")
+            srcDir("${generatedCodeDirectory(layout, openApiCodeGenDir)}/src/gen/java")
         }
     }
 }

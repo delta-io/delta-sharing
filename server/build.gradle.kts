@@ -1,23 +1,23 @@
 import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
 
-val openApiGeneratedSourcesRelativeToBuildPath = "generated/openapi"
+val openApiCodeGenDir = "generated/openapi"
 
-val openApiGeneratedSourcesAbsolutePath =
-    "${layout.buildDirectory.get()}/${openApiGeneratedSourcesRelativeToBuildPath}"
-
-val openApiGeneratedSourcesRelativeToProjectPath =
-    "${layout.buildDirectory.get().asFile.toRelativeString(layout.projectDirectory.asFile)}/${openApiGeneratedSourcesRelativeToBuildPath}"
-
+val serverGeneratorProperties = mapOf(
+    "dateLibrary" to "java8",
+    "disallowAdditionalPropertiesIfNotPresent" to "false",
+    "generateBuilders" to "true",
+    "generatePom" to "false",
+    "interfaceOnly" to "true",
+    "library" to "quarkus",
+    "returnResponse" to "true",
+    "supportAsync" to "true",
+    "useJakartaEe" to "true",
+    "useSwaggerAnnotations" to "false"
+)
 plugins {
     java
     id("io.quarkus")
-    id("org.openapi.generator")
-    id("com.diffplug.spotless")
-}
-
-repositories {
-    mavenCentral()
-    mavenLocal()
+    id("lakesharing.java-conventions")
 }
 
 val quarkusPlatformGroupId: String by project
@@ -37,37 +37,16 @@ dependencies {
     testImplementation("io.rest-assured:rest-assured")
 }
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
-}
-
-buildscript {
-    configurations.all {
-        resolutionStrategy {
-            force("org.yaml:snakeyaml:1.33")
-        }
-    }
-}
-
 tasks.register<GenerateTask>("openapiGenerateLakeSharing") {
     generatorName.set("jaxrs-spec")
     inputSpec.set("$rootDir/docs/protocol/lake-sharing-protocol-api.yml")
-    outputDir.set(openApiGeneratedSourcesAbsolutePath)
+    outputDir.set(generatedCodeDirectory(layout, openApiCodeGenDir))
     additionalProperties.set(
-        mapOf(
-            "apiPackage" to "io.lake.sharing.api.server",
-            "dateLibrary" to "java8",
-            "disallowAdditionalPropertiesIfNotPresent" to "false",
-            "generateBuilders" to "true",
-            "generatePom" to "false",
-            "interfaceOnly" to "true",
-            "library" to "quarkus",
-            "modelPackage" to "io.lake.sharing.api.server.model",
-            "returnResponse" to "true",
-            "supportAsync" to "true",
-            "useJakartaEe" to "true",
-            "useSwaggerAnnotations" to "false"
+        serverGeneratorProperties.plus(
+            mapOf(
+                "apiPackage" to "io.lake.sharing.api.server",
+                "modelPackage" to "io.lake.sharing.api.server.model",
+            )
         )
     )
 }
@@ -76,21 +55,11 @@ tasks.register<GenerateTask>("openapiGenerateLakeSharing") {
 tasks.register<GenerateTask>("openapiGenerateDeltaSharing") {
     generatorName.set("jaxrs-spec")
     inputSpec.set("$rootDir/docs/protocol/delta-sharing-protocol-api.yml")
-    outputDir.set(openApiGeneratedSourcesAbsolutePath)
+    outputDir.set(generatedCodeDirectory(layout, openApiCodeGenDir))
     additionalProperties.set(
-        mapOf(
+        serverGeneratorProperties + mapOf(
             "apiPackage" to "io.delta.sharing.api.server",
-            "dateLibrary" to "java8",
-            "disallowAdditionalPropertiesIfNotPresent" to "false",
-            "generateBuilders" to "true",
-            "generatePom" to "false",
-            "interfaceOnly" to "true",
-            "library" to "quarkus",
             "modelPackage" to "io.delta.sharing.api.server.model",
-            "returnResponse" to "true",
-            "supportAsync" to "true",
-            "useJakartaEe" to "true",
-            "useSwaggerAnnotations" to "false"
         )
     )
 }
@@ -110,20 +79,23 @@ tasks.quarkusBuild {
     }
 }
 
-sourceSets {
-    getByName("main") {
-        java {
-            srcDir("$openApiGeneratedSourcesAbsolutePath/src/gen/java")
+buildscript {
+    configurations.all {
+        resolutionStrategy {
+            force("org.yaml:snakeyaml:1.33")
         }
     }
 }
 spotless {
     java {
-        targetExclude("$openApiGeneratedSourcesRelativeToProjectPath/**/*.java")
-        importOrder()
-        removeUnusedImports()
-        cleanthat()          // has its own section below
-        googleJavaFormat()   // has its own section below
-        formatAnnotations()  // fixes formatting of type annotations, see below
+        targetExclude("${relativeGeneratedCodeDirectory(layout, openApiCodeGenDir)}/**/*.java")
+    }
+}
+
+sourceSets {
+    getByName("main") {
+        java {
+            srcDir("${generatedCodeDirectory(layout, openApiCodeGenDir)}/src/gen/java")
+        }
     }
 }
