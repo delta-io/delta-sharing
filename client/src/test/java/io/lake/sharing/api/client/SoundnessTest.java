@@ -1,15 +1,13 @@
 package io.lake.sharing.api.client;
 
-import io.delta.sharing.api.client.OfficialApi;
-import io.delta.sharing.api.model.QueryRequest;
 import io.lake.sharing.api.client.model.*;
 import java.util.List;
 import java.util.Map;
 
 public class SoundnessTest {
 
-  //    @org.junit.jupiter.api.Test this is commented because we only want to compile the test, not
-  // run it
+  // this is commented because we only want to compile the test, not run it
+  // @org.junit.jupiter.api.Test
   public void testHelloEndpoint() {
     final var metastoreApi = new MetastoreApi();
     final var storageApi = new StorageApi();
