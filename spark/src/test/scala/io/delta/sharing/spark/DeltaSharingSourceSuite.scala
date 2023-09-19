@@ -262,8 +262,10 @@ class DeltaSharingSourceSuite extends QueryTest
       "spark.delta.sharing.streaming.queryTableVersionIntervalSeconds",
       "29"
     )
-    val message = intercept[IllegalArgumentException] {
-      spark.readStream.format("deltaSharing").load(tablePath)
+    val message = intercept[Exception] {
+      val query = spark.readStream.format("deltaSharing").load(tablePath)
+        .writeStream.format("console").start()
+      query.processAllAvailable()
     }.getMessage
     assert(message.contains("must not be less than 30 seconds."))
   }
