@@ -334,7 +334,7 @@ class DeltaSharingRestClient(
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
     val files = ArrayBuffer[AddFile]()
-    files.drop(2).foreach { line =>
+    lines.drop(2).foreach { line =>
       val action = JsonUtils.fromJson[SingleAction](line)
       if (action.file != null) {
         files.append(action.file)
