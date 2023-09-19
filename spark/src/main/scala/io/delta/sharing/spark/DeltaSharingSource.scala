@@ -21,7 +21,7 @@ import java.lang.ref.WeakReference
 
 import scala.collection.mutable.ArrayBuffer
 
-import org.apache.spark.delta.sharing.CachedTableManager
+import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, SparkSession}
 import org.apache.spark.sql.connector.read.streaming
@@ -43,7 +43,7 @@ import io.delta.sharing.spark.model.{
   FileAction,
   RemoveFile
 }
-import io.delta.sharing.spark.util.SchemaUtils
+import io.delta.sharing.spark.util.{ConfUtils, SchemaUtils}
 
 /**
  * A case class to help with `Dataset` operations regarding Offset indexing, representing a
@@ -147,7 +147,11 @@ case class DeltaSharingSource(
 
   private var lastGetVersionTimestamp: Long = -1
   private var latestTableVersion: Long = -1
-  private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 30000 // 30 seconds
+  // minimum 30 seconds
+  private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 30000.max(
+    ConfUtils.streamingQueryTableVersionIntervalSeconds(spark.sessionState.conf)
+  )
+
   private val maxVersionsPerRpc: Int = options.maxVersionsPerRpc.getOrElse(
     DeltaSharingOptions.MAX_VERSIONS_PER_RPC_DEFAULT
   )
@@ -155,7 +159,9 @@ case class DeltaSharingSource(
   // The latest function used to fetch presigned urls for the delta sharing table, record it in
   // a variable to be used by the CachedTableManager to refresh the presigned urls if the query
   // runs for a long time.
-  private var latestRefreshFunc = () => { Map.empty[String, String] }
+  private var latestRefreshFunc = (_: Option[String]) => {
+    TableRefreshResult(Map.empty[String, String], None)
+  }
   // The latest timestamp in millisecond, records the time of the last rpc sent to the server to
   // fetch the pre-signed urls.
   // This is used to track whether the pre-signed urls stored in sortedFetchedFiles are going to
@@ -280,14 +286,31 @@ case class DeltaSharingSource(
       // If isStartingVersion is true, it means to fetch the snapshot at the fromVersion, which may
       // include table changes from previous versions.
       val tableFiles = deltaLog.client.getFiles(
-        deltaLog.table, Nil, None, Some(fromVersion), None, None
+        table = deltaLog.table,
+        predicates = Nil,
+        limit = None,
+        versionAsOf = Some(fromVersion),
+        timestampAsOf = None,
+        jsonPredicateHints = None,
+        refreshToken = None
       )
-      latestRefreshFunc = () => {
-        deltaLog.client.getFiles(
-          deltaLog.table, Nil, None, Some(fromVersion), None, None
-        ).files.map { f =>
-          f.id -> f.url
-        }.toMap
+      latestRefreshFunc = _ => {
+        val idToUrl = deltaLog.client
+          .getFiles(
+            table = deltaLog.table,
+            predicates = Nil,
+            limit = None,
+            versionAsOf = Some(fromVersion),
+            timestampAsOf = None,
+            jsonPredicateHints = None,
+            refreshToken = None
+          )
+          .files
+          .map { f =>
+            f.id -> f.url
+          }
+          .toMap
+        TableRefreshResult(idToUrl, None)
       }
 
       val numFiles = tableFiles.files.size
@@ -317,12 +340,19 @@ case class DeltaSharingSource(
       val tableFiles = deltaLog.client.getFiles(
         deltaLog.table, fromVersion, Some(endingVersionForQuery)
       )
-      latestRefreshFunc = () => {
-        deltaLog.client.getFiles(
-          deltaLog.table, fromVersion, Some(endingVersionForQuery)
-        ).addFiles.map { a =>
-          a.id -> a.url
-        }.toMap
+      latestRefreshFunc = _ => {
+        val idToUrl = deltaLog.client
+          .getFiles(
+            deltaLog.table,
+            fromVersion,
+            Some(endingVersionForQuery)
+          )
+          .addFiles
+          .map { a =>
+            a.id -> a.url
+          }
+          .toMap
+        TableRefreshResult(idToUrl, None)
       }
       val allAddFiles = validateCommitAndFilterAddFiles(tableFiles).groupBy(a => a.version)
       for (v <- fromVersion to endingVersionForQuery) {
@@ -373,7 +403,7 @@ case class DeltaSharingSource(
       ),
       true
     )
-    latestRefreshFunc = () => {
+    latestRefreshFunc = _ => {
       val d = deltaLog.client.getCDFFiles(
         deltaLog.table,
         Map(
@@ -382,7 +412,10 @@ case class DeltaSharingSource(
         ),
         true
       )
-      DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
+      TableRefreshResult(
+        DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
+        None
+      )
     }
 
     (Seq(tableFiles.metadata) ++ tableFiles.additionalMetadatas).foreach { m =>
@@ -543,7 +576,7 @@ case class DeltaSharingSource(
       )
       // force a refresh if needed.
       lastQueryTableTimestamp = System.currentTimeMillis()
-      val newIdToUrl = latestRefreshFunc()
+      val newIdToUrl = latestRefreshFunc(None).idToUrl
       sortedFetchedFiles = sortedFetchedFiles.map { indexedFile =>
         IndexedFile(
           version = indexedFile.version,
@@ -633,7 +666,8 @@ case class DeltaSharingSource(
       idToUrl,
       Seq(new WeakReference(fileIndex)),
       params.profileProvider,
-      latestRefreshFunc
+      latestRefreshFunc,
+      refreshToken = None
     )
 
     val relation = HadoopFsRelation(

@@ -41,9 +41,10 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(ref)),
         provider,
-        () => {
-          Map("id1" -> "url1", "id2" -> "url2")
-        })
+        _ => {
+          TableRefreshResult(Map("id1" -> "url1", "id2" -> "url2"), None)
+        },
+        refreshToken = None)
       assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path"),
         "id1")._1 == "url1")
       assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path"),
@@ -54,9 +55,10 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(ref)),
         provider,
-        () => {
-          Map("id1" -> "url3", "id2" -> "url4")
-        })
+        _ => {
+          TableRefreshResult(Map("id1" -> "url3", "id2" -> "url4"), None)
+        },
+        refreshToken = None)
       // We should get the new urls eventually
       eventually(timeout(10.seconds)) {
         assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path2"),
@@ -70,9 +72,10 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(new AnyRef)),
         provider,
-        () => {
-          Map("id1" -> "url3", "id2" -> "url4")
-        })
+        _ => {
+          TableRefreshResult(Map("id1" -> "url3", "id2" -> "url4"), None)
+        },
+        refreshToken = None)
       // We should remove the cached table eventually
       eventually(timeout(10.seconds)) {
         System.gc()
@@ -87,16 +90,67 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(ref)),
         provider,
-        () => {
-          Map("id1" -> "url3", "id2" -> "url4")
+        _ => {
+          TableRefreshResult(Map("id1" -> "url3", "id2" -> "url4"), None)
         },
-        -1
+        -1,
+        refreshToken = None
       )
       // We should get new urls immediately because it's refreshed upon register
       assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path4"),
         "id1")._1 == "url3")
       assert(manager.getPreSignedUrl(provider.getCustomTablePath("test-table-path4"),
         "id2")._1 == "url4")
+    } finally {
+      manager.stop()
+    }
+  }
+
+  test("refresh using refresh token") {
+    val manager = new CachedTableManager(
+      preSignedUrlExpirationMs = 10,
+      refreshCheckIntervalMs = 10,
+      refreshThresholdMs = 10,
+      expireAfterAccessMs = 60000
+    )
+    try {
+      val ref = new AnyRef
+      val provider = new TestDeltaSharingProfileProvider
+      manager.register(
+        "test-table-path",
+        Map("id1" -> "url1", "id2" -> "url2"),
+        Seq(new WeakReference(ref)),
+        provider,
+        refreshToken => {
+          if (refreshToken.contains("refresh-token-1")) {
+            TableRefreshResult(
+              Map("id1" -> "url3", "id2" -> "url4"),
+              Some("refresh-token-2")
+            )
+          } else if (refreshToken.contains("refresh-token-2")) {
+            TableRefreshResult(
+              Map("id1" -> "url5", "id2" -> "url6"),
+              Some("refresh-token-2")
+            )
+          } else {
+            fail("Expecting to refresh with a refresh token")
+          }
+        },
+        refreshToken = Some("refresh-token-1")
+      )
+      // We should get url5 and url6 eventually.
+      eventually(timeout(10.seconds)) {
+        assert(
+          manager
+            .getPreSignedUrl(provider.getCustomTablePath("test-table-path"), "id1")
+            ._1 == "url5"
+        )
+        assert(
+          manager
+            .getPreSignedUrl(provider.getCustomTablePath("test-table-path"), "id2")
+            ._1 == "url6"
+        )
+      }
     } finally {
       manager.stop()
     }
@@ -118,9 +172,10 @@ class CachedTableManagerSuite extends SparkFunSuite {
         Map("id1" -> "url1", "id2" -> "url2"),
         Seq(new WeakReference(ref)),
         provider,
-        () => {
-          Map("id1" -> "url1", "id2" -> "url2")
-        })
+        _ => {
+          TableRefreshResult(Map("id1" -> "url1", "id2" -> "url2"), None)
+        },
+        refreshToken = None)
       Thread.sleep(1000)
       // We should remove the cached table when it's not accessed
       intercept[IllegalStateException](manager.getPreSignedUrl(
