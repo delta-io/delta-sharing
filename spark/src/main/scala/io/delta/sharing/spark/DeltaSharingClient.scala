@@ -275,6 +275,8 @@ private[spark] class DeltaSharingRestClient(
         files.append(action.file)
       } else if (!ConfUtils.ignoreUnparsedActions(SparkSession.active.sessionState.conf)) {
         throw new IllegalStateException(s"Unexpected Line:${line}")
+      } else {
+        logWarning(s"Unexpected Line:${line}")
       }
     }
     DeltaTableFiles(version, protocol, metadata, files, refreshToken = refreshTokenOpt)
@@ -318,6 +320,8 @@ private[spark] class DeltaSharingRestClient(
         case m: Metadata => additionalMetadatas.append(m)
         case _ => if (!ConfUtils.ignoreUnparsedActions(SparkSession.active.sessionState.conf)) {
           throw new IllegalStateException(s"Unexpected Line:${line}")
+        } else {
+          logWarning(s"Unexpected Line:${line}")
         }
       }
     }
@@ -360,6 +364,8 @@ private[spark] class DeltaSharingRestClient(
         case m: Metadata => additionalMetadatas.append(m)
         case _ => if (!ConfUtils.ignoreUnparsedActions(SparkSession.active.sessionState.conf)) {
           throw new IllegalStateException(s"Unexpected Line:${line}")
+        } else {
+          logWarning(s"Unexpected Line:${line}")
         }
       }
     }
