@@ -537,6 +537,7 @@ class DeltaSharingRestClient(
           throw new IllegalStateException(s"Unexpected Line:${line}")
         }
       }
+    }
     DeltaTableFiles(
       version,
       protocol,
