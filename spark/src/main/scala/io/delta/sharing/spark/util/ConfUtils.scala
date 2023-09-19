@@ -93,10 +93,7 @@ object ConfUtils {
       QUERY_TABLE_VERSION_INTERVAL_SECONDS,
       QUERY_TABLE_VERSION_INTERVAL_SECONDS_DEFAULT
     )
-    val a = toTimeInSeconds(intervalStr, QUERY_TABLE_VERSION_INTERVAL_SECONDS)
-    // scalastyle:off println
-    Console.println(s"----[linzhou]----a:$a")
-    a
+    toTimeInSeconds(intervalStr, QUERY_TABLE_VERSION_INTERVAL_SECONDS)
   }
 
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {
