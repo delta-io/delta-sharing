@@ -268,6 +268,10 @@ class DeltaSharingSourceSuite extends QueryTest
       query.processAllAvailable()
     }.getMessage
     assert(message.contains("must not be less than 30 seconds."))
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.streaming.queryTableVersionIntervalSeconds",
+      "30"
+    )
   }
 
   /**
