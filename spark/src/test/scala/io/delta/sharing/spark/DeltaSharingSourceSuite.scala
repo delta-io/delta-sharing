@@ -273,7 +273,7 @@ class DeltaSharingSourceSuite extends QueryTest
       "30"
     )
   }
-  
+
   /**
    * Test basic streaming functionality
    */
