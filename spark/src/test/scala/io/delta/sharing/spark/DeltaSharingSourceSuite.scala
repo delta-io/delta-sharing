@@ -184,8 +184,8 @@ class DeltaSharingSourceSuite extends QueryTest
    * Test schema
    */
   integrationTest("disallow user specified schema") {
-    var message = intercept[UnsupportedOperationException] {
-      val query = spark.readStream.format("deltaSharing")
+    val message = intercept[UnsupportedOperationException] {
+      spark.readStream.format("deltaSharing")
         .schema(StructType(Array(StructField("a", TimestampType), StructField("b", StringType))))
         .load(tablePath)
     }.getMessage
@@ -252,6 +252,20 @@ class DeltaSharingSourceSuite extends QueryTest
     } finally {
       query.stop()
     }
+  }
+
+  /**
+   * Test spark config of query table version interval
+   */
+  integrationTest("query table version interval cannot be less than 30 seconds") {
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.streaming.queryTableVersionIntervalSeconds",
+      "29"
+    )
+    val message = intercept[IllegalArgumentException] {
+      spark.readStream.format("deltaSharing").load(tablePath)
+    }.getMessage
+    assert(message.contains("must not be less than 30 seconds."))
   }
 
   /**
