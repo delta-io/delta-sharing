@@ -96,11 +96,14 @@ object ConfUtils {
     toTimeInSeconds(intervalStr, QUERY_TABLE_VERSION_INTERVAL_SECONDS)
   }
 
-  private def toTimeInSeconds(timeStr: String, arg: String): Int = {
+  private def toTimeInSeconds(timeStr: String, conf: String): Int = {
     val timeInSeconds = JavaUtils.timeStringAs(timeStr, TimeUnit.SECONDS)
-    validateNonNeg(timeInSeconds, arg)
+    validateNonNeg(timeInSeconds, conf)
+    if (conf == QUERY_TABLE_VERSION_INTERVAL_SECONDS && timeInSeconds < 30) {
+      throw new IllegalArgumentException(conf + " must not be less than 30 seconds.")
+    }
     if (timeInSeconds > Int.MaxValue) {
-      throw new IllegalArgumentException(arg + " is too big: " +  timeStr)
+      throw new IllegalArgumentException(conf + " is too big: " +  timeStr)
     }
     timeInSeconds.toInt
   }
