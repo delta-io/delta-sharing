@@ -31,13 +31,13 @@ import org.apache.commons.io.input.BoundedInputStream
 import org.apache.hadoop.util.VersionInfo
 import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
 import org.apache.http.client.config.RequestConfig
-import org.apache.http.client.methods.{HttpGet, HttpHead, HttpPost, HttpRequestBase}
+import org.apache.http.client.methods.{HttpGet, HttpPost, HttpRequestBase}
 import org.apache.http.client.protocol.HttpClientContext
 import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, TrustSelfSignedStrategy}
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.util.CaseInsensitiveStringMap
+import org.apache.spark.sql.SparkSession
 
 import io.delta.sharing.spark.model._
 import io.delta.sharing.spark.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
@@ -268,7 +268,15 @@ private[spark] class DeltaSharingRestClient(
     val protocol = JsonUtils.fromJson[SingleAction](filteredLines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](filteredLines(1)).metaData
-    val files = filteredLines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).file)
+    val files = ArrayBuffer[AddFile]()
+    filteredLines.drop(2).foreach { line =>
+      val action = JsonUtils.fromJson[SingleAction](line)
+      if (action.file != null) {
+        files.append(action.file)
+      } else {
+        throw new IllegalStateException(s"Unexpected Line:${line}")
+      }
+    }
     DeltaTableFiles(version, protocol, metadata, files, refreshToken = refreshTokenOpt)
   }
 
@@ -302,11 +310,14 @@ private[spark] class DeltaSharingRestClient(
     val addFiles = ArrayBuffer[AddFileForCDF]()
     val removeFiles = ArrayBuffer[RemoveFile]()
     val additionalMetadatas = ArrayBuffer[Metadata]()
-    lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).unwrap).foreach{
-      case a: AddFileForCDF => addFiles.append(a)
-      case r: RemoveFile => removeFiles.append(r)
-      case m: Metadata => additionalMetadatas.append(m)
-      case f => throw new IllegalStateException(s"Unexpected File:${f}")
+    lines.drop(2).foreach { line =>
+      val action = JsonUtils.fromJson[SingleAction](line).unwrap
+      action match {
+        case a: AddFileForCDF => addFiles.append(a)
+        case r: RemoveFile => removeFiles.append(r)
+        case m: Metadata => additionalMetadatas.append(m)
+        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
+      }
     }
     DeltaTableFiles(
       version,
@@ -338,12 +349,15 @@ private[spark] class DeltaSharingRestClient(
     val cdfFiles = ArrayBuffer[AddCDCFile]()
     val removeFiles = ArrayBuffer[RemoveFile]()
     val additionalMetadatas = ArrayBuffer[Metadata]()
-    lines.drop(2).map(line => JsonUtils.fromJson[SingleAction](line).unwrap).foreach{
-      case c: AddCDCFile => cdfFiles.append(c)
-      case a: AddFileForCDF => addFiles.append(a)
-      case r: RemoveFile => removeFiles.append(r)
-      case m: Metadata => additionalMetadatas.append(m)
-      case f => throw new IllegalStateException(s"Unexpected File:${f}")
+    lines.drop(2).foreach { line =>
+      val action = JsonUtils.fromJson[SingleAction](line).unwrap
+      action match {
+        case c: AddCDCFile => cdfFiles.append(c)
+        case a: AddFileForCDF => addFiles.append(a)
+        case r: RemoveFile => removeFiles.append(r)
+        case m: Metadata => additionalMetadatas.append(m)
+        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
+      }
     }
     DeltaTableFiles(
       version,
