@@ -658,8 +658,6 @@ case class DeltaSharingSource(
       // add won't be null at this step as addFile is the only interested file when
       // options.readChangeFeed is false, which is when this function is called.
       assert(indexedFile.add != null, "add file cannot be null.")
-      logWarning(s"----[linzhou]----addFile, version:${indexedFile.version}, " +
-        s"index:${indexedFile.index}, id:${indexedFile.add.id}, url:${indexedFile.add.url}")
       val add = indexedFile.add
       AddFile(add.url, add.id, add.partitionValues, add.size, add.stats)
     }
