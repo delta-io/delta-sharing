@@ -36,9 +36,6 @@ object ConfUtils {
   val MAX_CONNECTION_CONF = "spark.delta.sharing.network.maxConnections"
   val MAX_CONNECTION_DEFAULT = 64
 
-  val IGNORE_UNPARSED_ACTIONS = "spark.delta.sharing.ignoreUnparsedActions"
-  val IGNORE_UNPARSED_ACTIONS_DEFAULT = false
-
   val QUERY_TABLE_VERSION_INTERVAL_SECONDS =
     "spark.delta.sharing.streaming.queryTableVersionIntervalSeconds"
   val QUERY_TABLE_VERSION_INTERVAL_SECONDS_DEFAULT = "30s"
@@ -82,10 +79,6 @@ object ConfUtils {
     val maxConn = conf.getInt(MAX_CONNECTION_CONF, MAX_CONNECTION_DEFAULT)
     validateNonNeg(maxConn, MAX_CONNECTION_CONF)
     maxConn
-  }
-
-  def ignoreUnparsedActions(conf: SQLConf): Boolean = {
-    conf.getConfString(IGNORE_UNPARSED_ACTIONS, IGNORE_UNPARSED_ACTIONS_DEFAULT.toString).toBoolean
   }
 
   def streamingQueryTableVersionIntervalSeconds(conf: SQLConf): Int = {

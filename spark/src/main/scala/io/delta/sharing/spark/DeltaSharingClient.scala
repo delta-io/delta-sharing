@@ -40,7 +40,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 
 import io.delta.sharing.spark.model._
-import io.delta.sharing.spark.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
+import io.delta.sharing.spark.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
 
 /** An interface to fetch Delta metadata from remote server. */
 private[sharing] trait DeltaSharingClient {
@@ -273,10 +273,8 @@ private[spark] class DeltaSharingRestClient(
       val action = JsonUtils.fromJson[SingleAction](line)
       if (action.file != null) {
         files.append(action.file)
-      } else if (!ConfUtils.ignoreUnparsedActions(SparkSession.active.sessionState.conf)) {
-        throw new IllegalStateException(s"Unexpected Line:${line}")
       } else {
-        logWarning(s"Unexpected Line:${line}")
+        throw new IllegalStateException(s"Unexpected Line:${line}")
       }
     }
     DeltaTableFiles(version, protocol, metadata, files, refreshToken = refreshTokenOpt)
@@ -318,11 +316,7 @@ private[spark] class DeltaSharingRestClient(
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => if (!ConfUtils.ignoreUnparsedActions(SparkSession.active.sessionState.conf)) {
-          throw new IllegalStateException(s"Unexpected Line:${line}")
-        } else {
-          logWarning(s"Unexpected Line:${line}")
-        }
+        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
       }
     }
     DeltaTableFiles(
@@ -362,11 +356,7 @@ private[spark] class DeltaSharingRestClient(
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => if (!ConfUtils.ignoreUnparsedActions(SparkSession.active.sessionState.conf)) {
-          throw new IllegalStateException(s"Unexpected Line:${line}")
-        } else {
-          logWarning(s"Unexpected Line:${line}")
-        }
+        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
       }
     }
     DeltaTableFiles(
