@@ -167,7 +167,7 @@ private[sharing] class RandomAccessHttpInputStream(
             }
           }
           throw new UnexpectedHttpStatus(
-            s"HTTP request failed with status: $status $errorBody. While accessing [$uri]",
+            s"HTTP request failed with status: $status $errorBody, while accessing [$uri]",
             statusCode)
         }
         entity
