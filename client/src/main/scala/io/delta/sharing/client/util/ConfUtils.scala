@@ -57,9 +57,6 @@ object ConfUtils {
   val MAX_FILES_CONF = "spark.delta.sharing.maxFilesPerQueryRequest"
   val MAX_FILES_DEFAULT = 100000
 
-  val IGNORE_UNPARSED_ACTIONS = "spark.delta.sharing.ignoreUnparsedActions"
-  val IGNORE_UNPARSED_ACTIONS_DEFAULT = false
-
   val QUERY_TABLE_VERSION_INTERVAL_SECONDS =
     "spark.delta.sharing.streaming.queryTableVersionIntervalSeconds"
   val QUERY_TABLE_VERSION_INTERVAL_SECONDS_DEFAULT = "30s"
@@ -133,10 +130,6 @@ object ConfUtils {
     val maxFiles = conf.getConfString(MAX_FILES_CONF, MAX_FILES_DEFAULT.toString).toInt
     validatePositive(maxFiles, MAX_FILES_CONF)
     maxFiles
-  }
-
-  def ignoreUnparsedActions(conf: SQLConf): Boolean = {
-    conf.getConfString(IGNORE_UNPARSED_ACTIONS, IGNORE_UNPARSED_ACTIONS_DEFAULT.toString).toBoolean
   }
 
   def streamingQueryTableVersionIntervalSeconds(conf: SQLConf): Int = {

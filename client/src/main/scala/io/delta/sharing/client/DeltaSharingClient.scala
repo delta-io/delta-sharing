@@ -338,10 +338,8 @@ class DeltaSharingRestClient(
       val action = JsonUtils.fromJson[SingleAction](line)
       if (action.file != null) {
         files.append(action.file)
-      } else if (!ConfUtils.ignoreUnparsedActions(SparkSession.active.sessionState.conf)) {
-        throw new IllegalStateException(s"Unexpected Line:${line}")
       } else {
-        logWarning(s"Unexpected Line:${line}.")
+        throw new IllegalStateException(s"Unexpected Line:${line}")
       }
     }
     DeltaTableFiles(version, protocol, metadata, files, refreshToken = refreshTokenOpt)
@@ -405,11 +403,7 @@ class DeltaSharingRestClient(
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => if (!ConfUtils.ignoreUnparsedActions(SparkSession.active.sessionState.conf)) {
-          throw new IllegalStateException(s"Unexpected Line:${line}")
-        } else {
-          logWarning(s"Unexpected Line:${line}.")
-        }
+        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
       }
     }
     DeltaTableFiles(
@@ -537,11 +531,7 @@ class DeltaSharingRestClient(
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => if (!ConfUtils.ignoreUnparsedActions(SparkSession.active.sessionState.conf)) {
-          throw new IllegalStateException(s"Unexpected Line:${line}")
-        } else {
-          logWarning(s"Unexpected Line:${line}.")
-        }
+        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
       }
     }
     DeltaTableFiles(
