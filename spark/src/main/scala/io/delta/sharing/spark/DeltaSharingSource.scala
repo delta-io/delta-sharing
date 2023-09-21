@@ -43,7 +43,7 @@ import io.delta.sharing.spark.model.{
   FileAction,
   RemoveFile
 }
-import io.delta.sharing.spark.util.SchemaUtils
+import io.delta.sharing.spark.util.{ConfUtils, SchemaUtils}
 
 /**
  * A case class to help with `Dataset` operations regarding Offset indexing, representing a
@@ -147,7 +147,18 @@ case class DeltaSharingSource(
 
   private var lastGetVersionTimestamp: Long = -1
   private var latestTableVersion: Long = -1
-  private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = 30000 // 30 seconds
+  // minimum 30 seconds
+  private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = {
+    val interval = 30000.max(
+      ConfUtils.streamingQueryTableVersionIntervalSeconds(spark.sessionState.conf) * 1000
+    )
+    if (interval < 30000) {
+      throw new IllegalArgumentException(s"QUERY_TABLE_VERSION_INTERVAL_MILLIS($interval) must " +
+        "not be less than 30 seconds.")
+    }
+    interval
+  }
+
   private val maxVersionsPerRpc: Int = options.maxVersionsPerRpc.getOrElse(
     DeltaSharingOptions.MAX_VERSIONS_PER_RPC_DEFAULT
   )
