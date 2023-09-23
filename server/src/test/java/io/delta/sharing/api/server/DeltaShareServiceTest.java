@@ -5,31 +5,33 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.delta.sharing.api.server.model.Share;
 import io.quarkus.test.junit.QuarkusTest;
-import io.sharing.persistence.StorageManager;
+import io.sharing.persistence.InMemoryStorageManager;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
-import org.junit.platform.commons.util.StringUtils;
 
 @QuarkusTest
 public class DeltaShareServiceTest {
 
   @Test
-  public void getUnknownShare() {
-    DeltaSharesService deltaSharesService = new DeltaSharesService(new StorageManager());
-    Optional<Share> unknown = deltaSharesService.getShare("unknown");
+  public void getUnknownShare() throws ExecutionException, InterruptedException {
+    DeltaSharesService deltaSharesService =
+        new DeltaSharesServiceImpl(new InMemoryStorageManager());
+    Optional<Share> unknown = deltaSharesService.getShare("unknown").toCompletableFuture().get();
     assertEquals(Optional.empty(), unknown);
   }
 
   @Test
-  public void getShare() {
+  public void getShare() throws ExecutionException, InterruptedException {
     ConcurrentMap<String, Share> shares = new ConcurrentHashMap<>();
     shares.put("key", new Share().id("key").name("name"));
-    DeltaSharesService deltaSharesService = new DeltaSharesService(new StorageManager(shares));
-    Optional<Share> share = deltaSharesService.getShare("key");
+    DeltaSharesService deltaSharesService =
+        new DeltaSharesServiceImpl(new InMemoryStorageManager(shares));
+    Optional<Share> share = deltaSharesService.getShare("key").toCompletableFuture().get();
     assertTrue(share.isPresent());
     assertEquals("name", share.get().getName());
-    assertTrue(StringUtils.isBlank(share.get().getId()));
+    assertEquals("key", share.get().getId());
   }
 }
