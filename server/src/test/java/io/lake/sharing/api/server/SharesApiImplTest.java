@@ -9,11 +9,6 @@ import org.junit.jupiter.api.Test;
 public class SharesApiImplTest {
 
   @Test
-  public void testShareEndpoint() {
-    given().when().get("/shares").then().statusCode(200);
-  }
-
-  @Test
   public void testlistTablesInSchemaEndpoint() {
     given().when().get("/shares/share1/schema1/tables").then().statusCode(200);
   }

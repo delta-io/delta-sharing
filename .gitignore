@@ -10,3 +10,5 @@
 /.bsp/sbt.json
 build/
 .gradle
+client/bin
+server/bin

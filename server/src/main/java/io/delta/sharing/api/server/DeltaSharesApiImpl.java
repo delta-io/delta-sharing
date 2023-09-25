@@ -1,9 +1,13 @@
 package io.delta.sharing.api.server;
 
+import io.delta.sharing.api.ContentAndToken;
+import io.delta.sharing.api.server.model.ListShareResponse;
 import io.delta.sharing.api.server.model.QueryRequest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
 import java.math.BigDecimal;
+import java.util.Collections;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
@@ -20,7 +24,7 @@ public class DeltaSharesApiImpl implements SharesApi {
   public CompletionStage<Response> getShare(String share) {
     return deltaSharesService
         .getShare(share)
-        .thenApply(
+        .thenApplyAsync(
             o ->
                 o.map(s -> Response.ok(s).build())
                     .orElse(Response.status(Response.Status.NOT_FOUND).build()));
@@ -70,8 +74,19 @@ public class DeltaSharesApiImpl implements SharesApi {
 
   @Override
   public CompletionStage<Response> listShares(BigDecimal maxResults, String pageToken) {
-    Response res = Response.ok().build();
-    return CompletableFuture.completedFuture(res);
+    ListShareResponse init = new ListShareResponse();
+    return deltaSharesService
+        .listShares(
+            Optional.ofNullable(pageToken).map(ContentAndToken.Token::new),
+            Optional.ofNullable(maxResults).map(BigDecimal::intValue))
+        .toCompletableFuture()
+        .thenApplyAsync(
+            c ->
+                Response.ok(
+                        init.items(c.getContent().orElse(Collections.emptyList()))
+                            .nextPageToken(c.getToken().orElse(null)))
+                    .build())
+        .exceptionally(t -> Response.status(501).build()); // TODO add some error info?
   }
 
   @Override

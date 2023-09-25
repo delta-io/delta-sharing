@@ -4,13 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.delta.sharing.api.server.model.Share;
-import io.quarkus.test.junit.QuarkusTest;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
 
-@QuarkusTest
 public class StorageManagerTest {
 
   @Test
