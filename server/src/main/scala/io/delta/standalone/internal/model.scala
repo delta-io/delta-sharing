@@ -24,6 +24,10 @@ import io.delta.standalone.internal.actions.{
   SingleAction => DeltaSingleAction
 }
 
+/**
+ * A copy of delta Metadata class, removed schema/dataSchema/partitionSchema, is serialized as
+ * json response for a delta sharing rpc.
+ */
 case class DeltaMetadataCopy(
     id: String,
     name: String,
