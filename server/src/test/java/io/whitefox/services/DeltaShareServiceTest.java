@@ -6,11 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
 import io.whitefox.api.deltasharing.model.Schema;
 import io.whitefox.api.deltasharing.model.Share;
-import io.whitefox.persistence.InMemoryStorageManager;
+import io.whitefox.api.deltasharing.model.Table;
 import io.whitefox.persistence.StorageManager;
+import io.whitefox.persistence.memory.InMemoryStorageManager;
+import io.whitefox.persistence.memory.PSchema;
+import io.whitefox.persistence.memory.PShare;
+import io.whitefox.persistence.memory.PTable;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
 
@@ -29,13 +31,12 @@ public class DeltaShareServiceTest {
 
   @Test
   public void getShare() throws ExecutionException, InterruptedException {
-    ConcurrentMap<String, Share> shares = new ConcurrentHashMap<>();
-    shares.put("key", new Share().id("key").name("name"));
-    Map<String, List<Schema>> schemas = Map.of("key", Collections.emptyList());
-    DeltaSharesService deltaSharesService = new DeltaSharesServiceImpl(
-        new InMemoryStorageManager(shares, schemas), defaultMaxResults, encoder);
+    var shares = List.of(new PShare("name", "key", Collections.emptyMap()));
+    StorageManager storageManager = new InMemoryStorageManager(shares);
+    DeltaSharesService deltaSharesService =
+        new DeltaSharesServiceImpl(storageManager, defaultMaxResults, encoder);
     Optional<Share> share =
-        deltaSharesService.getShare("key").toCompletableFuture().get();
+        deltaSharesService.getShare("name").toCompletableFuture().get();
     assertTrue(share.isPresent());
     assertEquals("name", share.get().getName());
     assertEquals("key", share.get().getId());
@@ -43,11 +44,10 @@ public class DeltaShareServiceTest {
 
   @Test
   public void listShares() throws ExecutionException, InterruptedException {
-    ConcurrentMap<String, Share> shares = new ConcurrentHashMap<>();
-    shares.put("key", new Share().id("key").name("name"));
-    Map<String, List<Schema>> schemas = Map.of("key", Collections.emptyList());
-    DeltaSharesService deltaSharesService = new DeltaSharesServiceImpl(
-        new InMemoryStorageManager(shares, schemas), defaultMaxResults, encoder);
+    var shares = List.of(new PShare("name", "key", Collections.emptyMap()));
+    StorageManager storageManager = new InMemoryStorageManager(shares);
+    DeltaSharesService deltaSharesService =
+        new DeltaSharesServiceImpl(storageManager, defaultMaxResults, encoder);
     var sharesWithNextToken = deltaSharesService
         .listShares(Optional.empty(), Optional.of(30))
         .toCompletableFuture()
@@ -58,11 +58,10 @@ public class DeltaShareServiceTest {
 
   @Test
   public void listSharesWithToken() throws ExecutionException, InterruptedException {
-    ConcurrentMap<String, Share> shares = new ConcurrentHashMap<>();
-    shares.put("key", new Share().id("key").name("name"));
-    Map<String, List<Schema>> schemas = Map.of("key", Collections.emptyList());
-    DeltaSharesService deltaSharesService = new DeltaSharesServiceImpl(
-        new InMemoryStorageManager(shares, schemas), defaultMaxResults, encoder);
+    var shares = List.of(new PShare("name", "key", Collections.emptyMap()));
+    StorageManager storageManager = new InMemoryStorageManager(shares);
+    DeltaSharesService deltaSharesService =
+        new DeltaSharesServiceImpl(storageManager, defaultMaxResults, encoder);
     var sharesWithNextToken = deltaSharesService
         .listShares(Optional.empty(), Optional.of(30))
         .toCompletableFuture()
@@ -73,13 +72,12 @@ public class DeltaShareServiceTest {
 
   @Test
   public void listSchemasOfEmptyShare() throws ExecutionException, InterruptedException {
-    Map<String, Share> shares = Map.of("key", new Share().id("key").name("name"));
-    Map<String, List<Schema>> schemas = Map.of("key", Collections.emptyList());
-    StorageManager storageManager = new InMemoryStorageManager(shares, schemas);
+    var shares = List.of(new PShare("name", "key", Collections.emptyMap()));
+    StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder);
     var resultSchemas = deltaSharesService
-        .listSchemas("key", Optional.empty(), Optional.empty())
+        .listSchemas("name", Optional.empty(), Optional.empty())
         .toCompletableFuture()
         .get();
     assertTrue(resultSchemas.isPresent());
@@ -89,29 +87,28 @@ public class DeltaShareServiceTest {
 
   @Test
   public void listSchemas() throws ExecutionException, InterruptedException {
-    Map<String, Share> shares = Map.of("key", new Share().id("key").name("name"));
-    Map<String, List<Schema>> schemas =
-        Map.of("key", List.of(new Schema().share("key").name("default")));
-    StorageManager storageManager = new InMemoryStorageManager(shares, schemas);
+    var shares = List.of(new PShare(
+        "name", "key", Map.of("default", new PSchema("default", Collections.emptyList()))));
+    StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder);
     var resultSchemas = deltaSharesService
-        .listSchemas("key", Optional.empty(), Optional.empty())
+        .listSchemas("name", Optional.empty(), Optional.empty())
         .toCompletableFuture()
         .get();
     assertTrue(resultSchemas.isPresent());
     assertEquals(1, resultSchemas.get().getContent().size());
     assertEquals(
-        new Schema().share("key").name("default"),
+        new Schema().share("name").name("default"),
         resultSchemas.get().getContent().get(0));
     assertTrue(resultSchemas.get().getToken().isEmpty());
   }
 
   @Test
   public void listSchemasOfUnknownShare() throws ExecutionException, InterruptedException {
-    Map<String, Share> shares = Map.of("key", new Share().id("key").name("name"));
-    Map<String, List<Schema>> schemas = Map.of("key", Collections.emptyList());
-    StorageManager storageManager = new InMemoryStorageManager(shares, schemas);
+    var shares = List.of(new PShare(
+        "name", "key", Map.of("default", new PSchema("default", Collections.emptyList()))));
+    StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder);
     var resultSchemas = deltaSharesService
@@ -119,5 +116,24 @@ public class DeltaShareServiceTest {
         .toCompletableFuture()
         .get();
     assertTrue(resultSchemas.isEmpty());
+  }
+
+  @Test
+  public void listTables() throws ExecutionException, InterruptedException {
+    var shares = List.of(new PShare(
+        "name", "key", Map.of("default", new PSchema("default", List.of(new PTable("table1"))))));
+    StorageManager storageManager = new InMemoryStorageManager(shares);
+    DeltaSharesService deltaSharesService =
+        new DeltaSharesServiceImpl(storageManager, 100, encoder);
+    var resultSchemas = deltaSharesService
+        .listTables("name", "default", Optional.empty(), Optional.empty())
+        .toCompletableFuture()
+        .get();
+    assertTrue(resultSchemas.isPresent());
+    assertTrue(resultSchemas.get().getToken().isEmpty());
+    assertEquals(1, resultSchemas.get().getContent().size());
+    assertEquals(
+        new Table().name("table1").schema("default").share("name"),
+        resultSchemas.get().getContent().get(0));
   }
 }

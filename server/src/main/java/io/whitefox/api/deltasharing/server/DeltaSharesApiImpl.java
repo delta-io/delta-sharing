@@ -1,10 +1,7 @@
 package io.whitefox.api.deltasharing.server;
 
 import io.quarkus.runtime.util.ExceptionUtil;
-import io.whitefox.api.deltasharing.model.CommonErrorResponse;
-import io.whitefox.api.deltasharing.model.ListSchemasResponse;
-import io.whitefox.api.deltasharing.model.ListShareResponse;
-import io.whitefox.api.deltasharing.model.QueryRequest;
+import io.whitefox.api.deltasharing.model.*;
 import io.whitefox.services.ContentAndToken;
 import io.whitefox.services.DeltaSharesService;
 import jakarta.inject.Inject;
@@ -109,7 +106,18 @@ public class DeltaSharesApiImpl implements DeltaApiApi {
   @Override
   public CompletionStage<Response> listTables(
       String share, String schema, Integer maxResults, String pageToken) {
-    return CompletableFuture.completedFuture(Response.ok().build());
+    return deltaSharesService
+        .listTables(
+            share,
+            schema,
+            Optional.ofNullable(pageToken).map(ContentAndToken.Token::new),
+            Optional.ofNullable(maxResults))
+        .toCompletableFuture()
+        .thenApplyAsync(o -> optionalToNotFound(o, c -> Response.ok(c.getToken()
+                .map(t -> new ListTablesResponse().items(c.getContent()).nextPageToken(t))
+                .orElse(new ListTablesResponse().items(c.getContent())))
+            .build()))
+        .exceptionallyAsync(exceptionToResponse);
   }
 
   @Override

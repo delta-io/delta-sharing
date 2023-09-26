@@ -3,6 +3,7 @@ package io.whitefox.services;
 import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
 import io.whitefox.api.deltasharing.model.Schema;
 import io.whitefox.api.deltasharing.model.Share;
+import io.whitefox.api.deltasharing.model.Table;
 import io.whitefox.persistence.StorageManager;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -64,6 +65,28 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
     var resAndSize = storageManager.listSchemas(share, start, finalMaxResults);
     int end = start + finalMaxResults;
 
+    return resAndSize.thenApplyAsync(optPageContent -> optPageContent.map(pageContent -> {
+      Optional<String> optionalToken =
+          end < pageContent.size ? Optional.of(Integer.toString(end)) : Optional.empty();
+      return optionalToken
+          .map(encoder::encodePageToken)
+          .map(t -> ContentAndToken.of(pageContent.result, t))
+          .orElse(ContentAndToken.withoutToken(pageContent.result));
+    }));
+  }
+
+  @Override
+  public CompletionStage<Optional<ContentAndToken<List<Table>>>> listTables(
+      String share,
+      String schema,
+      Optional<ContentAndToken.Token> nextPageToken,
+      Optional<Integer> maxResults) {
+    Integer finalMaxResults = maxResults.orElse(defaultMaxResults);
+    Integer start = nextPageToken
+        .map(s -> Integer.valueOf(encoder.decodePageToken(s.value)))
+        .orElse(0);
+    var resAndSize = storageManager.listTables(share, schema, start, finalMaxResults);
+    int end = start + finalMaxResults;
     return resAndSize.thenApplyAsync(optPageContent -> optPageContent.map(pageContent -> {
       Optional<String> optionalToken =
           end < pageContent.size ? Optional.of(Integer.toString(end)) : Optional.empty();

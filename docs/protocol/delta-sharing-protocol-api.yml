@@ -610,8 +610,6 @@ components:
 
     ListSchemasResponse:
       type: object
-      required:
-        - nextPageToken
       properties:
         nextPageToken:
           type: string
@@ -632,8 +630,6 @@ components:
 
     ListTablesResponse:
       type: object
-      required:
-        - nextPageToken
       properties:
         nextPageToken:
           type: string
