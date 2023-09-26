@@ -41,11 +41,6 @@ dependencies {
     testImplementation("io.rest-assured:rest-assured") // TODO review
 }
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
-}
-
 tasks.register<GenerateTask>("openapiGenerateWhitefox") {
     generatorName.set("java")
     inputSpec.set("$rootDir/docs/protocol/whitefox-protocol-api.yml")
