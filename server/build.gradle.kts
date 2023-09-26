@@ -79,13 +79,6 @@ tasks.quarkusBuild {
     }
 }
 
-buildscript {
-    configurations.all {
-        resolutionStrategy {
-            force("org.yaml:snakeyaml:1.33")
-        }
-    }
-}
 spotless {
     java {
         targetExclude("${relativeGeneratedCodeDirectory(layout, openApiCodeGenDir)}/**/*.java")

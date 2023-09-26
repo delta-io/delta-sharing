@@ -46,14 +46,6 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
-buildscript {
-    configurations.all {
-        resolutionStrategy {
-            force("org.yaml:snakeyaml:1.33")
-        }
-    }
-}
-
 tasks.register<GenerateTask>("openapiGenerateWhitefox") {
     generatorName.set("java")
     inputSpec.set("$rootDir/docs/protocol/whitefox-protocol-api.yml")
