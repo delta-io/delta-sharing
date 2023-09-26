@@ -1,6 +1,7 @@
 // Define Java conventions for this organization.
 plugins {
     java
+    id("com.palantir.git-version")
     id("org.openapi.generator")
     id("com.diffplug.spotless")
 }
@@ -24,3 +25,6 @@ spotless {
         formatAnnotations()
     }
 }
+val gitVersion: groovy.lang.Closure<String> by extra
+group = "io.whitefox"
+version = gitVersion()

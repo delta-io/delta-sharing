@@ -26,6 +26,7 @@ val quarkusPlatformVersion: String by project
 
 dependencies {
     implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
+    implementation("io.quarkus:quarkus-container-image-docker")
     implementation("io.quarkus:quarkus-resteasy-reactive")
     implementation("io.quarkus:quarkus-resteasy-reactive-jackson")
     implementation("io.quarkus:quarkus-arc")
@@ -77,6 +78,10 @@ tasks.withType<JavaCompile> {
 }
 
 tasks.quarkusBuild {
+    System.setProperty("quarkus.container-image.group", project.group.toString())
+    System.setProperty("quarkus.container-image.name", "server")
+    System.setProperty("quarkus.container-image.tag", project.version.toString())
+    System.setProperty("quarkus.container-image.additional-tags", "latest")
     nativeArgs {
         "additional-build-args" to "-H:-CheckToolchain"
     }
