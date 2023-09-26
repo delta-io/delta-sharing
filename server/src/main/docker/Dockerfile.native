@@ -7,11 +7,11 @@
 #
 # Then, build the image with:
 #
-# docker build -f src/main/docker/Dockerfile.native -t quarkus/lake-sharing .
+# docker build -f src/main/docker/Dockerfile.native -t quarkus/whitefox .
 #
 # Then run the container using:
 #
-# docker run -i --rm -p 8080:8080 quarkus/lake-sharing
+# docker run -i --rm -p 8080:8080 quarkus/whitefox
 #
 ###
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.8

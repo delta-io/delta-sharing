@@ -17,7 +17,7 @@ val serverGeneratorProperties = mapOf(
 plugins {
     java
     id("io.quarkus")
-    id("lakesharing.java-conventions")
+    id("whitefox.java-conventions")
 }
 
 val quarkusPlatformGroupId: String by project
@@ -37,15 +37,15 @@ dependencies {
     testImplementation("io.rest-assured:rest-assured")
 }
 
-tasks.register<GenerateTask>("openapiGenerateLakeSharing") {
+tasks.register<GenerateTask>("openapiGenerateWhitefox") {
     generatorName.set("jaxrs-spec")
-    inputSpec.set("$rootDir/docs/protocol/lake-sharing-protocol-api.yml")
+    inputSpec.set("$rootDir/docs/protocol/whitefox-protocol-api.yml")
     outputDir.set(generatedCodeDirectory(layout, openApiCodeGenDir))
     additionalProperties.set(
         serverGeneratorProperties.plus(
             mapOf(
-                "apiPackage" to "io.lake.sharing.api.server",
-                "modelPackage" to "io.lake.sharing.api.server.model",
+                "apiPackage" to "io.whitefox.sharing.api.server",
+                "modelPackage" to "io.whitefox.sharing.api.server.model",
             )
         )
     )
@@ -70,7 +70,7 @@ tasks.withType<Test> {
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
     options.compilerArgs.add("-parameters")
-    dependsOn(tasks.named("openapiGenerateLakeSharing"), tasks.named("openapiGenerateDeltaSharing"))
+    dependsOn(tasks.named("openapiGenerateWhitefox"), tasks.named("openapiGenerateDeltaSharing"))
 }
 
 tasks.quarkusBuild {

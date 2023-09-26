@@ -1,4 +1,4 @@
-package io.sharing.persistence;
+package io.whitefox.persistence;
 
 import io.delta.sharing.api.server.model.Share;
 import io.delta.sharing.encoders.InvalidPageTokenException;

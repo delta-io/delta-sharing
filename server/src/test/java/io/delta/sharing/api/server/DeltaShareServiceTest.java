@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.delta.sharing.api.server.model.Share;
 import io.delta.sharing.encoders.DeltaPageTokenEncoder;
-import io.sharing.persistence.InMemoryStorageManager;
+import io.whitefox.persistence.InMemoryStorageManager;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;

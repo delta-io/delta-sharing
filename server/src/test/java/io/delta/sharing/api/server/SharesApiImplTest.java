@@ -1,8 +1,7 @@
-package io.lake.sharing.api.server;
-
-import static io.restassured.RestAssured.given;
+package io.delta.sharing.api.server;
 
 import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.RestAssured;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -10,6 +9,6 @@ public class SharesApiImplTest {
 
   @Test
   public void testlistTablesInSchemaEndpoint() {
-    given().when().get("/shares/share1/schema1/tables").then().statusCode(200);
+    RestAssured.given().when().get("/shares/share1/schema1/tables").then().statusCode(200);
   }
 }

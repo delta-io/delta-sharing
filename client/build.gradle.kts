@@ -4,9 +4,9 @@ val openApiCodeGenDir = "generated/openapi"
 
 
 val clientGeneratorProperties = mapOf(
-    "apiPackage" to "io.lake.sharing.api.client",
-    "invokerPackage" to "io.lake.sharing.api.utils",
-    "modelPackage" to "io.lake.sharing.api.client.model",
+    "apiPackage" to "io.whitefox.sharing.api.client",
+    "invokerPackage" to "io.whitefox.sharing.api.utils",
+    "modelPackage" to "io.whitefox.sharing.api.client.model",
     "dateLibrary" to "java8",
     "sourceFolder" to "src/gen/java",
     "openApiNullable" to "true",
@@ -19,7 +19,7 @@ val clientGeneratorProperties = mapOf(
 plugins {
     java
     id("io.quarkus")
-    id("lakesharing.java-conventions")
+    id("whitefox.java-conventions")
 }
 
 repositories {
@@ -54,9 +54,9 @@ buildscript {
     }
 }
 
-tasks.register<GenerateTask>("openapiGenerateLakeSharing") {
+tasks.register<GenerateTask>("openapiGenerateWhitefox") {
     generatorName.set("java")
-    inputSpec.set("$rootDir/docs/protocol/lake-sharing-protocol-api.yml")
+    inputSpec.set("$rootDir/docs/protocol/whitefox-protocol-api.yml")
     library.set("native")
     outputDir.set(generatedCodeDirectory(layout, openApiCodeGenDir))
     additionalProperties.set(clientGeneratorProperties)
@@ -76,7 +76,7 @@ tasks.withType<Test> {
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
     options.compilerArgs.add("-parameters")
-    dependsOn(tasks.named("openapiGenerateLakeSharing"), tasks.named("openapiGenerateDeltaSharing"))
+    dependsOn(tasks.named("openapiGenerateWhitefox"), tasks.named("openapiGenerateDeltaSharing"))
 }
 
 spotless {

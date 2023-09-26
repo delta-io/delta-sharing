@@ -1,4 +1,4 @@
-rootProject.name = "lakesharing-multiproject"
+rootProject.name = "whitefox-multiproject"
 include("client")
 include("server")
 

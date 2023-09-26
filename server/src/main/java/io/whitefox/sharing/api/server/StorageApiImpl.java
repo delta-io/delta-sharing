@@ -1,7 +1,7 @@
-package io.lake.sharing.api.server;
+package io.whitefox.sharing.api.server;
 
-import io.lake.sharing.api.server.model.CreateStorage;
-import io.lake.sharing.api.server.model.UpdateStorage;
+import io.whitefox.sharing.api.server.model.CreateStorage;
+import io.whitefox.sharing.api.server.model.UpdateStorage;
 import jakarta.ws.rs.core.Response;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;

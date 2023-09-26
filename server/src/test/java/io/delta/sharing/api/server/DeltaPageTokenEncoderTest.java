@@ -1,4 +1,4 @@
-package io.delta.sharing.api.server.io.delta.sharing.encoders;
+package io.delta.sharing.api.server;
 
 import io.delta.sharing.encoders.DeltaPageTokenEncoder;
 import org.junit.jupiter.api.Assertions;

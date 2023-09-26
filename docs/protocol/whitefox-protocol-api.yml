@@ -1,6 +1,6 @@
 openapi: "3.0.2"
 info:
-  title: lake-sharing
+  title: whitefox
   version: "1.0"
   description: additive extension to delta-sharing API with the aim to provide a full-fledged experience (both publishers and consumers) and open to table formats different from Delta Lake
   contact:
@@ -8,7 +8,7 @@ info:
     name: Agile Lab
     url: https://www.agilelab.it
 servers:
-  - url: 'http://localhost:8000/lake-api/v1'
+  - url: 'http://localhost:8000/whitefox-api/v1'
 tags:
   - name: provider
   - name: table

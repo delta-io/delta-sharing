@@ -1,8 +1,8 @@
-package io.lake.sharing.api.server;
+package io.whitefox.sharing.api.server;
 
-import io.lake.sharing.api.server.model.AddRecipientToShareRequest;
-import io.lake.sharing.api.server.model.CreateShareInput;
-import io.lake.sharing.api.server.model.TableReference;
+import io.whitefox.sharing.api.server.model.AddRecipientToShareRequest;
+import io.whitefox.sharing.api.server.model.CreateShareInput;
+import io.whitefox.sharing.api.server.model.TableReference;
 import jakarta.ws.rs.core.Response;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;

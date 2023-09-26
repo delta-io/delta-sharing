@@ -1,4 +1,4 @@
-package io.sharing.persistence;
+package io.whitefox.persistence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

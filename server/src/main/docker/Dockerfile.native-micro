@@ -10,11 +10,11 @@
 #
 # Then, build the image with:
 #
-# docker build -f src/main/docker/Dockerfile.native-micro -t quarkus/lake-sharing .
+# docker build -f src/main/docker/Dockerfile.native-micro -t quarkus/whitefox .
 #
 # Then run the container using:
 #
-# docker run -i --rm -p 8080:8080 quarkus/lake-sharing
+# docker run -i --rm -p 8080:8080 quarkus/whitefox
 #
 ###
 FROM quay.io/quarkus/quarkus-micro-image:2.0

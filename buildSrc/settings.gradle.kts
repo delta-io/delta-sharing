@@ -1,1 +1,1 @@
-rootProject.name="lakesharing-conventions"
+rootProject.name="whitefox-conventions"

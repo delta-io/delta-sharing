@@ -1,4 +1,4 @@
-package io.sharing.persistence;
+package io.whitefox.persistence;
 
 public class ResultAndTotalSize<T> {
   public final T result;

@@ -3,7 +3,7 @@ package io.delta.sharing.api.server;
 import io.delta.sharing.api.ContentAndToken;
 import io.delta.sharing.api.server.model.Share;
 import io.delta.sharing.encoders.DeltaPageTokenEncoder;
-import io.sharing.persistence.StorageManager;
+import io.whitefox.persistence.StorageManager;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
