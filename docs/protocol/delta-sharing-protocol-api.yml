@@ -14,7 +14,7 @@ info:
     url: "https://www.gnu.org/licenses/agpl-3.0.en.html"
 
 servers:
-  - url: 'http://localhost:8000/delta-api/v1'
+  - url: 'http://localhost:8083'
     description: Local dev server (APIv1)
   
 tags:
@@ -30,7 +30,7 @@ tags:
   description: APIs which are part proposed and may or may not be part of official
 
 paths:
-  '/shares':
+  '/delta-api/v1/shares':
     get:
       operationId: 'ListShares'
       summary: 'List the shares accessible to the recipient'
@@ -40,7 +40,7 @@ paths:
       tags:
         - shares
         - official
-      parameters: &pagination
+      parameters:
         - in: query
           name: maxResults
           required: false
@@ -51,7 +51,7 @@ paths:
             used in subsequent requests.
           example: 30
           schema:
-            type: number
+            type: integer
             format: int32
             default: 500
         - in: query
@@ -80,7 +80,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ListShareResponse'
 
-  '/shares/{share}':
+  '/delta-api/v1/shares/{share}':
     get:
       operationId: 'GetShare'
       description: 'get the metadata of a share'
@@ -112,7 +112,7 @@ paths:
               schema:
                 "$ref": "#/components/schemas/Share"
 
-  '/shares/{share}/schemas':
+  '/delta-api/v1/shares/{share}/schemas':
     get:
       operationId: 'ListSchemas'
       description: 'List the schemas in a share'
@@ -136,7 +136,7 @@ paths:
             used in subsequent requests.
           example: 30
           schema:
-            type: number
+            type: integer
             format: int32
             default: 500
         - in: query
@@ -164,7 +164,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ListSchemasResponse'
 
-  '/shares/{share}/schemas/{schema}/tables':
+  '/delta-api/v1/shares/{share}/schemas/{schema}/tables':
     get:
       operationId: 'ListTables'
       description: "List the tables in a given share's schema"
@@ -194,7 +194,7 @@ paths:
             used in subsequent requests.
           example: 30
           schema:
-            type: number
+            type: integer
             format: int32
             default: 500
         - in: query
@@ -223,7 +223,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ListTablesResponse'
 
-  '/shares/{share}/all-tables':
+  '/delta-api/v1/shares/{share}/all-tables':
     get:
       operationId: 'ListALLTables'
       description: "List the tables under all schemas in a share"
@@ -247,7 +247,7 @@ paths:
             used in subsequent requests.
           example: 30
           schema:
-            type: number
+            type: integer
             format: int32
             default: 500
         - in: query
@@ -276,7 +276,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ListTablesResponse'
 
-  '/shares/{share}/schemas/{schema}/tables/{table}/version':
+  '/delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/version':
     get:
       operationId: 'GetTableVersion'
       summary: 'Return the table version'
@@ -290,7 +290,7 @@ paths:
       tags:
         - tables
         - official
-      parameters: &tableParameters
+      parameters:
         - in: path
           name: share
           required: true
@@ -334,14 +334,38 @@ paths:
               schema:
                 type: integer
 
-  '/shares/{share}/schemas/{schema}/tables/{table}/metadata':
+  '/delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/metadata':
     get:
       operationId: 'GetTableMetadata'
       description: 'Query the metadata and schema of the given table'
       tags:
         - tables
         - official
-      parameters: *tableParameters
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: 'Named share for finding the named schema'
+          schema:
+            type: string
+        - in: path
+          name: schema
+          required: true
+          description: 'Named schema for finding the named table'
+          schema:
+            type: string
+        - in: path
+          name: table
+          required: true
+          description: 'Named table'
+          schema:
+            type: string
+        - in: query
+          name: startingTimestamp
+          required: false
+          description: 'Starting Timestamp'
+          schema:
+            type: string
       responses:
         '400':
           $ref: "#/components/responses/400"
@@ -367,14 +391,38 @@ paths:
               schema:
                 $ref: '#/components/schemas/TableMetadataResponse'
 
-  '/shares/{share}/schemas/{schema}/tables/{table}/query':
+  '/delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/query':
     post:
       operationId: 'QueryTable'
       description: 'Query the table'
       tags:
         - tables
         - official
-      parameters: *tableParameters
+      parameters:
+        - in: path
+          name: share
+          required: true
+          description: 'Named share for finding the named schema'
+          schema:
+            type: string
+        - in: path
+          name: schema
+          required: true
+          description: 'Named schema for finding the named table'
+          schema:
+            type: string
+        - in: path
+          name: table
+          required: true
+          description: 'Named table'
+          schema:
+            type: string
+        - in: query
+          name: startingTimestamp
+          required: false
+          description: 'Starting Timestamp'
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -406,7 +454,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TableQueryResponse'
 
-  '/shares/{share}/schemas/{schema}/tables/{table}/changes':
+  '/delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/changes':
     get:
       operationId: 'GetTableChanges'
       summary: 'Read Change Data Feed from a Table'
@@ -540,10 +588,8 @@ components:
 
     ListShareResponse:
       type: object
-      required:
-        - nextPageToken
       properties:
-        nextPageToken: &nextPageToken
+        nextPageToken:
           type: string
         items:
           type: array
@@ -555,7 +601,7 @@ components:
       required:
       - name
       properties:
-        name: &shareName
+        name:
           type: string
           example: 'vaccine_share'
         id:
@@ -567,7 +613,8 @@ components:
       required:
         - nextPageToken
       properties:
-        nextPageToken: *nextPageToken
+        nextPageToken:
+          type: string
         items:
           type: array
           items:
@@ -576,17 +623,20 @@ components:
     Schema:
       type: object
       properties:
-        name: &schemaName
+        name:
           type: string
           example: 'acme_vaccine_data'
-        share: *shareName
+        share:
+          type: string
+          example: 'vaccine_share'
 
     ListTablesResponse:
       type: object
       required:
         - nextPageToken
       properties:
-        nextPageToken: *nextPageToken
+        nextPageToken:
+          type: string
         items:
           type: array
           items:
@@ -594,11 +644,15 @@ components:
     Table:
       type: object
       properties:
-        name: &tableName
+        name:
           type: string
           example: 'vaccine_ingredients'
-        share: *shareName
-        schema: *schemaName
+        share:
+          type: string
+          example: 'vaccine_share'
+        schema:
+          type: string
+          example: 'acme_vaccine_data'
 
     TableMetadataResponse:
       type: string

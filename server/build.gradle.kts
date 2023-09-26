@@ -35,6 +35,9 @@ dependencies {
 
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.rest-assured:rest-assured")
+    testImplementation("io.rest-assured:json-path")
+    testImplementation("org.openapi4j:openapi-operation-validator:1.0.7")
+    testImplementation("org.openapi4j:openapi-operation-restassured:1.0.7")
 }
 
 tasks.register<GenerateTask>("openapiGenerateWhitefox") {
@@ -44,8 +47,8 @@ tasks.register<GenerateTask>("openapiGenerateWhitefox") {
     additionalProperties.set(
         serverGeneratorProperties.plus(
             mapOf(
-                "apiPackage" to "io.whitefox.sharing.api.server",
-                "modelPackage" to "io.whitefox.sharing.api.server.model",
+                "apiPackage" to "io.whitefox.api.server",
+                "modelPackage" to "io.whitefox.api.model",
             )
         )
     )
@@ -58,8 +61,8 @@ tasks.register<GenerateTask>("openapiGenerateDeltaSharing") {
     outputDir.set(generatedCodeDirectory(layout, openApiCodeGenDir))
     additionalProperties.set(
         serverGeneratorProperties + mapOf(
-            "apiPackage" to "io.delta.sharing.api.server",
-            "modelPackage" to "io.delta.sharing.api.server.model",
+            "apiPackage" to "io.whitefox.api.deltasharing.server",
+            "modelPackage" to "io.whitefox.api.deltasharing.model",
         )
     )
 }
