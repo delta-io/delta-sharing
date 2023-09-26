@@ -22,12 +22,9 @@ public class DeltaSharesApiImpl implements SharesApi {
 
   @Override
   public CompletionStage<Response> getShare(String share) {
-    return deltaSharesService
-        .getShare(share)
-        .thenApplyAsync(
-            o ->
-                o.map(s -> Response.ok(s).build())
-                    .orElse(Response.status(Response.Status.NOT_FOUND).build()));
+    return deltaSharesService.getShare(share).thenApplyAsync(o -> o.map(
+            s -> Response.ok(s).build())
+        .orElse(Response.status(Response.Status.NOT_FOUND).build()));
   }
 
   @Override
@@ -80,12 +77,9 @@ public class DeltaSharesApiImpl implements SharesApi {
             Optional.ofNullable(pageToken).map(ContentAndToken.Token::new),
             Optional.ofNullable(maxResults).map(BigDecimal::intValue))
         .toCompletableFuture()
-        .thenApplyAsync(
-            c ->
-                Response.ok(
-                        init.items(c.getContent().orElse(Collections.emptyList()))
-                            .nextPageToken(c.getToken().orElse(null)))
-                    .build())
+        .thenApplyAsync(c -> Response.ok(init.items(c.getContent().orElse(Collections.emptyList()))
+                .nextPageToken(c.getToken().orElse(null)))
+            .build())
         .exceptionally(t -> Response.status(501).build()); // TODO add some error info?
   }
 

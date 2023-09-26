@@ -37,9 +37,8 @@ public class InMemoryStorageManager implements StorageManager {
       throw new InvalidPageTokenException(
           String.format("Invalid Next Page Token: token %s is larger than totalSize", offset));
     }
-    return CompletableFuture.completedFuture(
-        new ResultAndTotalSize<>(
-            shares.values().stream().skip(offset).limit(maxResultSize).collect(Collectors.toList()),
-            totalSize));
+    return CompletableFuture.completedFuture(new ResultAndTotalSize<>(
+        shares.values().stream().skip(offset).limit(maxResultSize).collect(Collectors.toList()),
+        totalSize));
   }
 }

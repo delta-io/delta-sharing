@@ -14,7 +14,8 @@ public class StorageManagerTest {
   @Test
   public void getUnknownShare() throws ExecutionException, InterruptedException {
     StorageManager storageManager = new InMemoryStorageManager();
-    Optional<Share> unknown = storageManager.getShare("unknown").toCompletableFuture().get();
+    Optional<Share> unknown =
+        storageManager.getShare("unknown").toCompletableFuture().get();
     assertEquals(Optional.empty(), unknown);
   }
 

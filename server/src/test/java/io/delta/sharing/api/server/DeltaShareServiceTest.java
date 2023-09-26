@@ -20,7 +20,8 @@ public class DeltaShareServiceTest {
   public void getUnknownShare() throws ExecutionException, InterruptedException {
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(new InMemoryStorageManager(), defaultMaxResults, encoder);
-    Optional<Share> unknown = deltaSharesService.getShare("unknown").toCompletableFuture().get();
+    Optional<Share> unknown =
+        deltaSharesService.getShare("unknown").toCompletableFuture().get();
     assertEquals(Optional.empty(), unknown);
   }
 
@@ -30,7 +31,8 @@ public class DeltaShareServiceTest {
     shares.put("key", new Share().id("key").name("name"));
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(new InMemoryStorageManager(shares), defaultMaxResults, encoder);
-    Optional<Share> share = deltaSharesService.getShare("key").toCompletableFuture().get();
+    Optional<Share> share =
+        deltaSharesService.getShare("key").toCompletableFuture().get();
     assertTrue(share.isPresent());
     assertEquals("name", share.get().getName());
     assertEquals("key", share.get().getId());
@@ -42,11 +44,10 @@ public class DeltaShareServiceTest {
     shares.put("key", new Share().id("key").name("name"));
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(new InMemoryStorageManager(shares), defaultMaxResults, encoder);
-    var sharesWithNextToken =
-        deltaSharesService
-            .listShares(Optional.empty(), Optional.of(30))
-            .toCompletableFuture()
-            .get();
+    var sharesWithNextToken = deltaSharesService
+        .listShares(Optional.empty(), Optional.of(30))
+        .toCompletableFuture()
+        .get();
     assertEquals(1, sharesWithNextToken.getContent().get().size());
     assertTrue(sharesWithNextToken.getToken().isEmpty());
   }
@@ -57,11 +58,10 @@ public class DeltaShareServiceTest {
     shares.put("key", new Share().id("key").name("name"));
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(new InMemoryStorageManager(shares), defaultMaxResults, encoder);
-    var sharesWithNextToken =
-        deltaSharesService
-            .listShares(Optional.empty(), Optional.of(30))
-            .toCompletableFuture()
-            .get();
+    var sharesWithNextToken = deltaSharesService
+        .listShares(Optional.empty(), Optional.of(30))
+        .toCompletableFuture()
+        .get();
     assertEquals(1, sharesWithNextToken.getContent().get().size());
     assertTrue(sharesWithNextToken.getToken().isEmpty());
   }

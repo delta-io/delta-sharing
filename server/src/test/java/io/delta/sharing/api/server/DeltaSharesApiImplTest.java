@@ -12,7 +12,8 @@ import org.junit.jupiter.api.Test;
 @QuarkusTest
 public class DeltaSharesApiImplTest {
 
-  @Inject DeltaPageTokenEncoder encoder;
+  @Inject
+  DeltaPageTokenEncoder encoder;
 
   @Test
   public void getUnknownShare() {

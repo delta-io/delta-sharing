@@ -19,8 +19,8 @@ spotless {
     java {
         importOrder()
         removeUnusedImports()
-        cleanthat()          // has its own section below
-        googleJavaFormat()   // has its own section below
-        formatAnnotations()  // fixes formatting of type annotations, see below
+        cleanthat()
+        palantirJavaFormat().style("GOOGLE")
+        formatAnnotations()
     }
 }

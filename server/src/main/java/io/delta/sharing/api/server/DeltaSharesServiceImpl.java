@@ -38,19 +38,19 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   public CompletionStage<ContentAndToken<List<Share>>> listShares(
       Optional<ContentAndToken.Token> nextPageToken, Optional<Integer> maxResults) {
     Integer finalMaxResults = maxResults.orElse(defaultMaxResults);
-    Integer start =
-        nextPageToken.map(s -> Integer.valueOf(encoder.decodePageToken(s.value))).orElse(0);
+    Integer start = nextPageToken
+        .map(s -> Integer.valueOf(encoder.decodePageToken(s.value)))
+        .orElse(0);
     var resAndSize = storageManager.getShares(start, finalMaxResults);
     int end = start + finalMaxResults;
 
-    return resAndSize.thenApplyAsync(
-        pageContent -> {
-          Optional<String> optionalToken =
-              end < pageContent.size ? Optional.of(Integer.toString(end)) : Optional.empty();
-          return optionalToken
-              .map(encoder::encodePageToken)
-              .map(t -> ContentAndToken.of(pageContent.result, t))
-              .orElse(ContentAndToken.withoutToken(pageContent.result));
-        });
+    return resAndSize.thenApplyAsync(pageContent -> {
+      Optional<String> optionalToken =
+          end < pageContent.size ? Optional.of(Integer.toString(end)) : Optional.empty();
+      return optionalToken
+          .map(encoder::encodePageToken)
+          .map(t -> ContentAndToken.of(pageContent.result, t))
+          .orElse(ContentAndToken.withoutToken(pageContent.result));
+    });
   }
 }
