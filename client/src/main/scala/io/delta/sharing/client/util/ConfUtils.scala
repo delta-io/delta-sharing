@@ -57,6 +57,10 @@ object ConfUtils {
   val MAX_FILES_CONF = "spark.delta.sharing.maxFilesPerQueryRequest"
   val MAX_FILES_DEFAULT = 100000
 
+  val QUERY_TABLE_VERSION_INTERVAL_SECONDS =
+    "spark.delta.sharing.streaming.queryTableVersionIntervalSeconds"
+  val QUERY_TABLE_VERSION_INTERVAL_SECONDS_DEFAULT = "30s"
+
   def numRetries(conf: Configuration): Int = {
     val numRetries = conf.getInt(NUM_RETRIES_CONF, NUM_RETRIES_DEFAULT)
     validateNonNeg(numRetries, NUM_RETRIES_CONF)
@@ -84,12 +88,12 @@ object ConfUtils {
 
   def timeoutInSeconds(conf: Configuration): Int = {
     val timeoutStr = conf.get(TIMEOUT_CONF, TIMEOUT_DEFAULT)
-    toTimeout(timeoutStr)
+    toTimeInSeconds(timeoutStr, TIMEOUT_CONF)
   }
 
   def timeoutInSeconds(conf: SQLConf): Int = {
     val timeoutStr = conf.getConfString(TIMEOUT_CONF, TIMEOUT_DEFAULT)
-    toTimeout(timeoutStr)
+    toTimeInSeconds(timeoutStr, TIMEOUT_CONF)
   }
 
   def maxConnections(conf: Configuration): Int = {
@@ -128,13 +132,24 @@ object ConfUtils {
     maxFiles
   }
 
-  private def toTimeout(timeoutStr: String): Int = {
-    val timeoutInSeconds = JavaUtils.timeStringAs(timeoutStr, TimeUnit.SECONDS)
-    validateNonNeg(timeoutInSeconds, TIMEOUT_CONF)
-    if (timeoutInSeconds > Int.MaxValue) {
-      throw new IllegalArgumentException(TIMEOUT_CONF + " is too big: " +  timeoutStr)
+  def streamingQueryTableVersionIntervalSeconds(conf: SQLConf): Int = {
+    val intervalStr = conf.getConfString(
+      QUERY_TABLE_VERSION_INTERVAL_SECONDS,
+      QUERY_TABLE_VERSION_INTERVAL_SECONDS_DEFAULT
+    )
+    toTimeInSeconds(intervalStr, QUERY_TABLE_VERSION_INTERVAL_SECONDS)
+  }
+
+  private def toTimeInSeconds(timeStr: String, conf: String): Int = {
+    val timeInSeconds = JavaUtils.timeStringAs(timeStr, TimeUnit.SECONDS)
+    validateNonNeg(timeInSeconds, conf)
+    if (conf == QUERY_TABLE_VERSION_INTERVAL_SECONDS && timeInSeconds < 30) {
+      throw new IllegalArgumentException(conf + " must not be less than 30 seconds.")
     }
-    timeoutInSeconds.toInt
+    if (timeInSeconds > Int.MaxValue) {
+      throw new IllegalArgumentException(conf + " is too big: " + timeStr)
+    }
+    timeInSeconds.toInt
   }
 
   private def validateNonNeg(value: Long, conf: String): Unit = {
