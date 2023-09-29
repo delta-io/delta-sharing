@@ -224,7 +224,7 @@ class DeltaSharedTable(
         } else {
           null
         },
-        deltaMetadata = m
+        deltaMetadata = DeltaMetadataCopy(m)
       ).wrap
     } else {
       model.Metadata(
