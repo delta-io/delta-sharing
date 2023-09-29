@@ -10,11 +10,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v3
         with:
+          cache: 'gradle'
           distribution: temurin
           java-version: 19
-
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
 
       - name: Execute Gradle build
-        run: ./gradlew build testNative
+        run:  |
+              if [ "$RUNNER_OS" == "Windows" ]; then
+                export HADOOP_HOME="$(pwd)/.github/workflows/hadoop3-win-binaries"
+              fi
+              ./gradlew build testNative --no-daemon
+        shell: bash

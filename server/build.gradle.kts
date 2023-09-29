@@ -26,6 +26,7 @@ val quarkusPlatformVersion: String by project
 
 dependencies {
     implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
+    // QUARKUS
     implementation("io.quarkus:quarkus-container-image-docker")
     implementation("io.quarkus:quarkus-resteasy-reactive")
     implementation("io.quarkus:quarkus-resteasy-reactive-jackson")
@@ -34,6 +35,11 @@ dependencies {
     implementation("org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1")
     implementation("jakarta.validation:jakarta.validation-api:3.0.2")
 
+    // DELTA
+    implementation("io.delta:delta-standalone_2.13:0.6.0")
+    implementation("org.apache.hadoop:hadoop-common:3.3.1")
+
+    // TEST
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.rest-assured:rest-assured")
     testImplementation("io.rest-assured:json-path")
