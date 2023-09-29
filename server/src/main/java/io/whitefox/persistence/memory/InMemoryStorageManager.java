@@ -21,15 +21,15 @@ import java.util.stream.Collectors;
 public class InMemoryStorageManager implements StorageManager {
   private final ConcurrentMap<String, PShare> shares;
 
-  private static Share shareToPShare(PShare p) {
+  private static Share pShareToShare(PShare p) {
     return new Share().id(p.id()).name(p.name());
   }
 
-  private static Schema schemaToPSchema(PSchema schema, PShare share) {
+  private static Schema pSchemaToSchema(PSchema schema, PShare share) {
     return new Schema().name(schema.name()).share(share.name());
   }
 
-  private static Table tableToPTable(PTable table, PSchema schema, PShare share) {
+  private static Table pTableToTable(PTable table, PSchema schema, PShare share) {
     return new Table().name(table.name()).share(share.name()).schema(schema.name());
   }
 
@@ -46,7 +46,7 @@ public class InMemoryStorageManager implements StorageManager {
   @Override
   public CompletionStage<Optional<Share>> getShare(String share) {
     return CompletableFuture.completedFuture(
-        Optional.ofNullable(shares.get(share)).map(InMemoryStorageManager::shareToPShare));
+        Optional.ofNullable(shares.get(share)).map(InMemoryStorageManager::pShareToShare));
   }
 
   @Override
@@ -60,7 +60,7 @@ public class InMemoryStorageManager implements StorageManager {
           shares.values().stream()
               .skip(offset)
               .limit(maxResultSize)
-              .map(InMemoryStorageManager::shareToPShare)
+              .map(InMemoryStorageManager::pShareToShare)
               .collect(Collectors.toList()),
           totalSize));
     }
@@ -83,7 +83,7 @@ public class InMemoryStorageManager implements StorageManager {
           schemaMap.values().stream()
               .skip(offset)
               .limit(maxResultSize)
-              .map(s -> schemaToPSchema(s, shareObj))
+              .map(s -> pSchemaToSchema(s, shareObj))
               .collect(Collectors.toList()),
           totalSize)));
     }
@@ -111,7 +111,7 @@ public class InMemoryStorageManager implements StorageManager {
           tableList.stream()
               .skip(offset)
               .limit(maxResultSize)
-              .map(t -> tableToPTable(t, schemaObj, shareObj))
+              .map(t -> pTableToTable(t, schemaObj, shareObj))
               .collect(Collectors.toList()),
           totalSize)));
     }

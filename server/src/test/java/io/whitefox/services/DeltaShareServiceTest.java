@@ -121,7 +121,9 @@ public class DeltaShareServiceTest {
   @Test
   public void listTables() throws ExecutionException, InterruptedException {
     var shares = List.of(new PShare(
-        "name", "key", Map.of("default", new PSchema("default", List.of(new PTable("table1"))))));
+        "name",
+        "key",
+        Map.of("default", new PSchema("default", List.of(new PTable("table1", "location1"))))));
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder);

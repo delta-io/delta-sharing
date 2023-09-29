@@ -1,3 +1,3 @@
 package io.whitefox.persistence.memory;
 
-public record PTable(String name) {}
+public record PTable(String name, String location) {}
