@@ -16,12 +16,44 @@
 
 package io.delta.standalone.internal
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import io.delta.standalone.internal.actions.{
+  Format => DeltaFormat,
   Metadata => DeltaMetadata,
   Protocol => DeltaProtocol,
   SingleAction => DeltaSingleAction
 }
 
+/**
+ * A copy of delta Metadata class, removed schema/dataSchema/partitionSchema, is serialized as
+ * json response for a delta sharing rpc.
+ */
+case class DeltaMetadataCopy(
+    id: String,
+    name: String,
+    description: String,
+    format: DeltaFormat,
+    schemaString: String,
+    partitionColumns: Seq[String],
+    configuration: Map[String, String],
+    @JsonDeserialize(contentAs = classOf[java.lang.Long])
+    createdTime: Option[Long]
+)
+
+object DeltaMetadataCopy {
+  def apply(metadata: DeltaMetadata): DeltaMetadataCopy = {
+    DeltaMetadataCopy(
+      id = metadata.id,
+      name = metadata.name,
+      description = metadata.description,
+      format = metadata.format,
+      schemaString = metadata.schemaString,
+      partitionColumns = metadata.partitionColumns,
+      configuration = metadata.configuration,
+      createdTime = metadata.createdTime
+    )
+  }
+}
 /**
  * Actions defined to use in the response for delta format sharing.
  */
@@ -64,7 +96,7 @@ case class DeltaResponseFileAction(
  */
 case class DeltaResponseMetadata(
     version: java.lang.Long = null,
-    deltaMetadata: DeltaMetadata) extends DeltaResponseAction {
+    deltaMetadata: DeltaMetadataCopy) extends DeltaResponseAction {
   override def wrap: DeltaResponseSingleAction = DeltaResponseSingleAction(metaData = this)
 }
 
