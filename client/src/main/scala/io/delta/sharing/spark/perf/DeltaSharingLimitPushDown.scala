@@ -22,6 +22,7 @@ import org.apache.spark.sql.catalyst.plans.logical.{LocalLimit, LogicalPlan}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 
+import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.RemoteDeltaSnapshotFileIndex
 
 object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
@@ -33,7 +34,7 @@ object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
   }
 
   def apply(p: LogicalPlan): LogicalPlan = {
-    if (p.conf.getConfString("spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
+    if (ConfUtils.limitPushdownEnabled(p.conf)) {
       p transform {
         case localLimit @ LocalLimit(
         literalExpr @ IntegerLiteral(limit),
