@@ -61,6 +61,9 @@ object ConfUtils {
     "spark.delta.sharing.streaming.queryTableVersionIntervalSeconds"
   val QUERY_TABLE_VERSION_INTERVAL_SECONDS_DEFAULT = "30s"
 
+  val LIMIT_PUSHDOWN_ENABLED_CONF = "spark.delta.sharing.limitPushdown.enabled"
+  val LIMIT_PUSHDOWN_ENABLED_DEFAULT = "true"
+
   def numRetries(conf: Configuration): Int = {
     val numRetries = conf.getInt(NUM_RETRIES_CONF, NUM_RETRIES_DEFAULT)
     validateNonNeg(numRetries, NUM_RETRIES_CONF)
@@ -138,6 +141,10 @@ object ConfUtils {
       QUERY_TABLE_VERSION_INTERVAL_SECONDS_DEFAULT
     )
     toTimeInSeconds(intervalStr, QUERY_TABLE_VERSION_INTERVAL_SECONDS)
+  }
+
+  def limitPushdownEnabled(conf: SQLConf): Boolean = {
+    conf.getConfString(LIMIT_PUSHDOWN_ENABLED_CONF, LIMIT_PUSHDOWN_ENABLED_DEFAULT).toBoolean
   }
 
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {
