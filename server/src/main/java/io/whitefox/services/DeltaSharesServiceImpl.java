@@ -96,4 +96,23 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
           .orElse(ContentAndToken.withoutToken(pageContent.result));
     }));
   }
+
+  @Override
+  public CompletionStage<Optional<ContentAndToken<List<Table>>>> listTablesOfShare(
+      String share, Optional<ContentAndToken.Token> nextPageToken, Optional<Integer> maxResults) {
+    Integer finalMaxResults = maxResults.orElse(defaultMaxResults);
+    Integer start = nextPageToken
+        .map(s -> Integer.valueOf(encoder.decodePageToken(s.value)))
+        .orElse(0);
+    var resAndSize = storageManager.listTablesOfShare(share, start, finalMaxResults);
+    int end = start + finalMaxResults;
+    return resAndSize.thenApplyAsync(optPageContent -> optPageContent.map(pageContent -> {
+      Optional<String> optionalToken =
+          end < pageContent.size ? Optional.of(Integer.toString(end)) : Optional.empty();
+      return optionalToken
+          .map(encoder::encodePageToken)
+          .map(t -> ContentAndToken.of(pageContent.result, t))
+          .orElse(ContentAndToken.withoutToken(pageContent.result));
+    }));
+  }
 }

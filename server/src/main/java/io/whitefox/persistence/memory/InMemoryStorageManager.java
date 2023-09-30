@@ -116,4 +116,36 @@ public class InMemoryStorageManager implements StorageManager {
           totalSize)));
     }
   }
+
+  private record TableAndSchema(PTable table, PSchema schema) {}
+  ;
+
+  @Override
+  public CompletionStage<Optional<ResultAndTotalSize<List<Table>>>> listTablesOfShare(
+      String share, int offset, int maxResultSize) {
+
+    var shareObj = shares.get(share);
+    if (shareObj == null) {
+      return CompletableFuture.completedFuture(Optional.empty());
+    }
+    var schemaMap = shareObj.schemas();
+
+    var tableList = schemaMap.values().stream()
+        .flatMap(x -> x.tables().stream().map(t -> new TableAndSchema(t, x)))
+        .toList();
+
+    var totalSize = tableList.size();
+    if (offset > totalSize) {
+      return CompletableFuture.failedFuture(new InvalidPageTokenException(
+          String.format("Invalid Next Page Token: token %s is larger than totalSize", offset)));
+    } else {
+      return CompletableFuture.completedFuture(Optional.of(new ResultAndTotalSize<>(
+          tableList.stream()
+              .skip(offset)
+              .limit(maxResultSize)
+              .map(t -> pTableToTable(t.table(), t.schema(), shareObj))
+              .collect(Collectors.toList()),
+          totalSize)));
+    }
+  }
 }

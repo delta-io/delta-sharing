@@ -72,7 +72,17 @@ public class DeltaSharesApiImpl implements DeltaApiApi {
   @Override
   public CompletionStage<Response> listALLTables(
       String share, Integer maxResults, String pageToken) {
-    return CompletableFuture.completedFuture(Response.ok().build());
+    return deltaSharesService
+        .listTablesOfShare(
+            share,
+            Optional.ofNullable(pageToken).map(ContentAndToken.Token::new),
+            Optional.ofNullable(maxResults))
+        .toCompletableFuture()
+        .thenApplyAsync(o -> optionalToNotFound(o, c -> Response.ok(c.getToken()
+                .map(t -> new ListTablesResponse().items(c.getContent()).nextPageToken(t))
+                .orElse(new ListTablesResponse().items(c.getContent())))
+            .build()))
+        .exceptionallyAsync(exceptionToResponse);
   }
 
   @Override

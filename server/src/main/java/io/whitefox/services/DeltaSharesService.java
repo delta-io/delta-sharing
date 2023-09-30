@@ -21,4 +21,7 @@ public interface DeltaSharesService {
       String schema,
       Optional<ContentAndToken.Token> nextPageToken,
       Optional<Integer> maxResults);
+
+  CompletionStage<Optional<ContentAndToken<List<Table>>>> listTablesOfShare(
+      String share, Optional<ContentAndToken.Token> token, Optional<Integer> maxResults);
 }

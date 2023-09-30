@@ -17,4 +17,7 @@ public interface StorageManager {
 
   CompletionStage<Optional<ResultAndTotalSize<List<Table>>>> listTables(
       String share, String schema, int offset, int maxResultSize);
+
+  CompletionStage<Optional<ResultAndTotalSize<List<Table>>>> listTablesOfShare(
+      String share, int offset, int finalMaxResults);
 }

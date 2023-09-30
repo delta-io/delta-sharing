@@ -1,7 +1,6 @@
 package io.whitefox.services;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
 import io.whitefox.api.deltasharing.model.Schema;
@@ -14,6 +13,7 @@ import io.whitefox.persistence.memory.PShare;
 import io.whitefox.persistence.memory.PTable;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 
 public class DeltaShareServiceTest {
@@ -137,5 +137,66 @@ public class DeltaShareServiceTest {
     assertEquals(
         new Table().name("table1").schema("default").share("name"),
         resultSchemas.get().getContent().get(0));
+  }
+
+  @Test
+  public void listAllTables() throws ExecutionException, InterruptedException {
+    var shares = List.of(new PShare(
+        "name",
+        "key",
+        Map.of(
+            "default",
+            new PSchema("default", List.of(new PTable("table1", "location1"))),
+            "other",
+            new PSchema("other", List.of(new PTable("table2", "location2"))))));
+    StorageManager storageManager = new InMemoryStorageManager(shares);
+    DeltaSharesService deltaSharesService =
+        new DeltaSharesServiceImpl(storageManager, 100, encoder);
+    var resultSchemas = deltaSharesService
+        .listTablesOfShare("name", Optional.empty(), Optional.empty())
+        .toCompletableFuture()
+        .get();
+    assertTrue(resultSchemas.isPresent());
+    assertTrue(resultSchemas.get().getToken().isEmpty());
+    Matchers.containsInAnyOrder(List.of(
+            new Table().name("table2").schema("other").share("name"),
+            new Table().name("table1").schema("default").share("name")))
+        .matches(resultSchemas.get().getContent());
+  }
+
+  @Test
+  public void listAllTablesEmpty() throws ExecutionException, InterruptedException {
+    var shares = List.of(
+        new PShare(
+            "name",
+            "key",
+            Map.of(
+                "default",
+                new PSchema("default", List.of(new PTable("table1", "location1"))),
+                "other",
+                new PSchema("other", List.of(new PTable("table2", "location2"))))),
+        new PShare("name2", "key2", Map.of()));
+    StorageManager storageManager = new InMemoryStorageManager(shares);
+    DeltaSharesService deltaSharesService =
+        new DeltaSharesServiceImpl(storageManager, 100, encoder);
+    var resultSchemas = deltaSharesService
+        .listTablesOfShare("name2", Optional.empty(), Optional.empty())
+        .toCompletableFuture()
+        .get();
+    assertTrue(resultSchemas.isPresent());
+    assertTrue(resultSchemas.get().getToken().isEmpty());
+    assertTrue(resultSchemas.get().getContent().isEmpty());
+  }
+
+  @Test
+  public void listAllTablesNoShare() throws ExecutionException, InterruptedException {
+    StorageManager storageManager = new InMemoryStorageManager();
+    DeltaSharesService deltaSharesService =
+        new DeltaSharesServiceImpl(storageManager, 100, encoder);
+    var resultSchemas = deltaSharesService
+        .listTablesOfShare("name2", Optional.empty(), Optional.empty())
+        .toCompletableFuture()
+        .get();
+    assertTrue(resultSchemas.isEmpty());
   }
 }
