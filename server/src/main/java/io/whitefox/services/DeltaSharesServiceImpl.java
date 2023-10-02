@@ -5,6 +5,9 @@ import io.whitefox.api.deltasharing.model.Schema;
 import io.whitefox.api.deltasharing.model.Share;
 import io.whitefox.api.deltasharing.model.Table;
 import io.whitefox.persistence.StorageManager;
+import io.whitefox.persistence.memory.PSchema;
+import io.whitefox.persistence.memory.PShare;
+import io.whitefox.persistence.memory.PTable;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
@@ -19,6 +22,18 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   private final Integer defaultMaxResults;
   private final DeltaPageTokenEncoder encoder;
 
+  private static Share pShareToShare(PShare p) {
+    return new Share().id(p.id()).name(p.name());
+  }
+
+  private static Schema pSchemaToSchema(PSchema schema) {
+    return new Schema().name(schema.name()).share(schema.share());
+  }
+
+  private static Table pTableToTable(PTable table) {
+    return new Table().name(table.name()).share(table.share()).schema(table.schema());
+  }
+
   @Inject
   public DeltaSharesServiceImpl(
       StorageManager storageManager,
@@ -32,7 +47,9 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
 
   @Override
   public CompletionStage<Optional<Share>> getShare(String share) {
-    return storageManager.getShare(share);
+    return storageManager
+        .getShare(share)
+        .thenApplyAsync(o -> o.map(DeltaSharesServiceImpl::pShareToShare));
   }
 
   @Override
@@ -48,10 +65,12 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
     return resAndSize.thenApplyAsync(pageContent -> {
       Optional<String> optionalToken =
           end < pageContent.size ? Optional.of(Integer.toString(end)) : Optional.empty();
+      var content =
+          pageContent.result.stream().map(DeltaSharesServiceImpl::pShareToShare).toList();
       return optionalToken
           .map(encoder::encodePageToken)
-          .map(t -> ContentAndToken.of(pageContent.result, t))
-          .orElse(ContentAndToken.withoutToken(pageContent.result));
+          .map(t -> ContentAndToken.of(content, t))
+          .orElse(ContentAndToken.withoutToken(content));
     });
   }
 
@@ -68,10 +87,13 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
     return resAndSize.thenApplyAsync(optPageContent -> optPageContent.map(pageContent -> {
       Optional<String> optionalToken =
           end < pageContent.size ? Optional.of(Integer.toString(end)) : Optional.empty();
+      var content = pageContent.result.stream()
+          .map(DeltaSharesServiceImpl::pSchemaToSchema)
+          .toList();
       return optionalToken
           .map(encoder::encodePageToken)
-          .map(t -> ContentAndToken.of(pageContent.result, t))
-          .orElse(ContentAndToken.withoutToken(pageContent.result));
+          .map(t -> ContentAndToken.of(content, t))
+          .orElse(ContentAndToken.withoutToken(content));
     }));
   }
 
@@ -90,10 +112,12 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
     return resAndSize.thenApplyAsync(optPageContent -> optPageContent.map(pageContent -> {
       Optional<String> optionalToken =
           end < pageContent.size ? Optional.of(Integer.toString(end)) : Optional.empty();
+      var content =
+          pageContent.result.stream().map(DeltaSharesServiceImpl::pTableToTable).toList();
       return optionalToken
           .map(encoder::encodePageToken)
-          .map(t -> ContentAndToken.of(pageContent.result, t))
-          .orElse(ContentAndToken.withoutToken(pageContent.result));
+          .map(t -> ContentAndToken.of(content, t))
+          .orElse(ContentAndToken.withoutToken(content));
     }));
   }
 
@@ -109,10 +133,12 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
     return resAndSize.thenApplyAsync(optPageContent -> optPageContent.map(pageContent -> {
       Optional<String> optionalToken =
           end < pageContent.size ? Optional.of(Integer.toString(end)) : Optional.empty();
+      var content =
+          pageContent.result.stream().map(DeltaSharesServiceImpl::pTableToTable).toList();
       return optionalToken
           .map(encoder::encodePageToken)
-          .map(t -> ContentAndToken.of(pageContent.result, t))
-          .orElse(ContentAndToken.withoutToken(pageContent.result));
+          .map(t -> ContentAndToken.of(content, t))
+          .orElse(ContentAndToken.withoutToken(content));
     }));
   }
 }

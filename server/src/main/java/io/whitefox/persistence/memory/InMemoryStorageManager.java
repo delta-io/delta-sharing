@@ -1,9 +1,6 @@
 package io.whitefox.persistence.memory;
 
 import io.whitefox.api.deltasharing.encoders.InvalidPageTokenException;
-import io.whitefox.api.deltasharing.model.Schema;
-import io.whitefox.api.deltasharing.model.Share;
-import io.whitefox.api.deltasharing.model.Table;
 import io.whitefox.persistence.ResultAndTotalSize;
 import io.whitefox.persistence.StorageManager;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -21,18 +18,6 @@ import java.util.stream.Collectors;
 public class InMemoryStorageManager implements StorageManager {
   private final ConcurrentMap<String, PShare> shares;
 
-  private static Share pShareToShare(PShare p) {
-    return new Share().id(p.id()).name(p.name());
-  }
-
-  private static Schema pSchemaToSchema(PSchema schema, PShare share) {
-    return new Schema().name(schema.name()).share(share.name());
-  }
-
-  private static Table pTableToTable(PTable table, PSchema schema, PShare share) {
-    return new Table().name(table.name()).share(share.name()).schema(schema.name());
-  }
-
   @Inject
   public InMemoryStorageManager() {
     this.shares = new ConcurrentHashMap<>();
@@ -44,30 +29,26 @@ public class InMemoryStorageManager implements StorageManager {
   }
 
   @Override
-  public CompletionStage<Optional<Share>> getShare(String share) {
-    return CompletableFuture.completedFuture(
-        Optional.ofNullable(shares.get(share)).map(InMemoryStorageManager::pShareToShare));
+  public CompletionStage<Optional<PShare>> getShare(String share) {
+    return CompletableFuture.completedFuture(Optional.ofNullable(shares.get(share)));
   }
 
   @Override
-  public CompletionStage<ResultAndTotalSize<List<Share>>> getShares(int offset, int maxResultSize) {
+  public CompletionStage<ResultAndTotalSize<List<PShare>>> getShares(
+      int offset, int maxResultSize) {
     var totalSize = shares.size();
     if (offset > totalSize) {
       return CompletableFuture.failedFuture(new InvalidPageTokenException(
           String.format("Invalid Next Page Token: token %s is larger than totalSize", offset)));
     } else {
       return CompletableFuture.completedFuture(new ResultAndTotalSize<>(
-          shares.values().stream()
-              .skip(offset)
-              .limit(maxResultSize)
-              .map(InMemoryStorageManager::pShareToShare)
-              .collect(Collectors.toList()),
+          shares.values().stream().skip(offset).limit(maxResultSize).collect(Collectors.toList()),
           totalSize));
     }
   }
 
   @Override
-  public CompletionStage<Optional<ResultAndTotalSize<List<Schema>>>> listSchemas(
+  public CompletionStage<Optional<ResultAndTotalSize<List<PSchema>>>> listSchemas(
       String share, int offset, int maxResultSize) {
     var shareObj = shares.get(share);
     if (shareObj == null) {
@@ -83,14 +64,13 @@ public class InMemoryStorageManager implements StorageManager {
           schemaMap.values().stream()
               .skip(offset)
               .limit(maxResultSize)
-              .map(s -> pSchemaToSchema(s, shareObj))
               .collect(Collectors.toList()),
           totalSize)));
     }
   }
 
   @Override
-  public CompletionStage<Optional<ResultAndTotalSize<List<Table>>>> listTables(
+  public CompletionStage<Optional<ResultAndTotalSize<List<PTable>>>> listTables(
       String share, String schema, int offset, int maxResultSize) {
     var shareObj = shares.get(share);
     if (shareObj == null) {
@@ -108,11 +88,7 @@ public class InMemoryStorageManager implements StorageManager {
           String.format("Invalid Next Page Token: token %s is larger than totalSize", offset)));
     } else {
       return CompletableFuture.completedFuture(Optional.of(new ResultAndTotalSize<>(
-          tableList.stream()
-              .skip(offset)
-              .limit(maxResultSize)
-              .map(t -> pTableToTable(t, schemaObj, shareObj))
-              .collect(Collectors.toList()),
+          tableList.stream().skip(offset).limit(maxResultSize).collect(Collectors.toList()),
           totalSize)));
     }
   }
@@ -121,7 +97,7 @@ public class InMemoryStorageManager implements StorageManager {
   ;
 
   @Override
-  public CompletionStage<Optional<ResultAndTotalSize<List<Table>>>> listTablesOfShare(
+  public CompletionStage<Optional<ResultAndTotalSize<List<PTable>>>> listTablesOfShare(
       String share, int offset, int maxResultSize) {
 
     var shareObj = shares.get(share);
@@ -143,7 +119,7 @@ public class InMemoryStorageManager implements StorageManager {
           tableList.stream()
               .skip(offset)
               .limit(maxResultSize)
-              .map(t -> pTableToTable(t.table(), t.schema(), shareObj))
+              .map(t -> t.table)
               .collect(Collectors.toList()),
           totalSize)));
     }

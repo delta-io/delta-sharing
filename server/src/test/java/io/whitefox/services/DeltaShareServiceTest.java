@@ -88,7 +88,7 @@ public class DeltaShareServiceTest {
   @Test
   public void listSchemas() throws ExecutionException, InterruptedException {
     var shares = List.of(new PShare(
-        "name", "key", Map.of("default", new PSchema("default", Collections.emptyList()))));
+        "name", "key", Map.of("default", new PSchema("default", Collections.emptyList(), "name"))));
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder);
@@ -107,7 +107,7 @@ public class DeltaShareServiceTest {
   @Test
   public void listSchemasOfUnknownShare() throws ExecutionException, InterruptedException {
     var shares = List.of(new PShare(
-        "name", "key", Map.of("default", new PSchema("default", Collections.emptyList()))));
+        "name", "key", Map.of("default", new PSchema("default", Collections.emptyList(), "name"))));
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder);
@@ -123,7 +123,12 @@ public class DeltaShareServiceTest {
     var shares = List.of(new PShare(
         "name",
         "key",
-        Map.of("default", new PSchema("default", List.of(new PTable("table1", "location1"))))));
+        Map.of(
+            "default",
+            new PSchema(
+                "default",
+                List.of(new PTable("table1", "location1", "default", "name")),
+                "name"))));
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder);
@@ -146,9 +151,11 @@ public class DeltaShareServiceTest {
         "key",
         Map.of(
             "default",
-            new PSchema("default", List.of(new PTable("table1", "location1"))),
+            new PSchema(
+                "default", List.of(new PTable("table1", "location1", "default", "name")), "name"),
             "other",
-            new PSchema("other", List.of(new PTable("table2", "location2"))))));
+            new PSchema(
+                "other", List.of(new PTable("table2", "location2", "default", "name")), "name"))));
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder);
@@ -172,9 +179,15 @@ public class DeltaShareServiceTest {
             "key",
             Map.of(
                 "default",
-                new PSchema("default", List.of(new PTable("table1", "location1"))),
+                new PSchema(
+                    "default",
+                    List.of(new PTable("table1", "location1", "default", "name")),
+                    "name"),
                 "other",
-                new PSchema("other", List.of(new PTable("table2", "location2"))))),
+                new PSchema(
+                    "other",
+                    List.of(new PTable("table2", "location2", "default", "name")),
+                    "name"))),
         new PShare("name2", "key2", Map.of()));
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =

@@ -1,23 +1,23 @@
 package io.whitefox.persistence;
 
-import io.whitefox.api.deltasharing.model.Schema;
-import io.whitefox.api.deltasharing.model.Share;
-import io.whitefox.api.deltasharing.model.Table;
+import io.whitefox.persistence.memory.PSchema;
+import io.whitefox.persistence.memory.PShare;
+import io.whitefox.persistence.memory.PTable;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 
 public interface StorageManager {
-  CompletionStage<Optional<Share>> getShare(String share);
+  CompletionStage<Optional<PShare>> getShare(String share);
 
-  CompletionStage<ResultAndTotalSize<List<Share>>> getShares(int offset, int maxResultSize);
+  CompletionStage<ResultAndTotalSize<List<PShare>>> getShares(int offset, int maxResultSize);
 
-  CompletionStage<Optional<ResultAndTotalSize<List<Schema>>>> listSchemas(
+  CompletionStage<Optional<ResultAndTotalSize<List<PSchema>>>> listSchemas(
       String share, int offset, int maxResultSize);
 
-  CompletionStage<Optional<ResultAndTotalSize<List<Table>>>> listTables(
+  CompletionStage<Optional<ResultAndTotalSize<List<PTable>>>> listTables(
       String share, String schema, int offset, int maxResultSize);
 
-  CompletionStage<Optional<ResultAndTotalSize<List<Table>>>> listTablesOfShare(
+  CompletionStage<Optional<ResultAndTotalSize<List<PTable>>>> listTablesOfShare(
       String share, int offset, int finalMaxResults);
 }
