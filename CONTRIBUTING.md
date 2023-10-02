@@ -24,12 +24,12 @@ skip these steps and jump straight to submitting a pull request.
    2. address the issue
    3. add tests
    4. add documentation
-3. mention a committer (@tmnd1991, @erond) and ask for a review
+3. mention a committer (@tmnd1991) and ask for a review
 
 
-# General advice
+# IDE setup
 
-Under .vscode/extension.json we keep suggested vscode extensions.
+To get started with Whitefox development, you only need a JDK > 17 installed. Since the project is managed with Gradle, any IDE that works with Gradle v8.3 will be a good fit. We internally use IntelliJ IDEA Community Edition.
 
 # Protocol
 
