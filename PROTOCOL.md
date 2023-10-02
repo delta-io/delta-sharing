@@ -33,6 +33,11 @@
       - [Example](#example)
     - [Partition Value Serialization](#partition-value-serialization)
     - [Per-file Statistics](#per-file-statistics)
+  - [API Response Format in Delta](#api-response-format-in-delta)
+    - [JSON Wrapper Object In Each Line In Delta](#json-wrapper-object-in-each-line-in-delta)
+    - [Protocol in Delta Format](#protocol-in-delta-format)
+    - [Metadata in Delta Format](#metadata-in-delta-format)
+    - [File in Delta Format](#file-in-delta-format)
   - [SQL Expressions for Filtering](#sql-expressions-for-filtering)
   - [JSON predicates for Filtering](#json-predicates-for-filtering)
 - [Profile File Format](#profile-file-format)
@@ -1453,11 +1458,18 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br
 <td>Body</td>
 <td>
 
-A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
+A sequence of JSON strings delimited by newline.
+
+When responseformat=parquet, each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
 
 The response contains two lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
+
+When responseformat=delta, each line is a Json object defined in [API Response Format in Delta](#api-response-format-in-delta).
+The response contains two lines:
+- The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Protocol](#protocol-in-delta-format) object.
+- The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
 
 </td>
 </tr>
@@ -1743,7 +1755,7 @@ returned in the response.
 <td>Body</td>
 <td>
 
-A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
+When responseformat=parquet, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
 
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
@@ -1751,6 +1763,15 @@ The response contains multiple lines:
 - The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [data change files](#data-change-files), [Metadata](#metadata), or [files](#file).  
   - The lines are [data change files](#data-change-files) with possible historical [Metadata](#metadata) (when startingVersion is set).
   - The lines are [files](#file) in the table (otherwise).
+  - The ordering of the lines doesn't matter.
+
+When responseformat=delta, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Delta](#api-response-format-in-delta).
+
+The response contains multiple lines:
+- The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Protocol](#protocol-in-delta-format) object.
+- The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
+- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line-in-delta) for [Metadata](#metadata-in-delta-format), or [files](#file-in-delta-format).
+  - The lines are [files](#file-in-delta-format) which wraps the delta single action  in the table (otherwise), with possible historical [Metadata](#metadata-in-delta-format) (when startingVersion is set).
   - The ordering of the lines doesn't matter.
 
 </td>
@@ -2094,12 +2115,19 @@ The change data feed represents row-level changes between versions of a Delta ta
 <td>Body</td>
 <td>
 
-A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
+When responseformat=parquet, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
 
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
 - The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [Data Change Files](#data-change-files) of the change data feed.
+  - Historical [Metadata](#metadata) will be returned if includeHistoricalMetadata is set to true.
+  - The ordering of the lines doesn't matter.
+
+When responseformat=delta, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-delta).
+- The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Protocol](#protocol-in-delta-format) object.
+- The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
+- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [Files](#file-in-delta-format) of the change data feed.
   - Historical [Metadata](#metadata) will be returned if includeHistoricalMetadata is set to true.
   - The ordering of the lines doesn't matter.
 
@@ -2847,7 +2875,7 @@ Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 protocol | The [Protocol in Delta Format](#protocol-in-delta-format) JSON object. | A wrapper of delta protocol. | Optional
 metaData | The [Metadata in Delta Format](#metadata-in-delta-format) JSON object. | A wrapper of delta metadata, including some delta sharing specific fields. | Optional
-file | The [File in Delta Format](#file-in-delta-format) JSON object. | A wrapper of a delta action in the table. | Optional
+file | The [File in Delta Format](#file-in-delta-format) JSON object. | A wrapper of a delta single action in the table. | Optional
 
 It must contain only **ONE** of the above fields.
 
@@ -2886,6 +2914,9 @@ Example (for illustration purposes; each JSON object must be a single line in th
 ```json
 {
   "metaData": {
+    "version": 20,
+    "size": 123456,
+    "numFiles": 5,
     "deltaMetadata": {
       "partitionColumns": [
         "date"
@@ -2898,10 +2929,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
       "configuration": {
         "enableChangeDataFeed": "true"
       }
-    },
-    "version": 20,
-    "size": 123456,
-    "numFiles": 5
+    }
   }
 }
 ```
@@ -2924,18 +2952,19 @@ Example (for illustration purposes; each JSON object must be a single line in th
   "file": {
     "id": "591723a8-6a27-4240-a90e-57426f4736d2",
     "size": 573,
+    "expirationTimestamp": 1652140800000,
     "deltaSingleAction": {
-      "path": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
-      "partitionValues": {
-        "date": "2021-04-28"
-      },
-      "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}"
-    },
-    "expirationTimestamp": 1652140800000
+      "add": {
+        "path": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
+        "partitionValues": {
+          "date": "2021-04-28"
+        },
+        "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}"
+      }
+    }
   }
 }
 ```
-
 
 ## SQL Expressions for Filtering
 
@@ -3058,6 +3087,24 @@ Examples
 }
 ```
 
+## Delta Sharing Streaming Specs
+Delta Sharing Streaming is supported starting from delta-sharing-spark 0.6.0. As it's implemented
+based on spark structured streaming, it leverages a pull model to consume the new data from the
+delta sharing server of the shared table. In addition to most options supported in delta streaming,
+there are two additional options/spark configs.
+
+- spark config **spark.delta.sharing.streaming.queryTableVersionIntervalSeconds**: DeltaSharingSource
+leverages [getTableVersion](#query-table-version) rpc to check whether there are new data available
+to consume. In order to reduce the traffic burden to the delta sharing server, there's a minimum 30
+seconds interval between two getTableVersion rpcs to the delta sharing server. Though, if you are ok
+with less freshness on the data and want to reduce the traffic to the server, you can set this 
+config to a larger number, for example: 60s or 120s.  
+- option **maxVersionsPerRpc**: DeltaSharingSource leverages [QueryTable](#read-data-from-a-table)
+rpc to continuously read new data from the delta sharing server. Though, there might be too much
+new data to be returned from the server if the streaming has paused for a while on the reciipent
+side.Its default value is 100, you can set it to a smaller number with `.option("maxVersionsPerRpc", 10)` 
+to reduce the traffic load for each rpc. This shouldn't affect the freshness of the data significantly
+assuming the process time of the delta sharing server grows linearly with `maxVersionsPerRpc`.
 
 # Profile File Format
 
