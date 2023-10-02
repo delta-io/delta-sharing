@@ -40,6 +40,7 @@
     - [File in Delta Format](#file-in-delta-format)
   - [SQL Expressions for Filtering](#sql-expressions-for-filtering)
   - [JSON predicates for Filtering](#json-predicates-for-filtering)
+  - [Delta Sharing Streaming Specs](#delta-sharing-streaming-specs)
 - [Profile File Format](#profile-file-format)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
