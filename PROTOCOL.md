@@ -1428,12 +1428,49 @@ delta-table-version: 123
 
 This is the API for clients to query the table schema and other metadata.
 
-HTTP Request | Value
--|-
-Method | `GET`
-Header | `Authorization: Bearer {token}`
-URL | `{prefix}/shares/{share}/schemas/{schema}/tables/{table}/metadata`
-URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.<br>**{table}**: The table name to query. It's case-insensitive.
+<table>
+<tr>
+<th>HTTP Request</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Method</td>
+<td>
+
+`GET`
+
+</td>
+</tr>
+<tr>
+<td>Headers</td>
+<td>
+
+`Authorization: Bearer {token}`
+
+Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`
+
+</td>
+</tr>
+<tr>
+<td>URL</td>
+<td>
+
+`{prefix}/shares/{share}/schemas/{schema}/tables/{table}/metadata`
+
+</td>
+</tr>
+<tr>
+<td>URL Parameters</td>
+<td>
+
+**{share}**: The share name to query. It's case-insensitive.
+
+**{schema}**: The schema name to query. It's case-insensitive.
+
+**{table}**: The table name to query. It's case-insensitive.
+</td>
+</tr>
+</table>
 
 <details open>
 <summary><b>200: The table metadata was successfully returned.</b></summary>
@@ -1461,13 +1498,13 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br
 
 A sequence of JSON strings delimited by newline.
 
-When responseformat=parquet, each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
+When `responseformat=parquet`, each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
 
 The response contains two lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
 
-When responseformat=delta, each line is a Json object defined in [API Response Format in Delta](#api-response-format-in-delta).
+When `responseformat=delta`, each line is a Json object defined in [API Response Format in Delta](#api-response-format-in-delta).
 The response contains two lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Protocol](#protocol-in-delta-format) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
@@ -1686,6 +1723,8 @@ This is the API for clients to read data from a table.
 
 Optional: `Content-Type: application/json; charset=utf-8`
 
+Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`
+
 </td>
 </tr>
 <tr>
@@ -1756,7 +1795,7 @@ returned in the response.
 <td>Body</td>
 <td>
 
-When responseformat=parquet, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
+When `responseformat=parquet`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
 
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
@@ -1766,7 +1805,7 @@ The response contains multiple lines:
   - The lines are [files](#file) in the table (otherwise).
   - The ordering of the lines doesn't matter.
 
-When responseformat=delta, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Delta](#api-response-format-in-delta).
+When `responseformat=delta`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Delta](#api-response-format-in-delta).
 
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Protocol](#protocol-in-delta-format) object.
@@ -2061,6 +2100,8 @@ The change data feed represents row-level changes between versions of a Delta ta
 
 `Authorization: Bearer {token}`
 
+Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`
+
 </td>
 </tr>
 <tr>
@@ -2116,7 +2157,7 @@ The change data feed represents row-level changes between versions of a Delta ta
 <td>Body</td>
 <td>
 
-When responseformat=parquet, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
+When `responseformat=parquet`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
 
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
@@ -2125,7 +2166,7 @@ The response contains multiple lines:
   - Historical [Metadata](#metadata) will be returned if includeHistoricalMetadata is set to true.
   - The ordering of the lines doesn't matter.
 
-When responseformat=delta, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-delta).
+When `responseformat=delta`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-delta).
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Protocol](#protocol-in-delta-format) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
 - The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [Files](#file-in-delta-format) of the change data feed.
@@ -2365,32 +2406,31 @@ content-type: application/x-ndjson; charset=utf-8
 Accepted timestamp format by a delta sharing server: in the ISO8601 format, in the UTC timezone, such as `2022-01-01T00:00:00Z`.   
 
 ## Delta Sharing Capabilities Header
-This section explains the details of delta sharing capabilities header, which is introduced to help 
-delta sharing to catch up with features in [delta protocol](https://github.com/delta-io/delta/blob/master/PROTOCOL.md).
+This section explains the details of delta sharing capabilities header, which was introduced to help 
+delta sharing catch up with features in [delta protocol](https://github.com/delta-io/delta/blob/master/PROTOCOL.md).
 
 The key of the header is **delta-sharing-capabilities**, the value is semicolon separated capabilities. 
-Each capability is in the format of "key=value1,value2", values are separated by comma.
-Example: "responseformat=delta;readerfeatures=deletionvectors,columnmapping". All key and values should
-be case-insensitive when processed by server.
+Each capability is in the format of "key=value1,value2", values are separated by commas.
+Example: "responseformat=delta;readerfeatures=deletionvectors,columnmapping". All keys and values should
+be case-insensitive when processed by the server.
 
 This header can be used in the request for [Query Table Metadata](#query-table-metadata), 
 [Query Table](#read-data-from-a-table), and [Query Table Changes](#read-change-data-feed-from-a-table).
 
-Currently, two capabilities are introduced. 
-
-### responseformat
+### responseFormat
 Indicates the format to expect in the [API Response Format in Parquet](#api-response-format-in-parquet), two values are supported.
 
-- parquet: The current format is considered as parquet, all existing delta-sharing-spark libraries (
-           with version 1.0 or less) is able to process data with responseformat as parquet. 
+- parquet: Represents the format of the delta sharing protocol that has been used in `delta-sharing-spark` 1.0 
+and less, also the default format if `responseFormat` is missing from the header, all the existing delta
+sharing connectors are able to process data in this format. 
 - delta: format can be used to read a shared delta table with minReaderVersion > 1, which contains 
-         readerFeatures such as Deletion Vector or Column Mapping. delta-sharing-spark libraries 
-         that's able to process responseformat=delta will be released soon.
+readerFeatures such as Deletion Vector or Column Mapping. `delta-sharing-spark` libraries 
+that are able to process `responseformat=delta` will be released soon.
 
-### readerfeatures
-readerfeatures is only useful when responseformat=delta, it includes values from [delta reader
+### readerFeatures
+readerfeatures is only useful when `responseformat=delta`, it includes values from [delta reader
 features](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#table-features). It's set by the
-caller of DeltaSharingClient to indicate its ability to process delta readerfeatures.
+caller of `DeltaSharingClient` to indicate its ability to process delta readerFeatures.
 
 ## API Response Format in Parquet
 
