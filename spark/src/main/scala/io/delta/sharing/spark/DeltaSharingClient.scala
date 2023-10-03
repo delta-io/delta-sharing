@@ -277,7 +277,7 @@ private[spark] class DeltaSharingRestClient(
         throw new IllegalStateException(s"Unexpected Line:${line}")
       }
     }
-    DeltaTableFiles(version, protocol, metadata, files, refreshToken = refreshTokenOpt)
+    DeltaTableFiles(version, protocol, metadata, files.toSeq, refreshToken = refreshTokenOpt)
   }
 
   override def getFiles(
