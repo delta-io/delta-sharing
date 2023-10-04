@@ -2929,7 +2929,7 @@ there are two options/spark configs for delta sharing streaming.
 - option **maxVersionsPerRpc**: DeltaSharingSource leverages [QueryTable](#read-data-from-a-table)
   rpc to continuously read new data from the delta sharing server. There might be too much
   new data to be returned from the server if the streaming has paused for a while on the recipient
-  side. Its default value is 100, smaller number is recommended such as `.option("maxVersionsPerRpc", 10)`
+  side. Its default value is 100, a smaller number is recommended such as `.option("maxVersionsPerRpc", 10)`
   to reduce the traffic load for each rpc. This shouldn't affect the freshness of the data significantly
   assuming the process time of the delta sharing server grows linearly with `maxVersionsPerRpc`.
 
