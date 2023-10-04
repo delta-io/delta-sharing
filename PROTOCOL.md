@@ -3163,9 +3163,9 @@ Examples
 
 ## Delta Sharing Streaming Specs
 Delta Sharing Streaming is supported starting from delta-sharing-spark 0.6.0. As it's implemented
-based on spark structured streaming, it leverages a pull model to consume the new data from the
-delta sharing server of the shared table. In addition to most options supported in delta streaming,
-there are two additional options/spark configs.
+based on spark structured streaming, it leverages a pull model to consume the new data of the shared
+table from the delta sharing server. In addition to most options supported in delta streaming,
+there are two options/spark configs for delta sharing streaming.
 
 - spark config **spark.delta.sharing.streaming.queryTableVersionIntervalSeconds**: DeltaSharingSource
 leverages [getTableVersion](#query-table-version) rpc to check whether there is new data available
