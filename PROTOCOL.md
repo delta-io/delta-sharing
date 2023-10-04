@@ -2916,20 +2916,20 @@ Examples
 
 ## Delta Sharing Streaming Specs
 Delta Sharing Streaming is supported starting from delta-sharing-spark 0.6.0. As it's implemented
-based on spark structured streaming, it leverages a pull model to consume the new data from the
-delta sharing server of the shared table. In addition to most options supported in delta streaming,
-there are two additional options/spark configs.
+based on spark structured streaming, it leverages a pull model to consume the new data of the shared
+table from the delta sharing server. In addition to most options supported in delta streaming,
+there are two options/spark configs for delta sharing streaming.
 
 - spark config **spark.delta.sharing.streaming.queryTableVersionIntervalSeconds**: DeltaSharingSource
-  leverages [getTableVersion](#query-table-version) rpc to check whether there are new data available
+  leverages [getTableVersion](#query-table-version) rpc to check whether there is new data available
   to consume. In order to reduce the traffic burden to the delta sharing server, there's a minimum 30
   seconds interval between two getTableVersion rpcs to the delta sharing server. Though, if you are ok
   with less freshness on the data and want to reduce the traffic to the server, you can set this
-  config to a larger number, for example: 60s or 120s.
+  config to a larger number, for example: 60s or 120s. An error will be thrown if it's set less than 30 seconds.
 - option **maxVersionsPerRpc**: DeltaSharingSource leverages [QueryTable](#read-data-from-a-table)
-  rpc to continuously read new data from the delta sharing server. Though, there might be too much
-  new data to be returned from the server if the streaming has paused for a while on the reciipent
-  side.Its default value is 100, you can set it to a smaller number with `.option("maxVersionsPerRpc", 10)`
+  rpc to continuously read new data from the delta sharing server. There might be too much
+  new data to be returned from the server if the streaming has paused for a while on the recipient
+  side. Its default value is 100, smaller number is recommended such as `.option("maxVersionsPerRpc", 10)`
   to reduce the traffic load for each rpc. This shouldn't affect the freshness of the data significantly
   assuming the process time of the delta sharing server grows linearly with `maxVersionsPerRpc`.
 
