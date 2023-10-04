@@ -1447,7 +1447,8 @@ This is the API for clients to query the table schema and other metadata.
 
 `Authorization: Bearer {token}`
 
-Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`
+Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`, see 
+[Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details. 
 
 </td>
 </tr>
@@ -1723,7 +1724,8 @@ This is the API for clients to read data from a table.
 
 Optional: `Content-Type: application/json; charset=utf-8`
 
-Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`
+Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`, see
+[Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details.
 
 </td>
 </tr>
@@ -1813,6 +1815,9 @@ The response contains multiple lines:
 - The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line-in-delta) for [Metadata](#metadata-in-delta-format), or [files](#file-in-delta-format).
   - The lines are [files](#file-in-delta-format) which wraps the delta single action  in the table (otherwise), with possible historical [Metadata](#metadata-in-delta-format) (when startingVersion is set).
   - The ordering of the lines doesn't matter.
+
+The delta actions are wrapped because they will be used to construct a local delta log on the recipient
+side and then leverage the delta library to read data. 
 
 </td>
 </tr>
@@ -2100,7 +2105,8 @@ The change data feed represents row-level changes between versions of a Delta ta
 
 `Authorization: Bearer {token}`
 
-Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`
+Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`, see
+[Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details.
 
 </td>
 </tr>
@@ -2416,6 +2422,27 @@ be case-insensitive when processed by the server.
 
 This header can be used in the request for [Query Table Metadata](#query-table-metadata), 
 [Query Table](#read-data-from-a-table), and [Query Table Changes](#read-change-data-feed-from-a-table).
+
+**Compatibility**
+
+<table>
+<tr>
+<th>Client/Server</th>
+<th>Server that doesn't know the header</th>
+<th>Server that knows the header</th>
+</tr>
+<tr>
+<th>Client that doesn't know the header</th>
+<td>Response is in parquet format</td>
+<td>Response is in parquet format</td>
+</tr>
+<tr>
+<th>Client that knows the header</th>
+<td>Response is in parquet format, the header is ignored at the server, client will throw error if 
+it requested other format.</td>
+<td>The header is processed properly by the server and the response is in the requested format.</td>
+</tr>
+</table>
 
 ### responseFormat
 Indicates the format to expect in the [API Response Format in Parquet](#api-response-format-in-parquet), two values are supported.
@@ -2906,11 +2933,17 @@ minValues | A value smaller than all values present in the file for this column
 maxValues | A value larger than all values present in the file for this column
 
 ## API Response Format in Delta
-This section discusses the API Response Format in Delta returned by the server.
+This section discusses the API Response Format in Delta returned by the server. When a table is shared
+as delta format, the actions in the response could be put in a delta log in the local storage on the
+recipient side for the delta library to read data out of it directly, in this way, advanced delta
+features are transparent to delta sharing, and the code duplication for the new delta features won't
+be necessary.
 
 ### JSON Wrapper Object In Each Line in Delta
 
-The JSON object in each line is a wrapper object that may contain the following fields:
+The JSON object in each line is a wrapper object that may contain the following fields. For each
+field, it is a wrapper of a delta action(which keeps the action in its delta format and with original
+values), and with some additional fields for delta sharing functionalities.
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
@@ -3135,15 +3168,15 @@ delta sharing server of the shared table. In addition to most options supported 
 there are two additional options/spark configs.
 
 - spark config **spark.delta.sharing.streaming.queryTableVersionIntervalSeconds**: DeltaSharingSource
-leverages [getTableVersion](#query-table-version) rpc to check whether there are new data available
+leverages [getTableVersion](#query-table-version) rpc to check whether there is new data available
 to consume. In order to reduce the traffic burden to the delta sharing server, there's a minimum 30
 seconds interval between two getTableVersion rpcs to the delta sharing server. Though, if you are ok
 with less freshness on the data and want to reduce the traffic to the server, you can set this 
-config to a larger number, for example: 60s or 120s.  
+config to a larger number, for example: 60s or 120s. An error will be thrown if it's set less than 30 seconds.
 - option **maxVersionsPerRpc**: DeltaSharingSource leverages [QueryTable](#read-data-from-a-table)
-rpc to continuously read new data from the delta sharing server. Though, there might be too much
-new data to be returned from the server if the streaming has paused for a while on the reciipent
-side.Its default value is 100, you can set it to a smaller number with `.option("maxVersionsPerRpc", 10)` 
+rpc to continuously read new data from the delta sharing server. There might be too much
+new data to be returned from the server if the streaming has paused for a while on the recipient
+side. Its default value is 100, smaller number is recommended such as `.option("maxVersionsPerRpc", 10)` 
 to reduce the traffic load for each rpc. This shouldn't affect the freshness of the data significantly
 assuming the process time of the delta sharing server grows linearly with `maxVersionsPerRpc`.
 
