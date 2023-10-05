@@ -2428,18 +2428,18 @@ This header can be used in the request for [Query Table Metadata](#query-table-m
 <table>
 <tr>
 <th>Client/Server</th>
-<th>Server that doesn't know the header</th>
-<th>Server that knows the header</th>
+<th>Server that doesn't recognize the header</th>
+<th>Server that recognizes the header</th>
 </tr>
 <tr>
-<th>Client that doesn't know the header</th>
+<th>Client that doesn't recognize the header</th>
 <td>Response is in parquet format</td>
 <td>Response is in parquet format</td>
 </tr>
 <tr>
-<th>Client that knows the header</th>
+<th>Client that recognizes the header</th>
 <td>Response is in parquet format, the header is ignored at the server, client will throw error if 
-it requested other format.</td>
+it requested other formats.</td>
 <td>The header is processed properly by the server and the response is in the requested format.</td>
 </tr>
 </table>
