@@ -32,7 +32,7 @@ import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingRestClient}
-import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, Metadata, Protocol, Table => DeltaSharingTable}
+import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, DeltaTableMetadata, Metadata, Protocol, Table => DeltaSharingTable}
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 
@@ -41,7 +41,8 @@ import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 private[sharing] class RemoteDeltaLog(
   val table: DeltaSharingTable,
   val path: Path,
-  val client: DeltaSharingClient) {
+  val client: DeltaSharingClient,
+  inputDeltaTableMetadata: Option[DeltaTableMetadata] = None) {
 
   @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(path, client, table)
 
@@ -51,7 +52,7 @@ private[sharing] class RemoteDeltaLog(
     if (versionAsOf.isEmpty && timestampAsOf.isEmpty) {
       currentSnapshot
     } else {
-      new RemoteSnapshot(path, client, table, versionAsOf, timestampAsOf)
+      new RemoteSnapshot(path, client, table, versionAsOf, timestampAsOf, inputDeltaTableMetadata)
     }
   }
 
@@ -103,7 +104,8 @@ private[sharing] object RemoteDeltaLog {
   def apply(
       path: String,
       forStreaming: Boolean = false,
-      responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET): RemoteDeltaLog = {
+      responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET,
+      inputDeltaTableMetadata: Option[DeltaTableMetadata] = None): RemoteDeltaLog = {
     val parsedPath = DeltaSharingRestClient.parsePath(path)
     val client = DeltaSharingRestClient(parsedPath.profileFile, forStreaming, responseFormat)
     val deltaSharingTable = DeltaSharingTable(
@@ -111,7 +113,7 @@ private[sharing] object RemoteDeltaLog {
       schema = parsedPath.schema,
       share = parsedPath.share
     )
-    new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
+    new RemoteDeltaLog(deltaSharingTable, new Path(path), client, inputDeltaTableMetadata)
   }
 }
 
@@ -121,7 +123,8 @@ class RemoteSnapshot(
     client: DeltaSharingClient,
     table: DeltaSharingTable,
     versionAsOf: Option[Long] = None,
-    timestampAsOf: Option[String] = None) extends Logging {
+    timestampAsOf: Option[String] = None,
+    inputDeltaTableMetadata: Option[DeltaTableMetadata] = None) extends Logging {
 
   protected def spark = SparkSession.active
 
@@ -165,7 +168,9 @@ class RemoteSnapshot(
   }
 
   private def getTableMetadata: (Metadata, Protocol, Long) = {
-    val tableMetadata = client.getMetadata(table, versionAsOf, timestampAsOf)
+    val tableMetadata = inputDeltaTableMetadata.getOrElse(
+      client.getMetadata(table, versionAsOf, timestampAsOf)
+    )
     (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
   }
 
