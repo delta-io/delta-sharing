@@ -166,7 +166,16 @@ class TestDeltaSharingClient(
       RemoveFile("cdf_rem1.parquet", "cdf_rem1", Map.empty, 400, 4, 4000),
       RemoveFile("cdf_rem2.parquet", "cdf_rem2", Map.empty, 420, 4, 4200)
     )
-    DeltaTableFiles(0, Protocol(0), metadata, Nil, addFiles, cdcFiles, removeFiles, respondedFormat = RESPONSE_FORMAT_PARQUET)
+    DeltaTableFiles(
+      version = 0,
+      protocol = Protocol(0),
+      metadata = metadata,
+      files = Nil,
+      addFiles = addFiles,
+      cdfFiles = cdcFiles,
+      removeFiles = removeFiles,
+      respondedFormat = RESPONSE_FORMAT_PARQUET
+    )
   }
 
   override def getProfileProvider: DeltaSharingProfileProvider = profileProvider
