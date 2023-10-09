@@ -223,6 +223,28 @@ class DeltaSharingRestClient(
     }
   }
 
+  /**
+   * Compare requestedFormat and respondedFormat, only error out when requested parquet but got
+   * delta in response. The client allows backward compatibility: requested delta but got parquet
+   * in response.
+   */
+  private def checkRespondedFormat(
+      requestedFormat: String, respondedFormat: String, rpc: String, table: String): Unit = {
+    if (requestedFormat == respondedFormat) {
+      return
+    }
+    if (responseFormat == RESPONSE_FORMAT_PARQUET && respondedFormat == RESPONSE_FORMAT_DELTA) {
+      logError(s"RespondedFormat($respondedFormat) is different from requested " +
+        s"responseFormat($responseFormat) for $rpc for table $table.")
+      throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
+        s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
+        s" != requestedFormat($responseFormat).")
+    } else {
+      logWarning(s"RespondedFormat($respondedFormat) is different from requested " +
+        s"responseFormat($responseFormat) for $rpc for table $table.")
+    }
+  }
+
   def getMetadata(
       table: Table,
       versionAsOf: Option[Long] = None,
@@ -236,13 +258,14 @@ class DeltaSharingRestClient(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata" +
         s"$encodedParams")
     val (version, respondedFormat, lines) = getNDJson(target)
-    if (responseFormat != respondedFormat) {
-      // This could only happen when the asked format is delta and the server doesn't support
-      // the requested format.
-      logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
-        s"$responseFormat) for getMetadata.${table.share}.${table.schema}.${table.name}.")
-    }
-    // To ensure that it works with delta sharing server that doesn't support the requested format.
+
+    checkRespondedFormat(
+      responseFormat,
+      respondedFormat,
+      rpc = "getMetadata",
+      table = s"${table.share}.${table.schema}.${table.name}"
+    )
+
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(version, lines = lines, respondedFormat = respondedFormat)
     }
@@ -312,12 +335,13 @@ class DeltaSharingRestClient(
       (version, respondedFormat, filteredLines, refreshTokenOpt)
     }
 
-    if (responseFormat != respondedFormat) {
-      logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
-        s"$responseFormat) for getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf " +
-        s"for table ${table.share}.${table.schema}.${table.name}.")
-    }
-    // To ensure that it works with delta sharing server that doesn't support the requested format.
+    checkRespondedFormat(
+      responseFormat,
+      respondedFormat,
+      rpc = s"getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf)",
+      table = s"${table.share}.${table.schema}.${table.name}"
+    )
+
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(
         version,
@@ -382,12 +406,14 @@ class DeltaSharingRestClient(
     } else {
       getNDJson(target, request)
     }
-    if (responseFormat != respondedFormat) {
-      logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
-        s"$responseFormat) for getFiles(startingVersion-$startingVersion, endingVersion-" +
-        s"$endingVersion) for table ${table.share}.${table.schema}.${table.name}.")
-    }
-    // To ensure that it works with delta sharing server that doesn't support the requested format.
+
+    checkRespondedFormat(
+      responseFormat,
+      respondedFormat,
+      rpc = s"getFiles(startingVersion:$startingVersion, endingVersion:$endingVersion)",
+      table = s"${table.share}.${table.schema}.${table.name}"
+    )
+
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(version, lines = lines, respondedFormat = respondedFormat)
     }
@@ -504,11 +530,14 @@ class DeltaSharingRestClient(
     } else {
       getNDJson(target, requireVersion = false)
     }
-    if (responseFormat != respondedFormat) {
-      logWarning(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
-        s"$responseFormat) for getCDFFiles(cdfOptions-$cdfOptions) for table " +
-        s"${table.share}.${table.schema}.${table.name}.")
-    }
+
+    checkRespondedFormat(
+      responseFormat,
+      respondedFormat,
+      rpc = s"getCDFFiles(cdfOptions:$cdfOptions)",
+      table = s"${table.share}.${table.schema}.${table.name}."
+    )
+
     // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(version, lines = lines, respondedFormat = respondedFormat)
