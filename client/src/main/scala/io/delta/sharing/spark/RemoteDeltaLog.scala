@@ -33,6 +33,7 @@ import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingRestClient}
 import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, Metadata, Protocol, Table => DeltaSharingTable}
+import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 
 
@@ -79,8 +80,7 @@ private[sharing] class RemoteDeltaLog(
 
     val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
     val fileIndex = new RemoteDeltaSnapshotFileIndex(params, None)
-    if (spark.sessionState.conf.getConfString(
-      "spark.delta.sharing.limitPushdown.enabled", "true").toBoolean) {
+    if (ConfUtils.limitPushdownEnabled(spark.sessionState.conf)) {
       DeltaSharingLimitPushDown.setup(spark)
     }
     new HadoopFsRelation(
