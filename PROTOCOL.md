@@ -2434,15 +2434,21 @@ This header can be used in the request for [Query Table Metadata](#query-table-m
 <tr>
 <th>Client that doesn't recognize the header</th>
 <td>Response is in parquet format</td>
-<td>Response is in parquet format</td>
+<td>Response should be in parquet format.</td>
 </tr>
 <tr>
 <th>Client that recognizes the header</th>
-<td>Response is in parquet format, the header is ignored at the server, client will throw error if 
-it requested other formats.</td>
+<td>The header is ignored at the server, and the format of the response should always be parquet.
+</td>
 <td>The header is processed properly by the server and the response is in the requested format.</td>
 </tr>
 </table>
+
+- If the client requested `delta` format and the response is in `parquet` format, the delta sharing
+client will NOT throw an error, the caller should decide the behavior (either to handle the response
+or to throw an error to let the user specify the format explicitly).
+- If the client requested `parquet` format and the response is in `delta` format, the delta sharing
+client should throw an error.
 
 ### responseFormat
 Indicates the format to expect in the [API Response Format in Parquet](#api-response-format-in-parquet), two values are supported.
