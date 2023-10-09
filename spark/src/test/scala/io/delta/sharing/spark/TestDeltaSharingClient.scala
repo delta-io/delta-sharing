@@ -49,6 +49,8 @@ class TestDeltaSharingClient(
     maxFilesPerReq: Int = 10000
   ) extends DeltaSharingClient {
 
+  import DeltaSharingOptions.RESPONSE_FORMAT_PARQUET
+
   private val metadataString =
     """{"metaData":{"id":"93351cf1-c931-4326-88f0-d10e29e71b21","format":
       |{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",
@@ -81,11 +83,11 @@ class TestDeltaSharingClient(
     // Different metadata are returned for rpcs with different parameters to test the parameters
     // are set properly.
     if (versionAsOf.exists(_ == 1)) {
-      DeltaTableMetadata(1, Protocol(0), metadataV1)
+      DeltaTableMetadata(1, Protocol(0), metadataV1, respondedFormat = RESPONSE_FORMAT_PARQUET)
     } else if (timestampAsOf.exists(_ == TESTING_TIMESTAMP)) {
-      DeltaTableMetadata(1, Protocol(0), metadataV2)
+      DeltaTableMetadata(1, Protocol(0), metadataV2, respondedFormat = RESPONSE_FORMAT_PARQUET)
     } else {
-      DeltaTableMetadata(0, Protocol(0), metadata)
+      DeltaTableMetadata(0, Protocol(0), metadata, respondedFormat = RESPONSE_FORMAT_PARQUET)
     }
   }
 
@@ -121,11 +123,15 @@ class TestDeltaSharingClient(
     }
 
     if (versionAsOf.exists(_ == 1)) {
-      DeltaTableFiles(1, Protocol(0), metadataV1, addFiles)
+      DeltaTableFiles(
+        1, Protocol(0), metadataV1, addFiles, respondedFormat = RESPONSE_FORMAT_PARQUET
+      )
     } else if (timestampAsOf.exists(_ == TESTING_TIMESTAMP)) {
-      DeltaTableFiles(1, Protocol(0), metadataV2, addFiles)
+      DeltaTableFiles(
+        1, Protocol(0), metadataV2, addFiles, respondedFormat = RESPONSE_FORMAT_PARQUET
+      )
     } else {
-      DeltaTableFiles(0, Protocol(0), metadata, addFiles)
+      DeltaTableFiles(0, Protocol(0), metadata, addFiles, respondedFormat = RESPONSE_FORMAT_PARQUET)
     }
   }
 
@@ -135,7 +141,9 @@ class TestDeltaSharingClient(
       endingVersion: Option[Long]
   ): DeltaTableFiles = {
     // This is not used anywhere.
-    DeltaTableFiles(0, Protocol(0), metadata, Nil, Nil, Nil, Nil)
+    DeltaTableFiles(
+      0, Protocol(0), metadata, Nil, Nil, Nil, Nil, respondedFormat = RESPONSE_FORMAT_PARQUET
+    )
   }
 
   override def getCDFFiles(
@@ -158,7 +166,16 @@ class TestDeltaSharingClient(
       RemoveFile("cdf_rem1.parquet", "cdf_rem1", Map.empty, 400, 4, 4000),
       RemoveFile("cdf_rem2.parquet", "cdf_rem2", Map.empty, 420, 4, 4200)
     )
-    DeltaTableFiles(0, Protocol(0), metadata, Nil, addFiles, cdcFiles, removeFiles)
+    DeltaTableFiles(
+      version = 0,
+      protocol = Protocol(0),
+      metadata = metadata,
+      files = Nil,
+      addFiles = addFiles,
+      cdfFiles = cdcFiles,
+      removeFiles = removeFiles,
+      respondedFormat = RESPONSE_FORMAT_PARQUET
+    )
   }
 
   override def getProfileProvider: DeltaSharingProfileProvider = profileProvider
