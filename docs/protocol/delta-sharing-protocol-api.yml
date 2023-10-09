@@ -333,6 +333,7 @@ paths:
               description: 'A long value which represents the current table version'
               schema:
                 type: integer
+                format: int64
 
   '/delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/metadata':
     get:
@@ -386,6 +387,7 @@ paths:
               description: 'A long value which represents the current table version'
               schema:
                 type: integer
+                format: int64
           content:
             'application/x-ndjson':
               schema:

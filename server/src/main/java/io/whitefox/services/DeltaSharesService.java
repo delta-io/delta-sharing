@@ -8,7 +8,11 @@ import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 
 public interface DeltaSharesService {
+
   CompletionStage<Optional<Share>> getShare(String share);
+
+  CompletionStage<Optional<Long>> getTableVersion(
+      String share, String schema, String table, String startingTimestamp);
 
   CompletionStage<ContentAndToken<List<Share>>> listShares(
       Optional<ContentAndToken.Token> nextPageToken, Optional<Integer> maxResults);

@@ -34,6 +34,23 @@ public class InMemoryStorageManager implements StorageManager {
   }
 
   @Override
+  public CompletionStage<Optional<PTable>> getTable(String share, String schema, String table) {
+    var shareObj = shares.get(share);
+
+    if (shareObj == null) {
+      return CompletableFuture.completedFuture(Optional.empty());
+    } else {
+      var schemaObj = shareObj.schemas().get(schema);
+      if (schemaObj == null) {
+        return CompletableFuture.completedFuture(Optional.empty());
+      } else {
+        return CompletableFuture.completedFuture(
+            schemaObj.tables().stream().filter(t -> (t.name().equals(table))).findFirst());
+      }
+    }
+  }
+
+  @Override
   public CompletionStage<ResultAndTotalSize<List<PShare>>> getShares(
       int offset, int maxResultSize) {
     var totalSize = shares.size();

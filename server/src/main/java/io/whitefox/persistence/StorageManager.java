@@ -12,6 +12,8 @@ public interface StorageManager {
 
   CompletionStage<ResultAndTotalSize<List<PShare>>> getShares(int offset, int maxResultSize);
 
+  CompletionStage<Optional<PTable>> getTable(String share, String schema, String table);
+
   CompletionStage<Optional<ResultAndTotalSize<List<PSchema>>>> listSchemas(
       String share, int offset, int maxResultSize);
 

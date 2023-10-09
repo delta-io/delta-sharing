@@ -14,6 +14,7 @@ import java.util.function.Function;
 public class DeltaSharesApiImpl implements DeltaApiApi {
 
   private final DeltaSharesService deltaSharesService;
+  private static final String DELTA_TABLE_VERSION_HEADER = "Delta-Table-Version";
   private static final Function<Throwable, Response> exceptionToResponse =
       t -> Response.status(Response.Status.BAD_GATEWAY)
           .entity(new CommonErrorResponse()
@@ -21,11 +22,21 @@ public class DeltaSharesApiImpl implements DeltaApiApi {
               .message(ExceptionUtil.generateStackTrace(t)))
           .build();
 
-  private <T> Response optionalToNotFound(Optional<T> opt, Function<T, Response> fn) {
+  private Response notFoundResponse() {
+    return Response.status(Response.Status.NOT_FOUND)
+        .entity(new CommonErrorResponse().errorCode("1").message("NOT FOUND"))
+        .build();
+  }
+
+  private <T> CompletionStage<Response> optionalToNotFoundAsync(
+      Optional<T> opt, Function<T, CompletionStage<Response>> fn) {
     return opt.map(fn)
-        .orElse(Response.status(Response.Status.NOT_FOUND)
-            .entity(new CommonErrorResponse().errorCode("1").message("NOT FOUND"))
-            .build());
+        .orElse(CompletableFuture.supplyAsync(this::notFoundResponse))
+        .exceptionally(exceptionToResponse);
+  }
+
+  private <T> Response optionalToNotFound(Optional<T> opt, Function<T, Response> fn) {
+    return opt.map(fn).orElse(notFoundResponse());
   }
 
   @Inject
@@ -65,8 +76,13 @@ public class DeltaSharesApiImpl implements DeltaApiApi {
   @Override
   public CompletionStage<Response> getTableVersion(
       String share, String schema, String table, String startingTimestamp) {
-    Response res = Response.ok().build();
-    return CompletableFuture.completedFuture(res);
+    return deltaSharesService
+        .getTableVersion(share, schema, table, startingTimestamp)
+        .thenApply(opt -> optionalToNotFound(opt, t -> Response.ok()
+            .status(Response.Status.OK.getStatusCode())
+            .header(DELTA_TABLE_VERSION_HEADER, t)
+            .build()))
+        .exceptionally(exceptionToResponse);
   }
 
   @Override
