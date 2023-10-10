@@ -10,7 +10,7 @@ val serverGeneratorProperties = mapOf(
     "interfaceOnly" to "true",
     "library" to "quarkus",
     "returnResponse" to "true",
-    "supportAsync" to "true",
+    "supportAsync" to "false",
     "useJakartaEe" to "true",
     "useSwaggerAnnotations" to "false"
 )
@@ -69,7 +69,7 @@ val openapiGenerateDeltaSharing = tasks.register<GenerateTask>("openapiGenerateD
     additionalProperties.set(
         serverGeneratorProperties + mapOf(
             "apiPackage" to "io.whitefox.api.deltasharing.server",
-            "modelPackage" to "io.whitefox.api.deltasharing.model",
+            "modelPackage" to "io.whitefox.api.deltasharing.model"
         )
     )
 }

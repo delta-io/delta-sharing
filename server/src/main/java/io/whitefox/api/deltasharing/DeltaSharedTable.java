@@ -10,8 +10,6 @@ import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import org.apache.hadoop.conf.Configuration;
 
 public class DeltaSharedTable {
@@ -26,20 +24,17 @@ public class DeltaSharedTable {
     this.deltaLog = deltaLog;
   }
 
-  public static CompletionStage<DeltaSharedTable> of(PTable table) {
+  public static DeltaSharedTable of(PTable table) {
     var configuration = new Configuration();
     var dataPath = Paths.get(table.location());
-    return CompletableFuture.supplyAsync(() -> {
-          var dt = DeltaLog.forTable(configuration, dataPath.toString());
-          var snap = dt.update();
-          if (snap.getVersion() == -1) {
-            throw new IllegalArgumentException(
-                String.format("Cannot find a delta table at %s", dataPath));
-          } else {
-            return dt;
-          }
-        })
-        .thenApplyAsync(dl -> new DeltaSharedTable(dl, configuration, dataPath));
+
+    var dt = DeltaLog.forTable(configuration, dataPath.toString());
+    var snap = dt.update();
+    if (snap.getVersion() == -1) {
+      throw new IllegalArgumentException(
+          String.format("Cannot find a delta table at %s", dataPath));
+    }
+    return new DeltaSharedTable(dt, configuration, dataPath);
   }
 
   public Optional<Metadata> getMetadata(Optional<String> startingTimestamp) {

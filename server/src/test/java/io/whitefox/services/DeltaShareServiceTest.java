@@ -26,9 +26,7 @@ public class DeltaShareServiceTest {
   public void getUnknownShare() throws ExecutionException, InterruptedException {
     DeltaSharesService deltaSharesService = new DeltaSharesServiceImpl(
         new InMemoryStorageManager(), defaultMaxResults, encoder, loader);
-    Optional<Share> unknown =
-        deltaSharesService.getShare("unknown").toCompletableFuture().get();
-    assertEquals(Optional.empty(), unknown);
+    assertEquals(Optional.empty(), deltaSharesService.getShare("unknown"));
   }
 
   @Test
@@ -37,8 +35,7 @@ public class DeltaShareServiceTest {
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, defaultMaxResults, encoder, loader);
-    Optional<Share> share =
-        deltaSharesService.getShare("name").toCompletableFuture().get();
+    Optional<Share> share = deltaSharesService.getShare("name");
     assertTrue(share.isPresent());
     assertEquals("name", share.get().getName());
     assertEquals("key", share.get().getId());
@@ -50,10 +47,7 @@ public class DeltaShareServiceTest {
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, defaultMaxResults, encoder, loader);
-    var sharesWithNextToken = deltaSharesService
-        .listShares(Optional.empty(), Optional.of(30))
-        .toCompletableFuture()
-        .get();
+    var sharesWithNextToken = deltaSharesService.listShares(Optional.empty(), Optional.of(30));
     assertEquals(1, sharesWithNextToken.getContent().size());
     assertTrue(sharesWithNextToken.getToken().isEmpty());
   }
@@ -64,10 +58,7 @@ public class DeltaShareServiceTest {
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, defaultMaxResults, encoder, loader);
-    var sharesWithNextToken = deltaSharesService
-        .listShares(Optional.empty(), Optional.of(30))
-        .toCompletableFuture()
-        .get();
+    var sharesWithNextToken = deltaSharesService.listShares(Optional.empty(), Optional.of(30));
     assertEquals(1, sharesWithNextToken.getContent().size());
     assertTrue(sharesWithNextToken.getToken().isEmpty());
   }
@@ -78,10 +69,7 @@ public class DeltaShareServiceTest {
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder, loader);
-    var resultSchemas = deltaSharesService
-        .listSchemas("name", Optional.empty(), Optional.empty())
-        .toCompletableFuture()
-        .get();
+    var resultSchemas = deltaSharesService.listSchemas("name", Optional.empty(), Optional.empty());
     assertTrue(resultSchemas.isPresent());
     assertTrue(resultSchemas.get().getContent().isEmpty());
     assertTrue(resultSchemas.get().getToken().isEmpty());
@@ -94,10 +82,7 @@ public class DeltaShareServiceTest {
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder, loader);
-    var resultSchemas = deltaSharesService
-        .listSchemas("name", Optional.empty(), Optional.empty())
-        .toCompletableFuture()
-        .get();
+    var resultSchemas = deltaSharesService.listSchemas("name", Optional.empty(), Optional.empty());
     assertTrue(resultSchemas.isPresent());
     assertEquals(1, resultSchemas.get().getContent().size());
     assertEquals(
@@ -113,10 +98,8 @@ public class DeltaShareServiceTest {
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder, loader);
-    var resultSchemas = deltaSharesService
-        .listSchemas("notKey", Optional.empty(), Optional.empty())
-        .toCompletableFuture()
-        .get();
+    var resultSchemas =
+        deltaSharesService.listSchemas("notKey", Optional.empty(), Optional.empty());
     assertTrue(resultSchemas.isEmpty());
   }
 
@@ -134,10 +117,8 @@ public class DeltaShareServiceTest {
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder, loader);
-    var resultSchemas = deltaSharesService
-        .listTables("name", "default", Optional.empty(), Optional.empty())
-        .toCompletableFuture()
-        .get();
+    var resultSchemas =
+        deltaSharesService.listTables("name", "default", Optional.empty(), Optional.empty());
     assertTrue(resultSchemas.isPresent());
     assertTrue(resultSchemas.get().getToken().isEmpty());
     assertEquals(1, resultSchemas.get().getContent().size());
@@ -161,10 +142,8 @@ public class DeltaShareServiceTest {
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder, loader);
-    var resultSchemas = deltaSharesService
-        .listTablesOfShare("name", Optional.empty(), Optional.empty())
-        .toCompletableFuture()
-        .get();
+    var resultSchemas =
+        deltaSharesService.listTablesOfShare("name", Optional.empty(), Optional.empty());
     assertTrue(resultSchemas.isPresent());
     assertTrue(resultSchemas.get().getToken().isEmpty());
     Matchers.containsInAnyOrder(List.of(
@@ -194,10 +173,8 @@ public class DeltaShareServiceTest {
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder, loader);
-    var resultSchemas = deltaSharesService
-        .listTablesOfShare("name2", Optional.empty(), Optional.empty())
-        .toCompletableFuture()
-        .get();
+    var resultSchemas =
+        deltaSharesService.listTablesOfShare("name2", Optional.empty(), Optional.empty());
     assertTrue(resultSchemas.isPresent());
     assertTrue(resultSchemas.get().getToken().isEmpty());
     assertTrue(resultSchemas.get().getContent().isEmpty());
@@ -208,10 +185,8 @@ public class DeltaShareServiceTest {
     StorageManager storageManager = new InMemoryStorageManager();
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, encoder, loader);
-    var resultSchemas = deltaSharesService
-        .listTablesOfShare("name2", Optional.empty(), Optional.empty())
-        .toCompletableFuture()
-        .get();
+    var resultSchemas =
+        deltaSharesService.listTablesOfShare("name2", Optional.empty(), Optional.empty());
     assertTrue(resultSchemas.isEmpty());
   }
 }

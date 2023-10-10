@@ -7,8 +7,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
@@ -29,116 +27,94 @@ public class InMemoryStorageManager implements StorageManager {
   }
 
   @Override
-  public CompletionStage<Optional<PShare>> getShare(String share) {
-    return CompletableFuture.completedFuture(Optional.ofNullable(shares.get(share)));
+  public Optional<PShare> getShare(String share) {
+    return Optional.ofNullable(shares.get(share));
   }
 
   @Override
-  public CompletionStage<Optional<PTable>> getTable(String share, String schema, String table) {
-    var shareObj = shares.get(share);
+  public Optional<PTable> getTable(String share, String schema, String table) {
 
-    if (shareObj == null) {
-      return CompletableFuture.completedFuture(Optional.empty());
-    } else {
-      var schemaObj = shareObj.schemas().get(schema);
-      if (schemaObj == null) {
-        return CompletableFuture.completedFuture(Optional.empty());
-      } else {
-        return CompletableFuture.completedFuture(
+    return Optional.ofNullable(shares.get(share))
+        .flatMap(shareObj -> Optional.ofNullable(shareObj.schemas().get(schema)))
+        .flatMap(schemaObj ->
             schemaObj.tables().stream().filter(t -> (t.name().equals(table))).findFirst());
-      }
-    }
   }
 
   @Override
-  public CompletionStage<ResultAndTotalSize<List<PShare>>> getShares(
-      int offset, int maxResultSize) {
+  public ResultAndTotalSize<List<PShare>> getShares(int offset, int maxResultSize) {
     var totalSize = shares.size();
     if (offset > totalSize) {
-      return CompletableFuture.failedFuture(new InvalidPageTokenException(
-          String.format("Invalid Next Page Token: token %s is larger than totalSize", offset)));
+      throw new InvalidPageTokenException(
+          String.format("Invalid Next Page Token: token %s is larger than totalSize", offset));
     } else {
-      return CompletableFuture.completedFuture(new ResultAndTotalSize<>(
+      return new ResultAndTotalSize<>(
           shares.values().stream().skip(offset).limit(maxResultSize).collect(Collectors.toList()),
-          totalSize));
+          totalSize);
     }
   }
 
   @Override
-  public CompletionStage<Optional<ResultAndTotalSize<List<PSchema>>>> listSchemas(
+  public Optional<ResultAndTotalSize<List<PSchema>>> listSchemas(
       String share, int offset, int maxResultSize) {
-    var shareObj = shares.get(share);
-    if (shareObj == null) {
-      return CompletableFuture.completedFuture(Optional.empty());
-    } else {
+    return Optional.ofNullable(shares.get(share)).flatMap(shareObj -> {
       var schemaMap = shareObj.schemas();
       var totalSize = schemaMap.size();
       if (offset > totalSize) {
-        return CompletableFuture.failedFuture(new InvalidPageTokenException(
-            String.format("Invalid Next Page Token: token %s is larger than totalSize", offset)));
+        throw new InvalidPageTokenException(
+            String.format("Invalid Next Page Token: token %s is larger than totalSize", offset));
       }
-      return CompletableFuture.completedFuture(Optional.of(new ResultAndTotalSize<>(
+      return Optional.of(new ResultAndTotalSize<>(
           schemaMap.values().stream()
               .skip(offset)
               .limit(maxResultSize)
               .collect(Collectors.toList()),
-          totalSize)));
-    }
+          totalSize));
+    });
   }
 
   @Override
-  public CompletionStage<Optional<ResultAndTotalSize<List<PTable>>>> listTables(
+  public Optional<ResultAndTotalSize<List<PTable>>> listTables(
       String share, String schema, int offset, int maxResultSize) {
-    var shareObj = shares.get(share);
-    if (shareObj == null) {
-      return CompletableFuture.completedFuture(Optional.empty());
-    }
-    var schemaMap = shareObj.schemas();
-    var schemaObj = schemaMap.get(schema);
-    if (schemaObj == null) {
-      return CompletableFuture.completedFuture(Optional.empty());
-    }
-    var tableList = schemaObj.tables();
-    var totalSize = tableList.size();
-    if (offset > totalSize) {
-      return CompletableFuture.failedFuture(new InvalidPageTokenException(
-          String.format("Invalid Next Page Token: token %s is larger than totalSize", offset)));
-    } else {
-      return CompletableFuture.completedFuture(Optional.of(new ResultAndTotalSize<>(
-          tableList.stream().skip(offset).limit(maxResultSize).collect(Collectors.toList()),
-          totalSize)));
-    }
+    return Optional.ofNullable(shares.get(share))
+        .flatMap(shareObj -> Optional.ofNullable(shareObj.schemas().get(schema)))
+        .flatMap(schemaObj -> {
+          var tableList = schemaObj.tables();
+          var totalSize = tableList.size();
+          if (offset > totalSize) {
+            throw new InvalidPageTokenException(String.format(
+                "Invalid Next Page Token: token %s is larger than totalSize", offset));
+          } else {
+            return Optional.of(new ResultAndTotalSize<>(
+                tableList.stream().skip(offset).limit(maxResultSize).collect(Collectors.toList()),
+                totalSize));
+          }
+        });
   }
 
   private record TableAndSchema(PTable table, PSchema schema) {}
-  ;
 
   @Override
-  public CompletionStage<Optional<ResultAndTotalSize<List<PTable>>>> listTablesOfShare(
+  public Optional<ResultAndTotalSize<List<PTable>>> listTablesOfShare(
       String share, int offset, int maxResultSize) {
+    return Optional.ofNullable(shares.get(share)).flatMap(shareObj -> {
+      var schemaMap = shareObj.schemas();
+      var tableList = schemaMap.values().stream()
+          .flatMap(x -> x.tables().stream().map(t -> new TableAndSchema(t, x)))
+          .toList();
 
-    var shareObj = shares.get(share);
-    if (shareObj == null) {
-      return CompletableFuture.completedFuture(Optional.empty());
-    }
-    var schemaMap = shareObj.schemas();
-
-    var tableList = schemaMap.values().stream()
-        .flatMap(x -> x.tables().stream().map(t -> new TableAndSchema(t, x)))
-        .toList();
-
-    var totalSize = tableList.size();
-    if (offset > totalSize) {
-      return CompletableFuture.failedFuture(new InvalidPageTokenException(
-          String.format("Invalid Next Page Token: token %s is larger than totalSize", offset)));
-    } else {
-      return CompletableFuture.completedFuture(Optional.of(new ResultAndTotalSize<>(
-          tableList.stream()
-              .skip(offset)
-              .limit(maxResultSize)
-              .map(t -> t.table)
-              .collect(Collectors.toList()),
-          totalSize)));
-    }
+      var totalSize = tableList.size();
+      if (offset > totalSize) {
+        throw new InvalidPageTokenException(
+            String.format("Invalid Next Page Token: token %s is larger than totalSize", offset));
+      } else {
+        return Optional.of(new ResultAndTotalSize<>(
+            tableList.stream()
+                .skip(offset)
+                .limit(maxResultSize)
+                .map(t -> t.table)
+                .collect(Collectors.toList()),
+            totalSize));
+      }
+    });
   }
 }
