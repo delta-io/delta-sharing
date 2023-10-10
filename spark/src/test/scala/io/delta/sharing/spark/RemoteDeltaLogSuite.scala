@@ -18,19 +18,17 @@ package io.delta.sharing.spark
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
-import java.util.Base64
+
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference => SqlAttributeReference, EqualTo => SqlEqualTo, Literal => SqlLiteral}
+import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{FloatType, IntegerType, LongType, StringType, StructField, StructType}
-import io.delta.sharing.client.DeltaSharingClient
+
 import io.delta.sharing.client.model.Table
-import io.delta.sharing.client.util.JsonUtils
-import io.delta.sharing.filters.{BaseOp, OpConverter}
-import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
@@ -498,6 +496,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val path = new Path("profileFile")
     val table = Table(share = "share", schema = "schema", name = "table")
     val client = new TestDeltaSharingClient()
+    client.clear()
 
     def checkGetMetadataCalledOnce(versionAsOf: Option[Long] = None, nullable: Boolean): Unit = {
       var deltaTableMetadata = client.getMetadata(table, versionAsOf, None)
