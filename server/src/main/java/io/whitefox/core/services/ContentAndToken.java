@@ -1,25 +1,19 @@
-package io.whitefox.services;
+package io.whitefox.core.services;
 
 import java.util.Objects;
 import java.util.Optional;
 
 public class ContentAndToken<A> {
   private final A content;
-  private final String token;
+  private final Token token;
 
-  public static final class Token {
-    public final String value;
-
-    public Token(String value) {
-      this.value = value;
-    }
-
-    public static Token of(String value) {
+  public record Token(int value) {
+    public static Token of(Integer value) {
       return new Token(value);
     }
   }
 
-  private ContentAndToken(A content, String token) {
+  private ContentAndToken(A content, Token token) {
     this.content = content;
     this.token = token;
   }
@@ -29,7 +23,7 @@ public class ContentAndToken<A> {
     return new ContentAndToken<T>(content, null);
   }
 
-  public static <T> ContentAndToken<T> of(T content, String token) {
+  public static <T> ContentAndToken<T> of(T content, Token token) {
     Objects.requireNonNull(content);
     Objects.requireNonNull(token);
     return new ContentAndToken<T>(content, token);
@@ -39,7 +33,7 @@ public class ContentAndToken<A> {
     return content;
   }
 
-  public Optional<String> getToken() {
+  public Optional<Token> getToken() {
     return Optional.ofNullable(token);
   }
 

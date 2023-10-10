@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.*;
 import io.quarkus.test.junit.QuarkusIntegrationTest;
 import io.whitefox.OpenApiValidationFilter;
 import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
+import io.whitefox.core.services.ContentAndToken;
 import jakarta.ws.rs.core.Response;
 import java.nio.file.Paths;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ public class DeltaSharesApiImplIT {
   public void listShares() {
     given()
         .queryParam("maxResults", 50)
-        .queryParam("pageToken", encoder.encodePageToken("0"))
+        .queryParam("pageToken", encoder.encodePageToken(new ContentAndToken.Token(0)))
         .when()
         .filter(filter)
         .get("delta-api/v1/shares")

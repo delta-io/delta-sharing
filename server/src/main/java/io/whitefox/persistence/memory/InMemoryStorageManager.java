@@ -1,7 +1,10 @@
 package io.whitefox.persistence.memory;
 
 import io.whitefox.api.deltasharing.encoders.InvalidPageTokenException;
-import io.whitefox.persistence.ResultAndTotalSize;
+import io.whitefox.core.ResultAndTotalSize;
+import io.whitefox.core.Schema;
+import io.whitefox.core.Share;
+import io.whitefox.core.Table;
 import io.whitefox.persistence.StorageManager;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -14,25 +17,25 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class InMemoryStorageManager implements StorageManager {
-  private final ConcurrentMap<String, PShare> shares;
+  private final ConcurrentMap<String, Share> shares;
 
   @Inject
   public InMemoryStorageManager() {
     this.shares = new ConcurrentHashMap<>();
   }
 
-  public InMemoryStorageManager(List<PShare> shares) {
+  public InMemoryStorageManager(List<Share> shares) {
     this.shares = new ConcurrentHashMap<>(
-        shares.stream().collect(Collectors.toMap(PShare::name, Function.identity())));
+        shares.stream().collect(Collectors.toMap(Share::name, Function.identity())));
   }
 
   @Override
-  public Optional<PShare> getShare(String share) {
+  public Optional<Share> getShare(String share) {
     return Optional.ofNullable(shares.get(share));
   }
 
   @Override
-  public Optional<PTable> getTable(String share, String schema, String table) {
+  public Optional<Table> getTable(String share, String schema, String table) {
 
     return Optional.ofNullable(shares.get(share))
         .flatMap(shareObj -> Optional.ofNullable(shareObj.schemas().get(schema)))
@@ -41,7 +44,7 @@ public class InMemoryStorageManager implements StorageManager {
   }
 
   @Override
-  public ResultAndTotalSize<List<PShare>> getShares(int offset, int maxResultSize) {
+  public ResultAndTotalSize<List<Share>> getShares(int offset, int maxResultSize) {
     var totalSize = shares.size();
     if (offset > totalSize) {
       throw new InvalidPageTokenException(
@@ -54,7 +57,7 @@ public class InMemoryStorageManager implements StorageManager {
   }
 
   @Override
-  public Optional<ResultAndTotalSize<List<PSchema>>> listSchemas(
+  public Optional<ResultAndTotalSize<List<Schema>>> listSchemas(
       String share, int offset, int maxResultSize) {
     return Optional.ofNullable(shares.get(share)).flatMap(shareObj -> {
       var schemaMap = shareObj.schemas();
@@ -73,7 +76,7 @@ public class InMemoryStorageManager implements StorageManager {
   }
 
   @Override
-  public Optional<ResultAndTotalSize<List<PTable>>> listTables(
+  public Optional<ResultAndTotalSize<List<Table>>> listTables(
       String share, String schema, int offset, int maxResultSize) {
     return Optional.ofNullable(shares.get(share))
         .flatMap(shareObj -> Optional.ofNullable(shareObj.schemas().get(schema)))
@@ -91,10 +94,10 @@ public class InMemoryStorageManager implements StorageManager {
         });
   }
 
-  private record TableAndSchema(PTable table, PSchema schema) {}
+  private record TableAndSchema(Table table, Schema schema) {}
 
   @Override
-  public Optional<ResultAndTotalSize<List<PTable>>> listTablesOfShare(
+  public Optional<ResultAndTotalSize<List<Table>>> listTablesOfShare(
       String share, int offset, int maxResultSize) {
     return Optional.ofNullable(shares.get(share)).flatMap(shareObj -> {
       var schemaMap = shareObj.schemas();

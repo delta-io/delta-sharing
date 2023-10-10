@@ -1,5 +1,6 @@
 package io.whitefox.api.deltasharing.encoders;
 
+import io.whitefox.core.services.ContentAndToken;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -9,9 +10,9 @@ public class DeltaPageTokenEncoderTest {
 
   @Test
   public void testTokenEncoding() {
-    String id = "SomeId";
+    ContentAndToken.Token id = new ContentAndToken.Token(123);
     String encoded = encoder.encodePageToken(id);
-    String decoded = encoder.decodePageToken(encoded);
+    ContentAndToken.Token decoded = encoder.decodePageToken(encoded);
     Assertions.assertEquals(id, decoded);
   }
 }

@@ -7,11 +7,12 @@ import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.whitefox.OpenApiValidationFilter;
 import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
+import io.whitefox.core.Schema;
+import io.whitefox.core.Share;
+import io.whitefox.core.Table;
+import io.whitefox.core.services.ContentAndToken;
 import io.whitefox.persistence.StorageManager;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
-import io.whitefox.persistence.memory.PSchema;
-import io.whitefox.persistence.memory.PShare;
-import io.whitefox.persistence.memory.PTable;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
 import java.nio.file.Paths;
@@ -27,14 +28,14 @@ public class DeltaSharesApiImplTest {
 
   @BeforeAll
   public static void setup() {
-    var storageManager = new InMemoryStorageManager(List.of(new PShare(
+    var storageManager = new InMemoryStorageManager(List.of(new Share(
         "name",
         "key",
         Map.of(
             "default",
-            new PSchema(
+            new Schema(
                 "default",
-                List.of(new PTable(
+                List.of(new Table(
                     "table1", "src/test/resources/delta/samples/delta-table", "default", "name")),
                 "name")))));
     QuarkusMock.installMockForType(storageManager, StorageManager.class);
@@ -71,7 +72,7 @@ public class DeltaSharesApiImplTest {
   public void listShares() {
     given()
         .queryParam("maxResults", 50)
-        .queryParam("pageToken", encoder.encodePageToken("0"))
+        .queryParam("pageToken", encoder.encodePageToken(new ContentAndToken.Token(0)))
         .when()
         .filter(filter)
         .get("delta-api/v1/shares")

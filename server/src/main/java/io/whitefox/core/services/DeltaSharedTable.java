@@ -1,9 +1,9 @@
-package io.whitefox.api.deltasharing;
+package io.whitefox.core.services;
 
 import io.delta.standalone.DeltaLog;
 import io.delta.standalone.Snapshot;
 import io.delta.standalone.actions.Metadata;
-import io.whitefox.persistence.memory.PTable;
+import io.whitefox.core.Table;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Timestamp;
@@ -24,7 +24,7 @@ public class DeltaSharedTable {
     this.deltaLog = deltaLog;
   }
 
-  public static DeltaSharedTable of(PTable table) {
+  public static DeltaSharedTable of(Table table) {
     var configuration = new Configuration();
     var dataPath = Paths.get(table.location());
 

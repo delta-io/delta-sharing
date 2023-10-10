@@ -1,8 +1,8 @@
-package io.whitefox.services;
+package io.whitefox.core.services;
 
-import io.whitefox.api.deltasharing.model.Schema;
-import io.whitefox.api.deltasharing.model.Share;
-import io.whitefox.api.deltasharing.model.Table;
+import io.whitefox.core.Schema;
+import io.whitefox.core.Share;
+import io.whitefox.core.Table;
 import java.util.List;
 import java.util.Optional;
 
