@@ -42,9 +42,10 @@ private[sharing] class RemoteDeltaLog(
   val table: DeltaSharingTable,
   val path: Path,
   val client: DeltaSharingClient,
-  inputDeltaTableMetadata: Option[DeltaTableMetadata] = None) {
+  initDeltaTableMetadata: Option[DeltaTableMetadata] = None) {
 
-  @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(path, client, table)
+  @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(
+    path, client, table, initDeltaTableMetadata = initDeltaTableMetadata)
 
   def snapshot(
       versionAsOf: Option[Long] = None,
@@ -52,7 +53,7 @@ private[sharing] class RemoteDeltaLog(
     if (versionAsOf.isEmpty && timestampAsOf.isEmpty) {
       currentSnapshot
     } else {
-      new RemoteSnapshot(path, client, table, versionAsOf, timestampAsOf, inputDeltaTableMetadata)
+      new RemoteSnapshot(path, client, table, versionAsOf, timestampAsOf, initDeltaTableMetadata)
     }
   }
 
@@ -105,7 +106,7 @@ private[sharing] object RemoteDeltaLog {
       path: String,
       forStreaming: Boolean = false,
       responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET,
-      inputDeltaTableMetadata: Option[DeltaTableMetadata] = None): RemoteDeltaLog = {
+      initDeltaTableMetadata: Option[DeltaTableMetadata] = None): RemoteDeltaLog = {
     val parsedPath = DeltaSharingRestClient.parsePath(path)
     val client = DeltaSharingRestClient(parsedPath.profileFile, forStreaming, responseFormat)
     val deltaSharingTable = DeltaSharingTable(
@@ -113,7 +114,7 @@ private[sharing] object RemoteDeltaLog {
       schema = parsedPath.schema,
       share = parsedPath.share
     )
-    new RemoteDeltaLog(deltaSharingTable, new Path(path), client, inputDeltaTableMetadata)
+    new RemoteDeltaLog(deltaSharingTable, new Path(path), client, initDeltaTableMetadata)
   }
 }
 
@@ -124,7 +125,7 @@ class RemoteSnapshot(
     table: DeltaSharingTable,
     versionAsOf: Option[Long] = None,
     timestampAsOf: Option[String] = None,
-    inputDeltaTableMetadata: Option[DeltaTableMetadata] = None) extends Logging {
+    initDeltaTableMetadata: Option[DeltaTableMetadata] = None) extends Logging {
 
   protected def spark = SparkSession.active
 
@@ -168,7 +169,7 @@ class RemoteSnapshot(
   }
 
   private def getTableMetadata: (Metadata, Protocol, Long) = {
-    val tableMetadata = inputDeltaTableMetadata.getOrElse(
+    val tableMetadata = initDeltaTableMetadata.getOrElse(
       client.getMetadata(table, versionAsOf, timestampAsOf)
     )
     (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)

@@ -19,30 +19,18 @@ package io.delta.sharing.spark
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
 import java.util.Base64
-
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.expressions.{
-  AttributeReference => SqlAttributeReference,
-  EqualTo => SqlEqualTo,
-  Literal => SqlLiteral
-}
+import org.apache.spark.sql.catalyst.expressions.{AttributeReference => SqlAttributeReference, EqualTo => SqlEqualTo, Literal => SqlLiteral}
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{
-  FloatType,
-  IntegerType,
-  LongType,
-  StringType,
-  StructField,
-  StructType
-}
-
+import org.apache.spark.sql.types.{FloatType, IntegerType, LongType, StringType, StructField, StructType}
 import io.delta.sharing.client.DeltaSharingClient
 import io.delta.sharing.client.model.Table
 import io.delta.sharing.client.util.JsonUtils
 import io.delta.sharing.filters.{BaseOp, OpConverter}
+import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
@@ -386,7 +374,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val path = new Path("test")
     val table = Table("fe", "fi", "fo")
     val client = new TestDeltaSharingClient()
-    val remoteDeltaLog = new RemoteDeltaLog(table, path, client)
+
     val snapshot = new RemoteSnapshot(path, client, table)
     val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
 
@@ -504,5 +492,34 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       }
       assert(TestDeltaSharingClient.limits === Seq(2L, 3L))
     }
+  }
+
+  test("RemoteDeltaLog Initialized with metadata") {
+    val path = new Path("profileFile")
+    val table = Table(share = "share", schema = "schema", name = "table")
+    val client = new TestDeltaSharingClient()
+
+    def checkGetMetadataCalledOnce(versionAsOf: Option[Long] = None, nullable: Boolean): Unit = {
+      var deltaTableMetadata = client.getMetadata(table, versionAsOf, None)
+      assert(TestDeltaSharingClient.numMetadataCalled == 1)
+
+      val remoteDeltaLog = new RemoteDeltaLog(table, path, client, Some(deltaTableMetadata))
+      val relation = remoteDeltaLog.createRelation(versionAsOf, None, Map.empty[String, String])
+      val hadoopFsRelation = relation.asInstanceOf[HadoopFsRelation]
+      val fileIndex = hadoopFsRelation.location.asInstanceOf[RemoteDeltaSnapshotFileIndex]
+
+      // nullable indicates that the metadata is fetched for the correct version.
+      val snapshot = fileIndex.params.snapshotAtAnalysis
+      assert(snapshot.sizeInBytes == 100)
+      assert(snapshot.metadata.numFiles == 2)
+      assert(snapshot.schema("col1").nullable == nullable)
+      assert(snapshot.schema("col2").nullable == nullable)
+
+      assert(TestDeltaSharingClient.numMetadataCalled == 1)
+    }
+
+    checkGetMetadataCalledOnce(None, true)
+    client.clear()
+    checkGetMetadataCalledOnce(Some(1L), false)
   }
 }
