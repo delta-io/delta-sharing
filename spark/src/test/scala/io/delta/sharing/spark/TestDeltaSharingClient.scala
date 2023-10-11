@@ -182,6 +182,6 @@ object TestDeltaSharingClient {
   var jsonPredicateHints = Seq.empty[String]
 
   var numMetadataCalled = 0
-  
+
   val TESTING_TIMESTAMP = "2022-01-01 00:00:00.0"
 }

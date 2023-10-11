@@ -505,8 +505,9 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     client.clear()
 
     def checkGetMetadataCalledOnce(versionAsOf: Option[Long] = None, nullable: Boolean): Unit = {
-      var deltaTableMetadata = client.getMetadata(table, versionAsOf, None)
+      val deltaTableMetadata = client.getMetadata(table, versionAsOf, None)
       assert(TestDeltaSharingClient.numMetadataCalled == 1)
+
       val remoteDeltaLog = new RemoteDeltaLog(table, path, client, Some(deltaTableMetadata))
       val relation = remoteDeltaLog.createRelation(versionAsOf, None, Map.empty[String, String])
       val hadoopFsRelation = relation.asInstanceOf[HadoopFsRelation]
