@@ -156,11 +156,13 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
   test("snapshot file index test") {
     val spark = SparkSession.active
     val client = new TestDeltaSharingClient()
+    client.clear()
     val snapshot = new RemoteSnapshot(new Path("test"), client, Table("fe", "fi", "fo"))
     assert(snapshot.sizeInBytes == 100)
     assert(snapshot.metadata.numFiles == 2)
     assert(snapshot.schema("col1").nullable)
     assert(snapshot.schema("col2").nullable)
+    assert(TestDeltaSharingClient.numMetadataCalled == 1)
 
     // Create an index without limits.
     val fileIndex = {
@@ -225,6 +227,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     // files with additional field returned from server.
     val spark = SparkSession.active
     val client = new TestDeltaSharingClient()
+    client.clear()
     val snapshot = new RemoteSnapshot(
       new Path("test"),
       client,
@@ -235,6 +238,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(snapshot.metadata.numFiles == 2)
     assert(!snapshot.schema("col1").nullable)
     assert(!snapshot.schema("col2").nullable)
+    assert(TestDeltaSharingClient.numMetadataCalled == 1)
 
     // Create an index without limits.
     val fileIndex = {
@@ -299,6 +303,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     // files with additional field returned from server.
     val spark = SparkSession.active
     val client = new TestDeltaSharingClient()
+    client.clear()
     val snapshot = new RemoteSnapshot(
       new Path("test"),
       client,
@@ -310,6 +315,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(snapshot.metadata.numFiles == 2)
     assert(snapshot.schema("col1").nullable)
     assert(!snapshot.schema("col2").nullable)
+    assert(TestDeltaSharingClient.numMetadataCalled == 1)
 
     // Create an index without limits.
     val fileIndex = {
