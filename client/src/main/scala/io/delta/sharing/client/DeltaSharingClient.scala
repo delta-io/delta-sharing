@@ -538,6 +538,7 @@ class DeltaSharingRestClient(
       table = s"${table.share}.${table.schema}.${table.name}."
     )
 
+    // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(version, lines = lines, respondedFormat = respondedFormat)
     }
