@@ -32,18 +32,28 @@ import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingRestClient}
-import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, Metadata, Protocol, Table => DeltaSharingTable}
+import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, DeltaTableMetadata, Metadata, Protocol, Table => DeltaSharingTable}
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 
 
-/** Used to query the current state of the transaction logs of a remote shared Delta table. */
+/**
+ * Used to query the current state of the transaction logs of a remote shared Delta table.
+ *
+ * @param initDeltaTableMetadata Used to initialize RemoteSnapshot, and is always preferred to use
+ *                               if set, to avoid an unnecessary call with additional delay.
+ *                               It's because we'd like to fetch the table metadata for a pre-check
+ *                               to decide whether to use parquet format sharing or delta format
+ *                               sharing before initializing RemoteDeltaLog.
+ */
 private[sharing] class RemoteDeltaLog(
   val table: DeltaSharingTable,
   val path: Path,
-  val client: DeltaSharingClient) {
+  val client: DeltaSharingClient,
+  initDeltaTableMetadata: Option[DeltaTableMetadata] = None) {
 
-  @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(path, client, table)
+  @volatile private var currentSnapshot: RemoteSnapshot = new RemoteSnapshot(
+    path, client, table, initDeltaTableMetadata = initDeltaTableMetadata)
 
   def snapshot(
       versionAsOf: Option[Long] = None,
@@ -51,7 +61,7 @@ private[sharing] class RemoteDeltaLog(
     if (versionAsOf.isEmpty && timestampAsOf.isEmpty) {
       currentSnapshot
     } else {
-      new RemoteSnapshot(path, client, table, versionAsOf, timestampAsOf)
+      new RemoteSnapshot(path, client, table, versionAsOf, timestampAsOf, initDeltaTableMetadata)
     }
   }
 
@@ -103,7 +113,8 @@ private[sharing] object RemoteDeltaLog {
   def apply(
       path: String,
       forStreaming: Boolean = false,
-      responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET): RemoteDeltaLog = {
+      responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET,
+      initDeltaTableMetadata: Option[DeltaTableMetadata] = None): RemoteDeltaLog = {
     val parsedPath = DeltaSharingRestClient.parsePath(path)
     val client = DeltaSharingRestClient(parsedPath.profileFile, forStreaming, responseFormat)
     val deltaSharingTable = DeltaSharingTable(
@@ -111,7 +122,7 @@ private[sharing] object RemoteDeltaLog {
       schema = parsedPath.schema,
       share = parsedPath.share
     )
-    new RemoteDeltaLog(deltaSharingTable, new Path(path), client)
+    new RemoteDeltaLog(deltaSharingTable, new Path(path), client, initDeltaTableMetadata)
   }
 }
 
@@ -121,11 +132,22 @@ class RemoteSnapshot(
     client: DeltaSharingClient,
     table: DeltaSharingTable,
     versionAsOf: Option[Long] = None,
-    timestampAsOf: Option[String] = None) extends Logging {
+    timestampAsOf: Option[String] = None,
+    initDeltaTableMetadata: Option[DeltaTableMetadata] = None) extends Logging {
 
   protected def spark = SparkSession.active
 
-  lazy val (metadata, protocol, version) = getTableMetadata
+  // initDeltaTableMetadata is from the initialization of RemoteDeltaLog and RemoteSnapshot.
+  // It's always preferred to use if set, to avoid an unnecessary call with additional delay.
+  // The reason is we'd like to fetch the table metadata for a pre-check to decide whether to
+  // use parquet format sharing or delta format sharing.
+  private lazy val tableMetadata = initDeltaTableMetadata.getOrElse(
+    client.getMetadata(table, versionAsOf, timestampAsOf)
+  )
+
+  lazy val (metadata, protocol, version) = {
+    (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
+  }
 
   lazy val schema: StructType = DeltaTableUtils.toSchema(metadata.schemaString)
 
@@ -162,11 +184,6 @@ class RemoteSnapshot(
       checkSchemaNotChange(tableFiles.metadata)
       tableFiles.files.map(_.size).sum
     }
-  }
-
-  private def getTableMetadata: (Metadata, Protocol, Long) = {
-    val tableMetadata = client.getMetadata(table, versionAsOf, timestampAsOf)
-    (tableMetadata.metadata, tableMetadata.protocol, tableMetadata.version)
   }
 
   private def checkProtocolNotChange(newProtocol: Protocol): Unit = {
