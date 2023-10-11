@@ -223,6 +223,28 @@ class DeltaSharingRestClient(
     }
   }
 
+  /**
+   * Compare requestedFormat and respondedFormat, only error out when requested parquet but got
+   * delta in response. The client allows backward compatibility: requested delta but got parquet
+   * in response.
+   */
+  private def checkRespondedFormat(
+      requestedFormat: String, respondedFormat: String, rpc: String, table: String): Unit = {
+    if (requestedFormat == respondedFormat) {
+      return
+    }
+    if (responseFormat == RESPONSE_FORMAT_PARQUET && respondedFormat == RESPONSE_FORMAT_DELTA) {
+      logError(s"RespondedFormat($respondedFormat) is different from requested " +
+        s"responseFormat($responseFormat) for $rpc for table $table.")
+      throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
+        s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
+        s" != requestedFormat($responseFormat).")
+    } else {
+      logWarning(s"RespondedFormat($respondedFormat) is different from requested " +
+        s"responseFormat($responseFormat) for $rpc for table $table.")
+    }
+  }
+
   def getMetadata(
       table: Table,
       versionAsOf: Option[Long] = None,
@@ -236,19 +258,15 @@ class DeltaSharingRestClient(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata" +
         s"$encodedParams")
     val (version, respondedFormat, lines) = getNDJson(target)
-    if (responseFormat != respondedFormat) {
-      // This could only happen when the asked format is delta and the server doesn't support
-      // the requested format.
-      logError(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
-        s"$responseFormat) for getMetadata.${table.share}.${table.schema}.${table.name}.")
-      throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
-        s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
-        s" != requestedFormat($responseFormat)." +
-        s"This is likely because the server is not upgraded to support delta format sharing.")
-    }
+    checkRespondedFormat(
+      responseFormat,
+      respondedFormat,
+      rpc = "getMetadata",
+      table = s"${table.share}.${table.schema}.${table.name}"
+    )
     // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
-      return DeltaTableMetadata(version, lines = lines)
+      return DeltaTableMetadata(version, lines = lines, respondedFormat = respondedFormat)
     }
 
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
@@ -257,7 +275,7 @@ class DeltaSharingRestClient(
     if (lines.size != 2) {
       throw new IllegalStateException("received more than two lines")
     }
-    DeltaTableMetadata(version, protocol, metadata)
+    DeltaTableMetadata(version, protocol, metadata, respondedFormat = respondedFormat)
   }
 
   private def checkProtocol(protocol: Protocol): Unit = {
@@ -316,18 +334,20 @@ class DeltaSharingRestClient(
       (version, respondedFormat, filteredLines, refreshTokenOpt)
     }
 
-    if (responseFormat != respondedFormat) {
-      logError(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
-        s"$responseFormat) for getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf " +
-        s"for table ${table.share}.${table.schema}.${table.name}.")
-      throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
-        s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
-        s" != requestedFormat($responseFormat)." +
-        s"This is likely because the server is not upgraded to support delta format sharing.")
-    }
+    checkRespondedFormat(
+      responseFormat,
+      respondedFormat,
+      rpc = s"getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf)",
+      table = s"${table.share}.${table.schema}.${table.name}"
+    )
     // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
-      return DeltaTableFiles(version, lines = lines, refreshToken = refreshTokenOpt)
+      return DeltaTableFiles(
+        version,
+        lines = lines,
+        refreshToken = refreshTokenOpt,
+        respondedFormat = respondedFormat
+      )
     }
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
@@ -342,7 +362,14 @@ class DeltaSharingRestClient(
         throw new IllegalStateException(s"Unexpected Line:${line}")
       }
     }
-    DeltaTableFiles(version, protocol, metadata, files.toSeq, refreshToken = refreshTokenOpt)
+    DeltaTableFiles(
+      version,
+      protocol,
+      metadata,
+      files.toSeq,
+      refreshToken = refreshTokenOpt,
+      respondedFormat = respondedFormat
+    )
   }
 
   override def getFiles(
@@ -378,18 +405,15 @@ class DeltaSharingRestClient(
     } else {
       getNDJson(target, request)
     }
-    if (responseFormat != respondedFormat) {
-      logError(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
-        s"$responseFormat) for getFiles(startingVersion-$startingVersion, endingVersion-" +
-        s"$endingVersion) for table ${table.share}.${table.schema}.${table.name}.")
-      throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
-        s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
-        s" != requestedFormat($responseFormat)." +
-        s"This is likely because the server is not upgraded to support delta format sharing.")
-    }
+    checkRespondedFormat(
+      responseFormat,
+      respondedFormat,
+      rpc = s"getFiles(startingVersion:$startingVersion, endingVersion:$endingVersion)",
+      table = s"${table.share}.${table.schema}.${table.name}"
+    )
     // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
-      return DeltaTableFiles(version, lines = lines)
+      return DeltaTableFiles(version, lines = lines, respondedFormat = respondedFormat)
     }
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
@@ -412,7 +436,8 @@ class DeltaSharingRestClient(
       metadata,
       addFiles = addFiles.toSeq,
       removeFiles = removeFiles.toSeq,
-      additionalMetadatas = additionalMetadatas.toSeq
+      additionalMetadatas = additionalMetadatas.toSeq,
+      respondedFormat = respondedFormat
     )
   }
 
@@ -503,18 +528,15 @@ class DeltaSharingRestClient(
     } else {
       getNDJson(target, requireVersion = false)
     }
-    if (responseFormat != respondedFormat) {
-      logError(s"RespondedFormat($respondedFormat) is different from requested responseFormat(" +
-        s"$responseFormat) for getCDFFiles(cdfOptions-$cdfOptions) for table " +
-        s"${table.share}.${table.schema}.${table.name}.")
-      throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
-        s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
-        s" != requestedFormat($responseFormat)." +
-        s"This is likely because the server is not upgraded to support delta format sharing.")
-    }
+    checkRespondedFormat(
+      responseFormat,
+      respondedFormat,
+      rpc = s"getCDFFiles(cdfOptions:$cdfOptions)",
+      table = s"${table.share}.${table.schema}.${table.name}."
+    )
     // To ensure that it works with delta sharing server that doesn't support the requested format.
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
-      return DeltaTableFiles(version, lines = lines)
+      return DeltaTableFiles(version, lines = lines, respondedFormat = respondedFormat)
     }
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
@@ -541,7 +563,8 @@ class DeltaSharingRestClient(
       addFiles = addFiles.toSeq,
       cdfFiles = cdfFiles.toSeq,
       removeFiles = removeFiles.toSeq,
-      additionalMetadatas = additionalMetadatas.toSeq
+      additionalMetadatas = additionalMetadatas.toSeq,
+      respondedFormat = respondedFormat
     )
   }
 
