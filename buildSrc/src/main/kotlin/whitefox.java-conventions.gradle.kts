@@ -26,8 +26,9 @@ spotless {
     }
 }
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
 }
 val gitVersion: groovy.lang.Closure<String> by extra
 group = "io.whitefox"

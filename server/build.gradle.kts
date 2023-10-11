@@ -97,7 +97,7 @@ val deltaTest = tasks.register<Test>("deltaTest") {
             includeTestsMatching(s)
         }
     }
-    forkEvery = 1
+    forkEvery = 0
 }
 tasks.check {
     dependsOn(deltaTest)

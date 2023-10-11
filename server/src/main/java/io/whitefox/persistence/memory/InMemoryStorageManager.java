@@ -9,6 +9,7 @@ import io.whitefox.persistence.StorageManager;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -94,7 +95,41 @@ public class InMemoryStorageManager implements StorageManager {
         });
   }
 
-  private record TableAndSchema(Table table, Schema schema) {}
+  private class TableAndSchema {
+    private final Table table;
+    private final Schema schema;
+
+    public TableAndSchema(Table table, Schema schema) {
+      this.table = table;
+      this.schema = schema;
+    }
+
+    public Table table() {
+      return table;
+    }
+
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+      TableAndSchema that = (TableAndSchema) o;
+      return Objects.equals(table, that.table) && Objects.equals(schema, that.schema);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(table, schema);
+    }
+
+    @Override
+    public String toString() {
+      return "TableAndSchema{" + "table=" + table + ", schema=" + schema + '}';
+    }
+  }
 
   @Override
   public Optional<ResultAndTotalSize<List<Table>>> listTablesOfShare(
@@ -103,7 +138,7 @@ public class InMemoryStorageManager implements StorageManager {
       var schemaMap = shareObj.schemas();
       var tableList = schemaMap.values().stream()
           .flatMap(x -> x.tables().stream().map(t -> new TableAndSchema(t, x)))
-          .toList();
+          .collect(Collectors.toList());
 
       var totalSize = tableList.size();
       if (offset > totalSize) {

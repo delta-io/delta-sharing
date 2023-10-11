@@ -12,7 +12,7 @@ jobs:
         with:
           cache: 'gradle'
           distribution: temurin
-          java-version: 19
+          java-version: 11
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
 

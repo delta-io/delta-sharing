@@ -7,9 +7,37 @@ public class ContentAndToken<A> {
   private final A content;
   private final Token token;
 
-  public record Token(int value) {
+  public static final class Token {
+    private final int value;
+
+    public Token(int value) {
+      this.value = value;
+    }
+
     public static Token of(Integer value) {
       return new Token(value);
+    }
+
+    public int value() {
+      return value;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (obj == this) return true;
+      if (obj == null || obj.getClass() != this.getClass()) return false;
+      var that = (Token) obj;
+      return this.value == that.value;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(value);
+    }
+
+    @Override
+    public String toString() {
+      return "Token[" + "value=" + value + ']';
     }
   }
 
