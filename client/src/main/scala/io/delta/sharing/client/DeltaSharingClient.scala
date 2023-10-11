@@ -258,13 +258,14 @@ class DeltaSharingRestClient(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata" +
         s"$encodedParams")
     val (version, respondedFormat, lines) = getNDJson(target)
+
     checkRespondedFormat(
       responseFormat,
       respondedFormat,
       rpc = "getMetadata",
       table = s"${table.share}.${table.schema}.${table.name}"
     )
-    // To ensure that it works with delta sharing server that doesn't support the requested format.
+
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(version, lines = lines, respondedFormat = respondedFormat)
     }
@@ -340,7 +341,7 @@ class DeltaSharingRestClient(
       rpc = s"getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf)",
       table = s"${table.share}.${table.schema}.${table.name}"
     )
-    // To ensure that it works with delta sharing server that doesn't support the requested format.
+
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(
         version,
@@ -405,13 +406,14 @@ class DeltaSharingRestClient(
     } else {
       getNDJson(target, request)
     }
+
     checkRespondedFormat(
       responseFormat,
       respondedFormat,
       rpc = s"getFiles(startingVersion:$startingVersion, endingVersion:$endingVersion)",
       table = s"${table.share}.${table.schema}.${table.name}"
     )
-    // To ensure that it works with delta sharing server that doesn't support the requested format.
+
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(version, lines = lines, respondedFormat = respondedFormat)
     }
@@ -528,13 +530,14 @@ class DeltaSharingRestClient(
     } else {
       getNDJson(target, requireVersion = false)
     }
+
     checkRespondedFormat(
       responseFormat,
       respondedFormat,
       rpc = s"getCDFFiles(cdfOptions:$cdfOptions)",
       table = s"${table.share}.${table.schema}.${table.name}."
     )
-    // To ensure that it works with delta sharing server that doesn't support the requested format.
+
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(version, lines = lines, respondedFormat = respondedFormat)
     }
