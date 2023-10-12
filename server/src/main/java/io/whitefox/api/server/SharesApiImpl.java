@@ -1,8 +1,9 @@
 package io.whitefox.api.server;
 
-import io.whitefox.api.model.AddRecipientToShareRequest;
-import io.whitefox.api.model.CreateShareInput;
-import io.whitefox.api.model.TableReference;
+import io.whitefox.api.model.generated.AddRecipientToShareRequest;
+import io.whitefox.api.model.generated.CreateShareInput;
+import io.whitefox.api.model.generated.TableReference;
+import io.whitefox.api.server.generated.SharesApi;
 import jakarta.ws.rs.core.Response;
 
 public class SharesApiImpl implements SharesApi {

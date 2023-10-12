@@ -143,11 +143,11 @@ public class DeltaShareServiceTest {
     assertTrue(resultSchemas.isPresent());
     assertTrue(resultSchemas.get().getToken().isEmpty());
     Matchers.containsInAnyOrder(List.of(
-            new io.whitefox.api.deltasharing.model.Table()
+            new io.whitefox.api.deltasharing.model.generated.Table()
                 .name("table2")
                 .schema("other")
                 .share("name"),
-            new io.whitefox.api.deltasharing.model.Table()
+            new io.whitefox.api.deltasharing.model.generated.Table()
                 .name("table1")
                 .schema("default")
                 .share("name")))

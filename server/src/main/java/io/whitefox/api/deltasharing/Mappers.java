@@ -8,18 +8,18 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class Mappers {
-  public static io.whitefox.api.deltasharing.model.Share share2api(Share p) {
-    return new io.whitefox.api.deltasharing.model.Share().id(p.id()).name(p.name());
+  public static io.whitefox.api.deltasharing.model.generated.Share share2api(Share p) {
+    return new io.whitefox.api.deltasharing.model.generated.Share().id(p.id()).name(p.name());
   }
 
-  public static io.whitefox.api.deltasharing.model.Schema schema2api(Schema schema) {
-    return new io.whitefox.api.deltasharing.model.Schema()
+  public static io.whitefox.api.deltasharing.model.generated.Schema schema2api(Schema schema) {
+    return new io.whitefox.api.deltasharing.model.generated.Schema()
         .name(schema.name())
         .share(schema.share());
   }
 
-  public static io.whitefox.api.deltasharing.model.Table table2api(Table table) {
-    return new io.whitefox.api.deltasharing.model.Table()
+  public static io.whitefox.api.deltasharing.model.generated.Table table2api(Table table) {
+    return new io.whitefox.api.deltasharing.model.generated.Table()
         .name(table.name())
         .share(table.share())
         .schema(table.schema());

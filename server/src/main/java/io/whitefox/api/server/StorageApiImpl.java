@@ -1,7 +1,8 @@
 package io.whitefox.api.server;
 
-import io.whitefox.api.model.CreateStorage;
-import io.whitefox.api.model.UpdateStorage;
+import io.whitefox.api.model.generated.CreateStorage;
+import io.whitefox.api.model.generated.UpdateStorage;
+import io.whitefox.api.server.generated.StorageApi;
 import jakarta.ws.rs.core.Response;
 
 public class StorageApiImpl implements StorageApi {

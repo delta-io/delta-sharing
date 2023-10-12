@@ -1,6 +1,7 @@
 // Define Java conventions for this organization.
 plugins {
     java
+    jacoco
     id("com.palantir.git-version")
     id("org.openapi.generator")
     id("com.diffplug.spotless")
@@ -25,6 +26,11 @@ spotless {
         formatAnnotations()
     }
 }
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.check) // tests are required to run before generating the report
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(11)

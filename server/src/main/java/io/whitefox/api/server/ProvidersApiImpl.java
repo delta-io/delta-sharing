@@ -1,8 +1,9 @@
 package io.whitefox.api.server;
 
-import io.whitefox.api.model.CreateTableInput;
-import io.whitefox.api.model.PatchTableInput;
-import io.whitefox.api.model.ProviderInput;
+import io.whitefox.api.model.generated.CreateTableInput;
+import io.whitefox.api.model.generated.PatchTableInput;
+import io.whitefox.api.model.generated.ProviderInput;
+import io.whitefox.api.server.generated.ProvidersApi;
 import jakarta.ws.rs.core.Response;
 
 public class ProvidersApiImpl implements ProvidersApi {

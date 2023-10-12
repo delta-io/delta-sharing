@@ -1,7 +1,8 @@
 package io.whitefox.api.server;
 
-import io.whitefox.api.model.CreateMetastore;
-import io.whitefox.api.model.UpdateMetastore;
+import io.whitefox.api.model.generated.CreateMetastore;
+import io.whitefox.api.model.generated.UpdateMetastore;
+import io.whitefox.api.server.generated.MetastoresApi;
 import jakarta.ws.rs.core.Response;
 
 public class MetastoresApiImpl implements MetastoresApi {

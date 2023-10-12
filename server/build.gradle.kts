@@ -1,19 +1,5 @@
 import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
 
-val openApiCodeGenDir = "generated/openapi"
-
-val serverGeneratorProperties = mapOf(
-    "dateLibrary" to "java8",
-    "disallowAdditionalPropertiesIfNotPresent" to "false",
-    "generateBuilders" to "true",
-    "generatePom" to "false",
-    "interfaceOnly" to "true",
-    "library" to "quarkus",
-    "returnResponse" to "true",
-    "supportAsync" to "false",
-    "useJakartaEe" to "true",
-    "useSwaggerAnnotations" to "false"
-)
 plugins {
     java
     id("io.quarkus")
@@ -23,6 +9,8 @@ plugins {
 val quarkusPlatformGroupId: String by project
 val quarkusPlatformArtifactId: String by project
 val quarkusPlatformVersion: String by project
+
+// region dependencies
 
 dependencies {
     implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
@@ -47,36 +35,85 @@ dependencies {
     testImplementation("org.openapi4j:openapi-operation-restassured:1.0.7")
 }
 
+// endregion
+
+// region openapi code generation
+
+val openApiCodeGenDir = "generated/openapi"
+
+val serverGeneratorProperties = mapOf(
+    "dateLibrary" to "java8",
+    "disallowAdditionalPropertiesIfNotPresent" to "false",
+    "generateBuilders" to "true",
+    "generatePom" to "false",
+    "interfaceOnly" to "true",
+    "library" to "quarkus",
+    "returnResponse" to "true",
+    "supportAsync" to "false",
+    "useJakartaEe" to "true",
+    "useSwaggerAnnotations" to "false"
+)
+
+val generatedCodeDirectory = generatedCodeDirectory(layout, openApiCodeGenDir)
+
 val openapiGenerateWhitefox = tasks.register<GenerateTask>("openapiGenerateWhitefox") {
     generatorName.set("jaxrs-spec")
     inputSpec.set("$rootDir/docs/protocol/whitefox-protocol-api.yml")
-    outputDir.set(generatedCodeDirectory(layout, openApiCodeGenDir))
+    outputDir.set(generatedCodeDirectory)
     additionalProperties.set(
         serverGeneratorProperties.plus(
             mapOf(
-                "apiPackage" to "io.whitefox.api.server",
-                "modelPackage" to "io.whitefox.api.model",
+                "apiPackage" to "io.whitefox.api.server.generated",
+                "modelPackage" to "io.whitefox.api.model.generated",
+                "invokerPackage" to "ignored",
             )
         )
     )
 }
 
-
 val openapiGenerateDeltaSharing = tasks.register<GenerateTask>("openapiGenerateDeltaSharing") {
     generatorName.set("jaxrs-spec")
     inputSpec.set("$rootDir/docs/protocol/delta-sharing-protocol-api.yml")
-    outputDir.set(generatedCodeDirectory(layout, openApiCodeGenDir))
+    outputDir.set(generatedCodeDirectory)
     additionalProperties.set(
         serverGeneratorProperties + mapOf(
-            "apiPackage" to "io.whitefox.api.deltasharing.server",
-            "modelPackage" to "io.whitefox.api.deltasharing.model"
+            "apiPackage" to "io.whitefox.api.deltasharing.server.generated",
+            "modelPackage" to "io.whitefox.api.deltasharing.model.generated",
+            "invokerPackage" to "ignored",
         )
     )
+}
+
+// endregion
+
+// region java compile
+
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
+    options.compilerArgs.add("-parameters")
+    dependsOn(openapiGenerateWhitefox, openapiGenerateDeltaSharing)
+}
+
+sourceSets {
+    getByName("main") {
+        java {
+            srcDir("${generatedCodeDirectory(layout, openApiCodeGenDir)}/src/gen/java")
+        }
+    }
+}
+
+// endregion
+
+// region test running
+
+tasks.check {
+    dependsOn(deltaTest)
 }
 
 tasks.withType<Test> {
     systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
 }
+
 val deltaTestClasses =
     listOf("io.whitefox.api.deltasharing.DeltaSharedTableTest.*", "io.whitefox.services.DeltaLogServiceTest.*")
 
@@ -99,14 +136,62 @@ val deltaTest = tasks.register<Test>("deltaTest") {
     }
     forkEvery = 0
 }
+
+// endregion
+
+// region code coverage
+
 tasks.check {
-    dependsOn(deltaTest)
+    finalizedBy(tasks.jacocoTestReport)
 }
-tasks.withType<JavaCompile> {
-    options.encoding = "UTF-8"
-    options.compilerArgs.add("-parameters")
-    dependsOn(openapiGenerateWhitefox, openapiGenerateDeltaSharing)
+
+
+val classesToExclude = listOf(
+    "**" + File.separator + "generated" + File.separator + "**.class",
+    "**" + File.separator + "ignored" + File.separator + "**.class"
+)
+tasks.jacocoTestReport {
+    doFirst {
+        logger.lifecycle("Excluding generated classes: ${classesToExclude}")
+    }
+    classDirectories.setFrom(
+        files(classDirectories.files.map { fileTree(it) { exclude(classesToExclude) } })
+    )
+    doLast {
+        logger.lifecycle("The report can be found at: file://" + reports.html.entryPoint)
+    }
+
+    finalizedBy(tasks.jacocoTestCoverageVerification)
 }
+
+tasks.jacocoTestCoverageVerification {
+    classDirectories.setFrom(
+        files(classDirectories.files.map { fileTree(it) { exclude(classesToExclude) } })
+    )
+    if (!isWindowsBuild()) {
+        violationRules {
+            rule {
+                limit {
+                    minimum = BigDecimal.valueOf(0.60)
+                }
+            }
+        }
+    }
+}
+
+// endregion
+
+// region code formatting
+
+spotless {
+    java {
+        targetExclude("${relativeGeneratedCodeDirectory(layout, openApiCodeGenDir)}/**/*.java")
+    }
+}
+
+// endregion
+
+// region container image
 
 tasks.quarkusBuild {
     System.setProperty("quarkus.container-image.group", project.group.toString())
@@ -114,15 +199,4 @@ tasks.quarkusBuild {
     System.setProperty("quarkus.native.additional-build-args", "-H:-CheckToolchain,--enable-preview")
 }
 
-spotless {
-    java {
-        targetExclude("${relativeGeneratedCodeDirectory(layout, openApiCodeGenDir)}/**/*.java")
-    }
-}
-sourceSets {
-    getByName("main") {
-        java {
-            srcDir("${generatedCodeDirectory(layout, openApiCodeGenDir)}/src/gen/java")
-        }
-    }
-}
+// endregion
