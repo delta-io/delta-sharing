@@ -2432,31 +2432,35 @@ This header can be used in the request for [Query Table Metadata](#query-table-m
 <th>Server that recognizes the header</th>
 </tr>
 <tr>
-<th>Client that doesn't recognize the header</th>
+<th>Client that doesn't specify the header</th>
 <td>Response is in parquet format</td>
-<td>Response should be in parquet format.</td>
+<td>Response must be in parquet format.</td>
 </tr>
 <tr>
-<th>Client that recognizes the header</th>
-<td>The header is ignored at the server, and the format of the response should always be parquet.
+<th>Client that specifies the header</th>
+<td>The header is ignored at the server, and the format of the response must always be parquet.
 </td>
-<td>The header is processed properly by the server and the response is in the requested format.</td>
+<td>The header is processed properly by the server.
+
+The server may choose to respond in parquet format if the table is does not have any advanced features.
+
+The server must respond in delta format if the table has advanced features which are not compatible with the parquet format.</td>
 </tr>
 </table>
 
-- If the client requested `delta` format and the response is in `parquet` format, the delta sharing
-client will NOT throw an error, the caller should decide the behavior (either to handle the response
-or to throw an error to let the user specify the format explicitly).
-- If the client requested `parquet` format and the response is in `delta` format, the delta sharing
-client should throw an error.
+- If the client requests `delta` format and the response is in `parquet` format, the delta sharing
+client will NOT throw an error. Ideally, the caller of the client's method should handle such 
+responses to be compatible with legacy servers.
+- If the client doesn't specify any header, or requests `parquet` format and the response is in 
+`delta` format, the delta sharing client should throw an error.
 
 ### responseFormat
 Indicates the format to expect in the [API Response Format in Parquet](#api-response-format-in-parquet), two values are supported.
 
 - parquet: Represents the format of the delta sharing protocol that has been used in `delta-sharing-spark` 1.0 
-and less, also the default format if `responseFormat` is missing from the header, all the existing delta
+and less, also the default format if `responseFormat` is missing from the header. All the existing delta
 sharing connectors are able to process data in this format. 
-- delta: format can be used to read a shared delta table with minReaderVersion > 1, which contains 
+- **delta**: format can be used to read a shared delta table with minReaderVersion > 1, which contains 
 readerFeatures such as Deletion Vector or Column Mapping. `delta-sharing-spark` libraries 
 that are able to process `responseformat=delta` will be released soon.
 
@@ -2941,14 +2945,13 @@ maxValues | A value larger than all values present in the file for this column
 ## API Response Format in Delta
 This section discusses the API Response Format in Delta returned by the server. When a table is shared
 as delta format, the actions in the response could be put in a delta log in the local storage on the
-recipient side for the delta library to read data out of it directly, in this way, advanced delta
-features are transparent to delta sharing, and the code duplication for the new delta features won't
-be necessary.
+recipient side for the delta library to read data out of it directly. This way of sharing makes the
+delta sharing protocol more transparent and robust in supporting advanced delta feature, and minimizes code duplication.
 
 ### JSON Wrapper Object In Each Line in Delta
 
 The JSON object in each line is a wrapper object that may contain the following fields. For each
-field, it is a wrapper of a delta action(which keeps the action in its delta format and with original
+field, it is a wrapper of a [delta action](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#actions)(which keeps the action in its delta format and with original
 values), and with some additional fields for delta sharing functionalities.
 
 Field Name | Data Type | Description | Optional/Required
@@ -2961,7 +2964,7 @@ It must contain only **ONE** of the above fields.
 
 ### Protocol in Delta Format
 
-A wrapper of a delta protocol.
+A wrapper of a [delta protocol](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#protocol-evolution).
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
@@ -2981,6 +2984,8 @@ Example (for illustration purposes; each JSON object must be a single line in th
 ```
 
 ### Metadata in Delta Format
+
+A wrapper of a [delta Metadata](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#change-metadata).
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
@@ -3015,6 +3020,9 @@ Example (for illustration purposes; each JSON object must be a single line in th
 ```
 
 ### File in Delta Format
+
+A wrapper of a delta file action, which can be [Add File and Remove File](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#add-file-and-remove-file),
+or [Add CDC File](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#add-cdc-file)
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
