@@ -1,6 +1,10 @@
 name: Run Spectral
 on:
-  - pull_request
+  pull_request:
+    branches-ignore: []
+  push:
+    branches:
+      - main
 jobs:
   lint:
     name: Lint
