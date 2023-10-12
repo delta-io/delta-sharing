@@ -78,6 +78,7 @@ class TestDeltaSharingClient(
       table: Table,
       versionAsOf: Option[Long] = None,
       timestampAsOf: Option[String] = None): DeltaTableMetadata = {
+    TestDeltaSharingClient.numMetadataCalled += 1
     // Different metadata are returned for rpcs with different parameters to test the parameters
     // are set properly.
     if (versionAsOf.exists(_ == 1)) {
@@ -166,6 +167,7 @@ class TestDeltaSharingClient(
   def clear(): Unit = {
     TestDeltaSharingClient.limits = Nil
     TestDeltaSharingClient.jsonPredicateHints = Nil
+    TestDeltaSharingClient.numMetadataCalled = 0
   }
 }
 
@@ -178,6 +180,8 @@ class TestDeltaSharingProfileProvider extends DeltaSharingProfileProvider {
 object TestDeltaSharingClient {
   var limits = Seq.empty[Long]
   var jsonPredicateHints = Seq.empty[String]
+
+  var numMetadataCalled = 0
 
   val TESTING_TIMESTAMP = "2022-01-01 00:00:00.0"
 }
