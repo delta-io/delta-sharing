@@ -39,7 +39,8 @@ private[sharing] case class DeltaTableMetadata(
     version: Long,
     protocol: Protocol = null,
     metadata: Metadata = null,
-    lines: Seq[String] = Nil)
+    lines: Seq[String] = Nil,
+    respondedFormat: String)
 
 private[sharing] case class DeltaTableFiles(
     version: Long,
@@ -51,7 +52,8 @@ private[sharing] case class DeltaTableFiles(
     removeFiles: Seq[RemoveFile] = Nil,
     additionalMetadatas: Seq[Metadata] = Nil,
     lines: Seq[String] = Nil,
-    refreshToken: Option[String] = None)
+    refreshToken: Option[String] = None,
+    respondedFormat: String)
 
 private[sharing] case class Share(name: String)
 
