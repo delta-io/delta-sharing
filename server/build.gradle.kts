@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
 
 plugins {
@@ -109,9 +110,16 @@ sourceSets {
 tasks.check {
     dependsOn(deltaTest)
 }
-
+tasks.register("devCheck") {
+    dependsOn(tasks.spotlessApply)
+    finalizedBy(tasks.check)
+    description = "Useful command when iterating locally to apply spotless formatting then running all the checks"
+}
 tasks.withType<Test> {
     systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
+    testLogging {
+        exceptionFormat = TestExceptionFormat.FULL
+    }
 }
 
 val deltaTestClasses =
@@ -145,6 +153,9 @@ tasks.check {
     finalizedBy(tasks.jacocoTestReport)
 }
 
+tasks.jacocoTestReport {
+    dependsOn(tasks.check) // tests are required to run before generating the report
+}
 
 val classesToExclude = listOf(
     "**" + File.separator + "generated" + File.separator + "**.class",
