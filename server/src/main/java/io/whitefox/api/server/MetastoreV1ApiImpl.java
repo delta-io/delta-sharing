@@ -22,7 +22,7 @@ public class MetastoreV1ApiImpl implements MetastoreV1Api, ApiUtils {
       io.whitefox.api.model.v1.generated.CreateMetastore createMetastore) {
     return wrapExceptions(
         () -> Response.status(Response.Status.CREATED)
-            .entity(Mappers.metastore2api(metastoreService.createStorageManager(
+            .entity(Mappers.metastore2api(metastoreService.createMetastore(
                 Mappers.api2createMetastore(createMetastore, getRequestPrincipal()))))
             .build(),
         exceptionToResponse);

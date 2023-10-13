@@ -19,7 +19,7 @@ public class MetastoreService {
     this.clock = clock;
   }
 
-  public Metastore createStorageManager(CreateMetastore metastore) {
+  public Metastore createMetastore(CreateMetastore metastore) {
     return storageManager.createMetastore(validate(metastore));
   }
 
