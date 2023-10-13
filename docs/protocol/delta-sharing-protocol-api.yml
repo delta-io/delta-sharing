@@ -18,16 +18,12 @@ servers:
     description: Local dev server (APIv1)
   
 tags:
-- name: 'shares'
+- name: 'sharesV1'
   description: Share discovery APIs
-- name: 'schemas'
+- name: 'schemasV1'
   description: Schema discovery APIs
-- name: 'tables'
+- name: 'tablesV1'
   description: Table query and inspection APIs
-- name: 'official'
-  description: APIs which are part of published official document
-- name: 'proposed'
-  description: APIs which are part proposed and may or may not be part of official
 
 paths:
   '/delta-api/v1/shares':
@@ -38,8 +34,7 @@ paths:
         Without any query parameters the request will return the first page
         of "shares" available to the authenticated recipient
       tags:
-        - shares
-        - official
+        - sharesV1
       parameters:
         - in: query
           name: maxResults
@@ -85,8 +80,7 @@ paths:
       operationId: 'GetShare'
       description: 'get the metadata of a share'
       tags:
-        - shares
-        - official
+        - sharesV1
       parameters:
         - in: path
           name: share
@@ -117,8 +111,7 @@ paths:
       operationId: 'ListSchemas'
       description: 'List the schemas in a share'
       tags:
-        - shares
-        - official
+        - sharesV1
       parameters:
         - in: path
           name: share
@@ -169,8 +162,7 @@ paths:
       operationId: 'ListTables'
       description: "List the tables in a given share's schema"
       tags:
-        - schemas
-        - official
+        - schemasV1
       parameters:
         - in: path
           name: share
@@ -228,8 +220,7 @@ paths:
       operationId: 'ListALLTables'
       description: "List the tables under all schemas in a share"
       tags:
-        - shares
-        - official
+        - sharesV1
       parameters:
         - in: path
           name: share
@@ -288,8 +279,7 @@ paths:
         quickly check whether their cache is stale and they should re-fetch the
         data.
       tags:
-        - tables
-        - official
+        - tablesV1
       parameters:
         - in: path
           name: share
@@ -340,8 +330,7 @@ paths:
       operationId: 'GetTableMetadata'
       description: 'Query the metadata and schema of the given table'
       tags:
-        - tables
-        - official
+        - tablesV1
       parameters:
         - in: path
           name: share
@@ -398,8 +387,7 @@ paths:
       operationId: 'QueryTable'
       description: 'Query the table'
       tags:
-        - tables
-        - official
+        - tablesV1
       parameters:
         - in: path
           name: share
@@ -477,8 +465,7 @@ paths:
         _commit_version (type: Long): The table version containing the change.
         _commit_timestamp (type: Long): The unix timestamp associated when the commit of the change was created, in milliseconds.
       tags:
-        - tables
-        - official
+        - tablesV1
       parameters:
         - in: path
           name: share

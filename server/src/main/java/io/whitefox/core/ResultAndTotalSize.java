@@ -1,5 +1,6 @@
 package io.whitefox.core;
 
+import io.whitefox.annotations.SkipCoverageGenerated;
 import java.util.Objects;
 
 public final class ResultAndTotalSize<T> {
@@ -20,6 +21,7 @@ public final class ResultAndTotalSize<T> {
   }
 
   @Override
+  @SkipCoverageGenerated
   public boolean equals(Object obj) {
     if (obj == this) return true;
     if (obj == null || obj.getClass() != this.getClass()) return false;
@@ -28,11 +30,13 @@ public final class ResultAndTotalSize<T> {
   }
 
   @Override
+  @SkipCoverageGenerated
   public int hashCode() {
     return Objects.hash(result, size);
   }
 
   @Override
+  @SkipCoverageGenerated
   public String toString() {
     return "ResultAndTotalSize[" + "result=" + result + ", " + "size=" + size + ']';
   }

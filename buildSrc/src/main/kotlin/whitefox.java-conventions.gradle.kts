@@ -17,24 +17,23 @@ tasks.withType<JavaCompile>().configureEach {
     // example for javac args
     // options.compilerArgs.add("-Xlint:deprecation")
 }
+
 spotless {
     java {
         importOrder()
         removeUnusedImports()
-        cleanthat()
         palantirJavaFormat().style("GOOGLE")
         formatAnnotations()
     }
-}
-
-tasks.jacocoTestReport {
-    dependsOn(tasks.check) // tests are required to run before generating the report
 }
 
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(11)
     }
+}
+jacoco {
+    toolVersion = "0.8.10"
 }
 val gitVersion: groovy.lang.Closure<String> by extra
 group = "io.whitefox"

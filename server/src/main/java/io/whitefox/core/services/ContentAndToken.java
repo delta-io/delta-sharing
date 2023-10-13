@@ -1,5 +1,6 @@
 package io.whitefox.core.services;
 
+import io.whitefox.annotations.SkipCoverageGenerated;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -23,6 +24,7 @@ public class ContentAndToken<A> {
     }
 
     @Override
+    @SkipCoverageGenerated
     public boolean equals(Object obj) {
       if (obj == this) return true;
       if (obj == null || obj.getClass() != this.getClass()) return false;
@@ -31,11 +33,13 @@ public class ContentAndToken<A> {
     }
 
     @Override
+    @SkipCoverageGenerated
     public int hashCode() {
       return Objects.hash(value);
     }
 
     @Override
+    @SkipCoverageGenerated
     public String toString() {
       return "Token[" + "value=" + value + ']';
     }
@@ -66,6 +70,7 @@ public class ContentAndToken<A> {
   }
 
   @Override
+  @SkipCoverageGenerated
   public boolean equals(Object o) {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
@@ -74,6 +79,7 @@ public class ContentAndToken<A> {
   }
 
   @Override
+  @SkipCoverageGenerated
   public int hashCode() {
     return Objects.hash(content, token);
   }

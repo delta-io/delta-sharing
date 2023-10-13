@@ -8,19 +8,19 @@ info:
     name: Agile Lab
     url: https://www.agilelab.it
 servers:
-  - url: 'http://localhost:8000/whitefox-api/v1'
+  - url: 'http://localhost:8083'
 tags:
-  - name: provider
-  - name: table
-  - name: metastore
-  - name: storage
-  - name: share
-  - name: schema
+  - name: providerV1
+  - name: tableV1
+  - name: metastoreV1
+  - name: storageV1
+  - name: shareV1
+  - name: schemaV1
 paths:
-  /providers:
+  /whitefox-api/v1/providers:
     post:
       tags:
-        - provider
+        - providerV1
       operationId: AddProvider
       description: Add a new provider
       requestBody:
@@ -35,13 +35,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Provider"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
         "403":
-          description: Provider already exists
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     get:
       operationId: ListProviders
       description: List all providers
       tags:
-        - provider
+        - providerV1
       responses:
         "200":
           description: OK
@@ -54,12 +64,24 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Provider"
-  /providers/{name}:
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/providers/{name}:
     patch:
       description: Update an existing provider
       operationId: UpdateProvider
       tags:
-        - provider
+        - providerV1
       parameters:
         - name: name
           in: path
@@ -78,13 +100,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Provider"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
         "404":
-          description: "Provider not found"
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     delete:
       operationId: DeleteProvider
       description: Delete a provider
       tags:
-        - provider
+        - providerV1
       parameters:
         - name: name
           in: path
@@ -99,13 +131,23 @@ paths:
       responses:
         "200":
           description: deleted
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
         "404":
-          description: Provider does not exist
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     get:
       operationId: GetProvider
       description: Get a provider related info
       tags:
-        - provider
+        - providerV1
       parameters:
         - name: name
           in: path
@@ -119,14 +161,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Provider"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
         "404":
-          description: Provider does not exist
-  /providers/{providerName}/tables:
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/providers/{providerName}/tables:
     post:
       description: Create a new table for provider
       operationId: CreateTableInProvider
       tags:
-        - table
+        - tableV1
       parameters:
         - name: providerName
           in: path
@@ -145,9 +197,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TableInfo"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     get:
       tags:
-        - table
+        - tableV1
       description: get the list of tables declared by this provider
       operationId: ListTablesInProvider
       parameters:
@@ -165,12 +229,24 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/TableInfo"
-  /providers/{providerName}/tables/{tableName}/validate:
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/providers/{providerName}/tables/{tableName}/validate:
     post:
       description: Validate the table
       operationId: ValidateTable
       tags:
-        - table
+        - tableV1
       parameters:
         - name: providerName
           in: path
@@ -189,12 +265,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ValidationResult"
-  /providers/{providerName}/tables/{tableName}:
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/providers/{providerName}/tables/{tableName}:
     patch:
       operationId: PatchTableInProvider
       description: Update a table in a Provider
       tags:
-        - table
+        - tableV1
       parameters:
         - name: providerName
           in: path
@@ -218,11 +306,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TableInfo"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     delete:
       operationId: DeleteTableInProvider
       description: Delete a table from a provider
       tags:
-        - table
+        - tableV1
       parameters:
         - name: providerName
           in: path
@@ -242,11 +342,23 @@ paths:
       responses:
         "200":
           description: OK
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     get:
       description: get the description of a table in a provider
       operationId: DescribeTableInProvider
       tags:
-        - table
+        - tableV1
       parameters:
         - name: providerName
           in: path
@@ -265,12 +377,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TableInfo"
-  /metastores:
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/metastores:
     post:
       description: Create a new metastore
       operationId: CreateMetastore
       tags:
-        - metastore
+        - metastoreV1
       requestBody:
         content:
           application/json:
@@ -283,13 +407,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Metastore"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
         "403":
-          description: Storage already exists
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     get:
       description: list all metastores
       operationId: ListMetastores
       tags:
-        - metastore
+        - metastoreV1
       responses:
         "200":
           description: OK
@@ -302,12 +436,24 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Metastore"
-  /metastores/{name}:
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/metastores/{name}:
     patch:
       description: update an existing metastore
       operationId: UpdateMetastore
       tags:
-        - metastore
+        - metastoreV1
       parameters:
         - name: name
           in: path
@@ -326,13 +472,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Metastore"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
         "404":
-          description: "Metastore not found"
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     delete:
       operationId: DeleteMetastore
       description: delete a metastore
       tags:
-        - metastore
+        - metastoreV1
       parameters:
         - name: name
           in: path
@@ -347,13 +503,23 @@ paths:
       responses:
         "200":
           description: deleted
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
         "404":
-          description: metastore does not exists
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     get:
       operationId: DescribeMetastore
       description: Get info about a given metastore
       tags:
-        - metastore
+        - metastoreV1
       parameters:
         - name: name
           in: path
@@ -367,14 +533,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Metastore"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
         "404":
-          description: Metastore does not exist
-  /metastores/{name}/validate:
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/metastores/{name}/validate:
     post:
       operationId: ValidateMetastore
       description: Validate a metastore
       tags:
-        - metastore
+        - metastoreV1
       parameters:
         - name: name
           in: path
@@ -388,12 +564,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ValidationResult"
-  /storage:
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/storage:
     post:
       operationId: CreateStorage
       description: Add a new storage
       tags:
-        - storage
+        - storageV1
       requestBody:
         content:
           application/json:
@@ -406,13 +594,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Storage"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
         "403":
-          description: Storage already exists
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     get:
       operationId: ListStorage
       description: List storage
       tags:
-        - storage
+        - storageV1
       responses:
         "200":
           description: OK
@@ -425,13 +623,24 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Storage"
-
-  /storage/{name}:
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/storage/{name}:
     patch:
       operationId: UpdateStorage
       description: Update an existing storage
       tags:
-        - storage
+        - storageV1
       parameters:
         - required: true
           name: name
@@ -450,13 +659,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Storage"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
         "404":
-          description: Storage does not exists
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     delete:
       operationId: DeleteStorage
       description: Delete an existing storage
       tags:
-        - storage
+        - storageV1
       parameters:
         - name: name
           required: true
@@ -471,13 +690,23 @@ paths:
       responses:
         "200":
           description: deleted
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
         "404":
-          description: Storage does not exists
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     get:
       operationId: DescribeStorage
       description: Describe storage
       tags:
-        - storage
+        - storageV1
       parameters:
         - name: name
           required: true
@@ -491,14 +720,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Storage"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
         "404":
-          description: Storage does not exist
-  /storage/{name}/validate:
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/storage/{name}/validate:
     post:
       operationId: ValidateStorage
       description: Validate an existing storage
       tags:
-        - storage
+        - storageV1
       parameters:
         - required: true
           name: name
@@ -512,14 +751,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ValidationResult"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
         "404":
-          description: storage does not exist
-  /shares:
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/shares:
     post:
       operationId: CreateShare
       description: Create a new share
       tags:
-        - share
+        - shareV1
       requestBody:
         content:
           application/json:
@@ -532,12 +781,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ShareInfo"
-  /shares/{share}:
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/shares/{share}:
     delete:
       operationId: DeleteShare
       description: Delete a share
       tags:
-        - share
+        - shareV1
       parameters:
         - in: path
           name: share
@@ -548,11 +809,23 @@ paths:
       responses:
         "200":
           description: share deleted
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     patch:
       operationId: UpdateShare
       description: update an existing share
       tags:
-        - share
+        - shareV1
       parameters:
         - in: path
           name: share
@@ -572,12 +845,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ShareInfo"
-  /shares/{share}/recipients:
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/shares/{share}/recipients:
     put:
       operationId: AddRecipientToShare
       description: add a recipient to share
       tags:
-        - share
+        - shareV1
       parameters:
         - in: path
           name: share
@@ -608,13 +893,25 @@ paths:
                     type: array
                     items:
                       type: string
-  /shares/{share}/{schema}:
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/shares/{share}/{schema}:
     post:
       operationId: CreateSchema
       description: create a schema in a share
       tags:
-        - share
-        - schema
+        - shareV1
+        - schemaV1
       parameters:
         - in: path
           name: share
@@ -635,12 +932,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ShareInfo"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     delete:
       operationId: DeleteSchema
       description: delete a schema from a share
       tags:
-        - share
-        - schema
+        - shareV1
+        - schemaV1
       parameters:
         - in: path
           name: share
@@ -657,16 +966,26 @@ paths:
       responses:
         "204":
           description: schema deleted
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
         "404":
-          description: schema not found
-  /shares/{share}/{schema}/tables:
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/shares/{share}/{schema}/tables:
     post:
       operationId: AddTableToSchema
       description: add a table to a schema
       tags:
-        - share
-        - schema
-        - table
+        - shareV1
+        - schemaV1
+        - tableV1
       parameters:
         - in: path
           name: share
@@ -692,13 +1011,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TableInfo"
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
     get:
       operationId: ListTablesInSchema
       description: list tables within a schema
       tags:
-        - share
-        - schema
-        - table
+        - shareV1
+        - schemaV1
+        - tableV1
       parameters:
         - in: path
           name: share
@@ -721,14 +1052,25 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/TableInfo"
-
-  /shares/{share}/{schema}/tables/{table}:
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
+        "404":
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
+  /whitefox-api/v1/shares/{share}/{schema}/tables/{table}:
     delete:
       operationId: DeleteTableFromSchema
       tags:
-        - share
-        - schema
-        - table
+        - shareV1
+        - schemaV1
+        - tableV1
       description: delete a table from a schema
       parameters:
         - in: path
@@ -752,8 +1094,18 @@ paths:
       responses:
         "204":
           description: table deleted
+        "400":
+          $ref: "#/components/responses/400"
+        "401":
+          $ref: "#/components/responses/401"
+        "403":
+          $ref: "#/components/responses/403"
         "404":
-          description: table not found
+          $ref: "#/components/responses/404"
+        "409":
+          $ref: "#/components/responses/409"
+        "500":
+          $ref: "#/components/responses/500"
 components:
   schemas:
     StorageCredentials:
@@ -820,16 +1172,18 @@ components:
             - iceberg_jdbc
             - iceberg_nessie
         properties:
-          anyOf:
-            - $ref: "#/components/schemas/GlueProperties"
-            - $ref: "#/components/schemas/Hive2Properties"
-            - $ref: "#/components/schemas/Hive3Properties"
-            - $ref: "#/components/schemas/IcebergHadoopProperties"
-            - $ref: "#/components/schemas/IcebergJdbcProperties"
-            - $ref: "#/components/schemas/IcebergNessieProperties"
+          $ref: "#/components/schemas/MetastoreProperties"
         skipValidation:
           type: boolean
-    UpdateMetastore:          
+    MetastoreProperties:
+      anyOf:
+        - $ref: "#/components/schemas/GlueProperties"
+        - $ref: "#/components/schemas/Hive2Properties"
+        - $ref: "#/components/schemas/Hive3Properties"
+        - $ref: "#/components/schemas/IcebergHadoopProperties"
+        - $ref: "#/components/schemas/IcebergJdbcProperties"
+        - $ref: "#/components/schemas/IcebergNessieProperties"
+    UpdateMetastore:
       type: object
       properties:
         name:
@@ -841,23 +1195,17 @@ components:
         type:
           type: string
         properties:
-          anyOf:
-            - $ref: "#/components/schemas/GlueProperties"
-            - $ref: "#/components/schemas/Hive2Properties"
-            - $ref: "#/components/schemas/Hive3Properties"
-            - $ref: "#/components/schemas/IcebergHadoopProperties"
-            - $ref: "#/components/schemas/IcebergJdbcProperties"
-            - $ref: "#/components/schemas/IcebergNessieProperties"
+          $ref: "#/components/schemas/MetastoreProperties"
         skipValidation:
           type: boolean
         force:
           type: boolean
     Hive2Properties:
       type: object
-      properties: {}
+      properties: { }
     Hive3Properties:
       type: object
-      properties: {}
+      properties: { }
     GlueProperties:
       type: object
       properties:
@@ -867,13 +1215,13 @@ components:
           $ref: "#/components/schemas/SimpleAwsCredentials"
     IcebergHadoopProperties:
       type: object
-      properties: {}
+      properties: { }
     IcebergJdbcProperties:
       type: object
-      properties: {}
+      properties: { }
     IcebergNessieProperties:
       type: object
-      properties: {}
+      properties: { }
     Metastore:
       type: object
       properties:
@@ -886,13 +1234,7 @@ components:
         type:
           type: string
         properties:
-          anyOf:
-            - $ref: "#/components/schemas/GlueProperties"
-            - $ref: "#/components/schemas/Hive2Properties"
-            - $ref: "#/components/schemas/Hive3Properties"
-            - $ref: "#/components/schemas/IcebergHadoopProperties"
-            - $ref: "#/components/schemas/IcebergJdbcProperties"
-            - $ref: "#/components/schemas/IcebergNessieProperties"
+          $ref: "#/components/schemas/MetastoreProperties"
         validatedAt:
           type: integer
           format: int64
@@ -1076,7 +1418,7 @@ components:
     ProviderInput:
       type: object
       properties:
-        name: 
+        name:
           type: string
         storageName:
           type: string
@@ -1092,3 +1434,47 @@ components:
             - failure
         message:
           type: string
+    CommonErrorResponse:
+      type: object
+      properties:
+        errorCode:
+          type: string
+        message:
+          type: string
+  responses:
+    "400":
+      description: The request is malformed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonErrorResponse'
+    "401":
+      description: The request is unauthenticated. The bearer token is missing or incorrect
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonErrorResponse'
+    "403":
+      description: The request is forbidden from being fulfilled
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonErrorResponse'
+    "404":
+      description: The specified resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonErrorResponse'
+    "409":
+      description: The specified resource cannot be created because it already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonErrorResponse'
+    "500":
+      description: The request is not handled correctly due to a server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonErrorResponse'

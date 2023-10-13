@@ -1,13 +1,13 @@
 package io.whitefox.persistence.memory;
 
+import io.whitefox.annotations.SkipCoverageGenerated;
 import io.whitefox.api.deltasharing.encoders.InvalidPageTokenException;
-import io.whitefox.core.ResultAndTotalSize;
-import io.whitefox.core.Schema;
-import io.whitefox.core.Share;
-import io.whitefox.core.Table;
+import io.whitefox.core.*;
+import io.whitefox.persistence.DuplicateKeyException;
 import io.whitefox.persistence.StorageManager;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -19,15 +19,28 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class InMemoryStorageManager implements StorageManager {
   private final ConcurrentMap<String, Share> shares;
+  private final ConcurrentMap<String, Metastore> metastores;
 
   @Inject
   public InMemoryStorageManager() {
     this.shares = new ConcurrentHashMap<>();
+    this.metastores = new ConcurrentHashMap<>();
+  }
+
+  public InMemoryStorageManager(List<Share> shares, List<Metastore> metastores) {
+    this.shares = new ConcurrentHashMap<>(
+        shares.stream().collect(Collectors.toMap(Share::name, Function.identity())));
+    this.metastores = new ConcurrentHashMap<>(
+        metastores.stream().collect(Collectors.toMap(Metastore::name, Function.identity())));
+  }
+
+  public void clear() {
+    metastores.clear();
+    shares.clear();
   }
 
   public InMemoryStorageManager(List<Share> shares) {
-    this.shares = new ConcurrentHashMap<>(
-        shares.stream().collect(Collectors.toMap(Share::name, Function.identity())));
+    this(shares, Collections.emptyList());
   }
 
   @Override
@@ -95,11 +108,11 @@ public class InMemoryStorageManager implements StorageManager {
         });
   }
 
-  private class TableAndSchema {
+  private static final class TableAndSchema {
     private final Table table;
     private final Schema schema;
 
-    public TableAndSchema(Table table, Schema schema) {
+    private TableAndSchema(Table table, Schema schema) {
       this.table = table;
       this.schema = schema;
     }
@@ -113,21 +126,24 @@ public class InMemoryStorageManager implements StorageManager {
     }
 
     @Override
-    public boolean equals(Object o) {
-      if (this == o) return true;
-      if (o == null || getClass() != o.getClass()) return false;
-      TableAndSchema that = (TableAndSchema) o;
-      return Objects.equals(table, that.table) && Objects.equals(schema, that.schema);
+    @SkipCoverageGenerated
+    public boolean equals(Object obj) {
+      if (obj == this) return true;
+      if (obj == null || obj.getClass() != this.getClass()) return false;
+      var that = (TableAndSchema) obj;
+      return Objects.equals(this.table, that.table) && Objects.equals(this.schema, that.schema);
     }
 
     @Override
+    @SkipCoverageGenerated
     public int hashCode() {
       return Objects.hash(table, schema);
     }
 
     @Override
+    @SkipCoverageGenerated
     public String toString() {
-      return "TableAndSchema{" + "table=" + table + ", schema=" + schema + '}';
+      return "TableAndSchema[" + "table=" + table + ", " + "schema=" + schema + ']';
     }
   }
 
@@ -154,5 +170,21 @@ public class InMemoryStorageManager implements StorageManager {
             totalSize));
       }
     });
+  }
+
+  @Override
+  public Metastore createMetastore(Metastore metastore) {
+    if (metastores.get(metastore.name()) != null) {
+      throw new DuplicateKeyException(
+          "Metastore with name " + metastore.name() + " already exists");
+    } else {
+      metastores.put(metastore.name(), metastore);
+      return metastore;
+    }
+  }
+
+  @Override
+  public Optional<Metastore> getMetastore(String name) {
+    return Optional.ofNullable(metastores.get(name));
   }
 }

@@ -2,20 +2,21 @@ package io.whitefox.api.deltasharing.server;
 
 import static io.whitefox.api.deltasharing.Mappers.mapList;
 
-import io.quarkus.runtime.util.ExceptionUtil;
 import io.whitefox.api.deltasharing.Mappers;
 import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
-import io.whitefox.api.deltasharing.model.generated.*;
-import io.whitefox.api.deltasharing.server.generated.DeltaApiApi;
+import io.whitefox.api.deltasharing.model.v1.generated.ListSchemasResponse;
+import io.whitefox.api.deltasharing.model.v1.generated.ListShareResponse;
+import io.whitefox.api.deltasharing.model.v1.generated.ListTablesResponse;
+import io.whitefox.api.deltasharing.model.v1.generated.QueryRequest;
+import io.whitefox.api.deltasharing.server.v1.generated.DeltaApiApi;
+import io.whitefox.api.server.ApiUtils;
 import io.whitefox.core.services.ContentAndToken;
 import io.whitefox.core.services.DeltaSharesService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
 import java.util.Optional;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
-public class DeltaSharesApiImpl implements DeltaApiApi {
+public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
   private final DeltaSharesService deltaSharesService;
   private final DeltaPageTokenEncoder tokenEncoder;
 
@@ -137,30 +138,6 @@ public class DeltaSharesApiImpl implements DeltaApiApi {
   }
 
   private static final String DELTA_TABLE_VERSION_HEADER = "Delta-Table-Version";
-  private static final Function<Throwable, Response> exceptionToResponse =
-      t -> Response.status(Response.Status.BAD_GATEWAY)
-          .entity(new CommonErrorResponse()
-              .errorCode("BAD GATEWAY")
-              .message(ExceptionUtil.generateStackTrace(t)))
-          .build();
-
-  private Response wrapExceptions(Supplier<Response> f, Function<Throwable, Response> mapper) {
-    try {
-      return f.get();
-    } catch (Throwable t) {
-      return mapper.apply(t);
-    }
-  }
-
-  private Response notFoundResponse() {
-    return Response.status(Response.Status.NOT_FOUND)
-        .entity(new CommonErrorResponse().errorCode("1").message("NOT FOUND"))
-        .build();
-  }
-
-  private <T> Response optionalToNotFound(Optional<T> opt, Function<T, Response> fn) {
-    return opt.map(fn).orElse(notFoundResponse());
-  }
 
   private Optional<ContentAndToken.Token> parseToken(String t) {
     return Optional.ofNullable(t).map(tokenEncoder::decodePageToken);

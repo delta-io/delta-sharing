@@ -3,7 +3,6 @@ package io.whitefox.services;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
 import io.whitefox.core.Table;
@@ -21,7 +20,6 @@ import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 
 public class DeltaShareServiceTest {
-  DeltaPageTokenEncoder encoder = new DeltaPageTokenEncoder();
   DeltaShareTableLoader loader = new DeltaShareTableLoader();
   Integer defaultMaxResults = 10;
 
@@ -143,11 +141,11 @@ public class DeltaShareServiceTest {
     assertTrue(resultSchemas.isPresent());
     assertTrue(resultSchemas.get().getToken().isEmpty());
     Matchers.containsInAnyOrder(List.of(
-            new io.whitefox.api.deltasharing.model.generated.Table()
+            new io.whitefox.api.deltasharing.model.v1.generated.Table()
                 .name("table2")
                 .schema("other")
                 .share("name"),
-            new io.whitefox.api.deltasharing.model.generated.Table()
+            new io.whitefox.api.deltasharing.model.v1.generated.Table()
                 .name("table1")
                 .schema("default")
                 .share("name")))

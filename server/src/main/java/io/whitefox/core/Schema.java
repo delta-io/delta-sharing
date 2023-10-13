@@ -1,5 +1,6 @@
 package io.whitefox.core;
 
+import io.whitefox.annotations.SkipCoverageGenerated;
 import java.util.List;
 import java.util.Objects;
 
@@ -27,6 +28,7 @@ public final class Schema {
   }
 
   @Override
+  @SkipCoverageGenerated
   public boolean equals(Object obj) {
     if (obj == this) return true;
     if (obj == null || obj.getClass() != this.getClass()) return false;
@@ -37,11 +39,13 @@ public final class Schema {
   }
 
   @Override
+  @SkipCoverageGenerated
   public int hashCode() {
     return Objects.hash(name, tables, share);
   }
 
   @Override
+  @SkipCoverageGenerated
   public String toString() {
     return "Schema[" + "name=" + name + ", " + "tables=" + tables + ", " + "share=" + share + ']';
   }

@@ -1,9 +1,6 @@
 package io.whitefox.persistence;
 
-import io.whitefox.core.ResultAndTotalSize;
-import io.whitefox.core.Schema;
-import io.whitefox.core.Share;
-import io.whitefox.core.Table;
+import io.whitefox.core.*;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,4 +19,8 @@ public interface StorageManager {
 
   Optional<ResultAndTotalSize<List<Table>>> listTablesOfShare(
       String share, int offset, int finalMaxResults);
+
+  Metastore createMetastore(Metastore metastore);
+
+  Optional<Metastore> getMetastore(String name);
 }
