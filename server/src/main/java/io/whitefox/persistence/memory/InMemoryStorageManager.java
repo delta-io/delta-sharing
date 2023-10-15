@@ -3,6 +3,7 @@ package io.whitefox.persistence.memory;
 import io.whitefox.annotations.SkipCoverageGenerated;
 import io.whitefox.api.deltasharing.encoders.InvalidPageTokenException;
 import io.whitefox.core.*;
+import io.whitefox.core.storage.Storage;
 import io.whitefox.persistence.DuplicateKeyException;
 import io.whitefox.persistence.StorageManager;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -21,17 +22,24 @@ public class InMemoryStorageManager implements StorageManager {
   private final ConcurrentMap<String, Share> shares;
   private final ConcurrentMap<String, Metastore> metastores;
 
+  private final ConcurrentMap<String, Storage> storages;
+
   @Inject
   public InMemoryStorageManager() {
+    this.storages = new ConcurrentHashMap<>();
     this.shares = new ConcurrentHashMap<>();
     this.metastores = new ConcurrentHashMap<>();
   }
 
-  public InMemoryStorageManager(List<Share> shares, List<Metastore> metastores) {
+  public InMemoryStorageManager(
+      List<Share> shares, List<Metastore> metastores, List<Storage> storages) {
     this.shares = new ConcurrentHashMap<>(
         shares.stream().collect(Collectors.toMap(Share::name, Function.identity())));
     this.metastores = new ConcurrentHashMap<>(
         metastores.stream().collect(Collectors.toMap(Metastore::name, Function.identity())));
+    this.storages = new ConcurrentHashMap<>(
+        storages.stream().collect(Collectors.toMap(Storage::name, Function.identity())));
+    ;
   }
 
   public void clear() {
@@ -40,7 +48,7 @@ public class InMemoryStorageManager implements StorageManager {
   }
 
   public InMemoryStorageManager(List<Share> shares) {
-    this(shares, Collections.emptyList());
+    this(shares, Collections.emptyList(), Collections.emptyList());
   }
 
   @Override
@@ -186,5 +194,18 @@ public class InMemoryStorageManager implements StorageManager {
   @Override
   public Optional<Metastore> getMetastore(String name) {
     return Optional.ofNullable(metastores.get(name));
+  }
+
+  public Storage createStorage(Storage storage) {
+    if (storages.get(storage.name()) != null) {
+      throw new DuplicateKeyException("Metastore with name " + storage.name() + " already exists");
+    } else {
+      storages.put(storage.name(), storage);
+      return storage;
+    }
+  }
+
+  public Optional<Storage> getStorage(String name) {
+    return Optional.ofNullable(storages.get(name));
   }
 }

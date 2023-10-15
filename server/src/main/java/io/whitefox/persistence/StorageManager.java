@@ -1,6 +1,7 @@
 package io.whitefox.persistence;
 
 import io.whitefox.core.*;
+import io.whitefox.core.storage.Storage;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,4 +24,8 @@ public interface StorageManager {
   Metastore createMetastore(Metastore metastore);
 
   Optional<Metastore> getMetastore(String name);
+
+  public Storage createStorage(Storage storage);
+
+  public Optional<Storage> getStorage(String name);
 }

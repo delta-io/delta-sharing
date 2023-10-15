@@ -576,7 +576,7 @@ paths:
           $ref: "#/components/responses/409"
         "500":
           $ref: "#/components/responses/500"
-  /whitefox-api/v1/storage:
+  /whitefox-api/v1/storages:
     post:
       operationId: CreateStorage
       description: Add a new storage
@@ -635,7 +635,7 @@ paths:
           $ref: "#/components/responses/409"
         "500":
           $ref: "#/components/responses/500"
-  /whitefox-api/v1/storage/{name}:
+  /whitefox-api/v1/storages/{name}:
     patch:
       operationId: UpdateStorage
       description: Update an existing storage
@@ -732,7 +732,7 @@ paths:
           $ref: "#/components/responses/409"
         "500":
           $ref: "#/components/responses/500"
-  /whitefox-api/v1/storage/{name}/validate:
+  /whitefox-api/v1/storages/{name}/validate:
     post:
       operationId: ValidateStorage
       description: Validate an existing storage
@@ -1109,7 +1109,7 @@ paths:
 components:
   schemas:
     StorageCredentials:
-      oneOf:
+      anyOf:
         - $ref: "#/components/schemas/SimpleAwsCredentials"
         - $ref: "#/components/schemas/SimpleAzureCredentials"
     UpdateStorage:
