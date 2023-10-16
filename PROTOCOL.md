@@ -16,7 +16,8 @@
     - [Read Data from a Table](#read-data-from-a-table)
       - [Request Body](#request-body)
     - [Read Change Data Feed from a Table](#read-change-data-feed-from-a-table)
-  - [API Response Format](#api-response-format)
+  - [Delta Sharing Capabilities Header](#delta-sharing-capabilities-header)
+  - [API Response Format in Parquet](#api-response-format-in-parquet)
     - [JSON Wrapper Object In Each Line](#json-wrapper-object-in-each-line)
     - [Protocol](#protocol)
     - [Metadata](#metadata)
@@ -32,8 +33,14 @@
       - [Example](#example)
     - [Partition Value Serialization](#partition-value-serialization)
     - [Per-file Statistics](#per-file-statistics)
+  - [API Response Format in Delta](#api-response-format-in-delta)
+    - [JSON Wrapper Object In Each Line In Delta](#json-wrapper-object-in-each-line-in-delta)
+    - [Protocol in Delta Format](#protocol-in-delta-format)
+    - [Metadata in Delta Format](#metadata-in-delta-format)
+    - [File in Delta Format](#file-in-delta-format)
   - [SQL Expressions for Filtering](#sql-expressions-for-filtering)
   - [JSON predicates for Filtering](#json-predicates-for-filtering)
+  - [Delta Sharing Streaming Specs](#delta-sharing-streaming-specs)
 - [Profile File Format](#profile-file-format)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -1421,12 +1428,50 @@ delta-table-version: 123
 
 This is the API for clients to query the table schema and other metadata.
 
-HTTP Request | Value
--|-
-Method | `GET`
-Header | `Authorization: Bearer {token}`
-URL | `{prefix}/shares/{share}/schemas/{schema}/tables/{table}/metadata`
-URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br>**{schema}**: The schema name to query. It's case-insensitive.<br>**{table}**: The table name to query. It's case-insensitive.
+<table>
+<tr>
+<th>HTTP Request</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Method</td>
+<td>
+
+`GET`
+
+</td>
+</tr>
+<tr>
+<td>Headers</td>
+<td>
+
+`Authorization: Bearer {token}`
+
+Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`, see 
+[Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details. 
+
+</td>
+</tr>
+<tr>
+<td>URL</td>
+<td>
+
+`{prefix}/shares/{share}/schemas/{schema}/tables/{table}/metadata`
+
+</td>
+</tr>
+<tr>
+<td>URL Parameters</td>
+<td>
+
+**{share}**: The share name to query. It's case-insensitive.
+
+**{schema}**: The schema name to query. It's case-insensitive.
+
+**{table}**: The table name to query. It's case-insensitive.
+</td>
+</tr>
+</table>
 
 <details open>
 <summary><b>200: The table metadata was successfully returned.</b></summary>
@@ -1452,11 +1497,18 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br
 <td>Body</td>
 <td>
 
-A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format](#api-response-format).
+A sequence of JSON strings delimited by newline.
+
+When `responseformat=parquet`, each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
 
 The response contains two lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
+
+When `responseformat=delta`, each line is a Json object defined in [API Response Format in Delta](#api-response-format-in-delta).
+The response contains two lines:
+- The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Protocol](#protocol-in-delta-format) object.
+- The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
 
 </td>
 </tr>
@@ -1617,7 +1669,7 @@ The response contains two lines:
 </table>
 </details>
 
-Example (See [API Response Format](#api-response-format) for more details about the format):
+Example (See [API Response Format in Parquet](#api-response-format-in-parquet) for more details about the format):
 
 `GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/metadata`
 
@@ -1671,6 +1723,9 @@ This is the API for clients to read data from a table.
 `Authorization: Bearer {token}`
 
 Optional: `Content-Type: application/json; charset=utf-8`
+
+Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`, see
+[Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details.
 
 </td>
 </tr>
@@ -1742,7 +1797,7 @@ returned in the response.
 <td>Body</td>
 <td>
 
-A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format](#api-response-format).
+When `responseformat=parquet`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
 
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
@@ -1751,6 +1806,18 @@ The response contains multiple lines:
   - The lines are [data change files](#data-change-files) with possible historical [Metadata](#metadata) (when startingVersion is set).
   - The lines are [files](#file) in the table (otherwise).
   - The ordering of the lines doesn't matter.
+
+When `responseformat=delta`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Delta](#api-response-format-in-delta).
+
+The response contains multiple lines:
+- The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Protocol](#protocol-in-delta-format) object.
+- The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
+- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line-in-delta) for [Metadata](#metadata-in-delta-format), or [files](#file-in-delta-format).
+  - The lines are [files](#file-in-delta-format) which wraps the delta single action  in the table (otherwise), with possible historical [Metadata](#metadata-in-delta-format) (when startingVersion is set).
+  - The ordering of the lines doesn't matter.
+
+The delta actions are wrapped because they will be used to construct a local delta log on the recipient
+side and then leverage the delta library to read data. 
 
 </td>
 </tr>
@@ -1944,7 +2011,7 @@ The request body should be a JSON string containing the following optional field
 
 When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
-Example (See [API Response Format](#api-response-format) for more details about the format):
+Example (See [API Response Format in Parquet](#api-response-format-in-parquet) for more details about the format):
 
 `POST {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/query`
 
@@ -2038,6 +2105,9 @@ The change data feed represents row-level changes between versions of a Delta ta
 
 `Authorization: Bearer {token}`
 
+Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`, see
+[Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details.
+
 </td>
 </tr>
 <tr>
@@ -2093,12 +2163,19 @@ The change data feed represents row-level changes between versions of a Delta ta
 <td>Body</td>
 <td>
 
-A sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format](#api-response-format).
+When `responseformat=parquet`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
 
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
 - The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [Data Change Files](#data-change-files) of the change data feed.
+  - Historical [Metadata](#metadata) will be returned if includeHistoricalMetadata is set to true.
+  - The ordering of the lines doesn't matter.
+
+When `responseformat=delta`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-delta).
+- The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Protocol](#protocol-in-delta-format) object.
+- The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
+- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [Files](#file-in-delta-format) of the change data feed.
   - Historical [Metadata](#metadata) will be returned if includeHistoricalMetadata is set to true.
   - The ordering of the lines doesn't matter.
 
@@ -2261,7 +2338,7 @@ The response contains multiple lines:
 </table>
 </details>
 
-Example (See [API Response Format](#api-response-format) for more details about the format):
+Example (See [API Response Format in Parquet](#api-response-format-in-parquet) for more details about the format):
 
 `GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/changes?startingVersion=0&endingVersion=2`
 
@@ -2334,9 +2411,67 @@ content-type: application/x-ndjson; charset=utf-8
 ### Timestamp Format
 Accepted timestamp format by a delta sharing server: in the ISO8601 format, in the UTC timezone, such as `2022-01-01T00:00:00Z`.   
 
-## API Response Format
+## Delta Sharing Capabilities Header
+This section explains the details of delta sharing capabilities header, which was introduced to help 
+delta sharing catch up with features in [delta protocol](https://github.com/delta-io/delta/blob/master/PROTOCOL.md).
 
-This section discusses the API Response Format returned by the server.
+The key of the header is **delta-sharing-capabilities**, the value is semicolon separated capabilities. 
+Each capability is in the format of "key=value1,value2", values are separated by commas.
+Example: "responseformat=delta;readerfeatures=deletionvectors,columnmapping". All keys and values should
+be case-insensitive when processed by the server.
+
+This header can be used in the request for [Query Table Metadata](#query-table-metadata), 
+[Query Table](#read-data-from-a-table), and [Query Table Changes](#read-change-data-feed-from-a-table).
+
+**Compatibility**
+
+<table>
+<tr>
+<th>Client/Server</th>
+<th>Server that doesn't recognize the header</th>
+<th>Server that recognizes the header</th>
+</tr>
+<tr>
+<th>Client that doesn't specify the header</th>
+<td>Response is in parquet format</td>
+<td>Response must be in parquet format.</td>
+</tr>
+<tr>
+<th>Client that specifies the header</th>
+<td>The header is ignored at the server, and the format of the response must always be parquet.
+</td>
+<td>The header is processed properly by the server.
+
+The server may choose to respond in parquet format if the table does not have any advanced features.
+
+The server must respond in delta format if the table has advanced features which are not compatible with the parquet format.</td>
+</tr>
+</table>
+
+- If the client requests `delta` format and the response is in `parquet` format, the delta sharing
+client will NOT throw an error. Ideally, the caller of the client's method should handle such 
+responses to be compatible with legacy servers.
+- If the client doesn't specify any header, or requests `parquet` format and the response is in 
+`delta` format, the delta sharing client must throw an error.
+
+### responseFormat
+Indicates the format to expect in the [API Response Format in Parquet](#api-response-format-in-parquet), two values are supported.
+
+- parquet: Represents the format of the delta sharing protocol that has been used in `delta-sharing-spark` 1.0 
+and less, also the default format if `responseFormat` is missing from the header. All the existing delta
+sharing connectors are able to process data in this format. 
+- **delta**: format can be used to read a shared delta table with minReaderVersion > 1, which contains 
+readerFeatures such as Deletion Vector or Column Mapping. `delta-sharing-spark` libraries 
+that are able to process `responseformat=delta` will be released soon.
+
+### readerFeatures
+readerfeatures is only useful when `responseformat=delta`, it includes values from [delta reader
+features](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#table-features). It's set by the
+caller of `DeltaSharingClient` to indicate its ability to process delta readerFeatures.
+
+## API Response Format in Parquet
+
+This section discusses the API Response Format in Parquet returned by the server.
 
 ### JSON Wrapper Object In Each Line
 
@@ -2344,7 +2479,7 @@ The JSON object in each line is a wrapper object that may contain the following 
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
-protocol | The [Protocol](#protocol) JSON object. | Defines the versioning information about the API Response Format. | Optional
+protocol | The [Protocol](#protocol) JSON object. | Defines the versioning information about the API Response Format in Parquet. | Optional
 metaData | The [Metadata](#metadata) JSON object. | The table metadata including schema, partitionColumns, etc. | Optional
 file | The [File](#file) JSON object. | An individual data file in the table. | Optional
 
@@ -2807,6 +2942,118 @@ nullCount | The number of `null` values for this column
 minValues | A value smaller than all values present in the file for this column
 maxValues | A value larger than all values present in the file for this column
 
+## API Response Format in Delta
+This section discusses the API Response Format in Delta returned by the server. When a table is shared
+as delta format, the actions in the response could be put in a delta log in the local storage on the
+recipient side for the delta library to read data out of it directly. This way of sharing makes the
+delta sharing protocol more transparent and robust in supporting advanced delta feature, and minimizes code duplication.
+
+### JSON Wrapper Object In Each Line in Delta
+
+The JSON object in each line is a wrapper object that may contain the following fields. For each
+field, it is a wrapper of a [delta action](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#actions)(which keeps the action in its delta format and with original
+values), and with some additional fields for delta sharing functionalities.
+
+Field Name | Data Type | Description | Optional/Required
+-|-|-|-
+protocol | The [Protocol in Delta Format](#protocol-in-delta-format) JSON object. | A wrapper of delta protocol. | Optional
+metaData | The [Metadata in Delta Format](#metadata-in-delta-format) JSON object. | A wrapper of delta metadata, including some delta sharing specific fields. | Optional
+file | The [File in Delta Format](#file-in-delta-format) JSON object. | A wrapper of a delta single action in the table. | Optional
+
+It must contain only **ONE** of the above fields.
+
+### Protocol in Delta Format
+
+A wrapper of a [delta protocol](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#protocol-evolution).
+
+Field Name | Data Type | Description | Optional/Required
+-|-|-|-
+deltaProtocol | Delta Protocol | Need to be parsed by a delta library as a delta protocol. | Required
+
+Example (for illustration purposes; each JSON object must be a single line in the response):
+
+```json
+{
+  "protocol": {
+    "deltaProtocol": {
+      "minReaderVersion": 3,
+      "minWriterVersion": 7
+    }
+  }
+}
+```
+
+### Metadata in Delta Format
+
+A wrapper of a [delta Metadata](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#change-metadata).
+
+Field Name | Data Type | Description | Optional/Required
+-|-|-|-
+deltaMetadata | Delta Metadata | Need to be parsed by a delta library as delta metadata | Required
+version | Long | The table version the metadata corresponds to, returned when querying table data with a version or timestamp parameter, or cdf query with includeHistoricalMetadata set to true. | Optional
+size | Long | The size of the table in bytes, will be returned if available in the delta log. | Optional
+numFiles | Long | The number of files in the table, will be returned if available in the delta log. | Optional
+
+Example (for illustration purposes; each JSON object must be a single line in the response):
+
+```json
+{
+  "metaData": {
+    "version": 20,
+    "size": 123456,
+    "numFiles": 5,
+    "deltaMetadata": {
+      "partitionColumns": [
+        "date"
+      ],
+      "format": {
+        "provider": "parquet"
+      },
+      "schemaString": "{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}",
+      "id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+      "configuration": {
+        "enableChangeDataFeed": "true"
+      }
+    }
+  }
+}
+```
+
+### File in Delta Format
+
+A wrapper of a delta file action, which can be [Add File and Remove File](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#add-file-and-remove-file),
+or [Add CDC File](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#add-cdc-file)
+
+Field Name | Data Type | Description | Optional/Required
+-|-|-|-
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
+deletionVectorFileId | String | A unique string for the deletion vector file in a table. The same deletion vector file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Optional
+version | Long | The table version of the file, returned when querying a table data with a version or timestamp parameter. | Optional
+timestamp | Long | The unix timestamp corresponding to the table version of the file, in milliseconds, returned when querying a table data with a version or timestamp parameter. | Optional
+expirationTimestamp | Long | The unix timestamp corresponding to the expiration of the url, in milliseconds, returned when the server supports the feature. | Optional
+deltaSingleAction | Delta SingleAction | Need to be parsed by a delta library as a delta single action, the path field is replaced by pr-signed url. | Required 
+
+Example (for illustration purposes; each JSON object must be a single line in the response):
+
+```json
+{
+  "file": {
+    "id": "591723a8-6a27-4240-a90e-57426f4736d2",
+    "size": 573,
+    "expirationTimestamp": 1652140800000,
+    "deltaSingleAction": {
+      "add": {
+        "path": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?...",
+        "partitionValues": {
+          "date": "2021-04-28"
+        },
+        "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}"
+      }
+    }
+  }
+}
+```
+
 ## SQL Expressions for Filtering
 
 The client may send a sequence of predicates to the server as a hint to request fewer files when it only wishes to query a subset of the data (e.g., data where the `country` field is `US`). The server may try its best to filter files based on the predicates. This is **BEST EFFORT**, so the server may return files that don’t satisfy the predicates. For example, if the server fails to parse a SQL expression, the server can skip it. Hence, the client should always apply predicates to filter the data returned by the server.
@@ -2928,6 +3175,24 @@ Examples
 }
 ```
 
+## Delta Sharing Streaming Specs
+Delta Sharing Streaming is supported starting from delta-sharing-spark 0.6.0. As it's implemented
+based on spark structured streaming, it leverages a pull model to consume the new data of the shared
+table from the delta sharing server. In addition to most options supported in delta streaming,
+there are two options/spark configs for delta sharing streaming.
+
+- spark config **spark.delta.sharing.streaming.queryTableVersionIntervalSeconds**: DeltaSharingSource
+leverages [getTableVersion](#query-table-version) rpc to check whether there is new data available
+to consume. In order to reduce the traffic burden to the delta sharing server, there's a minimum 30
+seconds interval between two getTableVersion rpcs to the delta sharing server. Though, if you are ok
+with less freshness on the data and want to reduce the traffic to the server, you can set this 
+config to a larger number, for example: 60s or 120s. An error will be thrown if it's set less than 30 seconds.
+- option **maxVersionsPerRpc**: DeltaSharingSource leverages [QueryTable](#read-data-from-a-table)
+rpc to continuously read new data from the delta sharing server. There might be too much
+new data to be returned from the server if the streaming has paused for a while on the recipient
+side. Its default value is 100, a smaller number is recommended such as `.option("maxVersionsPerRpc", 10)` 
+to reduce the traffic load for each rpc. This shouldn't affect the freshness of the data significantly
+assuming the process time of the delta sharing server grows linearly with `maxVersionsPerRpc`.
 
 # Profile File Format
 
