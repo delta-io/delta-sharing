@@ -2442,7 +2442,7 @@ This header can be used in the request for [Query Table Metadata](#query-table-m
 </td>
 <td>The header is processed properly by the server.
 
-The server may choose to respond in parquet format if the table is does not have any advanced features.
+The server may choose to respond in parquet format if the table does not have any advanced features.
 
 The server must respond in delta format if the table has advanced features which are not compatible with the parquet format.</td>
 </tr>
@@ -2452,7 +2452,7 @@ The server must respond in delta format if the table has advanced features which
 client will NOT throw an error. Ideally, the caller of the client's method should handle such 
 responses to be compatible with legacy servers.
 - If the client doesn't specify any header, or requests `parquet` format and the response is in 
-`delta` format, the delta sharing client should throw an error.
+`delta` format, the delta sharing client must throw an error.
 
 ### responseFormat
 Indicates the format to expect in the [API Response Format in Parquet](#api-response-format-in-parquet), two values are supported.
