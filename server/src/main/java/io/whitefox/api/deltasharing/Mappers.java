@@ -1,8 +1,14 @@
 package io.whitefox.api.deltasharing;
 
+import io.whitefox.api.deltasharing.model.DeltaTableMetadata;
+import io.whitefox.api.deltasharing.model.v1.generated.*;
+import io.whitefox.api.deltasharing.server.restdto.TableResponseMetadata;
 import io.whitefox.core.*;
-import java.util.List;
-import java.util.Optional;
+import io.whitefox.core.Schema;
+import io.whitefox.core.Share;
+import io.whitefox.core.Table;
+import java.math.BigDecimal;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -105,6 +111,39 @@ public class Mappers {
       default:
         throw new IllegalArgumentException("Unknown metastore type " + type.value());
     }
+  }
+
+  public static TableResponseMetadata toTableResponseMetadata(
+      DeltaTableMetadata deltaTableMetadata) {
+    return new TableResponseMetadata(
+        new ProtocolResponse()
+            .protocol(new ProtocolResponseProtocol().minReaderVersion(new BigDecimal(1))),
+        new MetadataResponse()
+            .metadata(new MetadataResponseMetadata()
+                .id(deltaTableMetadata.getMetadata().getId())
+                .format(new MetadataResponseMetadataFormat()
+                    .provider(deltaTableMetadata.getMetadata().getFormat().getProvider()))
+                .schemaString(deltaTableMetadata.getMetadata().getSchema().toJson())
+                .partitionColumns(deltaTableMetadata.getMetadata().getPartitionColumns())));
+  }
+
+  /**
+   * NOTE: this is ann undocumented feature of the reference impl of delta-sharing, it's not part of the
+   * protocol
+   * ----
+   * Return the [[io.whitefox.api.server.DeltaHeaders.DELTA_SHARE_CAPABILITIES_HEADER]] header
+   * that will be set in the response w/r/t the one received in the request.
+   * If the request did not contain any, we will return an empty one.
+   */
+  public static Map<String, String> toHeaderCapabilitiesMap(String headerCapabilities) {
+    if (headerCapabilities == null) {
+      return Map.of();
+    }
+    return Arrays.stream(headerCapabilities.toLowerCase().split(";"))
+        .map(h -> h.split("="))
+        .filter(h -> h.length == 2)
+        .map(splits -> Map.entry(splits[0], splits[1]))
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
   public static <A, B> List<B> mapList(List<A> list, Function<A, B> f) {

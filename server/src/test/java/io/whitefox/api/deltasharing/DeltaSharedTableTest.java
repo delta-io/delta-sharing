@@ -1,13 +1,12 @@
 package io.whitefox.api.deltasharing;
 
+import static io.whitefox.api.server.DeltaUtils.tablePath;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.wildfly.common.Assert.assertTrue;
 
 import io.whitefox.core.Table;
 import io.whitefox.core.services.DeltaSharedTable;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.format.DateTimeParseException;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -18,21 +17,27 @@ import org.junit.jupiter.api.condition.OS;
 @DisabledOnOs(OS.WINDOWS)
 public class DeltaSharedTableTest {
 
-  private static final Path deltaTablesRoot = Paths.get(".")
-      .toAbsolutePath()
-      .resolve("src/test/resources/delta/samples")
-      .toAbsolutePath();
-
-  private static String tablePath(String tableName) {
-    return deltaTablesRoot.resolve(tableName).toUri().toString();
-  }
-
   @Test
   void getTableVersion() throws ExecutionException, InterruptedException {
     var PTable = new Table("delta-table", tablePath("delta-table"), "default", "share1");
     var DTable = DeltaSharedTable.of(PTable);
     var version = DTable.getTableVersion(Optional.empty());
     assertEquals(Optional.of(0L), version);
+  }
+
+  @Test
+  void getTableMetadata() {
+    var PTable = new Table("delta-table", tablePath("delta-table"), "default", "share1");
+    var DTable = DeltaSharedTable.of(PTable);
+    var metadata = DTable.getMetadata(Optional.empty());
+    assertTrue(metadata.isPresent());
+    assertEquals("56d48189-cdbc-44f2-9b0e-2bded4c79ed7", metadata.get().getId());
+  }
+
+  @Test
+  void getUnknownTableMetadata() {
+    var unknownPTable = new Table("notFound", "location1", "default", "share1");
+    assertThrows(IllegalArgumentException.class, () -> DeltaSharedTable.of(unknownPTable));
   }
 
   @Test

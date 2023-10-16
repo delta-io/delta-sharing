@@ -1,5 +1,6 @@
 package io.whitefox.core.services;
 
+import io.delta.standalone.actions.Metadata;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
 import io.whitefox.core.Table;
@@ -55,6 +56,14 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
     return optionalToken
         .map(t -> ContentAndToken.of(content, t))
         .orElse(ContentAndToken.withoutToken(content));
+  }
+
+  @Override
+  public Optional<Metadata> getTableMetadata(
+      String share, String schema, String table, String startingTimestamp) {
+    return storageManager
+        .getTable(share, schema, table)
+        .flatMap(t -> tableLoader.loadTable(t).getMetadata(Optional.ofNullable(startingTimestamp)));
   }
 
   @Override

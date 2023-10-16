@@ -2,13 +2,16 @@ package io.whitefox.api.server;
 
 import io.quarkus.runtime.util.ExceptionUtil;
 import io.whitefox.api.deltasharing.model.v1.generated.CommonErrorResponse;
+import io.whitefox.core.services.DeltaSharedTable;
 import io.whitefox.persistence.DuplicateKeyException;
 import jakarta.ws.rs.core.Response;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public interface ApiUtils {
+public interface ApiUtils extends DeltaHeaders {
+
   Function<Throwable, Response> exceptionToResponse = t -> {
     if (t instanceof IllegalArgumentException) {
       return Response.status(Response.Status.BAD_REQUEST)
@@ -47,5 +50,16 @@ public interface ApiUtils {
 
   default <T> Response optionalToNotFound(Optional<T> opt, Function<T, Response> fn) {
     return opt.map(fn).orElse(notFoundResponse());
+  }
+
+  default String getResponseFormatHeader(Map<String, String> deltaSharingCapabilities) {
+    return String.format(
+        "%s=%s", DELTA_SHARING_RESPONSE_FORMAT, getResponseFormat(deltaSharingCapabilities));
+  }
+
+  default String getResponseFormat(Map<String, String> deltaSharingCapabilities) {
+    return deltaSharingCapabilities.getOrDefault(
+        DELTA_SHARING_RESPONSE_FORMAT,
+        DeltaSharedTable.DeltaShareTableFormat.RESPONSE_FORMAT_PARQUET);
   }
 }

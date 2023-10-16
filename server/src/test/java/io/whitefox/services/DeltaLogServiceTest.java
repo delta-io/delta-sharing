@@ -1,10 +1,9 @@
 package io.whitefox.services;
 
+import static io.whitefox.api.server.DeltaUtils.tablePath;
 import static org.junit.jupiter.api.condition.OS.WINDOWS;
 
 import io.delta.standalone.DeltaLog;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
@@ -30,15 +29,6 @@ public class DeltaLogServiceTest {
    *  data.write.format("delta").save("/Volumes/repos/oss/whitefox/server/src/test/resources/delta/samples/delta-table")
    * }}}
    */
-  private static final Path deltaTablesRoot = Paths.get(".")
-      .toAbsolutePath()
-      .resolve("src/test/resources/delta/samples")
-      .toAbsolutePath();
-
-  private static String tablePath(String tableName) {
-    return deltaTablesRoot.resolve(tableName).toUri().toString();
-  }
-
   @Test
   void simpleTest() {
     var log = DeltaLog.forTable(new Configuration(), tablePath("delta-table"));

@@ -2,6 +2,7 @@ package io.whitefox.api.deltasharing.server;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
@@ -160,6 +161,40 @@ public class DeltaSharesApiImplTest {
         .body("items[0].schema", is("default"))
         .body("items[0].share", is("name"))
         .body("nextPageToken", is(nullValue()));
+  }
+
+  @Test
+  public void tableMetadataNotFound() {
+    given()
+        .when()
+        .filter(filter)
+        .get(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/metadata",
+            "name",
+            "default",
+            "tableNameNotFound")
+        .then()
+        .statusCode(404);
+  }
+
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
+  public void tableMetadata() {
+    assertEquals(
+        "{\"protocol\":{\"minReaderVersion\":1}}\n"
+            + "{\"metadata\":{\"id\":\"56d48189-cdbc-44f2-9b0e-2bded4c79ed7\",\"format\":{\"provider\":\"parquet\"},\"schemaString\":\"{\\\"type\\\":\\\"struct\\\",\\\"fields\\\":[{\\\"name\\\":\\\"id\\\",\\\"type\\\":\\\"long\\\",\\\"nullable\\\":true,\\\"metadata\\\":{}}]}\",\"partitionColumns\":[]}}",
+        given()
+            .when()
+            .filter(filter)
+            .get(
+                "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/metadata",
+                "name",
+                "default",
+                "table1")
+            .then()
+            .statusCode(200)
+            .extract()
+            .asPrettyString());
   }
 
   @Test

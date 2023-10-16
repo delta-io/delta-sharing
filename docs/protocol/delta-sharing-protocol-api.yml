@@ -356,6 +356,12 @@ paths:
           description: 'Starting Timestamp'
           schema:
             type: string
+        - in: header
+          name: delta-sharing-capabilities
+          required: false
+          description: 'Delta Sharing Capabilities'
+          schema:
+            type: string
       responses:
         '400':
           $ref: "#/components/responses/400"
@@ -749,6 +755,34 @@ components:
         message:
           type: string
 
+    ProtocolResponse:
+      type: object
+      properties:
+        protocol:
+          type: object
+          properties:
+            minReaderVersion:
+              type: number
+
+    MetadataResponse:
+      type: object
+      properties:
+        metadata:
+          type: object
+          properties:
+            id:
+              type: string
+            format:
+              type: object
+              properties:
+                provider:
+                  type: string
+            schemaString:
+              type: string
+            partitionColumns:
+              type: array
+              items:
+                type: string
 
   responses:
     "400":
