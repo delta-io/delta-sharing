@@ -3,7 +3,6 @@ package io.whitefox.api.server;
 import io.whitefox.api.deltasharing.Mappers;
 import io.whitefox.api.model.v1.generated.UpdateMetastore;
 import io.whitefox.api.server.v1.generated.MetastoreV1Api;
-import io.whitefox.core.Principal;
 import io.whitefox.core.services.MetastoreService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
@@ -26,10 +25,6 @@ public class MetastoreV1ApiImpl implements MetastoreV1Api, ApiUtils {
                 Mappers.api2createMetastore(createMetastore, getRequestPrincipal()))))
             .build(),
         exceptionToResponse);
-  }
-
-  private Principal getRequestPrincipal() {
-    return new Principal("Mr. Fox");
   }
 
   @Override

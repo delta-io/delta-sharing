@@ -1109,7 +1109,7 @@ paths:
 components:
   schemas:
     StorageCredentials:
-      oneOf:
+      anyOf:
         - $ref: "#/components/schemas/SimpleAwsCredentials"
         - $ref: "#/components/schemas/SimpleAzureCredentials"
     UpdateStorage:

@@ -1,14 +1,20 @@
 package io.whitefox.api.deltasharing;
 
 import io.whitefox.api.deltasharing.model.DeltaTableMetadata;
-import io.whitefox.api.deltasharing.model.v1.generated.*;
+import io.whitefox.api.deltasharing.model.v1.generated.MetadataResponse;
+import io.whitefox.api.deltasharing.model.v1.generated.MetadataResponseMetadata;
+import io.whitefox.api.deltasharing.model.v1.generated.MetadataResponseMetadataFormat;
+import io.whitefox.api.deltasharing.model.v1.generated.ProtocolResponse;
+import io.whitefox.api.deltasharing.model.v1.generated.ProtocolResponseProtocol;
 import io.whitefox.api.deltasharing.server.restdto.TableResponseMetadata;
 import io.whitefox.core.*;
-import io.whitefox.core.Schema;
-import io.whitefox.core.Share;
-import io.whitefox.core.Table;
+import io.whitefox.core.storage.CreateStorage;
+import io.whitefox.core.storage.Storage;
+import io.whitefox.core.storage.StorageType;
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -30,6 +36,46 @@ public class Mappers {
         .name(table.name())
         .share(table.share())
         .schema(table.schema());
+  }
+
+  public static io.whitefox.api.model.v1.generated.Storage storage2api(Storage storage) {
+    return new io.whitefox.api.model.v1.generated.Storage()
+        .name(storage.name())
+        .comment(storage.comment().orElse(null))
+        .owner(storage.owner().name())
+        .type(storage.type().value)
+        .uri(storage.uri())
+        .createdAt(storage.createdAt())
+        .createdBy(storage.createdBy().name())
+        .updatedAt(storage.updatedAt())
+        .updatedBy(storage.updatedBy().name())
+        .validatedAt(storage.validatedAt().orElse(null));
+  }
+
+  public static CreateStorage api2createStorage(
+      io.whitefox.api.model.v1.generated.CreateStorage storage, Principal principal) {
+    return new CreateStorage(
+        storage.getName(),
+        Optional.ofNullable(storage.getComment()),
+        api2storageType(storage.getType()),
+        principal,
+        api2storageCredentials(storage.getType(), storage.getCredentials()),
+        storage.getUri(),
+        storage.getSkipValidation());
+  }
+
+  public static AwsCredentials api2storageCredentials(
+      io.whitefox.api.model.v1.generated.CreateStorage.TypeEnum type,
+      io.whitefox.api.model.v1.generated.StorageCredentials credentials) {
+    switch (type) {
+      case S3:
+        return new AwsCredentials.SimpleAwsCredentials(
+            credentials.getAwsAccessKeyId(),
+            credentials.getAwsSecretAccessKey(),
+            credentials.getRegion());
+      default:
+        throw new IllegalArgumentException("Unknown storage type " + type);
+    }
   }
 
   public static io.whitefox.api.model.v1.generated.Metastore metastore2api(Metastore metastore) {
@@ -92,6 +138,20 @@ public class Mappers {
             type);
       default:
         throw new IllegalArgumentException("Unknown metastore type " + type);
+    }
+  }
+
+  public static StorageType api2storageType(
+      io.whitefox.api.model.v1.generated.CreateStorage.TypeEnum type) {
+    switch (type) {
+      case S3:
+        return StorageType.S3;
+      case GCS:
+        return StorageType.GCS;
+      case ABFS:
+        return StorageType.ABFS;
+      default:
+        throw new IllegalArgumentException("Unknown storage type " + type.value());
     }
   }
 
