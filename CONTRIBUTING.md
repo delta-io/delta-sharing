@@ -10,6 +10,8 @@ Whitefox follows a standard
 [fork and pull](https://help.github.com/articles/using-pull-requests/)
 model for contributions via GitHub pull requests.
 
+Software development guidelines that we employ can be found [here](docs/development_guidelines.md).
+
 Below is a list of the steps that might be involved in an ideal
 contribution. If you don't have the time to go through every step,
 contribute what you can, and someone else will probably be happy to
