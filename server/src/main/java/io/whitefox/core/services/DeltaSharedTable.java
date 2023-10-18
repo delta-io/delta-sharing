@@ -2,8 +2,9 @@ package io.whitefox.core.services;
 
 import io.delta.standalone.DeltaLog;
 import io.delta.standalone.Snapshot;
-import io.delta.standalone.actions.Metadata;
+import io.whitefox.core.Metadata;
 import io.whitefox.core.Table;
+import io.whitefox.core.TableSchema;
 import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
@@ -33,7 +34,12 @@ public class DeltaSharedTable {
   }
 
   public Optional<Metadata> getMetadata(Optional<String> startingTimestamp) {
-    return getSnapshot(startingTimestamp).map(Snapshot::getMetadata);
+    return getSnapshot(startingTimestamp)
+        .map(snapshot -> new Metadata(
+            snapshot.getMetadata().getId(),
+            Metadata.Format.PARQUET,
+            new TableSchema(snapshot.getMetadata().getSchema()),
+            snapshot.getMetadata().getPartitionColumns()));
   }
 
   public Optional<Long> getTableVersion(Optional<String> startingTimestamp) {

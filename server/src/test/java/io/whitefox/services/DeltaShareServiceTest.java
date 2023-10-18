@@ -206,7 +206,7 @@ public class DeltaShareServiceTest {
     DeltaSharesService deltaSharesService = new DeltaSharesServiceImpl(storageManager, 100, loader);
     var tableMetadata = deltaSharesService.getTableMetadata("name", "default", "table1", null);
     assertTrue(tableMetadata.isPresent());
-    assertEquals("56d48189-cdbc-44f2-9b0e-2bded4c79ed7", tableMetadata.get().getId());
+    assertEquals("56d48189-cdbc-44f2-9b0e-2bded4c79ed7", tableMetadata.get().id());
   }
 
   @Test

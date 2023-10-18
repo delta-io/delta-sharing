@@ -180,11 +180,12 @@ public class Mappers {
             .protocol(new ProtocolResponseProtocol().minReaderVersion(new BigDecimal(1))),
         new MetadataResponse()
             .metadata(new MetadataResponseMetadata()
-                .id(deltaTableMetadata.getMetadata().getId())
+                .id(deltaTableMetadata.getMetadata().id())
                 .format(new MetadataResponseMetadataFormat()
-                    .provider(deltaTableMetadata.getMetadata().getFormat().getProvider()))
-                .schemaString(deltaTableMetadata.getMetadata().getSchema().toJson())
-                .partitionColumns(deltaTableMetadata.getMetadata().getPartitionColumns())));
+                    .provider(deltaTableMetadata.getMetadata().format().provider()))
+                .schemaString(
+                    deltaTableMetadata.getMetadata().tableSchema().structType().toJson())
+                .partitionColumns(deltaTableMetadata.getMetadata().partitionColumns())));
   }
 
   /**

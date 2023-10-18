@@ -1,7 +1,7 @@
 package io.whitefox.api.deltasharing.model;
 
-import io.delta.standalone.actions.Metadata;
 import io.whitefox.annotations.SkipCoverageGenerated;
+import io.whitefox.core.Metadata;
 import java.util.Objects;
 
 public class DeltaTableMetadata {

@@ -1,6 +1,6 @@
 package io.whitefox.core.services;
 
-import io.delta.standalone.actions.Metadata;
+import io.whitefox.core.Metadata;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
 import io.whitefox.core.Table;
