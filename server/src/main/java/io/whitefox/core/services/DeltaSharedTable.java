@@ -15,12 +15,14 @@ import org.apache.hadoop.conf.Configuration;
 public class DeltaSharedTable {
 
   private final DeltaLog deltaLog;
+  private final TableSchemaConverter tableSchemaConverter;
 
-  private DeltaSharedTable(DeltaLog deltaLog) {
+  private DeltaSharedTable(DeltaLog deltaLog, TableSchemaConverter tableSchemaConverter) {
     this.deltaLog = deltaLog;
+    this.tableSchemaConverter = tableSchemaConverter;
   }
 
-  public static DeltaSharedTable of(Table table) {
+  public static DeltaSharedTable of(Table table, TableSchemaConverter tableSchemaConverter) {
     var configuration = new Configuration();
     var dataPath = Paths.get(table.location());
 
@@ -30,7 +32,11 @@ public class DeltaSharedTable {
       throw new IllegalArgumentException(
           String.format("Cannot find a delta table at %s", dataPath));
     }
-    return new DeltaSharedTable(dt);
+    return new DeltaSharedTable(dt, tableSchemaConverter);
+  }
+
+  public static DeltaSharedTable of(Table table) {
+    return of(table, TableSchemaConverter.INSTANCE);
   }
 
   public Optional<Metadata> getMetadata(Optional<String> startingTimestamp) {
@@ -38,7 +44,8 @@ public class DeltaSharedTable {
         .map(snapshot -> new Metadata(
             snapshot.getMetadata().getId(),
             Metadata.Format.PARQUET,
-            new TableSchema(snapshot.getMetadata().getSchema()),
+            new TableSchema(tableSchemaConverter.convertDeltaSchemaToWhitefox(
+                snapshot.getMetadata().getSchema())),
             snapshot.getMetadata().getPartitionColumns()));
   }
 

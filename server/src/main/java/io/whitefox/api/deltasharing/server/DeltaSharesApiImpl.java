@@ -10,7 +10,6 @@ import io.whitefox.api.deltasharing.model.v1.generated.ListShareResponse;
 import io.whitefox.api.deltasharing.model.v1.generated.ListTablesResponse;
 import io.whitefox.api.deltasharing.model.v1.generated.QueryRequest;
 import io.whitefox.api.deltasharing.serializers.Serializer;
-import io.whitefox.api.deltasharing.server.restdto.TableResponseMetadata;
 import io.whitefox.api.deltasharing.server.v1.generated.DeltaApiApi;
 import io.whitefox.api.server.ApiUtils;
 import io.whitefox.core.services.ContentAndToken;

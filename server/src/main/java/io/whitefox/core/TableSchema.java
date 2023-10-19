@@ -1,7 +1,7 @@
 package io.whitefox.core;
 
-import io.delta.standalone.types.StructType;
 import io.whitefox.annotations.SkipCoverageGenerated;
+import io.whitefox.core.types.StructType;
 import java.util.Objects;
 
 public class TableSchema {

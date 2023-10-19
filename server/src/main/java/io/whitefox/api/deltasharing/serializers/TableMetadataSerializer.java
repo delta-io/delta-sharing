@@ -3,7 +3,7 @@ package io.whitefox.api.deltasharing.serializers;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
-import io.whitefox.api.deltasharing.server.restdto.TableResponseMetadata;
+import io.whitefox.api.deltasharing.server.TableResponseMetadata;
 import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped

@@ -1,4 +1,4 @@
-package io.whitefox.api.deltasharing.server.restdto;
+package io.whitefox.api.deltasharing.server;
 
 import io.whitefox.annotations.SkipCoverageGenerated;
 import io.whitefox.api.deltasharing.model.v1.generated.MetadataResponse;

@@ -6,7 +6,7 @@ import io.whitefox.api.deltasharing.model.v1.generated.MetadataResponseMetadata;
 import io.whitefox.api.deltasharing.model.v1.generated.MetadataResponseMetadataFormat;
 import io.whitefox.api.deltasharing.model.v1.generated.ProtocolResponse;
 import io.whitefox.api.deltasharing.model.v1.generated.ProtocolResponseProtocol;
-import io.whitefox.api.deltasharing.server.restdto.TableResponseMetadata;
+import io.whitefox.api.deltasharing.server.TableResponseMetadata;
 import io.whitefox.core.*;
 import io.whitefox.core.storage.CreateStorage;
 import io.whitefox.core.storage.Storage;
