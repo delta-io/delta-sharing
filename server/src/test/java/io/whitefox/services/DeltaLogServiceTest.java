@@ -21,12 +21,28 @@ public class DeltaLogServiceTest {
    *      --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
    *      --conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
    * }}}
+   *
+   * or if you want to write to s3:
+   * {{{
+   * export AWS_ACCESS_KEY_ID='************'
+   * export AWS_SECRET_ACCESS_KEY='*******************************'
+   * spark-shell33 --packages io.delta:delta-core_2.13:2.3.0,org.apache.hadoop:hadoop-aws:3.2.4 \
+   *        --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
+   *        --conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog" \
+   *        --conf "spark.hadoop.fs.s3a.aws.credentials.provider=com.amazonaws.auth.EnvironmentVariableCredentialsProvider"
+   * }}}
    * Take care that the version of delta must be compatible with the version of spark and scala you are using
    * (i.e. I'm using delta 2.3.0 on scala 2.13 because my local spark-shell is version 3.3.0 using scala 2.13
-   * To generate the table simply:
+   *
+   * To generate the table simply (replace local path with s3a path if needed):
    * {{{
    *  val data = spark.range(0, 5)
    *  data.write.format("delta").save("/Volumes/repos/oss/whitefox/server/src/test/resources/delta/samples/delta-table")
+   * }}}
+   * if you want to append to the table:
+   * {{{
+   * val data = spark.range(10, 20)
+   * data.write.format("delta").mode("append").save("/Volumes/repos/oss/whitefox/server/src/test/resources/delta/samples/delta-table")
    * }}}
    */
   @Test
