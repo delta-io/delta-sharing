@@ -1,52 +1,48 @@
 package io.whitefox.api.deltasharing.server;
 
 import static io.restassured.RestAssured.given;
+import static io.whitefox.api.deltasharing.SampleTables.*;
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.http.Header;
 import io.whitefox.OpenApiValidationFilter;
 import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
-import io.whitefox.core.Schema;
-import io.whitefox.core.Share;
-import io.whitefox.core.Table;
+import io.whitefox.api.deltasharing.model.v1.generated.*;
 import io.whitefox.core.services.ContentAndToken;
 import io.whitefox.persistence.StorageManager;
-import io.whitefox.persistence.memory.InMemoryStorageManager;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
+import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
 @QuarkusTest
 public class DeltaSharesApiImplTest {
-
   @BeforeAll
   public static void setup() {
-    var storageManager = new InMemoryStorageManager(List.of(new Share(
-        "name",
-        "key",
-        Map.of(
-            "default",
-            new Schema(
-                "default",
-                List.of(new Table(
-                    "table1", "src/test/resources/delta/samples/delta-table", "default", "name")),
-                "name")))));
     QuarkusMock.installMockForType(storageManager, StorageManager.class);
   }
 
   private final DeltaPageTokenEncoder encoder;
+  private final ObjectMapper objectMapper;
 
   @Inject
-  public DeltaSharesApiImplTest(DeltaPageTokenEncoder encoder) {
+  public DeltaSharesApiImplTest(DeltaPageTokenEncoder encoder, ObjectMapper objectMapper) {
     this.encoder = encoder;
+    this.objectMapper = objectMapper;
   }
 
   private static final String specLocation = Paths.get(".")
@@ -156,7 +152,7 @@ public class DeltaSharesApiImplTest {
         .get("delta-api/v1/shares/{share}/schemas/{schema}/tables", "name", "default")
         .then()
         .statusCode(200)
-        .body("items", hasSize(1))
+        .body("items", hasSize(2))
         .body("items[0].name", is("table1"))
         .body("items[0].schema", is("default"))
         .body("items[0].share", is("name"))
@@ -179,22 +175,36 @@ public class DeltaSharesApiImplTest {
 
   @Test
   @DisabledOnOs(OS.WINDOWS)
-  public void tableMetadata() {
+  public void tableMetadata() throws IOException {
+    var responseBodyLines = given()
+        .when()
+        .filter(filter)
+        .get(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/metadata",
+            "name",
+            "default",
+            "table1")
+        .then()
+        .statusCode(200)
+        .extract()
+        .asString()
+        .split("\n");
+    assertEquals(2, responseBodyLines.length);
     assertEquals(
-        "{\"protocol\":{\"minReaderVersion\":1}}\n"
-            + "{\"metadata\":{\"id\":\"56d48189-cdbc-44f2-9b0e-2bded4c79ed7\",\"format\":{\"provider\":\"parquet\"},\"schemaString\":\"{\\\"type\\\":\\\"struct\\\",\\\"fields\\\":[{\\\"name\\\":\\\"id\\\",\\\"type\\\":\\\"long\\\",\\\"nullable\\\":true,\\\"metadata\\\":{}}]}\",\"partitionColumns\":[]}}",
-        given()
-            .when()
-            .filter(filter)
-            .get(
-                "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/metadata",
-                "name",
-                "default",
-                "table1")
-            .then()
-            .statusCode(200)
-            .extract()
-            .asPrettyString());
+        new ProtocolObject().protocol(new ProtocolObjectProtocol().minReaderVersion(1)),
+        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+    assertEquals(
+        new MetadataObject()
+            .metadata(new MetadataObjectMetadata()
+                .id("56d48189-cdbc-44f2-9b0e-2bded4c79ed7")
+                .name("table1")
+                .format(new FormatObject().provider("parquet"))
+                .schemaString(
+                    "{\"type\":\"struct\",\"fields\":[{\"name\":\"id\",\"type\":\"long\",\"nullable\":true,\"metadata\":{}}]}")
+                .partitionColumns(List.of())
+                .version(0L)
+                ._configuration(Map.of())),
+        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
   }
 
   @Test
@@ -205,7 +215,7 @@ public class DeltaSharesApiImplTest {
         .get("delta-api/v1/shares/{share}/all-tables", "name")
         .then()
         .statusCode(200)
-        .body("items", hasSize(1))
+        .body("items", hasSize(2))
         .body("items[0].name", is("table1"))
         .body("items[0].schema", is("default"))
         .body("items[0].share", is("name"))
@@ -283,5 +293,124 @@ public class DeltaSharesApiImplTest {
             "table1")
         .then()
         .statusCode(502);
+  }
+
+  @DisabledOnOs(OS.WINDOWS)
+  @Test
+  public void queryTableCurrentVersion() throws IOException {
+    var responseBodyLines = given()
+        .when()
+        .filter(filter)
+        .body("{}")
+        .header(new Header("Content-Type", "application/json"))
+        .post(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/query",
+            "name",
+            "default",
+            "table1")
+        .then()
+        .statusCode(200)
+        .extract()
+        .body()
+        .asString()
+        .split("\n");
+
+    assertEquals(
+        deltaTable1Protocol,
+        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+    assertEquals(
+        deltaTable1Metadata,
+        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+    var files = Arrays.stream(responseBodyLines)
+        .skip(2)
+        .map(line -> {
+          try {
+            return objectMapper.reader().readValue(line, FileObject.class);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        })
+        .collect(Collectors.toSet());
+    assertEquals(files, deltaTable1Files);
+    assertEquals(7, responseBodyLines.length);
+  }
+
+  @DisabledOnOs(OS.WINDOWS)
+  @Test
+  public void queryTableByVersion() throws IOException {
+    var responseBodyLines = given()
+        .when()
+        .filter(filter)
+        .body("{\"version\": 0}")
+        .header(new Header("Content-Type", "application/json"))
+        .post(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/query",
+            "name",
+            "default",
+            "table1")
+        .then()
+        .statusCode(200)
+        .extract()
+        .body()
+        .asString()
+        .split("\n");
+
+    assertEquals(
+        deltaTable1Protocol,
+        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+    assertEquals(
+        deltaTable1Metadata,
+        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+    var files = Arrays.stream(responseBodyLines)
+        .skip(2)
+        .map(line -> {
+          try {
+            return objectMapper.reader().readValue(line, FileObject.class);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        })
+        .collect(Collectors.toSet());
+    assertEquals(deltaTable1Files, files);
+    assertEquals(7, responseBodyLines.length);
+  }
+
+  @Test
+  @Disabled
+  public void queryTableByTs() throws IOException {
+    var responseBodyLines = given()
+        .when()
+        .filter(filter)
+        .body("{\"timestamp\": \"2023-10-19T17:16:00Z\"}")
+        .header(new Header("Content-Type", "application/json"))
+        .post(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/query",
+            "name",
+            "default",
+            "table-with-history")
+        .then()
+        .statusCode(200)
+        .extract()
+        .body()
+        .asString()
+        .split("\n");
+
+    assertEquals(
+        deltaTable1Protocol,
+        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+    assertEquals(
+        deltaTableWithHistory1Metadata,
+        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+    assertDoesNotThrow(() -> Arrays.stream(responseBodyLines)
+        .skip(2)
+        .map(line -> {
+          try {
+            return objectMapper.reader().readValue(line, FileObject.class);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        })
+        .collect(Collectors.toSet()));
+    assertEquals(7, responseBodyLines.length);
   }
 }

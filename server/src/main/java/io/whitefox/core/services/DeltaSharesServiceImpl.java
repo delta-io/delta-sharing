@@ -1,14 +1,13 @@
 package io.whitefox.core.services;
 
+import io.whitefox.core.*;
 import io.whitefox.core.Metadata;
-import io.whitefox.core.Schema;
-import io.whitefox.core.Share;
-import io.whitefox.core.Table;
 import io.whitefox.persistence.StorageManager;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @ApplicationScoped
@@ -18,15 +17,19 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   private final Integer defaultMaxResults;
   private final DeltaShareTableLoader tableLoader;
 
+  private final FileSigner signer;
+
   @Inject
   public DeltaSharesServiceImpl(
       StorageManager storageManager,
       @ConfigProperty(name = "io.delta.sharing.api.server.defaultMaxResults")
           Integer defaultMaxResults,
-      DeltaShareTableLoader tableLoader) {
+      DeltaShareTableLoader tableLoader,
+      FileSigner signer) {
     this.storageManager = storageManager;
     this.defaultMaxResults = defaultMaxResults;
     this.tableLoader = tableLoader;
+    this.signer = signer;
   }
 
   @Override
@@ -118,5 +121,18 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
           .map(t -> ContentAndToken.of(pageContent.result(), t))
           .orElse(ContentAndToken.withoutToken(pageContent.result()));
     });
+  }
+
+  @Override
+  public Optional<ReadTableResult> queryTable(
+      String share, String schema, String tableName, ReadTableRequest queryRequest) {
+    return storageManager
+        .getTable(share, schema, tableName)
+        .map(tableLoader::loadTable)
+        .map(dst -> dst.queryTable(queryRequest))
+        .map(result -> new ReadTableResult(
+            result.protocol(),
+            result.metadata(),
+            result.other().stream().map(signer::sign).collect(Collectors.toList())));
   }
 }
