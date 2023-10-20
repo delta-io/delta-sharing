@@ -180,6 +180,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getMetadata") {
+    // The response is always in parquet format, because the client allows parquet and the
+    // table is a basic table.
     Seq(
       RESPONSE_FORMAT_PARQUET,
       s"${RESPONSE_FORMAT_DELTA},${RESPONSE_FORMAT_PARQUET}",
@@ -321,6 +323,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(tableFiles.refreshToken.get.nonEmpty)
     }
 
+    // The response is always in parquet format, because the client allows parquet and the
+    // table is a basic table.
     Seq(
       RESPONSE_FORMAT_PARQUET,
       s"${RESPONSE_FORMAT_DELTA},${RESPONSE_FORMAT_PARQUET}",
@@ -787,6 +791,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("getCDFFiles") {
+    // The response is always in parquet format, because the client allows parquet and the
+    // table is a basic table.
     Seq(
       RESPONSE_FORMAT_PARQUET,
       s"${RESPONSE_FORMAT_DELTA},${RESPONSE_FORMAT_PARQUET}",
