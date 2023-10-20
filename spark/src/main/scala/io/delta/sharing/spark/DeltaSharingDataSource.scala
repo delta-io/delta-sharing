@@ -33,8 +33,6 @@ import org.apache.spark.sql.sources.{
 }
 import org.apache.spark.sql.types.StructType
 
-import io.delta.sharing.client.DeltaSharingRestClient
-import io.delta.sharing.client.model.{Table => DeltaSharingTable}
 
 /** A DataSource V1 for integrating Delta into Spark SQL batch APIs. */
 private[sharing] class DeltaSharingDataSource
@@ -49,24 +47,8 @@ private[sharing] class DeltaSharingDataSource
     val options = new DeltaSharingOptions(parameters)
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
 
-    val parsedPath = DeltaSharingRestClient.parsePath(path)
-    val client = DeltaSharingRestClient(parsedPath.profileFile)
-    val deltaSharingTable = DeltaSharingTable(
-      name = parsedPath.table,
-      schema = parsedPath.schema,
-      share = parsedPath.share
-    )
-    val deltaTableMetadata = client.getMetadata(
-      deltaSharingTable, options.versionAsOf, options.timestampAsOf
-    )
-    // scalastyle:off println
-    Console.println(s"----[linzhou]----format:${deltaTableMetadata.respondedFormat}")
-
     val deltaLog = RemoteDeltaLog(
-      path,
-      forStreaming = false,
-      responseFormat = options.responseFormat,
-      initDeltaTableMetadata = Some(deltaTableMetadata)
+      path, forStreaming = false, responseFormat = options.responseFormat
     )
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
   }
