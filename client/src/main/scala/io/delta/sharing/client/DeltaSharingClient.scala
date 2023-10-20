@@ -127,6 +127,9 @@ class DeltaSharingRestClient(
 
   @volatile private var created = false
 
+  // Convert the responseFormat to a Seq to be used later.
+  private val responseFormatSet = responseFormat.split(",").toSet
+
   private lazy val client = {
     val clientBuilder: HttpClientBuilder = if (sslTrustAll) {
       val sslBuilder = new SSLContextBuilder()
@@ -228,20 +231,13 @@ class DeltaSharingRestClient(
    * delta in response. The client allows backward compatibility: requested delta but got parquet
    * in response.
    */
-  private def checkRespondedFormat(
-      requestedFormat: String, respondedFormat: String, rpc: String, table: String): Unit = {
-    if (requestedFormat == respondedFormat) {
-      return
-    }
-    if (responseFormat == RESPONSE_FORMAT_PARQUET && respondedFormat == RESPONSE_FORMAT_DELTA) {
+  private def checkRespondedFormat(respondedFormat: String, rpc: String, table: String): Unit = {
+    if (!responseFormatSet.contains(respondedFormat)) {
       logError(s"RespondedFormat($respondedFormat) is different from requested " +
         s"responseFormat($responseFormat) for $rpc for table $table.")
       throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
         s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
         s" != requestedFormat($responseFormat).")
-    } else {
-      logWarning(s"RespondedFormat($respondedFormat) is different from requested " +
-        s"responseFormat($responseFormat) for $rpc for table $table.")
     }
   }
 
@@ -260,7 +256,6 @@ class DeltaSharingRestClient(
     val (version, respondedFormat, lines) = getNDJson(target)
 
     checkRespondedFormat(
-      responseFormat,
       respondedFormat,
       rpc = "getMetadata",
       table = s"${table.share}.${table.schema}.${table.name}"
@@ -336,7 +331,6 @@ class DeltaSharingRestClient(
     }
 
     checkRespondedFormat(
-      responseFormat,
       respondedFormat,
       rpc = s"getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf)",
       table = s"${table.share}.${table.schema}.${table.name}"
@@ -408,7 +402,6 @@ class DeltaSharingRestClient(
     }
 
     checkRespondedFormat(
-      responseFormat,
       respondedFormat,
       rpc = s"getFiles(startingVersion:$startingVersion, endingVersion:$endingVersion)",
       table = s"${table.share}.${table.schema}.${table.name}"
@@ -532,7 +525,6 @@ class DeltaSharingRestClient(
     }
 
     checkRespondedFormat(
-      responseFormat,
       respondedFormat,
       rpc = s"getCDFFiles(cdfOptions:$cdfOptions)",
       table = s"${table.share}.${table.schema}.${table.name}."
@@ -894,7 +886,7 @@ class DeltaSharingRestClient(
   // Example: "capability1=value1;capability2=value3,value4,value5"
   private def getDeltaSharingCapabilities(): String = {
     var capabilities = Seq[String](s"${RESPONSE_FORMAT}=$responseFormat")
-    if (responseFormat == RESPONSE_FORMAT_DELTA && readerFeatures.nonEmpty) {
+    if (responseFormatSet.contains(RESPONSE_FORMAT_DELTA) && readerFeatures.nonEmpty) {
       capabilities = capabilities :+ s"$READER_FEATURES=$readerFeatures"
     }
     capabilities.mkString(DELTA_SHARING_CAPABILITIES_DELIMITER)

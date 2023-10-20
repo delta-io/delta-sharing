@@ -104,6 +104,16 @@ private case class QueryParamChecksum(
     limitHint: Option[Long],
     includeHistoricalMetadata: Option[Boolean])
 
+
+/**
+ *  QueryResult of query and queryCDF function, including a version, a resopnseFormat, and a list
+ *  of actions.
+ */
+case class QueryResult(
+    version: Long,
+    actions: Seq[Object],
+    responseFormat: String)
+
 /**
  * A table class that wraps `DeltaLog` to provide the methods used by the server.
  */
@@ -370,7 +380,7 @@ class DeltaSharedTable(
       pageToken: Option[String],
       includeRefreshToken: Boolean,
       refreshToken: Option[String],
-      responseFormat: String): (Long, Seq[Object]) = withClassLoader {
+      responseFormatSet: Set[String]): QueryResult = withClassLoader {
     // scalastyle:on argcount
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
@@ -433,6 +443,13 @@ class DeltaSharedTable(
     val state = stateMethod.invoke(snapshot).asInstanceOf[SnapshotImpl.State]
 
     val isVersionQuery = !Seq(version, timestamp).filter(_.isDefined).isEmpty
+    // If the client accept parquet format and it's a basic table, return as parquet format.
+    val responseFormat = if (snapshot.protocolScala.minReaderVersion == 1 &&
+      responseFormatSet.contains(DeltaSharedTable.RESPONSE_FORMAT_PARQUET)) {
+      DeltaSharedTable.RESPONSE_FORMAT_PARQUET
+    } else {
+      DeltaSharedTable.RESPONSE_FORMAT_DELTA
+    }
     val actions = Seq(
       getResponseProtocol(snapshot.protocolScala, responseFormat),
       getResponseMetadata(snapshot.metadataScala, startingVersion, responseFormat)
@@ -549,7 +566,7 @@ class DeltaSharedTable(
       }
     }
 
-    snapshot.version -> actions
+    QueryResult(snapshot.version, actions, responseFormat)
   }
 
   private def queryDataChangeSinceStartVersion(
@@ -689,8 +706,8 @@ class DeltaSharedTable(
       includeHistoricalMetadata: Boolean = false,
       maxFiles: Option[Int],
       pageToken: Option[String],
-      responseFormat: String = DeltaSharedTable.RESPONSE_FORMAT_PARQUET
-  ): (Long, Seq[Object]) = withClassLoader {
+      responseFormatSet: Set[String] = Set(DeltaSharedTable.RESPONSE_FORMAT_PARQUET)
+  ): QueryResult = withClassLoader {
     // Step 1: validate pageToken if it's specified
     lazy val queryParamChecksum = computeChecksum(
       QueryParamChecksum(
@@ -724,6 +741,13 @@ class DeltaSharedTable(
       deltaLog.getSnapshotForVersionAsOf(latestVersion)
     }
     val actions = ListBuffer[Object]()
+    // If the client accept parquet format and it's a basic table, return as parquet format.
+    val responseFormat = if (snapshot.protocolScala.minReaderVersion == 1 &&
+      responseFormatSet.contains(DeltaSharedTable.RESPONSE_FORMAT_PARQUET)) {
+      DeltaSharedTable.RESPONSE_FORMAT_PARQUET
+    } else {
+      DeltaSharedTable.RESPONSE_FORMAT_DELTA
+    }
     actions.append(getResponseProtocol(snapshot.protocolScala, responseFormat))
     actions.append(
       getResponseMetadata(
@@ -782,7 +806,7 @@ class DeltaSharedTable(
           // Return early if we already have enough files in the current page
           if (pageSizeOpt.contains(numSignedFiles)) {
             actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
-            return start -> actions.toSeq
+            return QueryResult(start, actions.toSeq, responseFormat)
           }
           val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, c.path))
           minUrlExpirationTimestamp =
@@ -801,7 +825,7 @@ class DeltaSharedTable(
           // Return early if we already have enough files in the current page
           if (pageSizeOpt.contains(numSignedFiles)) {
             actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
-            return start -> actions.toSeq
+            return QueryResult(start, actions.toSeq, responseFormat)
           }
           val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path))
           minUrlExpirationTimestamp =
@@ -821,7 +845,7 @@ class DeltaSharedTable(
           // Return early if we already have enough files in the current page
           if (pageSizeOpt.contains(numSignedFiles)) {
             actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
-            return start -> actions.toSeq
+            return QueryResult(start, actions.toSeq, responseFormat)
           }
           val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path))
           minUrlExpirationTimestamp =
@@ -844,7 +868,7 @@ class DeltaSharedTable(
     if (maxFiles.isDefined) {
       actions.append(getEndStreamAction(null, minUrlExpirationTimestamp))
     }
-    start -> actions.toSeq
+    QueryResult(start, actions.toSeq, responseFormat)
   }
 
   def update(): Unit = withClassLoader {
