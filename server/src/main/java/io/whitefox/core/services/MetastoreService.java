@@ -1,7 +1,7 @@
 package io.whitefox.core.services;
 
-import io.whitefox.core.CreateMetastore;
 import io.whitefox.core.Metastore;
+import io.whitefox.core.actions.CreateMetastore;
 import io.whitefox.persistence.StorageManager;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Clock;

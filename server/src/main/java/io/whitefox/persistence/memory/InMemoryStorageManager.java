@@ -24,11 +24,14 @@ public class InMemoryStorageManager implements StorageManager {
 
   private final ConcurrentMap<String, Storage> storages;
 
+  private final ConcurrentMap<String, Provider> providers;
+
   @Inject
   public InMemoryStorageManager() {
     this.storages = new ConcurrentHashMap<>();
     this.shares = new ConcurrentHashMap<>();
     this.metastores = new ConcurrentHashMap<>();
+    this.providers = new ConcurrentHashMap<>();
   }
 
   public InMemoryStorageManager(
@@ -39,12 +42,7 @@ public class InMemoryStorageManager implements StorageManager {
         metastores.stream().collect(Collectors.toMap(Metastore::name, Function.identity())));
     this.storages = new ConcurrentHashMap<>(
         storages.stream().collect(Collectors.toMap(Storage::name, Function.identity())));
-    ;
-  }
-
-  public void clear() {
-    metastores.clear();
-    shares.clear();
+    this.providers = new ConcurrentHashMap<>();
   }
 
   public InMemoryStorageManager(List<Share> shares) {
@@ -198,7 +196,7 @@ public class InMemoryStorageManager implements StorageManager {
 
   public Storage createStorage(Storage storage) {
     if (storages.get(storage.name()) != null) {
-      throw new DuplicateKeyException("Metastore with name " + storage.name() + " already exists");
+      throw new DuplicateKeyException("Storage with name " + storage.name() + " already exists");
     } else {
       storages.put(storage.name(), storage);
       return storage;
@@ -207,5 +205,20 @@ public class InMemoryStorageManager implements StorageManager {
 
   public Optional<Storage> getStorage(String name) {
     return Optional.ofNullable(storages.get(name));
+  }
+
+  @Override
+  public Provider createProvider(Provider provider) {
+    if (providers.get(provider.name()) != null) {
+      throw new DuplicateKeyException("Provider with name " + provider.name() + " already exists");
+    } else {
+      providers.put(provider.name(), provider);
+      return provider;
+    }
+  }
+
+  @Override
+  public Optional<Provider> getProvider(String name) {
+    return Optional.ofNullable(providers.get(name));
   }
 }

@@ -1,16 +1,20 @@
 package io.whitefox.api.deltasharing;
 
 import io.whitefox.api.deltasharing.model.v1.generated.*;
+import io.whitefox.api.model.v1.generated.ProviderInput;
 import io.whitefox.core.*;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
 import io.whitefox.core.Table;
+import io.whitefox.core.actions.CreateMetastore;
+import io.whitefox.core.actions.CreateProvider;
 import io.whitefox.core.storage.CreateStorage;
 import io.whitefox.core.storage.Storage;
 import io.whitefox.core.storage.StorageType;
 import java.time.OffsetDateTime;
-import java.util.*;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -271,5 +275,26 @@ public class Mappers {
     return OffsetDateTime.parse(ts, java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
         .toInstant()
         .toEpochMilli();
+  }
+
+  public static CreateProvider api2CreateProvider(
+      ProviderInput providerInput, Principal currentUser) {
+    return new CreateProvider(
+        providerInput.getName(),
+        providerInput.getStorageName(),
+        Optional.ofNullable(providerInput.getMetastoreName()),
+        currentUser);
+  }
+
+  public static io.whitefox.api.model.v1.generated.Provider provider2Api(Provider provider) {
+    return new io.whitefox.api.model.v1.generated.Provider()
+        .name(provider.name())
+        .storage(storage2api(provider.storage()))
+        .metastore(provider.metastore().map(Mappers::metastore2api).orElse(null))
+        .createdAt(provider.createdAt())
+        .createdBy(provider.createdBy().name())
+        .updatedAt(provider.updatedAt())
+        .updatedBy(provider.updatedBy().name())
+        .owner(provider.owner().name());
   }
 }

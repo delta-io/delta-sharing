@@ -1,6 +1,9 @@
-package io.whitefox.core;
+package io.whitefox.core.actions;
 
 import io.whitefox.annotations.SkipCoverageGenerated;
+import io.whitefox.core.MetastoreProperties;
+import io.whitefox.core.MetastoreType;
+import io.whitefox.core.Principal;
 import java.util.Objects;
 import java.util.Optional;
 

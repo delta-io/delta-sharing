@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.whitefox.core.*;
+import io.whitefox.core.actions.CreateMetastore;
 import io.whitefox.core.services.MetastoreService;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
 import java.time.Clock;

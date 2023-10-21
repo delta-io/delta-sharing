@@ -4,6 +4,8 @@ import io.quarkus.runtime.util.ExceptionUtil;
 import io.whitefox.api.deltasharing.model.v1.generated.CommonErrorResponse;
 import io.whitefox.core.Principal;
 import io.whitefox.core.services.DeltaSharedTable;
+import io.whitefox.core.services.exceptions.MetastoreNotFound;
+import io.whitefox.core.services.exceptions.StorageNotFound;
 import io.whitefox.persistence.DuplicateKeyException;
 import jakarta.ws.rs.core.Response;
 import java.util.Map;
@@ -24,6 +26,19 @@ public interface ApiUtils extends DeltaHeaders {
       return Response.status(Response.Status.CONFLICT)
           .entity(new CommonErrorResponse()
               .errorCode("CONFLICT")
+              .message(ExceptionUtil.generateStackTrace(t)))
+          .build();
+    } else if (t instanceof MetastoreNotFound) {
+      return Response.status(Response.Status.NOT_FOUND)
+          .entity(new CommonErrorResponse()
+              .errorCode("NOT FOUND")
+              .message(ExceptionUtil.generateStackTrace(t)))
+          .build();
+    }
+    if (t instanceof StorageNotFound) {
+      return Response.status(Response.Status.NOT_FOUND)
+          .entity(new CommonErrorResponse()
+              .errorCode("NOT FOUND")
               .message(ExceptionUtil.generateStackTrace(t)))
           .build();
     } else {

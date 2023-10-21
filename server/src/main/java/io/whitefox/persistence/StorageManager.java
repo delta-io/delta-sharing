@@ -25,7 +25,11 @@ public interface StorageManager {
 
   Optional<Metastore> getMetastore(String name);
 
-  public Storage createStorage(Storage storage);
+  Storage createStorage(Storage storage);
 
-  public Optional<Storage> getStorage(String name);
+  Optional<Storage> getStorage(String name);
+
+  Provider createProvider(Provider provider);
+
+  Optional<Provider> getProvider(String name);
 }

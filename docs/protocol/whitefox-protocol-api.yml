@@ -1310,6 +1310,15 @@ components:
           format: int64
         updatedBy:
           type: string
+        owner:
+          type: string
+      required:
+        - name
+        - storage
+        - createdAt
+        - createdBy
+        - updatedAt
+        - updatedBy
     CreateShareInput:
       type: object
       properties:
