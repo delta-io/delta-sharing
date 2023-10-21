@@ -46,10 +46,11 @@ public class ProviderV1ApiImplTest {
     return new CreateStorage()
         .name(name)
         .skipValidation(false)
-        .credentials(new StorageCredentials()
-            .awsAccessKeyId("accessKey")
-            .awsSecretAccessKey("secretKey")
-            .region("eu-east-1"))
+        .properties(new StorageProperties()
+            .credentials(new SimpleAwsCredentials()
+                .awsAccessKeyId("accessKey")
+                .awsSecretAccessKey("secretKey")
+                .region("eu-east-1")))
         .uri("s3://bucket/storage")
         .type(CreateStorage.TypeEnum.S3);
   }

@@ -16,6 +16,7 @@ public final class Storage {
   private final Principal createdBy;
   private final Long updatedAt;
   private final Principal updatedBy;
+  private final StorageProperties properties;
 
   public Storage(
       String name,
@@ -27,7 +28,8 @@ public final class Storage {
       Long createdAt,
       Principal createdBy,
       Long updatedAt,
-      Principal updatedBy) {
+      Principal updatedBy,
+      StorageProperties properties) {
     this.name = name;
     this.comment = comment;
     this.owner = owner;
@@ -38,6 +40,7 @@ public final class Storage {
     this.createdBy = createdBy;
     this.updatedAt = updatedAt;
     this.updatedBy = updatedBy;
+    this.properties = properties;
   }
 
   public String name() {
@@ -80,6 +83,10 @@ public final class Storage {
     return updatedBy;
   }
 
+  public StorageProperties properties() {
+    return properties;
+  }
+
   @Override
   @SkipCoverageGenerated
   public boolean equals(Object o) {
@@ -89,19 +96,47 @@ public final class Storage {
     return Objects.equals(name, storage.name)
         && Objects.equals(comment, storage.comment)
         && Objects.equals(owner, storage.owner)
-        && Objects.equals(type, storage.type)
+        && type == storage.type
         && Objects.equals(validatedAt, storage.validatedAt)
         && Objects.equals(uri, storage.uri)
         && Objects.equals(createdAt, storage.createdAt)
         && Objects.equals(createdBy, storage.createdBy)
         && Objects.equals(updatedAt, storage.updatedAt)
-        && Objects.equals(updatedBy, storage.updatedBy);
+        && Objects.equals(updatedBy, storage.updatedBy)
+        && Objects.equals(properties, storage.properties);
   }
 
   @Override
   @SkipCoverageGenerated
   public int hashCode() {
     return Objects.hash(
-        name, comment, owner, type, validatedAt, uri, createdAt, createdBy, updatedAt, updatedBy);
+        name,
+        comment,
+        owner,
+        type,
+        validatedAt,
+        uri,
+        createdAt,
+        createdBy,
+        updatedAt,
+        updatedBy,
+        properties);
+  }
+
+  @Override
+  @SkipCoverageGenerated
+  public String toString() {
+    return "Storage{" + "name='"
+        + name + '\'' + ", comment="
+        + comment + ", owner="
+        + owner + ", type="
+        + type + ", validatedAt="
+        + validatedAt + ", uri='"
+        + uri + '\'' + ", createdAt="
+        + createdAt + ", createdBy="
+        + createdBy + ", updatedAt="
+        + updatedAt + ", updatedBy="
+        + updatedBy + ", properties="
+        + properties + '}';
   }
 }

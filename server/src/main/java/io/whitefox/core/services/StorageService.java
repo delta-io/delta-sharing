@@ -37,7 +37,8 @@ public class StorageService {
           clock.millis(),
           storage.currentUser(),
           clock.millis(),
-          storage.currentUser());
+          storage.currentUser(),
+          storage.properties());
     } else {
       return new Storage(
           storage.name(),
@@ -49,7 +50,8 @@ public class StorageService {
           clock.millis(),
           storage.currentUser(),
           clock.millis(),
-          storage.currentUser());
+          storage.currentUser(),
+          storage.properties());
     }
   }
 }

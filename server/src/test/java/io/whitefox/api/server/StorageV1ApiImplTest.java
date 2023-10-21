@@ -10,7 +10,8 @@ import io.restassured.http.Header;
 import io.restassured.internal.mapping.Jackson2Mapper;
 import io.whitefox.OpenApiValidationFilter;
 import io.whitefox.api.model.v1.generated.CreateStorage;
-import io.whitefox.api.model.v1.generated.StorageCredentials;
+import io.whitefox.api.model.v1.generated.SimpleAwsCredentials;
+import io.whitefox.api.model.v1.generated.StorageProperties;
 import io.whitefox.persistence.StorageManager;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
 import jakarta.inject.Inject;
@@ -46,10 +47,11 @@ public class StorageV1ApiImplTest {
   private final CreateStorage createStorage = new CreateStorage()
       .name("s3_storage_prod")
       .skipValidation(false)
-      .credentials(new StorageCredentials()
-          .awsAccessKeyId("accessKey")
-          .awsSecretAccessKey("secretKey")
-          .region("eu-east-1"))
+      .properties(new StorageProperties()
+          .credentials(new SimpleAwsCredentials()
+              .awsAccessKeyId("accessKey")
+              .awsSecretAccessKey("secretKey")
+              .region("eu-east-1")))
       .uri("s3://bucket/storage")
       .type(CreateStorage.TypeEnum.S3);
 
@@ -104,6 +106,9 @@ public class StorageV1ApiImplTest {
         .body("validatedAt", is(0))
         .body("createdAt", is(0))
         .body("updatedBy", is("Mr. Fox"))
+        .body("properties.credentials.awsAccessKeyId", is("accessKey"))
+        .body("properties.credentials.awsSecretAccessKey", is("secretKey"))
+        .body("properties.credentials.region", is("eu-east-1"))
         .body("updatedAt", is(0));
   }
 

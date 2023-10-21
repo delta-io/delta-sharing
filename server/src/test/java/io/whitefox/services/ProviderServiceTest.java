@@ -9,6 +9,7 @@ import io.whitefox.core.services.StorageService;
 import io.whitefox.core.services.exceptions.MetastoreNotFound;
 import io.whitefox.core.services.exceptions.StorageNotFound;
 import io.whitefox.core.storage.Storage;
+import io.whitefox.core.storage.StorageProperties;
 import io.whitefox.core.storage.StorageType;
 import io.whitefox.persistence.StorageManager;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
@@ -55,7 +56,8 @@ public class ProviderServiceTest {
       7L,
       new Principal("Mr. Fox"),
       7L,
-      new Principal("Mr. Fox"));
+      new Principal("Mr. Fox"),
+      new StorageProperties.S3Properties(new AwsCredentials.SimpleAwsCredentials("", "", "")));
 
   @Test
   public void failToCreateProviderNoMetastore() {

@@ -10,6 +10,7 @@ import io.whitefox.core.actions.CreateMetastore;
 import io.whitefox.core.actions.CreateProvider;
 import io.whitefox.core.storage.CreateStorage;
 import io.whitefox.core.storage.Storage;
+import io.whitefox.core.storage.StorageProperties;
 import io.whitefox.core.storage.StorageType;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -51,7 +52,19 @@ public class Mappers {
         .createdBy(storage.createdBy().name())
         .updatedAt(storage.updatedAt())
         .updatedBy(storage.updatedBy().name())
+        .properties(storageProperties2api(storage.properties()))
         .validatedAt(storage.validatedAt().orElse(null));
+  }
+
+  private static io.whitefox.api.model.v1.generated.StorageProperties storageProperties2api(
+      StorageProperties properties) {
+    if (properties instanceof StorageProperties.S3Properties) {
+      var s3Properties = (StorageProperties.S3Properties) properties;
+      return new io.whitefox.api.model.v1.generated.StorageProperties()
+          .credentials(awsCredentials2api(s3Properties.credentials()));
+    } else {
+      throw new IllegalArgumentException("Unknown type of storage properties: " + properties);
+    }
   }
 
   public static CreateStorage api2createStorage(
@@ -61,23 +74,28 @@ public class Mappers {
         Optional.ofNullable(storage.getComment()),
         api2storageType(storage.getType()),
         principal,
-        api2storageCredentials(storage.getType(), storage.getCredentials()),
         storage.getUri(),
-        storage.getSkipValidation());
+        storage.getSkipValidation(),
+        api2storageProperties(storage.getType(), storage.getProperties()));
   }
 
-  public static AwsCredentials api2storageCredentials(
+  private static StorageProperties api2storageProperties(
       io.whitefox.api.model.v1.generated.CreateStorage.TypeEnum type,
-      io.whitefox.api.model.v1.generated.StorageCredentials credentials) {
+      io.whitefox.api.model.v1.generated.StorageProperties properties) {
     switch (type) {
       case S3:
-        return new AwsCredentials.SimpleAwsCredentials(
-            credentials.getAwsAccessKeyId(),
-            credentials.getAwsSecretAccessKey(),
-            credentials.getRegion());
+        return new StorageProperties.S3Properties(api2credentials(properties.getCredentials()));
       default:
         throw new IllegalArgumentException("Unknown storage type " + type);
     }
+  }
+
+  public static AwsCredentials api2credentials(
+      io.whitefox.api.model.v1.generated.SimpleAwsCredentials credentials) {
+    return new AwsCredentials.SimpleAwsCredentials(
+        credentials.getAwsAccessKeyId(),
+        credentials.getAwsSecretAccessKey(),
+        credentials.getRegion());
   }
 
   public static io.whitefox.api.model.v1.generated.Metastore metastore2api(Metastore metastore) {
@@ -100,12 +118,12 @@ public class Mappers {
       var glueMetastoreProperties = (MetastoreProperties.GlueMetastoreProperties) properties;
       return new io.whitefox.api.model.v1.generated.MetastoreProperties()
           .catalogId(glueMetastoreProperties.catalogId())
-          .credentials(simpleAwsCredentials2api(glueMetastoreProperties.credentials()));
+          .credentials(awsCredentials2api(glueMetastoreProperties.credentials()));
     }
     throw new IllegalArgumentException("Unknown type of metastore properties: " + properties);
   }
 
-  private static io.whitefox.api.model.v1.generated.SimpleAwsCredentials simpleAwsCredentials2api(
+  private static io.whitefox.api.model.v1.generated.SimpleAwsCredentials awsCredentials2api(
       AwsCredentials credentials) {
     if (credentials instanceof AwsCredentials.SimpleAwsCredentials) {
       var simpleAwsCredentials = (AwsCredentials.SimpleAwsCredentials) credentials;

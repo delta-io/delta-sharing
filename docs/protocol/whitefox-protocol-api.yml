@@ -1108,10 +1108,6 @@ paths:
           $ref: "#/components/responses/500"
 components:
   schemas:
-    StorageCredentials:
-      anyOf:
-        - $ref: "#/components/schemas/SimpleAwsCredentials"
-        - $ref: "#/components/schemas/SimpleAzureCredentials"
     UpdateStorage:
       type: object
       properties:
@@ -1125,8 +1121,8 @@ components:
             - gcs
             - s3
             - abfs
-        credentials:
-          $ref: "#/components/schemas/StorageCredentials"
+        properties:
+          $ref: "#/components/schemas/StorageProperties"
         uri:
           type: string
           example: s3://my-nice-bucket/some/prefix
@@ -1147,8 +1143,8 @@ components:
             - gcs
             - s3
             - abfs
-        credentials:
-          $ref: "#/components/schemas/StorageCredentials"
+        properties:
+          $ref: "#/components/schemas/StorageProperties"
         uri:
           type: string
           example: s3://my-nice-bucket/some/prefix
@@ -1264,6 +1260,16 @@ components:
           type: string
         password:
           type: string
+    StorageProperties:
+      anyOf:
+        - $ref: "#/components/schemas/S3Properties"
+    S3Properties:
+      type: object
+      properties:
+        credentials:
+          $ref: "#/components/schemas/SimpleAwsCredentials"
+      required:
+        - credentials
     Storage:
       type: object
       properties:
@@ -1278,6 +1284,8 @@ components:
         uri:
           type: string
           example: s3://my-nice-bucket/some/prefix
+        properties:
+          $ref: "#/components/schemas/StorageProperties"
         validatedAt:
           type: integer
           format: int64
@@ -1291,6 +1299,17 @@ components:
           format: int64
         updatedBy:
           type: string
+      required:
+        - name
+        - type
+        - owner
+        - uri
+        - properties
+        - validatedAt
+        - createdAt
+        - createdBy
+        - updatedAt
+        - updatedBy
     Provider:
       type: object
       properties:

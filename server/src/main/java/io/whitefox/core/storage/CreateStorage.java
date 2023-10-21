@@ -1,7 +1,6 @@
 package io.whitefox.core.storage;
 
 import io.whitefox.annotations.SkipCoverageGenerated;
-import io.whitefox.core.AwsCredentials;
 import io.whitefox.core.Principal;
 import java.util.Objects;
 import java.util.Optional;
@@ -11,25 +10,25 @@ public final class CreateStorage {
   private final Optional<String> comment;
   private final StorageType type;
   private final Principal currentUser;
-  private final AwsCredentials credentials;
   private final String uri;
   private final Boolean skipValidation;
+  private final StorageProperties properties;
 
   public CreateStorage(
       String name,
       Optional<String> comment,
       StorageType type,
       Principal currentUser,
-      AwsCredentials credentials,
       String uri,
-      Boolean skipValidation) {
+      Boolean skipValidation,
+      StorageProperties properties) {
     this.name = name;
     this.comment = comment;
     this.type = type;
     this.currentUser = currentUser;
-    this.credentials = credentials;
     this.uri = uri;
     this.skipValidation = skipValidation;
+    this.properties = properties;
   }
 
   public String name() {
@@ -44,8 +43,8 @@ public final class CreateStorage {
     return type;
   }
 
-  public AwsCredentials credentials() {
-    return credentials;
+  public StorageProperties properties() {
+    return properties;
   }
 
   public String uri() {
@@ -70,7 +69,7 @@ public final class CreateStorage {
         && Objects.equals(comment, that.comment)
         && type == that.type
         && Objects.equals(currentUser, that.currentUser)
-        && Objects.equals(credentials, that.credentials)
+        && Objects.equals(properties, that.properties)
         && Objects.equals(uri, that.uri)
         && Objects.equals(skipValidation, that.skipValidation);
   }
@@ -78,6 +77,6 @@ public final class CreateStorage {
   @SkipCoverageGenerated
   @Override
   public int hashCode() {
-    return Objects.hash(name, comment, type, currentUser, credentials, uri, skipValidation);
+    return Objects.hash(name, comment, type, currentUser, properties, uri, skipValidation);
   }
 }

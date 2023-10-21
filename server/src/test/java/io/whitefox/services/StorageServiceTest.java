@@ -7,6 +7,7 @@ import io.whitefox.core.AwsCredentials;
 import io.whitefox.core.Principal;
 import io.whitefox.core.services.StorageService;
 import io.whitefox.core.storage.CreateStorage;
+import io.whitefox.core.storage.StorageProperties;
 import io.whitefox.core.storage.StorageType;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
 import java.time.Clock;
@@ -20,9 +21,10 @@ public class StorageServiceTest {
       null,
       StorageType.S3,
       new Principal("Mr. Fox"),
-      new AwsCredentials.SimpleAwsCredentials("accessKey", "secretKey", "eu-west-1"),
       "s3://bucket/storage",
-      false);
+      false,
+      new StorageProperties.S3Properties(
+          new AwsCredentials.SimpleAwsCredentials("accessKey", "secretKey", "eu-east-1")));
 
   @Test
   public void createStorage() {
