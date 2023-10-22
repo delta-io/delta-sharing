@@ -227,9 +227,9 @@ class DeltaSharingRestClient(
   }
 
   /**
-   * Compare requestedFormat and respondedFormat, only error out when requested parquet but got
-   * delta in response. The client allows backward compatibility: requested delta but got parquet
-   * in response.
+   * Compare responseFormatSet and respondedFormat, error out when responseFormatSet doesn't contain
+   * respondedFormat. The client allows backward compatibility by specifying
+   * responseFormat=parquet,delta in the request header.
    */
   private def checkRespondedFormat(respondedFormat: String, rpc: String, table: String): Unit = {
     if (!responseFormatSet.contains(respondedFormat)) {
