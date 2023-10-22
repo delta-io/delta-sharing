@@ -95,7 +95,15 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
 
   val timestampAsOf = options.get(TIME_TRAVEL_TIMESTAMP).map(getFormattedTimestamp(_))
 
-  val responseFormat = options.get(RESPONSE_FORMAT).getOrElse(RESPONSE_FORMAT_PARQUET)
+  val responseFormat = options.get(RESPONSE_FORMAT).map { str =>
+    if (!(str == RESPONSE_FORMAT_PARQUET || str == RESPONSE_FORMAT_DELTA)) {
+      throw DeltaSharingErrors.illegalDeltaSharingOptionException(
+        RESPONSE_FORMAT, str,
+        s"The user input must be one of:{$RESPONSE_FORMAT_PARQUET, $RESPONSE_FORMAT_DELTA}."
+      )
+    }
+    str
+  }.getOrElse(RESPONSE_FORMAT_PARQUET)
 
   def isTimeTravel: Boolean = versionAsOf.isDefined || timestampAsOf.isDefined
 

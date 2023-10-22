@@ -307,8 +307,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         " not supported because history sharing is not enabled on table: " +
         s"$share.$schema.$table")
     }
-    val responseFormat = getResponseFormat(capabilitiesMap)
-    val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
+    val responseFormatSet = getResponseFormatSet(capabilitiesMap)
+    val queryResult = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = false,
       predicateHints = Nil,
       jsonPredicateHints = None,
@@ -321,8 +321,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       pageToken = None,
       includeRefreshToken = false,
       refreshToken = None,
-      responseFormat = responseFormat)
-    streamingOutput(Some(v), responseFormat, actions)
+      responseFormatSet = responseFormatSet)
+    streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
   }
 
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/query")
@@ -395,8 +395,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         )
       }
     }
-    val responseFormat = getResponseFormat(capabilitiesMap)
-    val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
+    val responseFormatSet = getResponseFormatSet(capabilitiesMap)
+    val queryResult = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
       request.predicateHints,
       request.jsonPredicateHints,
@@ -409,15 +409,15 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.pageToken,
       request.includeRefreshToken.getOrElse(false),
       request.refreshToken,
-      responseFormat = responseFormat)
-    if (version < tableConfig.startVersion) {
+      responseFormatSet = responseFormatSet)
+    if (queryResult.version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(
         s"You can only query table data since version ${tableConfig.startVersion}."
       )
     }
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
-      s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(version), responseFormat, actions)
+      s"and sign ${queryResult.actions.length - 2} urls for table $share/$schema/$table")
+    streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
   }
 
   // scalastyle:off argcount
@@ -450,8 +450,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         s"$share.$schema.$table")
     }
 
-    val responseFormat = getResponseFormat(capabilitiesMap)
-    val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
+    val responseFormatSet = getResponseFormatSet(capabilitiesMap)
+    val queryResult = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
       getCdfOptionsMap(
         Option(startingVersion),
         Option(endingVersion),
@@ -461,11 +461,11 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false),
       Option(maxFiles).map(_.toInt),
       Option(pageToken),
-      responseFormat = responseFormat
+      responseFormatSet = responseFormatSet
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
-      s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(v), responseFormat, actions)
+      s"and sign ${queryResult.actions.length - 2} urls for table $share/$schema/$table")
+    streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
   }
 
   private def streamingOutput(
@@ -622,10 +622,10 @@ object DeltaSharingService {
     endingTimestamp.map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> _)).toMap
   }
 
-  private[server] def getResponseFormat(headerCapabilities: Map[String, String]): String = {
+  private[server] def getResponseFormatSet(headerCapabilities: Map[String, String]): Set[String] = {
     headerCapabilities.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse(
       DeltaSharedTable.RESPONSE_FORMAT_PARQUET
-    )
+    ).split(",").toSet
   }
 
   def main(args: Array[String]): Unit = {
