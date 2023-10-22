@@ -33,6 +33,7 @@ import org.apache.spark.sql.sources.{
 }
 import org.apache.spark.sql.types.StructType
 
+
 /** A DataSource V1 for integrating Delta into Spark SQL batch APIs. */
 private[sharing] class DeltaSharingDataSource
   extends RelationProvider

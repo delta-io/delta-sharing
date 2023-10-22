@@ -2447,6 +2447,7 @@ If there's only one responseFormat specified, the server must respect and return
 If there's a list of responseFormat specified, such as `responseFormat=delta,parquet`. The server
 may choose to respond in parquet format if the table does not have any advanced features. The server
 must respond in delta format if the table has advanced features which are not compatible with the parquet format.
+</td>
 </tr>
 </table>
 
