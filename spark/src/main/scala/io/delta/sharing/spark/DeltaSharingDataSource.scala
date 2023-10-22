@@ -24,8 +24,6 @@ import scala.collection.mutable
 import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.PreSignedUrlCache
 import org.apache.spark.sql.{SparkSession, SQLContext}
-import org.apache.spark.sql.connector.catalog.{Table, TableCapability, TableProvider}
-import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.execution.streaming.Source
 import org.apache.spark.sql.sources.{
   BaseRelation,
@@ -34,7 +32,6 @@ import org.apache.spark.sql.sources.{
   StreamSourceProvider
 }
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /** A DataSource V1 for integrating Delta into Spark SQL batch APIs. */
 private[sharing] class DeltaSharingDataSource

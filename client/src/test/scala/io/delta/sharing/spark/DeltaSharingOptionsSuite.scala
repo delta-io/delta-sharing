@@ -214,5 +214,10 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
       new DeltaSharingOptions(Map("versionAsOf" -> "1", "timestampAsOf" -> "2020"))
     }.getMessage
     assert(errorMessage.contains("Please either provide 'versionAsOf' or 'timestampAsOf'"))
+
+    errorMessage = intercept[IllegalArgumentException] {
+      new DeltaSharingOptions(Map("responseFormat" -> "abc"))
+    }.getMessage
+    assert(errorMessage.contains("The user input must be one of:{parquet, delta}."))
   }
 }
