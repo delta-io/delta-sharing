@@ -508,8 +508,18 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
-    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
-      val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/table1/metadata"), responseFormat = responseFormat, expectedTableVersion = Some(2))
+    Seq(
+      RESPONSE_FORMAT_PARQUET,
+      RESPONSE_FORMAT_DELTA,
+      s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
+      s"$RESPONSE_FORMAT_PARQUET,$RESPONSE_FORMAT_DELTA"
+    ).foreach { responseFormat =>
+      val respondedFormat = if (responseFormat == RESPONSE_FORMAT_DELTA) {
+        RESPONSE_FORMAT_DELTA
+      } else {
+        RESPONSE_FORMAT_PARQUET
+      }
+      val response = readNDJson(requestPath(s"/shares/share1/schemas/default/tables/table1/metadata"), responseFormat = respondedFormat, expectedTableVersion = Some(2))
       val Array(protocol, metadata) = response.split("\n")
       if (responseFormat == RESPONSE_FORMAT_DELTA) {
         val responseProtocol = JsonUtils.fromJson[DeltaResponseSingleAction](protocol).protocol
@@ -531,7 +541,17 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/query") {
-    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
+    Seq(
+      RESPONSE_FORMAT_PARQUET,
+      RESPONSE_FORMAT_DELTA,
+      s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
+      s"$RESPONSE_FORMAT_PARQUET,$RESPONSE_FORMAT_DELTA"
+    ).foreach { responseFormat =>
+      val respondedFormat = if (responseFormat == RESPONSE_FORMAT_DELTA) {
+        RESPONSE_FORMAT_DELTA
+      } else {
+        RESPONSE_FORMAT_PARQUET
+      }
       val p =
         s"""
           |{
@@ -540,7 +560,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
           |  ]
           |}
           |""".stripMargin
-      val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table1/query"), Some("POST"), Some(p), Some(2), responseFormat)
+      val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table1/query"), Some("POST"), Some(p), Some(2), respondedFormat)
       val lines = response.split("\n")
       val protocol = lines(0)
       val metadata = lines(1)
@@ -2232,8 +2252,18 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_cdf_enabled_changes - query table changes") {
-    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
-      val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, Some(0), responseFormat)
+    Seq(
+      RESPONSE_FORMAT_PARQUET,
+      RESPONSE_FORMAT_DELTA,
+      s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
+      s"$RESPONSE_FORMAT_PARQUET,$RESPONSE_FORMAT_DELTA"
+    ).foreach { responseFormat =>
+      val respondedFormat = if (responseFormat == RESPONSE_FORMAT_DELTA) {
+        RESPONSE_FORMAT_DELTA
+      } else {
+        RESPONSE_FORMAT_PARQUET
+      }
+      val response = readNDJson(requestPath(s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, Some(0), respondedFormat)
       val lines = response.split("\n")
       val protocol = lines(0)
       val metadata = lines(1)
