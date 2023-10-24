@@ -8,6 +8,7 @@ import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.Header;
 import io.restassured.internal.mapping.Jackson2Mapper;
+import io.restassured.response.ValidatableResponse;
 import io.whitefox.OpenApiValidationFilter;
 import io.whitefox.api.model.v1.generated.*;
 import io.whitefox.persistence.StorageManager;
@@ -17,6 +18,7 @@ import java.nio.file.Paths;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Optional;
 import org.junit.jupiter.api.*;
 
 @QuarkusTest
@@ -42,7 +44,7 @@ public class ProviderV1ApiImplTest {
   @Inject
   private ObjectMapper objectMapper;
 
-  private final CreateStorage createStorage(String name) {
+  public static CreateStorage createStorageObj(String name) {
     return new CreateStorage()
         .name(name)
         .skipValidation(false)
@@ -55,7 +57,7 @@ public class ProviderV1ApiImplTest {
         .type(CreateStorage.TypeEnum.S3);
   }
 
-  private final CreateMetastore createMetastore(String name) {
+  public static CreateMetastore createMetastoreObj(String name) {
     return new CreateMetastore()
         .name(name)
         .skipValidation(false)
@@ -72,26 +74,10 @@ public class ProviderV1ApiImplTest {
   @Order(0)
   public void createFirstProviderWithoutMetastore() {
     var storageName = "storage1";
-    var storage = createStorage(storageName);
+    var storage = createStorageObj(storageName);
     var providerName = "provider1";
-    given()
-        .when()
-        .filter(filter)
-        .body(storage, new Jackson2Mapper((cls, charset) -> objectMapper))
-        .header(new Header("Content-Type", "application/json"))
-        .post("/whitefox-api/v1/storage")
-        .then()
-        .statusCode(201);
-    given()
-        .when()
-        .filter(filter)
-        .body(
-            new ProviderInput().storageName(storageName).name(providerName),
-            new Jackson2Mapper((cls, charset) -> objectMapper))
-        .header(new Header("Content-Type", "application/json"))
-        .post("/whitefox-api/v1/providers")
-        .then()
-        .statusCode(200)
+    createStorageAction(storage, objectMapper);
+    createProviderAction(storageName, Optional.empty(), providerName, objectMapper)
         .body("name", is(providerName))
         .body("owner", is("Mr. Fox"))
         .body("createdAt", is(0))
@@ -111,39 +97,13 @@ public class ProviderV1ApiImplTest {
   @Order(0)
   public void createFirstProviderWithMetastore() {
     var storageName = "storage2";
-    var storage = createStorage(storageName);
+    var storage = createStorageObj(storageName);
     var metastoreName = "metastore";
-    var metastore = createMetastore(metastoreName);
+    var metastore = createMetastoreObj(metastoreName);
     var providerName = "provider2";
-    given()
-        .when()
-        .filter(filter)
-        .body(storage, new Jackson2Mapper((cls, charset) -> objectMapper))
-        .header(new Header("Content-Type", "application/json"))
-        .post("/whitefox-api/v1/storage")
-        .then()
-        .statusCode(201);
-    given()
-        .when()
-        .filter(filter)
-        .body(metastore, new Jackson2Mapper((cls, charset) -> objectMapper))
-        .header(new Header("Content-Type", "application/json"))
-        .post("/whitefox-api/v1/metastores")
-        .then()
-        .statusCode(201);
-    given()
-        .when()
-        .filter(filter)
-        .body(
-            new ProviderInput()
-                .storageName(storageName)
-                .metastoreName(metastoreName)
-                .name(providerName),
-            new Jackson2Mapper((cls, charset) -> objectMapper))
-        .header(new Header("Content-Type", "application/json"))
-        .post("/whitefox-api/v1/providers")
-        .then()
-        .statusCode(200)
+    createStorageAction(storage, objectMapper);
+    createMetastoreAction(metastore, objectMapper);
+    createProviderAction(storageName, Optional.of(metastoreName), providerName, objectMapper)
         .body("name", is(providerName))
         .body("owner", is("Mr. Fox"))
         .body("createdAt", is(0))
@@ -174,6 +134,50 @@ public class ProviderV1ApiImplTest {
         .body("metastore.createdAt", is(0))
         .body("metastore.updatedBy", is("Mr. Fox"))
         .body("metastore.updatedAt", is(0));
+  }
+
+  public static ValidatableResponse createProviderAction(
+      String storageName,
+      Optional<String> metastoreName,
+      String providerName,
+      ObjectMapper objectMapper) {
+    return given()
+        .when()
+        .filter(filter)
+        .body(
+            new ProviderInput()
+                .storageName(storageName)
+                .metastoreName(metastoreName.orElse(null))
+                .name(providerName),
+            new Jackson2Mapper((cls, charset) -> objectMapper))
+        .header(new Header("Content-Type", "application/json"))
+        .post("/whitefox-api/v1/providers")
+        .then()
+        .statusCode(200);
+  }
+
+  public static ValidatableResponse createMetastoreAction(
+      CreateMetastore metastore, ObjectMapper objectMapper) {
+    return given()
+        .when()
+        .filter(filter)
+        .body(metastore, new Jackson2Mapper((cls, charset) -> objectMapper))
+        .header(new Header("Content-Type", "application/json"))
+        .post("/whitefox-api/v1/metastores")
+        .then()
+        .statusCode(201);
+  }
+
+  public static ValidatableResponse createStorageAction(
+      CreateStorage storage, ObjectMapper objectMapper) {
+    return given()
+        .when()
+        .filter(filter)
+        .body(storage, new Jackson2Mapper((cls, charset) -> objectMapper))
+        .header(new Header("Content-Type", "application/json"))
+        .post("/whitefox-api/v1/storage")
+        .then()
+        .statusCode(201);
   }
 
   @Test

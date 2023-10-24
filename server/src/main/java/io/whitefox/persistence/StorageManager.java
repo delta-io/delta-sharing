@@ -1,7 +1,7 @@
 package io.whitefox.persistence;
 
 import io.whitefox.core.*;
-import io.whitefox.core.storage.Storage;
+import io.whitefox.core.Storage;
 import java.util.List;
 import java.util.Optional;
 
@@ -10,15 +10,15 @@ public interface StorageManager {
 
   ResultAndTotalSize<List<Share>> getShares(int offset, int maxResultSize);
 
-  Optional<Table> getTable(String share, String schema, String table);
+  Optional<SharedTable> getSharedTable(String share, String schema, String table);
 
   Optional<ResultAndTotalSize<List<Schema>>> listSchemas(
       String share, int offset, int maxResultSize);
 
-  Optional<ResultAndTotalSize<List<Table>>> listTables(
+  Optional<ResultAndTotalSize<List<SharedTable>>> listTables(
       String share, String schema, int offset, int maxResultSize);
 
-  Optional<ResultAndTotalSize<List<Table>>> listTablesOfShare(
+  Optional<ResultAndTotalSize<List<SharedTable>>> listTablesOfShare(
       String share, int offset, int finalMaxResults);
 
   Metastore createMetastore(Metastore metastore);
@@ -32,4 +32,6 @@ public interface StorageManager {
   Provider createProvider(Provider provider);
 
   Optional<Provider> getProvider(String name);
+
+  InternalTable createInternalTable(InternalTable internalTable);
 }

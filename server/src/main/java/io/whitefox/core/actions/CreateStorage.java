@@ -1,7 +1,9 @@
-package io.whitefox.core.storage;
+package io.whitefox.core.actions;
 
 import io.whitefox.annotations.SkipCoverageGenerated;
 import io.whitefox.core.Principal;
+import io.whitefox.core.StorageProperties;
+import io.whitefox.core.StorageType;
 import java.util.Objects;
 import java.util.Optional;
 

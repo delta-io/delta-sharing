@@ -4,7 +4,7 @@ import io.whitefox.core.*;
 import io.whitefox.core.Metadata;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
-import io.whitefox.core.Table;
+import io.whitefox.core.SharedTable;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,13 +24,13 @@ public interface DeltaSharesService {
   Optional<ContentAndToken<List<Schema>>> listSchemas(
       String share, Optional<ContentAndToken.Token> nextPageToken, Optional<Integer> maxResults);
 
-  Optional<ContentAndToken<List<Table>>> listTables(
+  Optional<ContentAndToken<List<SharedTable>>> listTables(
       String share,
       String schema,
       Optional<ContentAndToken.Token> nextPageToken,
       Optional<Integer> maxResults);
 
-  Optional<ContentAndToken<List<Table>>> listTablesOfShare(
+  Optional<ContentAndToken<List<SharedTable>>> listTablesOfShare(
       String share, Optional<ContentAndToken.Token> token, Optional<Integer> maxResults);
 
   Optional<ReadTableResult> queryTable(

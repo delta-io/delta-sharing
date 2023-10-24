@@ -1,4 +1,4 @@
-package io.whitefox.core.storage;
+package io.whitefox.core;
 
 import java.util.Arrays;
 import java.util.Optional;

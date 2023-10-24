@@ -6,12 +6,12 @@ import java.util.Objects;
 
 public final class Schema {
   private final String name;
-  private final List<Table> tables;
+  private final List<SharedTable> sharedTables;
   private final String share;
 
-  public Schema(String name, List<Table> tables, String share) {
+  public Schema(String name, List<SharedTable> sharedTables, String share) {
     this.name = name;
-    this.tables = tables;
+    this.sharedTables = sharedTables;
     this.share = share;
   }
 
@@ -19,8 +19,8 @@ public final class Schema {
     return name;
   }
 
-  public List<Table> tables() {
-    return tables;
+  public List<SharedTable> tables() {
+    return sharedTables;
   }
 
   public String share() {
@@ -34,19 +34,20 @@ public final class Schema {
     if (obj == null || obj.getClass() != this.getClass()) return false;
     var that = (Schema) obj;
     return Objects.equals(this.name, that.name)
-        && Objects.equals(this.tables, that.tables)
+        && Objects.equals(this.sharedTables, that.sharedTables)
         && Objects.equals(this.share, that.share);
   }
 
   @Override
   @SkipCoverageGenerated
   public int hashCode() {
-    return Objects.hash(name, tables, share);
+    return Objects.hash(name, sharedTables, share);
   }
 
   @Override
   @SkipCoverageGenerated
   public String toString() {
-    return "Schema[" + "name=" + name + ", " + "tables=" + tables + ", " + "share=" + share + ']';
+    return "Schema[" + "name=" + name + ", " + "tables=" + sharedTables + ", " + "share=" + share
+        + ']';
   }
 }

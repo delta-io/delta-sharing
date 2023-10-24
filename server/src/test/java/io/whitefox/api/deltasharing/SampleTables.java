@@ -1,7 +1,7 @@
 package io.whitefox.api.deltasharing;
 
 import io.whitefox.api.deltasharing.model.v1.generated.*;
-import io.whitefox.core.Table;
+import io.whitefox.core.SharedTable;
 import io.whitefox.persistence.StorageManager;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
 import java.nio.file.Paths;
@@ -26,9 +26,8 @@ public class SampleTables {
               new io.whitefox.core.Schema(
                   "default",
                   List.of(
-                      new io.whitefox.core.Table(
-                          "table1", "file://" + deltaTable1Path, "default", "name"),
-                      new Table(
+                      new SharedTable("table1", "file://" + deltaTable1Path, "default", "name"),
+                      new SharedTable(
                           "table-with-history",
                           "file://" + deltaTableWithHistory1Path,
                           "default",

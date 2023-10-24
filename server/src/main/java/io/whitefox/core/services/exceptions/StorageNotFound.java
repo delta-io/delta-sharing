@@ -1,6 +1,6 @@
 package io.whitefox.core.services.exceptions;
 
-public class StorageNotFound extends RuntimeException {
+public class StorageNotFound extends NotFound {
   public StorageNotFound() {}
 
   public StorageNotFound(String message) {

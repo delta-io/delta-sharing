@@ -1,9 +1,8 @@
 package io.whitefox.core;
 
 import io.whitefox.annotations.SkipCoverageGenerated;
-import io.whitefox.core.storage.Storage;
-import java.util.Objects;
-import java.util.Optional;
+import io.whitefox.core.services.exceptions.TableAlreadyExists;
+import java.util.*;
 
 public class Provider {
   private final String name;
@@ -14,6 +13,7 @@ public class Provider {
   private final Long updatedAt;
   private final Principal updatedBy;
   private final Principal owner;
+  private final Map<String, InternalTable> tables;
 
   public Provider(
       String name,
@@ -32,6 +32,47 @@ public class Provider {
     this.updatedAt = updatedAt;
     this.updatedBy = updatedBy;
     this.owner = owner;
+    this.tables = Map.of();
+  }
+
+  public Provider(
+      String name,
+      Storage storage,
+      Optional<Metastore> metastore,
+      Long createdAt,
+      Principal createdBy,
+      Long updatedAt,
+      Principal updatedBy,
+      Principal owner,
+      Map<String, InternalTable> tables) {
+    this.name = name;
+    this.storage = storage;
+    this.metastore = metastore;
+    this.createdAt = createdAt;
+    this.createdBy = createdBy;
+    this.updatedAt = updatedAt;
+    this.updatedBy = updatedBy;
+    this.owner = owner;
+    this.tables = tables;
+  }
+
+  public Provider addTable(InternalTable table) {
+    if (tables.containsKey(table.name())) {
+      throw new TableAlreadyExists("Table " + table.name() + " already exists");
+    }
+    var newMap = new HashMap<String, InternalTable>();
+    newMap.putAll(tables);
+    newMap.put(table.name(), table);
+    return new Provider(
+        name,
+        storage,
+        metastore,
+        createdAt,
+        createdBy,
+        updatedAt,
+        updatedBy,
+        owner,
+        Collections.unmodifiableMap(newMap));
   }
 
   public String name() {
@@ -64,6 +105,10 @@ public class Provider {
 
   public Principal owner() {
     return owner;
+  }
+
+  public Map<String, InternalTable> tables() {
+    return tables;
   }
 
   @Override

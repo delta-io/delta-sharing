@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.wildfly.common.Assert.assertTrue;
 
-import io.whitefox.core.Table;
+import io.whitefox.core.SharedTable;
 import io.whitefox.core.services.DeltaSharedTable;
 import java.time.format.DateTimeParseException;
 import java.util.Optional;
@@ -19,7 +19,7 @@ public class DeltaSharedTableTest {
 
   @Test
   void getTableVersion() throws ExecutionException, InterruptedException {
-    var PTable = new Table("delta-table", tablePath("delta-table"), "default", "share1");
+    var PTable = new SharedTable("delta-table", tablePath("delta-table"), "default", "share1");
     var DTable = DeltaSharedTable.of(PTable);
     var version = DTable.getTableVersion(Optional.empty());
     assertEquals(Optional.of(0L), version);
@@ -27,7 +27,7 @@ public class DeltaSharedTableTest {
 
   @Test
   void getTableMetadata() {
-    var PTable = new Table("delta-table", tablePath("delta-table"), "default", "share1");
+    var PTable = new SharedTable("delta-table", tablePath("delta-table"), "default", "share1");
     var DTable = DeltaSharedTable.of(PTable);
     var metadata = DTable.getMetadata(Optional.empty());
     assertTrue(metadata.isPresent());
@@ -36,20 +36,21 @@ public class DeltaSharedTableTest {
 
   @Test
   void getUnknownTableMetadata() {
-    var unknownPTable = new Table("notFound", "location1", "default", "share1");
+    var unknownPTable = new SharedTable("notFound", "location1", "default", "share1");
     assertThrows(IllegalArgumentException.class, () -> DeltaSharedTable.of(unknownPTable));
   }
 
   @Test
   void getTableVersionNonExistingTable() throws ExecutionException, InterruptedException {
-    var PTable = new Table("delta-table", tablePath("delta-table-not-exists"), "default", "share1");
+    var PTable =
+        new SharedTable("delta-table", tablePath("delta-table-not-exists"), "default", "share1");
     var exception = assertThrows(IllegalArgumentException.class, () -> DeltaSharedTable.of(PTable));
     assertTrue(exception.getMessage().startsWith("Cannot find a delta table at file"));
   }
 
   @Test
   void getTableVersionWithTimestamp() throws ExecutionException, InterruptedException {
-    var PTable = new Table("delta-table", tablePath("delta-table"), "default", "share1");
+    var PTable = new SharedTable("delta-table", tablePath("delta-table"), "default", "share1");
     var DTable = DeltaSharedTable.of(PTable);
     var version = DTable.getTableVersion(Optional.of("2023-09-30T10:15:30+01:00"));
     assertEquals(Optional.empty(), version);
@@ -57,7 +58,7 @@ public class DeltaSharedTableTest {
 
   @Test
   void getTableVersionWithFutureTimestamp() throws ExecutionException, InterruptedException {
-    var PTable = new Table("delta-table", tablePath("delta-table"), "default", "share1");
+    var PTable = new SharedTable("delta-table", tablePath("delta-table"), "default", "share1");
     var DTable = DeltaSharedTable.of(PTable);
     var version = DTable.getTableVersion(Optional.of("2024-10-20T10:15:30+01:00"));
     assertEquals(Optional.empty(), version);
@@ -65,7 +66,7 @@ public class DeltaSharedTableTest {
 
   @Test
   void getTableVersionWithMalformedTimestamp() throws ExecutionException, InterruptedException {
-    var PTable = new Table("delta-table", tablePath("delta-table"), "default", "share1");
+    var PTable = new SharedTable("delta-table", tablePath("delta-table"), "default", "share1");
     var DTable = DeltaSharedTable.of(PTable);
     assertThrows(
         DateTimeParseException.class,

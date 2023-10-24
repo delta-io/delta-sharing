@@ -1426,6 +1426,9 @@ components:
           type: object
           additionalProperties:
             type: string
+      required:
+        - name
+        - properties
       example:
         name: customer
         properties:

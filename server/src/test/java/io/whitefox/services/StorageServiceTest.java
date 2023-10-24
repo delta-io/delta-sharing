@@ -5,10 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.whitefox.core.AwsCredentials;
 import io.whitefox.core.Principal;
+import io.whitefox.core.StorageProperties;
+import io.whitefox.core.StorageType;
+import io.whitefox.core.actions.CreateStorage;
 import io.whitefox.core.services.StorageService;
-import io.whitefox.core.storage.CreateStorage;
-import io.whitefox.core.storage.StorageProperties;
-import io.whitefox.core.storage.StorageType;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
 import java.time.Clock;
 import org.junit.jupiter.api.Test;

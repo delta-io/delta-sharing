@@ -1,8 +1,8 @@
 package io.whitefox.core.services;
 
-import io.whitefox.core.Table;
+import io.whitefox.core.SharedTable;
 
 public interface TableLoader<T> {
 
-  DeltaSharedTable loadTable(Table table);
+  DeltaSharedTable loadTable(SharedTable sharedTable);
 }

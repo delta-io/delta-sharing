@@ -1,7 +1,6 @@
-package io.whitefox.core.storage;
+package io.whitefox.core;
 
 import io.whitefox.annotations.SkipCoverageGenerated;
-import io.whitefox.core.AwsCredentials;
 import java.util.Objects;
 
 public interface StorageProperties {

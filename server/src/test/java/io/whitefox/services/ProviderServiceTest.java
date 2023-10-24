@@ -3,14 +3,14 @@ package io.whitefox.services;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.whitefox.core.*;
+import io.whitefox.core.Storage;
+import io.whitefox.core.StorageProperties;
+import io.whitefox.core.StorageType;
 import io.whitefox.core.services.MetastoreService;
 import io.whitefox.core.services.ProviderService;
 import io.whitefox.core.services.StorageService;
 import io.whitefox.core.services.exceptions.MetastoreNotFound;
 import io.whitefox.core.services.exceptions.StorageNotFound;
-import io.whitefox.core.storage.Storage;
-import io.whitefox.core.storage.StorageProperties;
-import io.whitefox.core.storage.StorageType;
 import io.whitefox.persistence.StorageManager;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
 import java.time.Clock;

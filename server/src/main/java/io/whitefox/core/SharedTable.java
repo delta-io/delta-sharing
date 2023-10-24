@@ -3,13 +3,13 @@ package io.whitefox.core;
 import io.whitefox.annotations.SkipCoverageGenerated;
 import java.util.Objects;
 
-public final class Table {
+public final class SharedTable {
   private final String name;
   private final String location;
   private final String schema;
   private final String share;
 
-  public Table(String name, String location, String schema, String share) {
+  public SharedTable(String name, String location, String schema, String share) {
     this.name = name;
     this.location = location;
     this.schema = schema;
@@ -37,7 +37,7 @@ public final class Table {
   public boolean equals(Object obj) {
     if (obj == this) return true;
     if (obj == null || obj.getClass() != this.getClass()) return false;
-    var that = (Table) obj;
+    var that = (SharedTable) obj;
     return Objects.equals(this.name, that.name)
         && Objects.equals(this.location, that.location)
         && Objects.equals(this.schema, that.schema)

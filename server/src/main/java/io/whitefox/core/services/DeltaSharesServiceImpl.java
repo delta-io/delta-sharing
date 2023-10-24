@@ -41,7 +41,7 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   public Optional<Long> getTableVersion(
       String share, String schema, String table, String startingTimestamp) {
     return storageManager
-        .getTable(share, schema, table)
+        .getSharedTable(share, schema, table)
         .map(t -> tableLoader.loadTable(t).getTableVersion(Optional.ofNullable(startingTimestamp)))
         .orElse(Optional.empty());
   }
@@ -65,7 +65,7 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   public Optional<Metadata> getTableMetadata(
       String share, String schema, String table, String startingTimestamp) {
     return storageManager
-        .getTable(share, schema, table)
+        .getSharedTable(share, schema, table)
         .flatMap(t -> tableLoader.loadTable(t).getMetadata(Optional.ofNullable(startingTimestamp)));
   }
 
@@ -88,7 +88,7 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   }
 
   @Override
-  public Optional<ContentAndToken<List<Table>>> listTables(
+  public Optional<ContentAndToken<List<SharedTable>>> listTables(
       String share,
       String schema,
       Optional<ContentAndToken.Token> nextPageToken,
@@ -108,7 +108,7 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   }
 
   @Override
-  public Optional<ContentAndToken<List<Table>>> listTablesOfShare(
+  public Optional<ContentAndToken<List<SharedTable>>> listTablesOfShare(
       String share, Optional<ContentAndToken.Token> nextPageToken, Optional<Integer> maxResults) {
     Integer finalMaxResults = maxResults.orElse(defaultMaxResults);
     Integer start = nextPageToken.map(ContentAndToken.Token::value).orElse(0);
@@ -127,7 +127,7 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   public Optional<ReadTableResult> queryTable(
       String share, String schema, String tableName, ReadTableRequest queryRequest) {
     return storageManager
-        .getTable(share, schema, tableName)
+        .getSharedTable(share, schema, tableName)
         .map(tableLoader::loadTable)
         .map(dst -> dst.queryTable(queryRequest))
         .map(result -> new ReadTableResult(

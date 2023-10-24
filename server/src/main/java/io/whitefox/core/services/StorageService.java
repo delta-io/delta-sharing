@@ -1,7 +1,7 @@
 package io.whitefox.core.services;
 
-import io.whitefox.core.storage.CreateStorage;
-import io.whitefox.core.storage.Storage;
+import io.whitefox.core.Storage;
+import io.whitefox.core.actions.CreateStorage;
 import io.whitefox.persistence.StorageManager;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Clock;

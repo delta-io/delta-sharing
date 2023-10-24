@@ -1,17 +1,20 @@
 package io.whitefox.api.deltasharing;
 
 import io.whitefox.api.deltasharing.model.v1.generated.*;
+import io.whitefox.api.model.v1.generated.CreateTableInput;
 import io.whitefox.api.model.v1.generated.ProviderInput;
+import io.whitefox.api.model.v1.generated.TableInfo;
 import io.whitefox.core.*;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
-import io.whitefox.core.Table;
+import io.whitefox.core.SharedTable;
+import io.whitefox.core.Storage;
+import io.whitefox.core.StorageProperties;
+import io.whitefox.core.StorageType;
+import io.whitefox.core.actions.CreateInternalTable;
 import io.whitefox.core.actions.CreateMetastore;
 import io.whitefox.core.actions.CreateProvider;
-import io.whitefox.core.storage.CreateStorage;
-import io.whitefox.core.storage.Storage;
-import io.whitefox.core.storage.StorageProperties;
-import io.whitefox.core.storage.StorageType;
+import io.whitefox.core.actions.CreateStorage;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -34,11 +37,12 @@ public class Mappers {
         .share(schema.share());
   }
 
-  public static io.whitefox.api.deltasharing.model.v1.generated.Table table2api(Table table) {
+  public static io.whitefox.api.deltasharing.model.v1.generated.Table table2api(
+      SharedTable sharedTable) {
     return new io.whitefox.api.deltasharing.model.v1.generated.Table()
-        .name(table.name())
-        .share(table.share())
-        .schema(table.schema());
+        .name(sharedTable.name())
+        .share(sharedTable.share())
+        .schema(sharedTable.schema());
   }
 
   public static io.whitefox.api.model.v1.generated.Storage storage2api(Storage storage) {
@@ -314,5 +318,26 @@ public class Mappers {
         .updatedAt(provider.updatedAt())
         .updatedBy(provider.updatedBy().name())
         .owner(provider.owner().name());
+  }
+
+  public static TableInfo internalTable2api(InternalTable internalTable) {
+    return new TableInfo()
+        .providerName(internalTable.provider().name())
+        .name(internalTable.name())
+        .comment(internalTable.comment().orElse(null))
+        .properties(internalTable.properties().asMap())
+        .validatedAt(internalTable.validatedAt().orElse(null))
+        .createdAt(internalTable.createdAt())
+        .createdBy(internalTable.createdBy().name())
+        .updatedAt(internalTable.updatedAt())
+        .updatedBy(internalTable.updatedBy().name());
+  }
+
+  public static CreateInternalTable api2createInternalTable(CreateTableInput createTableInput) {
+    return new CreateInternalTable(
+        createTableInput.getName(),
+        Optional.ofNullable(createTableInput.getComment()),
+        createTableInput.getSkipValidation(),
+        InternalTable.InternalTableProperties.fromMap(createTableInput.getProperties()));
   }
 }

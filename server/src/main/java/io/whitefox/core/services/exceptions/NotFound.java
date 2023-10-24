@@ -1,21 +1,21 @@
 package io.whitefox.core.services.exceptions;
 
-public class MetastoreNotFound extends NotFound {
-  public MetastoreNotFound() {}
+public class NotFound extends RuntimeException {
+  public NotFound() {}
 
-  public MetastoreNotFound(String message) {
+  public NotFound(String message) {
     super(message);
   }
 
-  public MetastoreNotFound(String message, Throwable cause) {
+  public NotFound(String message, Throwable cause) {
     super(message, cause);
   }
 
-  public MetastoreNotFound(Throwable cause) {
+  public NotFound(Throwable cause) {
     super(cause);
   }
 
-  public MetastoreNotFound(
+  public NotFound(
       String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
     super(message, cause, enableSuppression, writableStackTrace);
   }

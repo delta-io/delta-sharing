@@ -16,28 +16,29 @@ public class DeltaSharedTable {
 
   private final DeltaLog deltaLog;
   private final TableSchemaConverter tableSchemaConverter;
-  private final Table tableDetails;
+  private final SharedTable tableDetails;
 
   private DeltaSharedTable(
-      DeltaLog deltaLog, TableSchemaConverter tableSchemaConverter, Table table) {
+      DeltaLog deltaLog, TableSchemaConverter tableSchemaConverter, SharedTable sharedTable) {
     this.deltaLog = deltaLog;
     this.tableSchemaConverter = tableSchemaConverter;
-    this.tableDetails = table;
+    this.tableDetails = sharedTable;
   }
 
-  public static DeltaSharedTable of(Table table, TableSchemaConverter tableSchemaConverter) {
+  public static DeltaSharedTable of(
+      SharedTable sharedTable, TableSchemaConverter tableSchemaConverter) {
     var configuration = new Configuration();
-    var dataPath = table.location();
+    var dataPath = sharedTable.location();
     var dt = DeltaLog.forTable(configuration, dataPath);
     if (!dt.tableExists()) {
       throw new IllegalArgumentException(
           String.format("Cannot find a delta table at %s", dataPath));
     }
-    return new DeltaSharedTable(dt, tableSchemaConverter, table);
+    return new DeltaSharedTable(dt, tableSchemaConverter, sharedTable);
   }
 
-  public static DeltaSharedTable of(Table table) {
-    return of(table, TableSchemaConverter.INSTANCE);
+  public static DeltaSharedTable of(SharedTable sharedTable) {
+    return of(sharedTable, TableSchemaConverter.INSTANCE);
   }
 
   public Optional<Metadata> getMetadata(Optional<String> startingTimestamp) {
