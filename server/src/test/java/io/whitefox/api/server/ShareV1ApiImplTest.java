@@ -141,6 +141,29 @@ public class ShareV1ApiImplTest {
     addRecipientsToShare("share2", List.of("Paolo")).statusCode(404);
   }
 
+  @Test
+  @Order(5)
+  public void createSchema() {
+    createSchemaInShare("share1", "schema1")
+        .statusCode(201)
+        .body("name", is("share1"))
+        .body("comment", is(nullValue()))
+        .body("recipients", is(hasSize(4)))
+        .body("schemas", is(hasSize(1)))
+        .body("schemas[0]", is("schema1"))
+        .body("createdAt", is(0))
+        .body("createdBy", is("Mr. Fox"))
+        .body("updatedAt", is(0))
+        .body("updatedBy", is("Mr. Fox"))
+        .body("owner", is("Mr. Fox"));
+  }
+
+  @Test
+  @Order(6)
+  public void createSameSchema() {
+    createSchemaInShare("share1", "schema1").statusCode(409);
+  }
+
   ValidatableResponse createEmptyShare(String name) {
     return given()
         .when()
@@ -150,6 +173,14 @@ public class ShareV1ApiImplTest {
             new Jackson2Mapper((cls, charset) -> objectMapper))
         .header(new Header("Content-Type", "application/json"))
         .post("/whitefox-api/v1/shares")
+        .then();
+  }
+
+  ValidatableResponse createSchemaInShare(String share, String schema) {
+    return given()
+        .when()
+        .filter(wfFilter)
+        .post("/whitefox-api/v1/shares/{share}/{schema}", share, schema)
         .then();
   }
 

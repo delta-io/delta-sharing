@@ -4,6 +4,7 @@ import io.whitefox.core.Principal;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
 import io.whitefox.core.actions.CreateShare;
+import io.whitefox.core.services.exceptions.SchemaAlreadyExists;
 import io.whitefox.core.services.exceptions.ShareAlreadyExists;
 import io.whitefox.core.services.exceptions.ShareNotFound;
 import io.whitefox.persistence.StorageManager;
@@ -63,5 +64,17 @@ public class ShareService {
 
   public Optional<Share> getShare(String share) {
     return storageManager.getShare(share);
+  }
+
+  public Share createSchema(String share, String schema, Principal requestPrincipal) {
+    var shareObj = storageManager
+        .getShare(share)
+        .orElseThrow(() -> new ShareNotFound("Share " + share + "not found"));
+    if (shareObj.schemas().containsKey(schema)) {
+      throw new SchemaAlreadyExists("Schema " + schema + " already exists in share " + share);
+    }
+    var newSchema = new Schema(schema, Collections.emptyList(), share);
+    var newShare = shareObj.addSchema(newSchema, requestPrincipal, clock.millis());
+    return storageManager.updateShare(newShare);
   }
 }

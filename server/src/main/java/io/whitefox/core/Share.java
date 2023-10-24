@@ -114,6 +114,22 @@ public final class Share {
         owner);
   }
 
+  public Share addSchema(Schema schema, Principal currentUser, long now) {
+    var newSchemas = new HashMap<>(schemas);
+    newSchemas.put(schema.name(), schema);
+    return new Share(
+        name,
+        id,
+        Map.copyOf(newSchemas),
+        comment,
+        recipients,
+        createdAt,
+        createdBy,
+        now,
+        currentUser,
+        owner);
+  }
+
   @Override
   @SkipCoverageGenerated
   public boolean equals(Object o) {

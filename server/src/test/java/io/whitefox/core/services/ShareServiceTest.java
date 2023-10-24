@@ -6,6 +6,7 @@ import io.whitefox.core.Principal;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
 import io.whitefox.core.actions.CreateShare;
+import io.whitefox.core.services.exceptions.SchemaAlreadyExists;
 import io.whitefox.core.services.exceptions.ShareAlreadyExists;
 import io.whitefox.core.services.exceptions.ShareNotFound;
 import io.whitefox.persistence.StorageManager;
@@ -123,6 +124,63 @@ class ShareServiceTest {
     assertTrue(share.isPresent());
     assertEquals("name", share.get().name());
     assertEquals("key", share.get().id());
+  }
+
+  @Test
+  public void createSchema() {
+    var storage = new InMemoryStorageManager();
+    var target = new ShareService(storage, testClock);
+    target.createShare(emptyCreateShare(), testPrincipal);
+    var result = target.createSchema("share1", "schema1", testPrincipal);
+    assertEquals(
+        new Share(
+            "share1",
+            "share1",
+            Map.of("schema1", new Schema("schema1", Collections.emptyList(), "share1")),
+            Optional.empty(),
+            Set.of(),
+            7,
+            testPrincipal,
+            7,
+            testPrincipal,
+            testPrincipal),
+        result);
+  }
+
+  @Test
+  public void failToCreateSameSchema() {
+    var storage = new InMemoryStorageManager();
+    var target = new ShareService(storage, testClock);
+    target.createShare(emptyCreateShare(), testPrincipal);
+    target.createSchema("share1", "schema1", testPrincipal);
+    assertThrows(
+        SchemaAlreadyExists.class, () -> target.createSchema("share1", "schema1", testPrincipal));
+  }
+
+  @Test
+  public void createSecondSchema() {
+    var storage = new InMemoryStorageManager();
+    var target = new ShareService(storage, testClock);
+    target.createShare(emptyCreateShare(), testPrincipal);
+    target.createSchema("share1", "schema1", testPrincipal);
+    var result = target.createSchema("share1", "schema2", testPrincipal);
+    assertEquals(
+        new Share(
+            "share1",
+            "share1",
+            Map.of(
+                "schema1",
+                new Schema("schema1", Collections.emptyList(), "share1"),
+                "schema2",
+                new Schema("schema2", Collections.emptyList(), "share1")),
+            Optional.empty(),
+            Set.of(),
+            7,
+            testPrincipal,
+            7,
+            testPrincipal,
+            testPrincipal),
+        result);
   }
 
   private Share createShare(String name, String key, Map<String, Schema> schemas) {

@@ -35,7 +35,12 @@ public class ShareV1ApiImpl implements ShareV1Api, ApiUtils {
 
   @Override
   public Response createSchema(String share, String schema) {
-    return Response.status(501).build();
+    return wrapExceptions(
+        () -> Response.status(Response.Status.CREATED)
+            .entity(WhitefoxMappers.share2api(
+                shareService.createSchema(share, schema, this.getRequestPrincipal())))
+            .build(),
+        exceptionToResponse);
   }
 
   @Override
