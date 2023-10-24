@@ -1,6 +1,5 @@
 package io.whitefox.api.server;
 
-import io.whitefox.api.deltasharing.Mappers;
 import io.whitefox.api.model.v1.generated.UpdateStorage;
 import io.whitefox.api.server.v1.generated.StorageV1Api;
 import io.whitefox.core.services.StorageService;
@@ -20,8 +19,8 @@ public class StorageV1ApiImpl implements StorageV1Api, ApiUtils {
   public Response createStorage(io.whitefox.api.model.v1.generated.CreateStorage createStorage) {
     return wrapExceptions(
         () -> Response.status(Response.Status.CREATED)
-            .entity(Mappers.storage2api(storageService.createStorage(
-                Mappers.api2createStorage(createStorage, getRequestPrincipal()))))
+            .entity(WhitefoxMappers.storage2api(storageService.createStorage(
+                WhitefoxMappers.api2createStorage(createStorage, getRequestPrincipal()))))
             .build(),
         exceptionToResponse);
   }
@@ -36,7 +35,7 @@ public class StorageV1ApiImpl implements StorageV1Api, ApiUtils {
     return wrapExceptions(
         () -> optionalToNotFound(
             storageService.getStorage(name),
-            storage -> Response.ok(Mappers.storage2api(storage)).build()),
+            storage -> Response.ok(WhitefoxMappers.storage2api(storage)).build()),
         exceptionToResponse);
   }
 

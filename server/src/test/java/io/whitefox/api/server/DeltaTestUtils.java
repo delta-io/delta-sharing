@@ -3,7 +3,7 @@ package io.whitefox.api.server;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-public class DeltaUtils {
+public class DeltaTestUtils {
 
   private static final Path deltaTablesRoot = Paths.get(".")
       .toAbsolutePath()

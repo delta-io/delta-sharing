@@ -1,6 +1,6 @@
 package io.whitefox.api.deltasharing;
 
-import static io.whitefox.api.server.DeltaUtils.tablePath;
+import static io.whitefox.api.server.DeltaTestUtils.tablePath;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.wildfly.common.Assert.assertTrue;

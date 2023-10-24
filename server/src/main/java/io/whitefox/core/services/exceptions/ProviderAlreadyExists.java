@@ -1,5 +1,8 @@
 package io.whitefox.core.services.exceptions;
 
+import io.whitefox.annotations.SkipCoverageGenerated;
+
+@SkipCoverageGenerated
 public class ProviderAlreadyExists extends AlreadyExists {
   public ProviderAlreadyExists() {}
 

@@ -1,6 +1,5 @@
 package io.whitefox.api.server;
 
-import io.whitefox.api.deltasharing.Mappers;
 import io.whitefox.api.model.v1.generated.UpdateMetastore;
 import io.whitefox.api.server.v1.generated.MetastoreV1Api;
 import io.whitefox.core.services.MetastoreService;
@@ -21,8 +20,8 @@ public class MetastoreV1ApiImpl implements MetastoreV1Api, ApiUtils {
       io.whitefox.api.model.v1.generated.CreateMetastore createMetastore) {
     return wrapExceptions(
         () -> Response.status(Response.Status.CREATED)
-            .entity(Mappers.metastore2api(metastoreService.createMetastore(
-                Mappers.api2createMetastore(createMetastore, getRequestPrincipal()))))
+            .entity(WhitefoxMappers.metastore2api(metastoreService.createMetastore(
+                WhitefoxMappers.api2createMetastore(createMetastore, getRequestPrincipal()))))
             .build(),
         exceptionToResponse);
   }
@@ -38,7 +37,7 @@ public class MetastoreV1ApiImpl implements MetastoreV1Api, ApiUtils {
     return wrapExceptions(
         () -> optionalToNotFound(
             metastoreService.getMetastore(name),
-            metastore -> Response.ok(Mappers.metastore2api(metastore)).build()),
+            metastore -> Response.ok(WhitefoxMappers.metastore2api(metastore)).build()),
         exceptionToResponse);
   }
 

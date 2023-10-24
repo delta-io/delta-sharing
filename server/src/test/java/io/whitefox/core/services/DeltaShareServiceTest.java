@@ -1,15 +1,12 @@
-package io.whitefox.services;
+package io.whitefox.core.services;
 
-import static io.whitefox.api.server.DeltaUtils.tablePath;
+import static io.whitefox.api.server.DeltaTestUtils.tablePath;
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.whitefox.core.Principal;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
 import io.whitefox.core.SharedTable;
-import io.whitefox.core.services.DeltaShareTableLoader;
-import io.whitefox.core.services.DeltaSharesService;
-import io.whitefox.core.services.DeltaSharesServiceImpl;
-import io.whitefox.core.services.NoOpSigner;
 import io.whitefox.persistence.StorageManager;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
 import java.util.Collections;
@@ -27,28 +24,15 @@ public class DeltaShareServiceTest {
   Integer defaultMaxResults = 10;
   NoOpSigner signer = new NoOpSigner();
 
-  @Test
-  public void getUnknownShare() throws ExecutionException, InterruptedException {
-    DeltaSharesService deltaSharesService =
-        new DeltaSharesServiceImpl(new InMemoryStorageManager(), defaultMaxResults, loader, signer);
-    assertEquals(Optional.empty(), deltaSharesService.getShare("unknown"));
-  }
+  private static final Principal testPrincipal = new Principal("Mr. Fox");
 
-  @Test
-  public void getShare() throws ExecutionException, InterruptedException {
-    var shares = List.of(new Share("name", "key", Collections.emptyMap()));
-    StorageManager storageManager = new InMemoryStorageManager(shares);
-    DeltaSharesService deltaSharesService =
-        new DeltaSharesServiceImpl(storageManager, defaultMaxResults, loader, signer);
-    var share = deltaSharesService.getShare("name");
-    assertTrue(share.isPresent());
-    assertEquals("name", share.get().name());
-    assertEquals("key", share.get().id());
+  private static Share createShare(String name, String key, Map<String, Schema> schemas) {
+    return new Share(name, key, schemas, testPrincipal, 0L);
   }
 
   @Test
   public void listShares() throws ExecutionException, InterruptedException {
-    var shares = List.of(new Share("name", "key", Collections.emptyMap()));
+    var shares = List.of(createShare("name", "key", Collections.emptyMap()));
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, defaultMaxResults, loader, signer);
@@ -59,7 +43,7 @@ public class DeltaShareServiceTest {
 
   @Test
   public void listSharesWithToken() throws ExecutionException, InterruptedException {
-    var shares = List.of(new Share("name", "key", Collections.emptyMap()));
+    var shares = List.of(createShare("name", "key", Collections.emptyMap()));
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, defaultMaxResults, loader, signer);
@@ -70,7 +54,7 @@ public class DeltaShareServiceTest {
 
   @Test
   public void listSchemasOfEmptyShare() throws ExecutionException, InterruptedException {
-    var shares = List.of(new Share("name", "key", Collections.emptyMap()));
+    var shares = List.of(createShare("name", "key", Collections.emptyMap()));
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, loader, signer);
@@ -82,7 +66,7 @@ public class DeltaShareServiceTest {
 
   @Test
   public void listSchemas() throws ExecutionException, InterruptedException {
-    var shares = List.of(new Share(
+    var shares = List.of(createShare(
         "name", "key", Map.of("default", new Schema("default", Collections.emptyList(), "name"))));
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
@@ -98,7 +82,7 @@ public class DeltaShareServiceTest {
 
   @Test
   public void listSchemasOfUnknownShare() throws ExecutionException, InterruptedException {
-    var shares = List.of(new Share(
+    var shares = List.of(createShare(
         "name", "key", Map.of("default", new Schema("default", Collections.emptyList(), "name"))));
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
@@ -110,7 +94,7 @@ public class DeltaShareServiceTest {
 
   @Test
   public void listTables() throws ExecutionException, InterruptedException {
-    var shares = List.of(new Share(
+    var shares = List.of(createShare(
         "name",
         "key",
         Map.of(
@@ -134,7 +118,7 @@ public class DeltaShareServiceTest {
 
   @Test
   public void listAllTables() throws ExecutionException, InterruptedException {
-    var shares = List.of(new Share(
+    var shares = List.of(createShare(
         "name",
         "key",
         Map.of(
@@ -170,7 +154,7 @@ public class DeltaShareServiceTest {
   @Test
   public void listAllTablesEmpty() throws ExecutionException, InterruptedException {
     var shares = List.of(
-        new Share(
+        createShare(
             "name",
             "key",
             Map.of(
@@ -184,7 +168,7 @@ public class DeltaShareServiceTest {
                     "other",
                     List.of(new SharedTable("table2", "location2", "default", "name")),
                     "name"))),
-        new Share("name2", "key2", Map.of()));
+        createShare("name2", "key2", Map.of()));
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, loader, signer);
@@ -208,7 +192,7 @@ public class DeltaShareServiceTest {
   @Test
   @DisabledOnOs(OS.WINDOWS)
   public void getTableMetadata() {
-    var shares = List.of(new Share(
+    var shares = List.of(createShare(
         "name",
         "key",
         Map.of(
@@ -227,7 +211,7 @@ public class DeltaShareServiceTest {
 
   @Test
   public void tableMetadataNotFound() {
-    var shares = List.of(new Share(
+    var shares = List.of(createShare(
         "name",
         "key",
         Map.of(

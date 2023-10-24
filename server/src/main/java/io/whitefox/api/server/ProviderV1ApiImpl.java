@@ -1,6 +1,5 @@
 package io.whitefox.api.server;
 
-import io.whitefox.api.deltasharing.Mappers;
 import io.whitefox.api.model.v1.generated.ProviderInput;
 import io.whitefox.api.server.v1.generated.ProviderV1Api;
 import io.whitefox.core.services.ProviderService;
@@ -21,8 +20,8 @@ public class ProviderV1ApiImpl implements ProviderV1Api, ApiUtils {
     return wrapExceptions(
         () -> {
           var provider = providerService.createProvider(
-              Mappers.api2CreateProvider(providerInput, getRequestPrincipal()));
-          return Response.ok(Mappers.provider2Api(provider)).build();
+              WhitefoxMappers.api2CreateProvider(providerInput, getRequestPrincipal()));
+          return Response.ok(WhitefoxMappers.provider2Api(provider)).build();
         },
         exceptionToResponse);
   }
@@ -37,7 +36,7 @@ public class ProviderV1ApiImpl implements ProviderV1Api, ApiUtils {
     return wrapExceptions(
         () -> optionalToNotFound(
             providerService.getProvider(name),
-            provider -> Response.ok(Mappers.provider2Api(provider)).build()),
+            provider -> Response.ok(WhitefoxMappers.provider2Api(provider)).build()),
         exceptionToResponse);
   }
 

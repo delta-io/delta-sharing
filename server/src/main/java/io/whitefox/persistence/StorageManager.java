@@ -34,4 +34,8 @@ public interface StorageManager {
   Optional<Provider> getProvider(String name);
 
   InternalTable createInternalTable(InternalTable internalTable);
+
+  Share createShare(Share share);
+
+  Share updateShare(Share newShare);
 }

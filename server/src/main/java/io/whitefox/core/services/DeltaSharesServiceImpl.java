@@ -33,11 +33,6 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   }
 
   @Override
-  public Optional<Share> getShare(String share) {
-    return storageManager.getShare(share);
-  }
-
-  @Override
   public Optional<Long> getTableVersion(
       String share, String schema, String table, String startingTimestamp) {
     return storageManager

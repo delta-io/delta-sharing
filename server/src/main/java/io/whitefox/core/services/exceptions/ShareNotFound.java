@@ -3,22 +3,22 @@ package io.whitefox.core.services.exceptions;
 import io.whitefox.annotations.SkipCoverageGenerated;
 
 @SkipCoverageGenerated
-public class TableAlreadyExists extends AlreadyExists {
-  public TableAlreadyExists() {}
+public class ShareNotFound extends NotFound {
+  public ShareNotFound() {}
 
-  public TableAlreadyExists(String message) {
+  public ShareNotFound(String message) {
     super(message);
   }
 
-  public TableAlreadyExists(String message, Throwable cause) {
+  public ShareNotFound(String message, Throwable cause) {
     super(message, cause);
   }
 
-  public TableAlreadyExists(Throwable cause) {
+  public ShareNotFound(Throwable cause) {
     super(cause);
   }
 
-  public TableAlreadyExists(
+  public ShareNotFound(
       String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
     super(message, cause, enableSuppression, writableStackTrace);
   }

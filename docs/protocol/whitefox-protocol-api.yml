@@ -886,13 +886,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                description: all the recipients currently part of the share
-                properties:
-                  principals:
-                    type: array
-                    items:
-                      type: string
+                $ref: "#/components/schemas/ShareInfo"
         "400":
           $ref: "#/components/responses/400"
         "401":
@@ -1384,6 +1378,8 @@ components:
           type: integer
           format: int64
         updatedBy:
+          type: string
+        owner:
           type: string
 
     TableInfo:

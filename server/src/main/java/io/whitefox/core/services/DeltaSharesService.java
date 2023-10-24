@@ -10,8 +10,6 @@ import java.util.Optional;
 
 public interface DeltaSharesService {
 
-  Optional<Share> getShare(String share);
-
   Optional<Long> getTableVersion(
       String share, String schema, String table, String startingTimestamp);
 

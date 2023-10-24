@@ -1,4 +1,4 @@
-package io.whitefox.services;
+package io.whitefox.core.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -8,7 +8,6 @@ import io.whitefox.core.Principal;
 import io.whitefox.core.StorageProperties;
 import io.whitefox.core.StorageType;
 import io.whitefox.core.actions.CreateStorage;
-import io.whitefox.core.services.StorageService;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
 import java.time.Clock;
 import org.junit.jupiter.api.Test;

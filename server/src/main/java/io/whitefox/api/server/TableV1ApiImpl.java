@@ -1,6 +1,5 @@
 package io.whitefox.api.server;
 
-import io.whitefox.api.deltasharing.Mappers;
 import io.whitefox.api.model.v1.generated.CreateTableInput;
 import io.whitefox.api.model.v1.generated.PatchTableInput;
 import io.whitefox.api.server.v1.generated.TableV1Api;
@@ -19,10 +18,10 @@ public class TableV1ApiImpl implements TableV1Api, ApiUtils {
   public Response createTableInProvider(String providerName, CreateTableInput createTableInput) {
     return wrapExceptions(
         () -> Response.status(Response.Status.CREATED)
-            .entity(Mappers.internalTable2api(tableService.createInternalTable(
+            .entity(WhitefoxMappers.internalTable2api(tableService.createInternalTable(
                 providerName,
                 getRequestPrincipal(),
-                Mappers.api2createInternalTable(createTableInput))))
+                WhitefoxMappers.api2createInternalTable(createTableInput))))
             .build(),
         exceptionToResponse);
   }
@@ -36,7 +35,9 @@ public class TableV1ApiImpl implements TableV1Api, ApiUtils {
   public Response describeTableInProvider(String providerName, String tableName) {
     return wrapExceptions(
         () -> optionalToNotFound(
-            tableService.getInternalTable(providerName, tableName).map(Mappers::internalTable2api),
+            tableService
+                .getInternalTable(providerName, tableName)
+                .map(WhitefoxMappers::internalTable2api),
             t -> Response.ok(t).build()),
         exceptionToResponse);
   }

@@ -1,6 +1,6 @@
 package io.whitefox.api.deltasharing.loader;
 
-import static io.whitefox.api.server.DeltaUtils.tablePath;
+import static io.whitefox.api.server.DeltaTestUtils.tablePath;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.quarkus.test.junit.QuarkusTest;

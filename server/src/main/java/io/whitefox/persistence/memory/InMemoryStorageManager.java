@@ -229,4 +229,16 @@ public class InMemoryStorageManager implements StorageManager {
         providers.get(internalTable.provider().name()).addTable(internalTable));
     return internalTable;
   }
+
+  @Override
+  public Share createShare(Share share) {
+    shares.put(share.name(), share);
+    return shares.get(share.name());
+  }
+
+  @Override
+  public Share updateShare(Share newShare) {
+    shares.put(newShare.name(), newShare);
+    return shares.get(newShare.name());
+  }
 }

@@ -1,5 +1,8 @@
 package io.whitefox.core.services.exceptions;
 
+import io.whitefox.annotations.SkipCoverageGenerated;
+
+@SkipCoverageGenerated
 public class MetastoreAlreadyExists extends AlreadyExists {
   public MetastoreAlreadyExists() {}
 

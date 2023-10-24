@@ -1,6 +1,7 @@
 package io.whitefox.api.deltasharing;
 
 import io.whitefox.api.deltasharing.model.v1.generated.*;
+import io.whitefox.core.Principal;
 import io.whitefox.core.SharedTable;
 import io.whitefox.persistence.StorageManager;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
@@ -13,6 +14,7 @@ public class SampleTables {
   public static final String currentPath =
       Paths.get(".").toAbsolutePath().normalize().toString();
 
+  private static final Principal testPrincipal = new Principal("Mr. Fox");
   public static final String deltaTable1Path =
       currentPath + "/src/test/resources/delta/samples/delta-table/";
   public static final String deltaTableWithHistory1Path =
@@ -32,7 +34,9 @@ public class SampleTables {
                           "file://" + deltaTableWithHistory1Path,
                           "default",
                           "name")),
-                  "name")))));
+                  "name")),
+          testPrincipal,
+          0L)));
 
   public static final MetadataObject deltaTable1Metadata = new MetadataObject()
       .metadata(new MetadataObjectMetadata()

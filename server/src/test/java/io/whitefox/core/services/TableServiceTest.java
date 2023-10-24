@@ -1,4 +1,4 @@
-package io.whitefox.services;
+package io.whitefox.core.services;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -7,10 +7,6 @@ import io.whitefox.core.actions.CreateInternalTable;
 import io.whitefox.core.actions.CreateMetastore;
 import io.whitefox.core.actions.CreateProvider;
 import io.whitefox.core.actions.CreateStorage;
-import io.whitefox.core.services.MetastoreService;
-import io.whitefox.core.services.ProviderService;
-import io.whitefox.core.services.StorageService;
-import io.whitefox.core.services.TableService;
 import io.whitefox.core.services.exceptions.AlreadyExists;
 import io.whitefox.core.services.exceptions.ProviderNotFound;
 import io.whitefox.persistence.memory.InMemoryStorageManager;

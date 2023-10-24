@@ -1,6 +1,6 @@
-package io.whitefox.services;
+package io.whitefox.core.services;
 
-import static io.whitefox.api.server.DeltaUtils.tablePath;
+import static io.whitefox.api.server.DeltaTestUtils.tablePath;
 import static org.junit.jupiter.api.condition.OS.WINDOWS;
 
 import io.delta.standalone.DeltaLog;

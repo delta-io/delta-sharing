@@ -1,8 +1,8 @@
 package io.whitefox.api.deltasharing.server;
 
-import static io.whitefox.api.deltasharing.Mappers.mapList;
+import static io.whitefox.api.server.CommonMappers.mapList;
 
-import io.whitefox.api.deltasharing.Mappers;
+import io.whitefox.api.deltasharing.DeltaMappers;
 import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
 import io.whitefox.api.deltasharing.model.v1.generated.ListSchemasResponse;
 import io.whitefox.api.deltasharing.model.v1.generated.ListShareResponse;
@@ -14,6 +14,7 @@ import io.whitefox.api.deltasharing.server.v1.generated.DeltaApiApi;
 import io.whitefox.api.server.ApiUtils;
 import io.whitefox.core.services.ContentAndToken;
 import io.whitefox.core.services.DeltaSharesService;
+import io.whitefox.core.services.ShareService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -23,6 +24,7 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
 
   private final MediaType ndjsonMediaType = new MediaType("application", "x-ndjson");
   private final DeltaSharesService deltaSharesService;
+  private final ShareService shareService;
   private final DeltaPageTokenEncoder tokenEncoder;
   private final TableMetadataSerializer tableResponseSerializer;
   private final TableQueryResponseSerializer tableQueryResponseSerializer;
@@ -30,6 +32,7 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
   @Inject
   public DeltaSharesApiImpl(
       DeltaSharesService deltaSharesService,
+      ShareService shareService,
       DeltaPageTokenEncoder encoder,
       TableMetadataSerializer tableResponseSerializer,
       TableQueryResponseSerializer tableQueryResponseSerializer) {
@@ -37,13 +40,14 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
     this.tokenEncoder = encoder;
     this.tableResponseSerializer = tableResponseSerializer;
     this.tableQueryResponseSerializer = tableQueryResponseSerializer;
+    this.shareService = shareService;
   }
 
   @Override
   public Response getShare(String share) {
     return wrapExceptions(
-        () -> optionalToNotFound(
-            deltaSharesService.getShare(share), s -> Response.ok(s).build()),
+        () ->
+            optionalToNotFound(shareService.getShare(share), s -> Response.ok(s).build()),
         exceptionToResponse);
   }
 
@@ -73,14 +77,14 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
             m -> optionalToNotFound(
                 deltaSharesService.getTableVersion(share, schema, table, startingTimestamp),
                 v -> Response.ok(
-                        tableResponseSerializer.serialize(Mappers.toTableResponseMetadata(m)),
+                        tableResponseSerializer.serialize(DeltaMappers.toTableResponseMetadata(m)),
                         ndjsonMediaType)
                     .status(Response.Status.OK.getStatusCode())
                     .header(DELTA_TABLE_VERSION_HEADER, String.valueOf(v))
                     .header(
                         DELTA_SHARE_CAPABILITIES_HEADER,
                         getResponseFormatHeader(
-                            Mappers.toHeaderCapabilitiesMap(deltaSharingCapabilities)))
+                            DeltaMappers.toHeaderCapabilitiesMap(deltaSharingCapabilities)))
                     .build())),
         exceptionToResponse);
   }
@@ -104,10 +108,10 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
                 share, parseToken(pageToken), Optional.ofNullable(maxResults)),
             c -> Response.ok(c.getToken()
                     .map(t -> new ListTablesResponse()
-                        .items(mapList(c.getContent(), Mappers::table2api))
+                        .items(mapList(c.getContent(), DeltaMappers::table2api))
                         .nextPageToken(tokenEncoder.encodePageToken(t)))
                     .orElse(new ListTablesResponse()
-                        .items(mapList(c.getContent(), Mappers::table2api))))
+                        .items(mapList(c.getContent(), DeltaMappers::table2api))))
                 .build()),
         exceptionToResponse);
   }
@@ -121,9 +125,9 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
                 .map(ct -> ct.getToken()
                     .map(t -> new ListSchemasResponse()
                         .nextPageToken(tokenEncoder.encodePageToken(t))
-                        .items(mapList(ct.getContent(), Mappers::schema2api)))
+                        .items(mapList(ct.getContent(), DeltaMappers::schema2api)))
                     .orElse(new ListSchemasResponse()
-                        .items(mapList(ct.getContent(), Mappers::schema2api)))),
+                        .items(mapList(ct.getContent(), DeltaMappers::schema2api)))),
             l -> Response.ok(l).build()),
         exceptionToResponse);
   }
@@ -134,7 +138,8 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
         () -> {
           var c =
               deltaSharesService.listShares(parseToken(pageToken), Optional.ofNullable(maxResults));
-          var response = new ListShareResponse().items(mapList(c.getContent(), Mappers::share2api));
+          var response =
+              new ListShareResponse().items(mapList(c.getContent(), DeltaMappers::share2api));
           return Response.ok(c.getToken()
                   .map(t -> response.nextPageToken(tokenEncoder.encodePageToken(t)))
                   .orElse(response))
@@ -151,10 +156,10 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
                 share, schema, parseToken(pageToken), Optional.ofNullable(maxResults)),
             c -> Response.ok(c.getToken()
                     .map(t -> new ListTablesResponse()
-                        .items(mapList(c.getContent(), Mappers::table2api))
+                        .items(mapList(c.getContent(), DeltaMappers::table2api))
                         .nextPageToken(tokenEncoder.encodePageToken(t)))
                     .orElse(new ListTablesResponse()
-                        .items(mapList(c.getContent(), Mappers::table2api))))
+                        .items(mapList(c.getContent(), DeltaMappers::table2api))))
                 .build()),
         exceptionToResponse);
   }
@@ -188,8 +193,8 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
     return wrapExceptions(
         () -> optionalToNotFound(
             deltaSharesService
-                .queryTable(share, schema, table, Mappers.api2ReadTableRequest(queryRequest))
-                .map(Mappers::readTableResult2api),
+                .queryTable(share, schema, table, DeltaMappers.api2ReadTableRequest(queryRequest))
+                .map(DeltaMappers::readTableResult2api),
             c -> Response.ok(tableQueryResponseSerializer.serialize(c), ndjsonMediaType)
                 .build()),
         exceptionToResponse);
