@@ -1,4 +1,4 @@
-# API
+# Whitefox protocol
 
 To qualify all the APIs as:
 - **supported**
@@ -10,7 +10,7 @@ To qualify all the APIs as:
 
 Towards recipients, the logical organization of tables is the following:
 
-![external_logical_org](imgs/external_logical_org.drawio.png)
+![external_logical_org](/img/architecture/external_logical_org.drawio.png)
 
 - Share: A share is a logical grouping to share with recipients. A share can be shared with one or multiple recipients. A recipient can access all resources in a share. A share may contain multiple schemas.
 - Schema: A schema is a logical grouping of tables. A schema may contain multiple tables.
@@ -20,7 +20,7 @@ Towards recipients, the logical organization of tables is the following:
 
 Internally organization is a bit more complex: 
 
-![internal logical org](imgs/internal_logical_org.drawio.png)
+![internal logical org](/img/architecture/internal_logical_org.drawio.png)
 
 - Provider: a composed entity that allows to access a table existing in an external system. A provider is composed by a storage system and optionally a metastore (or catalog?)
 - Storage: an object storage that contains the table data

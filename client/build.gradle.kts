@@ -44,7 +44,7 @@ val clientGeneratorProperties = mapOf(
 
 tasks.register<GenerateTask>("openapiGenerateWhitefox") {
     generatorName.set("java")
-    inputSpec.set("$rootDir/docs/protocol/whitefox-protocol-api.yml")
+    inputSpec.set("$rootDir/protocol/whitefox-protocol-api.yml")
     library.set("native")
     outputDir.set(generatedCodeDirectory)
     additionalProperties.set(clientGeneratorProperties)
@@ -52,7 +52,7 @@ tasks.register<GenerateTask>("openapiGenerateWhitefox") {
 
 tasks.register<GenerateTask>("openapiGenerateDeltaSharing") {
     generatorName.set("java")
-    inputSpec.set("$rootDir/docs/protocol/delta-sharing-protocol-api.yml")
+    inputSpec.set("$rootDir/protocol/delta-sharing-protocol-api.yml")
     library.set("native")
     outputDir.set(generatedCodeDirectory)
     additionalProperties.set(clientGeneratorProperties)

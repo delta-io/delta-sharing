@@ -19,4 +19,4 @@ jobs:
 
       # Run Spectral
       - id: run_spectral
-        run: spectral lint ./docs/protocol/*.{yml,yaml} --fail-severity=info
+        run: spectral lint ./protocol/*.{yml,yaml} --fail-severity=info

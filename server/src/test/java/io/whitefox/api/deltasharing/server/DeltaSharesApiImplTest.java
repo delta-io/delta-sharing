@@ -49,7 +49,7 @@ public class DeltaSharesApiImplTest {
       .toAbsolutePath()
       .getParent()
       .getParent()
-      .resolve("docs/protocol/delta-sharing-protocol-api.yml")
+      .resolve("protocol/delta-sharing-protocol-api.yml")
       .toAbsolutePath()
       .toString();
   private static final OpenApiValidationFilter filter = new OpenApiValidationFilter(specLocation);

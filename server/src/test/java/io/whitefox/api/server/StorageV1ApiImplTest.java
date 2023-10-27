@@ -36,7 +36,7 @@ public class StorageV1ApiImplTest {
       .toAbsolutePath()
       .getParent()
       .getParent()
-      .resolve("docs/protocol/whitefox-protocol-api.yml")
+      .resolve("protocol/whitefox-protocol-api.yml")
       .toAbsolutePath()
       .toString();
   private static final OpenApiValidationFilter filter = new OpenApiValidationFilter(specLocation);

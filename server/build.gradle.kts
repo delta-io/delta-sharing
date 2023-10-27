@@ -63,7 +63,7 @@ val generatedCodeDirectory = generatedCodeDirectory(layout, openApiCodeGenDir)
 
 val openapiGenerateWhitefox = tasks.register<GenerateTask>("openapiGenerateWhitefox") {
     generatorName.set("jaxrs-spec")
-    inputSpec.set("$rootDir/docs/protocol/whitefox-protocol-api.yml")
+    inputSpec.set("$rootDir/protocol/whitefox-protocol-api.yml")
     outputDir.set(generatedCodeDirectory)
     additionalProperties.set(
         serverGeneratorProperties.plus(
@@ -78,7 +78,7 @@ val openapiGenerateWhitefox = tasks.register<GenerateTask>("openapiGenerateWhite
 
 val openapiGenerateDeltaSharing = tasks.register<GenerateTask>("openapiGenerateDeltaSharing") {
     generatorName.set("jaxrs-spec")
-    inputSpec.set("$rootDir/docs/protocol/delta-sharing-protocol-api.yml")
+    inputSpec.set("$rootDir/protocol/delta-sharing-protocol-api.yml")
     outputDir.set(generatedCodeDirectory)
     additionalProperties.set(
         serverGeneratorProperties + mapOf(

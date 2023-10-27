@@ -48,9 +48,9 @@ We use spotless to format and check the style of Java code. Spotless can be run 
 
 ## Protocol
 
- Whitefox protocol and original delta-sharing are kept under [`docs/protocol`](protocol). We use openapi 
+ Whitefox protocol and original delta-sharing are kept under [`protocol`](protocols). We use openapi 
  specification to generate code for server and client. Furthermore, the protocol itself is validated using [spectral]
- (https://stoplight.io/open-source/spectral), you can find spectral configuration at [`.spectral.yaml`](../.spectral.yaml).
+ (https://stoplight.io/open-source/spectral), you can find spectral configuration at `.spectral.yaml`.
  
 
 # Software Engineering guidelines
@@ -85,4 +85,26 @@ has no business logic, it performs only "mappings" between the internal core mod
 classes) to the external world made of json payloads and http response/requests.
 
 On the other hand `DeltaSharesServiceImpl` is business logic, it knows nothing about http, therefore it does not 
-depend on any auto-generated code from the openapi spec.  
+depend on any auto-generated code from the openapi spec.
+
+## Documentation
+
+Project documentation is built as a [docusaurus](https://docusaurus.io) microsite.
+
+The doc is published during github actions only from `main` branch, the workflow is configured in `build_doc.yaml`.
+
+To build/test documentation locally you can/should use dear old Gradle. You don't need node or npm installed locally,
+to "serve" the documentation server locally you can simply issue:
+
+```
+./gradlew docsite:npm_run_start
+```
+
+this will start a server on port 3000 on localhost where you can preview the result. The problem is that even if you kill
+the gradle terminal (with ctrl+c) the node process will keep running. You will need to kill it with 
+`./gradlew docsite:killAllDocusaurus`
+
+The *only* thing that will differ on the published site is that the `protocol` is copied to `docsite/static/protocol` 
+in order to have a "working" swagger UI. If you want to reproduce the same locally and have a working swagger UI at 
+`https://localhost:3000/whitefox/openapi_whitefox` and `https://localhost:3000/whitefox/openapi_delta-sharing.html` you can
+create a symlink as follows: `ln -sfn $PWD/protocol $PWD/docsite/static/protocol`

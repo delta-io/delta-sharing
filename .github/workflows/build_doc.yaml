@@ -1,0 +1,47 @@
+name: Publish GH pages
+on:
+  push:
+    branches:
+      - main
+jobs:
+  docsiteBuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v3
+        with:
+          cache: 'gradle'
+          distribution: temurin
+          java-version: 11
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+      - name: Execute npm run build
+        run:  |
+              cp -r protocol docsite/static/protocol
+              ./gradlew docsite:npm_run_build --no-daemon
+              chmod -c -R +rX "docsite/build" | while read line; do
+                echo "::warning title=Invalid file permissions automatically fixed::$line"
+              done
+        shell: bash
+      - name: Upload gh-pages artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: docsite/build
+  deploy:
+    needs: docsiteBuild
+    permissions:
+      pages: write      # to deploy to Pages
+      id-token: write   # to verify the deployment originates from an appropriate source
+
+    # Deploy to the github-pages environment
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    # Specify runner + deployment step
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+          

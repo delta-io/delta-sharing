@@ -42,7 +42,7 @@ public class ShareV1ApiImplTest {
       .toAbsolutePath()
       .getParent()
       .getParent()
-      .resolve("docs/protocol/whitefox-protocol-api.yml")
+      .resolve("protocol/whitefox-protocol-api.yml")
       .toAbsolutePath()
       .toString();
 
@@ -53,7 +53,7 @@ public class ShareV1ApiImplTest {
       .toAbsolutePath()
       .getParent()
       .getParent()
-      .resolve("docs/protocol/delta-sharing-protocol-api.yml")
+      .resolve("protocol/delta-sharing-protocol-api.yml")
       .toAbsolutePath()
       .toString();
 

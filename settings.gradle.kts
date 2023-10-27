@@ -1,6 +1,7 @@
 rootProject.name = "whitefox-multiproject"
 include("client")
 include("server")
+include("docsite")
 
 pluginManagement {
     val quarkusPluginVersion: String by settings
