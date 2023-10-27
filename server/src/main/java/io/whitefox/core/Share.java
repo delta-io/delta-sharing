@@ -114,7 +114,7 @@ public final class Share {
         owner);
   }
 
-  public Share addSchema(Schema schema, Principal currentUser, long now) {
+  public Share upsertSchema(Schema schema, Principal currentUser, long now) {
     var newSchemas = new HashMap<>(schemas);
     newSchemas.put(schema.name(), schema);
     return new Share(

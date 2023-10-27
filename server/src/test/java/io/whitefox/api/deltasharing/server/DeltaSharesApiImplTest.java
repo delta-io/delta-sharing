@@ -153,7 +153,7 @@ public class DeltaSharesApiImplTest {
         .then()
         .statusCode(200)
         .body("items", hasSize(2))
-        .body("items[0].name", is("table1"))
+        .body("items[0].name", either(is("table1")).or(is("table-with-history")))
         .body("items[0].schema", is("default"))
         .body("items[0].share", is("name"))
         .body("nextPageToken", is(nullValue()));
@@ -216,7 +216,7 @@ public class DeltaSharesApiImplTest {
         .then()
         .statusCode(200)
         .body("items", hasSize(2))
-        .body("items[0].name", is("table1"))
+        .body("items[0].name", either(is("table1")).or(is("table-with-history")))
         .body("items[0].schema", is("default"))
         .body("items[0].share", is("name"))
         .body("nextPageToken", is(nullValue()));

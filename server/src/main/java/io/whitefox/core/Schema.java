@@ -1,15 +1,23 @@
 package io.whitefox.core;
 
 import io.whitefox.annotations.SkipCoverageGenerated;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public final class Schema {
   private final String name;
-  private final List<SharedTable> sharedTables;
+  private final Map<String, SharedTable> sharedTables;
   private final String share;
 
-  public Schema(String name, List<SharedTable> sharedTables, String share) {
+  public Schema(String name, Collection<SharedTable> sharedTables, String share) {
+    this(
+        name,
+        sharedTables.stream().collect(Collectors.toMap(SharedTable::name, Function.identity())),
+        share);
+  }
+
+  public Schema(String name, Map<String, SharedTable> sharedTables, String share) {
     this.name = name;
     this.sharedTables = sharedTables;
     this.share = share;
@@ -19,8 +27,8 @@ public final class Schema {
     return name;
   }
 
-  public List<SharedTable> tables() {
-    return sharedTables;
+  public Set<SharedTable> tables() {
+    return Set.copyOf(sharedTables.values());
   }
 
   public String share() {
@@ -49,5 +57,12 @@ public final class Schema {
   public String toString() {
     return "Schema[" + "name=" + name + ", " + "tables=" + sharedTables + ", " + "share=" + share
         + ']';
+  }
+
+  public Schema addTable(InternalTable table, SharedTableName sharedTableName) {
+    var newSharedTables = new HashMap<>(sharedTables);
+    newSharedTables.put(
+        sharedTableName.name(), new SharedTable(sharedTableName.name(), this.name, share, table));
+    return new Schema(this.name, newSharedTables, share);
   }
 }

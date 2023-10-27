@@ -997,7 +997,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TableReference"
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: public name of the table; can be different from the internal name used in `reference`
+                reference:
+                  $ref: "#/components/schemas/TableReference"
       responses:
         "200":
           description: table added to schema

@@ -1,6 +1,6 @@
 package io.whitefox.api.deltasharing.loader;
 
-import static io.whitefox.api.server.DeltaTestUtils.tablePath;
+import static io.whitefox.api.server.DeltaTestUtils.deltaTable;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -25,7 +25,7 @@ public class DeltaShareTableLoaderTest {
   @DisabledOnOs(OS.WINDOWS)
   public void loadTable() {
     SharedTable sharedTable =
-        new SharedTable("delta-table", tablePath("delta-table"), "schema", "share");
+        new SharedTable("delta-table", "schema", "share", deltaTable("delta-table"));
     DeltaSharedTable deltaSharedTable = deltaShareTableLoader.loadTable(sharedTable);
     assertTrue(deltaSharedTable.getTableVersion(Optional.empty()).isPresent());
     assertEquals(0, deltaSharedTable.getTableVersion(Optional.empty()).get());
@@ -34,7 +34,7 @@ public class DeltaShareTableLoaderTest {
   @Test
   public void loadUnknownTable() {
     SharedTable sharedTable =
-        new SharedTable("not-found", tablePath("not-found"), "schema", "share");
+        new SharedTable("not-found", "schema", "share", deltaTable("not-found"));
     assertThrows(
         IllegalArgumentException.class, () -> deltaShareTableLoader.loadTable(sharedTable));
   }

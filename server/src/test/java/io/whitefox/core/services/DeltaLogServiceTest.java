@@ -1,6 +1,6 @@
 package io.whitefox.core.services;
 
-import static io.whitefox.api.server.DeltaTestUtils.tablePath;
+import static io.whitefox.api.server.DeltaTestUtils.deltaTableUri;
 import static org.junit.jupiter.api.condition.OS.WINDOWS;
 
 import io.delta.standalone.DeltaLog;
@@ -47,7 +47,7 @@ public class DeltaLogServiceTest {
    */
   @Test
   void simpleTest() {
-    var log = DeltaLog.forTable(new Configuration(), tablePath("delta-table"));
+    var log = DeltaLog.forTable(new Configuration(), deltaTableUri("delta-table"));
     System.out.println("****");
     System.out.println(log.snapshot().getAllFiles().get(0));
     System.out.println("****");

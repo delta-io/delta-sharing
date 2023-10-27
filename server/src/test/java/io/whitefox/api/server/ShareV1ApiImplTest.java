@@ -10,24 +10,32 @@ import io.restassured.http.ContentType;
 import io.restassured.http.Header;
 import io.restassured.internal.mapping.Jackson2Mapper;
 import io.restassured.response.ValidatableResponse;
+import io.whitefox.MutableClock;
 import io.whitefox.OpenApiValidationFilter;
 import io.whitefox.api.model.v1.generated.AddRecipientToShareRequest;
+import io.whitefox.api.model.v1.generated.AddTableToSchemaRequest;
 import io.whitefox.api.model.v1.generated.CreateShareInput;
+import io.whitefox.api.model.v1.generated.TableReference;
+import io.whitefox.core.Principal;
+import io.whitefox.core.services.ProviderService;
+import io.whitefox.core.services.ShareServiceTest;
+import io.whitefox.core.services.StorageService;
+import io.whitefox.core.services.TableService;
 import jakarta.inject.Inject;
 import java.nio.file.Paths;
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.*;
 
 @QuarkusTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class ShareV1ApiImplTest {
+
+  private static final MutableClock clock = new MutableClock();
+
   @BeforeAll
   public static void setup() {
-    QuarkusMock.installMockForType(
-        Clock.fixed(Instant.ofEpochMilli(0L), ZoneId.of("UTC")), Clock.class);
+    QuarkusMock.installMockForType(clock, Clock.class);
   }
 
   private static final String wfSpecLocation = Paths.get(".")
@@ -54,6 +62,15 @@ public class ShareV1ApiImplTest {
 
   @Inject
   private ObjectMapper objectMapper;
+
+  @Inject
+  private ProviderService providerService;
+
+  @Inject
+  private StorageService storageService;
+
+  @Inject
+  private TableService tableService;
 
   @Test
   @Order(0)
@@ -164,6 +181,42 @@ public class ShareV1ApiImplTest {
     createSchemaInShare("share1", "schema1").statusCode(409);
   }
 
+  @Test
+  @Order(6)
+  public void addTableToSchema() {
+    clock.tickSeconds(10);
+    var share = "share1";
+    var schema = "schema1";
+    ShareServiceTest.setupInternalTable(
+        storageService,
+        providerService,
+        tableService,
+        new Principal("Mr. Fox"),
+        "storage1",
+        "provider1",
+        "table1");
+    given()
+        .when()
+        .filter(wfFilter)
+        .body(new AddTableToSchemaRequest()
+            .name("shared1")
+            .reference(new TableReference().providerName("provider1").name("table1")))
+        .contentType(ContentType.JSON)
+        .post("/whitefox-api/v1/shares/{share}/{schema}/tables", share, schema)
+        .then()
+        .statusCode(201)
+        .body("name", is("share1"))
+        .body("comment", is(nullValue()))
+        .body("recipients", is(hasSize(4)))
+        .body("schemas", is(hasSize(1)))
+        .body("schemas[0]", is("schema1"))
+        .body("createdAt", is(0))
+        .body("createdBy", is("Mr. Fox"))
+        .body("updatedAt", is(10000))
+        .body("updatedBy", is("Mr. Fox"))
+        .body("owner", is("Mr. Fox"));
+  }
+
   ValidatableResponse createEmptyShare(String name) {
     return given()
         .when()
@@ -187,7 +240,7 @@ public class ShareV1ApiImplTest {
   ValidatableResponse addRecipientsToShare(String share, List<String> recipients) {
     return given()
         .when()
-        //            .filter(wfFilter) // I need to disable the filter because it gets confused and
+        // .filter(wfFilter) // I need to disable the filter because it gets confused and
         // does not find the operation
         .body(
             new AddRecipientToShareRequest().principals(recipients),

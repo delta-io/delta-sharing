@@ -5,23 +5,19 @@ import java.util.Objects;
 
 public final class SharedTable {
   private final String name;
-  private final String location;
   private final String schema;
   private final String share;
+  private final InternalTable internalTable;
 
-  public SharedTable(String name, String location, String schema, String share) {
+  public SharedTable(String name, String schema, String share, InternalTable internalTable) {
     this.name = name;
-    this.location = location;
     this.schema = schema;
     this.share = share;
+    this.internalTable = internalTable;
   }
 
   public String name() {
     return name;
-  }
-
-  public String location() {
-    return location;
   }
 
   public String schema() {
@@ -32,31 +28,35 @@ public final class SharedTable {
     return share;
   }
 
+  public InternalTable internalTable() {
+    return internalTable;
+  }
+
   @Override
   @SkipCoverageGenerated
-  public boolean equals(Object obj) {
-    if (obj == this) return true;
-    if (obj == null || obj.getClass() != this.getClass()) return false;
-    var that = (SharedTable) obj;
-    return Objects.equals(this.name, that.name)
-        && Objects.equals(this.location, that.location)
-        && Objects.equals(this.schema, that.schema)
-        && Objects.equals(this.share, that.share);
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    SharedTable that = (SharedTable) o;
+    return Objects.equals(name, that.name)
+        && Objects.equals(schema, that.schema)
+        && Objects.equals(share, that.share)
+        && Objects.equals(internalTable, that.internalTable);
   }
 
   @Override
   @SkipCoverageGenerated
   public int hashCode() {
-    return Objects.hash(name, location, schema, share);
+    return Objects.hash(name, schema, share, internalTable);
   }
 
   @Override
   @SkipCoverageGenerated
   public String toString() {
-    return "Table[" + "name="
-        + name + ", " + "location="
-        + location + ", " + "schema="
-        + schema + ", " + "share="
-        + share + ']';
+    return "SharedTable{" + "name='"
+        + name + '\'' + ", schema='"
+        + schema + '\'' + ", share='"
+        + share + '\'' + ", internalTable="
+        + internalTable + '}';
   }
 }

@@ -17,24 +17,36 @@ public class DeltaSharedTable {
   private final DeltaLog deltaLog;
   private final TableSchemaConverter tableSchemaConverter;
   private final SharedTable tableDetails;
+  private final String location;
 
   private DeltaSharedTable(
-      DeltaLog deltaLog, TableSchemaConverter tableSchemaConverter, SharedTable sharedTable) {
+      DeltaLog deltaLog,
+      TableSchemaConverter tableSchemaConverter,
+      SharedTable sharedTable,
+      String location) {
     this.deltaLog = deltaLog;
     this.tableSchemaConverter = tableSchemaConverter;
     this.tableDetails = sharedTable;
+    this.location = location;
   }
 
   public static DeltaSharedTable of(
       SharedTable sharedTable, TableSchemaConverter tableSchemaConverter) {
     var configuration = new Configuration();
-    var dataPath = sharedTable.location();
-    var dt = DeltaLog.forTable(configuration, dataPath);
-    if (!dt.tableExists()) {
+    if (sharedTable.internalTable().properties() instanceof InternalTable.DeltaTableProperties) {
+      InternalTable.DeltaTableProperties deltaProps =
+          (InternalTable.DeltaTableProperties) sharedTable.internalTable().properties();
+      var dataPath = deltaProps.location();
+      var dt = DeltaLog.forTable(configuration, dataPath);
+      if (!dt.tableExists()) {
+        throw new IllegalArgumentException(
+            String.format("Cannot find a delta table at %s", dataPath));
+      }
+      return new DeltaSharedTable(dt, tableSchemaConverter, sharedTable, dataPath);
+    } else {
       throw new IllegalArgumentException(
-          String.format("Cannot find a delta table at %s", dataPath));
+          String.format("%s is not a delta table", sharedTable.name()));
     }
-    return new DeltaSharedTable(dt, tableSchemaConverter, sharedTable);
   }
 
   public static DeltaSharedTable of(SharedTable sharedTable) {
@@ -114,7 +126,7 @@ public class DeltaSharedTable {
 
   private String location() {
     // remove all "/" at the end of the path
-    return tableDetails.location().replaceAll("/+$", "");
+    return location.replaceAll("/+$", "");
   }
 
   private Timestamp getTimestamp(String timestamp) {
