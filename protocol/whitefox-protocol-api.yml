@@ -8,7 +8,7 @@ info:
     name: Agile Lab
     url: https://www.agilelab.it
 servers:
-  - url: 'http://localhost:8083'
+  - url: 'http://localhost:8080'
 tags:
   - name: providerV1
   - name: tableV1

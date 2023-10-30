@@ -14,7 +14,7 @@ info:
     url: "https://www.gnu.org/licenses/agpl-3.0.en.html"
 
 servers:
-  - url: 'http://localhost:8083'
+  - url: 'http://localhost:8080'
     description: Local dev server (APIv1)
   
 tags:
