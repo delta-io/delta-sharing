@@ -42,6 +42,8 @@ object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
         _, _, _)
         ) =>
           if (remoteIndex.limitHint.isEmpty) {
+            // scalastyle:off println
+            Console.println(s"----[linzhou]----PushDown, limit:$limit")
             val spark = SparkSession.active
             LocalLimit(literalExpr,
               l.copy(

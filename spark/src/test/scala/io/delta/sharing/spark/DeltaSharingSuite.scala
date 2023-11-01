@@ -101,6 +101,16 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     }
   }
 
+  integrationTest("cdf_table_with_partition: limit pushdown") {
+    val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_with_partition"
+
+    val expected = Seq(
+      Row("2", 2, sqlDate("2020-02-02"))
+    )
+    val result = spark.read.format("deltaSharing").load(tablePath).limit(1)
+    checkAnswer(result, expected)
+  }
+
   integrationTest("cdf_table_with_partition: filter success") {
     val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_with_partition"
 
