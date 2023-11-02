@@ -4,4 +4,4 @@ toc_max_heading_level: 5
 ---
 # Architecture
 
-Unders this section architectural design decisions are collected.
+Under this section architectural design decisions are collected.

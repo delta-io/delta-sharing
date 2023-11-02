@@ -49,16 +49,11 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
 </tr>
 <tr>
 <td>Header</td>
-<td>
-
-`Content-Type: application/json; charset=utf-8`
-
-</td>
+<td>`Content-Type: application/json; charset=utf-8`</td>
 </tr>
 <tr>
 <td>Body</td>
 <td>
-
 ```json
 {
   "items": [
@@ -80,6 +75,7 @@ Note: the `nextPageToken` field may be an empty string or missing when there are
 </tr>
 </table>
 </details>
+
 <details>
 <summary><b>400: The request is malformed.</b></summary>
 
@@ -161,7 +157,6 @@ Note: the `nextPageToken` field may be an empty string or missing when there are
 <tr>
 <td>Body</td>
 <td>
-
 ```json
 {
   "errorCode": "string",
@@ -228,12 +223,13 @@ Example:
 
 This is the API to get the metadata of a share.
 
+
 HTTP Request | Value
 -- | --
 Method | `GET`
 Header | `Authorization: Bearer [token]`
 URL | `{prefix}/shares/{share}`
-URL Parameters | **{share}**: The share name to query. It's case-insensitive.
+URL Parameters | **\{share\}**: The share name to query. It's case-insensitive.
 
 <details open>
 <summary><b>200: The share's metadata was successfully returned.</b></summary>
@@ -447,7 +443,7 @@ HTTP Request | Value
 Method | `GET`
 Header | `Authorization: Bearer [token]`
 URL | `{prefix}/shares/{share}/schemas`
-URL Parameters | **{share}**: The share name to query. It's case-insensitive.
+URL Parameters | **\{share\}**: The share name to query. It's case-insensitive.
 Query Parameters | **maxResults** (type: Int32, optional): The maximum number of results per page that should be returned. If the number of available results is larger than `maxResults`, the response will provide a `nextPageToken` that can be used to get the next page of results in subsequent list requests. The server may return fewer than `maxResults` items even if there are more available. The client should check `nextPageToken` in the response to determine if there are more available. Must be non-negative. 0 will return no results but `nextPageToken` may be populated.<br/><br/>**pageToken** (type: String, optional): Specifies a page token to use. Set `pageToken` to the `nextPageToken` returned by a previous list request to get the next page of results. `nextPageToken` will not be returned in a response if there are no more results available.
 
 <details open>
@@ -577,7 +573,6 @@ Note: the `nextPageToken` field may be an empty string or missing when there are
   "message": "string"
 }
 ```
-
 </td>
 </tr>
 </table>
@@ -670,7 +665,7 @@ HTTP Request | Value
 Method | `GET`
 Header | `Authorization: Bearer [token]`
 URL | `{prefix}/shares/{share}/schemas/{schema}/tables`
-URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br/>**{schema}**: The schema name to query. It's case-insensitive.
+URL Parameters | **\{share\}**: The share name to query. It's case-insensitive.<br/>**\{schema\}**: The schema name to query. It's case-insensitive.
 Query Parameters | **maxResults** (type: Int32, optional): The maximum number of results per page that should be returned. If the number of available results is larger than `maxResults`, the response will provide a `nextPageToken` that can be used to get the next page of results in subsequent list requests. The server may return fewer than `maxResults` items even if there are more available. The client should check `nextPageToken` in the response to determine if there are more available. Must be non-negative. 0 will return no results but `nextPageToken` may be populated.<br/><br/>**pageToken** (type: String, optional): Specifies a page token to use. Set `pageToken` to the `nextPageToken` returned by a previous list request to get the next page of results. `nextPageToken` will not be returned in a response if there are no more results available.
 
 <details open>
@@ -909,7 +904,7 @@ HTTP Request | Value
 Method | `GET`
 Header | `Authorization: Bearer [token]`
 URL | `{prefix}/shares/{share}/all-tables`
-URL Parameters | **{share}**: The share name to query. It's case-insensitive.
+URL Parameters | **\{share\}**: The share name to query. It's case-insensitive.
 Query Parameters | **maxResults** (type: Int32, optional): The maximum number of results per page that should be returned. If the number of available results is larger than `maxResults`, the response will provide a `nextPageToken` that can be used to get the next page of results in subsequent list requests. The server may return fewer than `maxResults` items even if there are more available. The client should check `nextPageToken` in the response to determine if there are more available. Must be non-negative. 0 will return no results but `nextPageToken` may be populated.<br/><br/>**pageToken** (type: String, optional): Specifies a page token to use. Set `pageToken` to the `nextPageToken` returned by a previous list request to get the next page of results. `nextPageToken` will not be returned in a response if there are no more results available.
 
 <details open>
@@ -1174,7 +1169,7 @@ Note: This method is migrating from HEAD to GET, and with a `/version` suffix. P
 <td>URL parameters</td>
 <td colspan="2">
 
-**{share}**: The share name to query. It's case-insensitive.<br/>**{schema}**: The schema name to query. It's case-insensitive.<br/>**{table}**: The table name to query. It's case-insensitive.
+**\{share\}**: The share name to query. It's case-insensitive.<br/>**\{schema\}**: The schema name to query. It's case-insensitive.<br/>**\{table\}**: The table name to query. It's case-insensitive.
 </td>
 </tr>
 <tr>
@@ -1203,7 +1198,7 @@ Note: This method is migrating from HEAD to GET, and with a `/version` suffix. P
 
 `Delta-Table-Version: {version}`
 
-**{version}** is a long value which represents the current table version.
+**\{version\}** is a long value which represents the current table version.
 
 </td>
 </tr>
@@ -1386,7 +1381,7 @@ HTTP Request | Value
 Method | `GET`
 Header | `Authorization: Bearer [token]`
 URL | `{prefix}/shares/{share}/schemas/{schema}/tables/{table}/metadata`
-URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br/>**{schema}**: The schema name to query. It's case-insensitive.<br/>**{table}**: The table name to query. It's case-insensitive.
+URL Parameters | **\{share\}**: The share name to query. It's case-insensitive.<br/>**\{schema\}**: The schema name to query. It's case-insensitive.<br/>**\{table\}**: The table name to query. It's case-insensitive.
 
 <details open>
 <summary><b>200: The table metadata was successfully returned.</b></summary>
@@ -1404,7 +1399,7 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.<br
 
 `Delta-Table-Version: {version}`
 
-**{version}** is a long value which represents the current table version.
+**\{version\}** is a long value which represents the current table version.
 
 </td>
 </tr>
@@ -1646,11 +1641,11 @@ Optional: `Content-Type: application/json; charset=utf-8`
 <td>URL Parameters</td>
 <td>
 
-**{share}**: The share name to query. It's case-insensitive.
+**\{share\}**: The share name to query. It's case-insensitive.
 
-**{schema}**: The schema name to query. It's case-insensitive.
+**\{schema\}**: The schema name to query. It's case-insensitive.
 
-**{table}**: The table name to query. It's case-insensitive.
+**\{table\}**: The table name to query. It's case-insensitive.
 </td>
 </tr>
 <tr>
@@ -1690,7 +1685,7 @@ See [below](#request-body) for more details.
 
 `Delta-Table-Version: {version}`
 
-**{version}** is a long value:
+**\{version\}** is a long value:
 - when no time travel parameters are provided in the request, it 
 represents the current table version.
 - otherwise, it represents the starting version of files 
@@ -2012,9 +2007,9 @@ The change data feed represents row-level changes between versions of a Delta ta
 <td>URL Parameters</td>
 <td>
 
-**{share}**: The share name to query. It's case-insensitive.<br/>
-**{schema}**: The schema name to query. It's case-insensitive.<br/>
-**{table}**: The table name to query. It's case-insensitive.
+**\{share\}**: The share name to query. It's case-insensitive.<br/>
+**\{schema\}**: The schema name to query. It's case-insensitive.<br/>
+**\{table\}**: The table name to query. It's case-insensitive.
 </td>
 </tr>
 <tr>
@@ -2045,7 +2040,7 @@ The change data feed represents row-level changes between versions of a Delta ta
 
 `Delta-Table-Version: {version}`
 
-**{version}** is a long value which represents the starting version of files in the response.
+**\{version\}** is a long value which represents the starting version of files in the response.
 
 </td>
 </tr>
@@ -2373,7 +2368,7 @@ Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
 id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
-partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
+partitionValues | Map\<String, String\> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 stats | String | Contains statistics (e.g., count, min/max values for columns) about the data in this file. This field may be missing. A file may or may not have stats. This is a serialized JSON string which can be deserialized to a [Statistics Struct](#per-file-statistics). A client can decide whether to use stats or drop it. | Optional
 version | Long | The table version of the file, returned when querying a table data with a version or timestamp parameter. | Optional
@@ -2404,7 +2399,7 @@ Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
 id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
-partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
+partitionValues | Map\<String, String\> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
 version | Int32 | The table version of this file. | Required
@@ -2435,7 +2430,7 @@ Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
 id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
-partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
+partitionValues | Map\<String, String\> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
 version | Int32 | The table version of this file. | Required
@@ -2464,7 +2459,7 @@ Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
 id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
-partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
+partitionValues | Map\<String, String\> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
 version | Int32 | The table version of this file. | Required
@@ -2812,10 +2807,10 @@ column | Leaf | Represents a column. A column op has two fields: **name** and **
 literal | Leaf | Represents a literal or fixed value. A literal op has two fields: **value** and **valueType**. The literal's **value**  will be cast to the specified **valueType** during comparisons.
 isNull | Unary | Represents a null check on a column op. This op should have only one child, the column op.
 equal | Binary | Represents an equality ("=") check. This op should have two children, and both should be leaf ops.
-lessThan | Binary | Represents a less than ("<") check. This op should have two children, and both should be leaf ops.
-lessThanOrEqual | Binary | Represents a less than or equal ("<=") check. This op should have two children, and both should be leaf ops.
-greaterThan | Binary | Represents a greater than (">") check. This op should have two children, and both should be leaf ops.
-greaterThanOrEqual | Binary | Represents a greater than (">=") check. This op should have two children, and both should be leaf ops.
+lessThan | Binary | Represents a less than ("\<") check. This op should have two children, and both should be leaf ops.
+lessThanOrEqual | Binary | Represents a less than or equal ("\<=") check. This op should have two children, and both should be leaf ops.
+greaterThan | Binary | Represents a greater than ("\>") check. This op should have two children, and both should be leaf ops.
+greaterThanOrEqual | Binary | Represents a greater than ("\>=") check. This op should have two children, and both should be leaf ops.
 and | Nary | Represents a logical and operation amongst its children. This op should have at least two children.
 or | Nary | Represents a logical or operation amongst its children. This op should have at least two children.
 not | Unary | Represents a logical not check. This op should have once child.

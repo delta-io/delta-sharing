@@ -1,12 +1,21 @@
 import com.github.gradle.node.npm.task.NpmTask
+import java.util.stream.Collectors
 
 abstract class KillAllDocusaurus : DefaultTask() {
     @TaskAction
     fun destroy() {
+        project.logger.lifecycle("Killing ALL Docusaurus processes")
+        val docusarusProcesses =
         ProcessHandle
             .allProcesses()
             .filter { p -> p.info().commandLine().orElse("").contains("docusaurus start") }
-            .forEach(ProcessHandle::destroy)
+            .collect(Collectors.toList())
+        project.logger.lifecycle("Found ${docusarusProcesses.size} processes to kill")
+        docusarusProcesses
+            .forEach { p ->
+                project.logger.lifecycle("Killing Docusaurus process ${p.pid()}")
+                p.destroy()
+            }
     }
 }
 
@@ -25,4 +34,6 @@ node {
     version = "20.9.0"
 }
 
-tasks.register<KillAllDocusaurus>("killAllDocusaurus")
+val killAllDocusaurus = tasks.register<KillAllDocusaurus>("killAllDocusaurus")
+
+tasks.findByName("npm_run_start")?.finalizedBy(killAllDocusaurus)
