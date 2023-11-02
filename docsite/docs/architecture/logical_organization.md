@@ -1,10 +1,4 @@
-# Whitefox protocol
-
-To qualify all the APIs as:
-- **supported**
-- **minor change**
-- **breaking change**
-
+# Whitefox logical organization
 
 ## Concepts:
 
@@ -25,39 +19,3 @@ Internally organization is a bit more complex:
 - Provider: a composed entity that allows to access a table existing in an external system. A provider is composed by a storage system and optionally a metastore (or catalog?)
 - Storage: an object storage that contains the table data
 - Metastore: a system that provides metadata about tables, it is mandatory for Iceberg tables and can be useful for discovery in general
-
-## Users
-
-Initially we define two kind of users:
-
-1. admins
-2. guests
-
-Admins can:
-
-- create/update/delete storages
-- create/update/delete metastores
-- create/update/delete providers
-- create/update/delete shares
-- create/update/delete schemas
-- create/update/delete tables
-- add guests as recipients of shares
-
-## STORAGES
-
-## METASTORES
-
-## PROVIDERS
-
-
-## SHARES
-- (from delta sharing [API page](https://github.com/agile-lab-dev/whitefox/blob/main/PROTOCOL.md) )
-
-## SCHEMAs/TABLEs
-- (from delta sharing [API page](https://github.com/agile-lab-dev/whitefox/blob/main/PROTOCOL.md))
-
-## ACCESS CONTROL
-- (from Databricks [documentation page](https://docs.databricks.com/api/workspace/shares/get) )
-
-## DATA ACCESS
-- (from delta sharing [API page](https://github.com/agile-lab-dev/whitefox/blob/main/PROTOCOL.md))

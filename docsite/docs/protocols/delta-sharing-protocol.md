@@ -4,6 +4,8 @@ toc_max_heading_level: 5
 ---
 # Delta Sharing Protocol
 
+See rendered OpenApi [here](pathname:///openapi_delta-sharing.html).
+
 # Overview
 
 [Delta Sharing](https://delta.io/sharing) is an open protocol for secure real-time exchange of large datasets, which enables secure data sharing across products for the first time. It is a simple REST protocol that securely shares access to part of a cloud dataset. It leverages modern cloud storage systems, such as S3, ADLS, or GCS, to reliably transfer large datasets.
