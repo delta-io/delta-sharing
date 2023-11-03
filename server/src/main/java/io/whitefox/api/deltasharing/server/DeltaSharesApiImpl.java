@@ -191,12 +191,12 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
       String startingTimestamp) {
 
     return wrapExceptions(
-        () -> optionalToNotFound(
-            deltaSharesService
-                .queryTable(share, schema, table, DeltaMappers.api2ReadTableRequest(queryRequest))
-                .map(DeltaMappers::readTableResult2api),
-            c -> Response.ok(tableQueryResponseSerializer.serialize(c), ndjsonMediaType)
-                .build()),
+        () -> Response.ok(
+                tableQueryResponseSerializer.serialize(
+                    DeltaMappers.readTableResult2api(deltaSharesService.queryTable(
+                        share, schema, table, DeltaMappers.api2ReadTableRequest(queryRequest)))),
+                ndjsonMediaType)
+            .build(),
         exceptionToResponse);
   }
 

@@ -3,14 +3,11 @@ package io.whitefox.core.services;
 import io.delta.standalone.DeltaLog;
 import io.delta.standalone.Snapshot;
 import io.whitefox.core.*;
-import io.whitefox.core.Metadata;
-import io.whitefox.core.TableSchema;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configuration;
 
 public class DeltaSharedTable {
 
@@ -31,13 +28,17 @@ public class DeltaSharedTable {
   }
 
   public static DeltaSharedTable of(
-      SharedTable sharedTable, TableSchemaConverter tableSchemaConverter) {
-    var configuration = new Configuration();
+      SharedTable sharedTable,
+      TableSchemaConverter tableSchemaConverter,
+      HadoopConfigBuilder hadoopConfigBuilder) {
+
     if (sharedTable.internalTable().properties() instanceof InternalTable.DeltaTableProperties) {
       InternalTable.DeltaTableProperties deltaProps =
           (InternalTable.DeltaTableProperties) sharedTable.internalTable().properties();
       var dataPath = deltaProps.location();
-      var dt = DeltaLog.forTable(configuration, dataPath);
+      var dt = DeltaLog.forTable(
+          hadoopConfigBuilder.buildConfig(sharedTable.internalTable().provider().storage()),
+          dataPath);
       if (!dt.tableExists()) {
         throw new IllegalArgumentException(
             String.format("Cannot find a delta table at %s", dataPath));
@@ -50,7 +51,7 @@ public class DeltaSharedTable {
   }
 
   public static DeltaSharedTable of(SharedTable sharedTable) {
-    return of(sharedTable, TableSchemaConverter.INSTANCE);
+    return of(sharedTable, TableSchemaConverter.INSTANCE, new HadoopConfigBuilder());
   }
 
   public Optional<Metadata> getMetadata(Optional<String> startingTimestamp) {

@@ -12,7 +12,7 @@ val quarkusPlatformArtifactId: String by project
 val quarkusPlatformVersion: String by project
 
 // region dependencies
-
+val hadoopVersion = "3.3.6"
 dependencies {
     implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
     // QUARKUS
@@ -26,7 +26,7 @@ dependencies {
 
     // DELTA
     implementation("io.delta:delta-standalone_2.13:0.6.0")
-    implementation("org.apache.hadoop:hadoop-common:3.3.6")
+    implementation(String.format("org.apache.hadoop:hadoop-common:%s", hadoopVersion))
 
     // TEST
     testImplementation("io.quarkus:quarkus-junit5")
@@ -34,6 +34,12 @@ dependencies {
     testImplementation("io.rest-assured:json-path")
     testImplementation("org.openapi4j:openapi-operation-validator:1.0.7")
     testImplementation("org.openapi4j:openapi-operation-restassured:1.0.7")
+
+    //AWS
+    compileOnly("com.amazonaws:aws-java-sdk-bom:1.12.367")
+    compileOnly("com.amazonaws:aws-java-sdk-s3:1.12.367")
+    implementation(String.format("org.apache.hadoop:hadoop-aws:%s", hadoopVersion))
+
 }
 
 // endregion
@@ -111,9 +117,6 @@ sourceSets {
 
 // region test running
 
-tasks.check {
-    dependsOn(deltaTest)
-}
 tasks.register("devCheck") {
     dependsOn(tasks.spotlessApply)
     finalizedBy(tasks.check)
@@ -124,29 +127,11 @@ tasks.withType<Test> {
     testLogging {
         exceptionFormat = TestExceptionFormat.FULL
     }
+    environment = env.allVariables
 }
-
-val deltaTestClasses =
-    listOf("io.whitefox.api.deltasharing.DeltaSharedTableTest.*", "io.whitefox.services.DeltaLogServiceTest.*")
 
 tasks.test {
-    description = "Runs all other test classes by not forking the jvm."
-    filter {
-        deltaTestClasses.forEach { s ->
-            excludeTestsMatching(s)
-        }
-    }
-    forkEvery = 0
-}
-val deltaTest = tasks.register<Test>("deltaTest") {
-    description = "Runs delta test classes by forking the jvm."
-    group = "verification"
-    filter {
-        deltaTestClasses.forEach { s ->
-            includeTestsMatching(s)
-        }
-    }
-    forkEvery = 0
+    description = "Runs Unit Tests"
 }
 
 // endregion

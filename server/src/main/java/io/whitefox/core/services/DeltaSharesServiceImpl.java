@@ -1,7 +1,7 @@
 package io.whitefox.core.services;
 
 import io.whitefox.core.*;
-import io.whitefox.core.Metadata;
+import io.whitefox.core.services.exceptions.TableNotFound;
 import io.whitefox.persistence.StorageManager;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -17,7 +17,7 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   private final Integer defaultMaxResults;
   private final DeltaShareTableLoader tableLoader;
 
-  private final FileSigner signer;
+  private final FileSignerFactory fileSignerFactory;
 
   @Inject
   public DeltaSharesServiceImpl(
@@ -25,11 +25,11 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
       @ConfigProperty(name = "io.delta.sharing.api.server.defaultMaxResults")
           Integer defaultMaxResults,
       DeltaShareTableLoader tableLoader,
-      FileSigner signer) {
+      FileSignerFactory signerFactory) {
     this.storageManager = storageManager;
     this.defaultMaxResults = defaultMaxResults;
     this.tableLoader = tableLoader;
-    this.signer = signer;
+    this.fileSignerFactory = signerFactory;
   }
 
   @Override
@@ -119,15 +119,21 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   }
 
   @Override
-  public Optional<ReadTableResult> queryTable(
+  public ReadTableResult queryTable(
       String share, String schema, String tableName, ReadTableRequest queryRequest) {
-    return storageManager
+    SharedTable sharedTable = storageManager
         .getSharedTable(share, schema, tableName)
-        .map(tableLoader::loadTable)
-        .map(dst -> dst.queryTable(queryRequest))
-        .map(result -> new ReadTableResult(
-            result.protocol(),
-            result.metadata(),
-            result.other().stream().map(signer::sign).collect(Collectors.toList())));
+        .orElseThrow(() -> new TableNotFound(String.format(
+            "Table %s not found in share %s with schema %s", tableName, share, schema)));
+
+    var fileSigner =
+        fileSignerFactory.newFileSigner(sharedTable.internalTable().provider().storage());
+    var readTableResultToBeSigned = tableLoader.loadTable(sharedTable).queryTable(queryRequest);
+    return new ReadTableResult(
+        readTableResultToBeSigned.protocol(),
+        readTableResultToBeSigned.metadata(),
+        readTableResultToBeSigned.other().stream()
+            .map(fileSigner::sign)
+            .collect(Collectors.toList()));
   }
 }

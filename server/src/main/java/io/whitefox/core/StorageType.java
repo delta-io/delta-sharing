@@ -6,7 +6,9 @@ import java.util.Optional;
 public enum StorageType {
   S3("s3"),
   GCS("gcs"),
-  ABFS("abfs");
+  ABFS("abfs"),
+
+  LOCAL("local");
 
   public final String value;
 

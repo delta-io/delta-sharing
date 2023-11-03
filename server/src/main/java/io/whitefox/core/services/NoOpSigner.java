@@ -2,10 +2,8 @@ package io.whitefox.core.services;
 
 import io.whitefox.core.TableFile;
 import io.whitefox.core.TableFileToBeSigned;
-import jakarta.enterprise.context.ApplicationScoped;
 import java.util.Optional;
 
-@ApplicationScoped
 public class NoOpSigner implements FileSigner {
   @Override
   public TableFile sign(TableFileToBeSigned s) {

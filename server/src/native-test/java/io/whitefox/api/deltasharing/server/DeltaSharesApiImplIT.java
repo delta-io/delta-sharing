@@ -4,33 +4,23 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
 
 import io.quarkus.test.junit.QuarkusIntegrationTest;
-import io.whitefox.OpenApiValidationFilter;
+import io.whitefox.api.deltasharing.OpenApiValidatorUtils;
 import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
 import io.whitefox.core.services.ContentAndToken;
 import jakarta.ws.rs.core.Response;
-import java.nio.file.Paths;
 import org.junit.jupiter.api.Test;
 
 @QuarkusIntegrationTest
-public class DeltaSharesApiImplIT {
+public class DeltaSharesApiImplIT implements OpenApiValidatorUtils {
 
   private final DeltaPageTokenEncoder encoder = new DeltaPageTokenEncoder();
-
-  private static final String specLocation = Paths.get(".")
-      .toAbsolutePath()
-      .getParent()
-      .getParent()
-      .resolve("protocol/delta-sharing-protocol-api.yml")
-      .toAbsolutePath()
-      .toString();
-  private static final OpenApiValidationFilter filter = new OpenApiValidationFilter(specLocation);
 
   @Test
   public void getUnknownShare() {
     given()
         .pathParam("share", "unknownKey")
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares/{share}")
         .then()
         .statusCode(Response.Status.NOT_FOUND.getStatusCode());
@@ -42,7 +32,7 @@ public class DeltaSharesApiImplIT {
         .queryParam("maxResults", 50)
         .queryParam("pageToken", encoder.encodePageToken(new ContentAndToken.Token(0)))
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares")
         .then()
         .statusCode(200)
@@ -54,7 +44,7 @@ public class DeltaSharesApiImplIT {
   public void listSharesNoParams() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares")
         .then()
         .statusCode(200)
@@ -66,7 +56,7 @@ public class DeltaSharesApiImplIT {
   public void listSchemas() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares/{share}/schemas", "name")
         .then()
         .statusCode(404)
@@ -78,7 +68,7 @@ public class DeltaSharesApiImplIT {
   public void listNotExistingTablesInShare() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares/{share}/schemas/{schema}/tables", "name2", "default")
         .then()
         .statusCode(404)
@@ -90,7 +80,7 @@ public class DeltaSharesApiImplIT {
   public void listNotExistingTablesInSchema() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares/{share}/schemas/{schema}/tables", "name", "default2")
         .then()
         .statusCode(404)

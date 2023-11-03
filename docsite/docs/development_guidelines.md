@@ -108,3 +108,20 @@ The *only* thing that will differ on the published site is that the `protocol` i
 in order to have a "working" swagger UI. If you want to reproduce the same locally and have a working swagger UI at 
 `https://localhost:3000/whitefox/openapi_whitefox` and `https://localhost:3000/whitefox/openapi_delta-sharing.html` you can
 create a symlink as follows: `ln -sfn $PWD/protocol $PWD/docsite/static/protocol`
+
+## Testing
+
+Unit tests must be fast therefore:
+- they should not rely on any external service
+- they should not need the server to be up running to be executed
+
+If the test you are writing complies with the previous points, go ahead and create a simple junit5/jupiter test.
+
+Otherwise, the project currently features two other type of tests:
+
+- `aws`: tests tagged with `aws` tag require aws connectivity and credentials provided by the user as environment 
+  variables or `.env` file
+- `integration`: tests tagged with `integration` tag require the server to be up and running. Therefore every time
+  a test is annotated with `@QuarkusTest` it should be also annotated as `@Tag("integration")`.
+
+**At the current state, all tests are run together without any distinction.** In the future we might want to split them.

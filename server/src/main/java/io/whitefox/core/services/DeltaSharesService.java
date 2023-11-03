@@ -31,6 +31,6 @@ public interface DeltaSharesService {
   Optional<ContentAndToken<List<SharedTable>>> listTablesOfShare(
       String share, Optional<ContentAndToken.Token> token, Optional<Integer> maxResults);
 
-  Optional<ReadTableResult> queryTable(
+  ReadTableResult queryTable(
       String share, String schema, String table, ReadTableRequest queryRequest);
 }

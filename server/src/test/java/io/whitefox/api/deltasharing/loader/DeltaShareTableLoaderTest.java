@@ -8,11 +8,13 @@ import io.whitefox.core.SharedTable;
 import io.whitefox.core.services.DeltaShareTableLoader;
 import io.whitefox.core.services.DeltaSharedTable;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
 @QuarkusTest
+@Tag("integration")
 public class DeltaShareTableLoaderTest {
 
   private final DeltaShareTableLoader deltaShareTableLoader;

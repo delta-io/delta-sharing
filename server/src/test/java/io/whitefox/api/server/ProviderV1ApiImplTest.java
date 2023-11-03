@@ -9,12 +9,11 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.Header;
 import io.restassured.internal.mapping.Jackson2Mapper;
 import io.restassured.response.ValidatableResponse;
-import io.whitefox.OpenApiValidationFilter;
+import io.whitefox.api.deltasharing.OpenApiValidatorUtils;
 import io.whitefox.api.model.v1.generated.*;
 import io.whitefox.persistence.StorageManager;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
 import jakarta.inject.Inject;
-import java.nio.file.Paths;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -22,8 +21,9 @@ import java.util.Optional;
 import org.junit.jupiter.api.*;
 
 @QuarkusTest
+@Tag("integration")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class ProviderV1ApiImplTest {
+public class ProviderV1ApiImplTest implements OpenApiValidatorUtils {
 
   @BeforeAll
   public static void setup() {
@@ -31,15 +31,6 @@ public class ProviderV1ApiImplTest {
     QuarkusMock.installMockForType(
         Clock.fixed(Instant.ofEpochMilli(0L), ZoneId.of("UTC")), Clock.class);
   }
-
-  private static final String specLocation = Paths.get(".")
-      .toAbsolutePath()
-      .getParent()
-      .getParent()
-      .resolve("protocol/whitefox-protocol-api.yml")
-      .toAbsolutePath()
-      .toString();
-  private static final OpenApiValidationFilter filter = new OpenApiValidationFilter(specLocation);
 
   @Inject
   private ObjectMapper objectMapper;
@@ -143,7 +134,7 @@ public class ProviderV1ApiImplTest {
       ObjectMapper objectMapper) {
     return given()
         .when()
-        .filter(filter)
+        .filter(whitefoxFilter)
         .body(
             new ProviderInput()
                 .storageName(storageName)
@@ -160,7 +151,7 @@ public class ProviderV1ApiImplTest {
       CreateMetastore metastore, ObjectMapper objectMapper) {
     return given()
         .when()
-        .filter(filter)
+        .filter(whitefoxFilter)
         .body(metastore, new Jackson2Mapper((cls, charset) -> objectMapper))
         .header(new Header("Content-Type", "application/json"))
         .post("/whitefox-api/v1/metastores")
@@ -172,7 +163,7 @@ public class ProviderV1ApiImplTest {
       CreateStorage storage, ObjectMapper objectMapper) {
     return given()
         .when()
-        .filter(filter)
+        .filter(whitefoxFilter)
         .body(storage, new Jackson2Mapper((cls, charset) -> objectMapper))
         .header(new Header("Content-Type", "application/json"))
         .post("/whitefox-api/v1/storage")
@@ -186,7 +177,7 @@ public class ProviderV1ApiImplTest {
     var providerName = "provider1";
     given()
         .when()
-        .filter(filter)
+        .filter(whitefoxFilter)
         .body(
             new ProviderInput().storageName("storage1").name(providerName),
             new Jackson2Mapper((cls, charset) -> objectMapper))
@@ -203,7 +194,7 @@ public class ProviderV1ApiImplTest {
     var providerName = "provider2";
     given()
         .when()
-        .filter(filter)
+        .filter(whitefoxFilter)
         .body(
             new ProviderInput().storageName("other").name(providerName),
             new Jackson2Mapper((cls, charset) -> objectMapper))
@@ -220,7 +211,7 @@ public class ProviderV1ApiImplTest {
     var providerName = "provider1";
     given()
         .when()
-        .filter(filter)
+        .filter(whitefoxFilter)
         .get("/whitefox-api/v1/providers/{name}", providerName)
         .then()
         .statusCode(200)
@@ -244,7 +235,7 @@ public class ProviderV1ApiImplTest {
   public void notExistingProvider() {
     given()
         .when()
-        .filter(filter)
+        .filter(whitefoxFilter)
         .get("/whitefox-api/v1/providers/{name}", "fake")
         .then()
         .body("message", is("NOT FOUND"))

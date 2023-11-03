@@ -8,22 +8,22 @@ import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.Header;
 import io.restassured.internal.mapping.Jackson2Mapper;
-import io.whitefox.OpenApiValidationFilter;
+import io.whitefox.api.deltasharing.OpenApiValidatorUtils;
 import io.whitefox.api.model.v1.generated.CreateMetastore;
 import io.whitefox.api.model.v1.generated.MetastoreProperties;
 import io.whitefox.api.model.v1.generated.SimpleAwsCredentials;
 import io.whitefox.persistence.StorageManager;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
 import jakarta.inject.Inject;
-import java.nio.file.Paths;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import org.junit.jupiter.api.*;
 
 @QuarkusTest
+@Tag("integration")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class MetastoreV1ApiImplTest {
+public class MetastoreV1ApiImplTest implements OpenApiValidatorUtils {
 
   @BeforeAll
   public static void setup() {
@@ -31,15 +31,6 @@ public class MetastoreV1ApiImplTest {
     QuarkusMock.installMockForType(
         Clock.fixed(Instant.ofEpochMilli(0L), ZoneId.of("UTC")), Clock.class);
   }
-
-  private static final String specLocation = Paths.get(".")
-      .toAbsolutePath()
-      .getParent()
-      .getParent()
-      .resolve("protocol/whitefox-protocol-api.yml")
-      .toAbsolutePath()
-      .toString();
-  private static final OpenApiValidationFilter filter = new OpenApiValidationFilter(specLocation);
 
   @Inject
   private ObjectMapper objectMapper;
@@ -60,7 +51,7 @@ public class MetastoreV1ApiImplTest {
   public void createFirstMetastore() {
     given()
         .when()
-        .filter(filter)
+        .filter(whitefoxFilter)
         .body(createMetastore, new Jackson2Mapper((cls, charset) -> objectMapper))
         .header(new Header("Content-Type", "application/json"))
         .post("/whitefox-api/v1/metastores")
@@ -90,7 +81,7 @@ public class MetastoreV1ApiImplTest {
   public void failToCreateSameMetastore() {
     given()
         .when()
-        .filter(filter)
+        .filter(whitefoxFilter)
         .body(createMetastore, new Jackson2Mapper((cls, charset) -> objectMapper))
         .header(new Header("Content-Type", "application/json"))
         .post("/whitefox-api/v1/metastores")
@@ -105,7 +96,7 @@ public class MetastoreV1ApiImplTest {
   public void getMetastore() {
     given()
         .when()
-        .filter(filter)
+        .filter(whitefoxFilter)
         .get("/whitefox-api/v1/metastores/{name}", createMetastore.getName())
         .then()
         .statusCode(200)
@@ -133,7 +124,7 @@ public class MetastoreV1ApiImplTest {
   public void notExistingMetastore() {
     given()
         .when()
-        .filter(filter)
+        .filter(whitefoxFilter)
         .get("/whitefox-api/v1/metastores/{name}", "fake")
         .then()
         .statusCode(404)

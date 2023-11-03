@@ -226,7 +226,10 @@ public class ShareServiceTest {
     var expected = new SharedTable("shared-1", "schema1", "share1", tableObj);
     assertEquals(expected, sharedTables.stream().findFirst().get());
     var tablesFromDeltaService = new DeltaSharesServiceImpl(
-            storage, 100, new DeltaShareTableLoader(), new NoOpSigner())
+            storage,
+            100,
+            new DeltaShareTableLoader(),
+            new FileSignerFactoryImpl(new S3ClientFactoryImpl()))
         .listTablesOfShare("share1", Optional.empty(), Optional.empty())
         .get()
         .getContent();

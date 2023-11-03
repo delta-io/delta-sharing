@@ -6,31 +6,37 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.Header;
-import io.whitefox.OpenApiValidationFilter;
+import io.whitefox.api.deltasharing.OpenApiValidatorUtils;
+import io.whitefox.api.deltasharing.SampleTables;
 import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
+import io.whitefox.api.deltasharing.model.FileObjectWithoutPresignedUrl;
 import io.whitefox.api.deltasharing.model.v1.generated.*;
 import io.whitefox.core.services.ContentAndToken;
 import io.whitefox.persistence.StorageManager;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
 @QuarkusTest
-public class DeltaSharesApiImplTest {
+@Tag("integration")
+public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
+  private static final StorageManager storageManager = SampleTables.createStorageManager();
+
   @BeforeAll
   public static void setup() {
     QuarkusMock.installMockForType(storageManager, StorageManager.class);
@@ -45,21 +51,12 @@ public class DeltaSharesApiImplTest {
     this.objectMapper = objectMapper;
   }
 
-  private static final String specLocation = Paths.get(".")
-      .toAbsolutePath()
-      .getParent()
-      .getParent()
-      .resolve("protocol/delta-sharing-protocol-api.yml")
-      .toAbsolutePath()
-      .toString();
-  private static final OpenApiValidationFilter filter = new OpenApiValidationFilter(specLocation);
-
   @Test
   public void getUnknownShare() {
     given()
         .pathParam("share", "unknownKey")
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares/{share}")
         .then()
         .statusCode(Response.Status.NOT_FOUND.getStatusCode());
@@ -71,7 +68,7 @@ public class DeltaSharesApiImplTest {
         .queryParam("maxResults", 50)
         .queryParam("pageToken", encoder.encodePageToken(new ContentAndToken.Token(0)))
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares")
         .then()
         .statusCode(200)
@@ -85,7 +82,7 @@ public class DeltaSharesApiImplTest {
   public void listSharesNoParams() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares")
         .then()
         .statusCode(200)
@@ -99,7 +96,7 @@ public class DeltaSharesApiImplTest {
   public void listNotFoundSchemas() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares/{share}/schemas", "name1")
         .then()
         .statusCode(404)
@@ -111,7 +108,7 @@ public class DeltaSharesApiImplTest {
   public void listSchemas() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares/{share}/schemas", "name")
         .then()
         .statusCode(200)
@@ -124,7 +121,7 @@ public class DeltaSharesApiImplTest {
   public void listNotExistingTablesInShare() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares/{share}/schemas/{schema}/tables", "name2", "default")
         .then()
         .statusCode(404)
@@ -136,7 +133,7 @@ public class DeltaSharesApiImplTest {
   public void listNotExistingTablesInSchema() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares/{share}/schemas/{schema}/tables", "name", "default2")
         .then()
         .statusCode(404)
@@ -148,7 +145,7 @@ public class DeltaSharesApiImplTest {
   public void listTables() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares/{share}/schemas/{schema}/tables", "name", "default")
         .then()
         .statusCode(200)
@@ -163,7 +160,7 @@ public class DeltaSharesApiImplTest {
   public void tableMetadataNotFound() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get(
             "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/metadata",
             "name",
@@ -178,7 +175,7 @@ public class DeltaSharesApiImplTest {
   public void tableMetadata() throws IOException {
     var responseBodyLines = given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get(
             "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/metadata",
             "name",
@@ -211,7 +208,7 @@ public class DeltaSharesApiImplTest {
   public void listAllTables() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares/{share}/all-tables", "name")
         .then()
         .statusCode(200)
@@ -226,7 +223,7 @@ public class DeltaSharesApiImplTest {
   public void listAllOfMissingShare() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get("delta-api/v1/shares/{share}/all-tables", "name2")
         .then()
         .statusCode(404);
@@ -237,7 +234,7 @@ public class DeltaSharesApiImplTest {
   public void getTableVersion() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get(
             "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/version",
             "name",
@@ -253,7 +250,7 @@ public class DeltaSharesApiImplTest {
   public void getTableVersionMissingTable() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .get(
             "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/version",
             "name",
@@ -268,7 +265,7 @@ public class DeltaSharesApiImplTest {
   public void getTableVersionNotFoundTimestamp() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .queryParam("startingTimestamp", "2024-10-20T10:15:30+01:00")
         .get(
             "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/version",
@@ -284,7 +281,7 @@ public class DeltaSharesApiImplTest {
   public void getTableVersionBadTimestamp() {
     given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .queryParam("startingTimestamp", "acbsadqwafsdas")
         .get(
             "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/version",
@@ -300,7 +297,7 @@ public class DeltaSharesApiImplTest {
   public void queryTableCurrentVersion() throws IOException {
     var responseBodyLines = given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .body("{}")
         .header(new Header("Content-Type", "application/json"))
         .post(
@@ -325,14 +322,17 @@ public class DeltaSharesApiImplTest {
         .skip(2)
         .map(line -> {
           try {
-            return objectMapper.reader().readValue(line, FileObject.class);
+            return objectMapper
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .reader()
+                .readValue(line, FileObjectWithoutPresignedUrl.class);
           } catch (IOException e) {
             throw new RuntimeException(e);
           }
         })
         .collect(Collectors.toSet());
-    assertEquals(files, deltaTable1Files);
     assertEquals(7, responseBodyLines.length);
+    assertEquals(deltaTable1FilesWithoutPresignedUrl, files); // TOD
   }
 
   @DisabledOnOs(OS.WINDOWS)
@@ -340,7 +340,7 @@ public class DeltaSharesApiImplTest {
   public void queryTableByVersion() throws IOException {
     var responseBodyLines = given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .body("{\"version\": 0}")
         .header(new Header("Content-Type", "application/json"))
         .post(
@@ -365,14 +365,17 @@ public class DeltaSharesApiImplTest {
         .skip(2)
         .map(line -> {
           try {
-            return objectMapper.reader().readValue(line, FileObject.class);
+            return objectMapper
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .reader()
+                .readValue(line, FileObjectWithoutPresignedUrl.class);
           } catch (IOException e) {
             throw new RuntimeException(e);
           }
         })
         .collect(Collectors.toSet());
-    assertEquals(deltaTable1Files, files);
     assertEquals(7, responseBodyLines.length);
+    assertEquals(deltaTable1FilesWithoutPresignedUrl, files);
   }
 
   @Test
@@ -380,7 +383,7 @@ public class DeltaSharesApiImplTest {
   public void queryTableByTs() throws IOException {
     var responseBodyLines = given()
         .when()
-        .filter(filter)
+        .filter(deltaFilter)
         .body("{\"timestamp\": \"2023-10-19T17:16:00Z\"}")
         .header(new Header("Content-Type", "application/json"))
         .post(
