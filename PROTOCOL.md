@@ -2518,7 +2518,7 @@ description | String | User-provided description for this table | Optional
 format | [Format](#format) Object | Specification of the encoding for the files stored in the table. | Required
 schemaString | String | Schema of the table. This is a serialized JSON string which can be deserialized to a [Schema](#schema-object) Object. | Required
 partitionColumns | Array<String> | An array containing the names of columns by which the data should be partitioned. When a table doesn’t have partition columns, this will be an **empty** array. | Required
-configuration | Map[String, String] | A map containing configuration options for the table
+configuration | Map[String, String] | A map containing configuration options for the table | Optional
 version | Long | The table version the metadata corresponds to, returned when querying table data with a version or timestamp parameter, or cdf query with includeHistoricalMetadata set to true. | Optional
 size | Long | The size of the table in bytes, will be returned if available in the delta log. | Optional 
 numFiles | Long | The number of files in the table, will be returned if available in the delta log. | Optional
