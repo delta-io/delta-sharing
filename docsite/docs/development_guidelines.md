@@ -121,7 +121,8 @@ Otherwise, the project currently features two other type of tests:
 
 - `aws`: tests tagged with `aws` tag require aws connectivity and credentials provided by the user as environment 
   variables or `.env` file
-- `integration`: tests tagged with `integration` tag require the server to be up and running. Therefore every time
+- `integration`: tests tagged with `integration` tag require the server to be up and running. Therefore, every time
   a test is annotated with `@QuarkusTest` it should be also annotated as `@Tag("integration")`.
 
-**At the current state, all tests are run together without any distinction.** In the future we might want to split them.
+At the current state all tests are run during the `check` task, but if you want to run only unit tests you can run
+the `test` task, while if you want to run integration and aws tests you should run `integrationTest` task.

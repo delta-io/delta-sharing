@@ -132,6 +132,16 @@ tasks.withType<Test> {
 
 tasks.test {
     description = "Runs Unit Tests"
+    useJUnitPlatform {
+        excludeTags("integration","aws")
+    }
+}
+
+val integrationTest = tasks.register<Test>("integrationTest") {
+    description = "Runs Integration Tests"
+    useJUnitPlatform {
+        includeTags("integration", "aws")
+    }
 }
 
 // endregion
@@ -140,17 +150,12 @@ tasks.test {
 
 tasks.check {
     finalizedBy(tasks.jacocoTestReport)
+    dependsOn(tasks.test, integrationTest)
 }
 
 tasks.jacocoTestReport {
-    dependsOn(tasks.check) // tests are required to run before generating the report
-}
-
-val classesToExclude = listOf(
-    "**" + File.separator + "generated" + File.separator + "**.class",
-    "**" + File.separator + "ignored" + File.separator + "**.class"
-)
-tasks.jacocoTestReport {
+    dependsOn(tasks.test, integrationTest) // tests are required to run before generating the report
+    executionData(fileTree(layout.buildDirectory).include("/jacoco/*.exec"))
     doFirst {
         logger.lifecycle("Excluding generated classes: ${classesToExclude}")
     }
@@ -164,7 +169,13 @@ tasks.jacocoTestReport {
     finalizedBy(tasks.jacocoTestCoverageVerification)
 }
 
+val classesToExclude = listOf(
+    "**" + File.separator + "generated" + File.separator + "**.class",
+    "**" + File.separator + "ignored" + File.separator + "**.class"
+)
+
 tasks.jacocoTestCoverageVerification {
+    executionData(fileTree(layout.buildDirectory).include("/jacoco/*.exec"))
     classDirectories.setFrom(
         files(classDirectories.files.map { fileTree(it) { exclude(classesToExclude) } })
     )
