@@ -1,6 +1,8 @@
 rootProject.name = "whitefox-multiproject"
 include("client")
-include("server")
+include("server:core")
+include("server:persistence:memory")
+include("server:app")
 include("docsite")
 
 pluginManagement {

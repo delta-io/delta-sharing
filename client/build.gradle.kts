@@ -2,7 +2,6 @@ import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
 
 plugins {
     java
-    id("io.quarkus")
     id("whitefox.java-conventions")
 }
 

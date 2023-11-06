@@ -39,9 +39,7 @@ jobs:
               if [[ "${{github.ref}}" == "refs/heads/main" ]]; then
                 export QUARKUS_CONTAINER_IMAGE_ADDITIONAL_TAGS="latest"
               fi
-              ./gradlew server:build --no-daemon -Dquarkus.container-image.build=true
-              ./gradlew server:printVersion --no-daemon
-              git rev-parse HEAD
+              ./gradlew server:app:build --no-daemon -Dquarkus.container-image.build=true
         shell: bash
       - name: Login to ghcr
         if: runner.os == 'Linux'

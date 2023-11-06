@@ -126,3 +126,52 @@ Otherwise, the project currently features two other type of tests:
 
 At the current state all tests are run during the `check` task, but if you want to run only unit tests you can run
 the `test` task, while if you want to run integration and aws tests you should run `integrationTest` task.
+
+`core` module should not have any `@QuarkusTest` but can have `@Tag("integration")` tests, while `app` module can have
+`@QuarkusTest` tests. `app` module should also feature integration "black-box" tests, that are annotated with 
+`@QuarkusIntegrationTest`. They are run using `testNative` gradle task and spin up the application (from the jar 
+package produced by `build` task) and run the test. They are useful to test the application in a "production-like" 
+manner.
+
+# Modules
+
+Tree of gradle modules: <!-- generated with  tree -L 3 -d and some cut and paste -->
+
+```
+├── client
+├── docsite
+└── server
+    ├── app
+    ├── core
+    └── persistence
+        └── memory
+```
+
+## client
+
+As the name suggests, contains the client classes of the project. 
+As of now the client is generated from the openapi spec.
+
+## docsite
+
+Contains a docusaurus microsite that is published on github pages, for more info, have a look [here](#documentation).
+
+
+## server
+
+server module is split in 3 parts:
+
+### core
+
+Contains the core logic of whitefox, it should have nothing to do with persistence or HTTP APIs implementation.
+
+### persistence
+
+Persistence is then split in different modules based on the persistence technology that is implemented. Only 
+"memory" is available right now.
+
+### app
+
+It's the module that depends on persistence and core and implements the HTTP APIs and it's the one actually packaged
+and run as a quarkus application.
+
