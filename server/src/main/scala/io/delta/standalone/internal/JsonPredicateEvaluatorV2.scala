@@ -158,7 +158,7 @@ class JsonPredicateEvaluatorV2(root: BaseOp, reportError: Option[(String) => Uni
   // Evaluates an AndOp with the following strategy:
   //   - If any of its children returns EvalResultFalse, return EvalResultFalse.
   //     It is safe to discard unknown results from other descendents in this case
-  //     as the overall result is guranteed to be false.
+  //     as the overall result is guaranteed to be false.
   //   - If none of the children returns EvalResultFalse:
   //       - If any of them returns EvalResultUnknown, return EvalResultUnknown
   //         This allows higher layers to perform conservating processing as needed.

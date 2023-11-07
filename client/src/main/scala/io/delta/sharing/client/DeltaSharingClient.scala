@@ -779,7 +779,7 @@ class DeltaSharingRestClient(
       || customeHeaders.contains(HttpHeaders.USER_AGENT)) {
       throw new IllegalArgumentException(
         s"HTTP header ${HttpHeaders.AUTHORIZATION} and ${HttpHeaders.USER_AGENT} cannot be"
-          + "overriden."
+          + "overridden."
       )
     }
     val headers = Map(

@@ -127,7 +127,7 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
       // requests so these exceptions should never contain sensitive information
       // and should be okay to return their messages to the user.
       //
-      // valid json but may not be incorect field type
+      // valid json but may not be incorrect field type
       case (_: scalapb.json4s.JsonFormatException |
       // invalid json
             _: com.fasterxml.jackson.databind.JsonMappingException) =>

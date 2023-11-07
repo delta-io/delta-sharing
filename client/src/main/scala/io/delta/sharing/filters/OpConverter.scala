@@ -152,7 +152,7 @@ object OpConverter {
    *
    * @param sqlTypeOpt if specified overrides the dataType specified in
    * the SQL expression. It is used to support "cast" method, which
-  // forces data type convertion during evaluation.
+  // forces data type conversion during evaluation.
    */
   private def maybeConvertAsLeaf(
       expr: SqlExpression,
