@@ -183,15 +183,15 @@ case class DeltaSharingSource(
     val currentTimeMillis = System.currentTimeMillis()
     if (lastGetVersionTimestamp == -1 ||
       (currentTimeMillis - lastGetVersionTimestamp) >= QUERY_TABLE_VERSION_INTERVAL_MILLIS) {
-      val tmpVersion = deltaLog.client.getTableVersion(deltaLog.table)
-      if (tmpVersion < 0) {
+      val serverVersion = deltaLog.client.getTableVersion(deltaLog.table)
+      if (serverVersion < 0) {
         throw new IllegalStateException(s"Delta Sharing Server returning negative table version:" +
-          s"$tmpVersion.")
-      } else if (tmpVersion < latestTableVersion) {
-        logWarning(s"Delta Sharing Server returning smaller table version:$tmpVersion < " +
+          s"$serverVersion.")
+      } else if (serverVersion < latestTableVersion) {
+        logWarning(s"Delta Sharing Server returning smaller table version:$serverVersion < " +
           s"$latestTableVersion.")
       }
-      latestTableVersion = tmpVersion
+      latestTableVersion = serverVersion
       lastGetVersionTimestamp = currentTimeMillis
     }
     latestTableVersion
