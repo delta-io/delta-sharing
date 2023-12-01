@@ -4,6 +4,7 @@ include("server:core")
 include("server:persistence:memory")
 include("server:app")
 include("docsite")
+include("client-spark")
 
 pluginManagement {
     val quarkusPluginVersion: String by settings

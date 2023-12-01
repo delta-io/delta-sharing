@@ -1,0 +1,6 @@
+{
+  "shareCredentialsVersion": 1,
+  "endpoint": "http://localhost:8080/delta-api/v1/",
+  "bearerToken": "fakeToken",
+  "expirationTime": null
+}

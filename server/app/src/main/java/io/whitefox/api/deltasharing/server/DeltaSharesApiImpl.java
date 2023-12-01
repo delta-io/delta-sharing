@@ -188,15 +188,25 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
       String schema,
       String table,
       QueryRequest queryRequest,
-      String startingTimestamp) {
-
+      String startingTimestamp,
+      String deltaSharingCapabilities) {
     return wrapExceptions(
-        () -> Response.ok(
-                tableQueryResponseSerializer.serialize(
-                    DeltaMappers.readTableResult2api(deltaSharesService.queryTable(
-                        share, schema, table, DeltaMappers.api2ReadTableRequest(queryRequest)))),
-                ndjsonMediaType)
-            .build(),
+        () -> optionalToNotFound(
+            deltaSharesService.getTableVersion(share, schema, table, startingTimestamp),
+            version -> Response.ok(
+                    tableQueryResponseSerializer.serialize(
+                        DeltaMappers.readTableResult2api(deltaSharesService.queryTable(
+                            share,
+                            schema,
+                            table,
+                            DeltaMappers.api2ReadTableRequest(queryRequest)))),
+                    ndjsonMediaType)
+                .header(DELTA_TABLE_VERSION_HEADER, version)
+                .header(
+                    DELTA_SHARE_CAPABILITIES_HEADER,
+                    getResponseFormatHeader(
+                        DeltaMappers.toHeaderCapabilitiesMap(deltaSharingCapabilities)))
+                .build()),
         exceptionToResponse);
   }
 

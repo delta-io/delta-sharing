@@ -5,11 +5,8 @@ import io.whitefox.api.server.CommonMappers;
 import io.whitefox.core.*;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
-import org.jboss.resteasy.reactive.common.NotImplementedYet;
 
 public class DeltaMappers {
 
@@ -26,9 +23,15 @@ public class DeltaMappers {
   }
 
   public static ReadTableRequest api2ReadTableRequest(QueryRequest request) {
-    if (request.getEndingVersion() != null || request.getStartingVersion() != null)
-      throw new NotImplementedYet();
-    if (request.getVersion() != null && request.getTimestamp() == null) {
+    if (request.getStartingVersion() != null && request.getEndingVersion() != null) {
+      throw new IllegalArgumentException("The startingVersion and endingVersion are not supported");
+    } else if (request.getStartingVersion() != null) {
+      throw new IllegalArgumentException("The startingVersion is not supported");
+    } else if (request.getEndingVersion() != null) {
+      throw new IllegalArgumentException("The endingVersion is not supported");
+    } else if (request.getVersion() != null && request.getVersion() < 0) {
+      throw new IllegalArgumentException("version cannot be negative.");
+    } else if (request.getVersion() != null && request.getTimestamp() == null) {
       return new ReadTableRequest.ReadTableVersion(
           request.getPredicateHints(),
           Optional.ofNullable(request.getLimitHint()),
@@ -57,7 +60,7 @@ public class DeltaMappers {
 
   private static MetadataObject metadata2Api(Metadata metadata) {
     return new MetadataObject()
-        .metadata(new MetadataObjectMetadata()
+        .metaData(new MetadataObjectMetaData()
             .id(metadata.id())
             .name(metadata.name().orElse(null))
             .description(metadata.description().orElse(null))

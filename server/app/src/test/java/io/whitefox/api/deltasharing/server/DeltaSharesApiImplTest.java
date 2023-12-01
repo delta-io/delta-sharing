@@ -192,7 +192,7 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
         objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
     assertEquals(
         new MetadataObject()
-            .metadata(new MetadataObjectMetadata()
+            .metaData(new MetadataObjectMetaData()
                 .id("56d48189-cdbc-44f2-9b0e-2bded4c79ed7")
                 .name("table1")
                 .format(new FormatObject().provider("parquet"))

@@ -1,6 +1,3 @@
-import org.gradle.api.tasks.testing.logging.TestExceptionFormat
-import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
-
 plugins {
     `java-library`
     `java-test-fixtures`

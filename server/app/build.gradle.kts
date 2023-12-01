@@ -11,12 +11,12 @@ val quarkusPlatformArtifactId: String by project
 val quarkusPlatformVersion: String by project
 
 // region dependencies
-
+val hadoopVersion = "3.3.6"
 dependencies {
     // INTERNAL
     implementation(project(":server:core"))
     implementation(project(":server:persistence:memory"))
-    
+
     // QUARKUS
     implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
     implementation("io.quarkus:quarkus-arc")

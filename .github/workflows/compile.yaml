@@ -35,6 +35,16 @@ jobs:
               ./gradlew build testNative --no-daemon
               ./gradlew server:app:printVersion --no-daemon -q
         shell: bash
+      - name: Run integration test
+        shell: bash
+        env:
+          WHITEFOX_TEST_AWS_REGION: ${{ vars.WHITEFOX_AWS_REGION }}
+          WHITEFOX_TEST_AWS_ACCESS_KEY_ID: ${{ secrets.WHITEFOX_AWS_ACCESS_KEY_ID }}
+          WHITEFOX_TEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.WHITEFOX_AWS_SECRET_ACCESS_KEY }}
+        run: |
+          java -jar server/app/build/quarkus-app/quarkus-run.jar &
+          ./gradlew :client-spark:clientSparkTest --no-daemon
+          kill -9 %1
       - name: Build container image
         if: runner.os == 'Linux'
         run: |

@@ -9,12 +9,11 @@ public interface ReadTableRequest {
 
   public static class ReadTableVersion implements ReadTableRequest {
     private final List<String> predicateHints;
-    private final Optional<Integer> limitHint;
+    private final Optional<Long> limitHint;
 
     private final Long version;
 
-    public ReadTableVersion(
-        List<String> predicateHints, Optional<Integer> limitHint, Long version) {
+    public ReadTableVersion(List<String> predicateHints, Optional<Long> limitHint, Long version) {
       this.predicateHints = predicateHints;
       this.limitHint = limitHint;
       this.version = version;
@@ -24,7 +23,7 @@ public interface ReadTableRequest {
       return predicateHints;
     }
 
-    public Optional<Integer> limitHint() {
+    public Optional<Long> limitHint() {
       return limitHint;
     }
 
@@ -61,11 +60,11 @@ public interface ReadTableRequest {
 
   public static class ReadTableAsOfTimestamp implements ReadTableRequest {
     private final List<String> predicateHints;
-    private final Optional<Integer> limitHint;
+    private final Optional<Long> limitHint;
     private final Long timestamp;
 
     public ReadTableAsOfTimestamp(
-        List<String> predicateHints, Optional<Integer> limitHint, Long timestamp) {
+        List<String> predicateHints, Optional<Long> limitHint, Long timestamp) {
       this.predicateHints = predicateHints;
       this.limitHint = limitHint;
       this.timestamp = timestamp;
@@ -101,7 +100,7 @@ public interface ReadTableRequest {
       return predicateHints;
     }
 
-    public Optional<Integer> limitHint() {
+    public Optional<Long> limitHint() {
       return limitHint;
     }
 
@@ -112,9 +111,9 @@ public interface ReadTableRequest {
 
   public static class ReadTableCurrentVersion implements ReadTableRequest {
     private final List<String> predicateHints;
-    private final Optional<Integer> limitHint;
+    private final Optional<Long> limitHint;
 
-    public ReadTableCurrentVersion(List<String> predicateHints, Optional<Integer> limitHint) {
+    public ReadTableCurrentVersion(List<String> predicateHints, Optional<Long> limitHint) {
       this.predicateHints = predicateHints;
       this.limitHint = limitHint;
     }
@@ -123,7 +122,7 @@ public interface ReadTableRequest {
       return predicateHints;
     }
 
-    public Optional<Integer> limitHint() {
+    public Optional<Long> limitHint() {
       return limitHint;
     }
 

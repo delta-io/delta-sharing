@@ -1,6 +1,7 @@
 package io.whitefox.api.configuration;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.arc.All;
 import io.quarkus.jackson.ObjectMapperCustomizer;
@@ -16,6 +17,7 @@ public class JsonConfiguration {
   ObjectMapper objectMapper(@All List<ObjectMapperCustomizer> customizers) {
     ObjectMapper mapper = new ObjectMapper();
     mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     // Apply all ObjectMapperCustomizer beans (incl. Quarkus)
     for (ObjectMapperCustomizer customizer : customizers) {
       customizer.customize(mapper);

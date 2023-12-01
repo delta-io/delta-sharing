@@ -175,7 +175,7 @@ public class WhitefoxMappers {
 
   private static MetadataObject metadata2Api(Metadata metadata) {
     return new MetadataObject()
-        .metadata(new MetadataObjectMetadata()
+        .metaData(new MetadataObjectMetaData()
             .id(metadata.id())
             .name(metadata.name().orElse(null))
             .description(metadata.description().orElse(null))
