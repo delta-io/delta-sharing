@@ -17,6 +17,8 @@
 package io.delta.sharing.spark
 
 import java.lang.ref.WeakReference
+import java.text.SimpleDateFormat
+import java.util.{TimeZone, UUID}
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkException
@@ -110,6 +112,18 @@ private[sharing] object RemoteDeltaLog {
     _addFileEncoder.copy()
   }
 
+  // Get a unique string composed of a formatted timestamp and an uuid.
+  // Used as a suffix for the table name and its delta log path of a delta sharing table in a
+  // streaming job, to avoid overwriting the delta log from multiple references of the same delta
+  // sharing table in one streaming job.
+  private[sharing] def getFormattedTimestampWithUUID(): String = {
+    val dateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss")
+    dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"))
+    val formattedDateTime = dateFormat.format(System.currentTimeMillis())
+    val uuid = UUID.randomUUID().toString().split('-').head
+    s"_${formattedDateTime}_${uuid}"
+  }
+
   def apply(
       path: String,
       forStreaming: Boolean = false,
@@ -122,7 +136,12 @@ private[sharing] object RemoteDeltaLog {
       schema = parsedPath.schema,
       share = parsedPath.share
     )
-    new RemoteDeltaLog(deltaSharingTable, new Path(path), client, initDeltaTableMetadata)
+    new RemoteDeltaLog(
+      deltaSharingTable,
+      new Path(path + getFormattedTimestampWithUUID),
+      client,
+      initDeltaTableMetadata
+    )
   }
 }
 

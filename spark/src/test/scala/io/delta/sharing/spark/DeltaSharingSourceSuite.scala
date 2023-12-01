@@ -121,6 +121,8 @@ class DeltaSharingSourceSuite extends QueryTest
       "ignoreDeletes" -> "true",
       "startingVersion" -> "latest"
     ))
+    // #share8.default.cdf_table_cdf_enabled_<yyyyMMdd_HHmmss>_<UUID>
+    assert(source.deltaLog.path.toString.split("_").size == 7)
     val latestOffset = source.latestOffset(null, source.getDefaultReadLimit)
     assert(latestOffset == null)
   }
