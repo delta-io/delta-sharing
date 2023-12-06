@@ -234,6 +234,8 @@ private[spark] class DeltaSharingRestClient(
       timestampAsOf: Option[String],
       jsonPredicateHints: Option[String],
       refreshToken: Option[String]): DeltaTableFiles = {
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----Client, limit:$limit")
     // Retrieve refresh token when querying the latest snapshot.
     val includeRefreshToken = versionAsOf.isEmpty && timestampAsOf.isEmpty
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
