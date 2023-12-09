@@ -392,7 +392,7 @@ class DeltaSharingRestClient(
     )
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       logInfo(
-        s"Making paginated queryTable requests for table " +
+        s"Making paginated queryTable from version $startingVersion requests for table " +
         s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
       )
       val (version, respondedFormat, lines, _) = getFilesByPage(target, request)
@@ -483,7 +483,8 @@ class DeltaSharingRestClient(
         expectedVersion = version,
         expectedRespondedFormat = respondedFormat,
         expectedProtocol = protocol,
-        expectedMetadata = metadata
+        expectedMetadata = metadata,
+        pageNumber = numPages
       )
       allLines.appendAll(res._1)
       endStreamAction = res._2
@@ -497,7 +498,7 @@ class DeltaSharingRestClient(
     }
 
     // TODO: remove logging once changes are rolled out
-    logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages" +
+    logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
       s"of ${allLines.size} files")
     (version, respondedFormat, allLines.toSeq, refreshToken)
   }
@@ -598,7 +599,8 @@ class DeltaSharingRestClient(
         expectedVersion = version,
         expectedRespondedFormat = respondedFormat,
         expectedProtocol = protocol,
-        expectedMetadata = metadata
+        expectedMetadata = metadata,
+        pageNumber = numPages
       )
       allLines.appendAll(res._1)
       endStreamAction = res._2
@@ -613,7 +615,7 @@ class DeltaSharingRestClient(
 
     // TODO: remove logging once changes are rolled out
     logInfo(
-      s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages" +
+      s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
       s"of ${allLines.size} files"
     )
     (version, respondedFormat, allLines.toSeq)
@@ -628,12 +630,16 @@ class DeltaSharingRestClient(
       expectedVersion: Long,
       expectedRespondedFormat: String,
       expectedProtocol: String,
-      expectedMetadata: String): (Seq[String], Option[EndStreamAction]) = {
+      expectedMetadata: String,
+      pageNumber: Int): (Seq[String], Option[EndStreamAction]) = {
+    val start = System.currentTimeMillis()
     val (version, respondedFormat, lines) = if (requestBody.isDefined) {
       getNDJson(targetUrl, requestBody.get)
     } else {
       getNDJson(targetUrl, requireVersion = false)
     }
+    logInfo(s"Took ${System.currentTimeMillis() - start} to fetch ${pageNumber}th page " +
+      s"of ${lines.size} lines.")
 
     // Validate that version/format/protocol/metadata in the response don't change across pages
     if (version != expectedVersion ||
