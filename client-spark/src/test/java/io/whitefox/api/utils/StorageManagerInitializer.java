@@ -4,10 +4,12 @@ import io.whitefox.api.client.*;
 import io.whitefox.api.client.model.*;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class StorageManagerInitializer {
   private final S3TestConfig s3TestConfig;
   private final StorageV1Api storageV1Api;
+  private final MetastoreV1Api metastoreV1Api;
   private final ProviderV1Api providerV1Api;
   private final TableV1Api tableV1Api;
   private final ShareV1Api shareV1Api;
@@ -21,33 +23,48 @@ public class StorageManagerInitializer {
     this.tableV1Api = new TableV1Api(apiClient);
     this.shareV1Api = new ShareV1Api(apiClient);
     this.schemaV1Api = new SchemaV1Api(apiClient);
+    this.metastoreV1Api = new MetastoreV1Api(apiClient);
   }
 
   public void initStorageManager() {
     storageV1Api.createStorage(createStorageRequest(s3TestConfig));
-    providerV1Api.addProvider(addProviderRequest());
-    tableV1Api.createTableInProvider(addProviderRequest().getName(), createTableRequest());
     shareV1Api.createShare(createShareRequest());
-    schemaV1Api.createSchema(createShareRequest().getName(), createSchemaRequest());
+  }
+
+  public void createS3DeltaTable() {
+    var providerRequest = addProviderRequest(Optional.empty(), TableFormat.delta);
+    providerV1Api.addProvider(providerRequest);
+    var createTableRequest = createDeltaTableRequest();
+    tableV1Api.createTableInProvider(providerRequest.getName(), createTableRequest);
+    var shareRequest = createShareRequest();
+    var schemaRequest = createSchemaRequest(TableFormat.delta);
+    schemaV1Api.createSchema(shareRequest.getName(), schemaRequest);
     schemaV1Api.addTableToSchema(
-        createShareRequest().getName(), createSchemaRequest(), addTableToSchemaRequest());
+        shareRequest.getName(),
+        schemaRequest,
+        addTableToSchemaRequest(providerRequest.getName(), createTableRequest.getName()));
   }
 
-  private String createSchemaRequest() {
-    return "s3schema";
+  public Metastore createGlueMetastore() {
+    var metastoreRequest = createMetastoreRequest(s3TestConfig, CreateMetastore.TypeEnum.GLUE);
+    return metastoreV1Api.createMetastore(metastoreRequest);
   }
 
-  private AddTableToSchemaRequest addTableToSchemaRequest() {
+  private String createSchemaRequest(TableFormat tableFormat) {
+    return format("s3schema", tableFormat);
+  }
+
+  private AddTableToSchemaRequest addTableToSchemaRequest(String providerName, String tableName) {
     return new AddTableToSchemaRequest()
-        .name("s3Table1")
-        .reference(new TableReference().providerName("MrFoxProvider").name("s3Table1"));
+        .name(tableName)
+        .reference(new TableReference().providerName(providerName).name(tableName));
   }
 
   private CreateShareInput createShareRequest() {
     return new CreateShareInput().name("s3share").recipients(List.of("Mr.Fox")).schemas(List.of());
   }
 
-  private CreateTableInput createTableRequest() {
+  private CreateTableInput createDeltaTableRequest() {
     return new CreateTableInput()
         .name("s3Table1")
         .skipValidation(true)
@@ -56,11 +73,12 @@ public class StorageManagerInitializer {
             "location", "s3a://whitefox-s3-test-bucket/delta/samples/delta-table"));
   }
 
-  private ProviderInput addProviderRequest() {
+  private ProviderInput addProviderRequest(
+      Optional<String> metastoreName, TableFormat tableFormat) {
     return new ProviderInput()
-        .name("MrFoxProvider")
+        .name(format("MrFoxProvider", tableFormat))
         .storageName("MrFoxStorage")
-        .metastoreName(null);
+        .metastoreName(metastoreName.orElse(null));
   }
 
   private CreateStorage createStorageRequest(S3TestConfig s3TestConfig) {
@@ -73,5 +91,23 @@ public class StorageManagerInitializer {
                 .awsAccessKeyId(s3TestConfig.getAccessKey())
                 .awsSecretAccessKey(s3TestConfig.getSecretKey()))))
         .skipValidation(true);
+  }
+
+  private CreateMetastore createMetastoreRequest(
+      S3TestConfig s3TestConfig, CreateMetastore.TypeEnum type) {
+    return new CreateMetastore()
+        .name("MrFoxMetastore")
+        .type(type)
+        .skipValidation(true)
+        .properties(new MetastoreProperties(new GlueProperties()
+            .catalogId("catalogId") // TODO
+            .credentials(new SimpleAwsCredentials()
+                .region(s3TestConfig.getRegion())
+                .awsAccessKeyId(s3TestConfig.getAccessKey())
+                .awsSecretAccessKey(s3TestConfig.getSecretKey()))));
+  }
+
+  private String format(String value, TableFormat tableFormat) {
+    return String.format("%s%s", value, tableFormat.name());
   }
 }

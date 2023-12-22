@@ -3,8 +3,12 @@ package io.whitefox.api.client;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.github.mrpowers.spark.fast.tests.DatasetComparer;
+import io.whitefox.api.client.model.CreateMetastore;
+import io.whitefox.api.client.model.Metastore;
 import io.whitefox.api.models.MrFoxDeltaTableSchema;
+import io.whitefox.api.utils.SparkUtil;
 import io.whitefox.api.utils.StorageManagerInitializer;
+import io.whitefox.api.utils.TablePath;
 import java.util.List;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.DataType;
@@ -17,20 +21,18 @@ import org.junit.jupiter.api.Test;
 import scala.collection.GenMap;
 
 @Tag("clientSparkTest")
-public class ITDeltaSharingClient implements DatasetComparer {
+public class ITDeltaSharingClient implements DatasetComparer, SparkUtil {
 
-  private final String tablePath = String.format(
-      "%s#%s.%s.%s",
-      getClass().getClassLoader().getResource("MrFoxProfile.json"),
-      "s3share",
-      "s3schema",
-      "s3Table1");
+  private final StorageManagerInitializer storageManagerInitializer;
+  private final String deltaTablePath;
+  private final SparkSession spark;
 
-  private final SparkSession spark = SparkSession.builder()
-      .appName("delta sharing client test")
-      .config("spark.driver.host", "localhost")
-      .master("local[1, 4]")
-      .getOrCreate();
+  public ITDeltaSharingClient() {
+    this.storageManagerInitializer = new StorageManagerInitializer();
+    this.deltaTablePath =
+        TablePath.getDeltaTablePath(getClass().getClassLoader().getResource("MrFoxProfile.json"));
+    this.spark = newSparkSession();
+  }
 
   @BeforeAll
   static void initStorageManager() {
@@ -39,7 +41,8 @@ public class ITDeltaSharingClient implements DatasetComparer {
 
   @Test
   void showS3Table1withQueryTableApi() {
-    var ds = spark.read().format("deltaSharing").load(tablePath);
+    storageManagerInitializer.createS3DeltaTable();
+    var ds = spark.read().format("deltaSharing").load(deltaTablePath);
     var expectedSchema = new StructType(new StructField[] {
       new StructField("id", DataType.fromDDL("long"), true, new Metadata(GenMap.empty()))
     });
@@ -57,5 +60,12 @@ public class ITDeltaSharingClient implements DatasetComparer {
     assertEquals(expectedSchema.json(), ds.schema().json());
     assertEquals(5, ds.count());
     assertSmallDatasetEquality(ds, expectedData, true, false, false, 500);
+  }
+
+  @Test
+  void createGlueMetastore() {
+    Metastore metastore = storageManagerInitializer.createGlueMetastore();
+    assertEquals(metastore.getName(), "MrFoxMetastore");
+    assertEquals(metastore.getType(), CreateMetastore.TypeEnum.GLUE.getValue());
   }
 }
