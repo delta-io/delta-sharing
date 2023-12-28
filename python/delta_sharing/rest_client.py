@@ -321,6 +321,7 @@ class DataSharingRestClient:
         self,
         table: Table,
         *,
+        jsonPredicateHints: Optional[Dict[str, Any]] = None,
         predicateHints: Optional[Sequence[str]] = None,
         jsonPredicateHints: Optional[str] = None,
         limitHint: Optional[int] = None,
@@ -328,6 +329,8 @@ class DataSharingRestClient:
         timestamp: Optional[str] = None,
     ) -> ListFilesInTableResponse:
         data: Dict = {}
+        if jsonPredicateHints is not None:
+            data["jsonPredicateHints"] = jsonPredicateHints
         if predicateHints is not None:
             data["predicateHints"] = predicateHints
         if jsonPredicateHints is not None:

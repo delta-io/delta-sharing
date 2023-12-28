@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 from datetime import date, datetime
-from typing import Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 import pandas as pd
 import pytest
@@ -486,20 +486,31 @@ def test_get_table_protocol(profile_path: str):
 def test_load_as_pandas_success(
     profile_path: str,
     fragments: str,
+    jsonPredicateHints: Optional[Dict[str, Any]],
+    predicateHints: Optional[Sequence[str]],
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    pdf = load_as_pandas(
+        f"{profile_path}#{fragments}",
+        jsonPredicateHints,
+        predicateHints,
+        limit,
+        version,
+        None
+    )
     pd.testing.assert_frame_equal(pdf, expected)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
-    "fragments,version,timestamp,error",
+    "fragments,jsonPredicateHints,predicateHints,version,timestamp,error",
     [
         pytest.param(
             "share1.default.table1",
+            None,
+            None,
             1,
             None,
             "Reading table by version or timestamp is not supported",
@@ -508,12 +519,16 @@ def test_load_as_pandas_success(
         pytest.param(
             "share1.default.table1",
             None,
+            None,
+            None,
             "random_timestamp",
             "Reading table by version or timestamp is not supported",
             id="timestamp not supported",
         ),
         pytest.param(
             "share8.default.cdf_table_cdf_enabled",
+            None,
+            None,
             1,
             "random_timestamp",
             "Please only provide one of",
@@ -521,6 +536,8 @@ def test_load_as_pandas_success(
         ),
         pytest.param(
             "share8.default.cdf_table_cdf_enabled",
+            None,
+            None,
             None,
             "2000-01-01T00:00:00Z",
             "Please use a timestamp greater",
@@ -531,12 +548,21 @@ def test_load_as_pandas_success(
 def test_load_as_pandas_exception(
     profile_path: str,
     fragments: str,
+    jsonPredicateHints: Optional[Dict[str, Any]],
+    predicateHints: Optional[Sequence[str]],
     version: Optional[int],
     timestamp: Optional[str],
     error: Optional[str]
 ):
     try:
-        load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp)
+        load_as_pandas(
+            f"{profile_path}#{fragments}",
+            jsonPredicateHints,
+            predicateHints,
+            None,
+            version,
+            timestamp
+        )
         assert False
     except Exception as e:
         assert isinstance(e, HTTPError)

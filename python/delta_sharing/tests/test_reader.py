@@ -16,11 +16,18 @@
 import pytest
 
 from datetime import date
-from typing import Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 import pandas as pd
 
-from delta_sharing.protocol import AddFile, AddCdcFile, CdfOptions, Metadata, RemoveFile, Table
+from delta_sharing.protocol import (
+    AddFile,
+    AddCdcFile,
+    CdfOptions,
+    Metadata,
+    RemoveFile,
+    Table,
+)
 from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import (
     ListFilesInTableResponse,
@@ -42,6 +49,7 @@ def test_to_pandas_non_partitioned(tmp_path):
             self,
             table: Table,
             *,
+            jsonPredicateHints: Optional[Dict[str, Any]] = None,
             predicateHints: Optional[Sequence[str]] = None,
             jsonPredicateHints: Optional[str] = None,
             limitHint: Optional[int] = None,
@@ -120,6 +128,7 @@ def test_to_pandas_partitioned(tmp_path):
             self,
             table: Table,
             *,
+            jsonPredicateHints: Optional[Dict[str, Any]] = None,
             predicateHints: Optional[Sequence[str]] = None,
             jsonPredicateHints: Optional[str] = None,
             limitHint: Optional[int] = None,
@@ -180,6 +189,7 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
             self,
             table: Table,
             *,
+            jsonPredicateHints: Optional[Dict[str, Any]] = None,
             predicateHints: Optional[Sequence[str]] = None,
             jsonPredicateHints: Optional[str] = None,
             limitHint: Optional[int] = None,
@@ -236,6 +246,7 @@ def test_to_pandas_empty(rest_client: DataSharingRestClient):
             self,
             table: Table,
             *,
+            jsonPredicateHints: Optional[Dict[str, Any]] = None,
             predicateHints: Optional[Sequence[str]] = None,
             jsonPredicateHints: Optional[str] = None,
             limitHint: Optional[int] = None,

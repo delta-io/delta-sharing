@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 from itertools import chain
-from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
+from typing import Any, BinaryIO, Dict, List, Optional, Sequence, TextIO, Tuple, Union
 from pathlib import Path
 
 import pandas as pd
@@ -100,6 +100,8 @@ def get_table_metadata(url: str) -> Metadata:
 
 def load_as_pandas(
     url: str,
+    jsonPredicateHints: Optional[Dict[str, Any]] = None,
+    predicateHints: Optional[Sequence[str]] = None,
     limit: Optional[int] = None,
     version: Optional[int] = None,
     timestamp: Optional[str] = None
@@ -119,6 +121,8 @@ def load_as_pandas(
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
+        jsonPredicateHints=jsonPredicateHints,
+        predicateHints=predicateHints,
         limit=limit,
         version=version,
         timestamp=timestamp
