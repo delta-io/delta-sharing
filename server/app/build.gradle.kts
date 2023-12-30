@@ -20,6 +20,7 @@ dependencies {
     // QUARKUS
     implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
     implementation("io.quarkus:quarkus-arc")
+    implementation("io.quarkus:quarkus-security")
     implementation("io.quarkus:quarkus-container-image-docker")
     implementation("io.quarkus:quarkus-resteasy-reactive")
     implementation("io.quarkus:quarkus-resteasy-reactive-jackson")
