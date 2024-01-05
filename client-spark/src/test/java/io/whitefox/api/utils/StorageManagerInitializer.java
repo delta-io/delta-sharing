@@ -49,11 +49,15 @@ public class StorageManagerInitializer {
         addTableToSchemaRequest(providerRequest.getName(), createTableRequest.getName())));
   }
 
-  public Metastore createGlueMetastore() {
+  public Provider createProviderWithGlueMetastore() {
     var metastoreRequest = createMetastoreRequest(s3TestConfig, CreateMetastore.TypeEnum.GLUE);
-    return ApiUtils.recoverConflictLazy(
+    var metastore = ApiUtils.recoverConflictLazy(
         () -> metastoreV1Api.createMetastore(metastoreRequest),
         () -> metastoreV1Api.describeMetastore(metastoreRequest.getName()));
+    var providerRequest = addProviderRequest(Optional.of(metastore.getName()), TableFormat.iceberg);
+    return ApiUtils.recoverConflictLazy(
+        () -> providerV1Api.addProvider(providerRequest),
+        () -> providerV1Api.getProvider(providerRequest.getName()));
   }
 
   private String createSchemaRequest(TableFormat tableFormat) {

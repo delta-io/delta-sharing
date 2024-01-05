@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.github.mrpowers.spark.fast.tests.DatasetComparer;
 import io.whitefox.api.client.model.CreateMetastore;
-import io.whitefox.api.client.model.Metastore;
+import io.whitefox.api.client.model.Provider;
 import io.whitefox.api.models.MrFoxDeltaTableSchema;
 import io.whitefox.api.utils.SparkUtil;
 import io.whitefox.api.utils.StorageManagerInitializer;
@@ -63,9 +63,10 @@ public class ITDeltaSharingClient implements DatasetComparer, SparkUtil {
   }
 
   @Test
-  void createGlueMetastore() {
-    Metastore metastore = storageManagerInitializer.createGlueMetastore();
-    assertEquals(metastore.getName(), "MrFoxMetastore");
-    assertEquals(metastore.getType(), CreateMetastore.TypeEnum.GLUE.getValue());
+  void createProviderWithGlueMetastore() {
+    Provider provider = storageManagerInitializer.createProviderWithGlueMetastore();
+    assertEquals(provider.getStorage().getName(), "MrFoxStorage");
+    assertEquals(provider.getMetastore().getName(), "MrFoxMetastore");
+    assertEquals(provider.getMetastore().getType(), CreateMetastore.TypeEnum.GLUE.getValue());
   }
 }
