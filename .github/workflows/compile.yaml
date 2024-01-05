@@ -32,7 +32,7 @@ jobs:
               if [ "$RUNNER_OS" == "Windows" ]; then
                 export HADOOP_HOME="$(pwd)/.github/workflows/hadoop3-win-binaries"
               fi
-              ./gradlew build testNative --no-daemon
+              ./gradlew build testNative --no-daemon --rerun-tasks
               ./gradlew server:app:printVersion --no-daemon -q
         shell: bash
       - name: Run integration test
@@ -42,6 +42,8 @@ jobs:
           WHITEFOX_TEST_AWS_ACCESS_KEY_ID: ${{ secrets.WHITEFOX_AWS_ACCESS_KEY_ID }}
           WHITEFOX_TEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.WHITEFOX_AWS_SECRET_ACCESS_KEY }}
         run: |
+          WHITEFOX_SERVER_AUTHENTICATION_ENABLED=TRUE \
+          WHITEFOX_SERVER_AUTHENTICATION_BEARERTOKEN=token \
           java -jar server/app/build/quarkus-app/quarkus-run.jar &
           ./gradlew :client-spark:clientSparkTest --no-daemon
           kill -9 %1

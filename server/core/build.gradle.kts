@@ -56,7 +56,7 @@ tasks.withType<JavaCompile> {
 // region test running
 
 tasks.withType<Test> {
-    environment = env.allVariables
+    environment = env.allVariables()
 }
 
 // endregion

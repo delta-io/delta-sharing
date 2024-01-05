@@ -38,7 +38,7 @@ tasks.getByName<Test>("test") {
 }
 
 tasks.withType<Test> {
-    environment = env.allVariables
+    environment = env.allVariables()
     systemProperty ("java.util.logging.manager", "java.util.logging.LogManager") //TODO modularize the whitefox-conventions plugin
 }
 

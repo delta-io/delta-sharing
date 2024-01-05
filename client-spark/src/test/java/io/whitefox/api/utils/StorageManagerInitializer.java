@@ -1,5 +1,8 @@
 package io.whitefox.api.utils;
 
+import static io.whitefox.api.client.ApiUtils.configureApiClientFromResource;
+import static io.whitefox.api.client.ApiUtils.ignoreConflict;
+
 import io.whitefox.api.client.*;
 import io.whitefox.api.client.model.*;
 import java.util.List;
@@ -16,7 +19,7 @@ public class StorageManagerInitializer {
   private final SchemaV1Api schemaV1Api;
 
   public StorageManagerInitializer() {
-    var apiClient = new ApiClient();
+    ApiClient apiClient = configureApiClientFromResource("MrFoxProfile.json");
     this.s3TestConfig = S3TestConfig.loadFromEnv();
     this.storageV1Api = new StorageV1Api(apiClient);
     this.providerV1Api = new ProviderV1Api(apiClient);
@@ -27,27 +30,30 @@ public class StorageManagerInitializer {
   }
 
   public void initStorageManager() {
-    storageV1Api.createStorage(createStorageRequest(s3TestConfig));
-    shareV1Api.createShare(createShareRequest());
+    ignoreConflict(() -> storageV1Api.createStorage(createStorageRequest(s3TestConfig)));
+    ignoreConflict(() -> shareV1Api.createShare(createShareRequest()));
   }
 
   public void createS3DeltaTable() {
     var providerRequest = addProviderRequest(Optional.empty(), TableFormat.delta);
-    providerV1Api.addProvider(providerRequest);
+    ignoreConflict(() -> providerV1Api.addProvider(providerRequest));
     var createTableRequest = createDeltaTableRequest();
-    tableV1Api.createTableInProvider(providerRequest.getName(), createTableRequest);
+    ignoreConflict(
+        () -> tableV1Api.createTableInProvider(providerRequest.getName(), createTableRequest));
     var shareRequest = createShareRequest();
     var schemaRequest = createSchemaRequest(TableFormat.delta);
-    schemaV1Api.createSchema(shareRequest.getName(), schemaRequest);
-    schemaV1Api.addTableToSchema(
+    ignoreConflict(() -> schemaV1Api.createSchema(shareRequest.getName(), schemaRequest));
+    ignoreConflict(() -> schemaV1Api.addTableToSchema(
         shareRequest.getName(),
         schemaRequest,
-        addTableToSchemaRequest(providerRequest.getName(), createTableRequest.getName()));
+        addTableToSchemaRequest(providerRequest.getName(), createTableRequest.getName())));
   }
 
   public Metastore createGlueMetastore() {
     var metastoreRequest = createMetastoreRequest(s3TestConfig, CreateMetastore.TypeEnum.GLUE);
-    return metastoreV1Api.createMetastore(metastoreRequest);
+    return ApiUtils.recoverConflictLazy(
+        () -> metastoreV1Api.createMetastore(metastoreRequest),
+        () -> metastoreV1Api.describeMetastore(metastoreRequest.getName()));
   }
 
   private String createSchemaRequest(TableFormat tableFormat) {
