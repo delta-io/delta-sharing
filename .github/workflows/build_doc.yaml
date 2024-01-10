@@ -18,13 +18,13 @@ jobs:
       - name: Execute npm run build
         run:  |
               cp -r protocol docsite/static/protocol
-              ./gradlew docsite:npm_run_build --no-daemon
+              ./gradlew docsite:npm_install docsite:npm_run_build --no-daemon
               chmod -c -R +rX "docsite/build" | while read line; do
                 echo "::warning title=Invalid file permissions automatically fixed::$line"
               done
         shell: bash
       - name: Upload gh-pages artifact
-        uses: actions/upload-pages-artifact@v2
+        uses: actions/upload-pages-artifact@v3
         with:
           path: docsite/build
   deploy:
@@ -43,5 +43,5 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
           

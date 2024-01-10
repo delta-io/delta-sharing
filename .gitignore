@@ -13,3 +13,7 @@ build/
 .env
 client/bin
 server/bin
+.terraform
+.terraform.*
+*.tfstate
+*.tfstate.backup
