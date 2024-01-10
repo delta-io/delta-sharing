@@ -43,11 +43,10 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
   lazy private val numRetries = ConfUtils.numRetries(getConf)
   lazy private val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(getConf)
   lazy private val timeoutInSeconds = ConfUtils.timeoutInSeconds(getConf)
-  lazy private val proxyConfigOpt = ConfUtils.getProxyConfig(getConf)
-
   lazy private val httpClient = createHttpClient()
 
-  private def createHttpClient() = {
+  private[sharing] def createHttpClient() = {
+    val proxyConfigOpt = ConfUtils.getProxyConfig(getConf)
     val maxConnections = ConfUtils.maxConnections(getConf)
     val config = RequestConfig.custom()
       .setConnectTimeout(timeoutInSeconds * 1000)
@@ -62,8 +61,9 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
       // See `RetryUtils.runWithExponentialBackoff`.
       .disableAutomaticRetries()
 
-    // Set proxy if provided
+    // Set proxy if provided.
     proxyConfigOpt.foreach { proxyConfig =>
+
       val proxy = new HttpHost(proxyConfig.host, proxyConfig.port)
       clientBuilder.setProxy(proxy)
 

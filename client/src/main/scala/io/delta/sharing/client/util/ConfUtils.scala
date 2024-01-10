@@ -70,12 +70,14 @@ object ConfUtils {
 
   def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
     val proxyHost = conf.get(PROXY_HOST, null)
-    if (proxyHost == null) {
+    val proxyPortAsString = conf.get(PROXY_PORT, null)
+
+    if (proxyHost == null && proxyPortAsString == null) {
       return None
     }
 
-    val proxyPortAsString = conf.get(PROXY_PORT, null)
-    validateNonNull(proxyPortAsString, PROXY_PORT)
+    validateNonEmpty(proxyHost, PROXY_HOST)
+    validateNonEmpty(proxyPortAsString, PROXY_PORT)
     val proxyPort = proxyPortAsString.toInt
     validatePortNumber(proxyPort, PROXY_PORT)
 
@@ -190,8 +192,8 @@ object ConfUtils {
     }
   }
 
-  private def validateNonNull(value: String, conf: String): Unit = {
-    if (value == null) {
+  private def validateNonEmpty(value: String, conf: String): Unit = {
+    if (value == null || value.isEmpty) {
       throw new IllegalArgumentException(conf + " must be defined")
     }
   }
