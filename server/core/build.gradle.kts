@@ -27,7 +27,7 @@ dependencies {
     testFixturesImplementation(String.format("org.eclipse.microprofile.config:microprofile-config-api:%s", microprofileConfigVersion))
 
     // DELTA
-    implementation("io.delta:delta-standalone_2.13:0.6.0")
+    implementation("io.delta:delta-standalone_2.13:3.0.0")
     implementation(String.format("org.apache.hadoop:hadoop-common:%s", hadoopVersion))
 
     //AWS
