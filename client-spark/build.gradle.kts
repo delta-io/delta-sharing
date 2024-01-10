@@ -19,12 +19,11 @@ dependencies {
 
     // DELTA
     testImplementation("org.apache.hadoop:hadoop-common:3.3.6")
-    testImplementation("io.delta:delta-sharing-spark_2.12:1.0.3")
+    testImplementation("io.delta:delta-sharing-spark_2.13:1.0.3")
 
     //SPARK
-    testImplementation("org.apache.spark:spark-core_2.12:3.3.2")
-    testImplementation("org.apache.spark:spark-sql_2.12:3.3.2")
-    testImplementation("com.github.mrpowers:spark-fast-tests_2.12:1.3.0")
+    testImplementation("org.apache.spark:spark-sql_2.13:3.5.0")
+    testImplementation("com.github.mrpowers:spark-fast-tests_2.13:1.3.0")
 
     //JUNIT
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
