@@ -8,6 +8,6 @@ repositories {
 
 dependencies {
     implementation("org.openapi.generator:org.openapi.generator.gradle.plugin:6.6.0")
-    implementation("com.diffplug.spotless:spotless-plugin-gradle:6.23.1")
+    implementation("com.diffplug.spotless:spotless-plugin-gradle:6.23.3")
     implementation("com.palantir.gradle.gitversion:gradle-git-version:3.0.0")
 }
