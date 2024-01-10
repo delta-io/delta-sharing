@@ -77,7 +77,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
               new HttpRoute(target)
             } else {
               // Route via proxy
-              new HttpRoute(target, null, proxy, true)
+              new HttpRoute(target, proxy)
             }
           }
         }
