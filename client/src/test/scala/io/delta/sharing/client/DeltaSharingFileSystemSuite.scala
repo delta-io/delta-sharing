@@ -66,7 +66,7 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
   }
 
   test("traffic goes through a proxy when a proxy configured") {
-    // Create a local HTTP server
+    // Create a local HTTP server.
     val server = new Server(0)
     val handler = new ServletHandler()
     server.setHandler(handler)
@@ -85,36 +85,36 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
       Thread.sleep(100)
     } while (!server.isStarted())
 
-    // Create a local HTTP proxy server
+    // Create a local HTTP proxy server.
     val proxyServer = new ProxyServer(0)
     proxyServer.initialize()
 
     try {
 
-      // Create a ProxyConfig with the host and port of the local proxy server
+      // Create a ProxyConfig with the host and port of the local proxy server.
       val conf = new Configuration
       conf.set(ConfUtils.PROXY_HOST, proxyServer.getHost())
       conf.set(ConfUtils.PROXY_PORT, proxyServer.getPort().toString)
 
-      // Configure the httpClient to use the ProxyConfig
+      // Configure the httpClient to use the ProxyConfig.
       val fs = new DeltaSharingFileSystem() {
         override def getConf = {
           conf
         }
       }
 
-      // Get http client instance
+      // Get http client instance.
       val httpClient = fs.createHttpClient()
 
-      // Send a request to the local server through the httpClient
+      // Send a request to the local server through the httpClient.
       val response = httpClient.execute(new HttpGet(server.getURI.toString))
 
-      // Assert that the request is successful
+      // Assert that the request is successful.
       assert(response.getStatusLine.getStatusCode == HttpServletResponse.SC_OK)
       val content = EntityUtils.toString(response.getEntity)
       assert(content.trim == "Hello, World!")
 
-      // Assert that the request is passed through proxy
+      // Assert that the request is passed through proxy.
       assert(proxyServer.getCapturedRequests().size == 1)
     } finally {
       server.stop()
@@ -123,7 +123,7 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
   }
 
   test("traffic skips the proxy when a noProxyHosts configured") {
-    // Create a local HTTP server
+    // Create a local HTTP server.
     val server = new Server(0)
     val handler = new ServletHandler()
     server.setHandler(handler)
@@ -142,35 +142,35 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
       Thread.sleep(100)
     } while (!server.isStarted())
 
-    // Create a local HTTP proxy server
+    // Create a local HTTP proxy server.
     val proxyServer = new ProxyServer(0)
     proxyServer.initialize()
     try {
-      // Create a ProxyConfig with the host and port of the local proxy server and noProxyHosts
+      // Create a ProxyConfig with the host and port of the local proxy server and noProxyHosts.
       val conf = new Configuration
       conf.set(ConfUtils.PROXY_HOST, proxyServer.getHost())
       conf.set(ConfUtils.PROXY_PORT, proxyServer.getPort().toString)
       conf.set(ConfUtils.NO_PROXY_HOSTS, server.getURI.getHost)
 
-      // Configure the httpClient to use the ProxyConfig
+      // Configure the httpClient to use the ProxyConfig.
       val fs = new DeltaSharingFileSystem() {
         override def getConf = {
           conf
         }
       }
 
-      // Get http client instance
+      // Get http client instance.
       val httpClient = fs.createHttpClient()
 
-      // Send a request to the local server through the httpClient
+      // Send a request to the local server through the httpClient.
       val response = httpClient.execute(new HttpGet(server.getURI.toString))
 
-      // Assert that the request is successful
+      // Assert that the request is successful.
       assert(response.getStatusLine.getStatusCode == HttpServletResponse.SC_OK)
       val content = EntityUtils.toString(response.getEntity)
       assert(content.trim == "Hello, World!")
 
-      // Assert that the request is not passed through proxy
+      // Assert that the request is not passed through proxy.
       assert(proxyServer.getCapturedRequests().isEmpty)
     } finally {
       server.stop()
