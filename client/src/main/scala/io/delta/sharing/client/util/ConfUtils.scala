@@ -204,8 +204,6 @@ object ConfUtils {
 
   case class ProxyConfig(host: String,
                          port: Int,
-                         username: Option[String] = None,
-                         password: Option[String] = None,
                          noProxyHosts: Seq[String] = Seq.empty
                         )
 }

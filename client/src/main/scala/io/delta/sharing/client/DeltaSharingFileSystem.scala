@@ -45,8 +45,9 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
   lazy private val timeoutInSeconds = ConfUtils.timeoutInSeconds(getConf)
   lazy private val proxyConfigOpt = ConfUtils.getProxyConfig(getConf)
 
-  lazy private val httpClient = {
+  lazy private val httpClient = createHttpClient()
 
+  private def createHttpClient() = {
     val maxConnections = ConfUtils.maxConnections(getConf)
     val config = RequestConfig.custom()
       .setConnectTimeout(timeoutInSeconds * 1000)
@@ -65,16 +66,6 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
     proxyConfigOpt.foreach { proxyConfig =>
       val proxy = new HttpHost(proxyConfig.host, proxyConfig.port)
       clientBuilder.setProxy(proxy)
-
-      // Set credentials if provided
-      if (proxyConfig.username.isDefined && proxyConfig.password.isDefined) {
-        val credsProvider = new BasicCredentialsProvider()
-        credsProvider.setCredentials(
-          new AuthScope(proxy),
-          new UsernamePasswordCredentials(proxyConfig.username.get, proxyConfig.password.get)
-        )
-        clientBuilder.setDefaultCredentialsProvider(credsProvider)
-      }
 
       if (proxyConfig.noProxyHosts.nonEmpty) {
         val routePlanner = new DefaultRoutePlanner(DefaultSchemePortResolver.INSTANCE) {
