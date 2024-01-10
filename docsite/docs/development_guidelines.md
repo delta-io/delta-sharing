@@ -21,8 +21,8 @@ not run properly on newer versions of the JVM.
 
 As soon as you clone the project you should verify that you are able to build and test locally, to do so you need to 
 run the `check` command of Gradle, you can achieve that using either `gradlew` script in the project root (`.
-/gradlew check`) or run the same [gradle task from intellij](https://www.jetbrains.com/help/idea/work-with-gradle-tasks.
-html). If you're default jvm is not version 11, you can run `gradlew` passing another java home as follows: 
+/gradlew check`) or run the same [gradle task from intellij](https://www.jetbrains.com/help/idea/work-with-gradle-tasks.html).
+If you're default jvm is not version 11, you can run `gradlew` passing another java home as follows: 
 `./gradlew -Dorg.gradle.java.home=<PATH_TO_JAVA_HOME> build`.
 
 Sometimes IntelliJ will tell you have build errors, especially when moving from one branch to the other. The problem 
