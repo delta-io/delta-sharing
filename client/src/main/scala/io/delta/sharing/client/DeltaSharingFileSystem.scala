@@ -22,37 +22,69 @@ import java.util.concurrent.TimeUnit
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
+import org.apache.http.{HttpHost, HttpRequest}
+import org.apache.http.auth.{AuthScope, UsernamePasswordCredentials}
 import org.apache.http.client.config.RequestConfig
-import org.apache.http.impl.client.HttpClientBuilder
+import org.apache.http.conn.routing.HttpRoute
+import org.apache.http.impl.client.{BasicCredentialsProvider, HttpClientBuilder}
+import org.apache.http.impl.conn.{DefaultRoutePlanner, DefaultSchemePortResolver}
+import org.apache.http.protocol.HttpContext
 import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.{PreSignedUrlCache, PreSignedUrlFetcher}
-import org.apache.spark.network.util.JavaUtils
 
 import io.delta.sharing.client.model.FileAction
-import io.delta.sharing.client.util.{ConfUtils, RetryUtils}
+import io.delta.sharing.client.util.ConfUtils
 
 /** Read-only file system for delta paths. */
 private[sharing] class DeltaSharingFileSystem extends FileSystem {
+
   import DeltaSharingFileSystem._
 
   lazy private val numRetries = ConfUtils.numRetries(getConf)
   lazy private val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(getConf)
   lazy private val timeoutInSeconds = ConfUtils.timeoutInSeconds(getConf)
+  lazy private val httpClient = createHttpClient()
 
-  lazy private val httpClient = {
+  private[sharing] def createHttpClient() = {
+    val proxyConfigOpt = ConfUtils.getProxyConfig(getConf)
     val maxConnections = ConfUtils.maxConnections(getConf)
     val config = RequestConfig.custom()
       .setConnectTimeout(timeoutInSeconds * 1000)
       .setConnectionRequestTimeout(timeoutInSeconds * 1000)
       .setSocketTimeout(timeoutInSeconds * 1000).build()
-    HttpClientBuilder.create()
+
+    val clientBuilder = HttpClientBuilder.create()
       .setMaxConnTotal(maxConnections)
       .setMaxConnPerRoute(maxConnections)
       .setDefaultRequestConfig(config)
       // Disable the default retry behavior because we have our own retry logic.
       // See `RetryUtils.runWithExponentialBackoff`.
       .disableAutomaticRetries()
-      .build()
+
+    // Set proxy if provided.
+    proxyConfigOpt.foreach { proxyConfig =>
+
+      val proxy = new HttpHost(proxyConfig.host, proxyConfig.port)
+      clientBuilder.setProxy(proxy)
+
+      if (proxyConfig.noProxyHosts.nonEmpty) {
+        val routePlanner = new DefaultRoutePlanner(DefaultSchemePortResolver.INSTANCE) {
+          override def determineRoute(target: HttpHost,
+                                      request: HttpRequest,
+                                      context: HttpContext): HttpRoute = {
+            if (proxyConfig.noProxyHosts.contains(target.getHostName)) {
+              // Direct route (no proxy)
+              new HttpRoute(target)
+            } else {
+              // Route via proxy
+              new HttpRoute(target, proxy)
+            }
+          }
+        }
+        clientBuilder.setRoutePlanner(routePlanner)
+      }
+    }
+    clientBuilder.build()
   }
 
   private lazy val refreshThresholdMs = getConf.getLong(
