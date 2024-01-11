@@ -64,6 +64,27 @@ object ConfUtils {
   val LIMIT_PUSHDOWN_ENABLED_CONF = "spark.delta.sharing.limitPushdown.enabled"
   val LIMIT_PUSHDOWN_ENABLED_DEFAULT = "true"
 
+  val PROXY_HOST = "spark.delta.sharing.network.proxyHost"
+  val PROXY_PORT = "spark.delta.sharing.network.proxyPort"
+  val NO_PROXY_HOSTS = "spark.delta.sharing.network.noProxyHosts"
+
+  def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
+    val proxyHost = conf.get(PROXY_HOST, null)
+    val proxyPortAsString = conf.get(PROXY_PORT, null)
+
+    if (proxyHost == null && proxyPortAsString == null) {
+      return None
+    }
+
+    validateNonEmpty(proxyHost, PROXY_HOST)
+    validateNonEmpty(proxyPortAsString, PROXY_PORT)
+    val proxyPort = proxyPortAsString.toInt
+    validatePortNumber(proxyPort, PROXY_PORT)
+
+    val noProxyList = conf.getTrimmedStrings(NO_PROXY_HOSTS).toSeq
+    Some(ProxyConfig(proxyHost, proxyPort, noProxyHosts = noProxyList))
+  }
+
   def numRetries(conf: Configuration): Int = {
     val numRetries = conf.getInt(NUM_RETRIES_CONF, NUM_RETRIES_DEFAULT)
     validateNonNeg(numRetries, NUM_RETRIES_CONF)
@@ -170,4 +191,21 @@ object ConfUtils {
       throw new IllegalArgumentException(conf + " must be positive")
     }
   }
+
+  private def validateNonEmpty(value: String, conf: String): Unit = {
+    if (value == null || value.isEmpty) {
+      throw new IllegalArgumentException(conf + " must be defined")
+    }
+  }
+
+  private def validatePortNumber(value: Int, conf: String): Unit = {
+    if (value <= 0 || value > 65535) {
+      throw new IllegalArgumentException(conf + " must be a valid port number")
+    }
+  }
+
+  case class ProxyConfig(host: String,
+                         port: Int,
+                         noProxyHosts: Seq[String] = Seq.empty
+                        )
 }
