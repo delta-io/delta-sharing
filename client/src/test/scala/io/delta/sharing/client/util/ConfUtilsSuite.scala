@@ -90,4 +90,84 @@ class ConfUtilsSuite extends SparkFunSuite {
       maxConnections(newConf(Map(MAX_CONNECTION_CONF -> "-1")))
     }.getMessage.contains(MAX_CONNECTION_CONF)
   }
+
+  test("getProxyConfig with all proxy settings") {
+    val conf = newConf(Map(
+      PROXY_HOST -> "1.2.3.4",
+      PROXY_PORT -> "8080",
+      NO_PROXY_HOSTS -> "localhost,127.0.0.1"
+    ))
+    val proxyConfig = getProxyConfig(conf)
+    assert(proxyConfig.isDefined)
+    assert(proxyConfig.get.host == "1.2.3.4")
+    assert(proxyConfig.get.port == 8080)
+    assert(proxyConfig.get.noProxyHosts == Seq("localhost", "127.0.0.1"))
+  }
+
+  test("getProxyConfig with only host and port") {
+    val conf = newConf(Map(
+      PROXY_HOST -> "1.2.3.4",
+      PROXY_PORT -> "8080"
+    ))
+    val proxyConfig = getProxyConfig(conf)
+    assert(proxyConfig.isDefined)
+    assert(proxyConfig.get.host == "1.2.3.4")
+    assert(proxyConfig.get.port == 8080)
+    assert(proxyConfig.get.noProxyHosts.isEmpty)
+  }
+
+  test("getProxyConfig with no proxy settings") {
+    val conf = newConf()
+    val proxyConfig = getProxyConfig(conf)
+    assert(proxyConfig.isEmpty)
+  }
+
+  test("getProxyConfig with invalid port") {
+    val conf = newConf(Map(
+      PROXY_HOST -> "localhost",
+      PROXY_PORT -> "70000" // Invalid port number
+    ))
+    intercept[IllegalArgumentException] {
+      getProxyConfig(conf)
+    }.getMessage.contains(PROXY_PORT)
+  }
+
+  test("getProxyConfig with null host") {
+    val conf = newConf(Map(
+      PROXY_PORT -> "8080"
+    ))
+    intercept[IllegalArgumentException] {
+      getProxyConfig(conf)
+    }.getMessage.contains(PROXY_HOST)
+  }
+
+  test("getProxyConfig with empty host") {
+    val conf = newConf(Map(
+      PROXY_HOST -> "", // Empty host
+      PROXY_PORT -> "8080"
+    ))
+    intercept[IllegalArgumentException] {
+      getProxyConfig(conf)
+    }.getMessage.contains(PROXY_HOST)
+  }
+
+  test("getProxyConfig with zero port") {
+    val conf = newConf(Map(
+      PROXY_HOST -> "localhost",
+      PROXY_PORT -> "0" // Zero port number
+    ))
+    intercept[IllegalArgumentException] {
+      getProxyConfig(conf)
+    }.getMessage.contains(PROXY_PORT)
+  }
+
+  test("getProxyConfig with negative port") {
+    val conf = newConf(Map(
+      PROXY_HOST -> "localhost",
+      PROXY_PORT -> "-1" // Negative port number
+    ))
+    intercept[IllegalArgumentException] {
+      getProxyConfig(conf)
+    }.getMessage.contains(PROXY_PORT)
+  }
 }
