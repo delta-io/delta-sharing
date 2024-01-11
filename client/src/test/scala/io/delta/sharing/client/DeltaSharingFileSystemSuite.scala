@@ -21,9 +21,9 @@ import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 import org.apache.hadoop.conf.Configuration
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.util.EntityUtils
+import org.apache.spark.SparkFunSuite
 import org.sparkproject.jetty.server.Server
 import org.sparkproject.jetty.servlet.{ServletHandler, ServletHolder}
-import org.apache.spark.SparkFunSuite
 
 import io.delta.sharing.client.model._
 import io.delta.sharing.client.util.{ConfUtils, ProxyServer}
@@ -178,7 +178,7 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
     }
   }
 
-  test("traffic goes through the proxy when a noProxyHosts configured but does not include the destination") {
+  test("traffic goes through the proxy when noProxyHosts does not include destination") {
     // Create a local HTTP server.
     val server = new Server(0)
     val handler = new ServletHandler()
