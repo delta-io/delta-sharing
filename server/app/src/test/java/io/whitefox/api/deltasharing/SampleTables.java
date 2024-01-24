@@ -1,7 +1,10 @@
 package io.whitefox.api.deltasharing;
 
 import static io.whitefox.DeltaTestUtils.*;
+import static io.whitefox.IcebergTestUtils.icebergTableWithHadoopCatalog;
+import static io.whitefox.IcebergTestUtils.s3IcebergTableWithAwsGlueCatalog;
 
+import io.whitefox.AwsGlueTestConfig;
 import io.whitefox.S3TestConfig;
 import io.whitefox.api.deltasharing.model.FileObjectFileWithoutPresignedUrl;
 import io.whitefox.api.deltasharing.model.FileObjectWithoutPresignedUrl;
@@ -27,7 +30,16 @@ public class SampleTables {
     return s3DeltaTable("delta-table-with-history", s3TestConfig);
   }
 
+  public static InternalTable s3IcebergTable1(
+      S3TestConfig s3TestConfig, AwsGlueTestConfig awsGlueTestConfig) {
+    return s3IcebergTableWithAwsGlueCatalog(
+        s3TestConfig, awsGlueTestConfig, "test_glue_db", "icebergtable1");
+  }
+
   public static final InternalTable deltaTable1 = deltaTable("delta-table");
+
+  public static final InternalTable icebergtable1 =
+      icebergTableWithHadoopCatalog("test_db", "icebergtable1");
 
   public static final String deltaTable1Path = deltaTableUri("delta-table");
 
@@ -46,7 +58,8 @@ public class SampleTables {
                 List.of(
                     new SharedTable("table1", "default", "name", deltaTable1),
                     new SharedTable(
-                        "table-with-history", "default", "name", deltaTableWithHistory1)),
+                        "table-with-history", "default", "name", deltaTableWithHistory1),
+                    new SharedTable("icebergtable1", "default", "name", icebergtable1)),
                 "name")),
         testPrincipal,
         0L)));

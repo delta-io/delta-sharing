@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.Header;
+import io.whitefox.AwsGlueTestConfig;
 import io.whitefox.S3TestConfig;
 import io.whitefox.api.OpenApiValidatorUtils;
 import io.whitefox.api.deltasharing.SampleTables;
@@ -51,14 +52,18 @@ public class DeltaSharesApiImplAwsTest implements OpenApiValidatorUtils {
 
   private final S3TestConfig s3TestConfig;
 
+  private final AwsGlueTestConfig awsGlueTestConfig;
+
   @Inject
-  public DeltaSharesApiImplAwsTest(ObjectMapper objectMapper, S3TestConfig s3TestConfig) {
+  public DeltaSharesApiImplAwsTest(
+      ObjectMapper objectMapper, S3TestConfig s3TestConfig, AwsGlueTestConfig awsGlueTestConfig) {
     this.objectMapper = objectMapper;
     this.s3TestConfig = s3TestConfig;
+    this.awsGlueTestConfig = awsGlueTestConfig;
   }
 
   @BeforeEach
-  public void updateStorageManagerWithS3DeltaTables() {
+  public void updateStorageManagerWithS3Tables() {
     storageManager.createShare(new Share(
         "s3share",
         "key",
@@ -72,10 +77,49 @@ public class DeltaSharesApiImplAwsTest implements OpenApiValidatorUtils {
                         "s3table-with-history",
                         "s3schema",
                         "s3share",
-                        s3DeltaTableWithHistory1(s3TestConfig))),
+                        s3DeltaTableWithHistory1(s3TestConfig)),
+                    new SharedTable(
+                        "s3IcebergTable1",
+                        "s3schema",
+                        "s3share",
+                        s3IcebergTable1(s3TestConfig, awsGlueTestConfig))),
                 "s3share")),
         new Principal("Mr fox"),
         0L));
+  }
+
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
+  public void icebergTableMetadata() throws IOException {
+    var responseBodyLines = given()
+        .when()
+        .filter(deltaFilter)
+        .get(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/metadata",
+            "s3share",
+            "s3schema",
+            "s3IcebergTable1")
+        .then()
+        .statusCode(200)
+        .extract()
+        .asString()
+        .split("\n");
+    assertEquals(2, responseBodyLines.length);
+    assertEquals(
+        new ProtocolObject().protocol(new ProtocolObjectProtocol().minReaderVersion(1)),
+        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+    assertEquals(
+        new MetadataObject()
+            .metaData(new MetadataObjectMetaData()
+                .id("7819530050735196523")
+                .name("metastore.test_glue_db.icebergtable1")
+                .format(new FormatObject().provider("parquet"))
+                .schemaString(
+                    "{\"type\":\"struct\",\"fields\":[{\"name\":\"id\",\"type\":\"long\",\"nullable\":false,\"metadata\":{}}]}")
+                .partitionColumns(List.of())
+                .version(1L)
+                ._configuration(Map.of("write.parquet.compression-codec", "zstd"))),
+        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
   }
 
   @DisabledOnOs(OS.WINDOWS)

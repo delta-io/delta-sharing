@@ -149,8 +149,10 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
         .get("delta-api/v1/shares/{share}/schemas/{schema}/tables", "name", "default")
         .then()
         .statusCode(200)
-        .body("items", hasSize(2))
-        .body("items[0].name", either(is("table1")).or(is("table-with-history")))
+        .body("items", hasSize(3))
+        .body(
+            "items[0].name",
+            either(is("table1")).or(is("table-with-history")).or(is("icebergtable1")))
         .body("items[0].schema", is("default"))
         .body("items[0].share", is("name"))
         .body("nextPageToken", is(nullValue()));
@@ -172,7 +174,7 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
 
   @Test
   @DisabledOnOs(OS.WINDOWS)
-  public void tableMetadata() throws IOException {
+  public void deltaTableMetadata() throws IOException {
     var responseBodyLines = given()
         .when()
         .filter(deltaFilter)
@@ -205,6 +207,40 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
   }
 
   @Test
+  @DisabledOnOs(OS.WINDOWS)
+  public void icebergTableMetadata() throws IOException {
+    var responseBodyLines = given()
+        .when()
+        .filter(deltaFilter)
+        .get(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/metadata",
+            "name",
+            "default",
+            "icebergtable1")
+        .then()
+        .statusCode(200)
+        .extract()
+        .asString()
+        .split("\n");
+    assertEquals(2, responseBodyLines.length);
+    assertEquals(
+        new ProtocolObject().protocol(new ProtocolObjectProtocol().minReaderVersion(1)),
+        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+    assertEquals(
+        new MetadataObject()
+            .metaData(new MetadataObjectMetaData()
+                .id("3369848726892806393")
+                .name("metastore.test_db.icebergtable1")
+                .format(new FormatObject().provider("parquet"))
+                .schemaString(
+                    "{\"type\":\"struct\",\"fields\":[{\"name\":\"id\",\"type\":\"long\",\"nullable\":false,\"metadata\":{}}]}")
+                .partitionColumns(List.of())
+                .version(1L)
+                ._configuration(Map.of("write.parquet.compression-codec", "zstd"))),
+        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+  }
+
+  @Test
   public void listAllTables() {
     given()
         .when()
@@ -212,8 +248,10 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
         .get("delta-api/v1/shares/{share}/all-tables", "name")
         .then()
         .statusCode(200)
-        .body("items", hasSize(2))
-        .body("items[0].name", either(is("table1")).or(is("table-with-history")))
+        .body("items", hasSize(3))
+        .body(
+            "items[0].name",
+            either(is("table1")).or(is("table-with-history")).or(is("icebergtable1")))
         .body("items[0].schema", is("default"))
         .body("items[0].share", is("name"))
         .body("nextPageToken", is(nullValue()));
