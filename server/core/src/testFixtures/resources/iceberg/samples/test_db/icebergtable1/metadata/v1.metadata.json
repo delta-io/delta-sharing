@@ -1,0 +1,39 @@
+{
+  "format-version" : 2,
+  "table-uuid" : "68aedda6-9639-4776-893e-527b5fc3cf86",
+  "location" : "/Users/marco/agilelab_wa/lake-sharing/server/core/src/testFixtures/resources/iceberg/samples/test_db/icebergtable1",
+  "last-sequence-number" : 0,
+  "last-updated-ms" : 1705667167985,
+  "last-column-id" : 1,
+  "current-schema-id" : 0,
+  "schemas" : [ {
+    "type" : "struct",
+    "schema-id" : 0,
+    "fields" : [ {
+      "id" : 1,
+      "name" : "id",
+      "required" : true,
+      "type" : "long"
+    } ]
+  } ],
+  "default-spec-id" : 0,
+  "partition-specs" : [ {
+    "spec-id" : 0,
+    "fields" : [ ]
+  } ],
+  "last-partition-id" : 999,
+  "default-sort-order-id" : 0,
+  "sort-orders" : [ {
+    "order-id" : 0,
+    "fields" : [ ]
+  } ],
+  "properties" : {
+    "write.parquet.compression-codec" : "zstd"
+  },
+  "current-snapshot-id" : -1,
+  "refs" : { },
+  "snapshots" : [ ],
+  "statistics" : [ ],
+  "snapshot-log" : [ ],
+  "metadata-log" : [ ]
+}

@@ -15,8 +15,7 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
 
   private final StorageManager storageManager;
   private final Integer defaultMaxResults;
-  private final DeltaShareTableLoader tableLoader;
-
+  private final TableLoaderFactory tableLoaderFactory;
   private final FileSignerFactory fileSignerFactory;
 
   @Inject
@@ -24,11 +23,11 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
       StorageManager storageManager,
       @ConfigProperty(name = "io.delta.sharing.api.server.defaultMaxResults")
           Integer defaultMaxResults,
-      DeltaShareTableLoader tableLoader,
+      TableLoaderFactory tableLoaderFactory,
       FileSignerFactory signerFactory) {
     this.storageManager = storageManager;
     this.defaultMaxResults = defaultMaxResults;
-    this.tableLoader = tableLoader;
+    this.tableLoaderFactory = tableLoaderFactory;
     this.fileSignerFactory = signerFactory;
   }
 
@@ -37,7 +36,10 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
       String share, String schema, String table, String startingTimestamp) {
     return storageManager
         .getSharedTable(share, schema, table)
-        .map(t -> tableLoader.loadTable(t).getTableVersion(Optional.ofNullable(startingTimestamp)))
+        .map(t -> tableLoaderFactory
+            .newTableLoader(t.internalTable())
+            .loadTable(t)
+            .getTableVersion(Optional.ofNullable(startingTimestamp)))
         .orElse(Optional.empty());
   }
 
@@ -59,9 +61,10 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   @Override
   public Optional<Metadata> getTableMetadata(
       String share, String schema, String table, String startingTimestamp) {
-    return storageManager
-        .getSharedTable(share, schema, table)
-        .flatMap(t -> tableLoader.loadTable(t).getMetadata(Optional.ofNullable(startingTimestamp)));
+    return storageManager.getSharedTable(share, schema, table).flatMap(t -> tableLoaderFactory
+        .newTableLoader(t.internalTable())
+        .loadTable(t)
+        .getMetadata(Optional.ofNullable(startingTimestamp)));
   }
 
   @Override
@@ -128,7 +131,10 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
 
     var fileSigner =
         fileSignerFactory.newFileSigner(sharedTable.internalTable().provider().storage());
-    var readTableResultToBeSigned = tableLoader.loadTable(sharedTable).queryTable(queryRequest);
+    var readTableResultToBeSigned = tableLoaderFactory
+        .newTableLoader(sharedTable.internalTable())
+        .loadTable(sharedTable)
+        .queryTable(queryRequest);
     return new ReadTableResult(
         readTableResultToBeSigned.protocol(),
         readTableResultToBeSigned.metadata(),

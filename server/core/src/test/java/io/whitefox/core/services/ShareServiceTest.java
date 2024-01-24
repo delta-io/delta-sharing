@@ -228,7 +228,7 @@ public class ShareServiceTest {
     var tablesFromDeltaService = new DeltaSharesServiceImpl(
             storage,
             100,
-            new DeltaShareTableLoader(),
+            new TableLoaderFactoryImpl(),
             new FileSignerFactoryImpl(new S3ClientFactoryImpl()))
         .listTablesOfShare("share1", Optional.empty(), Optional.empty())
         .get()

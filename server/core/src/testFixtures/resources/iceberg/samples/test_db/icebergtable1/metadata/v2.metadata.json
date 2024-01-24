@@ -1,0 +1,70 @@
+{
+  "format-version" : 2,
+  "table-uuid" : "68aedda6-9639-4776-893e-527b5fc3cf86",
+  "location" : "/Users/marco/agilelab_wa/lake-sharing/server/core/src/testFixtures/resources/iceberg/samples/test_db/icebergtable1",
+  "last-sequence-number" : 1,
+  "last-updated-ms" : 1705667209813,
+  "last-column-id" : 1,
+  "current-schema-id" : 0,
+  "schemas" : [ {
+    "type" : "struct",
+    "schema-id" : 0,
+    "fields" : [ {
+      "id" : 1,
+      "name" : "id",
+      "required" : true,
+      "type" : "long"
+    } ]
+  } ],
+  "default-spec-id" : 0,
+  "partition-specs" : [ {
+    "spec-id" : 0,
+    "fields" : [ ]
+  } ],
+  "last-partition-id" : 999,
+  "default-sort-order-id" : 0,
+  "sort-orders" : [ {
+    "order-id" : 0,
+    "fields" : [ ]
+  } ],
+  "properties" : {
+    "write.parquet.compression-codec" : "zstd"
+  },
+  "current-snapshot-id" : 3369848726892806393,
+  "refs" : {
+    "main" : {
+      "snapshot-id" : 3369848726892806393,
+      "type" : "branch"
+    }
+  },
+  "snapshots" : [ {
+    "sequence-number" : 1,
+    "snapshot-id" : 3369848726892806393,
+    "timestamp-ms" : 1705667209813,
+    "summary" : {
+      "operation" : "append",
+      "spark.app.id" : "local-1705667163739",
+      "added-data-files" : "5",
+      "added-records" : "5",
+      "added-files-size" : "2094",
+      "changed-partition-count" : "1",
+      "total-records" : "5",
+      "total-files-size" : "2094",
+      "total-data-files" : "5",
+      "total-delete-files" : "0",
+      "total-position-deletes" : "0",
+      "total-equality-deletes" : "0"
+    },
+    "manifest-list" : "/Users/marco/agilelab_wa/lake-sharing/server/core/src/testFixtures/resources/iceberg/samples/test_db/icebergtable1/metadata/snap-3369848726892806393-1-be4ce3ac-b849-4013-9591-15dea11586ae.avro",
+    "schema-id" : 0
+  } ],
+  "statistics" : [ ],
+  "snapshot-log" : [ {
+    "timestamp-ms" : 1705667209813,
+    "snapshot-id" : 3369848726892806393
+  } ],
+  "metadata-log" : [ {
+    "timestamp-ms" : 1705667167985,
+    "metadata-file" : "/Users/marco/agilelab_wa/lake-sharing/server/core/src/testFixtures/resources/iceberg/samples/test_db/icebergtable1/metadata/v1.metadata.json"
+  } ]
+}

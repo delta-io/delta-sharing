@@ -4,6 +4,8 @@ import io.whitefox.core.types.*;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 public class TableSchemaConverter {
 
@@ -23,6 +25,19 @@ public class TableSchemaConverter {
           nullable,
           metadata.getEntries().entrySet().stream()
               .collect(Collectors.toMap(Map.Entry::getKey, e -> Objects.toString(e.getValue())))));
+    }
+    return structType;
+  }
+
+  public StructType convertIcebergSchemaToWhitefox(Types.StructType st) {
+    var fields = st.fields();
+    var structType = new StructType();
+    for (Types.NestedField field : fields) {
+      var name = field.name();
+      var dataType = field.type();
+      var nullable = field.isOptional();
+      structType = structType.add(
+          new StructField(name, convertIcebergDataTypeToWhitefox(dataType), nullable, Map.of()));
     }
     return structType;
   }
@@ -69,5 +84,50 @@ public class TableSchemaConverter {
     } else {
       throw new IllegalArgumentException("Unknown type: " + st);
     }
+  }
+
+  public DataType convertIcebergDataTypeToWhitefox(org.apache.iceberg.types.Type icebergType) {
+    if (icebergType.isPrimitiveType()) {
+      return convertIcebergPrimitiveTypeToWhitefox(icebergType.asPrimitiveType());
+    } else if (icebergType.isListType()) {
+      return new ArrayType(
+          convertIcebergDataTypeToWhitefox(icebergType.asListType().elementType()),
+          icebergType.asListType().isElementOptional());
+    } else if (icebergType.isMapType()) {
+      return new io.whitefox.core.types.MapType(
+          convertIcebergDataTypeToWhitefox(icebergType.asMapType().keyType()),
+          convertIcebergDataTypeToWhitefox(icebergType.asMapType().valueType()),
+          icebergType.asMapType().isValueOptional());
+    } else if (icebergType.isStructType()) {
+      return convertIcebergSchemaToWhitefox(icebergType.asStructType());
+    } else {
+      throw new IllegalArgumentException("Unknown type: " + icebergType);
+    }
+  }
+
+  private DataType convertIcebergPrimitiveTypeToWhitefox(Type.PrimitiveType primitiveType) {
+    if (primitiveType instanceof Types.BooleanType) {
+      return BooleanType.BOOLEAN;
+    } else if (primitiveType instanceof Types.IntegerType) {
+      return IntegerType.INTEGER;
+    } else if (primitiveType instanceof Types.LongType) {
+      return LongType.LONG;
+    } else if (primitiveType instanceof Types.FloatType) {
+      return FloatType.FLOAT;
+    } else if (primitiveType instanceof Types.DoubleType) {
+      return DoubleType.DOUBLE;
+    } else if (primitiveType instanceof Types.StringType) {
+      return StringType.STRING;
+    } else if (primitiveType instanceof Types.BinaryType) {
+      return BinaryType.BINARY;
+    } else if (primitiveType instanceof Types.DateType) {
+      return DateType.DATE;
+    } else if (primitiveType instanceof Types.TimestampType) {
+      return TimestampType.TIMESTAMP;
+    } else if (primitiveType instanceof Types.DecimalType) {
+      return new io.whitefox.core.types.DecimalType(
+          ((Types.DecimalType) primitiveType).precision(),
+          ((Types.DecimalType) primitiveType).scale());
+    } else throw new RuntimeException(String.format("unknown primitive type: [%s]", primitiveType));
   }
 }

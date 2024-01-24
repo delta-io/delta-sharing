@@ -28,6 +28,7 @@ jobs:
           WHITEFOX_TEST_AWS_REGION: ${{ vars.WHITEFOX_AWS_REGION }}
           WHITEFOX_TEST_AWS_ACCESS_KEY_ID: ${{ secrets.WHITEFOX_AWS_ACCESS_KEY_ID }}
           WHITEFOX_TEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.WHITEFOX_AWS_SECRET_ACCESS_KEY }}
+          WHITEFOX_TEST_GLUE_CATALOG_ID: ${{ secrets.WHITEFOX_GLUE_CATALOG_ID }}
         run:  |
               if [ "$RUNNER_OS" == "Windows" ]; then
                 export HADOOP_HOME="$(pwd)/.github/workflows/hadoop3-win-binaries"
@@ -41,6 +42,7 @@ jobs:
           WHITEFOX_TEST_AWS_REGION: ${{ vars.WHITEFOX_AWS_REGION }}
           WHITEFOX_TEST_AWS_ACCESS_KEY_ID: ${{ secrets.WHITEFOX_AWS_ACCESS_KEY_ID }}
           WHITEFOX_TEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.WHITEFOX_AWS_SECRET_ACCESS_KEY }}
+          WHITEFOX_TEST_GLUE_CATALOG_ID: ${{ secrets.WHITEFOX_GLUE_CATALOG_ID }}
         run: |
           WHITEFOX_SERVER_AUTHENTICATION_ENABLED=TRUE \
           WHITEFOX_SERVER_AUTHENTICATION_BEARERTOKEN=token \

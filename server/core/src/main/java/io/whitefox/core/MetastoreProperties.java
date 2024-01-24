@@ -51,4 +51,41 @@ public interface MetastoreProperties {
           + credentials + ']';
     }
   }
+
+  final class HadoopMetastoreProperties implements MetastoreProperties {
+    private final String location;
+
+    public HadoopMetastoreProperties(String location, MetastoreType type) {
+      if (type != MetastoreType.HADOOP) {
+        throw new IllegalArgumentException(String.format(
+            "Hadoop metatstore properties are not compatible with metastore of type %o", type));
+      }
+      this.location = location;
+    }
+
+    public String location() {
+      return location;
+    }
+
+    @Override
+    @SkipCoverageGenerated
+    public boolean equals(Object obj) {
+      if (obj == this) return true;
+      if (obj == null || obj.getClass() != this.getClass()) return false;
+      var that = (HadoopMetastoreProperties) obj;
+      return Objects.equals(this.location, that.location);
+    }
+
+    @Override
+    @SkipCoverageGenerated
+    public int hashCode() {
+      return Objects.hash(location);
+    }
+
+    @Override
+    @SkipCoverageGenerated
+    public String toString() {
+      return "HadoopMetastoreProperties[" + "location=" + location + ']';
+    }
+  }
 }

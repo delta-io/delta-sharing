@@ -4,7 +4,8 @@ import java.util.Arrays;
 import java.util.Optional;
 
 public enum MetastoreType {
-  GLUE("glue");
+  GLUE("glue"),
+  HADOOP("hadoop");
 
   public final String value;
 
