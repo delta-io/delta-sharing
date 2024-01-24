@@ -49,15 +49,19 @@ public class StorageManagerInitializer {
         addTableToSchemaRequest(providerRequest.getName(), createTableRequest.getName())));
   }
 
-  public Provider createProviderWithGlueMetastore() {
+  public TableInfo createIcebergTableWithGlueMetastore() {
     var metastoreRequest = createMetastoreRequest(s3TestConfig, CreateMetastore.TypeEnum.GLUE);
     var metastore = ApiUtils.recoverConflictLazy(
         () -> metastoreV1Api.createMetastore(metastoreRequest),
         () -> metastoreV1Api.describeMetastore(metastoreRequest.getName()));
     var providerRequest = addProviderRequest(Optional.of(metastore.getName()), TableFormat.iceberg);
-    return ApiUtils.recoverConflictLazy(
+    var provider = ApiUtils.recoverConflictLazy(
         () -> providerV1Api.addProvider(providerRequest),
         () -> providerV1Api.getProvider(providerRequest.getName()));
+    var createTableRequest = createIcebergTableRequest();
+    return ApiUtils.recoverConflictLazy(
+        () -> tableV1Api.createTableInProvider(provider.getName(), createTableRequest),
+        () -> tableV1Api.describeTableInProvider(provider.getName(), createTableRequest.getName()));
   }
 
   private String createSchemaRequest(TableFormat tableFormat) {
@@ -81,6 +85,14 @@ public class StorageManagerInitializer {
         .properties(Map.of(
             "type", "delta",
             "location", "s3a://whitefox-s3-test-bucket/delta/samples/delta-table"));
+  }
+
+  private CreateTableInput createIcebergTableRequest() {
+    return new CreateTableInput()
+        .name("s3IcebergTable1")
+        .skipValidation(true)
+        .properties(Map.of(
+            "type", "iceberg", "databaseName", "test_glue_db", "tableName", "icebergtable1"));
   }
 
   private ProviderInput addProviderRequest(

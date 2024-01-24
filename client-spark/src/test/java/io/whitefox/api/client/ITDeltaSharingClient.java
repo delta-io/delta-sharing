@@ -3,8 +3,7 @@ package io.whitefox.api.client;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.github.mrpowers.spark.fast.tests.DatasetComparer;
-import io.whitefox.api.client.model.CreateMetastore;
-import io.whitefox.api.client.model.Provider;
+import io.whitefox.api.client.model.TableInfo;
 import io.whitefox.api.models.MrFoxDeltaTableSchema;
 import io.whitefox.api.utils.ScalaUtils;
 import io.whitefox.api.utils.StorageManagerInitializer;
@@ -61,10 +60,8 @@ public class ITDeltaSharingClient implements DatasetComparer, ScalaUtils {
   }
 
   @Test
-  void createProviderWithGlueMetastore() {
-    Provider provider = storageManagerInitializer.createProviderWithGlueMetastore();
-    assertEquals(provider.getStorage().getName(), "MrFoxStorage");
-    assertEquals(provider.getMetastore().getName(), "MrFoxMetastore");
-    assertEquals(provider.getMetastore().getType(), CreateMetastore.TypeEnum.GLUE.getValue());
+  void registerAnIcebergTable() {
+    TableInfo tableInfo = storageManagerInitializer.createIcebergTableWithGlueMetastore();
+    assertEquals(tableInfo.getName(), "s3IcebergTable1");
   }
 }
