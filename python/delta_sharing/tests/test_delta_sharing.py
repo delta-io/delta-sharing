@@ -494,6 +494,107 @@ def test_load_as_pandas_success(
     pd.testing.assert_frame_equal(pdf, expected)
 
 
+# We will test predicates with the table share8.default.cdf_table_with_partition
+# This table is partitioned by birthday column of type date.
+# There are two partitions: 2020-02-02, and 2020-01-01.
+# Each partition has one row.
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,jsonPredicateHints,expected",
+    [
+        # No predicates specified, so both rows are returned.
+        pytest.param(
+            "share8.default.cdf_table_with_partition",
+            None,
+            pd.DataFrame(
+                {
+                    "name": ["2", "1"],
+                    "age": pd.Series([2, 1], dtype="int32"),
+                    "birthday": [date(2020, 2, 2), date(2020, 1, 1)],
+                }
+            ),
+            id="no predicates",
+        ),
+        # Equality predicate returns only one row.
+        pytest.param(
+            "share8.default.cdf_table_with_partition",
+            (
+              '{"op":"equal", "children":['
+              '  {"op":"column","name":"birthday","valueType":"date"},'
+              '  {"op":"literal","value":"2020-02-02","valueType":"date"}]}'
+            ),
+            pd.DataFrame(
+                {
+                    "name": ["2"],
+                    "age": pd.Series([2], dtype="int32"),
+                    "birthday": [date(2020, 2, 2)],
+                }
+            ),
+            id="equal 2020-02-02",
+        ),
+        # Equality predicate returns the other row.
+        pytest.param(
+            "share8.default.cdf_table_with_partition",
+            (
+              '{"op":"equal", "children":['
+              '  {"op":"column","name":"birthday","valueType":"date"},'
+              '  {"op":"literal","value":"2020-01-01","valueType":"date"}]}'
+            ),
+            pd.DataFrame(
+                {
+                    "name": ["1"],
+                    "age": pd.Series([1], dtype="int32"),
+                    "birthday": [date(2020, 1, 1)],
+                }
+            ),
+            id="equal 2020-01-01",
+        ),
+        # Equality predicate returns zero rows.
+        pytest.param(
+            "share8.default.cdf_table_with_partition",
+            (
+              '{"op":"equal", "children":['
+              '  {"op":"column","name":"birthday","valueType":"date"},'
+              '  {"op":"literal","value":"2022-02-02","valueType":"date"}]}'
+            ),
+            pd.DataFrame(
+                {
+                    "name": pd.Series([], dtype="str"),
+                    "age": pd.Series([], dtype="int32"),
+                    "birthday": pd.Series([], dtype="object"),
+                }
+            ),
+            id="equal 2022-02-02",
+        ),
+        # GT predicate returns all rows.
+        pytest.param(
+            "share8.default.cdf_table_with_partition",
+            (
+              '{"op":"greaterThan", "children":['
+              '  {"op":"column","name":"birthday","valueType":"date"},'
+              '  {"op":"literal","value":"2019-01-01","valueType":"date"}]}'
+            ),
+            pd.DataFrame(
+                {
+                    "name": ["2", "1"],
+                    "age": pd.Series([2, 1], dtype="int32"),
+                    "birthday": [date(2020, 2, 2), date(2020, 1, 1)],
+                }
+            ),
+            id="greatherThan 2019-01-01",
+        ),
+    ],
+)
+def test_load_as_pandas_with_json_predicates(
+    profile_path: str,
+    fragments: str,
+    jsonPredicateHints: Optional[str],
+    expected: pd.DataFrame
+):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", None, None, None, jsonPredicateHints)
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
     "fragments,version,timestamp,error",
