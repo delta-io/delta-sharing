@@ -117,7 +117,6 @@ def load_as_pandas(
       https://github.com/delta-io/delta-sharing/blob/main/PROTOCOL.md#json-predicates-for-filtering
     :return: A pandas DataFrame representing the shared table.
     """
-    print("Abhijit: load_as_pandas")
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
     return DeltaSharingReader(
