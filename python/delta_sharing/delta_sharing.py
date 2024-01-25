@@ -102,7 +102,8 @@ def load_as_pandas(
     url: str,
     limit: Optional[int] = None,
     version: Optional[int] = None,
-    timestamp: Optional[str] = None
+    timestamp: Optional[str] = None,
+    jsonPredicateHints: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     Load the shared table using the given url as a pandas DataFrame.
@@ -112,6 +113,8 @@ def load_as_pandas(
       Use this optional parameter to explore the shared table without loading the entire table to
       the memory.
     :param version: an optional non-negative int. Load the snapshot of table at version
+    :param jsonPredicateHints: Predicate hints to be applied to the table. For more details see:
+      https://github.com/delta-io/delta-sharing/blob/main/PROTOCOL.md#json-predicates-for-filtering
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
@@ -119,6 +122,7 @@ def load_as_pandas(
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
+        jsonPredicateHints=jsonPredicateHints,
         limit=limit,
         version=version,
         timestamp=timestamp
