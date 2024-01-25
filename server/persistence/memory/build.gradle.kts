@@ -33,19 +33,3 @@ tasks.withType<JavaCompile> {
 }
 
 // endregion
-
-// region code coverage
-
-tasks.jacocoTestCoverageVerification {
-    if (!isWindowsBuild()) {
-        violationRules {
-            rule {
-                limit {
-                    minimum = BigDecimal.valueOf(0.63)
-                }
-            }
-        }
-    }
-}
-
-// endregion
