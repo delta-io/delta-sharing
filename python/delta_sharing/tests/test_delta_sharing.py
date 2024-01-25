@@ -519,9 +519,9 @@ def test_load_as_pandas_success(
         pytest.param(
             "share8.default.cdf_table_with_partition",
             (
-              '{"op":"equal", "children":['
-              '  {"op":"column","name":"birthday","valueType":"date"},'
-              '  {"op":"literal","value":"2020-02-02","valueType":"date"}]}'
+                '{"op":"equal", "children":['
+                '  {"op":"column","name":"birthday","valueType":"date"},'
+                '  {"op":"literal","value":"2020-02-02","valueType":"date"}]}'
             ),
             pd.DataFrame(
                 {
@@ -536,9 +536,9 @@ def test_load_as_pandas_success(
         pytest.param(
             "share8.default.cdf_table_with_partition",
             (
-              '{"op":"equal", "children":['
-              '  {"op":"column","name":"birthday","valueType":"date"},'
-              '  {"op":"literal","value":"2020-01-01","valueType":"date"}]}'
+                '{"op":"equal", "children":['
+                '  {"op":"column","name":"birthday","valueType":"date"},'
+                '  {"op":"literal","value":"2020-01-01","valueType":"date"}]}'
             ),
             pd.DataFrame(
                 {
@@ -553,9 +553,9 @@ def test_load_as_pandas_success(
         pytest.param(
             "share8.default.cdf_table_with_partition",
             (
-              '{"op":"equal", "children":['
-              '  {"op":"column","name":"birthday","valueType":"date"},'
-              '  {"op":"literal","value":"2022-02-02","valueType":"date"}]}'
+                '{"op":"equal", "children":['
+                '  {"op":"column","name":"birthday","valueType":"date"},'
+                '  {"op":"literal","value":"2022-02-02","valueType":"date"}]}'
             ),
             pd.DataFrame(
                 {
@@ -570,9 +570,9 @@ def test_load_as_pandas_success(
         pytest.param(
             "share8.default.cdf_table_with_partition",
             (
-              '{"op":"greaterThan", "children":['
-              '  {"op":"column","name":"birthday","valueType":"date"},'
-              '  {"op":"literal","value":"2019-01-01","valueType":"date"}]}'
+                '{"op":"greaterThan", "children":['
+                '  {"op":"column","name":"birthday","valueType":"date"},'
+                '  {"op":"literal","value":"2019-01-01","valueType":"date"}]}'
             ),
             pd.DataFrame(
                 {

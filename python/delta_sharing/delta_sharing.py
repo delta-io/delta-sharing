@@ -122,7 +122,7 @@ def load_as_pandas(
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
-        jsonPredicateHints = jsonPredicateHints,
+        jsonPredicateHints=jsonPredicateHints,
         limit=limit,
         version=version,
         timestamp=timestamp
