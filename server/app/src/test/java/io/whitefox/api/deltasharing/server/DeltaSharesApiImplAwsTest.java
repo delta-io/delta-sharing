@@ -90,6 +90,22 @@ public class DeltaSharesApiImplAwsTest implements OpenApiValidatorUtils {
 
   @Test
   @DisabledOnOs(OS.WINDOWS)
+  public void icebergTableVersion() {
+    given()
+        .when()
+        .filter(deltaFilter)
+        .get(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/version",
+            "s3share",
+            "s3schema",
+            "s3IcebergTable1")
+        .then()
+        .statusCode(200)
+        .header("Delta-Table-Version", "1");
+  }
+
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
   public void icebergTableMetadata() throws IOException {
     var responseBodyLines = given()
         .when()

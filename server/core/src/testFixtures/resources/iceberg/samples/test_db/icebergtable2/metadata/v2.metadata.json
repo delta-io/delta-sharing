@@ -1,0 +1,70 @@
+{
+  "format-version" : 2,
+  "table-uuid" : "77734b3f-6c0a-4151-83b9-9be5cf0197d9",
+  "location" : "/Users/aleksandarmilosevic/Desktop/lake-sharing/server/core/src/testFixtures/resources/iceberg/samples/test_db/icebergtable2",
+  "last-sequence-number" : 1,
+  "last-updated-ms" : 1706142720036,
+  "last-column-id" : 1,
+  "current-schema-id" : 0,
+  "schemas" : [ {
+    "type" : "struct",
+    "schema-id" : 0,
+    "fields" : [ {
+      "id" : 1,
+      "name" : "id",
+      "required" : true,
+      "type" : "long"
+    } ]
+  } ],
+  "default-spec-id" : 0,
+  "partition-specs" : [ {
+    "spec-id" : 0,
+    "fields" : [ ]
+  } ],
+  "last-partition-id" : 999,
+  "default-sort-order-id" : 0,
+  "sort-orders" : [ {
+    "order-id" : 0,
+    "fields" : [ ]
+  } ],
+  "properties" : {
+    "write.parquet.compression-codec" : "zstd"
+  },
+  "current-snapshot-id" : 2174306913745765008,
+  "refs" : {
+    "main" : {
+      "snapshot-id" : 2174306913745765008,
+      "type" : "branch"
+    }
+  },
+  "snapshots" : [ {
+    "sequence-number" : 1,
+    "snapshot-id" : 2174306913745765008,
+    "timestamp-ms" : 1706142720036,
+    "summary" : {
+      "operation" : "append",
+      "spark.app.id" : "local-1706142687377",
+      "added-data-files" : "5",
+      "added-records" : "5",
+      "added-files-size" : "2094",
+      "changed-partition-count" : "1",
+      "total-records" : "5",
+      "total-files-size" : "2094",
+      "total-data-files" : "5",
+      "total-delete-files" : "0",
+      "total-position-deletes" : "0",
+      "total-equality-deletes" : "0"
+    },
+    "manifest-list" : "/Users/aleksandarmilosevic/Desktop/lake-sharing/server/core/src/testFixtures/resources/iceberg/samples/test_db/icebergtable2/metadata/snap-2174306913745765008-1-f034929c-0fad-4fed-9671-579ecceb195b.avro",
+    "schema-id" : 0
+  } ],
+  "statistics" : [ ],
+  "snapshot-log" : [ {
+    "timestamp-ms" : 1706142720036,
+    "snapshot-id" : 2174306913745765008
+  } ],
+  "metadata-log" : [ {
+    "timestamp-ms" : 1706142410682,
+    "metadata-file" : "/Users/aleksandarmilosevic/Desktop/lake-sharing/server/core/src/testFixtures/resources/iceberg/samples/test_db/icebergtable2/metadata/v1.metadata.json"
+  } ]
+}

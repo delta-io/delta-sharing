@@ -1,0 +1,39 @@
+{
+  "format-version" : 2,
+  "table-uuid" : "77734b3f-6c0a-4151-83b9-9be5cf0197d9",
+  "location" : "/Users/aleksandarmilosevic/Desktop/lake-sharing/server/core/src/testFixtures/resources/iceberg/samples/test_db/icebergtable2",
+  "last-sequence-number" : 0,
+  "last-updated-ms" : 1706142410682,
+  "last-column-id" : 1,
+  "current-schema-id" : 0,
+  "schemas" : [ {
+    "type" : "struct",
+    "schema-id" : 0,
+    "fields" : [ {
+      "id" : 1,
+      "name" : "id",
+      "required" : true,
+      "type" : "long"
+    } ]
+  } ],
+  "default-spec-id" : 0,
+  "partition-specs" : [ {
+    "spec-id" : 0,
+    "fields" : [ ]
+  } ],
+  "last-partition-id" : 999,
+  "default-sort-order-id" : 0,
+  "sort-orders" : [ {
+    "order-id" : 0,
+    "fields" : [ ]
+  } ],
+  "properties" : {
+    "write.parquet.compression-codec" : "zstd"
+  },
+  "current-snapshot-id" : -1,
+  "refs" : { },
+  "snapshots" : [ ],
+  "statistics" : [ ],
+  "snapshot-log" : [ ],
+  "metadata-log" : [ ]
+}

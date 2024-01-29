@@ -149,10 +149,13 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
         .get("delta-api/v1/shares/{share}/schemas/{schema}/tables", "name", "default")
         .then()
         .statusCode(200)
-        .body("items", hasSize(3))
+        .body("items", hasSize(4))
         .body(
             "items[0].name",
-            either(is("table1")).or(is("table-with-history")).or(is("icebergtable1")))
+            either(is("table1"))
+                .or(is("table-with-history"))
+                .or(is("icebergtable1"))
+                .or(is("icebergtable2")))
         .body("items[0].schema", is("default"))
         .body("items[0].share", is("name"))
         .body("nextPageToken", is(nullValue()));
@@ -208,6 +211,22 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
 
   @Test
   @DisabledOnOs(OS.WINDOWS)
+  public void icebergTableVersion() {
+    given()
+        .when()
+        .filter(deltaFilter)
+        .get(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/version",
+            "name",
+            "default",
+            "icebergtable1")
+        .then()
+        .statusCode(200)
+        .header("Delta-Table-Version", "1");
+  }
+
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
   public void icebergTableMetadata() throws IOException {
     var responseBodyLines = given()
         .when()
@@ -248,10 +267,13 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
         .get("delta-api/v1/shares/{share}/all-tables", "name")
         .then()
         .statusCode(200)
-        .body("items", hasSize(3))
+        .body("items", hasSize(4))
         .body(
             "items[0].name",
-            either(is("table1")).or(is("table-with-history")).or(is("icebergtable1")))
+            either(is("table1"))
+                .or(is("table-with-history"))
+                .or(is("icebergtable1"))
+                .or(is("icebergtable2")))
         .body("items[0].schema", is("default"))
         .body("items[0].share", is("name"))
         .body("nextPageToken", is(nullValue()));

@@ -13,6 +13,7 @@ import org.apache.commons.lang3.NotImplementedException;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.util.SnapshotUtil;
 
 public class IcebergSharedTable implements InternalSharedTable {
 
@@ -59,8 +60,17 @@ public class IcebergSharedTable implements InternalSharedTable {
     return startingTimestamp
         .map(this::getTimestamp)
         .map(Timestamp::getTime)
-        .map(icebergTable::snapshot)
-        .or(() -> Optional.of(icebergTable.currentSnapshot()));
+        .map(this::getSnapshotForTimestampAsOf)
+        .orElseGet(() -> Optional.ofNullable(icebergTable.currentSnapshot()));
+  }
+
+  private Optional<Snapshot> getSnapshotForTimestampAsOf(long l) {
+    try {
+      return Optional.of(SnapshotUtil.snapshotIdAsOfTime(icebergTable, l))
+          .map(icebergTable::snapshot);
+    } catch (IllegalArgumentException iea) {
+      return Optional.empty();
+    }
   }
 
   private Timestamp getTimestamp(String timestamp) {
@@ -71,7 +81,7 @@ public class IcebergSharedTable implements InternalSharedTable {
 
   @Override
   public Optional<Long> getTableVersion(Optional<String> startingTimestamp) {
-    return Optional.of(0L);
+    return getSnapshot(startingTimestamp).map(Snapshot::sequenceNumber);
   }
 
   @Override
