@@ -5,6 +5,7 @@ import io.whitefox.core.services.exceptions.TableNotFound;
 import io.whitefox.persistence.StorageManager;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -33,13 +34,13 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
 
   @Override
   public Optional<Long> getTableVersion(
-      String share, String schema, String table, String startingTimestamp) {
+      String share, String schema, String table, Optional<Timestamp> startingTimestamp) {
     return storageManager
         .getSharedTable(share, schema, table)
         .map(t -> tableLoaderFactory
             .newTableLoader(t.internalTable())
             .loadTable(t)
-            .getTableVersion(Optional.ofNullable(startingTimestamp)))
+            .getTableVersion(startingTimestamp))
         .orElse(Optional.empty());
   }
 
@@ -60,11 +61,11 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
 
   @Override
   public Optional<Metadata> getTableMetadata(
-      String share, String schema, String table, String startingTimestamp) {
+      String share, String schema, String table, Optional<Timestamp> startingTimestamp) {
     return storageManager.getSharedTable(share, schema, table).flatMap(t -> tableLoaderFactory
         .newTableLoader(t.internalTable())
         .loadTable(t)
-        .getMetadata(Optional.ofNullable(startingTimestamp)));
+        .getMetadata(startingTimestamp));
   }
 
   @Override

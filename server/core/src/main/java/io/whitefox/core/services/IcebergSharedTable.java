@@ -5,8 +5,6 @@ import io.whitefox.core.ReadTableRequest;
 import io.whitefox.core.ReadTableResultToBeSigned;
 import io.whitefox.core.TableSchema;
 import java.sql.Timestamp;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.NotImplementedException;
@@ -34,7 +32,7 @@ public class IcebergSharedTable implements InternalSharedTable {
     return new IcebergSharedTable(icebergTable, new TableSchemaConverter());
   }
 
-  public Optional<Metadata> getMetadata(Optional<String> startingTimestamp) {
+  public Optional<Metadata> getMetadata(Optional<Timestamp> startingTimestamp) {
     return getSnapshot(startingTimestamp).map(this::getMetadataFromSnapshot);
   }
 
@@ -56,9 +54,8 @@ public class IcebergSharedTable implements InternalSharedTable {
         );
   }
 
-  private Optional<Snapshot> getSnapshot(Optional<String> startingTimestamp) {
+  private Optional<Snapshot> getSnapshot(Optional<Timestamp> startingTimestamp) {
     return startingTimestamp
-        .map(this::getTimestamp)
         .map(Timestamp::getTime)
         .map(this::getSnapshotForTimestampAsOf)
         .orElseGet(() -> Optional.ofNullable(icebergTable.currentSnapshot()));
@@ -73,14 +70,8 @@ public class IcebergSharedTable implements InternalSharedTable {
     }
   }
 
-  private Timestamp getTimestamp(String timestamp) {
-    return new Timestamp(OffsetDateTime.parse(timestamp, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-        .toInstant()
-        .toEpochMilli());
-  }
-
   @Override
-  public Optional<Long> getTableVersion(Optional<String> startingTimestamp) {
+  public Optional<Long> getTableVersion(Optional<Timestamp> startingTimestamp) {
     return getSnapshot(startingTimestamp).map(Snapshot::sequenceNumber);
   }
 

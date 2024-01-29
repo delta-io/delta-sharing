@@ -202,7 +202,8 @@ public class DeltaShareServiceTest {
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, tableLoaderFactory, fileSignerFactory);
-    var tableMetadata = deltaSharesService.getTableMetadata("name", "default", "table1", null);
+    var tableMetadata =
+        deltaSharesService.getTableMetadata("name", "default", "table1", Optional.empty());
     Assertions.assertTrue(tableMetadata.isPresent());
     Assertions.assertEquals(
         "56d48189-cdbc-44f2-9b0e-2bded4c79ed7", tableMetadata.get().id());
@@ -223,7 +224,8 @@ public class DeltaShareServiceTest {
     StorageManager storageManager = new InMemoryStorageManager(shares);
     DeltaSharesService deltaSharesService =
         new DeltaSharesServiceImpl(storageManager, 100, tableLoaderFactory, fileSignerFactory);
-    var resultTable = deltaSharesService.getTableMetadata("name", "default", "tableNotFound", null);
+    var resultTable =
+        deltaSharesService.getTableMetadata("name", "default", "tableNotFound", Optional.empty());
     Assertions.assertTrue(resultTable.isEmpty());
   }
 }

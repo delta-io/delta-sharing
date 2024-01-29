@@ -4,8 +4,6 @@ import io.delta.standalone.DeltaLog;
 import io.delta.standalone.Snapshot;
 import io.whitefox.core.*;
 import java.sql.Timestamp;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -54,7 +52,7 @@ public class DeltaSharedTable implements InternalSharedTable {
     return of(sharedTable, TableSchemaConverter.INSTANCE, new HadoopConfigBuilder());
   }
 
-  public Optional<Metadata> getMetadata(Optional<String> startingTimestamp) {
+  public Optional<Metadata> getMetadata(Optional<Timestamp> startingTimestamp) {
     return getSnapshot(startingTimestamp).map(this::metadataFromSnapshot);
   }
 
@@ -74,7 +72,7 @@ public class DeltaSharedTable implements InternalSharedTable {
         );
   }
 
-  public Optional<Long> getTableVersion(Optional<String> startingTimestamp) {
+  public Optional<Long> getTableVersion(Optional<Timestamp> startingTimestamp) {
     return getSnapshot(startingTimestamp).map(Snapshot::getVersion);
   }
 
@@ -106,9 +104,8 @@ public class DeltaSharedTable implements InternalSharedTable {
         snapshot.getVersion());
   }
 
-  private Optional<Snapshot> getSnapshot(Optional<String> startingTimestamp) {
+  private Optional<Snapshot> getSnapshot(Optional<Timestamp> startingTimestamp) {
     return startingTimestamp
-        .map(this::getTimestamp)
         .map(Timestamp::getTime)
         .map(this::getSnapshotForTimestampAsOf)
         .orElse(Optional.of(getSnapshot()));
@@ -129,12 +126,6 @@ public class DeltaSharedTable implements InternalSharedTable {
   private String location() {
     // remove all "/" at the end of the path
     return location.replaceAll("/+$", "");
-  }
-
-  private Timestamp getTimestamp(String timestamp) {
-    return new Timestamp(OffsetDateTime.parse(timestamp, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-        .toInstant()
-        .toEpochMilli());
   }
 
   public static class DeltaShareTableFormat {

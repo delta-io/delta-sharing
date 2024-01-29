@@ -69,34 +69,41 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
       String share,
       String schema,
       String table,
-      String startingTimestamp,
+      String startingTimestampStr,
       String deltaSharingCapabilities) {
     return wrapExceptions(
-        () -> optionalToNotFound(
-            deltaSharesService.getTableMetadata(share, schema, table, startingTimestamp),
-            m -> optionalToNotFound(
-                deltaSharesService.getTableVersion(share, schema, table, startingTimestamp),
-                v -> Response.ok(
-                        tableResponseSerializer.serialize(DeltaMappers.toTableResponseMetadata(m)),
-                        ndjsonMediaType)
-                    .status(Response.Status.OK.getStatusCode())
-                    .header(DELTA_TABLE_VERSION_HEADER, String.valueOf(v))
-                    .header(
-                        DELTA_SHARE_CAPABILITIES_HEADER,
-                        getResponseFormatHeader(
-                            DeltaMappers.toHeaderCapabilitiesMap(deltaSharingCapabilities)))
-                    .build())),
+        () -> {
+          var startingTimestamp = parseTimestamp(startingTimestampStr);
+          return optionalToNotFound(
+              deltaSharesService.getTableMetadata(share, schema, table, startingTimestamp),
+              m -> optionalToNotFound(
+                  deltaSharesService.getTableVersion(share, schema, table, startingTimestamp),
+                  v -> Response.ok(
+                          tableResponseSerializer.serialize(
+                              DeltaMappers.toTableResponseMetadata(m)),
+                          ndjsonMediaType)
+                      .status(Response.Status.OK.getStatusCode())
+                      .header(DELTA_TABLE_VERSION_HEADER, String.valueOf(v))
+                      .header(
+                          DELTA_SHARE_CAPABILITIES_HEADER,
+                          getResponseFormatHeader(
+                              DeltaMappers.toHeaderCapabilitiesMap(deltaSharingCapabilities)))
+                      .build()));
+        },
         exceptionToResponse);
   }
 
   @Override
   public Response getTableVersion(
-      String share, String schema, String table, String startingTimestamp) {
+      String share, String schema, String table, String startingTimestampStr) {
 
     return wrapExceptions(
-        () -> optionalToNotFound(
-            deltaSharesService.getTableVersion(share, schema, table, startingTimestamp),
-            t -> Response.ok().header(DELTA_TABLE_VERSION_HEADER, t).build()),
+        () -> {
+          var startingTimestamp = parseTimestamp(startingTimestampStr);
+          return optionalToNotFound(
+              deltaSharesService.getTableVersion(share, schema, table, startingTimestamp),
+              t -> Response.ok().header(DELTA_TABLE_VERSION_HEADER, t).build());
+        },
         exceptionToResponse);
   }
 

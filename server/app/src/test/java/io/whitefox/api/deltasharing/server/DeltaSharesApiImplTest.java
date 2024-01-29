@@ -349,7 +349,7 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
             "default",
             "table1")
         .then()
-        .statusCode(502);
+        .statusCode(Response.Status.BAD_REQUEST.getStatusCode());
   }
 
   @DisabledOnOs(OS.WINDOWS)

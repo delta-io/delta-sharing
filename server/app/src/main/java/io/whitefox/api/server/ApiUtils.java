@@ -7,6 +7,10 @@ import io.whitefox.core.services.DeltaSharedTable;
 import io.whitefox.core.services.exceptions.AlreadyExists;
 import io.whitefox.core.services.exceptions.NotFound;
 import jakarta.ws.rs.core.Response;
+import java.sql.Timestamp;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -31,6 +35,12 @@ public interface ApiUtils extends DeltaHeaders {
       return Response.status(Response.Status.NOT_FOUND)
           .entity(new CommonErrorResponse()
               .errorCode("NOT FOUND")
+              .message(ExceptionUtil.generateStackTrace(t)))
+          .build();
+    } else if (t instanceof DateTimeParseException) {
+      return Response.status(Response.Status.BAD_REQUEST)
+          .entity(new CommonErrorResponse()
+              .errorCode("BAD REQUEST - timestamp provided is not formatted correctly")
               .message(ExceptionUtil.generateStackTrace(t)))
           .build();
     } else {
@@ -78,5 +88,12 @@ public interface ApiUtils extends DeltaHeaders {
 
   default Principal resolvePrincipal(String s) {
     return new Principal(s);
+  }
+
+  default Optional<Timestamp> parseTimestamp(String timestamp) {
+    return Optional.ofNullable(timestamp)
+        .map(ts -> new Timestamp(OffsetDateTime.parse(ts, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+            .toInstant()
+            .toEpochMilli()));
   }
 }
