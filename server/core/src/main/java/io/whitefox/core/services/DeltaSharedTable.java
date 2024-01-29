@@ -102,7 +102,8 @@ public class DeltaSharedTable implements InternalSharedTable {
                 snapshot.getMetadata().getCreatedTime(),
                 f.getStats(),
                 f.getPartitionValues()))
-            .collect(Collectors.toList()));
+            .collect(Collectors.toList()),
+        snapshot.getVersion());
   }
 
   private Optional<Snapshot> getSnapshot(Optional<String> startingTimestamp) {

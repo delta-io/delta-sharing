@@ -354,6 +354,23 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
 
   @DisabledOnOs(OS.WINDOWS)
   @Test
+  public void queryNotExistingTable() throws IOException {
+    given()
+        .when()
+        .filter(deltaFilter)
+        .body("{}")
+        .header(new Header("Content-Type", "application/json"))
+        .post(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/query",
+            "name",
+            "default",
+            "tableThatDoesNotExist")
+        .then()
+        .statusCode(404);
+  }
+
+  @DisabledOnOs(OS.WINDOWS)
+  @Test
   public void queryTableCurrentVersion() throws IOException {
     var responseBodyLines = given()
         .when()
@@ -367,6 +384,7 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
             "table1")
         .then()
         .statusCode(200)
+        .header("Delta-Table-Version", "0")
         .extract()
         .body()
         .asString()
@@ -410,6 +428,7 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
             "table1")
         .then()
         .statusCode(200)
+        .header("Delta-Table-Version", "0")
         .extract()
         .body()
         .asString()
@@ -453,6 +472,7 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
             "table-with-history")
         .then()
         .statusCode(200)
+        .header("Delta-Table-Version", "0")
         .extract()
         .body()
         .asString()

@@ -7,6 +7,7 @@ plugins {
     id("com.palantir.git-version")
     id("org.openapi.generator")
     id("com.diffplug.spotless")
+    id("io.freefair.lombok")
 }
 // Projects should use Maven Central for external dependencies
 repositories {

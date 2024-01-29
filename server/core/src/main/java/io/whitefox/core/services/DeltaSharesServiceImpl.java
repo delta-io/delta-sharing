@@ -140,6 +140,7 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
         readTableResultToBeSigned.metadata(),
         readTableResultToBeSigned.other().stream()
             .map(fileSigner::sign)
-            .collect(Collectors.toList()));
+            .collect(Collectors.toList()),
+        readTableResultToBeSigned.version());
   }
 }

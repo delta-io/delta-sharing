@@ -413,12 +413,6 @@ paths:
           description: 'Named table'
           schema:
             type: string
-        - in: query
-          name: startingTimestamp
-          required: false
-          description: 'Starting Timestamp ISO8601 format, in the UTC timezone'
-          schema:
-            type: string
         - in: header
           name: delta-sharing-capabilities
           required: false
