@@ -371,6 +371,54 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
 
   @DisabledOnOs(OS.WINDOWS)
   @Test
+  public void queryTableCurrentVersionWithPredicates() throws IOException {
+    var responseBodyLines = given()
+        .when()
+        .filter(deltaFilter)
+        .body("{\"jsonPredicateHints\": \"{" + "  \\\"op\\\": \\\"equal\\\","
+            + "  \\\"children\\\": ["
+            + "    {\\\"op\\\": \\\"column\\\", \\\"name\\\":\\\"date\\\", \\\"valueType\\\":\\\"date\\\"},"
+            + "    {\\\"op\\\":\\\"literal\\\",\\\"value\\\":\\\"2021-04-29\\\",\\\"valueType\\\":\\\"date\\\"}"
+            + "  ]"
+            + "}\"}")
+        .header(new Header("Content-Type", "application/json"))
+        .post(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/query",
+            "name",
+            "default",
+            "table1")
+        .then()
+        .statusCode(200)
+        .extract()
+        .body()
+        .asString()
+        .split("\n");
+
+    assertEquals(
+        deltaTable1Protocol,
+        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+    assertEquals(
+        deltaTable1Metadata,
+        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+    var files = Arrays.stream(responseBodyLines)
+        .skip(2)
+        .map(line -> {
+          try {
+            return objectMapper
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .reader()
+                .readValue(line, FileObjectWithoutPresignedUrl.class);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        })
+        .collect(Collectors.toSet());
+    assertEquals(7, responseBodyLines.length);
+    assertEquals(deltaTable1FilesWithoutPresignedUrl, files);
+  }
+
+  @DisabledOnOs(OS.WINDOWS)
+  @Test
   public void queryTableCurrentVersion() throws IOException {
     var responseBodyLines = given()
         .when()

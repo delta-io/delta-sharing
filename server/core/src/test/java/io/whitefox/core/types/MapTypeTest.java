@@ -83,7 +83,7 @@ public class MapTypeTest {
     MapType mapType = new MapType(keyType, valueType, valueContainsNull);
 
     assertEquals(
-        "{\"type\": \"map\",\"keyType\": \"string\",\"valueType\": \"integer\",\"valueContainsNull\": true}",
+        "{\"type\": \"map\",\"keyType\": \"string\",\"valueType\": \"int\",\"valueContainsNull\": true}",
         mapType.toJson());
   }
 }

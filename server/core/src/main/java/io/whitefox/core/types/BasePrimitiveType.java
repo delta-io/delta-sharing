@@ -38,7 +38,7 @@ public abstract class BasePrimitiveType extends DataType {
           put("boolean", BooleanType.BOOLEAN);
           put("byte", ByteType.BYTE);
           put("short", ShortType.SHORT);
-          put("integer", IntegerType.INTEGER);
+          put("int", IntegerType.INTEGER);
           put("long", LongType.LONG);
           put("float", FloatType.FLOAT);
           put("double", DoubleType.DOUBLE);

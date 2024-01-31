@@ -1,10 +1,12 @@
 package io.whitefox.core.services;
 
 import io.whitefox.DeltaTestUtils;
+import io.whitefox.core.*;
 import io.whitefox.core.Principal;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
 import io.whitefox.core.SharedTable;
+import io.whitefox.core.services.exceptions.TableNotFound;
 import io.whitefox.persistence.StorageManager;
 import io.whitefox.persistence.memory.InMemoryStorageManager;
 import java.util.Collections;
@@ -227,5 +229,53 @@ public class DeltaShareServiceTest {
     var resultTable =
         deltaSharesService.getTableMetadata("name", "default", "tableNotFound", Optional.empty());
     Assertions.assertTrue(resultTable.isEmpty());
+  }
+
+  @Test
+  @DisabledOnOs(OS.WINDOWS)
+  public void queryExistingTable() {
+    var shares = List.of(createShare(
+        "name",
+        "key",
+        Map.of(
+            "default",
+            new Schema(
+                "default",
+                List.of(new SharedTable(
+                    "partitioned-delta-table",
+                    "default",
+                    "name",
+                    DeltaTestUtils.deltaTable("partitioned-delta-table"))),
+                "name"))));
+    StorageManager storageManager = new InMemoryStorageManager(shares);
+    DeltaSharesService deltaSharesService =
+        new DeltaSharesServiceImpl(storageManager, 100, tableLoaderFactory, fileSignerFactory);
+    var resultTable = deltaSharesService.queryTable(
+        "name",
+        "default",
+        "partitioned-delta-table",
+        new ReadTableRequest.ReadTableCurrentVersion(
+            Optional.empty(), Optional.empty(), Optional.empty()));
+    Assertions.assertEquals(9, resultTable.files().size());
+  }
+
+  @Test
+  public void queryNonExistingTable() {
+    var shares = List.of(createShare(
+        "name",
+        "key",
+        Map.of(
+            "default",
+            new Schema(
+                "default",
+                List.of(new SharedTable(
+                    "table1", "default", "name", DeltaTestUtils.deltaTable("location1"))),
+                "name"))));
+    StorageManager storageManager = new InMemoryStorageManager(shares);
+    DeltaSharesService deltaSharesService =
+        new DeltaSharesServiceImpl(storageManager, 100, tableLoaderFactory, fileSignerFactory);
+    Assertions.assertThrows(
+        TableNotFound.class,
+        () -> deltaSharesService.queryTable("name", "default", "tableNotFound", null));
   }
 }

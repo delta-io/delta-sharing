@@ -7,19 +7,30 @@ import java.util.Optional;
 
 public interface ReadTableRequest {
 
-  public static class ReadTableVersion implements ReadTableRequest {
-    private final List<String> predicateHints;
+  class ReadTableVersion implements ReadTableRequest {
+    private final Optional<List<String>> predicateHints;
+    private final Optional<String> jsonPredicateHints;
     private final Optional<Long> limitHint;
 
     private final Long version;
 
-    public ReadTableVersion(List<String> predicateHints, Optional<Long> limitHint, Long version) {
+    public ReadTableVersion(
+        Optional<List<String>> predicateHints,
+        Optional<String> jsonPredicateHints,
+        Optional<Long> limitHint,
+        Long version) {
+
       this.predicateHints = predicateHints;
+      this.jsonPredicateHints = jsonPredicateHints;
       this.limitHint = limitHint;
       this.version = version;
     }
 
-    public List<String> predicateHints() {
+    public Optional<String> jsonPredicateHints() {
+      return jsonPredicateHints;
+    }
+
+    public Optional<List<String>> predicateHints() {
       return predicateHints;
     }
 
@@ -38,6 +49,7 @@ public interface ReadTableRequest {
       if (o == null || getClass() != o.getClass()) return false;
       ReadTableVersion that = (ReadTableVersion) o;
       return Objects.equals(predicateHints, that.predicateHints)
+          && Objects.equals(jsonPredicateHints, that.jsonPredicateHints)
           && Objects.equals(limitHint, that.limitHint)
           && Objects.equals(version, that.version);
     }
@@ -45,29 +57,41 @@ public interface ReadTableRequest {
     @Override
     @SkipCoverageGenerated
     public int hashCode() {
-      return Objects.hash(predicateHints, limitHint, version);
+      return Objects.hash(predicateHints, jsonPredicateHints, limitHint, version);
     }
 
     @Override
     @SkipCoverageGenerated
     public String toString() {
       return "ReadTableVersion{" + "predicateHints="
-          + predicateHints + ", limitHint="
+          + predicateHints + "jsonPredicateHints="
+          + jsonPredicateHints + ", limitHint="
           + limitHint + ", version="
           + version + '}';
     }
   }
 
-  public static class ReadTableAsOfTimestamp implements ReadTableRequest {
-    private final List<String> predicateHints;
+  class ReadTableAsOfTimestamp implements ReadTableRequest {
+    private final Optional<List<String>> predicateHints;
+
     private final Optional<Long> limitHint;
+    private final Optional<String> jsonPredicateHints;
     private final Long timestamp;
 
     public ReadTableAsOfTimestamp(
-        List<String> predicateHints, Optional<Long> limitHint, Long timestamp) {
+        Optional<List<String>> predicateHints,
+        Optional<String> jsonPredicateHints,
+        Optional<Long> limitHint,
+        Long timestamp) {
+
       this.predicateHints = predicateHints;
+      this.jsonPredicateHints = jsonPredicateHints;
       this.limitHint = limitHint;
       this.timestamp = timestamp;
+    }
+
+    public Optional<String> jsonPredicateHints() {
+      return jsonPredicateHints;
     }
 
     @Override
@@ -77,6 +101,7 @@ public interface ReadTableRequest {
       if (o == null || getClass() != o.getClass()) return false;
       ReadTableAsOfTimestamp that = (ReadTableAsOfTimestamp) o;
       return Objects.equals(predicateHints, that.predicateHints)
+          && Objects.equals(jsonPredicateHints, that.jsonPredicateHints)
           && Objects.equals(limitHint, that.limitHint)
           && Objects.equals(timestamp, that.timestamp);
     }
@@ -84,19 +109,20 @@ public interface ReadTableRequest {
     @Override
     @SkipCoverageGenerated
     public int hashCode() {
-      return Objects.hash(predicateHints, limitHint, timestamp);
+      return Objects.hash(jsonPredicateHints, predicateHints, limitHint, timestamp);
     }
 
     @Override
     @SkipCoverageGenerated
     public String toString() {
       return "ReadTableAsOfTimestamp{" + "predicateHints="
-          + predicateHints + ", limitHint="
+          + predicateHints + "jsonPredicateHints="
+          + jsonPredicateHints + ", limitHint="
           + limitHint + ", timestamp="
           + timestamp + '}';
     }
 
-    public List<String> predicateHints() {
+    public Optional<List<String>> predicateHints() {
       return predicateHints;
     }
 
@@ -109,17 +135,26 @@ public interface ReadTableRequest {
     }
   }
 
-  public static class ReadTableCurrentVersion implements ReadTableRequest {
-    private final List<String> predicateHints;
+  class ReadTableCurrentVersion implements ReadTableRequest {
+    private final Optional<List<String>> predicateHints;
+    private final Optional<String> jsonPredicateHints;
     private final Optional<Long> limitHint;
 
-    public ReadTableCurrentVersion(List<String> predicateHints, Optional<Long> limitHint) {
+    public ReadTableCurrentVersion(
+        Optional<List<String>> predicateHints,
+        Optional<String> jsonPredicateHints,
+        Optional<Long> limitHint) {
       this.predicateHints = predicateHints;
+      this.jsonPredicateHints = jsonPredicateHints;
       this.limitHint = limitHint;
     }
 
-    public List<String> predicateHints() {
+    public Optional<List<String>> predicateHints() {
       return predicateHints;
+    }
+
+    public Optional<String> jsonPredicateHints() {
+      return jsonPredicateHints;
     }
 
     public Optional<Long> limitHint() {
@@ -130,7 +165,8 @@ public interface ReadTableRequest {
     @SkipCoverageGenerated
     public String toString() {
       return "ReadTableCurrentVersion{" + "predicateHints="
-          + predicateHints + ", limitHint="
+          + predicateHints + "jsonPredicateHints="
+          + jsonPredicateHints + ", limitHint="
           + limitHint + '}';
     }
 
@@ -141,13 +177,14 @@ public interface ReadTableRequest {
       if (o == null || getClass() != o.getClass()) return false;
       ReadTableCurrentVersion that = (ReadTableCurrentVersion) o;
       return Objects.equals(predicateHints, that.predicateHints)
+          && Objects.equals(jsonPredicateHints, that.jsonPredicateHints)
           && Objects.equals(limitHint, that.limitHint);
     }
 
     @Override
     @SkipCoverageGenerated
     public int hashCode() {
-      return Objects.hash(predicateHints, limitHint);
+      return Objects.hash(jsonPredicateHints, predicateHints, limitHint);
     }
   }
 }

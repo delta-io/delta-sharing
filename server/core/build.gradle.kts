@@ -43,6 +43,9 @@ dependencies {
     compileOnly(String.format("com.amazonaws:aws-java-sdk-s3:%s", awsSdkVersion))
     implementation(String.format("org.apache.hadoop:hadoop-aws:%s", hadoopVersion))
 
+    //PREDICATE PARSER
+    implementation("com.github.jsqlparser:jsqlparser:4.8")
+
     // TEST
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("io.quarkus:quarkus-arc")
