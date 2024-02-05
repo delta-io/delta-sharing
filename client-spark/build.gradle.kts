@@ -26,7 +26,7 @@ dependencies {
     testImplementation("com.github.mrpowers:spark-fast-tests_2.13:1.3.0")
 
     //JUNIT
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
 }
 
 
