@@ -31,12 +31,13 @@ import org.apache.http.impl.conn.{DefaultRoutePlanner, DefaultSchemePortResolver
 import org.apache.http.protocol.HttpContext
 import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.{PreSignedUrlCache, PreSignedUrlFetcher}
+import org.apache.spark.internal.Logging
 
 import io.delta.sharing.client.model.FileAction
 import io.delta.sharing.client.util.ConfUtils
 
 /** Read-only file system for delta paths. */
-private[sharing] class DeltaSharingFileSystem extends FileSystem {
+private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
 
   import DeltaSharingFileSystem._
 
@@ -53,6 +54,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
       .setConnectionRequestTimeout(timeoutInSeconds * 1000)
       .setSocketTimeout(timeoutInSeconds * 1000).build()
 
+    logInfo(s"Creating delta sharing httpClient with timeoutInSeconds: $timeoutInSeconds.")
     val clientBuilder = HttpClientBuilder.create()
       .setMaxConnTotal(maxConnections)
       .setMaxConnPerRoute(maxConnections)
@@ -105,11 +107,18 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
     val path = DeltaSharingFileSystem.decode(f)
     val fetcher =
       new PreSignedUrlFetcher(preSignedUrlCacheRef, path.tablePath, path.fileId, refreshThresholdMs)
+
     if (getConf.getBoolean("spark.delta.sharing.loadDataFilesInMemory", false)) {
+      logInfo(s"opening delta sharing path $path with InMemoryHttpInputStream.")
+      val start = System.currentTimeMillis()
       // `InMemoryHttpInputStream` loads the content into the memory immediately, so we don't need
       // to refresh urls.
-      new FSDataInputStream(new InMemoryHttpInputStream(new URI(fetcher.getUrl())))
+      val stream = new FSDataInputStream(new InMemoryHttpInputStream(new URI(fetcher.getUrl())))
+      logInfo(s"It took ${(System.currentTimeMillis() - start)/1000}s to build " +
+        s"InMemoryHttpInputStream for delta sharing path $path.")
+      stream
     } else {
+      logInfo(s"opening delta sharing path [$path] with RandomAccessHttpInputStream.")
       new FSDataInputStream(
         new RandomAccessHttpInputStream(
           httpClient,
@@ -154,6 +163,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem {
     throw new UnsupportedOperationException("mkdirs")
 
   override def getFileStatus(f: Path): FileStatus = {
+    logInfo(s"Checking delta sharing file status for path: $f.")
     val resolved = makeQualified(f)
     new FileStatus(decode(resolved).fileSize, false, 0, 1, 0, f)
   }
