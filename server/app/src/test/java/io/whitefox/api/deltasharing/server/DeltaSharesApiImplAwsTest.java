@@ -14,17 +14,24 @@ import io.whitefox.S3TestConfig;
 import io.whitefox.api.OpenApiValidatorUtils;
 import io.whitefox.api.deltasharing.SampleTables;
 import io.whitefox.api.deltasharing.model.FileObjectWithoutPresignedUrl;
-import io.whitefox.api.deltasharing.model.v1.generated.*;
-import io.whitefox.core.*;
+import io.whitefox.api.deltasharing.model.v1.Format;
+import io.whitefox.api.deltasharing.model.v1.parquet.ParquetMetadata;
+import io.whitefox.api.deltasharing.model.v1.parquet.ParquetProtocol;
+import io.whitefox.core.Principal;
 import io.whitefox.core.Share;
+import io.whitefox.core.SharedTable;
 import io.whitefox.persistence.StorageManager;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
@@ -122,20 +129,22 @@ public class DeltaSharesApiImplAwsTest implements OpenApiValidatorUtils {
         .split("\n");
     assertEquals(2, responseBodyLines.length);
     assertEquals(
-        new ProtocolObject().protocol(new ProtocolObjectProtocol().minReaderVersion(1)),
-        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+        ParquetProtocol.ofMinReaderVersion(1),
+        objectMapper.reader().readValue(responseBodyLines[0], ParquetProtocol.class));
     assertEquals(
-        new MetadataObject()
-            .metaData(new MetadataObjectMetaData()
+        ParquetMetadata.builder()
+            .metadata(ParquetMetadata.Metadata.builder()
                 .id("7819530050735196523")
-                .name("metastore.test_glue_db.icebergtable1")
-                .format(new FormatObject().provider("parquet"))
+                .name(Optional.of("metastore.test_glue_db.icebergtable1"))
+                .format(new Format())
                 .schemaString(
                     "{\"type\":\"struct\",\"fields\":[{\"name\":\"id\",\"type\":\"long\",\"nullable\":false,\"metadata\":{}}]}")
                 .partitionColumns(List.of())
-                .version(1L)
-                ._configuration(Map.of("write.parquet.compression-codec", "zstd"))),
-        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+                .version(Optional.of(1L))
+                .configuration(Optional.of(Map.of("write.parquet.compression-codec", "zstd")))
+                .build())
+            .build(),
+        objectMapper.reader().readValue(responseBodyLines[1], ParquetMetadata.class));
   }
 
   @DisabledOnOs(OS.WINDOWS)
@@ -160,10 +169,10 @@ public class DeltaSharesApiImplAwsTest implements OpenApiValidatorUtils {
 
     assertEquals(
         s3DeltaTable1Protocol,
-        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+        objectMapper.reader().readValue(responseBodyLines[0], ParquetProtocol.class));
     assertEquals(
         s3DeltaTable1Metadata,
-        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+        objectMapper.reader().readValue(responseBodyLines[1], ParquetMetadata.class));
     var files = Arrays.stream(responseBodyLines)
         .skip(2)
         .map(line -> {
@@ -203,10 +212,10 @@ public class DeltaSharesApiImplAwsTest implements OpenApiValidatorUtils {
 
     assertEquals(
         s3DeltaTable1Protocol,
-        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+        objectMapper.reader().readValue(responseBodyLines[0], ParquetProtocol.class));
     assertEquals(
         s3DeltaTable1Metadata,
-        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+        objectMapper.reader().readValue(responseBodyLines[1], ParquetMetadata.class));
     var files = Arrays.stream(responseBodyLines)
         .skip(2)
         .map(line -> {

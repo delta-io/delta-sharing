@@ -521,6 +521,12 @@ paths:
           description: 'If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible.'
           schema:
             type: boolean
+        - in: header
+          name: delta-sharing-capabilities
+          required: false
+          description: 'Delta Sharing Capabilities'
+          schema:
+            type: string
       responses:
         '400':
           $ref: "#/components/responses/400"
@@ -575,11 +581,14 @@ components:
         not 	            Unary 	Represents a logical not check. This op should have once child.
         The supported value types:
           ValueType 	Description
-          "bool" 	Represents an Boolean type.
-          "int" 	Represents an Integer type.
-          "long" 	Represents a Long type.
-          "string" 	Represents a String type.
-          "date" 	Represents a Date type in "yyyy-mm-dd" format.
+          "bool" 	  Represents an Boolean type.
+          "int" 	  Represents an Integer type.
+          "long" 	  Represents a Long type.
+          "string" 	  Represents a String type.
+          "date" 	  Represents a Date type in "yyyy-mm-dd" format.
+          "float"     Represents a Float type.
+          "double"    Represents a Double type.
+          "timestamp" Represents a timestamp in ISO8601 format, in the UTC timezone.
 
     ListShareResponse:
       type: object
@@ -758,124 +767,6 @@ components:
           type: string
         message:
           type: string
-
-    # This is not used for the spec but comes handy for autogeneration
-    TableMetadataResponseObject:
-      type: object
-      properties:
-        protocol:
-          # it refers to ./delta-sharing-protocol.md#protocol
-          $ref: '#/components/schemas/ProtocolObject'
-        metadata:
-          # it refers to ./delta-sharing-protocol.md#metadata
-          $ref: '#/components/schemas/MetadataObject'
-
-    # This is not used for the spec but comes handy for autogeneration
-    TableQueryResponseObject:
-      type: object
-      properties:
-        protocol:
-          # it refers to ./delta-sharing-protocol.md#protocol
-          $ref: '#/components/schemas/ProtocolObject'
-        metadata:
-          # it refers to ./delta-sharing-protocol.md#metadata
-          $ref: '#/components/schemas/MetadataObject'
-        files:
-          type: array
-          items:
-            # it refers to ./delta-sharing-protocol.md#file
-            $ref: '#/components/schemas/FileObject'
-    FileObject:
-      type: object
-      properties:
-        file:
-          type: object
-          properties:
-            url:
-              type: string
-            id:
-              type: string
-            partitionValues:
-              type: object
-              additionalProperties:
-                type:
-                  string
-            size:
-              type: integer
-              format: int64
-            stats:
-              type: string
-            version:
-              type: integer
-              format: int64
-            timestamp:
-              type: integer
-              format: int64
-            expirationTimestamp:
-              type: integer
-              format: int64
-          required:
-            - url
-            - id
-            - partitionValues
-            - size
-    ProtocolObject:
-      type: object
-      properties:
-        protocol:
-          type: object
-          properties:
-            minReaderVersion:
-              type: integer
-              format: int32
-    FormatObject:
-      type: object
-      properties:
-        provider:
-          type: string
-      required:
-        - provider
-
-    MetadataObject:
-      type: object
-      properties:
-        metaData:
-          type: object
-          properties:
-            id:
-              type: string
-            name:
-              type: string
-            description:
-              type: string
-            format:
-              $ref: '#/components/schemas/FormatObject'
-            schemaString:
-              type: string
-            partitionColumns:
-              type: array
-              items:
-                type: string
-            configuration:
-              type: object
-              additionalProperties:
-                type:
-                  string
-            version:
-              type: integer
-              format: int64
-            size:
-              type: integer
-              format: int64
-            numFiles:
-              type: integer
-              format: int64
-          required:
-            - id
-            - format
-            - schemaString
-            - partitionColumns
-
   responses:
     "400":
       description: The request is malformed

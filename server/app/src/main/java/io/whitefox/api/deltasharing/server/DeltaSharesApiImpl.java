@@ -60,7 +60,8 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
       Integer startingVersion,
       Integer endingVersion,
       String endingTimestamp,
-      Boolean includeHistoricalMetadata) {
+      Boolean includeHistoricalMetadata,
+      String deltaSharingCapabilities) {
     return Response.ok().build();
   }
 

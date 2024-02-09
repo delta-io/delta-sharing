@@ -15,7 +15,10 @@ import io.whitefox.api.OpenApiValidatorUtils;
 import io.whitefox.api.deltasharing.SampleTables;
 import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
 import io.whitefox.api.deltasharing.model.FileObjectWithoutPresignedUrl;
-import io.whitefox.api.deltasharing.model.v1.generated.*;
+import io.whitefox.api.deltasharing.model.v1.Format;
+import io.whitefox.api.deltasharing.model.v1.parquet.ParquetFile;
+import io.whitefox.api.deltasharing.model.v1.parquet.ParquetMetadata;
+import io.whitefox.api.deltasharing.model.v1.parquet.ParquetProtocol;
 import io.whitefox.core.services.ContentAndToken;
 import io.whitefox.persistence.StorageManager;
 import jakarta.inject.Inject;
@@ -24,6 +27,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
@@ -193,20 +197,22 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
         .split("\n");
     assertEquals(2, responseBodyLines.length);
     assertEquals(
-        new ProtocolObject().protocol(new ProtocolObjectProtocol().minReaderVersion(1)),
-        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+        ParquetProtocol.ofMinReaderVersion(1),
+        objectMapper.reader().readValue(responseBodyLines[0], ParquetProtocol.class));
     assertEquals(
-        new MetadataObject()
-            .metaData(new MetadataObjectMetaData()
+        ParquetMetadata.builder()
+            .metadata(ParquetMetadata.Metadata.builder()
                 .id("56d48189-cdbc-44f2-9b0e-2bded4c79ed7")
-                .name("table1")
-                .format(new FormatObject().provider("parquet"))
+                .name(Optional.of("table1"))
+                .format(new Format())
                 .schemaString(
                     "{\"type\":\"struct\",\"fields\":[{\"name\":\"id\",\"type\":\"long\",\"nullable\":true,\"metadata\":{}}]}")
                 .partitionColumns(List.of())
-                .version(0L)
-                ._configuration(Map.of())),
-        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+                .version(Optional.of(0L))
+                .configuration(Optional.of(Map.of()))
+                .build())
+            .build(),
+        objectMapper.reader().readValue(responseBodyLines[1], ParquetMetadata.class));
   }
 
   @Test
@@ -243,20 +249,22 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
         .split("\n");
     assertEquals(2, responseBodyLines.length);
     assertEquals(
-        new ProtocolObject().protocol(new ProtocolObjectProtocol().minReaderVersion(1)),
-        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+        ParquetProtocol.ofMinReaderVersion(1),
+        objectMapper.reader().readValue(responseBodyLines[0], ParquetProtocol.class));
     assertEquals(
-        new MetadataObject()
-            .metaData(new MetadataObjectMetaData()
+        ParquetMetadata.builder()
+            .metadata(ParquetMetadata.Metadata.builder()
                 .id("3369848726892806393")
-                .name("metastore.test_db.icebergtable1")
-                .format(new FormatObject().provider("parquet"))
+                .name(Optional.of("metastore.test_db.icebergtable1"))
+                .format(new Format())
                 .schemaString(
                     "{\"type\":\"struct\",\"fields\":[{\"name\":\"id\",\"type\":\"long\",\"nullable\":false,\"metadata\":{}}]}")
                 .partitionColumns(List.of())
-                .version(1L)
-                ._configuration(Map.of("write.parquet.compression-codec", "zstd"))),
-        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+                .version(Optional.of(1L))
+                .configuration(Optional.of(Map.of("write.parquet.compression-codec", "zstd")))
+                .build())
+            .build(),
+        objectMapper.reader().readValue(responseBodyLines[1], ParquetMetadata.class));
   }
 
   @Test
@@ -396,10 +404,10 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
 
     assertEquals(
         deltaTable1Protocol,
-        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+        objectMapper.reader().readValue(responseBodyLines[0], ParquetProtocol.class));
     assertEquals(
         deltaTable1Metadata,
-        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+        objectMapper.reader().readValue(responseBodyLines[1], ParquetMetadata.class));
     var files = Arrays.stream(responseBodyLines)
         .skip(2)
         .map(line -> {
@@ -440,10 +448,10 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
 
     assertEquals(
         deltaTable1Protocol,
-        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+        objectMapper.reader().readValue(responseBodyLines[0], ParquetProtocol.class));
     assertEquals(
         deltaTable1Metadata,
-        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+        objectMapper.reader().readValue(responseBodyLines[1], ParquetMetadata.class));
     var files = Arrays.stream(responseBodyLines)
         .skip(2)
         .map(line -> {
@@ -484,10 +492,10 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
 
     assertEquals(
         deltaTable1Protocol,
-        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+        objectMapper.reader().readValue(responseBodyLines[0], ParquetProtocol.class));
     assertEquals(
         deltaTable1Metadata,
-        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+        objectMapper.reader().readValue(responseBodyLines[1], ParquetMetadata.class));
     var files = Arrays.stream(responseBodyLines)
         .skip(2)
         .map(line -> {
@@ -528,15 +536,15 @@ public class DeltaSharesApiImplTest implements OpenApiValidatorUtils {
 
     assertEquals(
         deltaTable1Protocol,
-        objectMapper.reader().readValue(responseBodyLines[0], ProtocolObject.class));
+        objectMapper.reader().readValue(responseBodyLines[0], ParquetProtocol.class));
     assertEquals(
         deltaTableWithHistory1Metadata,
-        objectMapper.reader().readValue(responseBodyLines[1], MetadataObject.class));
+        objectMapper.reader().readValue(responseBodyLines[1], ParquetMetadata.class));
     assertDoesNotThrow(() -> Arrays.stream(responseBodyLines)
         .skip(2)
         .map(line -> {
           try {
-            return objectMapper.reader().readValue(line, FileObject.class);
+            return objectMapper.reader().readValue(line, ParquetFile.class);
           } catch (IOException e) {
             throw new RuntimeException(e);
           }

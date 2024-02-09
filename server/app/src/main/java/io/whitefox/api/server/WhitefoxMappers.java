@@ -1,16 +1,15 @@
 package io.whitefox.api.server;
 
-import io.whitefox.api.deltasharing.model.v1.generated.*;
+import io.whitefox.api.deltasharing.model.v1.Format;
+import io.whitefox.api.deltasharing.model.v1.parquet.ParquetMetadata;
+import io.whitefox.api.deltasharing.model.v1.parquet.ParquetProtocol;
 import io.whitefox.api.model.v1.generated.*;
 import io.whitefox.core.*;
 import io.whitefox.core.Metastore;
 import io.whitefox.core.MetastoreProperties;
-import io.whitefox.core.MetastoreType;
 import io.whitefox.core.Provider;
-import io.whitefox.core.Share;
 import io.whitefox.core.Storage;
 import io.whitefox.core.StorageProperties;
-import io.whitefox.core.StorageType;
 import io.whitefox.core.actions.*;
 import io.whitefox.core.actions.CreateMetastore;
 import io.whitefox.core.actions.CreateStorage;
@@ -173,24 +172,33 @@ public class WhitefoxMappers {
     }
   }
 
-  private static MetadataObject metadata2Api(Metadata metadata) {
-    return new MetadataObject()
-        .metaData(new MetadataObjectMetaData()
+  private static ParquetMetadata metadata2Api(Metadata metadata) {
+    return ParquetMetadata.builder()
+        .metadata(ParquetMetadata.Metadata.builder()
             .id(metadata.id())
-            .name(metadata.name().orElse(null))
-            .description(metadata.description().orElse(null))
-            .format(new FormatObject().provider(metadata.format().provider()))
+            .name(metadata.name())
+            .description(metadata.description())
+            .format(format2api(metadata.format()))
             .schemaString(metadata.tableSchema().structType().toJson())
             .partitionColumns(metadata.partitionColumns())
-            ._configuration(metadata.configuration())
-            .version(metadata.version().orElse(null))
-            .numFiles(metadata.numFiles().orElse(null)));
+            .configuration(Optional.ofNullable(metadata.configuration()))
+            .version(metadata.version())
+            .numFiles(metadata.numFiles())
+            .build())
+        .build();
   }
 
-  private static ProtocolObject protocol2Api(Protocol protocol) {
-    return new ProtocolObject()
-        .protocol(new ProtocolObjectProtocol()
-            .minReaderVersion(protocol.minReaderVersion().orElse(1)));
+  public static Format format2api(Metadata.Format format) {
+    switch (format) {
+      case PARQUET:
+        return new Format();
+    }
+    // never gonna happen, java is dumb
+    return null;
+  }
+
+  private static ParquetProtocol protocol2Api(Protocol protocol) {
+    return ParquetProtocol.ofMinReaderVersion(protocol.minReaderVersion().orElse(1));
   }
 
   public static CreateProvider api2CreateProvider(

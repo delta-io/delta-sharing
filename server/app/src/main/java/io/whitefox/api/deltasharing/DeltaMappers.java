@@ -1,7 +1,13 @@
 package io.whitefox.api.deltasharing;
 
+import io.whitefox.api.deltasharing.model.v1.TableMetadataResponse;
+import io.whitefox.api.deltasharing.model.v1.TableQueryResponse;
 import io.whitefox.api.deltasharing.model.v1.generated.*;
+import io.whitefox.api.deltasharing.model.v1.parquet.ParquetFile;
+import io.whitefox.api.deltasharing.model.v1.parquet.ParquetMetadata;
+import io.whitefox.api.deltasharing.model.v1.parquet.ParquetProtocol;
 import io.whitefox.api.server.CommonMappers;
+import io.whitefox.api.server.WhitefoxMappers;
 import io.whitefox.core.*;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
@@ -53,46 +59,46 @@ public class DeltaMappers {
     }
   }
 
-  public static TableQueryResponseObject readTableResult2api(ReadTableResult readTableResult) {
-    return new TableQueryResponseObject()
-        .metadata(metadata2Api(readTableResult.metadata()))
-        .protocol(protocol2Api(readTableResult.protocol()))
-        .files(readTableResult.files().stream()
-            .map(DeltaMappers::file2Api)
-            .collect(Collectors.toList()));
+  public static TableQueryResponse readTableResult2api(ReadTableResult readTableResult) {
+    return new TableQueryResponse(
+        protocol2Api(readTableResult.protocol()),
+        metadata2Api(readTableResult.metadata()),
+        readTableResult.files().stream().map(DeltaMappers::file2Api).collect(Collectors.toList()));
   }
 
-  private static MetadataObject metadata2Api(Metadata metadata) {
-    return new MetadataObject()
-        .metaData(new MetadataObjectMetaData()
+  private static ParquetMetadata metadata2Api(Metadata metadata) {
+    return ParquetMetadata.builder()
+        .metadata(ParquetMetadata.Metadata.builder()
             .id(metadata.id())
-            .name(metadata.name().orElse(null))
-            .description(metadata.description().orElse(null))
-            .format(new FormatObject().provider(metadata.format().provider()))
+            .name(metadata.name())
+            .description(metadata.description())
+            .format(WhitefoxMappers.format2api(metadata.format()))
             .schemaString(metadata.tableSchema().structType().toJson())
             .partitionColumns(metadata.partitionColumns())
-            ._configuration(metadata.configuration())
-            .version(metadata.version().orElse(null))
-            .numFiles(metadata.numFiles().orElse(null)));
+            .configuration(Optional.of(metadata.configuration()))
+            .version(metadata.version())
+            .numFiles(metadata.numFiles())
+            .build())
+        .build();
   }
 
-  private static ProtocolObject protocol2Api(Protocol protocol) {
-    return new ProtocolObject()
-        .protocol(new ProtocolObjectProtocol()
-            .minReaderVersion(protocol.minReaderVersion().orElse(1)));
+  private static ParquetProtocol protocol2Api(Protocol protocol) {
+    return ParquetProtocol.ofMinReaderVersion(protocol.minReaderVersion().orElse(1));
   }
 
-  private static FileObject file2Api(TableFile f) {
-    return new FileObject()
-        ._file(new FileObjectFile()
+  private static ParquetFile file2Api(TableFile f) {
+    return ParquetFile.builder()
+        .file(ParquetFile.File.builder()
             .id(f.id())
             .url(f.url())
             .partitionValues(f.partitionValues())
             .size(f.size())
-            .stats(f.stats().orElse(null))
-            .version(f.version().orElse(null))
-            .timestamp(f.timestamp().orElse(null))
-            .expirationTimestamp(f.expirationTimestamp()));
+            .stats(f.stats())
+            .version(f.version())
+            .timestamp(f.timestamp())
+            .expirationTimestamp(Optional.of(f.expirationTimestamp()))
+            .build())
+        .build();
   }
 
   public static TableReferenceAndReadRequest api2TableReferenceAndReadRequest(
@@ -127,9 +133,9 @@ public class DeltaMappers {
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
-  public static TableMetadataResponseObject toTableResponseMetadata(Metadata m) {
-    return new TableMetadataResponseObject()
-        .protocol(new ProtocolObject().protocol(new ProtocolObjectProtocol().minReaderVersion(1)))
-        .metadata(metadata2Api(m));
+  public static TableMetadataResponse toTableResponseMetadata(Metadata m) {
+    return new TableMetadataResponse(
+        ParquetProtocol.ofMinReaderVersion(1), // smell
+        metadata2Api(m));
   }
 }
