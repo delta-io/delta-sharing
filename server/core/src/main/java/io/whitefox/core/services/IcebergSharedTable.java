@@ -4,6 +4,7 @@ import io.whitefox.core.Metadata;
 import io.whitefox.core.ReadTableRequest;
 import io.whitefox.core.ReadTableResultToBeSigned;
 import io.whitefox.core.TableSchema;
+import io.whitefox.core.services.capabilities.ResponseFormat;
 import java.sql.Timestamp;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -41,7 +42,7 @@ public class IcebergSharedTable implements InternalSharedTable {
         String.valueOf(snapshot.snapshotId()),
         Optional.of(icebergTable.name()),
         Optional.empty(),
-        Metadata.Format.PARQUET,
+        ResponseFormat.parquet,
         new TableSchema(tableSchemaConverter.convertIcebergSchemaToWhitefox(
             icebergTable.schema().asStruct())),
         icebergTable.spec().fields().stream()

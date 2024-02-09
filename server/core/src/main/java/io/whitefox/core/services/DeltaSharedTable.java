@@ -9,6 +9,7 @@ import io.delta.standalone.actions.AddFile;
 import io.whitefox.core.*;
 import io.whitefox.core.Metadata;
 import io.whitefox.core.TableSchema;
+import io.whitefox.core.services.capabilities.ResponseFormat;
 import io.whitefox.core.types.predicates.PredicateException;
 import java.sql.Timestamp;
 import java.util.List;
@@ -72,7 +73,7 @@ public class DeltaSharedTable implements InternalSharedTable {
         snapshot.getMetadata().getId(),
         Optional.of(tableDetails.name()),
         Optional.ofNullable(snapshot.getMetadata().getDescription()),
-        Metadata.Format.PARQUET,
+        ResponseFormat.parquet,
         new TableSchema(tableSchemaConverter.convertDeltaSchemaToWhitefox(
             snapshot.getMetadata().getSchema())),
         snapshot.getMetadata().getPartitionColumns(),
@@ -184,10 +185,5 @@ public class DeltaSharedTable implements InternalSharedTable {
   private String location() {
     // remove all "/" at the end of the path
     return location.replaceAll("/+$", "");
-  }
-
-  public static class DeltaShareTableFormat {
-    public static final String RESPONSE_FORMAT_PARQUET = "parquet";
-    public static final String RESPONSE_FORMAT_DELTA = "delta";
   }
 }

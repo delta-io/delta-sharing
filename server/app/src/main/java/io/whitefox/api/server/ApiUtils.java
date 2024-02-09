@@ -3,7 +3,6 @@ package io.whitefox.api.server;
 import io.quarkus.runtime.util.ExceptionUtil;
 import io.whitefox.api.deltasharing.model.v1.generated.CommonErrorResponse;
 import io.whitefox.core.Principal;
-import io.whitefox.core.services.DeltaSharedTable;
 import io.whitefox.core.services.exceptions.AlreadyExists;
 import io.whitefox.core.services.exceptions.NotFound;
 import jakarta.ws.rs.core.Response;
@@ -11,7 +10,6 @@ import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -68,18 +66,6 @@ public interface ApiUtils extends DeltaHeaders {
 
   default <T> Response optionalToNotFound(Optional<T> opt, Function<T, Response> fn) {
     return opt.map(fn).orElse(notFoundResponse());
-  }
-
-  default String getResponseFormatHeader(Map<String, String> deltaSharingCapabilities) {
-    return String.format(
-        "%s=%s",
-        DeltaHeaders.DELTA_SHARING_RESPONSE_FORMAT, getResponseFormat(deltaSharingCapabilities));
-  }
-
-  default String getResponseFormat(Map<String, String> deltaSharingCapabilities) {
-    return deltaSharingCapabilities.getOrDefault(
-        DeltaHeaders.DELTA_SHARING_RESPONSE_FORMAT,
-        DeltaSharedTable.DeltaShareTableFormat.RESPONSE_FORMAT_PARQUET);
   }
 
   default Principal getRequestPrincipal() {

@@ -1,7 +1,5 @@
 package io.whitefox.api.server;
 
-import io.whitefox.api.deltasharing.model.v1.Format;
-import io.whitefox.api.deltasharing.model.v1.parquet.ParquetMetadata;
 import io.whitefox.api.deltasharing.model.v1.parquet.ParquetProtocol;
 import io.whitefox.api.model.v1.generated.*;
 import io.whitefox.core.*;
@@ -170,31 +168,6 @@ public class WhitefoxMappers {
       default:
         throw new IllegalArgumentException("Unknown metastore type " + type.value());
     }
-  }
-
-  private static ParquetMetadata metadata2Api(Metadata metadata) {
-    return ParquetMetadata.builder()
-        .metadata(ParquetMetadata.Metadata.builder()
-            .id(metadata.id())
-            .name(metadata.name())
-            .description(metadata.description())
-            .format(format2api(metadata.format()))
-            .schemaString(metadata.tableSchema().structType().toJson())
-            .partitionColumns(metadata.partitionColumns())
-            .configuration(Optional.ofNullable(metadata.configuration()))
-            .version(metadata.version())
-            .numFiles(metadata.numFiles())
-            .build())
-        .build();
-  }
-
-  public static Format format2api(Metadata.Format format) {
-    switch (format) {
-      case PARQUET:
-        return new Format();
-    }
-    // never gonna happen, java is dumb
-    return null;
   }
 
   private static ParquetProtocol protocol2Api(Protocol protocol) {

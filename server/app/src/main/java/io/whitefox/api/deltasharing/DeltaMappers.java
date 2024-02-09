@@ -1,5 +1,6 @@
 package io.whitefox.api.deltasharing;
 
+import io.whitefox.api.deltasharing.model.v1.Format;
 import io.whitefox.api.deltasharing.model.v1.TableMetadataResponse;
 import io.whitefox.api.deltasharing.model.v1.TableQueryResponse;
 import io.whitefox.api.deltasharing.model.v1.generated.*;
@@ -7,10 +8,10 @@ import io.whitefox.api.deltasharing.model.v1.parquet.ParquetFile;
 import io.whitefox.api.deltasharing.model.v1.parquet.ParquetMetadata;
 import io.whitefox.api.deltasharing.model.v1.parquet.ParquetProtocol;
 import io.whitefox.api.server.CommonMappers;
-import io.whitefox.api.server.WhitefoxMappers;
 import io.whitefox.core.*;
 import io.whitefox.core.Schema;
 import io.whitefox.core.Share;
+import io.whitefox.core.services.capabilities.ResponseFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -67,19 +68,27 @@ public class DeltaMappers {
   }
 
   private static ParquetMetadata metadata2Api(Metadata metadata) {
-    return ParquetMetadata.builder()
-        .metadata(ParquetMetadata.Metadata.builder()
-            .id(metadata.id())
-            .name(metadata.name())
-            .description(metadata.description())
-            .format(WhitefoxMappers.format2api(metadata.format()))
-            .schemaString(metadata.tableSchema().structType().toJson())
-            .partitionColumns(metadata.partitionColumns())
-            .configuration(Optional.of(metadata.configuration()))
-            .version(metadata.version())
-            .numFiles(metadata.numFiles())
-            .build())
-        .build();
+    switch (metadata.format()) {
+      case parquet:
+        return ParquetMetadata.builder()
+            .metadata(ParquetMetadata.Metadata.builder()
+                .id(metadata.id())
+                .name(metadata.name())
+                .description(metadata.description())
+                .format(new Format())
+                .schemaString(metadata.tableSchema().structType().toJson())
+                .partitionColumns(metadata.partitionColumns())
+                .configuration(Optional.ofNullable(metadata.configuration()))
+                .version(metadata.version())
+                .numFiles(metadata.numFiles())
+                .build())
+            .build();
+      case delta:
+        throw new IllegalArgumentException("Delta response format is not supported");
+      default:
+        throw new IllegalArgumentException(
+            String.format("%s response format is not supported", metadata.format()));
+    }
   }
 
   private static ParquetProtocol protocol2Api(Protocol protocol) {
@@ -115,22 +124,10 @@ public class DeltaMappers {
   }
 
   /**
-   * NOTE: this is an undocumented feature of the reference impl of delta-sharing, it's not part of the
-   * protocol
-   * ----
-   * Return the [[io.whitefox.api.server.DeltaHeaders.DELTA_SHARE_CAPABILITIES_HEADER]] header
-   * that will be set in the response w/r/t the one received in the request.
-   * If the request did not contain any, we will return an empty one.
+   * Serializes the response format in its text-based representation
    */
-  public static Map<String, String> toHeaderCapabilitiesMap(String headerCapabilities) {
-    if (headerCapabilities == null) {
-      return Map.of();
-    }
-    return Arrays.stream(headerCapabilities.toLowerCase().split(";"))
-        .map(h -> h.split("="))
-        .filter(h -> h.length == 2)
-        .map(splits -> Map.entry(splits[0], splits[1]))
-        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+  public static String toResponseFormatHeader(ResponseFormat responseFormat) {
+    return responseFormat.stringRepresentation();
   }
 
   public static TableMetadataResponse toTableResponseMetadata(Metadata m) {

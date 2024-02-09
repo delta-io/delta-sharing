@@ -2,6 +2,7 @@ package io.whitefox.api.deltasharing.server;
 
 import static io.whitefox.api.server.CommonMappers.mapList;
 
+import io.whitefox.api.deltasharing.ClientCapabilitiesMapper;
 import io.whitefox.api.deltasharing.DeltaMappers;
 import io.whitefox.api.deltasharing.encoders.DeltaPageTokenEncoder;
 import io.whitefox.api.deltasharing.model.v1.generated.ListSchemasResponse;
@@ -29,18 +30,22 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
   private final TableMetadataSerializer tableResponseSerializer;
   private final TableQueryResponseSerializer tableQueryResponseSerializer;
 
+  private final ClientCapabilitiesMapper clientCapabilitiesMapper;
+
   @Inject
   public DeltaSharesApiImpl(
       DeltaSharesService deltaSharesService,
       ShareService shareService,
       DeltaPageTokenEncoder encoder,
       TableMetadataSerializer tableResponseSerializer,
-      TableQueryResponseSerializer tableQueryResponseSerializer) {
+      TableQueryResponseSerializer tableQueryResponseSerializer,
+      ClientCapabilitiesMapper clientCapabilitiesMapper) {
     this.deltaSharesService = deltaSharesService;
     this.tokenEncoder = encoder;
     this.tableResponseSerializer = tableResponseSerializer;
     this.tableQueryResponseSerializer = tableQueryResponseSerializer;
     this.shareService = shareService;
+    this.clientCapabilitiesMapper = clientCapabilitiesMapper;
   }
 
   @Override
@@ -62,9 +67,10 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
       String endingTimestamp,
       Boolean includeHistoricalMetadata,
       String deltaSharingCapabilities) {
-    return Response.ok().build();
+    return Response.status(501).build();
   }
 
+  // TODO handle capabilities
   @Override
   public Response getTableMetadata(
       String share,
@@ -75,20 +81,21 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
     return wrapExceptions(
         () -> {
           var startingTimestamp = parseTimestamp(startingTimestampStr);
+          var clientCapabilities =
+              clientCapabilitiesMapper.parseDeltaSharingCapabilities(deltaSharingCapabilities);
           return optionalToNotFound(
-              deltaSharesService.getTableMetadata(share, schema, table, startingTimestamp),
+              deltaSharesService.getTableMetadata(
+                  share, schema, table, startingTimestamp, clientCapabilities),
               m -> optionalToNotFound(
                   deltaSharesService.getTableVersion(share, schema, table, startingTimestamp),
                   v -> Response.ok(
                           tableResponseSerializer.serialize(
                               DeltaMappers.toTableResponseMetadata(m)),
                           ndjsonMediaType)
-                      .status(Response.Status.OK.getStatusCode())
                       .header(DELTA_TABLE_VERSION_HEADER, String.valueOf(v))
                       .header(
                           DELTA_SHARE_CAPABILITIES_HEADER,
-                          getResponseFormatHeader(
-                              DeltaMappers.toHeaderCapabilitiesMap(deltaSharingCapabilities)))
+                          DeltaMappers.toResponseFormatHeader(m.format()))
                       .build()));
         },
         exceptionToResponse);
@@ -190,15 +197,18 @@ public class DeltaSharesApiImpl implements DeltaApiApi, ApiUtils {
     return wrapExceptions(
         () -> {
           var readResult = deltaSharesService.queryTable(
-              share, schema, table, DeltaMappers.api2ReadTableRequest(queryRequest));
+              share,
+              schema,
+              table,
+              DeltaMappers.api2ReadTableRequest(queryRequest),
+              clientCapabilitiesMapper.parseDeltaSharingCapabilities(deltaSharingCapabilities));
           var serializedReadResult =
               tableQueryResponseSerializer.serialize(DeltaMappers.readTableResult2api(readResult));
           return Response.ok(serializedReadResult, ndjsonMediaType)
               .header(DELTA_TABLE_VERSION_HEADER, readResult.version())
               .header(
                   DELTA_SHARE_CAPABILITIES_HEADER,
-                  getResponseFormatHeader(
-                      DeltaMappers.toHeaderCapabilitiesMap(deltaSharingCapabilities)))
+                  DeltaMappers.toResponseFormatHeader(readResult.responseFormat()))
               .build();
         },
         exceptionToResponse);

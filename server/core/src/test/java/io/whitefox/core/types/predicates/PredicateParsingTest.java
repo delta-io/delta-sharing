@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import io.whitefox.core.Metadata;
 import io.whitefox.core.PredicateUtils;
 import io.whitefox.core.TableSchema;
+import io.whitefox.core.services.capabilities.ResponseFormat;
 import io.whitefox.core.types.DateType;
 import io.whitefox.core.types.StructField;
 import io.whitefox.core.types.StructType;
@@ -36,7 +37,7 @@ public class PredicateParsingTest {
         "id",
         Optional.empty(),
         Optional.empty(),
-        Metadata.Format.PARQUET,
+        ResponseFormat.parquet,
         new TableSchema(
             new StructType(List.of(new StructField("date", DateType.DATE, true, Map.of())))),
         List.of("date", "age"),
@@ -60,7 +61,7 @@ public class PredicateParsingTest {
         "id",
         Optional.empty(),
         Optional.empty(),
-        Metadata.Format.PARQUET,
+        ResponseFormat.parquet,
         new TableSchema(
             new StructType(List.of(new StructField("date", DateType.DATE, true, Map.of())))),
         List.of("date", "age"),
