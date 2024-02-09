@@ -19,7 +19,7 @@ dependencies {
 
     // DELTA
     testImplementation("org.apache.hadoop:hadoop-common:3.3.6")
-    testImplementation("io.delta:delta-sharing-spark_2.13:1.0.4")
+    testImplementation("io.delta:delta-sharing-spark_2.13:3.1.0")
 
     //SPARK
     testImplementation("org.apache.spark:spark-sql_2.13:3.5.0")
