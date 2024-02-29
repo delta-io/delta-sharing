@@ -22,7 +22,7 @@ dependencies {
     testImplementation("io.delta:delta-sharing-spark_2.13:3.1.0")
 
     //SPARK
-    testImplementation("org.apache.spark:spark-sql_2.13:3.5.0")
+    testImplementation("org.apache.spark:spark-sql_2.13:3.5.1")
     testImplementation("com.github.mrpowers:spark-fast-tests_2.13:1.3.0")
 
     //JUNIT
