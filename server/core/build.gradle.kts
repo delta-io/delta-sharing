@@ -34,9 +34,9 @@ dependencies {
     implementation("org.apache.iceberg:iceberg-api:1.4.3")
     implementation("org.apache.iceberg:iceberg-core:1.4.3")
     implementation("org.apache.iceberg:iceberg-aws:1.4.3")
-    implementation("software.amazon.awssdk:glue:2.24.13")
-    implementation("software.amazon.awssdk:sts:2.24.13")
-    implementation("software.amazon.awssdk:s3:2.24.13")
+    implementation("software.amazon.awssdk:glue:2.25.1")
+    implementation("software.amazon.awssdk:sts:2.25.1")
+    implementation("software.amazon.awssdk:s3:2.25.1")
 
     //AWS
     compileOnly(String.format("com.amazonaws:aws-java-sdk-bom:%s", awsSdkVersion))
