@@ -171,6 +171,7 @@ class DataSharingRestClient:
                 "User-Agent": DataSharingRestClient.USER_AGENT,
             }
         )
+        print("----[linzhou]----header", self._session.headers)
 
     def __auth_persistent_oauth2(self, profile):
         headers = {"Content-Type": "application/x-www-form-urlencoded",
@@ -202,6 +203,14 @@ class DataSharingRestClient:
                 "User-Agent": DataSharingRestClient.USER_AGENT,
             }
         )
+
+    def set_delta_format_header(self):
+        self._session.headers.update(
+            {
+                "delta-sharing-capabilities": "responseformat=delta;readerfeatures=deletionvectors",
+            }
+        )
+        print("----[linzhou]----header 1", self._session.headers)
 
     @retry_with_exponential_backoff
     def list_shares(
@@ -419,6 +428,7 @@ class DataSharingRestClient:
         target: str,
         **kwargs,
     ):
+        print("----[linzhou]----header 2", self._session.headers)
         assert target.startswith("/"), "Targets should start with '/'"
         response = request(f"{self._profile.endpoint}{target}", **kwargs)
         try:
