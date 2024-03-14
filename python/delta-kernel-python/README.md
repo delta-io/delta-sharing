@@ -7,7 +7,7 @@ You can see how it would be used in the test.py file.
 ## usage
 To test it out you will need to create a venv and set up the deps:
 
-    cd delta-kernel-rust/python
+    cd [delta-sharing-root]/python/delta-kernel-python # if you're not already there
     python3 -m venv .venv
     source .venv/bin/activate
     pip install maturin
