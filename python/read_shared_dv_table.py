@@ -45,7 +45,7 @@ def test_read_delta_sharing_dv_table():
     for eachTable in allTables:
         print(eachTable)
     rest_client.set_delta_format_header()
-    filesResponse = rest_client.list_files_in_table(Table("hack_dv_table", "lin_dvsharing_bugbash_share_20231113", "regular_schema"))
+    filesResponse = rest_client.list_files_in_table(Table("dv_table", "lin_dvsharing_bugbash_share_20231113", "regular_schema"))
     f = open("0".zfill(20) + ".json", "w+")
 
     lines = filesResponse.lines
