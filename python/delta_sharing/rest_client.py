@@ -210,7 +210,6 @@ class DataSharingRestClient:
                 "delta-sharing-capabilities": "responseformat=delta;readerfeatures=deletionvectors",
             }
         )
-        print("----[linzhou]----header", self._session.headers)
 
     @retry_with_exponential_backoff
     def list_shares(
@@ -376,6 +375,7 @@ class DataSharingRestClient:
                     protocol=Protocol.from_json(protocol_json["protocol"]),
                     metadata=Metadata.from_json(metadata_json["metaData"]),
                     add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
+                    lines = []
                 )
 
     @retry_with_exponential_backoff
