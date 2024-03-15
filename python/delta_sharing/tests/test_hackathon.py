@@ -45,7 +45,7 @@ def test_to_pandas_non_partitioned(tmp_path):
 #     print(rest_client.list_all_tables(Share(name = "lin_dvsharing_bugbash_share_20231113")))
     rest_client.set_delta_format_header()
     filesResponse = rest_client.list_files_in_table(Table("dv_table", "lin_dvsharing_bugbash_share_20231113", "regular_schema"))
-    f = open("%20d.json" % (0), "w+")
+    f = open("0".zfill(20) + ".json", "w+")
 
     lines = filesResponse.lines
     protocol_json = json.loads(lines.pop(0))
