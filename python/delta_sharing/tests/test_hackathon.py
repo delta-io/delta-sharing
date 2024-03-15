@@ -15,7 +15,9 @@
 #
 import pytest
 
-from datetime import date
+import os
+import json
+from datetime import date, datetime
 from typing import Optional, Sequence
 
 import pandas as pd
@@ -31,40 +33,36 @@ from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
 
 def test_to_pandas_non_partitioned(tmp_path):
-    pdf1 = pd.DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
-    pdf2 = pd.DataFrame({"a": [4, 5, 6], "b": ["d", "e", "f"]})
-
-    pdf1.to_parquet(tmp_path / "pdf1.parquet")
-    pdf2.to_parquet(tmp_path / "pdf2.parquet")
-
     profile = DeltaSharingProfile.from_json('{"shareCredentialsVersion":1,"bearerToken":"xx","endpoint":"https://oregon.staging.cloud.databricks.com/api/2.0/delta-sharing/metastores/19a85dee-54bc-43a2-87ab-023d0ec16013","expirationTime":"9999-12-31T23:59:59.999Z"}')
     rest_client = DataSharingRestClient(profile)
     print("----[linzhou]----START-")
+    delta_log_dir = "delta_log_for_dv_table_" + datetime.now().strftime("%Y%m%d_%H%M%S")
+    os.mkdir(delta_log_dir)
+    os.chdir(delta_log_dir)
+    print("----[linzhou]----getcwd-", os.getcwd())
+
 #     print(rest_client.list_shares())
 #     print(rest_client.list_all_tables(Share(name = "lin_dvsharing_bugbash_share_20231113")))
     rest_client.set_delta_format_header()
-    print(rest_client.list_files_in_table(Table("dv_table", "lin_dvsharing_bugbash_share_20231113", "regular_schema")))
+    filesResponse = rest_client.list_files_in_table(Table("dv_table", "lin_dvsharing_bugbash_share_20231113", "regular_schema"))
+    f = open("%20d.json" % (0), "w+")
+
+    lines = filesResponse.lines
+    protocol_json = json.loads(lines.pop(0))
+    print("----[linzhou]----protocol_json:", protocol_json)
+    deltaProtocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
+    json.dump(deltaProtocol, f)
+    f.write("\n")
+
+    metadata_json = json.loads(lines.pop(0))
+    print("----[linzhou]----metadata_json:", metadata_json)
+    deltaMetadata = {"metadata": metadata_json["metaData"]["deltaMetadata"]}
+    json.dump(deltaMetadata, f)
+    f.write("\n")
+    for line in lines:
+        file_json = json.loads(line)
+        json.dump(file_json["file"]["deltaSingleAction"], f)
+        f.write("\n")
+    f.close()
     print("----[linzhou]----END---")
-#     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), rest_client)
-#     pdf = reader.to_pandas()
-#     expected = pd.concat([pdf1, pdf2]).reset_index(drop=True)
-#     pd.testing.assert_frame_equal(pdf, expected)
-#
-#     reader = DeltaSharingReader(
-#         Table("table_name", "share_name", "schema_name"),
-#         RestClientMock(),
-#         jsonPredicateHints="dummy_hints"
-#     )
-#     pdf = reader.to_pandas()
-#     expected = pd.concat([pdf1]).reset_index(drop=True)
-#     pd.testing.assert_frame_equal(pdf, expected)
-#
-#     reader = DeltaSharingReader(
-#         Table("table_name", "share_name", "schema_name"),
-#         RestClientMock(),
-#         predicateHints="dummy_hints"
-#     )
-#     pdf = reader.to_pandas()
-#     expected = pd.concat([pdf2]).reset_index(drop=True)
-#     pd.testing.assert_frame_equal(pdf, expected)
 
