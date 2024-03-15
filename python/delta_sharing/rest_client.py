@@ -210,7 +210,6 @@ class DataSharingRestClient:
                 "delta-sharing-capabilities": "responseformat=delta;readerfeatures=deletionvectors",
             }
         )
-        print("----[linzhou]----header", self._session.headers)
 
     @retry_with_exponential_backoff
     def list_shares(
