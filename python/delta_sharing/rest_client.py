@@ -82,6 +82,7 @@ class ListFilesInTableResponse:
     protocol: Protocol
     metadata: Metadata
     add_files: Sequence[AddFile]
+    lines: Sequence[str]
 
 
 @dataclass(frozen=True)
@@ -202,6 +203,14 @@ class DataSharingRestClient:
                 "User-Agent": DataSharingRestClient.USER_AGENT,
             }
         )
+
+    def set_delta_format_header(self):
+        self._session.headers.update(
+            {
+                "delta-sharing-capabilities": "responseformat=delta;readerfeatures=deletionvectors",
+            }
+        )
+        print("----[linzhou]----header", self._session.headers)
 
     @retry_with_exponential_backoff
     def list_shares(
@@ -350,15 +359,24 @@ class DataSharingRestClient:
                 raise LookupError("Missing delta-table-version header")
 
             lines = values[1]
-            protocol_json = json.loads(next(lines))
-            metadata_json = json.loads(next(lines))
-
-            return ListFilesInTableResponse(
-                delta_table_version=int(headers.get("delta-table-version")),
-                protocol=Protocol.from_json(protocol_json["protocol"]),
-                metadata=Metadata.from_json(metadata_json["metaData"]),
-                add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
-            )
+            if ("delta-sharing-capabilities" in headers and
+                "responseformat=delta" in headers["delta-sharing-capabilities"]):
+                return ListFilesInTableResponse(
+                    delta_table_version=int(headers.get("delta-table-version")),
+                    protocol = None,
+                    metadata = None,
+                    add_files = [],
+                    lines = [line for line in lines],
+                )
+            else:
+                protocol_json = json.loads(next(lines))
+                metadata_json = json.loads(next(lines))
+                return ListFilesInTableResponse(
+                    delta_table_version=int(headers.get("delta-table-version")),
+                    protocol=Protocol.from_json(protocol_json["protocol"]),
+                    metadata=Metadata.from_json(metadata_json["metaData"]),
+                    add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
+                )
 
     @retry_with_exponential_backoff
     def list_table_changes(self, table: Table, cdfOptions: CdfOptions) -> ListTableChangesResponse:

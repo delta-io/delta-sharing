@@ -1,3 +1,7 @@
+# For 2024Q1 Hackathon 
+Once finished the steps in [Delta Kernel Python](delta-kernel-python/README.md), update the `bearerToken` and `endpoint` in `read_shared_dv_table.py`, 
+and try run `python read_shared_dv_table.py`!
+
 # Delta Sharing
 
 [Delta Sharing](https://delta.io/sharing) is an open protocol for secure real-time exchange of large datasets, which enables secure data sharing across different computing platforms. It lets organizations share access to existing [Delta Lake](https://delta.io) and [Apache Parquet](https://parquet.apache.org) tables with other organizations, who can then directly read the table in Pandas, Apache Spark, or any other software that implements the open protocol.
