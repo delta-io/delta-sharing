@@ -118,7 +118,8 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
         s"InMemoryHttpInputStream for delta sharing path $path.")
       stream
     } else {
-      logInfo(s"opening delta sharing path [$path] with RandomAccessHttpInputStream.")
+      logInfo(s"opening delta sharing path [$path] with RandomAccessHttpInputStream, " +
+        s"with bufferSize:[$bufferSize].")
       new FSDataInputStream(
         new RandomAccessHttpInputStream(
           httpClient,
