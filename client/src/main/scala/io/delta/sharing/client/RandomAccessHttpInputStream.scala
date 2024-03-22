@@ -103,6 +103,7 @@ private[sharing] class RandomAccessHttpInputStream(
     if (currentStream == null) {
       reopen(pos)
     }
+    logInfo(s"read() ${fetcher.fileId} uri $uri at pos $pos")
     val byte = currentStream.read()
     if (byte >= 0) {
       pos += 1
@@ -121,6 +122,7 @@ private[sharing] class RandomAccessHttpInputStream(
   }
 
   override def read(buf: Array[Byte], off: Int, len: Int): Int = synchronized {
+    logInfo(s"read() ${fetcher.fileId} uri $uri at off $off len $len")
     assertNotClosed()
     if (currentStream == null) {
       reopen(pos)
@@ -137,7 +139,7 @@ private[sharing] class RandomAccessHttpInputStream(
 
   private def reopen(pos: Long): Unit = {
     if (currentStream != null) {
-      logDebug(s"Aborting old stream to open at pos $pos")
+      logInfo(s"Aborting old stream to open at pos $pos")
       abortCurrentStream()
     }
     if (pos < 0L) {
@@ -145,7 +147,7 @@ private[sharing] class RandomAccessHttpInputStream(
     } else if (contentLength > 0L && pos > this.contentLength - 1L) {
       throw new EOFException(FSExceptionMessages.CANNOT_SEEK_PAST_EOF + " " + pos)
     } else {
-      logDebug(s"Opening file $uri at pos $pos")
+      logInfo(s"Opening file ${fetcher.fileId} uri $uri at pos $pos")
 
      val entity = RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
         val httpRequest = createHttpRequest(pos)

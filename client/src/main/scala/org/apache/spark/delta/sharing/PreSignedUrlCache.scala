@@ -302,8 +302,8 @@ class PreSignedUrlCacheEndpoint(override val rpcEnv: RpcEnv) extends RpcEndpoint
  */
 class PreSignedUrlFetcher(
     ref: RpcEndpointRef,
-    tablePath: String,
-    fileId: String,
+    val tablePath: String,
+    val fileId: String,
     refreshThresholdMs: Long) extends Logging {
 
   private var preSignedUrl: PreSignedUrlCache.Rpc.GetPreSignedUrlResponse = _
