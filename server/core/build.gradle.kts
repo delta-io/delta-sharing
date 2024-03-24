@@ -33,7 +33,7 @@ dependencies {
     //ICEBERG
     implementation("org.apache.iceberg:iceberg-api:1.5.0")
     implementation("org.apache.iceberg:iceberg-core:1.5.0")
-    implementation("org.apache.iceberg:iceberg-aws:1.4.3")
+    implementation("org.apache.iceberg:iceberg-aws:1.5.0")
     implementation("software.amazon.awssdk:glue:2.25.16")
     implementation("software.amazon.awssdk:sts:2.25.16")
     implementation("software.amazon.awssdk:s3:2.25.16")
