@@ -44,7 +44,7 @@ dependencies {
     implementation(String.format("org.apache.hadoop:hadoop-aws:%s", hadoopVersion))
 
     //PREDICATE PARSER
-    implementation("com.github.jsqlparser:jsqlparser:4.8")
+    implementation("com.github.jsqlparser:jsqlparser:4.9")
 
     // TEST
     testImplementation("org.junit.jupiter:junit-jupiter")
