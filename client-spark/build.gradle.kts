@@ -18,7 +18,7 @@ dependencies {
     testImplementation("jakarta.annotation:jakarta.annotation-api:2.1.1")
 
     // DELTA
-    testImplementation("org.apache.hadoop:hadoop-common:3.3.6")
+    testImplementation("org.apache.hadoop:hadoop-common:3.4.0")
     testImplementation("io.delta:delta-sharing-spark_2.13:3.1.0")
 
     //SPARK
