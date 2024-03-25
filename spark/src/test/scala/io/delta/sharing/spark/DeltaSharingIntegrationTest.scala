@@ -32,14 +32,17 @@ import org.scalatest.BeforeAndAfterAll
 import io.delta.sharing.client.{DeltaSharingFileProfileProvider, DeltaSharingProfileProvider}
 
 trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
-
   def shouldRunIntegrationTest: Boolean = {
     true
-
-   // sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) // &&
-//      sys.env.get("AZURE_TEST_ACCOUNT_KEY").exists(_.length > 0) &&
-//      sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
   }
+
+  /*
+  * comment out
+  * // sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) // &&
+ //      sys.env.get("AZURE_TEST_ACCOUNT_KEY").exists(_.length > 0) &&
+ //      sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
+  *
+  * */
 
   @volatile private var process: Process = _
   @volatile private var pidFile: File = _
