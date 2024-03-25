@@ -31,6 +31,7 @@ object TestDeltaSharingServer {
   def main(args: Array[String]): Unit = {
     val pid = ManagementFactory.getRuntimeMXBean().getName().split("@")(0)
    // val pidFile = new File(args(0))
+
     val pidFile = Files.createTempFile("delta-sharing-server", ".pid").toFile
     // scalastyle:off println
     println(s"Writing pid $pid to $pidFile")

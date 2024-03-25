@@ -58,7 +58,7 @@ object TestResource {
   }
 
   def setupTestTables(): File = {
-    
+
     val testConfigFile = Files.createTempFile("delta-sharing", ".yaml").toFile
     testConfigFile.deleteOnExit()
     maybeSetupGoogleServiceAccountCredentials

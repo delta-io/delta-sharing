@@ -47,6 +47,7 @@ acquire_sbt_jar () {
   ##JAR=build/sbt-launch-${SBT_VERSION}.jar
   JAR=/Users/sharadsingh/Documents/sbt-launch-1.5.3.jar
 
+
   sbt_jar=$JAR
 
   if [[ ! -f "$sbt_jar" ]]; then
