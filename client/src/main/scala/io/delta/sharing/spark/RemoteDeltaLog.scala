@@ -174,6 +174,9 @@ class RemoteSnapshot(
 
   def fileFormat: FileFormat = new ParquetFileFormat()
 
+
+
+
   def getTablePath: Path = tablePath
 
   // This function is invoked during spark's query planning phase.

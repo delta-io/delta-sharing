@@ -34,9 +34,10 @@ import io.delta.sharing.client.{DeltaSharingFileProfileProvider, DeltaSharingPro
 trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
 
   def shouldRunIntegrationTest: Boolean = {
-    sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) &&
-      sys.env.get("AZURE_TEST_ACCOUNT_KEY").exists(_.length > 0) &&
-      sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
+    true
+   // sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) // &&
+//      sys.env.get("AZURE_TEST_ACCOUNT_KEY").exists(_.length > 0) &&
+//      sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
   }
 
   @volatile private var process: Process = _
@@ -46,6 +47,7 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
   val TEST_PORT = 12345
 
   override def beforeAll(): Unit = {
+    val mp = sys.env
     super.beforeAll()
     if (shouldRunIntegrationTest) {
       pidFile = Files.createTempFile("delta-sharing-server", ".pid").toFile
@@ -74,7 +76,7 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
             Seq(
               "/bin/bash",
               "-c",
-              s"cd .. && build/sbt 'server / Test / runMain " +
+              s"cd .. && build/sbt 'server /Test/runMain " +
                 s"io.delta.sharing.server.TestDeltaSharingServer ${pidFile.getCanonicalPath}'")
               .run(processLogger)
           process.exitValue()
