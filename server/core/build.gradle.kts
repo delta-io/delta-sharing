@@ -33,12 +33,12 @@ dependencies {
     implementation("org.apache.iceberg:iceberg-aws")
 
     //AWS
-    compileOnly("software.amazon.awssdk:bom")
     implementation("software.amazon.awssdk:glue")
     implementation("software.amazon.awssdk:sts")
     implementation("software.amazon.awssdk:s3")
     implementation("software.amazon.awssdk:utils")
     implementation("software.amazon.awssdk:url-connection-client")
+    implementation("software.amazon.awssdk:s3-transfer-manager")
     implementation("org.apache.hadoop:hadoop-aws") {
         exclude(group = "software.amazon.awssdk", module = "bundle")
     }
