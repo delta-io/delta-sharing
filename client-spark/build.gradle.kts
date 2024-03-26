@@ -23,7 +23,7 @@ dependencies {
     testImplementation("io.delta:delta-sharing-spark_2.13")
 
     //SPARK
-    testImplementation( "org.apache.spark:spark-sql_2.13")
+    testImplementation("org.apache.spark:spark-sql_2.13")
     testImplementation("com.github.mrpowers:spark-fast-tests_2.13:1.3.0")
 
     //JUNIT
@@ -39,13 +39,32 @@ tasks.getByName<Test>("test") {
 
 tasks.withType<Test> {
     environment = env.allVariables()
-    systemProperty ("java.util.logging.manager", "java.util.logging.LogManager") //TODO modularize the whitefox-conventions plugin
+    systemProperty(
+        "java.util.logging.manager",
+        "java.util.logging.LogManager"
+    ) //TODO modularize the whitefox-conventions plugin
 }
 
 tasks.register<Test>("clientSparkTest") {
     useJUnitPlatform {
         includeTags.add("clientSparkTest")
     }
+    jvmArgs(
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+        "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+        "--add-opens=java.base/java.io=ALL-UNNAMED",
+        "--add-opens=java.base/java.net=ALL-UNNAMED",
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+        "--add-opens=java.base/java.util=ALL-UNNAMED",
+        "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
+        "--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED",
+        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+        "--add-opens=java.base/sun.nio.cs=ALL-UNNAMED",
+        "--add-opens=java.base/sun.security.action=ALL-UNNAMED",
+        "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
+        "--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED"
+    )
 }
 
 val openApiCodeGenDir = "generated/openapi"
@@ -57,7 +76,8 @@ val whiteFoxGenerate = tasks.register<GenerateTask>("openapiGenerateClientApi") 
     inputSpec.set("$rootDir/protocol/whitefox-protocol-api.yml")
     library.set("native")
     outputDir.set(generatedCodeDirectory)
-    additionalProperties.set(mapOf(
+    additionalProperties.set(
+        mapOf(
             "apiPackage" to "io.whitefox.api.client",
             "invokerPackage" to "io.whitefox.api.utils",
             "modelPackage" to "io.whitefox.api.client.model",
@@ -68,7 +88,8 @@ val whiteFoxGenerate = tasks.register<GenerateTask>("openapiGenerateClientApi") 
             "serializationLibrary" to "jackson",
             "useJakartaEe" to "true",
             "useRuntimeException" to "true"
-    ))
+        )
+    )
 }
 
 sourceSets {
