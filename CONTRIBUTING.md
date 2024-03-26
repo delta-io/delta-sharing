@@ -31,7 +31,7 @@ skip these steps and jump straight to submitting a pull request.
 
 # IDE setup
 
-To get started with Whitefox development, you need JDK 11 installed. Since the project is managed with Gradle, any 
+To get started with Whitefox development, you need JDK 17 installed. Since the project is managed with Gradle, any 
 IDE that works with Gradle v8.3 will be a good fit. We internally use IntelliJ IDEA Community Edition.
 
 # Protocol
