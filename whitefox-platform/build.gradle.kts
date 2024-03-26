@@ -4,7 +4,7 @@ plugins {
 
 dependencies {
     constraints {
-        api("org.hamcrest:hamcrest:2.1")
+        api("org.hamcrest:hamcrest:2.2")
         api("org.openapitools:jackson-databind-nullable:0.2.6")
         api("org.eclipse.microprofile.config:microprofile-config-api:3.0.3")
         api("org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1")
