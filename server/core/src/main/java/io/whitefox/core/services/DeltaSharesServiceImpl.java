@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import lombok.SneakyThrows;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @ApplicationScoped
@@ -133,6 +134,7 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
   }
 
   @Override
+  @SneakyThrows
   public ReadTableResult queryTable(
       String share,
       String schema,
@@ -144,24 +146,25 @@ public class DeltaSharesServiceImpl implements DeltaSharesService {
         .orElseThrow(() -> new TableNotFound(String.format(
             "Table %s not found in share %s with schema %s", tableName, share, schema)));
 
-    var fileSigner =
-        fileSignerFactory.newFileSigner(sharedTable.internalTable().provider().storage());
-    var readTableResultToBeSigned = tableLoaderFactory
-        .newTableLoader(sharedTable.internalTable())
-        .loadTable(sharedTable)
-        .queryTable(queryRequest);
-    return checkResponseFormat(
-        clientCapabilities,
-        ReadTableResult::responseFormat,
-        new ReadTableResult(
-            readTableResultToBeSigned.protocol(),
-            readTableResultToBeSigned.metadata(),
-            readTableResultToBeSigned.other().stream()
-                .map(fileSigner::sign)
-                .collect(Collectors.toList()),
-            readTableResultToBeSigned.version(),
-            ResponseFormat.parquet),
-        tableName);
+    try (FileSigner fileSigner =
+        fileSignerFactory.newFileSigner(sharedTable.internalTable().provider().storage())) {
+      var readTableResultToBeSigned = tableLoaderFactory
+          .newTableLoader(sharedTable.internalTable())
+          .loadTable(sharedTable)
+          .queryTable(queryRequest);
+      return checkResponseFormat(
+          clientCapabilities,
+          ReadTableResult::responseFormat,
+          new ReadTableResult(
+              readTableResultToBeSigned.protocol(),
+              readTableResultToBeSigned.metadata(),
+              readTableResultToBeSigned.other().stream()
+                  .map(fileSigner::sign)
+                  .collect(Collectors.toList()),
+              readTableResultToBeSigned.version(),
+              ResponseFormat.parquet),
+          tableName);
+    }
   }
 
   private <A> A checkResponseFormat(

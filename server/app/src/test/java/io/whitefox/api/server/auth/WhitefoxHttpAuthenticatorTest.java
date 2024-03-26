@@ -10,7 +10,6 @@ import io.whitefox.api.model.v1.generated.CreateMetastore;
 import io.whitefox.api.model.v1.generated.MetastoreProperties;
 import io.whitefox.api.model.v1.generated.SimpleAwsCredentials;
 import java.util.Map;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -39,14 +38,6 @@ public class WhitefoxHttpAuthenticatorTest {
     }
   }
 
-  public static class NoAuthenticationProfile implements QuarkusTestProfile {
-    @Override
-    public Map<String, String> getConfigOverrides() {
-      return Map.of("whitefox.server.authentication.enabled", "false");
-    }
-  }
-
-  // Nesting two test-profiles leads to an OOM: https://github.com/quarkusio/quarkus/issues/12498
   @Test
   void expectDenied() {
     given()
@@ -64,19 +55,5 @@ public class WhitefoxHttpAuthenticatorTest {
         .get("/whitefox-api/v1/metastores/{name}", createMetastore.getName())
         .then()
         .statusCode(404);
-  }
-
-  @Nested
-  @TestProfile(WhitefoxHttpAuthenticatorTest.NoAuthenticationProfile.class)
-  class TestNotAuthorized {
-
-    @Test
-    void expectAccepted() {
-      given()
-          .when()
-          .get("/whitefox-api/v1/metastores/{name}", createMetastore.getName())
-          .then()
-          .statusCode(404);
-    }
   }
 }

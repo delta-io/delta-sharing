@@ -10,6 +10,7 @@ val quarkusPlatformVersion: String by project
 // region dependencies
 
 dependencies {
+    api(platform(project(":whitefox-platform")))
     implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
     // QUARKUS
     compileOnly("jakarta.enterprise:jakarta.enterprise.cdi-api")

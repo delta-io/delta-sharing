@@ -73,7 +73,9 @@ public class S3FileSignerAwsTest {
 
   private HttpResponse<String> sendRequest(HttpRequest request) {
     try {
-      return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+      var client =
+          HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).build();
+      return client.send(request, HttpResponse.BodyHandlers.ofString());
     } catch (IOException | InterruptedException e) {
       throw new RuntimeException(e);
     }

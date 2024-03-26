@@ -1,8 +1,11 @@
 package io.whitefox.core.services;
 
-import com.amazonaws.services.s3.AmazonS3;
 import io.whitefox.core.AwsCredentials;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 public interface S3ClientFactory {
-  AmazonS3 newS3Client(AwsCredentials.SimpleAwsCredentials awsCredentials);
+  S3Client newS3Client(AwsCredentials.SimpleAwsCredentials awsCredentials);
+
+  S3Presigner newS3Presigner(AwsCredentials.SimpleAwsCredentials awsCredentials);
 }

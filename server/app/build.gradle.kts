@@ -11,9 +11,9 @@ val quarkusPlatformArtifactId: String by project
 val quarkusPlatformVersion: String by project
 
 // region dependencies
-val hadoopVersion = "3.3.6"
 dependencies {
     // INTERNAL
+    implementation(platform(project(":whitefox-platform")))
     implementation(project(":server:core"))
     implementation(project(":server:persistence:memory"))
 
@@ -26,17 +26,17 @@ dependencies {
     implementation("io.quarkus:quarkus-resteasy-reactive-jackson")
     implementation("io.quarkus:quarkus-smallrye-health")
     implementation("io.quarkus:quarkus-micrometer-registry-prometheus")
-    implementation("org.openapitools:jackson-databind-nullable:0.2.6")
-    implementation("org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1")
-    implementation("jakarta.validation:jakarta.validation-api:3.0.2")
+    implementation("org.openapitools:jackson-databind-nullable")
+    implementation("org.eclipse.microprofile.openapi:microprofile-openapi-api")
+    implementation("jakarta.validation:jakarta.validation-api")
 
     // TEST
     testImplementation(testFixtures(project(":server:core")))
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.rest-assured:rest-assured")
     testImplementation("io.rest-assured:json-path")
-    testImplementation("org.openapi4j:openapi-operation-validator:1.0.7")
-    testImplementation("org.openapi4j:openapi-operation-restassured:1.0.7")
+    testImplementation("org.openapi4j:openapi-operation-validator")
+    testImplementation("org.openapi4j:openapi-operation-restassured")
 }
 
 // endregion

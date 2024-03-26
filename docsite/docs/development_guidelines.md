@@ -133,6 +133,9 @@ the `test` task, while if you want to run integration and aws tests you should r
 package produced by `build` task) and run the test. They are useful to test the application in a "production-like" 
 manner.
 
+We do not use [test profiles](https://quarkus.io/guides/getting-started-testing#testing_different_profiles) because
+they suffer [this issue](https://github.com/quarkusio/quarkus/issues/12498).
+
 # Modules
 
 Tree of gradle modules: <!-- generated with  tree -L 3 -d and some cut and paste -->

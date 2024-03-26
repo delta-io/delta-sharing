@@ -13,10 +13,14 @@ import java.time.format.DateTimeParseException;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.jboss.logging.Logger;
 
 public interface ApiUtils extends DeltaHeaders {
 
+  static final Logger logger = Logger.getLogger(ApiUtils.class);
+
   Function<Throwable, Response> exceptionToResponse = t -> {
+    logger.warn(t.getMessage(), t);
     if (t instanceof IllegalArgumentException) {
       return Response.status(Response.Status.BAD_REQUEST)
           .entity(new CommonErrorResponse()

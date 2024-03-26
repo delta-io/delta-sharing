@@ -11,11 +11,12 @@ val quarkusPlatformVersion: String by project
 
 // region dependencies
 dependencies {
+    implementation(platform(project(":whitefox-platform")))
     implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
     implementation("io.quarkus:quarkus-rest-client-reactive-jackson") // TODO review
     implementation("io.quarkus:quarkus-arc") // TODO review
     implementation("io.quarkus:quarkus-resteasy-reactive") // TODO review
-    implementation("org.openapitools:jackson-databind-nullable:0.2.6")
+    implementation("org.openapitools:jackson-databind-nullable")
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.rest-assured:rest-assured") // TODO review
 }

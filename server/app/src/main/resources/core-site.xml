@@ -1,0 +1,19 @@
+<configuration>
+    <property>
+        <name>fs.s3a.threads.keepalivetime</name>
+        <value>60</value>
+        <description>version of this configuration file</description>
+    </property>
+    <property>
+        <name>fs.s3a.connection.establish.timeout</name>
+        <value>50000</value>
+    </property>
+    <property>
+        <name>fs.s3a.connection.timeout</name>
+        <value>200000</value>
+    </property>
+    <property>
+        <name>fs.s3a.multipart.purge.age</name>
+        <value>86400</value>
+    </property>
+</configuration>

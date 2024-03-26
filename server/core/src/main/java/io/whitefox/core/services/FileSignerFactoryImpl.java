@@ -22,7 +22,7 @@ public class FileSignerFactoryImpl implements FileSignerFactory {
         AwsCredentials.SimpleAwsCredentials credentials = (AwsCredentials.SimpleAwsCredentials)
             ((StorageProperties.S3Properties) storage.properties()).credentials();
         return new S3FileSigner(
-            s3ClientFactory.newS3Client(credentials), new TableFileIdMd5HashFunction());
+            s3ClientFactory.newS3Presigner(credentials), new TableFileIdMd5HashFunction());
       case LOCAL:
         return new NoOpSigner();
       default:

@@ -1,4 +1,5 @@
 rootProject.name = "whitefox-multiproject"
+include("whitefox-platform")
 include("client")
 include("server:core")
 include("server:persistence:memory")

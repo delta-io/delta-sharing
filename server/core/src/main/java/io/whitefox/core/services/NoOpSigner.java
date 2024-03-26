@@ -17,4 +17,7 @@ public class NoOpSigner implements FileSigner {
         Long.MAX_VALUE,
         Optional.of(s.stats()));
   }
+
+  @Override
+  public void close() throws Exception {}
 }
