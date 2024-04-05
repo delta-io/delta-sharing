@@ -138,7 +138,7 @@ private[sharing] object RemoteDeltaLog {
     )
     new RemoteDeltaLog(
       deltaSharingTable,
-      new Path(path),
+      new Path(path + getFormattedTimestampWithUUID),
       client,
       initDeltaTableMetadata
     )

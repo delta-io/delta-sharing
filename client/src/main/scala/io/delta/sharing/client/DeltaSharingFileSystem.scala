@@ -54,7 +54,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
       .setConnectionRequestTimeout(timeoutInSeconds * 1000)
       .setSocketTimeout(timeoutInSeconds * 1000).build()
 
-    logInfo(s"Creating delta sharing httpClient with timeoutInSeconds: $timeoutInSeconds.")
+    logDebug(s"Creating delta sharing httpClient with timeoutInSeconds: $timeoutInSeconds.")
     val clientBuilder = HttpClientBuilder.create()
       .setMaxConnTotal(maxConnections)
       .setMaxConnPerRoute(maxConnections)
@@ -109,16 +109,15 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
       new PreSignedUrlFetcher(preSignedUrlCacheRef, path.tablePath, path.fileId, refreshThresholdMs)
 
     if (getConf.getBoolean("spark.delta.sharing.loadDataFilesInMemory", false)) {
-      logInfo(s"opening delta sharing path $path with InMemoryHttpInputStream.")
       val start = System.currentTimeMillis()
       // `InMemoryHttpInputStream` loads the content into the memory immediately, so we don't need
       // to refresh urls.
       val stream = new FSDataInputStream(new InMemoryHttpInputStream(new URI(fetcher.getUrl())))
-      logInfo(s"It took ${(System.currentTimeMillis() - start)/1000}s to build " +
+      logDebug(s"Took ${(System.currentTimeMillis() - start)/1000}s to build " +
         s"InMemoryHttpInputStream for delta sharing path $path.")
       stream
     } else {
-      logInfo(s"opening delta sharing path [$path] with RandomAccessHttpInputStream, " +
+      logDebug(s"opening delta sharing path [$path] with RandomAccessHttpInputStream, " +
         s"with bufferSize:[$bufferSize].")
       new FSDataInputStream(
         new RandomAccessHttpInputStream(
@@ -164,7 +163,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
     throw new UnsupportedOperationException("mkdirs")
 
   override def getFileStatus(f: Path): FileStatus = {
-    logInfo(s"Checking delta sharing file status for path: $f.")
+    logDebug(s"Checking delta sharing file status for path: $f.")
     val resolved = makeQualified(f)
     new FileStatus(decode(resolved).fileSize, false, 0, 1, 0, f)
   }
