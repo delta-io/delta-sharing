@@ -26,8 +26,8 @@ import org.apache.http.client.config.RequestConfig
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.{PreSignedUrlCache, PreSignedUrlFetcher}
-import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.internal.Logging
+import org.apache.spark.network.util.JavaUtils
 
 import io.delta.sharing.spark.model.FileAction
 import io.delta.sharing.spark.util.{ConfUtils, RetryUtils}
