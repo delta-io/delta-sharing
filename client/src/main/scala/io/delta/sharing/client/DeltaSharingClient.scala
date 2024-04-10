@@ -826,6 +826,7 @@ class DeltaSharingRestClient(
           List("")
         } else {
           val input = entity.getContent()
+          val lineBuffer = ListBuffer[String]()
           try {
             if (fetchAsOneString) {
               Seq(IOUtils.toString(input, UTF_8))
@@ -834,7 +835,6 @@ class DeltaSharingRestClient(
                 new InputStreamReader(new BoundedInputStream(input), UTF_8)
               )
               var line: Option[String] = None
-              val lineBuffer = ListBuffer[String]()
               while ({
                 line = Option(reader.readLine()); line.isDefined
               }) {
@@ -842,6 +842,12 @@ class DeltaSharingRestClient(
               }
               lineBuffer.toList
             }
+          } catch {
+            case e: org.apache.http.ConnectionClosedException =>
+              val error = s"Request to delta sharing server failed due to ${e}."
+              logError(error)
+              lineBuffer += error
+              lineBuffer.toList
           } finally {
             input.close()
           }
