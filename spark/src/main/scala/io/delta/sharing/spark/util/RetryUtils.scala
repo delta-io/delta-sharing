@@ -71,6 +71,9 @@ private[sharing] object RetryUtils extends Logging {
           false
         }
       case _: java.net.SocketTimeoutException => true
+      // do not retry on ConnectionClosedException because it can be caused by invalid json returned
+      // from the delta sharing server.
+      case _: org.apache.http.ConnectionClosedException => false
       case _: InterruptedException => false
       case _: InterruptedIOException => false
       case _: IOException => true
