@@ -1,8 +1,7 @@
 package io.whitefox.api.deltasharing;
 
 import static io.whitefox.DeltaTestUtils.*;
-import static io.whitefox.IcebergTestUtils.icebergTableWithHadoopCatalog;
-import static io.whitefox.IcebergTestUtils.s3IcebergTableWithAwsGlueCatalog;
+import static io.whitefox.IcebergTestUtils.*;
 
 import io.whitefox.AwsGlueTestConfig;
 import io.whitefox.S3TestConfig;
@@ -73,6 +72,78 @@ public class SampleTables {
         0L)));
   }
 
+  public static final ParquetProtocol localIcebergTable1Protocol =
+      ParquetProtocol.ofMinReaderVersion(1);
+  public static final ParquetProtocol s3IcebergTable1Protocol =
+      ParquetProtocol.ofMinReaderVersion(1);
+  public static final ParquetMetadata localIcebergTable1Metadata = ParquetMetadata.builder()
+      .metadata(ParquetMetadata.Metadata.builder()
+          .id("3369848726892806393")
+          .name(Optional.of("metastore.test_db.icebergtable1"))
+          .format(new Format())
+          .schemaString(
+              "{\"type\":\"struct\",\"fields\":[{\"name\":\"id\",\"type\":\"long\",\"nullable\":false,\"metadata\":{}}]}")
+          .partitionColumns(List.of())
+          .version(Optional.of(1L))
+          .configuration(Optional.of(Map.of("write.parquet.compression-codec", "zstd")))
+          .build())
+      .build();
+
+  public static final Set<FileObjectWithoutPresignedUrl> localIcebergTableFilesToBeSigned = Set.of(
+      new FileObjectWithoutPresignedUrl()
+          ._file(new FileObjectFileWithoutPresignedUrl()
+              .partitionValues(Map.of())
+              .size(419L)
+              .stats(
+                  "{\"numRecords\":1,\"minValues\":{\"id\":3},\"maxValues\":{\"id\":3},\"nullCount\":{\"id\":0}}")
+              .version(1L)
+              .timestamp(1705667209813L)),
+      new FileObjectWithoutPresignedUrl()
+          ._file(new FileObjectFileWithoutPresignedUrl()
+              .partitionValues(Map.of())
+              .size(419L)
+              .stats(
+                  "{\"numRecords\":1,\"minValues\":{\"id\":2},\"maxValues\":{\"id\":2},\"nullCount\":{\"id\":0}}")
+              .version(1L)
+              .timestamp(1705667209813L)),
+      new FileObjectWithoutPresignedUrl()
+          ._file(new FileObjectFileWithoutPresignedUrl()
+              .partitionValues(Map.of())
+              .size(419L)
+              .stats(
+                  "{\"numRecords\":1,\"minValues\":{\"id\":1},\"maxValues\":{\"id\":1},\"nullCount\":{\"id\":0}}")
+              .version(1L)
+              .timestamp(1705667209813L)),
+      new FileObjectWithoutPresignedUrl()
+          ._file(new FileObjectFileWithoutPresignedUrl()
+              .partitionValues(Map.of())
+              .size(418L)
+              .stats(
+                  "{\"numRecords\":1,\"minValues\":{\"id\":0},\"maxValues\":{\"id\":0},\"nullCount\":{\"id\":0}}")
+              .version(1L)
+              .timestamp(1705667209813L)),
+      new FileObjectWithoutPresignedUrl()
+          ._file(new FileObjectFileWithoutPresignedUrl()
+              .partitionValues(Map.of())
+              .size(419L)
+              .stats(
+                  "{\"numRecords\":1,\"minValues\":{\"id\":4},\"maxValues\":{\"id\":4},\"nullCount\":{\"id\":0}}")
+              .version(1L)
+              .timestamp(1705667209813L)));
+
+  public static final ParquetMetadata s3IcebergTable1Metadata = ParquetMetadata.builder()
+      .metadata(ParquetMetadata.Metadata.builder()
+          .id("7819530050735196523")
+          .name(Optional.of("metastore.test_glue_db.icebergtable1"))
+          .format(new Format())
+          .schemaString(
+              "{\"type\":\"struct\",\"fields\":[{\"name\":\"id\",\"type\":\"long\",\"nullable\":false,\"metadata\":{}}]}")
+          .partitionColumns(List.of())
+          .version(Optional.of(1L))
+          .configuration(Optional.of(Map.of("write.parquet.compression-codec", "zstd")))
+          .build())
+      .build();
+
   public static final ParquetMetadata deltaTable1Metadata = ParquetMetadata.builder()
       .metadata(ParquetMetadata.Metadata.builder()
           .id("56d48189-cdbc-44f2-9b0e-2bded4c79ed7")
@@ -98,6 +169,7 @@ public class SampleTables {
           .configuration(Optional.of(Map.of()))
           .build())
       .build();
+
   public static final ParquetMetadata deltaTableWithHistory1Metadata = ParquetMetadata.builder()
       .metadata(ParquetMetadata.Metadata.builder()
           .id("56d48189-cdbc-44f2-9b0e-2bded4c79ed7")
@@ -110,6 +182,7 @@ public class SampleTables {
           .configuration(Optional.of(Map.of()))
           .build())
       .build();
+
   public static final ParquetProtocol deltaTable1Protocol = ParquetProtocol.ofMinReaderVersion(1);
 
   public static final ParquetProtocol s3DeltaTable1Protocol = ParquetProtocol.ofMinReaderVersion(1);
@@ -196,6 +269,48 @@ public class SampleTables {
               .build())
           .build());
 
+  public static final Set<FileObjectWithoutPresignedUrl> s3IcebergTable1FilesWithoutPresignedUrl =
+      Set.of(
+          new FileObjectWithoutPresignedUrl()
+              ._file(new FileObjectFileWithoutPresignedUrl()
+                  .partitionValues(Map.of())
+                  .size(419L)
+                  .stats(
+                      "{\"numRecords\":1,\"minValues\":{\"id\":4},\"maxValues\":{\"id\":4},\"nullCount\":{\"id\":0}}")
+                  .version(1L)
+                  .timestamp(1705948389052L)),
+          new FileObjectWithoutPresignedUrl()
+              ._file(new FileObjectFileWithoutPresignedUrl()
+                  .partitionValues(Map.of())
+                  .size(419L)
+                  .stats(
+                      "{\"numRecords\":1,\"minValues\":{\"id\":3},\"maxValues\":{\"id\":3},\"nullCount\":{\"id\":0}}")
+                  .version(1L)
+                  .timestamp(1705948389052L)),
+          new FileObjectWithoutPresignedUrl()
+              ._file(new FileObjectFileWithoutPresignedUrl()
+                  .partitionValues(Map.of())
+                  .size(419L)
+                  .stats(
+                      "{\"numRecords\":1,\"minValues\":{\"id\":2},\"maxValues\":{\"id\":2},\"nullCount\":{\"id\":0}}")
+                  .version(1L)
+                  .timestamp(1705948389052L)),
+          new FileObjectWithoutPresignedUrl()
+              ._file(new FileObjectFileWithoutPresignedUrl()
+                  .partitionValues(Map.of())
+                  .size(418L)
+                  .stats(
+                      "{\"numRecords\":1,\"minValues\":{\"id\":0},\"maxValues\":{\"id\":0},\"nullCount\":{\"id\":0}}")
+                  .version(1L)
+                  .timestamp(1705948389052L)),
+          new FileObjectWithoutPresignedUrl()
+              ._file(new FileObjectFileWithoutPresignedUrl()
+                  .partitionValues(Map.of())
+                  .size(419L)
+                  .stats(
+                      "{\"numRecords\":1,\"minValues\":{\"id\":1},\"maxValues\":{\"id\":1},\"nullCount\":{\"id\":0}}")
+                  .version(1L)
+                  .timestamp(1705948389052L)));
   public static final Set<FileObjectWithoutPresignedUrl> s3DeltaTable1FilesWithoutPresignedUrl =
       Set.of(
           new FileObjectWithoutPresignedUrl()

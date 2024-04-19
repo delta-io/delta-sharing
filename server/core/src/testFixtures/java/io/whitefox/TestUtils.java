@@ -56,7 +56,7 @@ public class TestUtils {
         principal,
         StorageType.S3,
         Optional.empty(),
-        "uri",
+        "s3://uri",
         0L,
         principal,
         0L,

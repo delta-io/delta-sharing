@@ -113,11 +113,11 @@ public class PredicateUtils {
 
     try {
       var fileStats = objectMapper.readValue(statsString, FileStats.class);
-      var maxValues = fileStats.maxValues;
+      var maxValues = fileStats.getMaxValues();
       var mappedMinMaxPairs = new java.util.HashMap<String, Pair<String, String>>();
       fileStats.getMinValues().forEach((minK, minV) -> {
-        String maxV = maxValues.get(minK);
-        Pair<String, String> minMaxPair = Pair.of(minV, maxV);
+        String maxV = String.valueOf(maxValues.get(minK));
+        Pair<String, String> minMaxPair = Pair.of(String.valueOf(minV), maxV);
         mappedMinMaxPairs.put(minK, minMaxPair);
       });
       return new EvalContext(partitionValues, mappedMinMaxPairs);

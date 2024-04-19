@@ -40,7 +40,7 @@ public class TableFileToBeSigned {
     TableFileToBeSigned that = (TableFileToBeSigned) o;
     return size == that.size
         && version == that.version
-        && timestamp == that.timestamp
+        && Objects.equals(timestamp, that.timestamp)
         && Objects.equals(url, that.url)
         && Objects.equals(stats, that.stats)
         && Objects.equals(partitionValues, that.partitionValues);

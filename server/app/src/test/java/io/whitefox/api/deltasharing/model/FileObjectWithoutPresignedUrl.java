@@ -3,6 +3,10 @@ package io.whitefox.api.deltasharing.model;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Objects;
 
+/**
+ * This class is test-only and it's needed because we can't know in advance pre-signed urls, in this way we can
+ * easily run assertions on FileObjects that contain pre-signed urls ignoring the url.
+ */
 public class FileObjectWithoutPresignedUrl {
 
   private FileObjectFileWithoutPresignedUrl _file;

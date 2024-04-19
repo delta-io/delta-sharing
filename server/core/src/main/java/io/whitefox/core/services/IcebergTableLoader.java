@@ -1,9 +1,7 @@
 package io.whitefox.core.services;
 
-import io.whitefox.core.InternalTable;
-import io.whitefox.core.Metastore;
-import io.whitefox.core.MetastoreType;
-import io.whitefox.core.SharedTable;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.whitefox.core.*;
 import org.apache.iceberg.catalog.TableIdentifier;
 
 public class IcebergTableLoader implements TableLoader {
@@ -18,16 +16,25 @@ public class IcebergTableLoader implements TableLoader {
   public IcebergSharedTable loadTable(SharedTable sharedTable) {
     if (sharedTable.internalTable().properties() instanceof InternalTable.IcebergTableProperties) {
       var metastore = getMetastore(sharedTable.internalTable());
+      var storage = sharedTable.internalTable().provider().storage();
       var tableId = getTableIdentifier(sharedTable.internalTable());
       if (metastore.type() == MetastoreType.GLUE) {
-        return IcebergSharedTable.of(icebergCatalogHandler.loadTableWithGlueCatalog(
-            metastore, sharedTable.internalTable().provider().storage(), tableId));
+        return IcebergSharedTable.of(
+            icebergCatalogHandler.loadTableWithGlueCatalog(
+                metastore, sharedTable.internalTable().provider().storage(), tableId),
+            sharedTable,
+            new IcebergFileStatsBuilder(new ObjectMapper().writer()),
+            new IcebergPartitionValuesBuilder());
       } else if (metastore.type() == MetastoreType.HADOOP) {
-        return IcebergSharedTable.of(icebergCatalogHandler.loadTableWithHadoopCatalog(
-            metastore, sharedTable.internalTable().provider().storage(), tableId));
+        return IcebergSharedTable.of(
+            icebergCatalogHandler.loadTableWithHadoopCatalog(
+                metastore, sharedTable.internalTable().provider().storage(), tableId),
+            sharedTable,
+            new IcebergFileStatsBuilder(new ObjectMapper().writer()),
+            new IcebergPartitionValuesBuilder());
       } else {
-        throw new RuntimeException(String.format(
-            "Metastore type: [%s] not compatible with Iceberg table", metastore.type()));
+        throw new RuntimeException(
+            String.format("Unsupported metastore type: [%s]", metastore.type()));
       }
     } else {
       throw new IllegalArgumentException(

@@ -1,14 +1,11 @@
 package io.whitefox.core.services;
 
-import io.whitefox.core.Metadata;
-import io.whitefox.core.ReadTableRequest;
-import io.whitefox.core.ReadTableResultToBeSigned;
-import io.whitefox.core.TableSchema;
+import io.whitefox.core.*;
 import io.whitefox.core.services.capabilities.ResponseFormat;
 import java.sql.Timestamp;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.NotImplementedException;
+import java.util.stream.StreamSupport;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -18,19 +15,53 @@ public class IcebergSharedTable implements InternalSharedTable {
 
   private final Table icebergTable;
   private final TableSchemaConverter tableSchemaConverter;
+  private final SharedTable tableDetails;
+  private final FileIOFactory fileIOFactory;
+  private final IcebergFileStatsBuilder icebergFileStatsBuilder;
+  private final IcebergPartitionValuesBuilder icebergPartitionValuesBuilder;
 
-  private IcebergSharedTable(Table icebergTable, TableSchemaConverter tableSchemaConverter) {
+  private IcebergSharedTable(
+      Table icebergTable,
+      TableSchemaConverter tableSchemaConverter,
+      SharedTable tableDetails,
+      FileIOFactory fileIOFactory,
+      IcebergFileStatsBuilder icebergFileStatsBuilder,
+      IcebergPartitionValuesBuilder icebergPartitionValuesBuilder) {
     this.icebergTable = icebergTable;
     this.tableSchemaConverter = tableSchemaConverter;
+    this.tableDetails = tableDetails;
+    this.fileIOFactory = fileIOFactory;
+    this.icebergFileStatsBuilder = icebergFileStatsBuilder;
+    this.icebergPartitionValuesBuilder = icebergPartitionValuesBuilder;
   }
 
   public static IcebergSharedTable of(
-      Table icebergTable, TableSchemaConverter tableSchemaConverter) {
-    return new IcebergSharedTable(icebergTable, tableSchemaConverter);
+      Table icebergTable,
+      SharedTable tableDetails,
+      TableSchemaConverter tableSchemaConverter,
+      IcebergFileStatsBuilder icebergFileStatsBuilder,
+      IcebergPartitionValuesBuilder icebergPartitionValuesBuilder) {
+    return new IcebergSharedTable(
+        icebergTable,
+        tableSchemaConverter,
+        tableDetails,
+        new FileIOFactoryImpl(),
+        icebergFileStatsBuilder,
+        icebergPartitionValuesBuilder);
   }
 
-  public static IcebergSharedTable of(Table icebergTable) {
-    return new IcebergSharedTable(icebergTable, new TableSchemaConverter());
+  public static IcebergSharedTable of(
+      Table icebergTable,
+      SharedTable tableDetails,
+      IcebergFileStatsBuilder icebergFileStatsBuilder,
+      IcebergPartitionValuesBuilder icebergPartitionValuesBuilder) {
+    return new IcebergSharedTable(
+        icebergTable,
+        new TableSchemaConverter(),
+        tableDetails,
+        new FileIOFactoryImpl(),
+        icebergFileStatsBuilder,
+        icebergPartitionValuesBuilder);
   }
 
   public Optional<Metadata> getMetadata(Optional<Timestamp> startingTimestamp) {
@@ -78,6 +109,39 @@ public class IcebergSharedTable implements InternalSharedTable {
 
   @Override
   public ReadTableResultToBeSigned queryTable(ReadTableRequest readTableRequest) {
-    throw new NotImplementedException();
+    Snapshot snapshot;
+    if (readTableRequest instanceof ReadTableRequest.ReadTableCurrentVersion) {
+      snapshot = icebergTable.currentSnapshot();
+    } else if (readTableRequest instanceof ReadTableRequest.ReadTableAsOfTimestamp) {
+      snapshot = icebergTable.snapshot(SnapshotUtil.snapshotIdAsOfTime(
+          icebergTable, ((ReadTableRequest.ReadTableAsOfTimestamp) readTableRequest).timestamp()));
+    } else if (readTableRequest instanceof ReadTableRequest.ReadTableVersion) {
+      snapshot =
+          icebergTable.snapshot(((ReadTableRequest.ReadTableVersion) readTableRequest).version());
+    } else {
+      throw new IllegalArgumentException("Unknown ReadTableRequest type: " + readTableRequest);
+    }
+    try (var s3FileIO =
+        fileIOFactory.newFileIO(tableDetails.internalTable().provider().storage())) {
+      return new ReadTableResultToBeSigned(
+          new Protocol(Optional.of(1)),
+          getMetadataFromSnapshot(snapshot),
+          StreamSupport.stream(snapshot.addedDataFiles(s3FileIO).spliterator(), false)
+              .map(dataFile -> new TableFileToBeSigned(
+                  dataFile.path().toString(),
+                  dataFile.fileSizeInBytes(),
+                  snapshot.sequenceNumber(),
+                  Optional.of(snapshot.timestampMillis()),
+                  icebergFileStatsBuilder.buildStats(
+                      icebergTable.schema(),
+                      dataFile.recordCount(),
+                      dataFile.lowerBounds(),
+                      dataFile.upperBounds(),
+                      dataFile.nullValueCounts()),
+                  icebergPartitionValuesBuilder.buildPartitionValues(
+                      icebergTable.spec().partitionType().fields(), dataFile.partition())))
+              .collect(Collectors.toList()),
+          snapshot.sequenceNumber());
+    }
   }
 }

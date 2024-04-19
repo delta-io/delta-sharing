@@ -149,7 +149,7 @@ public class DeltaSharesApiImplAwsTest implements OpenApiValidatorUtils {
 
   @DisabledOnOs(OS.WINDOWS)
   @Test
-  public void queryTableCurrentVersion() throws IOException {
+  public void queryDeltaTableCurrentVersion() throws IOException {
     var responseBodyLines = given()
         .when()
         .filter(deltaFilter)
@@ -192,7 +192,7 @@ public class DeltaSharesApiImplAwsTest implements OpenApiValidatorUtils {
 
   @DisabledOnOs(OS.WINDOWS)
   @Test
-  public void queryTableByVersion() throws IOException {
+  public void queryDeltaTableByVersion() throws IOException {
     var responseBodyLines = given()
         .when()
         .filter(deltaFilter)
@@ -231,5 +231,134 @@ public class DeltaSharesApiImplAwsTest implements OpenApiValidatorUtils {
         .collect(Collectors.toSet());
     assertEquals(7, responseBodyLines.length);
     assertEquals(s3DeltaTable1FilesWithoutPresignedUrl, files);
+  }
+
+  @DisabledOnOs(OS.WINDOWS)
+  @Test
+  public void queryIcebergTableCurrentVersion() throws IOException {
+    var responseBodyLines = given()
+        .when()
+        .filter(deltaFilter)
+        .body("{}")
+        .header(new Header("Content-Type", "application/json"))
+        .post(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/query",
+            "s3share",
+            "s3schema",
+            "s3IcebergTable1")
+        .then()
+        .statusCode(200)
+        .extract()
+        .body()
+        .asString()
+        .split("\n");
+
+    assertEquals(
+        s3IcebergTable1Protocol,
+        objectMapper.reader().readValue(responseBodyLines[0], ParquetProtocol.class));
+    assertEquals(
+        s3IcebergTable1Metadata,
+        objectMapper.reader().readValue(responseBodyLines[1], ParquetMetadata.class));
+    var files = Arrays.stream(responseBodyLines)
+        .skip(2)
+        .map(line -> {
+          try {
+            return objectMapper
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .reader()
+                .readValue(line, FileObjectWithoutPresignedUrl.class);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        })
+        .collect(Collectors.toSet());
+    assertEquals(7, responseBodyLines.length);
+    assertEquals(s3IcebergTable1FilesWithoutPresignedUrl, files);
+  }
+
+  @DisabledOnOs(OS.WINDOWS)
+  @Test
+  public void queryIcebergTableByVersion() throws IOException {
+    var responseBodyLines = given()
+        .when()
+        .filter(deltaFilter)
+        .body("{\"version\": 7819530050735196523}")
+        .header(new Header("Content-Type", "application/json"))
+        .post(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/query",
+            "s3share",
+            "s3schema",
+            "s3IcebergTable1")
+        .then()
+        .statusCode(200)
+        .extract()
+        .body()
+        .asString()
+        .split("\n");
+
+    assertEquals(
+        s3IcebergTable1Protocol,
+        objectMapper.reader().readValue(responseBodyLines[0], ParquetProtocol.class));
+    assertEquals(
+        s3IcebergTable1Metadata,
+        objectMapper.reader().readValue(responseBodyLines[1], ParquetMetadata.class));
+    var files = Arrays.stream(responseBodyLines)
+        .skip(2)
+        .map(line -> {
+          try {
+            return objectMapper
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .reader()
+                .readValue(line, FileObjectWithoutPresignedUrl.class);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        })
+        .collect(Collectors.toSet());
+    assertEquals(7, responseBodyLines.length);
+    assertEquals(s3IcebergTable1FilesWithoutPresignedUrl, files);
+  }
+
+  @DisabledOnOs(OS.WINDOWS)
+  @Test
+  public void queryIcebergTableByTs() throws IOException {
+    var responseBodyLines = given()
+        .when()
+        .filter(deltaFilter)
+        .body("{\"timestamp\": \"2024-02-02T12:00:00Z\"}")
+        .header(new Header("Content-Type", "application/json"))
+        .post(
+            "delta-api/v1/shares/{share}/schemas/{schema}/tables/{table}/query",
+            "s3share",
+            "s3schema",
+            "s3IcebergTable1")
+        .then()
+        .statusCode(200)
+        .extract()
+        .body()
+        .asString()
+        .split("\n");
+
+    assertEquals(
+        s3IcebergTable1Protocol,
+        objectMapper.reader().readValue(responseBodyLines[0], ParquetProtocol.class));
+    assertEquals(
+        s3IcebergTable1Metadata,
+        objectMapper.reader().readValue(responseBodyLines[1], ParquetMetadata.class));
+    var files = Arrays.stream(responseBodyLines)
+        .skip(2)
+        .map(line -> {
+          try {
+            return objectMapper
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .reader()
+                .readValue(line, FileObjectWithoutPresignedUrl.class);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        })
+        .collect(Collectors.toSet());
+    assertEquals(7, responseBodyLines.length);
+    assertEquals(s3IcebergTable1FilesWithoutPresignedUrl, files);
   }
 }
