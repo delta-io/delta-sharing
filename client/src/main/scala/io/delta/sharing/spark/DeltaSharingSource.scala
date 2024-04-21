@@ -173,6 +173,7 @@ case class DeltaSharingSource(
     if (lastGetVersionTimestamp == -1 ||
       (currentTimeMillis - lastGetVersionTimestamp) >= QUERY_TABLE_VERSION_INTERVAL_MILLIS) {
       val serverVersion = deltaLog.client.getTableVersion(deltaLog.table)
+      logInfo(s"Got table version $serverVersion from Delta Sharing Server.")
       if (serverVersion < 0) {
         throw new IllegalStateException(s"Delta Sharing Server returning negative table version:" +
           s"$serverVersion.")
@@ -1124,7 +1125,10 @@ case class DeltaSharingSource(
       }
       Some(v)
     } else if (options.startingTimestamp.isDefined) {
-      Some(deltaLog.client.getTableVersion(deltaLog.table, options.startingTimestamp))
+      val version = deltaLog.client.getTableVersion(deltaLog.table, options.startingTimestamp)
+      logInfo(s"Got table version $version for timestamp ${options.startingTimestamp} " +
+        s"from Delta Sharing Server.")
+      Some(version)
     } else {
       None
     }
