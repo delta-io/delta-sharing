@@ -59,7 +59,7 @@ object ConfUtils {
 
   val QUERY_TABLE_VERSION_INTERVAL_SECONDS =
     "spark.delta.sharing.streaming.queryTableVersionIntervalSeconds"
-  val QUERY_TABLE_VERSION_INTERVAL_SECONDS_DEFAULT = "10s"
+  val QUERY_TABLE_VERSION_INTERVAL_SECONDS_DEFAULT = "30s"
 
   val LIMIT_PUSHDOWN_ENABLED_CONF = "spark.delta.sharing.limitPushdown.enabled"
   val LIMIT_PUSHDOWN_ENABLED_DEFAULT = "true"
