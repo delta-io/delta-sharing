@@ -60,6 +60,7 @@ object ConfUtils {
   val QUERY_TABLE_VERSION_INTERVAL_SECONDS =
     "spark.delta.sharing.streaming.queryTableVersionIntervalSeconds"
   val QUERY_TABLE_VERSION_INTERVAL_SECONDS_DEFAULT = "30s"
+  val MINIMUM_TABLE_VERSION_INTERVAL_SECONDS = 10
 
   val LIMIT_PUSHDOWN_ENABLED_CONF = "spark.delta.sharing.limitPushdown.enabled"
   val LIMIT_PUSHDOWN_ENABLED_DEFAULT = "true"
@@ -171,8 +172,10 @@ object ConfUtils {
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {
     val timeInSeconds = JavaUtils.timeStringAs(timeStr, TimeUnit.SECONDS)
     validateNonNeg(timeInSeconds, conf)
-    if (conf == QUERY_TABLE_VERSION_INTERVAL_SECONDS && timeInSeconds < 30) {
-      throw new IllegalArgumentException(conf + " must not be less than 30 seconds.")
+    if (conf == QUERY_TABLE_VERSION_INTERVAL_SECONDS &&
+      timeInSeconds < MINIMUM_TABLE_VERSION_INTERVAL_SECONDS) {
+      throw new IllegalArgumentException(
+        conf + s" must not be less than $MINIMUM_TABLE_VERSION_INTERVAL_SECONDS seconds.")
     }
     if (timeInSeconds > Int.MaxValue) {
       throw new IllegalArgumentException(conf + " is too big: " + timeStr)
