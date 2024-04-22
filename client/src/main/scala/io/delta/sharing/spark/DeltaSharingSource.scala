@@ -148,6 +148,7 @@ case class DeltaSharingSource(
     val interval = 10000.max(
       ConfUtils.streamingQueryTableVersionIntervalSeconds(spark.sessionState.conf) * 1000
     )
+    logInfo(s"Configured queryTableVersionIntervalSeconds:${interval/1000}.")
     if (interval < 10000) {
       throw new IllegalArgumentException(s"QUERY_TABLE_VERSION_INTERVAL_MILLIS($interval) must " +
         "not be less than 10 seconds.")
@@ -173,6 +174,7 @@ case class DeltaSharingSource(
     if (lastGetVersionTimestamp == -1 ||
       (currentTimeMillis - lastGetVersionTimestamp) >= QUERY_TABLE_VERSION_INTERVAL_MILLIS) {
       val serverVersion = deltaLog.client.getTableVersion(deltaLog.table)
+      logInfo(s"Got table version $serverVersion from Delta Sharing Server.")
       if (serverVersion < 0) {
         throw new IllegalStateException(s"Delta Sharing Server returning negative table version:" +
           s"$serverVersion.")

@@ -171,8 +171,8 @@ object ConfUtils {
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {
     val timeInSeconds = JavaUtils.timeStringAs(timeStr, TimeUnit.SECONDS)
     validateNonNeg(timeInSeconds, conf)
-    if (conf == QUERY_TABLE_VERSION_INTERVAL_SECONDS && timeInSeconds < 30) {
-      throw new IllegalArgumentException(conf + " must not be less than 30 seconds.")
+    if (conf == QUERY_TABLE_VERSION_INTERVAL_SECONDS && timeInSeconds < 10) {
+      throw new IllegalArgumentException(conf + " must not be less than 10 seconds.")
     }
     if (timeInSeconds > Int.MaxValue) {
       throw new IllegalArgumentException(conf + " is too big: " + timeStr)
