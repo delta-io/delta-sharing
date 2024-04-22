@@ -145,15 +145,15 @@ case class DeltaSharingSource(
   private var latestTableVersion: Long = -1
   // minimum 10 seconds
   private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = {
-    val interval = 10000.max(
-      ConfUtils.streamingQueryTableVersionIntervalSeconds(spark.sessionState.conf) * 1000
+    val intervalSeconds = ConfUtils.MINIMUM_TABLE_VERSION_INTERVAL_SECONDS.max(
+      ConfUtils.streamingQueryTableVersionIntervalSeconds(spark.sessionState.conf)
     )
-    logInfo(s"Configured queryTableVersionIntervalSeconds:${interval/1000}.")
-    if (interval < 10000) {
-      throw new IllegalArgumentException(s"QUERY_TABLE_VERSION_INTERVAL_MILLIS($interval) must " +
-        "not be less than 10 seconds.")
+    logInfo(s"Configured queryTableVersionIntervalSeconds:${intervalSeconds}.")
+    if (intervalSeconds < ConfUtils.MINIMUM_TABLE_VERSION_INTERVAL_SECONDS) {
+      throw new IllegalArgumentException(s"QUERY_TABLE_VERSION_INTERVAL_MILLIS($intervalSeconds) " +
+        s"must not be less than ${ConfUtils.MINIMUM_TABLE_VERSION_INTERVAL_SECONDS} seconds.")
     }
-    interval
+    intervalSeconds * 1000
   }
   private val maxVersionsPerRpc: Int = options.maxVersionsPerRpc.getOrElse(
     DeltaSharingOptions.MAX_VERSIONS_PER_RPC_DEFAULT
