@@ -70,8 +70,18 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val httpRequest = new HttpGet("random_url")
 
     def checkUserAgent(request: HttpRequestBase, containsStreaming: Boolean): Unit = {
-      val h = request.getFirstHeader(HttpHeaders.USER_AGENT)
-      assert(h.getValue.contains(SPARK_STRUCTURED_STREAMING) == containsStreaming)
+      val h = request.getFirstHeader(HttpHeaders.USER_AGENT).getValue
+      if (containsStreaming) {
+        assert(h.contains(SPARK_STRUCTURED_STREAMING) == containsStreaming)
+      } else {
+        assert(!h.contains(SPARK_STRUCTURED_STREAMING))
+        assert(h.contains("Delta-Sharing-Spark"))
+      }
+
+      assert(h.contains(" QueryId-"))
+      assert(h.contains(" Hadoop/"))
+      assert(h.contains(" Linux/"))
+      assert(h.contains(" java/"))
     }
 
     def checkDeltaSharingCapabilities(request: HttpRequestBase, expected: String): Unit = {
