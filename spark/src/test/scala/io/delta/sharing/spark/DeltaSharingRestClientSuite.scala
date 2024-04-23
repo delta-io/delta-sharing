@@ -41,12 +41,17 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val httpRequest = new HttpGet("random_url")
 
     val client = new DeltaSharingRestClient(testProfileProvider, forStreaming = false)
-    var h = client.prepareHeaders(httpRequest).getFirstHeader(HttpHeaders.USER_AGENT)
-    assert(!h.getValue.contains(DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING))
+    var h = client.prepareHeaders(httpRequest).getFirstHeader(HttpHeaders.USER_AGENT).getValue
+    assert(!h.contains(DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING))
+    assert(h.contains("Delta-Sharing-Spark"))
+    assert(h.contains(" QueryId-"))
+    assert(h.contains(" Hadoop/"))
+    assert(h.contains(" Linux/"))
+    assert(h.contains(" java/"))
 
     val streamingClient = new DeltaSharingRestClient(testProfileProvider, forStreaming = true)
-    h = streamingClient.prepareHeaders(httpRequest).getFirstHeader(HttpHeaders.USER_AGENT)
-    assert(h.getValue.contains(DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING))
+    h = streamingClient.prepareHeaders(httpRequest).getFirstHeader(HttpHeaders.USER_AGENT).getValue
+    assert(h.contains(DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING))
   }
 
   integrationTest("listAllTables") {
