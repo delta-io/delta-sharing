@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.sql.Timestamp
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter.ISO_DATE_TIME
+import java.util.UUID
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
@@ -129,6 +130,8 @@ class DeltaSharingRestClient(
 
   // Convert the responseFormat to a Seq to be used later.
   private val responseFormatSet = responseFormat.split(",").toSet
+
+  private var queryId: Option[String] = None
 
   private lazy val client = {
     val clientBuilder: HttpClientBuilder = if (sslTrustAll) {
@@ -812,6 +815,8 @@ class DeltaSharingRestClient(
       allowNoContent: Boolean = false,
       fetchAsOneString: Boolean = false
   ): (Option[Long], Option[String], Seq[String]) = {
+    // Reset queryId before calling RetryUtils, and before prepareHeaders.
+    queryId = Some(UUID.randomUUID().toString().split('-').head)
     RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
       val profile = profileProvider.getProfile
       val response = client.execute(
@@ -890,7 +895,11 @@ class DeltaSharingRestClient(
     } else {
       "Delta-Sharing-Spark"
     }
-    s"$sparkAgent/$VERSION" + USER_AGENT
+    s"$sparkAgent/$VERSION" + s" $sparkVersionString" + s" $getQueryIdString" + USER_AGENT
+  }
+
+  private def getQueryIdString: String = {
+    s"QueryId-${queryId.getOrElse("not_set")}"
   }
 
   // The value for delta-sharing-capabilities header, semicolon separated capabilities.
@@ -927,7 +936,6 @@ object DeltaSharingRestClient extends Logging {
 
   lazy val USER_AGENT = {
     try {
-      s" $sparkVersionString" +
         s" Hadoop/${VersionInfo.getVersion()}" +
         s" ${spaceFreeProperty("os.name")}/${spaceFreeProperty("os.version")}" +
         s" ${spaceFreeProperty("java.vm.name")}/${spaceFreeProperty("java.vm.version")}" +

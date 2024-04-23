@@ -1126,7 +1126,10 @@ case class DeltaSharingSource(
       }
       Some(v)
     } else if (options.startingTimestamp.isDefined) {
-      Some(deltaLog.client.getTableVersion(deltaLog.table, options.startingTimestamp))
+      val version = deltaLog.client.getTableVersion(deltaLog.table, options.startingTimestamp)
+      logInfo(s"Got table version $version for timestamp ${options.startingTimestamp} " +
+        s"from Delta Sharing Server.")
+      Some(version)
     } else {
       None
     }
