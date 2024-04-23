@@ -899,7 +899,7 @@ class DeltaSharingRestClient(
   }
 
   private def getQueryIdString: String = {
-    s" QueryId-${queryId.getOrElse("not_set")}"
+    s"QueryId-${queryId.getOrElse("not_set")}"
   }
 
   // The value for delta-sharing-capabilities header, semicolon separated capabilities.
