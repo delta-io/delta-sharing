@@ -254,7 +254,7 @@ class SharingClient:
         else:
             self._profile = DeltaSharingProfile.read_from_file(profile)
 
-        self._rest_client = DataSharingRestClient(profile)
+        self._rest_client = DataSharingRestClient(self._profile)
 
     def __list_all_tables_in_share(self, share: Share) -> Sequence[Table]:
         tables: List[Table] = []
