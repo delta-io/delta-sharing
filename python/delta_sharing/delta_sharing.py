@@ -246,10 +246,14 @@ class SharingClient:
     A Delta Sharing client to query shares/schemas/tables from a Delta Sharing Server.
     """
 
-    def __init__(self, profile: Union[str, BinaryIO, TextIO, Path, DeltaSharingProfile]):
-        if not isinstance(profile, DeltaSharingProfile):
-            profile = DeltaSharingProfile.read_from_file(profile)
-        self._profile = profile
+    def __init__(self, profile: Union[str, dict, BinaryIO, TextIO, Path, DeltaSharingProfile]):
+        if isinstance(profile, DeltaSharingProfile):
+            self._profile = profile
+        elif isinstance(profile, dict):
+            self._profile = DeltaSharingProfile.from_json(profile)
+        else:
+            self._profile = DeltaSharingProfile.read_from_file(profile)
+
         self._rest_client = DataSharingRestClient(profile)
 
     def __list_all_tables_in_share(self, share: Share) -> Sequence[Table]:
