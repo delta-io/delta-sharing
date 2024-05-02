@@ -105,7 +105,7 @@ The Apache Spark Connector implements the [Delta Sharing Protocol](PROTOCOL.md) 
 
 - Java 8+
 - Scala 2.12.x
-- Apache Spark 3+ or [Databricks Runtime](https://docs.databricks.com/runtime/dbr.html) 7+
+- Apache Spark 3+ or [Databricks Runtime](https://docs.databricks.com/runtime/dbr.html) 9+
 
 ## Accessing Shared Data
 
@@ -127,13 +127,13 @@ To use Delta Sharing connector interactively within the Spark’s Scala/Python s
 #### PySpark shell
 
 ```
-pyspark --packages io.delta:delta-sharing-spark_2.12:0.6.4
+pyspark --packages io.delta:delta-sharing-spark_2.12:3.1.0
 ```
 
 #### Scala Shell
 
 ```
-bin/spark-shell --packages io.delta:delta-sharing-spark_2.12:0.6.4
+bin/spark-shell --packages io.delta:delta-sharing-spark_2.12:3.1.0
 ```
 
 ### Set up a standalone project
@@ -148,7 +148,7 @@ You include Delta Sharing connector in your Maven project by adding it as a depe
 <dependency>
   <groupId>io.delta</groupId>
   <artifactId>delta-sharing-spark_2.12</artifactId>
-  <version>0.6.4</version>
+  <version>3.1.0</version>
 </dependency>
 ```
 
@@ -157,7 +157,7 @@ You include Delta Sharing connector in your Maven project by adding it as a depe
 You include Delta Sharing connector in your SBT project by adding the following line to your `build.sbt` file:
 
 ```scala
-libraryDependencies += "io.delta" %% "delta-sharing-spark" % "0.6.4"
+libraryDependencies += "io.delta" %% "delta-sharing-spark" % "3.1.0"
 ```
 
 ## Quick Start
@@ -517,7 +517,7 @@ You can use the pre-built docker image from https://hub.docker.com/r/deltaio/del
 ```
 docker run -p <host-port>:<container-port> \
   --mount type=bind,source=<the-server-config-yaml-file>,target=/config/delta-sharing-server-config.yaml \
-  deltaio/delta-sharing-server:0.6.4 -- --config /config/delta-sharing-server-config.yaml
+  deltaio/delta-sharing-server:0.7.8 -- --config /config/delta-sharing-server-config.yaml
 ```
 
 Note that `<container-port>` should be the same as the port defined inside the config file.
