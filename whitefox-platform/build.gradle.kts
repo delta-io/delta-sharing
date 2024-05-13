@@ -23,7 +23,7 @@ dependencies {
         api("org.apache.spark:spark-sql_2.13:3.5.1")
         api("org.apache.iceberg:iceberg-api:1.5.1")
         api("org.apache.iceberg:iceberg-core:1.5.1")
-        api("org.apache.iceberg:iceberg-aws:1.5.1")
+        api("org.apache.iceberg:iceberg-aws:1.5.2")
         api("software.amazon.awssdk:bom:2.25.44")
         api("software.amazon.awssdk:glue:2.25.44")
         api("software.amazon.awssdk:sts:2.25.44")
