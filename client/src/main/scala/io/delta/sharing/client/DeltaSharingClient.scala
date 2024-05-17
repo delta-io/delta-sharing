@@ -31,9 +31,9 @@ import org.apache.commons.io.IOUtils
 import org.apache.commons.io.input.BoundedInputStream
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.util.VersionInfo
-import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
+import org.apache.http.{HttpHeaders, HttpHost, HttpStatus, ProtocolVersion}
 import org.apache.http.client.config.RequestConfig
-import org.apache.http.client.methods.{HttpGet, HttpHead, HttpPost, HttpRequestBase}
+import org.apache.http.client.methods.{HttpGet, HttpPost, HttpRequestBase}
 import org.apache.http.client.protocol.HttpClientContext
 import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, TrustSelfSignedStrategy}
 import org.apache.http.entity.StringEntity
@@ -801,6 +801,12 @@ class DeltaSharingRestClient(
     httpRequest
   }
 
+  private def logLog(str: String): Unit = {
+    // scalastyle:off println
+    Console.println(str)
+    logWarning(str)
+  }
+
   /**
    * Send the http request and return the table version in the header if any, and the response
    * content.
@@ -819,13 +825,17 @@ class DeltaSharingRestClient(
     queryId = Some(UUID.randomUUID().toString().split('-').head)
     RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
       val profile = profileProvider.getProfile
+//      httpRequest.setProtocolVersion(new ProtocolVersion("HTTP", 2, 0))
+      logLog(s"----[linzhou]----request:$httpRequest")
       val response = client.execute(
         getHttpHost(profile.endpoint),
         prepareHeaders(httpRequest),
         HttpClientContext.create()
       )
+      logLog(s"----[linzhou]----response:$response")
       try {
         val status = response.getStatusLine()
+        logLog(s"----[linzhou]----status:$status")
         val entity = response.getEntity()
         val lines = if (entity == null) {
           List("")
