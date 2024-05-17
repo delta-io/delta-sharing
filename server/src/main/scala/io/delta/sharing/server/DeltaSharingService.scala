@@ -43,7 +43,7 @@ import org.slf4j.LoggerFactory
 import scalapb.json4s.Printer
 
 import io.delta.sharing.server.config.ServerConfig
-import io.delta.sharing.server.model.SingleAction
+import io.delta.sharing.server.model.{QueryStatus, SingleAction}
 import io.delta.sharing.server.protocol._
 import io.delta.sharing.server.util.JsonUtils
 
@@ -325,6 +325,45 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
   }
 
+
+  @Post("/shares/{share}/schemas/{schema}/tables/{table}/queries/{queryId}")
+  @ConsumesJson
+  def getQueryStatus(
+                 req: HttpRequest,
+                 @Param("share") share: String,
+                 @Param("schema") schema: String,
+                 @Param("table") table: String,
+                 @Param("queryId") queryId: String,
+                 request: GetQueryInfoRequest): HttpResponse = processRequest {
+
+    // we are reusing the table here to simulate a view query result
+    val tableConfig = sharedTableManager.getTable(share, schema, table)
+    val capabilitiesMap = getDeltaSharingCapabilitiesMap(
+      req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER))
+    val responseFormatSet = getResponseFormatSet(capabilitiesMap)
+    val queryResult = deltaSharedTableLoader.loadTable(tableConfig).query(
+      includeFiles = true,
+      Seq.empty[String],
+      None,
+      None,
+      None,
+      None,
+      None,
+      None,
+      maxFiles = request.maxFiles,
+      pageToken = request.pageToken,
+      false,
+      None,
+      responseFormatSet = responseFormatSet)
+    if (queryResult.version < tableConfig.startVersion) {
+      throw new DeltaSharingIllegalArgumentException(
+        s"You can only query table data since version ${tableConfig.startVersion}."
+      )
+    }
+
+    streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
+  }
+
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/query")
   @ConsumesJson
   def listFiles(
@@ -396,28 +435,47 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       }
     }
     val responseFormatSet = getResponseFormatSet(capabilitiesMap)
-    val queryResult = deltaSharedTableLoader.loadTable(tableConfig).query(
-      includeFiles = true,
-      request.predicateHints,
-      request.jsonPredicateHints,
-      request.limitHint,
-      request.version,
-      request.timestamp,
-      request.startingVersion,
-      request.endingVersion,
-      request.maxFiles,
-      request.pageToken,
-      request.includeRefreshToken.getOrElse(false),
-      request.refreshToken,
-      responseFormatSet = responseFormatSet)
-    if (queryResult.version < tableConfig.startVersion) {
-      throw new DeltaSharingIllegalArgumentException(
-        s"You can only query table data since version ${tableConfig.startVersion}."
-      )
+
+    if(getAsyncQuery(capabilitiesMap)) {
+      if (!request.idempotencyKey.isDefined) {
+        throw new DeltaSharingIllegalArgumentException(
+          "idempotencyKey is required for async query."
+        )
+      }
+
+      val queryId = s"${share}_${schema}_${table}"
+
+      streamingOutput(
+        Some(0),
+        "parquet",
+        Seq(
+        SingleAction(queryStatus = QueryStatus(queryId, "pending"))
+      ))
     }
-    logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
-      s"and sign ${queryResult.actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
+    else {
+      val queryResult = deltaSharedTableLoader.loadTable(tableConfig).query(
+        includeFiles = true,
+        request.predicateHints,
+        request.jsonPredicateHints,
+        request.limitHint,
+        request.version,
+        request.timestamp,
+        request.startingVersion,
+        request.endingVersion,
+        request.maxFiles,
+        request.pageToken,
+        request.includeRefreshToken.getOrElse(false),
+        request.refreshToken,
+        responseFormatSet = responseFormatSet)
+      if (queryResult.version < tableConfig.startVersion) {
+        throw new DeltaSharingIllegalArgumentException(
+          s"You can only query table data since version ${tableConfig.startVersion}."
+        )
+      }
+      logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
+        s"and sign ${queryResult.actions.length - 2} urls for table $share/$schema/$table")
+      streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
+    }
   }
 
   // scalastyle:off argcount
@@ -503,6 +561,7 @@ object DeltaSharingService {
   val DELTA_TABLE_METADATA_CONTENT_TYPE = "application/x-ndjson; charset=utf-8"
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
   val DELTA_SHARING_RESPONSE_FORMAT = "responseformat"
+  val DELTA_SHARING_CAPABILITIES_ASYNC_QUERY = "asyncquery"
 
   private val parser = {
     val parser = ArgumentParsers
@@ -625,7 +684,11 @@ object DeltaSharingService {
   private[server] def getResponseFormatSet(headerCapabilities: Map[String, String]): Set[String] = {
     headerCapabilities.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse(
       DeltaSharedTable.RESPONSE_FORMAT_PARQUET
-    ).split(",").toSet
+    ).split(";").toSet
+  }
+
+  private[server] def getAsyncQuery(headerCapabilities: Map[String, String]): Boolean = {
+    headerCapabilities.get(DELTA_SHARING_CAPABILITIES_ASYNC_QUERY).exists(_.toBoolean)
   }
 
   def main(args: Array[String]): Unit = {

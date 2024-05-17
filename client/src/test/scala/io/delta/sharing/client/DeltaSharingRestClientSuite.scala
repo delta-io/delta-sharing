@@ -293,7 +293,68 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     assert(errorMessage.contains("is before the earliest version available"))
   }
 
-  integrationTest("getFiles") {
+  integrationTest("getFiles using async api") {
+    def verifyTableFiles(tableFiles: DeltaTableFiles): Unit = {
+      assert(tableFiles.version == 2)
+      assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
+      val expectedMetadata = Metadata(
+        id = "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+        format = Format(),
+        schemaString =
+          """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
+        partitionColumns = Seq("date")
+      )
+      assert(expectedMetadata == tableFiles.metadata)
+      assert(tableFiles.files.size == 2)
+      val expectedFiles = Seq(
+        AddFile(
+          url = tableFiles.files(0).url,
+          expirationTimestamp = tableFiles.files(0).expirationTimestamp,
+          id = "9f1a49539c5cffe1ea7f9e055d5c003c",
+          partitionValues = Map("date" -> "2021-04-28"),
+          size = 573,
+          stats =
+            """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:57.955Z"},"maxValues":{"eventTime":"2021-04-28T23:33:57.955Z"},"nullCount":{"eventTime":0}}"""
+        ),
+        AddFile(
+          url = tableFiles.files(1).url,
+          expirationTimestamp = tableFiles.files(1).expirationTimestamp,
+          id = "cd2209b32f5ed5305922dd50f5908a75",
+          partitionValues = Map("date" -> "2021-04-28"),
+          size = 573,
+          stats =
+            """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"maxValues":{"eventTime":"2021-04-28T23:33:48.719Z"},"nullCount":{"eventTime":0}}"""
+        )
+      )
+      assert(expectedFiles == tableFiles.files.toList)
+      assert(tableFiles.files(0).expirationTimestamp > System.currentTimeMillis())
+    }
+
+    Seq(false, true).foreach { paginationEnabled => {}
+      val client = new DeltaSharingRestClient(
+        testProfileProvider,
+        sslTrustAll = true,
+        queryTablePaginationEnabled = paginationEnabled,
+        maxFilesPerReq = 1,
+        responseFormat = RESPONSE_FORMAT_PARQUET,
+        enableAsyncQuery = true
+      )
+      val table = Table(name = "table2", schema = "default", share = "share2")
+        val tableFiles =
+          client.getFiles(
+            table,
+            predicates = Nil,
+            limit = None,
+            versionAsOf = None,
+            timestampAsOf = None,
+            jsonPredicateHints = None,
+            refreshToken = None
+          )
+        verifyTableFiles(tableFiles)
+      }
+  }
+
+  integrationTest("getFiles with Async") {
     def verifyTableFiles(tableFiles: DeltaTableFiles): Unit = {
       assert(tableFiles.version == 2)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
@@ -340,40 +401,47 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       s"${RESPONSE_FORMAT_DELTA},${RESPONSE_FORMAT_PARQUET}",
       s"${RESPONSE_FORMAT_PARQUET},${RESPONSE_FORMAT_DELTA}"
     ).foreach { responseFormat =>
-      Seq(true, false).foreach { paginationEnabled =>
-        val client = new DeltaSharingRestClient(
-          testProfileProvider,
-          sslTrustAll = true,
-          queryTablePaginationEnabled = paginationEnabled,
-          maxFilesPerReq = 1,
-          responseFormat = responseFormat
-        )
-        val table = Table(name = "table2", schema = "default", share = "share2")
-        try {
-          val tableFiles =
-            client.getFiles(
-              table,
-              predicates = Nil,
-              limit = None,
-              versionAsOf = None,
-              timestampAsOf = None,
-              jsonPredicateHints = None,
-              refreshToken = None
-            )
-          verifyTableFiles(tableFiles)
-          val refreshedTableFiles =
-            client.getFiles(
-              table,
-              predicates = Nil,
-              limit = None,
-              versionAsOf = None,
-              timestampAsOf = None,
-              jsonPredicateHints = None,
-              refreshToken = tableFiles.refreshToken
-            )
-          verifyTableFiles(refreshedTableFiles)
-        } finally {
-          client.close()
+      Seq(false).foreach { paginationEnabled =>
+        Seq(true).foreach { asyncEnabled => {
+          val client = new DeltaSharingRestClient(
+            testProfileProvider,
+            sslTrustAll = true,
+            queryTablePaginationEnabled = paginationEnabled,
+            maxFilesPerReq = 1,
+            responseFormat = responseFormat,
+            enableAsyncQuery = asyncEnabled
+          )
+          val table = Table(name = "table2", schema = "default", share = "share2")
+          try {
+            val tableFiles =
+              client.getFiles(
+                table,
+                predicates = Nil,
+                limit = None,
+                versionAsOf = None,
+                timestampAsOf = None,
+                jsonPredicateHints = None,
+                refreshToken = None
+              )
+            verifyTableFiles(tableFiles)
+
+            if(tableFiles.refreshToken.isDefined) {
+              val refreshedTableFiles =
+                client.getFiles(
+                  table,
+                  predicates = Nil,
+                  limit = None,
+                  versionAsOf = None,
+                  timestampAsOf = None,
+                  jsonPredicateHints = None,
+                  refreshToken = tableFiles.refreshToken
+                )
+              verifyTableFiles(refreshedTableFiles)
+            }
+          } finally {
+            client.close()
+          }
+        }
         }
       }
     }

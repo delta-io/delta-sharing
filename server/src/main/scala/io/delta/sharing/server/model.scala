@@ -26,6 +26,7 @@ case class SingleAction(
     remove: RemoveFile = null,
     metaData: Metadata = null,
     protocol: Protocol = null,
+    queryStatus: QueryStatus = null,
     endStreamAction: EndStreamAction = null) {
 
   def unwrap: Action = {
@@ -43,6 +44,8 @@ case class SingleAction(
       protocol
     } else if (endStreamAction != null) {
       endStreamAction
+    } else if (queryStatus != null) {
+      queryStatus
     } else {
       null
     }
@@ -62,6 +65,13 @@ case class Metadata(
     version: java.lang.Long = null) extends Action {
 
   override def wrap: SingleAction = SingleAction(metaData = this)
+}
+
+case class QueryStatus(
+      queryId: String = null,
+      status: String = null
+      ) extends  Action {
+  override def wrap: SingleAction = SingleAction(queryStatus = this)
 }
 
 sealed trait Action {

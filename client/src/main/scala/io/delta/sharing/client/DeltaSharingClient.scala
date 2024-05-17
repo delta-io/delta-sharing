@@ -16,7 +16,7 @@
 
 package io.delta.sharing.client
 
-import java.io.{BufferedReader, InputStream, InputStreamReader}
+import java.io.{BufferedReader, InputStreamReader}
 import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.sql.Timestamp
@@ -24,7 +24,6 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter.ISO_DATE_TIME
 import java.util.UUID
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 import org.apache.commons.io.IOUtils
@@ -33,7 +32,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.util.VersionInfo
 import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
 import org.apache.http.client.config.RequestConfig
-import org.apache.http.client.methods.{HttpGet, HttpHead, HttpPost, HttpRequestBase}
+import org.apache.http.client.methods.{HttpGet, HttpPost, HttpRequestBase}
 import org.apache.http.client.protocol.HttpClientContext
 import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, TrustSelfSignedStrategy}
 import org.apache.http.entity.StringEntity
@@ -88,6 +87,16 @@ private[sharing] trait PaginationResponse {
   def nextPageToken: Option[String]
 }
 
+private[sharing] trait PaginationRequest {
+  def maxFiles: Option[Int]
+  def pageToken: Option[String]
+
+  def clone(
+     maxFiles: Option[Int],
+     pageToken: Option[String],
+     unsetRefreshToken: Boolean = false): PaginationRequest
+}
+
 private[sharing] case class QueryTableRequest(
   predicateHints: Seq[String],
   limitHint: Option[Long],
@@ -99,8 +108,39 @@ private[sharing] case class QueryTableRequest(
   maxFiles: Option[Int],
   pageToken: Option[String],
   includeRefreshToken: Option[Boolean],
-  refreshToken: Option[String]
-)
+  refreshToken: Option[String],
+  idempotencyKey: Option[String],
+  requestedColumns: Seq[String]
+) extends PaginationRequest {
+  override def clone(
+        maxFiles: Option[Int],
+        pageToken: Option[String],
+        unsetRefreshToken: Boolean = false): PaginationRequest = {
+    if (unsetRefreshToken) {
+      this.copy(
+        maxFiles = maxFiles,
+        pageToken = pageToken,
+        refreshToken = None,
+        includeRefreshToken = None)
+    }
+    else {
+      this.copy(maxFiles = maxFiles, pageToken = pageToken)
+    }
+  }
+}
+
+private[sharing] case class GetQueryInfoRequest(
+  queryId: String,
+  maxFiles: Option[Int],
+  pageToken: Option[String]
+  ) extends PaginationRequest {
+  override def clone(
+      maxFiles: Option[Int],
+      pageToken: Option[String],
+      unsetRefreshToken: Boolean = false): PaginationRequest = {
+    this.copy(maxFiles = maxFiles, pageToken = pageToken)
+  }
+}
 
 private[sharing] case class ListSharesResponse(
     items: Seq[Share],
@@ -112,16 +152,19 @@ private[sharing] case class ListAllTablesResponse(
 
 /** A REST client to fetch Delta metadata from remote server. */
 class DeltaSharingRestClient(
-    profileProvider: DeltaSharingProfileProvider,
-    timeoutInSeconds: Int = 120,
-    numRetries: Int = 10,
-    maxRetryDuration: Long = Long.MaxValue,
-    sslTrustAll: Boolean = false,
-    forStreaming: Boolean = false,
-    responseFormat: String = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
-    readerFeatures: String = "",
-    queryTablePaginationEnabled: Boolean = false,
-    maxFilesPerReq: Int = 100000
+      profileProvider: DeltaSharingProfileProvider,
+      timeoutInSeconds: Int = 120,
+      numRetries: Int = 10,
+      maxRetryDuration: Long = Long.MaxValue,
+      sslTrustAll: Boolean = false,
+      forStreaming: Boolean = false,
+      responseFormat: String = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
+      readerFeatures: String = "",
+      queryTablePaginationEnabled: Boolean = false,
+      maxFilesPerReq: Int = 100000,
+      enableAsyncQuery: Boolean = false,
+      asyncQueryPollIntervalMillis: Long = 1000L,
+      asyncQueryMaxDuration: Long = Long.MaxValue
   ) extends DeltaSharingClient with Logging {
 
   import DeltaSharingRestClient._
@@ -264,6 +307,7 @@ class DeltaSharingRestClient(
       table = s"${table.share}.${table.schema}.${table.name}"
     )
 
+
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(version, lines = lines, respondedFormat = respondedFormat)
     }
@@ -300,6 +344,13 @@ class DeltaSharingRestClient(
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
+
+    val idempotencyKey = if (enableAsyncQuery) {
+      Some(UUID.randomUUID().toString)
+    } else {
+      None
+    }
+
     val request: QueryTableRequest = QueryTableRequest(
       predicateHints = predicates,
       limitHint = limit,
@@ -311,16 +362,18 @@ class DeltaSharingRestClient(
       maxFiles = None,
       pageToken = None,
       includeRefreshToken = Some(includeRefreshToken),
-      refreshToken = refreshToken
+      refreshToken = refreshToken,
+      idempotencyKey = idempotencyKey,
+      requestedColumns = Seq.empty[String]
     )
     val (version, respondedFormat, lines, refreshTokenOpt) = if (queryTablePaginationEnabled) {
       logInfo(
         s"Making paginated queryTable requests for table " +
         s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
       )
-      getFilesByPage(target, request)
+      getFilesByPage(table, target, request)
     } else {
-      val (version, respondedFormat, lines) = getNDJson(target, request)
+      val (version, respondedFormat, lines, _) = getNDJsonWithAsync(table, target, request)
       val (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
       val refreshTokenOpt = endStreamAction.flatMap { e =>
         Option(e.refreshToken).flatMap { token =>
@@ -391,14 +444,16 @@ class DeltaSharingRestClient(
       maxFiles = None,
       pageToken = None,
       includeRefreshToken = None,
-      refreshToken = None
+      refreshToken = None,
+      idempotencyKey = None,
+      requestedColumns = Seq.empty[String]
     )
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       logInfo(
         s"Making paginated queryTable from version $startingVersion requests for table " +
         s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
       )
-      val (version, respondedFormat, lines, _) = getFilesByPage(target, request)
+      val (version, respondedFormat, lines, _) = getFilesByPage(table, target, request)
       (version, respondedFormat, lines)
     } else {
       getNDJson(target, request)
@@ -442,6 +497,7 @@ class DeltaSharingRestClient(
   // Send paginated queryTable requests. Loop internally to fetch and concatenate all pages,
   // then return (version, respondedFormat, actions, refreshToken) tuple.
   private def getFilesByPage(
+      table: Table,
       targetUrl: String,
       request: QueryTableRequest): (Long, String, Seq[String], Option[String]) = {
     val allLines = ArrayBuffer[String]()
@@ -449,12 +505,17 @@ class DeltaSharingRestClient(
     var numPages = 1
 
     // Fetch first page
-    var updatedRequest = request.copy(maxFiles = Some(maxFilesPerReq))
-    val (version, respondedFormat, lines) = getNDJson(targetUrl, updatedRequest)
+    val updatedRequest = request.copy(
+      maxFiles = Some(maxFilesPerReq),
+      pageToken = request.pageToken)
+
+    val (version, respondedFormat, lines, queryIdOpt)
+    = getNDJsonWithAsync(table, targetUrl, updatedRequest)
     var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
     if (endStreamAction.isEmpty) {
       logWarning("EndStreamAction is not returned in the response for paginated query.")
     }
+
     val protocol = filteredLines(0)
     val metadata = filteredLines(1)
     // Extract refresh token if available
@@ -473,16 +534,32 @@ class DeltaSharingRestClient(
       endStreamAction.get.nextPageToken != null &&
       endStreamAction.get.nextPageToken.nonEmpty) {
       numPages += 1
-      updatedRequest = updatedRequest.copy(
-        pageToken = Some(endStreamAction.get.nextPageToken),
-        // Unset includeRefreshToken and refreshToken because they can only be used in
-        // the first page request.
-        includeRefreshToken = None,
-        refreshToken = None
-      )
+
+      val (pagingRequest, nextPageUrl) = if (queryIdOpt.isDefined) {
+        (
+          GetQueryInfoRequest(
+            queryId = queryIdOpt.get,
+            maxFiles = Some(maxFilesPerReq),
+            pageToken = Some(endStreamAction.get.nextPageToken)),
+          getQueryInfoTargetUrl(table, queryIdOpt.get)
+        )
+      } else {
+        (
+          updatedRequest.clone(
+            maxFiles = Some(maxFilesPerReq),
+            pageToken = Some(endStreamAction.get.nextPageToken),
+            // Unset includeRefreshToken and refreshToken
+            // because they can only be used in
+            // the first page request.
+            unsetRefreshToken = true
+          ),
+          targetUrl
+        )
+      }
+
       val res = fetchNextPageFiles(
-        targetUrl = targetUrl,
-        requestBody = Some(updatedRequest),
+        targetUrl = nextPageUrl,
+        requestBody = Some(pagingRequest),
         expectedVersion = version,
         expectedRespondedFormat = respondedFormat,
         expectedProtocol = protocol,
@@ -629,7 +706,7 @@ class DeltaSharingRestClient(
   // if it's not returned in the response.
   private def fetchNextPageFiles(
       targetUrl: String,
-      requestBody: Option[QueryTableRequest],
+      requestBody: Option[PaginationRequest],
       expectedVersion: Long,
       expectedRespondedFormat: String,
       expectedProtocol: String,
@@ -718,6 +795,77 @@ class DeltaSharingRestClient(
       lines
     )
   }
+
+  private def getQueryInfoTargetUrl(table: Table, queryId: String) = {
+    val shareName = URLEncoder.encode(table.share, "UTF-8")
+    val schemaName = URLEncoder.encode(table.schema, "UTF-8")
+    val tableName = URLEncoder.encode(table.name, "UTF-8")
+    val encodedQueryId = URLEncoder.encode(queryId, "UTF-8")
+    val target = getTargetUrl(
+      s"/shares/$shareName/schemas/$schemaName/tables/$tableName/queries/$encodedQueryId")
+    target
+  }
+
+  private def getQueryInfo(
+              table: Table,
+              queryId: String,
+              maxFiles: Option[Int],
+              pageToken: Option[String]): (Long, String, Seq[String]) = {
+    val target: String = getQueryInfoTargetUrl(table, queryId)
+    val request: GetQueryInfoRequest = GetQueryInfoRequest(
+      queryId = queryId,
+      maxFiles = maxFiles,
+      pageToken = pageToken)
+
+    getNDJson(target, request)
+  }
+
+  private def checkQueryPending(lines: Seq[String]): (Seq[String], Option[String], Boolean) = {
+    val queryStatus = JsonUtils.fromJson[SingleAction](lines(0)).queryStatus
+
+    if(queryStatus == null) {
+        (lines, None, false)
+      } else {
+      (lines.drop(1), Some(queryStatus.queryId), queryStatus.status == QUERY_PENDING_TRUE)
+    }
+  }
+
+  private def getNDJsonWithAsync(
+                table: Table,
+                target: String,
+                request: QueryTableRequest): (Long, String, Seq[String], Option[String]) = {
+    // Initial query to get NDJson data
+    val (initialVersion, initialRespondedFormat, initialLines) = getNDJson(target, request)
+
+    // Check if the query is still pending
+    var (lines, queryIdOpt, queryPending) = checkQueryPending(initialLines)
+
+    var version = initialVersion
+    var respondedFormat = initialRespondedFormat
+
+    val startTime = System.currentTimeMillis()
+    // Loop while the query is pending
+    while (queryPending) {
+      if (System.currentTimeMillis() - startTime > asyncQueryMaxDuration) {
+        throw new IllegalStateException("Query is still pending after " +
+          s"${asyncQueryMaxDuration} ms. Please try again later.")
+      }
+    Thread.sleep(asyncQueryPollIntervalMillis)
+
+      val queryId = queryIdOpt.get
+      val (currentVersion, currentRespondedFormat, currentLines)
+        = getQueryInfo(table, queryId, request.maxFiles, request.pageToken)
+      val (newLines, _, newQueryPending) = checkQueryPending(currentLines)
+
+      version = currentVersion
+      respondedFormat = currentRespondedFormat
+      lines = newLines
+      queryPending = newQueryPending
+    }
+
+    (version, respondedFormat, lines, queryIdOpt)
+  }
+
 
   private def getNDJson[T: Manifest](target: String, data: T): (Long, String, Seq[String]) = {
     val httpPost = new HttpPost(target)
@@ -910,7 +1058,13 @@ class DeltaSharingRestClient(
     if (responseFormatSet.contains(RESPONSE_FORMAT_DELTA) && readerFeatures.nonEmpty) {
       capabilities = capabilities :+ s"$READER_FEATURES=$readerFeatures"
     }
-    capabilities.mkString(DELTA_SHARING_CAPABILITIES_DELIMITER)
+
+    if(enableAsyncQuery) {
+     capabilities = capabilities :+ s"$DELTA_SHARING_CAPABILITIES_ASYNC_READ=true"
+    }
+
+    val cap = capabilities.mkString(DELTA_SHARING_CAPABILITIES_DELIMITER)
+    cap
   }
 
   def close(): Unit = {
@@ -930,9 +1084,11 @@ object DeltaSharingRestClient extends Logging {
   val RESPONSE_TABLE_VERSION_HEADER_KEY = "Delta-Table-Version"
   val RESPONSE_FORMAT = "responseformat"
   val READER_FEATURES = "readerfeatures"
+  val DELTA_SHARING_CAPABILITIES_ASYNC_READ = "asyncquery"
   val RESPONSE_FORMAT_DELTA = "delta"
   val RESPONSE_FORMAT_PARQUET = "parquet"
   val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
+  val QUERY_PENDING_TRUE = "pending"
 
   lazy val USER_AGENT = {
     try {
@@ -1018,6 +1174,9 @@ object DeltaSharingRestClient extends Logging {
     val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
     val queryTablePaginationEnabled = ConfUtils.queryTablePaginationEnabled(sqlConf)
     val maxFilesPerReq = ConfUtils.maxFilesPerQueryRequest(sqlConf)
+    val useAsyncQuery = ConfUtils.useAsyncQuery(sqlConf)
+    val asyncQueryMaxDurationMillis = ConfUtils.asyncQueryTimeout(sqlConf)
+    val asyncQueryPollDurationMillis = ConfUtils.asyncQueryPollIntervalMillis(sqlConf)
 
     val clientClass = ConfUtils.clientClass(sqlConf)
     Class.forName(clientClass)
@@ -1031,7 +1190,10 @@ object DeltaSharingRestClient extends Logging {
         classOf[String],
         classOf[String],
         classOf[Boolean],
-        classOf[Int]
+        classOf[Int],
+        classOf[Boolean],
+        classOf[Long],
+        classOf[Long]
       ).newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
@@ -1041,7 +1203,10 @@ object DeltaSharingRestClient extends Logging {
         responseFormat,
         readerFeatures,
         java.lang.Boolean.valueOf(queryTablePaginationEnabled),
-        java.lang.Integer.valueOf(maxFilesPerReq)
+        java.lang.Integer.valueOf(maxFilesPerReq),
+        java.lang.Boolean.valueOf(useAsyncQuery),
+        java.lang.Long.valueOf(asyncQueryPollDurationMillis),
+        java.lang.Long.valueOf(asyncQueryMaxDurationMillis)
       ).asInstanceOf[DeltaSharingClient]
   }
 }
