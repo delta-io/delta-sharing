@@ -46,7 +46,10 @@ class TestDeltaSharingClient(
     responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET,
     readerFeatures: String = "",
     queryTablePaginationEnabled: Boolean = false,
-    maxFilesPerReq: Int = 10000
+    maxFilesPerReq: Int = 10000,
+    enableAsyncQuery: Boolean = false,
+    asyncQueryPollIntervalMillis: Long = 1000L,
+    asyncQueryMaxDuration: Long = Long.MaxValue
   ) extends DeltaSharingClient {
 
   import DeltaSharingOptions.RESPONSE_FORMAT_PARQUET

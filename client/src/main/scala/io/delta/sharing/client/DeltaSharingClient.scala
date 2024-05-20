@@ -307,7 +307,6 @@ class DeltaSharingRestClient(
       table = s"${table.share}.${table.schema}.${table.name}"
     )
 
-
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(version, lines = lines, respondedFormat = respondedFormat)
     }

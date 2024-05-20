@@ -629,6 +629,19 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  integrationTest("table1 async query without idempotency_key") {
+    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
+      assertHttpError(
+        requestPath("/shares/share1/schemas/default/tables/table1/query"),
+        method = "POST",
+        data = Some("""{"maxFiles": 1}"""),
+        expectedErrorCode = 400,
+        expectedErrorMessage = "idempotency_key is required for async query",
+        headers = Map("delta-sharing-capabilities" -> s"asyncquery=true;responseFormat=$responseFormat")
+      )
+    }
+  }
+
   integrationTest("table1 async query") {
     Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
       val response = readNDJson(
@@ -3011,13 +3024,16 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     method: String,
     data: Option[String],
     expectedErrorCode: Int,
-    expectedErrorMessage: String): Unit = {
+    expectedErrorMessage: String,
+    headers: Map[String, String] = Map.empty[String, String]): Unit = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
     connection.setRequestMethod(method)
     data.foreach { d =>
       connection.setDoOutput(true)
       connection.setRequestProperty("Content-Type", "application/json; charset=utf8")
+      headers.foreach((item) => connection.setRequestProperty(item._1, item._2))
+
       val output = connection.getOutputStream()
       try {
         output.write(d.getBytes(UTF_8))

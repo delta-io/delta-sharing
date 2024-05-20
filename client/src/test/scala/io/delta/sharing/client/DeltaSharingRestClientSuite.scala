@@ -330,7 +330,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(tableFiles.files(0).expirationTimestamp > System.currentTimeMillis())
     }
 
-    Seq(false, true).foreach { paginationEnabled => {}
+    Seq(false, true).foreach { paginationEnabled => {
       val client = new DeltaSharingRestClient(
         testProfileProvider,
         sslTrustAll = true,
@@ -340,21 +340,22 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         enableAsyncQuery = true
       )
       val table = Table(name = "table2", schema = "default", share = "share2")
-        val tableFiles =
-          client.getFiles(
-            table,
-            predicates = Nil,
-            limit = None,
-            versionAsOf = None,
-            timestampAsOf = None,
-            jsonPredicateHints = None,
-            refreshToken = None
-          )
-        verifyTableFiles(tableFiles)
-      }
+      val tableFiles =
+        client.getFiles(
+          table,
+          predicates = Nil,
+          limit = None,
+          versionAsOf = None,
+          timestampAsOf = None,
+          jsonPredicateHints = None,
+          refreshToken = None
+        )
+      verifyTableFiles(tableFiles)
+    }
+    }
   }
 
-  integrationTest("getFiles with Async") {
+  integrationTest("getFiles with sync api") {
     def verifyTableFiles(tableFiles: DeltaTableFiles): Unit = {
       assert(tableFiles.version == 2)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
@@ -401,15 +402,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       s"${RESPONSE_FORMAT_DELTA},${RESPONSE_FORMAT_PARQUET}",
       s"${RESPONSE_FORMAT_PARQUET},${RESPONSE_FORMAT_DELTA}"
     ).foreach { responseFormat =>
-      Seq(false).foreach { paginationEnabled =>
-        Seq(true).foreach { asyncEnabled => {
+      Seq(true, false).foreach { paginationEnabled => {
           val client = new DeltaSharingRestClient(
             testProfileProvider,
             sslTrustAll = true,
             queryTablePaginationEnabled = paginationEnabled,
             maxFilesPerReq = 1,
             responseFormat = responseFormat,
-            enableAsyncQuery = asyncEnabled
+            enableAsyncQuery = false
           )
           val table = Table(name = "table2", schema = "default", share = "share2")
           try {
@@ -441,7 +441,6 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           } finally {
             client.close()
           }
-        }
         }
       }
     }

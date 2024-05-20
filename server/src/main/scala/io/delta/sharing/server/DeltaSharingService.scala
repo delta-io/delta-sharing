@@ -329,12 +329,12 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/queries/{queryId}")
   @ConsumesJson
   def getQueryStatus(
-                 req: HttpRequest,
-                 @Param("share") share: String,
-                 @Param("schema") schema: String,
-                 @Param("table") table: String,
-                 @Param("queryId") queryId: String,
-                 request: GetQueryInfoRequest): HttpResponse = processRequest {
+     req: HttpRequest,
+     @Param("share") share: String,
+     @Param("schema") schema: String,
+     @Param("table") table: String,
+     @Param("queryId") queryId: String,
+     request: GetQueryInfoRequest): HttpResponse = processRequest {
 
     // we are reusing the table here to simulate a view query result
     val tableConfig = sharedTableManager.getTable(share, schema, table)
@@ -451,8 +451,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Seq(
         SingleAction(queryStatus = QueryStatus(queryId, "pending"))
       ))
-    }
-    else {
+    } else {
       val queryResult = deltaSharedTableLoader.loadTable(tableConfig).query(
         includeFiles = true,
         request.predicateHints,
