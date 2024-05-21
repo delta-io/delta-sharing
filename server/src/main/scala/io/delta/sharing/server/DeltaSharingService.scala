@@ -336,6 +336,10 @@ class DeltaSharingService(serverConfig: ServerConfig) {
      @Param("queryId") queryId: String,
      request: GetQueryInfoRequest): HttpResponse = processRequest {
 
+    if (table == "table1") {
+      throw new DeltaSharingIllegalArgumentException("expected error")
+    }
+
     // we are reusing the table here to simulate a view query result
     val tableConfig = sharedTableManager.getTable(share, schema, table)
     val capabilitiesMap = getDeltaSharingCapabilitiesMap(
@@ -372,6 +376,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("schema") schema: String,
       @Param("table") table: String,
       request: QueryTableRequest): HttpResponse = processRequest {
+
     val capabilitiesMap = getDeltaSharingCapabilitiesMap(
       req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
     )
@@ -439,7 +444,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     if(getAsyncQuery(capabilitiesMap)) {
       if (!request.idempotencyKey.isDefined) {
         throw new DeltaSharingIllegalArgumentException(
-          "idempotencyKey is required for async query."
+          "idempotency_key is required for async query."
         )
       }
 

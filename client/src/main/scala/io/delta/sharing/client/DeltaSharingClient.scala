@@ -87,10 +87,18 @@ private[sharing] trait PaginationResponse {
   def nextPageToken: Option[String]
 }
 
+/*
+abstract the requirement into a trait so that we can
+support pagination request in to get query results this
+applies to both sync and async query.
+*/
 private[sharing] trait PaginationRequest {
   def maxFiles: Option[Int]
   def pageToken: Option[String]
 
+  // Clone the request object with new optional fields.
+  // this is used to generate a new request object when
+  // fetching next pages in paginated query.
   def clone(
      maxFiles: Option[Int],
      pageToken: Option[String],
@@ -805,7 +813,7 @@ class DeltaSharingRestClient(
     target
   }
 
-  private def getQueryInfo(
+  private def getTableQueryInfo(
               table: Table,
               queryId: String,
               maxFiles: Option[Int],
@@ -819,16 +827,40 @@ class DeltaSharingRestClient(
     getNDJson(target, request)
   }
 
+  /*
+  * Check if the query is still pending. The first line of the response will
+  * be a query status object if the query is still pending.
+  * The method return (queryResultLines, queryId, queryPending) tuple. If the queryPending
+  * is false it means the query is finished and the queryResultLines contains the result.
+   */
   private def checkQueryPending(lines: Seq[String]): (Seq[String], Option[String], Boolean) = {
     val queryStatus = JsonUtils.fromJson[SingleAction](lines(0)).queryStatus
 
     if(queryStatus == null) {
         (lines, None, false)
       } else {
-      (lines.drop(1), Some(queryStatus.queryId), queryStatus.status == QUERY_PENDING_TRUE)
+      if (queryStatus.queryId == null) {
+        throw new IllegalStateException("QueryId is not returned in the response.")
+      }
+
+      if( queryStatus.status != QUERY_PENDING_TRUE) {
+        throw new IllegalStateException("Unexpected query status: " + queryStatus.status)
+      }
+
+      logInfo(s"Query is still pending. QueryId: ${queryStatus.queryId}")
+      (lines.drop(1), Some(queryStatus.queryId), true)
     }
   }
 
+  /*
+  * Get NDJson data with async query.
+  * This method is used when we get the result of table query
+  * If the query is async mode and still running, this method
+  * will keep polling the query id until the query is finished.
+  * and return the result back.
+  * If the query is in sync mode it will return the query result
+  * directly.
+   */
   private def getNDJsonWithAsync(
                 table: Table,
                 target: String,
@@ -849,12 +881,18 @@ class DeltaSharingRestClient(
         throw new IllegalStateException("Query is still pending after " +
           s"${asyncQueryMaxDuration} ms. Please try again later.")
       }
-    Thread.sleep(asyncQueryPollIntervalMillis)
+
+      Thread.sleep(asyncQueryPollIntervalMillis)
 
       val queryId = queryIdOpt.get
       val (currentVersion, currentRespondedFormat, currentLines)
-        = getQueryInfo(table, queryId, request.maxFiles, request.pageToken)
-      val (newLines, _, newQueryPending) = checkQueryPending(currentLines)
+        = getTableQueryInfo(table, queryId, request.maxFiles, request.pageToken)
+      val (newLines, returnedQueryId, newQueryPending) = checkQueryPending(currentLines)
+
+      if(newQueryPending && returnedQueryId.get != queryId) {
+        throw new IllegalStateException("QueryId is not consistent in the response. " +
+          s"Expected: $queryId, Actual: ${returnedQueryId.get}")
+      }
 
       version = currentVersion
       respondedFormat = currentRespondedFormat
@@ -1058,7 +1096,7 @@ class DeltaSharingRestClient(
       capabilities = capabilities :+ s"$READER_FEATURES=$readerFeatures"
     }
 
-    if(enableAsyncQuery) {
+    if (enableAsyncQuery) {
      capabilities = capabilities :+ s"$DELTA_SHARING_CAPABILITIES_ASYNC_READ=true"
     }
 

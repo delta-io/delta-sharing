@@ -293,6 +293,32 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     assert(errorMessage.contains("is before the earliest version available"))
   }
 
+  integrationTest("getFiles using async api error handling") {
+    val client = new DeltaSharingRestClient(
+      testProfileProvider,
+      sslTrustAll = true,
+      queryTablePaginationEnabled = true,
+      maxFilesPerReq = 1,
+      responseFormat = RESPONSE_FORMAT_PARQUET,
+      enableAsyncQuery = true
+    )
+    val table = Table(name = "table1", schema = "default", share = "share1")
+
+    var errorMessage = intercept[UnexpectedHttpStatus] {
+      client.getFiles(
+        table,
+        predicates = Nil,
+        limit = None,
+        versionAsOf = None,
+        timestampAsOf = None,
+        jsonPredicateHints = None,
+        refreshToken = None
+      )
+    }.getMessage
+
+    assert(errorMessage.contains("expected error"))
+  }
+
   integrationTest("getFiles using async api") {
     def verifyTableFiles(tableFiles: DeltaTableFiles): Unit = {
       assert(tableFiles.version == 2)
