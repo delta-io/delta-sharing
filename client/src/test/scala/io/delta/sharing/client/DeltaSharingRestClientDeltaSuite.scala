@@ -93,7 +93,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getFiles include async") {
+  integrationTest("getFiles") {
     def verifyTableFiles(tableFiles: DeltaTableFiles): Unit = {
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 2, expectedNumLines = 4, minWriterVersion = 2)
       assert(tableFiles.lines(1).contains("""{"deltaMetadata":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"],"configuration":{},"createdTime":1619652806049"""))
