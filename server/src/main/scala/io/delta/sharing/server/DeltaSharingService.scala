@@ -454,8 +454,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Some(0),
         "parquet",
         Seq(
-        SingleAction(queryStatus = QueryStatus(queryId, "pending"))
-      ))
+          SingleAction(queryStatus = QueryStatus(queryId, "pending"))
+        )
+      )
     } else {
       val queryResult = deltaSharedTableLoader.loadTable(tableConfig).query(
         includeFiles = true,
@@ -688,7 +689,7 @@ object DeltaSharingService {
   private[server] def getResponseFormatSet(headerCapabilities: Map[String, String]): Set[String] = {
     headerCapabilities.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse(
       DeltaSharedTable.RESPONSE_FORMAT_PARQUET
-    ).split(";").toSet
+    ).split(",").toSet
   }
 
   private[server] def getAsyncQuery(headerCapabilities: Map[String, String]): Boolean = {
