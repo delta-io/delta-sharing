@@ -653,7 +653,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         asyncQuery = "true"
       )
 
-      assert(JsonUtils.fromJson[SingleAction](response).queryStatus.status == "pending")
+      assert(JsonUtils.fromJson[SingleAction](response).queryStatus != null)
     }
   }
 

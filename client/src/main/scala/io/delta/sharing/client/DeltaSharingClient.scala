@@ -21,7 +21,7 @@ import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.sql.Timestamp
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter.ISO_DATE_TIME
+import java.time.format.DateTimeFormatter.{ISO_DATE, ISO_DATE_TIME}
 import java.util.UUID
 
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
@@ -499,8 +499,13 @@ class DeltaSharingRestClient(
     val start = System.currentTimeMillis()
     var numPages = 1
 
-    val (version, respondedFormat, lines, queryIdOpt)
-    = getNDJsonWithAsync(table, targetUrl, request)
+    val (version, respondedFormat, lines, queryIdOpt) = if (enableAsyncQuery) {
+      getNDJsonWithAsync(table, targetUrl, request)
+    } else {
+      val (version, respondedFormat, lines) = getNDJson(targetUrl, request)
+      (version, respondedFormat, lines, None)
+    }
+
     var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
     if (endStreamAction.isEmpty) {
       logWarning("EndStreamAction is not returned in the response for paginated query.")
@@ -821,11 +826,6 @@ class DeltaSharingRestClient(
         throw new IllegalStateException("QueryId is not returned in the response.")
       }
 
-      if (queryStatus.status != QUERY_PENDING_TRUE) {
-        throw new IllegalStateException("Unexpected query status: " + queryStatus.status)
-      }
-
-      logInfo(s"Query is timed out. QueryId: ${queryStatus.queryId}")
       (lines.drop(1), Some(queryStatus.queryId), true)
     }
   }

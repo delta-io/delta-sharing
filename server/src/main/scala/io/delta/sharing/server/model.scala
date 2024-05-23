@@ -68,8 +68,7 @@ case class Metadata(
 }
 
 case class QueryStatus(
-      queryId: String = null,
-      status: String = null
+      queryId: String = null
       ) extends  Action {
   override def wrap: SingleAction = SingleAction(queryStatus = this)
 }
