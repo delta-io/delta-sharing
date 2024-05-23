@@ -695,13 +695,13 @@ class DeltaSharingRestClient(
   // (as original json string) with EndStreamAction. EndStreamAction might be null
   // if it's not returned in the response.
   private def fetchNextPageFiles(
-                                  targetUrl: String,
-                                  requestBody: Option[NextPageRequest],
-                                  expectedVersion: Long,
-                                  expectedRespondedFormat: String,
-                                  expectedProtocol: String,
-                                  expectedMetadata: String,
-                                  pageNumber: Int): (Seq[String], Option[EndStreamAction]) = {
+      targetUrl: String,
+      requestBody: Option[NextPageRequest],
+      expectedVersion: Long,
+      expectedRespondedFormat: String,
+      expectedProtocol: String,
+      expectedMetadata: String,
+      pageNumber: Int): (Seq[String], Option[EndStreamAction]) = {
     val start = System.currentTimeMillis()
     val (version, respondedFormat, lines) = if (requestBody.isDefined) {
       getNDJson(targetUrl, requestBody.get)
