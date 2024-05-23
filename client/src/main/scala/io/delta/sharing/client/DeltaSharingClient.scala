@@ -87,10 +87,10 @@ private[sharing] trait PaginationResponse {
   def nextPageToken: Option[String]
 }
 
-/*
-abstract the requirement into a trait so that we can
-support pagination request in to get query results this
-applies to both sync and async query.
+/**
+ * A trait to represent the request object for
+ * fetching next page in paginated query.
+ * This can be use in both sync and async query.
 */
 private[sharing] trait NextPageRequest {
   def maxFiles: Option[Int]
