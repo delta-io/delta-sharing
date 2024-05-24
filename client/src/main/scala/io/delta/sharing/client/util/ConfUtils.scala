@@ -33,9 +33,6 @@ object ConfUtils {
   val ASYNC_QUERY_POLL_INTERVAL_CONF = "spark.delta.sharing.network.asyncQueryRetryInterval"
   val ASYNC_QUERY_POLL_INTERVAL_DEFAULT_MILLIS = 10L * 1000L /* 10 seconds */
 
-  val ASYNC_QUERY_MAX_RETRY_COUNT_CONF = "spark.delta.sharing.network.asyncQueryMaxRetryCount"
-  val ASYNC_QUERY_MAX_RETRY_COUNT_DEFAULT = 10
-
   val ASYNC_QUERY_TIMEOUT_CONF = "spark.delta.sharing.network.asyncQueryTimeout"
   val ASYNC_QUERY_TIMEOUT_DEFAULT_MILLIS = 10L * 60L * 1000L /* 10 mins */
 

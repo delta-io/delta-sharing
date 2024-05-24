@@ -373,11 +373,6 @@ class DeltaSharingRestClient(
         request
       }
 
-    logInfo(
-      s"Making paginated queryTable requests for table " +
-        s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
-    )
-
     val (version, respondedFormat, lines, refreshTokenOpt) =
       getFilesByPage(table, target, updatedRequest)
 
