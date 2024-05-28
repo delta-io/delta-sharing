@@ -162,7 +162,7 @@ class DeltaSharingRestClient(
     queryTablePaginationEnabled: Boolean = false,
     maxFilesPerReq: Int = 100000,
     enableAsyncQuery: Boolean = false,
-    asyncQueryPollIntervalMillis: Long = 1000L,
+    asyncQueryPollIntervalMillis: Long = 10000L,
     asyncQueryMaxDuration: Long = Long.MaxValue
   ) extends DeltaSharingClient with Logging {
 
