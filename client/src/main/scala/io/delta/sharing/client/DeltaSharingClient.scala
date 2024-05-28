@@ -361,8 +361,7 @@ class DeltaSharingRestClient(
       pageToken = None,
       includeRefreshToken = Some(includeRefreshToken),
       refreshToken = refreshToken,
-      idempotencyKey = idempotencyKey,
-      requestedColumns = Seq.empty[String]
+      idempotencyKey = idempotencyKey
     )
 
     val updatedRequest = if (queryTablePaginationEnabled) {
@@ -434,8 +433,7 @@ class DeltaSharingRestClient(
       pageToken = None,
       includeRefreshToken = None,
       refreshToken = None,
-      idempotencyKey = None,
-      requestedColumns = Seq.empty[String]
+      idempotencyKey = None
     )
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       logInfo(
