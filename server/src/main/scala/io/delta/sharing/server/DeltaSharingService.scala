@@ -342,6 +342,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       throw new DeltaSharingIllegalArgumentException("expected error")
     }
 
+    // simulate async query with 50% chance of return
+    // asynchronously client should be able to hand both cases
     if(rand.nextInt(100) > 50) {
         streamingOutput(
           Some(0),
@@ -429,15 +431,15 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       )
     }
 
+    if(getAsyncQuery(capabilitiesMap) && !request.idempotencyKey.isDefined) {
+      throw new DeltaSharingIllegalArgumentException(
+        "idempotency_key is required for async query."
+      )
+    }
+
     val start = System.currentTimeMillis
 
     if(getAsyncQuery(capabilitiesMap)) {
-      if (!request.idempotencyKey.isDefined) {
-        throw new DeltaSharingIllegalArgumentException(
-          "idempotency_key is required for async query."
-        )
-      }
-
       val queryId = s"${share}_${schema}_${table}"
 
       streamingOutput(

@@ -116,8 +116,7 @@ private[sharing] case class QueryTableRequest(
   pageToken: Option[String],
   includeRefreshToken: Option[Boolean],
   refreshToken: Option[String],
-  idempotencyKey: Option[String],
-  requestedColumns: Seq[String]
+  idempotencyKey: Option[String]
 ) extends NextPageRequest {
   override def clone(
         maxFiles: Option[Int],
@@ -818,7 +817,8 @@ class DeltaSharingRestClient(
       (lines, None, false)
     } else {
       if (queryStatus.queryId == null) {
-        throw new IllegalStateException("QueryId is not returned in the response.")
+        throw new IllegalStateException(
+          "QueryId is not returned in the first line of the response." + lines(0))
       }
 
       (lines.drop(1), Some(queryStatus.queryId), true)
@@ -855,9 +855,10 @@ class DeltaSharingRestClient(
           s"${asyncQueryMaxDuration} ms. Please try again later.")
       }
 
+      val queryId = queryIdOpt.get
+      logInfo(s"Query is still pending. Polling queryId: ${queryId}")
       Thread.sleep(asyncQueryPollIntervalMillis)
 
-      val queryId = queryIdOpt.get
       val (currentVersion, currentRespondedFormat, currentLines)
         = getTableQueryInfo(table, queryId, request.maxFiles, request.pageToken)
       val (newLines, returnedQueryId, newQueryPending) = checkQueryPending(currentLines)
