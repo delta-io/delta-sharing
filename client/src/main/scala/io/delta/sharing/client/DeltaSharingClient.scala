@@ -116,7 +116,7 @@ private[sharing] case class QueryTableRequest(
   pageToken: Option[String],
   includeRefreshToken: Option[Boolean],
   refreshToken: Option[String],
-  idempotencyKey: Option[String]
+  idempotency_key: Option[String]
 ) extends NextPageRequest {
   override def clone(
         maxFiles: Option[Int],
@@ -165,6 +165,8 @@ class DeltaSharingRestClient(
     asyncQueryPollIntervalMillis: Long = 1000L,
     asyncQueryMaxDuration: Long = Long.MaxValue
   ) extends DeltaSharingClient with Logging {
+
+  logError(s"DeltaSharingRestClient with enableAsyncQuery $enableAsyncQuery")
 
   import DeltaSharingRestClient._
 
@@ -343,7 +345,7 @@ class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
 
-    val idempotencyKey = if (enableAsyncQuery) {
+    val idempotency_key = if (enableAsyncQuery) {
       Some(UUID.randomUUID().toString)
     } else {
       None
@@ -361,7 +363,7 @@ class DeltaSharingRestClient(
       pageToken = None,
       includeRefreshToken = Some(includeRefreshToken),
       refreshToken = refreshToken,
-      idempotencyKey = idempotencyKey
+      idempotency_key = idempotency_key
     )
 
     val updatedRequest = if (queryTablePaginationEnabled) {
@@ -433,7 +435,7 @@ class DeltaSharingRestClient(
       pageToken = None,
       includeRefreshToken = None,
       refreshToken = None,
-      idempotencyKey = None
+      idempotency_key = None
     )
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       logInfo(
