@@ -344,6 +344,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
     // simulate async query with 50% chance of return
     // asynchronously client should be able to hand both cases
+    // this is for test purpose only and shouldn't cause flakiness
     if(rand.nextInt(100) > 50) {
         streamingOutput(
           Some(0),
