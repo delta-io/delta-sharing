@@ -82,6 +82,26 @@ message QueryTableRequest {
 
     // TODO: update this. The format of the response, supported formats: parquet, delta.
     optional bool queryDeltaLog = 8;
+
+    // idempotency key for the query request, this is required for async query
+    optional string idempotency_key = 14;
+
+    // The columns to be returned in the response for view query.
+    // If not specified, all columns will be returned.
+    repeated string requested_columns = 15;
+}
+
+message GetQueryInfoRequest {
+    optional string query_id = 1;
+
+    // The maximum number of files to return in one page. This is a hint for the server,
+    // and the server may not honor it. The server that supports pagination should return
+    // no more than this limit, but it can return fewer. If there are more files available,
+    // a nextPageToken will be returned to the user to retrieve the next page.
+    optional int32 max_files = 2;
+
+    // The page token used to retrieve the subsequent page.
+    optional string page_token = 3;
 }
 
 message ListSharesResponse {

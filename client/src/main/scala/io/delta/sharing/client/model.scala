@@ -70,6 +70,7 @@ private[sharing] case class SingleAction(
     remove: RemoveFile = null,
     metaData: Metadata = null,
     protocol: Protocol = null,
+    queryStatus: QueryStatus = null,
     endStreamAction: EndStreamAction = null) {
 
   def unwrap: Action = {
@@ -91,6 +92,12 @@ private[sharing] case class SingleAction(
       null
     }
   }
+}
+
+case class QueryStatus(
+      queryId: String = null
+    ) extends Action {
+  override def wrap: SingleAction = SingleAction(queryStatus = this)
 }
 
 private[sharing] case class Format(provider: String = "parquet")

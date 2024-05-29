@@ -105,14 +105,18 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
-  def readJson(url: String, expectedTableVersion: Option[Long] = None): String = {
+  def readJson(
+      url: String,
+      expectedTableVersion: Option[Long] = None,
+      asyncQuery: String = "false"): String = {
     readHttpContent(
       url,
       None,
       None,
       RESPONSE_FORMAT_PARQUET,
       expectedTableVersion,
-      "application/json; charset=utf-8"
+      "application/json; charset=utf-8",
+      asyncQuery = asyncQuery
     )
   }
 
@@ -121,17 +125,18 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     method: Option[String] = None,
     data: Option[String] = None,
     expectedTableVersion: Option[Long] = None,
-    responseFormat: String = RESPONSE_FORMAT_PARQUET): String = {
+    responseFormat: String = RESPONSE_FORMAT_PARQUET,
+    asyncQuery: String = "false"): String = {
     readHttpContent(
       url,
       method,
       data,
       responseFormat,
       expectedTableVersion,
-      "application/x-ndjson; charset=utf-8"
+      "application/x-ndjson; charset=utf-8",
+      asyncQuery = asyncQuery
     )
   }
-
 
   def readHttpContent(
     url: String,
@@ -139,12 +144,16 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     data: Option[String] = None,
     responseFormat: String,
     expectedTableVersion: Option[Long] = None,
-    expectedContentType: String): String = {
+    expectedContentType: String,
+    asyncQuery: String = "true"): String = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    var deltaSharingCapabilities = s"asyncquery=$asyncQuery"
     if (responseFormat == RESPONSE_FORMAT_DELTA) {
-      connection.setRequestProperty("delta-sharing-capabilities", "responseFormat=delta")
+      deltaSharingCapabilities += s";responseFormat=$responseFormat"
     }
+    connection.setRequestProperty("delta-sharing-capabilities", deltaSharingCapabilities)
+
     method.foreach(connection.setRequestMethod)
     data.foreach { d =>
       connection.setDoOutput(true)
@@ -617,6 +626,52 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         verifyPreSignedUrl(actualFiles(0).url, 781)
         verifyPreSignedUrl(actualFiles(1).url, 781)
       }
+    }
+  }
+
+  integrationTest("table1 async query without idempotency_key") {
+    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
+      assertHttpError(
+        requestPath("/shares/share1/schemas/default/tables/table1/query"),
+        method = "POST",
+        data = Some("""{"maxFiles": 1}"""),
+        expectedErrorCode = 400,
+        expectedErrorMessage = "idempotency_key is required for async query",
+        headers = Map("delta-sharing-capabilities" -> s"asyncquery=true;responseFormat=$responseFormat")
+      )
+    }
+  }
+
+  integrationTest("table1 async query") {
+    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
+      val response = readNDJson(
+        requestPath("/shares/share1/schemas/default/tables/table1/query"),
+        Some("POST"),
+        Some("""{"idempotency_key": "random id"}"""),
+        expectedTableVersion = None,
+        responseFormat,
+        asyncQuery = "true"
+      )
+
+      assert(JsonUtils.fromJson[SingleAction](response).queryStatus != null)
+    }
+  }
+
+  integrationTest("table1 async query get status") {
+    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
+      val response = readNDJson(
+        requestPath("/shares/share1/schemas/default/tables/table1/queries/1234"),
+        method = Some("POST"),
+        Some("""{"maxFiles": 1}"""),
+        expectedTableVersion = None,
+        responseFormat,
+        asyncQuery = "true"
+      )
+
+      var lines = response.split("\n")
+      assert(lines.length == 4)
+
+      print(s"response: $response")
     }
   }
 
@@ -2969,13 +3024,16 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     method: String,
     data: Option[String],
     expectedErrorCode: Int,
-    expectedErrorMessage: String): Unit = {
+    expectedErrorMessage: String,
+    headers: Map[String, String] = Map.empty[String, String]): Unit = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
     connection.setRequestMethod(method)
     data.foreach { d =>
       connection.setDoOutput(true)
       connection.setRequestProperty("Content-Type", "application/json; charset=utf8")
+      headers.foreach((item) => connection.setRequestProperty(item._1, item._2))
+
       val output = connection.getOutputStream()
       try {
         output.write(d.getBytes(UTF_8))

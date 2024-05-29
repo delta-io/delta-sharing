@@ -30,6 +30,15 @@ object ConfUtils {
   val MAX_RETRY_DURATION_CONF = "spark.delta.sharing.network.maxRetryDuration"
   val MAX_RETRY_DURATION_DEFAULT_MILLIS = 10L * 60L* 1000L /* 10 mins */
 
+  val ASYNC_QUERY_POLL_INTERVAL_CONF = "spark.delta.sharing.network.asyncQueryRetryInterval"
+  val ASYNC_QUERY_POLL_INTERVAL_DEFAULT_MILLIS = 10L * 1000L /* 10 seconds */
+
+  val ASYNC_QUERY_TIMEOUT_CONF = "spark.delta.sharing.network.asyncQueryTimeout"
+  val ASYNC_QUERY_TIMEOUT_DEFAULT_MILLIS = 10L * 60L * 1000L /* 10 mins */
+
+  val USE_ASYNC_QUERY_CONF = "spark.delta.sharing.network.useAsyncQuery"
+  val USE_ASYNC_QUERY_DEFAULT = "false"
+
   val TIMEOUT_CONF = "spark.delta.sharing.network.timeout"
   val TIMEOUT_DEFAULT = "320s"
 
@@ -109,6 +118,44 @@ object ConfUtils {
       conf.getConfString(MAX_RETRY_DURATION_CONF, MAX_RETRY_DURATION_DEFAULT_MILLIS.toString).toLong
     validateNonNeg(maxDur, MAX_RETRY_DURATION_CONF)
     maxDur
+  }
+
+  def asyncQueryPollIntervalMillis(conf: Configuration): Long = {
+    val interval = conf.getLong(
+      ASYNC_QUERY_POLL_INTERVAL_CONF,
+      ASYNC_QUERY_POLL_INTERVAL_DEFAULT_MILLIS)
+    validateNonNeg(interval, ASYNC_QUERY_POLL_INTERVAL_CONF)
+    interval
+  }
+
+  def asyncQueryPollIntervalMillis(conf: SQLConf): Long = {
+    val interval = conf.getConfString(
+      ASYNC_QUERY_POLL_INTERVAL_CONF,
+      ASYNC_QUERY_POLL_INTERVAL_DEFAULT_MILLIS.toString).toLong
+    validateNonNeg(interval, ASYNC_QUERY_POLL_INTERVAL_CONF)
+    interval
+  }
+
+  def asyncQueryTimeout(conf: Configuration): Long = {
+    val timeout = conf.getLong(ASYNC_QUERY_TIMEOUT_CONF, ASYNC_QUERY_TIMEOUT_DEFAULT_MILLIS)
+    validateNonNeg(timeout, ASYNC_QUERY_TIMEOUT_CONF)
+    timeout
+  }
+
+  def asyncQueryTimeout(conf: SQLConf): Long = {
+    val timeout = conf.getConfString(
+      ASYNC_QUERY_TIMEOUT_CONF,
+      ASYNC_QUERY_TIMEOUT_DEFAULT_MILLIS.toString).toLong
+    validateNonNeg(timeout, ASYNC_QUERY_TIMEOUT_CONF)
+    timeout
+  }
+
+  def useAsyncQuery(conf: Configuration): Boolean = {
+    conf.getBoolean(USE_ASYNC_QUERY_CONF, USE_ASYNC_QUERY_DEFAULT.toBoolean)
+  }
+
+  def useAsyncQuery(conf: SQLConf): Boolean = {
+    conf.getConfString(USE_ASYNC_QUERY_CONF, USE_ASYNC_QUERY_DEFAULT).toBoolean
   }
 
   def timeoutInSeconds(conf: Configuration): Int = {
