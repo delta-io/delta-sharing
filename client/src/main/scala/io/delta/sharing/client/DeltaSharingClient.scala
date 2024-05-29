@@ -835,9 +835,9 @@ class DeltaSharingRestClient(
   * directly.
    */
   private def getNDJsonWithAsync(
-                table: Table,
-                target: String,
-                request: QueryTableRequest): (Long, String, Seq[String], Option[String]) = {
+      table: Table,
+      target: String,
+      request: QueryTableRequest): (Long, String, Seq[String], Option[String]) = {
     // Initial query to get NDJson data
     val (initialVersion, initialRespondedFormat, initialLines) = getNDJson(target, request)
 
