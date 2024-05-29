@@ -163,7 +163,7 @@ class DeltaSharingRestClient(
     maxFilesPerReq: Int = 100000,
     enableAsyncQuery: Boolean = false,
     asyncQueryPollIntervalMillis: Long = 10000L,
-    asyncQueryMaxDuration: Long = Long.MaxValue
+    asyncQueryMaxDuration: Long = 600000L
   ) extends DeltaSharingClient with Logging {
 
   logError(s"DeltaSharingRestClient with enableAsyncQuery $enableAsyncQuery")
