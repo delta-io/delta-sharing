@@ -241,7 +241,7 @@ val df = spark.readStream.format("deltaSharing")
 
 # The Community
 <div align="center">
-  <img src="https://user-images.githubusercontent.com/87341375/212409874-a4ef350f-3b32-4031-b2cd-8c4e47cc42e2.jpeg" alt="Delta Sharing OSS Connectors" width="400" />
+  <img src="./images/the-community.png" alt="Delta Sharing OSS Connectors" width="400" />
 </div>
 <table>
 <tr>
@@ -256,6 +256,16 @@ val df = spark.readStream.format("deltaSharing")
 <td>Released</td>
 <td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
 </tr>
+<tr>
+<td>Clojure</td>
+<td>
+
+[amperity/delta-sharing-client-clj](https://github.com/amperity/delta-sharing-client-clj)
+</td>
+<td>Released</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
+</tr>
+<tr>
 <tr>
 <td>Node.js</td>
 <td>
