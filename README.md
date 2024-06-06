@@ -263,7 +263,7 @@ val df = spark.readStream.format("deltaSharing")
 [amperity/delta-sharing-client-clj](https://github.com/amperity/delta-sharing-client-clj)
 </td>
 <td>Released</td>
-<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot<br>QueryTableChanges(CDF)<br>Time Travel Queries<br>Query Changes between Versions<br>Delta Format Queries<br>Limit and Predicate Pushdown</td>
 </tr>
 <tr>
 <tr>
