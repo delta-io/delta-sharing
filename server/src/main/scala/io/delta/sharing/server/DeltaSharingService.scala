@@ -258,7 +258,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         " not supported because history sharing is not enabled on table: " +
         s"$share.$schema.$table")
     }
-    val version = deltaSharedTableLoader.loadTable(tableConfig).getTableVersion(
+    val version = deltaSharedTableLoader.loadTable(tableConfig, useKernel = true).getTableVersion(
       Option(startingTimestamp)
     )
     if (startingTimestamp != null && version < tableConfig.startVersion) {
