@@ -55,37 +55,36 @@ import io.delta.sharing.server.util.JsonUtils
  * query validation.
  */
 private case class QueryParamChecksum(
-                                       version: Option[Long],
-                                       timestamp: Option[String],
-                                       startingVersion: Option[Long],
-                                       startingTimestamp: Option[String],
-                                       endingVersion: Option[Long],
-                                       endingTimestamp: Option[String],
-                                       predicateHints: Seq[String],
-                                       jsonPredicateHints: Option[String],
-                                       limitHint: Option[Long],
-                                       includeHistoricalMetadata: Option[Boolean])
+    version: Option[Long],
+    timestamp: Option[String],
+    startingVersion: Option[Long],
+    startingTimestamp: Option[String],
+    endingVersion: Option[Long],
+    endingTimestamp: Option[String],
+    predicateHints: Seq[String],
+    jsonPredicateHints: Option[String],
+    limitHint: Option[Long],
+    includeHistoricalMetadata: Option[Boolean])
 
 
 /**
  * A table class that wraps `DeltaLog` to provide the methods used by the server.
  */
 class DeltaSharedTableKernel(
-                        tableConfig: TableConfig,
-                        preSignedUrlTimeoutSeconds: Long,
-                        evaluatePredicateHints: Boolean,
-                        evaluateJsonPredicateHints: Boolean,
-                        evaluateJsonPredicateHintsV2: Boolean,
-                        queryTablePageSizeLimit: Int,
-                        queryTablePageTokenTtlMs: Int,
-                        refreshTokenTtlMs: Int) extends DeltaSharedTableProtocol {
+    tableConfig: TableConfig,
+    preSignedUrlTimeoutSeconds: Long,
+    evaluatePredicateHints: Boolean,
+    evaluateJsonPredicateHints: Boolean,
+    evaluateJsonPredicateHintsV2: Boolean,
+    queryTablePageSizeLimit: Int,
+    queryTablePageTokenTtlMs: Int,
+    refreshTokenTtlMs: Int) extends DeltaSharedTableProtocol {
 
   protected val tablePath: Path = new Path(tableConfig.getLocation)
 
 
-  // Get the table and table client (engine). If shouldParallelLoadDeltaLog is true,
-  // the table client will use a parallel ParquetHandler. Otherwise, it will use the
-  // default ParquetHandler.
+  // Get the table and table client (engine).
+  // Uses the delta-kernel default implementation of link engine based on Hadoop APIs
   private def getTableAndEngine(): (Table, Engine) = {
     val engine = DefaultEngine.create(
       new Configuration()
@@ -112,30 +111,30 @@ class DeltaSharedTableKernel(
 
   // scalastyle:off argcount
   override def query(
-             includeFiles: Boolean,
-             predicateHints: Seq[String],
-             jsonPredicateHints: Option[String],
-             limitHint: Option[Long],
-             version: Option[Long],
-             timestamp: Option[String],
-             startingVersion: Option[Long],
-             endingVersion: Option[Long],
-             maxFiles: Option[Int],
-             pageToken: Option[String],
-             includeRefreshToken: Boolean,
-             refreshToken: Option[String],
-             responseFormatSet: Set[String]): QueryResult = {
+      includeFiles: Boolean,
+      predicateHints: Seq[String],
+      jsonPredicateHints: Option[String],
+      limitHint: Option[Long],
+      version: Option[Long],
+      timestamp: Option[String],
+      startingVersion: Option[Long],
+      endingVersion: Option[Long],
+      maxFiles: Option[Int],
+      pageToken: Option[String],
+      includeRefreshToken: Boolean,
+      refreshToken: Option[String],
+      responseFormatSet: Set[String]): QueryResult = {
 
     throw new DeltaSharingUnsupportedOperationException("not implemented yet")
 
   }
 
   override def queryCDF(
-                         cdfOptions: Map[String, String],
-                         includeHistoricalMetadata: Boolean = false,
-                         maxFiles: Option[Int],
-                         pageToken: Option[String],
-                         responseFormatSet: Set[String] = Set("parquet")): QueryResult = {
+      cdfOptions: Map[String, String],
+      includeHistoricalMetadata: Boolean = false,
+      maxFiles: Option[Int],
+      pageToken: Option[String],
+      responseFormatSet: Set[String] = Set("parquet")): QueryResult = {
 
     throw new DeltaSharingUnsupportedOperationException("not implemented yet")
 

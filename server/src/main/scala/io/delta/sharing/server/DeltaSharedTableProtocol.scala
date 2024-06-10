@@ -21,34 +21,34 @@ package io.delta.sharing.server
  *  of actions.
  */
 case class QueryResult(
-                        version: Long,
-                        actions: Seq[Object],
-                        responseFormat: String)
+    version: Long,
+    actions: Seq[Object],
+    responseFormat: String)
 trait DeltaSharedTableProtocol {
   def getTableVersion(startingTimestamp: Option[String]): Long = -1
 
   // scalastyle:off argcount
   def query(
-             includeFiles: Boolean,
-             predicateHints: Seq[String],
-             jsonPredicateHints: Option[String],
-             limitHint: Option[Long],
-             version: Option[Long],
-             timestamp: Option[String],
-             startingVersion: Option[Long],
-             endingVersion: Option[Long],
-             maxFiles: Option[Int],
-             pageToken: Option[String],
-             includeRefreshToken: Boolean,
-             refreshToken: Option[String],
-             responseFormatSet: Set[String]): QueryResult
+      includeFiles: Boolean,
+      predicateHints: Seq[String],
+      jsonPredicateHints: Option[String],
+      limitHint: Option[Long],
+      version: Option[Long],
+      timestamp: Option[String],
+      startingVersion: Option[Long],
+      endingVersion: Option[Long],
+      maxFiles: Option[Int],
+      pageToken: Option[String],
+      includeRefreshToken: Boolean,
+      refreshToken: Option[String],
+      responseFormatSet: Set[String]): QueryResult
 
   def queryCDF(
-                cdfOptions: Map[String, String],
-                includeHistoricalMetadata: Boolean = false,
-                maxFiles: Option[Int],
-                pageToken: Option[String],
-                responseFormatSet: Set[String] = Set("parquet")): QueryResult
+      cdfOptions: Map[String, String],
+      includeHistoricalMetadata: Boolean = false,
+      maxFiles: Option[Int],
+      pageToken: Option[String],
+      responseFormatSet: Set[String] = Set("parquet")): QueryResult
 
   def validateTable(inputFullHistoryShared: Boolean): Unit = {}
 
