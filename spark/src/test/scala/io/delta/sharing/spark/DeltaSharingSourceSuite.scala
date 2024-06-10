@@ -248,20 +248,20 @@ class DeltaSharingSourceSuite extends QueryTest
   /**
    * Test spark config of query table version interval
    */
-  integrationTest("query table version interval cannot be less than 30 seconds") {
+  integrationTest("query table version interval cannot be less than 10 seconds") {
     spark.sessionState.conf.setConfString(
       "spark.delta.sharing.streaming.queryTableVersionIntervalSeconds",
-      "29"
+      "9"
     )
     val message = intercept[Exception] {
       val query = spark.readStream.format("deltaSharing").load(tablePath)
         .writeStream.format("console").start()
       query.processAllAvailable()
     }.getMessage
-    assert(message.contains("must not be less than 30 seconds."))
+    assert(message.contains("must not be less than 10 seconds."))
     spark.sessionState.conf.setConfString(
       "spark.delta.sharing.streaming.queryTableVersionIntervalSeconds",
-      "30"
+      "10"
     )
   }
 
