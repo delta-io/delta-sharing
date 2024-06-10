@@ -165,6 +165,16 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")
     ),
+    "io.delta" % "delta-kernel-api" % "3.2.0" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
+    ),
+    "io.delta" % "delta-kernel-defaults" % "3.2.0" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
+    ),
     "org.apache.spark" %% "spark-sql" % "2.4.7" excludeAll(
       ExclusionRule("org.slf4j"),
       ExclusionRule("io.netty"),
