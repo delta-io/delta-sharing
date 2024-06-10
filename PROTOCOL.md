@@ -3186,10 +3186,10 @@ there are two options/spark configs for delta sharing streaming.
 
 - spark config **spark.delta.sharing.streaming.queryTableVersionIntervalSeconds**: DeltaSharingSource
 leverages [getTableVersion](#query-table-version) rpc to check whether there is new data available
-to consume. In order to reduce the traffic burden to the delta sharing server, there's a minimum 30
+to consume. In order to reduce the traffic burden to the delta sharing server, there's a minimum 10
 seconds interval between two getTableVersion rpcs to the delta sharing server. Though, if you are ok
 with less freshness on the data and want to reduce the traffic to the server, you can set this 
-config to a larger number, for example: 60s or 120s. An error will be thrown if it's set less than 30 seconds.
+config to a larger number, for example: 60s or 120s. An error will be thrown if it's set less than 10 seconds.
 - option **maxVersionsPerRpc**: DeltaSharingSource leverages [QueryTable](#read-data-from-a-table)
 rpc to continuously read new data from the delta sharing server. There might be too much
 new data to be returned from the server if the streaming has paused for a while on the recipient
