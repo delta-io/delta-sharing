@@ -35,6 +35,7 @@ import org.apache.hadoop.fs.azure.{AzureNativeFileSystemStore, NativeAzureFileSy
 import org.apache.hadoop.fs.azurebfs.{AzureBlobFileSystem, AzureBlobFileSystemStore}
 import org.apache.hadoop.fs.azurebfs.services.AuthType
 import org.apache.hadoop.fs.s3a.DefaultS3ClientFactory
+import org.apache.hadoop.fs.s3a.S3ClientFactory.S3ClientCreationParameters
 import org.apache.hadoop.util.ReflectionUtils
 
 /**
@@ -54,7 +55,7 @@ class S3FileSigner(
     preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
 
   private val s3Client = ReflectionUtils.newInstance(classOf[DefaultS3ClientFactory], conf)
-    .createS3Client(name)
+    .createS3Client(name, new S3ClientCreationParameters())
 
   override def sign(path: Path): PreSignedUrl = {
     val absPath = path.toUri
@@ -113,9 +114,13 @@ class AzureFileSigner(
 
   override def sign(path: Path): PreSignedUrl = {
     val containerRef = blobClient.getContainerReference(container)
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----sign path:$path")
     val objectKey = objectKeyExtractor(path)
+    Console.println(s"----[linzhou]----objectKey:$objectKey")
     assert(objectKey.nonEmpty, s"cannot get object key from $path")
     val blobRef = containerRef.getBlockBlobReference(objectKey)
+    Console.println(s"----[linzhou]----blobRef:$blobRef")
     val accessPolicy = getAccessPolicy
     val sasToken = blobRef.generateSharedAccessSignature(
       accessPolicy,
@@ -125,8 +130,10 @@ class AzureFileSigner(
       SharedAccessProtocols.HTTPS_ONLY
     )
     val sasTokenCredentials = new StorageCredentialsSharedAccessSignature(sasToken)
+    val a = sasTokenCredentials.transformUri(blobRef.getUri).toString
+    Console.println(s"----[linzhou]----signed url:$a")
     PreSignedUrl(
-      sasTokenCredentials.transformUri(blobRef.getUri).toString,
+      a,
       System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds)
     )
   }
@@ -175,7 +182,11 @@ object AbfsFileSigner {
     val getRelativePathMethod = classOf[AzureBlobFileSystemStore]
       .getDeclaredMethod("getRelativePath", classOf[Path])
     getRelativePathMethod.setAccessible(true)
-    getRelativePathMethod.invoke(abfsStore, path).asInstanceOf[String]
+    var relativePath = getRelativePathMethod.invoke(abfsStore, path).asInstanceOf[String]
+    if (relativePath.charAt(0) == Path.SEPARATOR_CHAR) {
+      relativePath = relativePath.substring(1)
+    }
+    relativePath
   }
 
   private def authorityParts(abfsStore: AzureBlobFileSystemStore, uri: URI): Array[String] = {

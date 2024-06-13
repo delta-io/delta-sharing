@@ -212,6 +212,8 @@ class DeltaSharedTable(
       timestamp: java.lang.Long,
       responseFormat: String,
       returnAddFileForCDF: Boolean = false): Object = {
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----signed:${signedUrl.url}")
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
         id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
