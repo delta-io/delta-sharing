@@ -35,6 +35,7 @@ import org.apache.hadoop.fs.azure.{AzureNativeFileSystemStore, NativeAzureFileSy
 import org.apache.hadoop.fs.azurebfs.{AzureBlobFileSystem, AzureBlobFileSystemStore}
 import org.apache.hadoop.fs.azurebfs.services.AuthType
 import org.apache.hadoop.fs.s3a.DefaultS3ClientFactory
+import org.apache.hadoop.fs.s3a.S3ClientFactory.S3ClientCreationParameters
 import org.apache.hadoop.util.ReflectionUtils
 
 /**
@@ -54,7 +55,7 @@ class S3FileSigner(
     preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
 
   private val s3Client = ReflectionUtils.newInstance(classOf[DefaultS3ClientFactory], conf)
-    .createS3Client(name)
+    .createS3Client(name, new S3ClientCreationParameters())
 
   override def sign(path: Path): PreSignedUrl = {
     val absPath = path.toUri
