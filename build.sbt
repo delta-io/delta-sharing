@@ -49,7 +49,7 @@ lazy val client = (project in file("client")) settings(
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
-    "org.apache.httpcomponents" % "httpclient" % "4.5.13",
+    "org.apache.httpcomponents" % "httpclient" % "4.5.14",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
@@ -160,17 +160,7 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")
     ),
-    "io.delta" % "delta-kernel-api" % "3.2.0" excludeAll(
-      ExclusionRule("com.fasterxml.jackson.core"),
-      ExclusionRule("com.fasterxml.jackson.module"),
-      ExclusionRule("com.google.guava", "guava")
-    ),
     "io.delta" % "delta-kernel-defaults" % "3.2.0" excludeAll(
-      ExclusionRule("com.fasterxml.jackson.core"),
-      ExclusionRule("com.fasterxml.jackson.module"),
-      ExclusionRule("com.google.guava", "guava")
-    ),
-    "io.delta" % "delta-storage" % "3.2.0" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")

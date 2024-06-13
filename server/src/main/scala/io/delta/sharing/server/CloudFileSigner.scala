@@ -176,7 +176,11 @@ object AbfsFileSigner {
     val getRelativePathMethod = classOf[AzureBlobFileSystemStore]
       .getDeclaredMethod("getRelativePath", classOf[Path])
     getRelativePathMethod.setAccessible(true)
-    getRelativePathMethod.invoke(abfsStore, path).asInstanceOf[String]
+    var relativePath = getRelativePathMethod.invoke(abfsStore, path).asInstanceOf[String]
+    if (relativePath.charAt(0) == Path.SEPARATOR_CHAR) {
+      relativePath = relativePath.substring(1)
+    }
+    relativePath
   }
 
   private def authorityParts(abfsStore: AzureBlobFileSystemStore, uri: URI): Array[String] = {
