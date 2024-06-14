@@ -166,6 +166,7 @@ private[sharing] class RandomAccessHttpInputStream(
               input.close()
             }
           }
+          logError(s"HTTP request failed with status: $status $errorBody, while accessing [$uri]")
           throw new UnexpectedHttpStatus(
             s"HTTP request failed with status: $status $errorBody," +
               s" while accessing URI of shared table file",
