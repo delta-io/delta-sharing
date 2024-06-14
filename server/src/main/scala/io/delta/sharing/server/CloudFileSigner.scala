@@ -35,6 +35,7 @@ import org.apache.hadoop.fs.azure.{AzureNativeFileSystemStore, NativeAzureFileSy
 import org.apache.hadoop.fs.azurebfs.{AzureBlobFileSystem, AzureBlobFileSystemStore}
 import org.apache.hadoop.fs.azurebfs.services.AuthType
 import org.apache.hadoop.fs.s3a.DefaultS3ClientFactory
+import org.apache.hadoop.fs.s3a.S3ClientFactory.S3ClientCreationParameters
 import org.apache.hadoop.util.ReflectionUtils
 
 /**
@@ -54,7 +55,7 @@ class S3FileSigner(
     preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
 
   private val s3Client = ReflectionUtils.newInstance(classOf[DefaultS3ClientFactory], conf)
-    .createS3Client(name)
+    .createS3Client(name, new S3ClientCreationParameters())
 
   override def sign(path: Path): PreSignedUrl = {
     val absPath = path.toUri
@@ -175,7 +176,16 @@ object AbfsFileSigner {
     val getRelativePathMethod = classOf[AzureBlobFileSystemStore]
       .getDeclaredMethod("getRelativePath", classOf[Path])
     getRelativePathMethod.setAccessible(true)
-    getRelativePathMethod.invoke(abfsStore, path).asInstanceOf[String]
+    var relativePath = getRelativePathMethod.invoke(abfsStore, path).asInstanceOf[String]
+
+    // remove duplicate separator character for azure relative path
+    // see https://github.com/apache/hadoop/commit/af98f32f7dbb9d71915690b66f12c33758011450
+    // #diff-94925ffd3b21968d7e6b476f7e85f68f5ea326f186262017fad61a5a6a3815cbL1215
+    // for more details
+    if (relativePath.charAt(0) == Path.SEPARATOR_CHAR) {
+      relativePath = relativePath.substring(1)
+    }
+    relativePath
   }
 
   private def authorityParts(abfsStore: AzureBlobFileSystemStore, uri: URI): Array[String] = {
