@@ -32,6 +32,7 @@ import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
 import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
 import com.linecorp.armeria.server.auth.AuthService
+import io.delta.kernel.exceptions.{KernelException, TableNotFoundException}
 import io.delta.standalone.internal.DeltaCDFErrors
 import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
 import io.delta.standalone.internal.DeltaDataSource
@@ -97,6 +98,22 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
           JsonUtils.toJson(
             Map(
               "errorCode" -> ErrorCode.INVALID_PARAMETER_VALUE,
+              "message" -> cause.getMessage)))
+      case _: KernelException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.MALFORMED_REQUEST,
+              "message" -> cause.getMessage)))
+      case _: TableNotFoundException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.MALFORMED_REQUEST,
               "message" -> cause.getMessage)))
       case _: DeltaCDFIllegalArgumentException =>
         HttpResponse.of(
@@ -186,6 +203,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       case e: DeltaCDFIllegalArgumentException => throw e
       case e: FileNotFoundException => throw e
       case e: AccessDeniedException => throw e
+      case e: KernelException => throw e
+      case e: TableNotFoundException => throw e
       case e: Throwable => throw new DeltaInternalException(e)
     }
   }
