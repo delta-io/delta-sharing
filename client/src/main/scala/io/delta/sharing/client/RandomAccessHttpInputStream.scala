@@ -40,6 +40,7 @@
 package io.delta.sharing.client
 
 import java.io.{EOFException, InputStream, IOException}
+import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.commons.io.IOUtils
@@ -114,7 +115,7 @@ private[sharing] class RandomAccessHttpInputStream(
   }
 
   private def createHttpRequest(start: Long): HttpRequestBase = {
-    val request = new HttpGet(uri)
+    val request = new HttpGet(URI.create(uri))
     val rangeValue = s"bytes=$start-${contentLength - 1L}"
     request.addHeader("Range", rangeValue)
     request
