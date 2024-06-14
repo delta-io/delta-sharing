@@ -75,8 +75,6 @@ private[sharing] class RandomAccessHttpInputStream(
       throw new IOException(FSExceptionMessages.STREAM_IS_CLOSED)
     }
     val newUrl = fetcher.getUrl()
-    // scalastyle:off println
-    Console.println(s"----[linzhou]----client url:$newUrl")
     if (uri != newUrl) {
       // Abort the current open stream so that we will re-open a new stream using the new url
       uri = newUrl
@@ -116,11 +114,7 @@ private[sharing] class RandomAccessHttpInputStream(
   }
 
   private def createHttpRequest(start: Long): HttpRequestBase = {
-    import java.net.URI
-    Console.println(s"----[linzhou]----created uri:${URI.create(uri)}")
-    val request = new HttpGet(URI.create(uri))
-    Console.println(s"----[linzhou]----request:${request}")
-    Console.println(s"----[linzhou]----request.getURI:${request.getURI}")
+    val request = new HttpGet(uri)
     val rangeValue = s"bytes=$start-${contentLength - 1L}"
     request.addHeader("Range", rangeValue)
     request
@@ -152,7 +146,6 @@ private[sharing] class RandomAccessHttpInputStream(
       throw new EOFException(FSExceptionMessages.CANNOT_SEEK_PAST_EOF + " " + pos)
     } else {
       logDebug(s"Opening file $uri at pos $pos")
-      Console.println(s"----[linzhou]----uri:$uri")
 
      val entity = RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
         val httpRequest = createHttpRequest(pos)

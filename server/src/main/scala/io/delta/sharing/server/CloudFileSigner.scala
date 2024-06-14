@@ -114,13 +114,9 @@ class AzureFileSigner(
 
   override def sign(path: Path): PreSignedUrl = {
     val containerRef = blobClient.getContainerReference(container)
-    // scalastyle:off println
-    Console.println(s"----[linzhou]----sign path:$path")
     val objectKey = objectKeyExtractor(path)
-    Console.println(s"----[linzhou]----objectKey:$objectKey")
     assert(objectKey.nonEmpty, s"cannot get object key from $path")
     val blobRef = containerRef.getBlockBlobReference(objectKey)
-    Console.println(s"----[linzhou]----blobRef:$blobRef")
     val accessPolicy = getAccessPolicy
     val sasToken = blobRef.generateSharedAccessSignature(
       accessPolicy,
@@ -130,10 +126,8 @@ class AzureFileSigner(
       SharedAccessProtocols.HTTPS_ONLY
     )
     val sasTokenCredentials = new StorageCredentialsSharedAccessSignature(sasToken)
-    val a = sasTokenCredentials.transformUri(blobRef.getUri).toString
-    Console.println(s"----[linzhou]----signed url:$a")
     PreSignedUrl(
-      a,
+      sasTokenCredentials.transformUri(blobRef.getUri).toString,
       System.currentTimeMillis() + SECONDS.toMillis(preSignedUrlTimeoutSeconds)
     )
   }
