@@ -19,7 +19,6 @@ package io.delta.sharing.server
 import java.util.concurrent.TimeUnit
 
 import com.google.common.cache.CacheBuilder
-import io.delta.kernelsharedtable.DeltaSharedTableKernel
 import io.delta.standalone.internal.DeltaSharedTable
 
 import io.delta.sharing.server.config.{ServerConfig, TableConfig}
@@ -37,19 +36,7 @@ class DeltaSharedTableLoader(serverConfig: ServerConfig) {
       .build[String, DeltaSharedTable]()
   }
 
-  def loadTable(tableConfig: TableConfig, useKernel: Boolean = false): DeltaSharedTableProtocol = {
-    if (useKernel) {
-      new DeltaSharedTableKernel(
-        tableConfig,
-        serverConfig.preSignedUrlTimeoutSeconds,
-        serverConfig.evaluatePredicateHints,
-        serverConfig.evaluateJsonPredicateHints,
-        serverConfig.evaluateJsonPredicateHintsV2,
-        serverConfig.queryTablePageSizeLimit,
-        serverConfig.queryTablePageTokenTtlMs,
-        serverConfig.refreshTokenTtlMs
-      )
-    }
+  def loadTable(tableConfig: TableConfig): DeltaSharedTable = {
     try {
       val deltaSharedTable =
         deltaSharedTableCache.get(

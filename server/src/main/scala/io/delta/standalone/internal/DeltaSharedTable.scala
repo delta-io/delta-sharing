@@ -41,7 +41,7 @@ import scala.collection.mutable.ListBuffer
 import scala.util.control.NonFatal
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
-import io.delta.sharing.server.{model, AbfsFileSigner, CausedBy, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, GCSFileSigner, PreSignedUrl, QueryResult, S3FileSigner, WasbFileSigner}
+import io.delta.sharing.server.{model, AbfsFileSigner, CausedBy, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, GCSFileSigner, PreSignedUrl, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
 import io.delta.sharing.server.util.JsonUtils
@@ -63,6 +63,14 @@ private case class QueryParamChecksum(
     includeHistoricalMetadata: Option[Boolean])
 
 
+/**
+ *  QueryResult of query and queryCDF function, including a version, a resopnseFormat, and a list
+ *  of actions.
+ */
+case class QueryResult(
+    version: Long,
+    actions: Seq[Object],
+    responseFormat: String)
 
 /**
  * A table class that wraps `DeltaLog` to provide the methods used by the server.
@@ -75,7 +83,7 @@ class DeltaSharedTable(
     evaluateJsonPredicateHintsV2: Boolean,
     queryTablePageSizeLimit: Int,
     queryTablePageTokenTtlMs: Int,
-    refreshTokenTtlMs: Int) extends DeltaSharedTableProtocol {
+    refreshTokenTtlMs: Int) {
 
   private val conf = withClassLoader {
     new Configuration()
@@ -137,7 +145,7 @@ class DeltaSharedTable(
   /** Get table version at or after startingTimestamp if it's provided, otherwise return
    *  the latest table version.
    */
-  override def getTableVersion(startingTimestamp: Option[String]): Long = withClassLoader {
+  def getTableVersion(startingTimestamp: Option[String]): Long = withClassLoader {
     if (startingTimestamp.isEmpty) {
       tableVersion
     } else {
