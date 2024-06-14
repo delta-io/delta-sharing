@@ -54,7 +54,8 @@ lazy val spark = (project in file("spark")) settings(
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
-    "org.scalatest" %% "scalatest" % "3.2.3" % "test"
+    "org.scalatest" %% "scalatest" % "3.2.3" % "test",
+    "org.scalatestplus" %% "mockito-4-11" % "3.2.18.0" % "test"
   ),
   Compile / sourceGenerators += Def.task {
     val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "spark" / "package.scala"
