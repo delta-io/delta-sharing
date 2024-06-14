@@ -83,8 +83,8 @@ case class ServerConfig(
       deltaTableCacheSize = 10,
       stalenessAcceptable = false,
       evaluatePredicateHints = false,
-      evaluateJsonPredicateHints = false,
-      evaluateJsonPredicateHintsV2 = false,
+      evaluateJsonPredicateHints = true,
+      evaluateJsonPredicateHintsV2 = true,
       requestTimeoutSeconds = 30,
       queryTablePageSizeLimit = 10000,
       queryTablePageTokenTtlMs = 259200000, // 3 days
