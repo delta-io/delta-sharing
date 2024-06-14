@@ -177,7 +177,11 @@ object AbfsFileSigner {
       .getDeclaredMethod("getRelativePath", classOf[Path])
     getRelativePathMethod.setAccessible(true)
     var relativePath = getRelativePathMethod.invoke(abfsStore, path).asInstanceOf[String]
+
     // remove duplicate separator character for azure relative path
+    // see https://github.com/apache/hadoop/commit/af98f32f7dbb9d71915690b66f12c33758011450
+    // #diff-94925ffd3b21968d7e6b476f7e85f68f5ea326f186262017fad61a5a6a3815cbL1215
+    // for more details
     if (relativePath.charAt(0) == Path.SEPARATOR_CHAR) {
       relativePath = relativePath.substring(1)
     }
