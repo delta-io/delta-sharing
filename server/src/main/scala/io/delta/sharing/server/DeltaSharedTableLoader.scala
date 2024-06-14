@@ -39,7 +39,7 @@ class DeltaSharedTableLoader(serverConfig: ServerConfig) {
 
   def loadTable(tableConfig: TableConfig, useKernel: Boolean = false): DeltaSharedTableProtocol = {
     if (useKernel) {
-      new DeltaSharedTableKernel(
+      return new DeltaSharedTableKernel(
         tableConfig,
         serverConfig.preSignedUrlTimeoutSeconds,
         serverConfig.evaluatePredicateHints,

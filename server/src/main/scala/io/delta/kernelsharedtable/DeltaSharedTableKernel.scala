@@ -18,6 +18,9 @@ package io.delta.kernelsharedtable
 
 import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
+import java.sql.Timestamp
+import java.time.OffsetDateTime
+import java.time.format.{DateTimeFormatter, DateTimeParseException}
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 
@@ -30,7 +33,9 @@ import com.google.common.hash.Hashing
 import io.delta.kernel.Table
 import io.delta.kernel.defaults.engine.DefaultEngine
 import io.delta.kernel.engine.Engine
+import io.delta.kernel.exceptions.{KernelException, TableNotFoundException}
 import io.delta.kernel.internal.{ScanImpl, SnapshotImpl}
+import io.delta.kernel.internal.util.{InternalUtils, VectorUtils}
 import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, Metadata, Protocol, RemoveFile}
 import io.delta.standalone.internal.exception.DeltaErrors
@@ -82,6 +87,21 @@ class DeltaSharedTableKernel(
 
   protected val tablePath: Path = new Path(tableConfig.getLocation)
 
+  /**
+   * Run `func` under the classloader of `DeltaSharedTable`. We cannot use the classloader set by
+   * Armeria as Hadoop needs to search the classpath to find its classes.
+   */
+  private def withClassLoader[T](func: => T): T = {
+    val classLoader = Thread.currentThread().getContextClassLoader
+    if (classLoader == null) {
+      Thread.currentThread().setContextClassLoader(this.getClass.getClassLoader)
+      try func finally {
+        Thread.currentThread().setContextClassLoader(null)
+      }
+    } else {
+      func
+    }
+  }
 
   // Get the table and table client (engine).
   // Uses the delta-kernel default implementation of link engine based on Hadoop APIs
@@ -98,14 +118,39 @@ class DeltaSharedTableKernel(
   /** Get table version at or after startingTimestamp if it's provided, otherwise return
    *  the latest table version.
    */
-  override def getTableVersion(startingTimestamp: Option[String]): Long = {
+  override def getTableVersion(startingTimestamp: Option[String]): Long = withClassLoader {
     if (startingTimestamp.isDefined) {
-      throw new DeltaSharingIllegalArgumentException("starting timestamp not defined")
+      val (table, engine) = getTableAndEngine()
+      try {
+        val snapshot = table.
+          getSnapshotAsOfTimestamp(engine, millisSinceEpoch(startingTimestamp.get))
+        val pastVersion = snapshot.getVersion(engine)
+
+        try {
+          // If past snapshot exists, add one to the corresponding version.
+          table.getSnapshotAsOfVersion(engine, pastVersion + 1)
+          return pastVersion + 1
+        } catch {
+          // If the snapshot as of this version + 1 does not exist, throw error.
+          case _: TableNotFoundException =>
+            throw new DeltaSharingIllegalArgumentException("Not a valid starting timestamp")
+        }
+      } catch {
+        // If there was an illegal argument from the timestamp throw the error
+        case e: DeltaSharingIllegalArgumentException =>
+          throw e
+        // If the kernel exception indicates the timestamp was too small, return 0, otherwise error
+        case e: KernelException =>
+          if (e.getMessage.contains("Please use a timestamp greater than or equal")) {
+            return 0
+          }
+          throw e
+      }
     } else {
+      // if starting timestamp is not provided use the latest snapshot
       val (table, engine) = getTableAndEngine()
       val snapshot = table.getLatestSnapshot(engine)
-      snapshot.getVersion(engine)
-
+      return snapshot.getVersion(engine)
     }
   }
 
@@ -126,7 +171,6 @@ class DeltaSharedTableKernel(
       responseFormatSet: Set[String]): QueryResult = {
 
     throw new DeltaSharingUnsupportedOperationException("not implemented yet")
-
   }
 
   override def queryCDF(
@@ -137,7 +181,27 @@ class DeltaSharedTableKernel(
       responseFormatSet: Set[String] = Set("parquet")): QueryResult = {
 
     throw new DeltaSharingUnsupportedOperationException("not implemented yet")
+  }
 
+  // Parse timestamp string and return the timestamp in milliseconds since epoch.
+  // Accepted format: DateTimeFormatter.ISO_OFFSET_DATE_TIME, example: 2022-01-01T00:00:00Z
+  private def millisSinceEpoch(timestamp: String): Long = {
+    try {
+      OffsetDateTime
+        .parse(timestamp, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        .toInstant
+        .toEpochMilli
+    } catch {
+      case e: DateTimeParseException =>
+        try {
+          // TODO: stop supporting this format once all clients are migrated.
+          InternalUtils.microsSinceEpoch(Timestamp.valueOf(timestamp)) / 1000
+        } catch {
+          case _: IllegalArgumentException =>
+            throw new
+                DeltaSharingIllegalArgumentException(s"Invalid startingTimestamp: ${e.getMessage}.")
+        }
+    }
   }
 
 }

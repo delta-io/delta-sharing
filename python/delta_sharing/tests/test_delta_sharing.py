@@ -178,7 +178,7 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
         pytest.param(
             "share8.default.cdf_table_cdf_enabled",
             "2100-01-01T00:00:00Z",
-            "Please use a timestamp less than",
+            "is after the latest available version",
             -1,
             id="cdf_table_cdf_enabled timestamp too late",
         ),

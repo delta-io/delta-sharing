@@ -139,7 +139,7 @@ class DeltaSharingSourceParamsSuite extends QueryTest
         .load().writeStream.format("console").start()
       query.processAllAvailable()
     }.getMessage
-    assert(message.contains("The provided timestamp ("))
+    assert(message.contains("The provided timestamp "))
   }
 
   integrationTest("startingTimestamp - succeeds") {
