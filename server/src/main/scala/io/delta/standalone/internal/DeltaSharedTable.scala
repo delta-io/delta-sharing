@@ -330,7 +330,8 @@ class DeltaSharedTable(
       pageToken: Option[String],
       includeRefreshToken: Boolean,
       refreshToken: Option[String],
-      responseFormatSet: Set[String]): QueryResult = withClassLoader {
+      responseFormatSet: Set[String],
+      clientReaderFeaturesSet: Set[String] = Set.empty): QueryResult = withClassLoader {
     // scalastyle:on argcount
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
