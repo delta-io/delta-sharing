@@ -282,7 +282,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         versionAsOf = Some(6)
       )
     }.getMessage
-    assert(errorMessage.contains("Cannot time travel Delta table to version 6"))
+    assert(errorMessage.contains("Cannot load table version 6"))
 
     errorMessage = intercept[UnexpectedHttpStatus] {
       client.getMetadata(

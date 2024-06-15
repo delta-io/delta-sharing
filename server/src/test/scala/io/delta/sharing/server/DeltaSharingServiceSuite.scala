@@ -2219,7 +2219,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "is after the latest available versiong"
+      expectedErrorMessage = "is after the latest available version"
     )
   }
 
