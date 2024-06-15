@@ -307,10 +307,6 @@ class DeltaSharedTableKernel(
     )
 
     val protocol = getResponseProtocol(snapshot.protocol, respondedFormat)
-    // scalastyle:off println
-    System.out.println("PranavSukumar: protocol from query is")
-    System.out.println(protocol)
-    // scalastyle:on println
 
     val metadata = getResponseMetadata(snapshot.metadata, version = null, respondedFormat)
     val actions = Seq(
