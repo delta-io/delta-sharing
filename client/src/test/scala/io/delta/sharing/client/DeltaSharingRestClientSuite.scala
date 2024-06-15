@@ -290,7 +290,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         timestampAsOf = Some("2021-01-01T00:00:00Z")
       )
     }.getMessage
-    assert(errorMessage.contains("is before the earliest version available"))
+    assert(errorMessage.contains("is before the earliest available version "))
   }
 
   integrationTest("getFiles using async api error handling") {
