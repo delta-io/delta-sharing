@@ -16,6 +16,7 @@
 
 package io.delta.kernelsharedtable
 
+import java.io.FileNotFoundException
 import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 import java.sql.Timestamp
@@ -131,16 +132,36 @@ class DeltaSharedTableKernel(
       isProviderRpc: Boolean = false): SharedTableSnapshot = {
     val snapshot =
       if (version.isDefined) {
-        table.getSnapshotAsOfVersion(engine, version.get).asInstanceOf[SnapshotImpl]
+        try {
+          table.getSnapshotAsOfVersion(engine, version.get).asInstanceOf[SnapshotImpl]
+        } catch {
+          case e: io.delta.kernel.exceptions.TableNotFoundException =>
+            throw new FileNotFoundException(e.getMessage)
+        }
+
       } else if (timestamp.isDefined) {
-        table
-          .getSnapshotAsOfTimestamp(engine, millisSinceEpoch(timestamp.get))
-          .asInstanceOf[SnapshotImpl]
+        try {
+          table
+            .getSnapshotAsOfTimestamp(engine, millisSinceEpoch(timestamp.get))
+            .asInstanceOf[SnapshotImpl]
+        } catch {
+          // Convert to DeltaSharingIllegalArgumentException to return 4xx instead of 5xx error code
+          // Only convert known exceptions around timestamp too late or too early
+          case e: io.delta.kernel.exceptions.TableNotFoundException =>
+            throw new FileNotFoundException(e.getMessage)
+        }
       } else {
         val classLoader = this.getClass.getClassLoader
         Thread.currentThread().setContextClassLoader(classLoader)
-
-        table.getLatestSnapshot(engine).asInstanceOf[SnapshotImpl]
+        try {
+          table.getLatestSnapshot(engine).asInstanceOf[SnapshotImpl]
+        }
+        catch {
+          case e: io.delta.kernel.exceptions.TableNotFoundException =>
+            throw new FileNotFoundException(e.getMessage)
+          case e: Throwable =>
+            throw new FileNotFoundException(e.getMessage)
+        }
       }
 
     // Validate snapshot version, throw error if it's before the valid start version.
@@ -436,7 +457,9 @@ class DeltaSharedTableKernel(
           ),
           schemaString = cleanUpTableSchema(m.getSchemaString),
           partitionColumns = getPartitionColumns(m),
-          configuration = getMetadataConfiguration(m.getConfiguration.asScala.toMap),
+          configuration = getMetadataConfiguration(
+            respondedFormat = DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA,
+            tableConf = m.getConfiguration.asScala.toMap),
           createdTime = Option(m.getCreatedTime.orElse(null))
         ),
         version = version
@@ -449,7 +472,7 @@ class DeltaSharedTableKernel(
         format = Format(),
         schemaString = cleanUpTableSchema(m.getSchemaString),
         partitionColumns = getPartitionColumns(m),
-        configuration = getMetadataConfiguration(m.getConfiguration.asScala.toMap),
+        configuration = getMetadataConfiguration(tableConf = m.getConfiguration.asScala.toMap),
         version = version
       ).wrap
     }
@@ -462,10 +485,17 @@ class DeltaSharedTableKernel(
 
   // Get the table configuration for parquet format response.
   // If the response is in parquet format, return enableChangeDataFeed config only.
-  private def getMetadataConfiguration(tableConf: Map[String, String]): Map[String, String ] = {
+  private def getMetadataConfiguration(
+      respondedFormat: String = DeltaSharedTableKernel.RESPONSE_FORMAT_PARQUET,
+      tableConf: Map[String, String]): Map[String, String ] = {
     if (tableConfig.historyShared &&
       tableConf.getOrElse("delta.enableChangeDataFeed", "false") == "true") {
-      Map("enableChangeDataFeed" -> "true")
+      if (respondedFormat ==  DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
+        Map("delta.enableChangeDataFeed" -> "true")
+      }
+      else {
+        Map("enableChangeDataFeed" -> "true")
+      }
     } else {
       Map.empty
     }
