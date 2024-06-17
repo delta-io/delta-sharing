@@ -52,15 +52,6 @@ sealed abstract class TableFeature(val name: String) extends java.io.Serializabl
 }
 
 /**
- * These reader-writer features are supported but should not be enabled.
- * Only these reader-writer features are allowed to be present in delta shared tables.
- * And the corresponding table properties should not be enabled.
- * Any other reader-writer features will be rejected.
- */
-object DeletionVectorsTableFeature extends TableFeature(name = "deletionVectors")
-object ColumnMappingTableFeature extends TableFeature(name = "columnMapping")
-
-/**
  * Represents a single change to the state of a Delta table. An order sequence
  * of actions can be replayed using [[InMemoryLogReplay]] to derive the state
  * of the table at a given point in time.

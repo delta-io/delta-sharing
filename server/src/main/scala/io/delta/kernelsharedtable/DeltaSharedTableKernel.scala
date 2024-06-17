@@ -48,7 +48,7 @@ import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
 import io.delta.sharing.server.{AbfsFileSigner, CausedBy, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, GCSFileSigner, PreSignedUrl, QueryResult, S3FileSigner, WasbFileSigner}
-import io.delta.sharing.server.actions.{ColumnMappingTableFeature, DeletionVectorsTableFeature, DeltaFormat, DeltaMetadata, DeltaProtocol, DeltaSingleAction}
+import io.delta.sharing.server.actions.{DeltaFormat, DeltaMetadata, DeltaProtocol, DeltaSingleAction}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
@@ -172,12 +172,7 @@ class DeltaSharedTableKernel(
     val protocol = snapshot.getProtocol
     val metadata = snapshot.getMetadata
 
-    val updatedProtocol = if (clientReaderFeatures.isEmpty) {
-      // Client does not support advanced features.
-      // And after all the validation the table can be treated as having no advanced
-      // features/properties, hence we return a "fake" minReaderVersion=1, and cleanup
-      // the readerFeatures.
-      // Otherwise, we return the original protocol.
+    val updatedProtocol =
       new KernelProtocol(
         1,
         if (protocol.getMinWriterVersion < 7) {
@@ -190,9 +185,6 @@ class DeltaSharedTableKernel(
         seqAsJavaList(Seq.empty[String]),
         seqAsJavaList(Seq.empty[String])
       )
-    } else {
-      protocol
-    }
 
     // val versionStats =
     //  loadVersionStats(snapshotVersion, clientReaderFeatures, flagReaderFeatures, isProviderRpc)
@@ -209,26 +201,6 @@ class DeltaSharedTableKernel(
   private lazy val fullHistoryShared: Boolean =
     tableConfig.historyShared && tableConfig.startVersion == 0L
   private lazy val clientReaderFeatures = Set.empty
-  protected def allowedClientReaderFeatures(
-      inputFullHistoryShared: Boolean = fullHistoryShared,
-      clientReaderFeatures: Set[String]): Set[String] = {
-    clientReaderFeatures.filter { feature =>
-      if (inputFullHistoryShared) {
-        // All features are allowed when full history is shared.
-        true
-      } else {
-        // DV and CM are not allowed if full history is not shared.
-        // A table won't be shared with DV/CM enabled and without history, through the UC code path.
-        // This is a double check to avoid the following potential data leakage:
-        //  - User shares a regular table without history
-        //  - User enables DV/CM outside UC code path.
-        // scalastyle:off caselocale
-        !(feature.toLowerCase == DeletionVectorsTableFeature.name.toLowerCase ||
-          feature.toLowerCase == ColumnMappingTableFeature.name.toLowerCase)
-        // scalastyle:on caselocale
-      }
-    }
-  }
 
 
   /** Get table version at or after startingTimestamp if it's provided, otherwise return
@@ -293,8 +265,6 @@ class DeltaSharedTableKernel(
       )
     }
 
-    val refreshTokenOpt = refreshToken.map(decodeAndValidateRefreshToken)
-
     val queryType = if (version.isDefined || timestamp.isDefined) {
       QueryTypes.QueryVersionSnapshot
     } else {
@@ -308,15 +278,13 @@ class DeltaSharedTableKernel(
 
     val (table, engine) = getTableAndEngine()
 
-    val specifiedVersion = version.orElse(refreshTokenOpt.map(_.getVersion))
     val snapshot = getSharedTableSnapshot(
       table,
       engine,
-      version.orElse(refreshTokenOpt.map(_.getVersion)),
+      version,
       timestamp,
       validStartVersion = tableConfig.startVersion,
-      clientReaderFeatures =
-        allowedClientReaderFeatures(clientReaderFeatures = clientReaderFeaturesSet)
+      clientReaderFeatures = Set.empty
     )
 
     val respondedFormat = getRespondedFormat(
