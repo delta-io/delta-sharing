@@ -40,18 +40,6 @@ object DeltaAction {
 }
 
 /**
- * Note: this is a stripped down version of TableFeature from Runtime.
- * Delta standalone only supports basic parsing of reader features.
- */
-sealed abstract class TableFeature(val name: String) extends java.io.Serializable {
-  // scalastyle:off caselocale
-  def isInSet(featureSet: Set[String]): Boolean = {
-    featureSet.map(_.toLowerCase).contains(name.toLowerCase)
-  }
-  // scalastyle:on caselocale
-}
-
-/**
  * Represents a single change to the state of a Delta table. An order sequence
  * of actions can be replayed using [[InMemoryLogReplay]] to derive the state
  * of the table at a given point in time.

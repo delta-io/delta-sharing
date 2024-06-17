@@ -265,17 +265,6 @@ class DeltaSharedTableKernel(
       )
     }
 
-    val queryType = if (version.isDefined || timestamp.isDefined) {
-      QueryTypes.QueryVersionSnapshot
-    } else {
-      QueryTypes.QueryLatestSnapshot
-    }
-    val globalLimitHint = if (predicateHints.isEmpty && jsonPredicateHints.isEmpty) {
-      limitHint
-    } else {
-      None
-    }
-
     val (table, engine) = getTableAndEngine()
 
     val snapshot = getSharedTableSnapshot(
@@ -317,28 +306,6 @@ class DeltaSharedTableKernel(
       responseFormatSet: Set[String] = Set("parquet")): QueryResult = {
 
     throw new DeltaSharingUnsupportedOperationException("not implemented yet")
-  }
-
-  private def decodeAndValidateRefreshToken(tokenStr: String): RefreshToken = {
-    val token = try {
-      DeltaSharedTableKernel.decodeToken[RefreshToken](tokenStr)
-    } catch {
-      case NonFatal(_) =>
-        throw new DeltaSharingIllegalArgumentException(
-          s"Error decoding refresh token: $tokenStr."
-        )
-    }
-    if (token.getExpirationTimestamp < System.currentTimeMillis()) {
-      throw new DeltaSharingIllegalArgumentException(
-        "The refresh token has expired. Please restart the query."
-      )
-    }
-    if (token.getId != tableConfig.id) {
-      throw new DeltaSharingIllegalArgumentException(
-        "The table specified in the refresh token does not match the table being queried."
-      )
-    }
-    token
   }
 
   protected def getRespondedFormat(
