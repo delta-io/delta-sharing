@@ -282,7 +282,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         versionAsOf = Some(6)
       )
     }.getMessage
-    assert(errorMessage.contains("Cannot time travel Delta table to version 6"))
+    assert(errorMessage.contains("Cannot load table version 6"))
 
     errorMessage = intercept[UnexpectedHttpStatus] {
       client.getMetadata(
@@ -290,7 +290,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         timestampAsOf = Some("2021-01-01T00:00:00Z")
       )
     }.getMessage
-    assert(errorMessage.contains("is before the earliest version available"))
+    assert(errorMessage.contains("is before the earliest available version "))
   }
 
   integrationTest("getFiles using async api error handling") {

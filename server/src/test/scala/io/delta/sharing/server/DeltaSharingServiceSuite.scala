@@ -2169,7 +2169,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "Cannot time travel Delta table to version 4"
+      expectedErrorMessage = "Cannot load table version 4"
     )
   }
 
@@ -2198,28 +2198,28 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "Invalid timestamp"
+      expectedErrorMessage = "Invalid startingTimestamp"
     )
     assertHttpError(
       url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=2021-01-01T00:00:00Z"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "is before the earliest version available"
+      expectedErrorMessage = "is before the earliest available version"
     )
     assertHttpError(
       url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=2024-01-01T00:00:00Z"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "is after the latest version available"
+      expectedErrorMessage = "is after the latest available version"
     )
     assertHttpError(
       url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=2024-01-01T00:00:00Z"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "is after the latest version available"
+      expectedErrorMessage = "is after the latest available version"
     )
   }
 

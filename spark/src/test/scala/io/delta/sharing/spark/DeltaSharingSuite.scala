@@ -186,8 +186,8 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
         expected
       )
     }.getMessage
-    assert(errorMessage.contains("The provided timestamp ("))
-    assert(errorMessage.contains("The provided timestamp ("))
+    assert(errorMessage.contains("The provided timestamp "))
+    assert(errorMessage.contains("The provided timestamp "))
 
     errorMessage = intercept[IllegalArgumentException] {
       checkAnswer(
