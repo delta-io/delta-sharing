@@ -151,8 +151,6 @@ class DeltaSharedTableKernel(
             throw new FileNotFoundException(e.getMessage)
         }
       } else {
-        val classLoader = this.getClass.getClassLoader
-        Thread.currentThread().setContextClassLoader(classLoader)
         try {
           table.getLatestSnapshot(engine).asInstanceOf[SnapshotImpl]
         }
@@ -160,16 +158,16 @@ class DeltaSharedTableKernel(
           case e: io.delta.kernel.exceptions.TableNotFoundException =>
             throw new FileNotFoundException(e.getMessage)
           case e: Throwable =>
-            throw new FileNotFoundException(e.getMessage)
+            if (e.getMessage.contains("Log file not found")) {
+              throw new FileNotFoundException(e.getMessage)
+            }
+            throw e
+
         }
       }
 
     // Validate snapshot version, throw error if it's before the valid start version.
     val snapshotVersion = snapshot.getVersion(engine)
-    if (snapshotVersion < validStartVersion) {
-      throw new DeltaSharingIllegalArgumentException(
-        "snapshotVersion must be greater than validStartVersion")
-    }
 
     val protocol = snapshot.getProtocol
     val metadata = snapshot.getMetadata
@@ -457,9 +455,7 @@ class DeltaSharedTableKernel(
           ),
           schemaString = cleanUpTableSchema(m.getSchemaString),
           partitionColumns = getPartitionColumns(m),
-          configuration = getMetadataConfiguration(
-            respondedFormat = DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA,
-            tableConf = m.getConfiguration.asScala.toMap),
+          configuration = m.getConfiguration.asScala.toMap,
           createdTime = Option(m.getCreatedTime.orElse(null))
         ),
         version = version
@@ -485,17 +481,10 @@ class DeltaSharedTableKernel(
 
   // Get the table configuration for parquet format response.
   // If the response is in parquet format, return enableChangeDataFeed config only.
-  private def getMetadataConfiguration(
-      respondedFormat: String = DeltaSharedTableKernel.RESPONSE_FORMAT_PARQUET,
-      tableConf: Map[String, String]): Map[String, String ] = {
+  private def getMetadataConfiguration(tableConf: Map[String, String]): Map[String, String ] = {
     if (tableConfig.historyShared &&
       tableConf.getOrElse("delta.enableChangeDataFeed", "false") == "true") {
-      if (respondedFormat ==  DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
-        Map("delta.enableChangeDataFeed" -> "true")
-      }
-      else {
-        Map("enableChangeDataFeed" -> "true")
-      }
+      Map("enableChangeDataFeed" -> "true")
     } else {
       Map.empty
     }

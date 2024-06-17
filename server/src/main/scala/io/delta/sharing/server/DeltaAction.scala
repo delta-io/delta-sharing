@@ -34,48 +34,6 @@ object DeltaAction {
   val readerVersion = 3
   val writerVersion = 2
 
-  case class PropertyAllowedValues(property: String, allowedValues: Seq[String])
-
-  /**
-   * These properties should be supported according to the readerFeatures.
-   * However, they are not supported by the Delta standalone reader at this point.
-   * Delta standalone reader should still try to read these tables given the properties are not set.
-   */
-  val deletionVectorsProperty: PropertyAllowedValues =
-    PropertyAllowedValues("delta.enableDeletionVectors", Seq("false"))
-  val columnMappingProperty: PropertyAllowedValues =
-    PropertyAllowedValues("delta.columnMapping.mode", Seq("none"))
-  val tablePropertiesWithDisabledValues: Seq[PropertyAllowedValues] =
-    Seq(deletionVectorsProperty, columnMappingProperty)
-
-  val supportedTableFeatures: Set[TableFeature] = Set(
-    // ReaderWriterFeatures
-    DeletionVectorsTableFeature,
-    ColumnMappingTableFeature,
-    VacuumProtocolCheckTableFeature,
-    // WriterFeatures only
-    AppendOnlyTableFeature,
-    InvariantsTableFeature,
-    CheckConstraintsTableFeature,
-    ChangeDataFeedTableFeature,
-    GeneratedColumnsTableFeature,
-    IdentityColumnsTableFeature,
-    AllowColumnDefaultsTableFeature,
-    RowTrackingFeature,
-    DomainMetadataTableFeature,
-    IcebergCompatV1TableFeature,
-    IcebergCompatV2TableFeature,
-    ClusteringTableFeature,
-    LiquidTableFeature
-  )
-
-  val kernelSupportedTableFeatures: Set[TableFeature] =
-    supportedTableFeatures ++ Set(
-      V2CheckpointTableFeature
-      // TODO(charlenelyu): add TimestampNTZ after we fix the schema serialization
-      //  during reconciliation.
-    )
-
   def fromJson(json: String): DeltaAction = {
     JsonUtils.mapper.readValue[DeltaSingleAction](json).unwrap
   }
@@ -101,28 +59,6 @@ sealed abstract class TableFeature(val name: String) extends java.io.Serializabl
  */
 object DeletionVectorsTableFeature extends TableFeature(name = "deletionVectors")
 object ColumnMappingTableFeature extends TableFeature(name = "columnMapping")
-object V2CheckpointTableFeature extends TableFeature(name = "v2Checkpoint")
-object TimestampNTZTableFeature extends TableFeature(name = "timestampNtz")
-object VacuumProtocolCheckTableFeature extends TableFeature(name = "vacuumProtocolCheck")
-
-/**
- * Delta standalone is read-only.
- * However, we list these writer features as supported because we cannot distinguish reader-writer
- * from writer features when only looking at table properties.
- */
-object AppendOnlyTableFeature extends TableFeature(name = "appendOnly")
-object InvariantsTableFeature extends TableFeature(name = "invariants")
-object CheckConstraintsTableFeature extends TableFeature(name = "checkConstraints")
-object ChangeDataFeedTableFeature extends TableFeature(name = "changeDataFeed")
-object GeneratedColumnsTableFeature extends TableFeature(name = "generatedColumns")
-object IdentityColumnsTableFeature extends TableFeature(name = "identityColumns")
-object AllowColumnDefaultsTableFeature extends TableFeature(name = "allowColumnDefaults")
-object RowTrackingFeature extends TableFeature(name = "rowTracking")
-object DomainMetadataTableFeature extends TableFeature(name = "domainMetadata")
-object IcebergCompatV1TableFeature extends TableFeature(name = "icebergCompatV1")
-object IcebergCompatV2TableFeature extends TableFeature(name = "icebergCompatV2")
-object ClusteringTableFeature extends TableFeature("clustering")
-object LiquidTableFeature extends TableFeature("liquid")
 
 /**
  * Represents a single change to the state of a Delta table. An order sequence
