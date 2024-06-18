@@ -49,12 +49,13 @@ lazy val client = (project in file("client")) settings(
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
-    "org.apache.httpcomponents" % "httpclient" % "4.5.13",
+    "org.apache.httpcomponents" % "httpclient" % "4.5.14",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
-    "org.scalatest" %% "scalatest" % "3.2.3" % "test"
+    "org.scalatest" %% "scalatest" % "3.2.3" % "test",
+    "org.scalatestplus" %% "mockito-4-11" % "3.2.18.0" % "test"
   ),
   Compile / sourceGenerators += Def.task {
     val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "client" / "package.scala"
@@ -125,14 +126,14 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("org.json4s")
     ),
-    "org.apache.hadoop" % "hadoop-aws" % "2.10.1" excludeAll(
+    "org.apache.hadoop" % "hadoop-aws" % "3.3.4" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava"),
       ExclusionRule("com.amazonaws", "aws-java-sdk-bundle")
     ),
     "com.amazonaws" % "aws-java-sdk-bundle" % "1.12.189",
-    "org.apache.hadoop" % "hadoop-azure" % "2.10.1" excludeAll(
+    "org.apache.hadoop" % "hadoop-azure" % "3.3.4" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")
@@ -145,22 +146,32 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")
     ),
-    "org.apache.hadoop" % "hadoop-common" % "2.10.1" excludeAll(
+    "org.apache.hadoop" % "hadoop-common" % "3.3.4" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")
     ),
-    "org.apache.hadoop" % "hadoop-client" % "2.10.1" excludeAll(
+    "org.apache.hadoop" % "hadoop-client" % "3.3.4" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")
     ),
-    "org.apache.parquet" % "parquet-hadoop" % "1.10.1" excludeAll(
+    "org.apache.parquet" % "parquet-hadoop" % "1.12.3" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")
     ),
-    "io.delta" %% "delta-standalone" % "0.5.0" excludeAll(
+    "io.delta" %% "delta-standalone" % "3.2.0" % "provided" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
+    ),
+    "io.delta" % "delta-kernel-api" % "3.2.0" excludeAll(
+      ExclusionRule("com.fasterxml.jackson.core"),
+      ExclusionRule("com.fasterxml.jackson.module"),
+      ExclusionRule("com.google.guava", "guava")
+    ),
+    "io.delta" % "delta-kernel-defaults" % "3.2.0" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")

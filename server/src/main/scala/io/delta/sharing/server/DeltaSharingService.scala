@@ -32,16 +32,17 @@ import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
 import com.linecorp.armeria.server.annotation.{ConsumesJson, Default, ExceptionHandler, ExceptionHandlerFunction, Get, Head, Param, Post, ProducesJson}
 import com.linecorp.armeria.server.auth.AuthService
+import io.delta.kernel.exceptions.{KernelException, TableNotFoundException}
 import io.delta.standalone.internal.DeltaCDFErrors
 import io.delta.standalone.internal.DeltaCDFIllegalArgumentException
 import io.delta.standalone.internal.DeltaDataSource
 import io.delta.standalone.internal.DeltaSharedTable
-import io.delta.standalone.internal.DeltaSharedTableLoader
 import net.sourceforge.argparse4j.ArgumentParsers
 import org.apache.commons.io.FileUtils
 import org.slf4j.LoggerFactory
 import scalapb.json4s.Printer
 
+import io.delta.sharing.server.DeltaSharedTableLoader
 import io.delta.sharing.server.config.ServerConfig
 import io.delta.sharing.server.model.{QueryStatus, SingleAction}
 import io.delta.sharing.server.protocol._
@@ -97,6 +98,22 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
           JsonUtils.toJson(
             Map(
               "errorCode" -> ErrorCode.INVALID_PARAMETER_VALUE,
+              "message" -> cause.getMessage)))
+      case _: KernelException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.MALFORMED_REQUEST,
+              "message" -> cause.getMessage)))
+      case _: TableNotFoundException =>
+        HttpResponse.of(
+          HttpStatus.BAD_REQUEST,
+          MediaType.JSON_UTF_8,
+          JsonUtils.toJson(
+            Map(
+              "errorCode" -> ErrorCode.MALFORMED_REQUEST,
               "message" -> cause.getMessage)))
       case _: DeltaCDFIllegalArgumentException =>
         HttpResponse.of(
@@ -186,6 +203,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       case e: DeltaCDFIllegalArgumentException => throw e
       case e: FileNotFoundException => throw e
       case e: AccessDeniedException => throw e
+      case e: KernelException => throw e
+      case e: TableNotFoundException => throw e
       case e: Throwable => throw new DeltaInternalException(e)
     }
   }
@@ -258,7 +277,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         " not supported because history sharing is not enabled on table: " +
         s"$share.$schema.$table")
     }
-    val version = deltaSharedTableLoader.loadTable(tableConfig).getTableVersion(
+    val version = deltaSharedTableLoader.loadTable(tableConfig, useKernel = true).getTableVersion(
       Option(startingTimestamp)
     )
     if (startingTimestamp != null && version < tableConfig.startVersion) {
@@ -310,7 +329,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         s"$share.$schema.$table")
     }
     val responseFormatSet = getResponseFormatSet(capabilitiesMap)
-    val queryResult = deltaSharedTableLoader.loadTable(tableConfig).query(
+    val clientReaderFeaturesSet = getReaderFeatures(capabilitiesMap)
+    val queryResult = deltaSharedTableLoader.loadTable(tableConfig, useKernel = true).query(
       includeFiles = false,
       predicateHints = Nil,
       jsonPredicateHints = None,
@@ -323,7 +343,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       pageToken = None,
       includeRefreshToken = false,
       refreshToken = None,
-      responseFormatSet = responseFormatSet)
+      responseFormatSet = responseFormatSet,
+      clientReaderFeaturesSet = clientReaderFeaturesSet)
     streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
   }
 
@@ -584,6 +605,7 @@ object DeltaSharingService {
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
   val DELTA_SHARING_RESPONSE_FORMAT = "responseformat"
   val DELTA_SHARING_CAPABILITIES_ASYNC_QUERY = "asyncquery"
+  val DELTA_SHARING_READER_FEATURES = "readerfeatures"
 
   private val parser = {
     val parser = ArgumentParsers
@@ -707,6 +729,10 @@ object DeltaSharingService {
     headerCapabilities.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse(
       DeltaSharedTable.RESPONSE_FORMAT_PARQUET
     ).split(",").toSet
+  }
+
+  private[server] def getReaderFeatures(headerCapabilities: Map[String, String]): Set[String] = {
+    headerCapabilities.getOrElse(DELTA_SHARING_READER_FEATURES, "").split(",").toSet
   }
 
   private[server] def getAsyncQuery(headerCapabilities: Map[String, String]): Boolean = {

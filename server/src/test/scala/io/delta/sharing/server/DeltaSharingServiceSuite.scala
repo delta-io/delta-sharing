@@ -409,7 +409,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     var deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
     assert(deltaTableVersion == "2")
 
-    // getTableVersion succeeds with parameters
+    // getTableVersion succeeds with timestamp before version 0
     url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=2000-01-01T00:00:00Z")
     connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestMethod("HEAD")
@@ -422,6 +422,20 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     }
     deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
     assert(deltaTableVersion == "0")
+
+    // getTableVersion succeeds with timestamp after creation
+    url = requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled?startingTimestamp=2022-04-29T22:51:12Z")
+    connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
+    connection.setRequestMethod("HEAD")
+    connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    input = connection.getInputStream()
+    try {
+      IOUtils.toString(input)
+    } finally {
+      input.close()
+    }
+    deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
+    assert(deltaTableVersion == "5")
   }
 
   integrationTest("table1 - get - /shares/{share}/schemas/{schema}/tables/{table}/version") {
@@ -512,7 +526,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "The provided timestamp ("
+      expectedErrorMessage = "The provided timestamp "
     )
   }
 
@@ -2155,7 +2169,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "Cannot time travel Delta table to version 4"
+      expectedErrorMessage = "Cannot load table version 4"
     )
   }
 
@@ -2184,28 +2198,28 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "Invalid timestamp"
+      expectedErrorMessage = "Invalid startingTimestamp"
     )
     assertHttpError(
       url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=2021-01-01T00:00:00Z"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "is before the earliest version available"
+      expectedErrorMessage = "is before the earliest available version"
     )
     assertHttpError(
       url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=2024-01-01T00:00:00Z"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "is after the latest version available"
+      expectedErrorMessage = "is after the latest available version"
     )
     assertHttpError(
       url = requestPath(s"/shares/share8/schemas/default/tables/streaming_notnull_to_null/metadata?timestamp=2024-01-01T00:00:00Z"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "is after the latest version available"
+      expectedErrorMessage = "is after the latest available version"
     )
   }
 

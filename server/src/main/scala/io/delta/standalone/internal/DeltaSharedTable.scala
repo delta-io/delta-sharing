@@ -25,7 +25,6 @@ import java.util.concurrent.TimeUnit
 import scala.collection.JavaConverters._
 
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
-import com.google.common.cache.CacheBuilder
 import com.google.common.hash.Hashing
 import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, Metadata, Protocol, RemoveFile}
@@ -42,51 +41,10 @@ import scala.collection.mutable.ListBuffer
 import scala.util.control.NonFatal
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
-import io.delta.sharing.server.{model, AbfsFileSigner, CausedBy, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, GCSFileSigner, PreSignedUrl, S3FileSigner, WasbFileSigner}
-import io.delta.sharing.server.config.{ServerConfig, TableConfig}
+import io.delta.sharing.server.{model, AbfsFileSigner, CausedBy, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, GCSFileSigner, PreSignedUrl, QueryResult, S3FileSigner, WasbFileSigner}
+import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
 import io.delta.sharing.server.util.JsonUtils
-
-/**
- * A class to load Delta tables from `TableConfig`. It also caches the loaded tables internally
- * to speed up the loading.
- */
-class DeltaSharedTableLoader(serverConfig: ServerConfig) {
-  private val deltaSharedTableCache = {
-    CacheBuilder.newBuilder()
-      .expireAfterAccess(60, TimeUnit.MINUTES)
-      .maximumSize(serverConfig.deltaTableCacheSize)
-      .build[String, DeltaSharedTable]()
-  }
-
-  def loadTable(tableConfig: TableConfig): DeltaSharedTable = {
-    try {
-      val deltaSharedTable =
-        deltaSharedTableCache.get(
-          tableConfig.location,
-          () => {
-            new DeltaSharedTable(
-              tableConfig,
-              serverConfig.preSignedUrlTimeoutSeconds,
-              serverConfig.evaluatePredicateHints,
-              serverConfig.evaluateJsonPredicateHints,
-              serverConfig.evaluateJsonPredicateHintsV2,
-              serverConfig.queryTablePageSizeLimit,
-              serverConfig.queryTablePageTokenTtlMs,
-              serverConfig.refreshTokenTtlMs
-            )
-          }
-        )
-      if (!serverConfig.stalenessAcceptable) {
-        deltaSharedTable.update()
-      }
-      deltaSharedTable
-    } catch {
-      case CausedBy(e: DeltaSharingUnsupportedOperationException) => throw e
-      case e: Throwable => throw e
-    }
-  }
-}
 
 /**
  * A util class stores all query parameters. Used to compute the checksum in the page token for
@@ -105,14 +63,6 @@ private case class QueryParamChecksum(
     includeHistoricalMetadata: Option[Boolean])
 
 
-/**
- *  QueryResult of query and queryCDF function, including a version, a resopnseFormat, and a list
- *  of actions.
- */
-case class QueryResult(
-    version: Long,
-    actions: Seq[Object],
-    responseFormat: String)
 
 /**
  * A table class that wraps `DeltaLog` to provide the methods used by the server.
@@ -125,7 +75,7 @@ class DeltaSharedTable(
     evaluateJsonPredicateHintsV2: Boolean,
     queryTablePageSizeLimit: Int,
     queryTablePageTokenTtlMs: Int,
-    refreshTokenTtlMs: Int) {
+    refreshTokenTtlMs: Int) extends DeltaSharedTableProtocol {
 
   private val conf = withClassLoader {
     new Configuration()
@@ -187,7 +137,7 @@ class DeltaSharedTable(
   /** Get table version at or after startingTimestamp if it's provided, otherwise return
    *  the latest table version.
    */
-  def getTableVersion(startingTimestamp: Option[String]): Long = withClassLoader {
+  override def getTableVersion(startingTimestamp: Option[String]): Long = withClassLoader {
     if (startingTimestamp.isEmpty) {
       tableVersion
     } else {
@@ -380,7 +330,8 @@ class DeltaSharedTable(
       pageToken: Option[String],
       includeRefreshToken: Boolean,
       refreshToken: Option[String],
-      responseFormatSet: Set[String]): QueryResult = withClassLoader {
+      responseFormatSet: Set[String],
+      clientReaderFeaturesSet: Set[String] = Set.empty): QueryResult = withClassLoader {
     // scalastyle:on argcount
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
