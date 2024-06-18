@@ -365,7 +365,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
     // simulate async query with 50% chance of return
     // asynchronously for a specific table
-    // client should be able to hand both cases and for server
+    // client should be able to handle both cases and for server
     // test please use other table names.
     if(rand.nextInt(100) > 50 && table == "table2") {
         streamingOutput(
