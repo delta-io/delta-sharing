@@ -150,11 +150,7 @@ def load_as_spark(
     except ImportError:
         raise ImportError("Unable to import pyspark. `load_as_spark` requires PySpark.")
 
-    spark = SparkSession.getActiveSession()
-    assert spark is not None, (
-        "No active SparkSession was found. "
-        "`load_as_spark` requires running in a PySpark application."
-    )
+    spark = SparkSession.active()
     df = spark.read.format("deltaSharing")
     if version is not None:
         df.option("versionAsOf", version)
