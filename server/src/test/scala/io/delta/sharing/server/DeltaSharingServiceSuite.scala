@@ -1362,6 +1362,54 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(2).url, 778)
   }
 
+  integrationTest("table3 - different data file schemas limit hint - /shares/{share}/schemas/{schema}/tables/{table}/query") {
+    val p =
+      """
+        |{
+        | "limitHint": 2
+        |}
+        |""".stripMargin
+
+    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table3/query"), Some("POST"), Some(p), Some(4))
+    print(response)
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+    val expectedMetadata = Metadata(
+      id = "7ba6d727-a578-4234-a138-953f790b427c",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}},{"name":"type","type":"string","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Seq("date")).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+    val files = lines.drop(2)
+    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+    assert(actualFiles.size == 2)
+    val expectedFiles = Seq(
+      AddFile(
+        url = actualFiles(0).url,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
+        id = "db213271abffec6fd6c7fc2aad9d4b3f",
+        partitionValues = Map("date" -> "2021-04-28"),
+        size = 778,
+        stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:36:51.945Z","type":"bar"},"maxValues":{"eventTime":"2021-04-28T23:36:51.945Z","type":"bar"},"nullCount":{"eventTime":0,"type":0}}"""
+      ),
+      AddFile(
+        url = actualFiles(1).url,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
+        id = "a892a55d770ee70b34ffb2ebf7dc2fd0",
+        partitionValues = Map("date" -> "2021-04-28"),
+        size = 573,
+        stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:35:53.156Z"},"maxValues":{"eventTime":"2021-04-28T23:35:53.156Z"},"nullCount":{"eventTime":0}}"""
+      )
+    )
+    assert(actualFiles.count(_.expirationTimestamp != null) == 2)
+    assert(expectedFiles == actualFiles.toList)
+    verifyPreSignedUrl(actualFiles(0).url, 778)
+    verifyPreSignedUrl(actualFiles(1).url, 573)
+  }
+
   integrationTest("case insensitive") {
     val response = readNDJson(requestPath("/shares/sHare1/schemas/deFault/tables/taBle3/metadata"), expectedTableVersion = Some(4))
     val Array(protocol, metadata) = response.split("\n")

@@ -22,6 +22,8 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
+import org.json4s.JsonAST.JInt
+import org.json4s.jackson.JsonMethods.parse
 
 object JsonUtils {
   /** Used to convert between classes and JSON. */
@@ -43,5 +45,19 @@ object JsonUtils {
 
   def fromJson[T: Manifest](json: String): T = {
     mapper.readValue[T](json)
+  }
+
+  /** Parse the `numRecords` field from the stats json of the AddFile
+   * Returns 0 if the field is not found or if stats is empty. */
+  def extractNumRecords(stats: String): Option[Long] = {
+    if (stats != null && !stats.isEmpty()) {
+      val numRecordsField = parse(stats) \ "numRecords"
+      numRecordsField match {
+        case JInt(numRecords) => Some(numRecords.toLong)
+        case _ => None
+      }
+    } else {
+      None
+    }
   }
 }

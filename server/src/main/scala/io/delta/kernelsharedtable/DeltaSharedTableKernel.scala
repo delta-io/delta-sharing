@@ -81,6 +81,9 @@ class DeltaSharedTableKernel(
   // from ColumnarBatch.
   private var scanFileFieldOrdinals: ScanFileFieldOrdinals = _
 
+  private var numRecords = 0L
+  private var earlyTermination = false
+
   private val fileSigner = withClassLoader {
     val tablePath = new Path(tableConfig.getLocation)
     val conf = new Configuration()
@@ -283,6 +286,12 @@ class DeltaSharedTableKernel(
       QueryTypes.QueryLatestSnapshot
     }
 
+    val globalLimitHint = if (predicateHints.isEmpty && jsonPredicateHints.isEmpty) {
+      limitHint
+    } else {
+      None
+    }
+
     val (table, engine) = getTableAndEngine()
 
     val snapshot = getSharedTableSnapshot(
@@ -309,12 +318,12 @@ class DeltaSharedTableKernel(
     )
 
     if (includeFiles) {
-      if (predicateHints.isEmpty && jsonPredicateHints.isEmpty && limitHint.isEmpty) {
+      if (predicateHints.isEmpty && jsonPredicateHints.isEmpty) {
         val scanBuilder = snapshot.kernelSnapshot.getScanBuilder(engine)
         val scan = scanBuilder.build()
         val scanFilesIter = scan.asInstanceOf[ScanImpl].getScanFiles(engine, true)
         try {
-          while (scanFilesIter.hasNext) {
+          while (scanFilesIter.hasNext && !earlyTermination) {
             val nextResponse = processBatchByColumnVector(
               scanFilesIter.next,
               snapshot.version,
@@ -323,7 +332,8 @@ class DeltaSharedTableKernel(
               table,
               engine,
               isVersionQuery,
-              snapshot
+              snapshot,
+              globalLimitHint
             )
             if (nextResponse.nonEmpty) {
               actions = actions ++ nextResponse
@@ -366,7 +376,8 @@ class DeltaSharedTableKernel(
       table: Table,
       engine: Engine,
       isVersionQuery: Boolean,
-      snapshot: SharedTableSnapshot): Seq[Object] = {
+      snapshot: SharedTableSnapshot,
+      limitHint: Option[Long]): Seq[Object] = {
 
     val batchData = scanFileBatch.getData
     val batchSize = batchData.getSize
@@ -376,6 +387,10 @@ class DeltaSharedTableKernel(
     val dataPath = new Path(table.getPath(engine))
 
     for (rowId <- 0 until batchSize) {
+      if (limitHint.exists(_ <= numRecords)) {
+        earlyTermination = true
+        return addFileObjects
+      }
       val isSelected = !selectionVector.isPresent ||
         (!selectionVector.get.isNullAt(rowId) && selectionVector.get.getBoolean(rowId))
       if (isSelected) {
@@ -635,6 +650,8 @@ class DeltaSharedTableKernel(
     val stats =
       if (addFileColumnVectors.stats.isNullAt(rowId)) null
       else addFileColumnVectors.stats.getString(rowId)
+
+    numRecords += JsonUtils.extractNumRecords(stats).getOrElse(0L)
 
     if (respondedFormat == DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
