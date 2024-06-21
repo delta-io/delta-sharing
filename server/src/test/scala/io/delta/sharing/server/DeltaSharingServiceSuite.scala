@@ -1341,25 +1341,25 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       AddFile(
         url = actualFiles(1).url,
         expirationTimestamp = actualFiles(1).expirationTimestamp,
-        id = "f1f8be229d8b18eb6d6a34255f2d7089",
-        partitionValues = Map("date" -> "2021-04-28"),
-        size = 778,
-        stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:36:47.599Z","type":"foo"},"maxValues":{"eventTime":"2021-04-28T23:36:47.599Z","type":"foo"},"nullCount":{"eventTime":0,"type":0}}"""
-      ),
-      AddFile(
-        url = actualFiles(2).url,
-        expirationTimestamp = actualFiles(2).expirationTimestamp,
         id = "a892a55d770ee70b34ffb2ebf7dc2fd0",
         partitionValues = Map("date" -> "2021-04-28"),
         size = 573,
         stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:35:53.156Z"},"maxValues":{"eventTime":"2021-04-28T23:35:53.156Z"},"nullCount":{"eventTime":0}}"""
+      ),
+      AddFile(
+        url = actualFiles(2).url,
+        expirationTimestamp = actualFiles(2).expirationTimestamp,
+        id = "f1f8be229d8b18eb6d6a34255f2d7089",
+        partitionValues = Map("date" -> "2021-04-28"),
+        size = 778,
+        stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T23:36:47.599Z","type":"foo"},"maxValues":{"eventTime":"2021-04-28T23:36:47.599Z","type":"foo"},"nullCount":{"eventTime":0,"type":0}}"""
       )
     )
     assert(actualFiles.count(_.expirationTimestamp != null) == 3)
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 778)
-    verifyPreSignedUrl(actualFiles(1).url, 778)
-    verifyPreSignedUrl(actualFiles(2).url, 573)
+    verifyPreSignedUrl(actualFiles(1).url, 573)
+    verifyPreSignedUrl(actualFiles(2).url, 778)
   }
 
   integrationTest("case insensitive") {
@@ -1421,27 +1421,27 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         size = 1030,
         stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
         version = 1,
-        timestamp = 1651272635000L
+        timestamp = null
       ),
       AddFile(
         url = actualFiles(1).url,
         expirationTimestamp = actualFiles(1).expirationTimestamp,
-        id = "d7ed708546dd70fdff9191b3e3d6448b",
-        partitionValues = Map.empty,
-        size = 1030,
-        stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-        version = 1,
-        timestamp = 1651272635000L
-      ),
-      AddFile(
-        url = actualFiles(2).url,
-        expirationTimestamp = actualFiles(2).expirationTimestamp,
         id = "a6dc5694a4ebcc9a067b19c348526ad6",
         partitionValues = Map.empty,
         size = 1030,
         stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
         version = 1,
-        timestamp = 1651272635000L
+        timestamp = null
+      ),
+      AddFile(
+        url = actualFiles(2).url,
+        expirationTimestamp = actualFiles(2).expirationTimestamp,
+        id = "d7ed708546dd70fdff9191b3e3d6448b",
+        partitionValues = Map.empty,
+        size = 1030,
+        stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        version = 1,
+        timestamp = null
       )
     )
     assert(actualFiles.count(_.expirationTimestamp != null) == 3)
@@ -1617,27 +1617,27 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         size = 1030,
         stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
         version = 1,
-        timestamp = 1651272635000L
+        timestamp = null
       ),
       AddFile(
         url = actualFiles(1).url,
         expirationTimestamp = actualFiles(1).expirationTimestamp,
-        id = "d7ed708546dd70fdff9191b3e3d6448b",
-        partitionValues = Map.empty,
-        size = 1030,
-        stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-        version = 1,
-        timestamp = 1651272635000L
-      ),
-      AddFile(
-        url = actualFiles(2).url,
-        expirationTimestamp = actualFiles(2).expirationTimestamp,
         id = "a6dc5694a4ebcc9a067b19c348526ad6",
         partitionValues = Map.empty,
         size = 1030,
         stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
         version = 1,
-        timestamp = 1651272635000L
+        timestamp = null
+      ),
+      AddFile(
+        url = actualFiles(2).url,
+        expirationTimestamp = actualFiles(2).expirationTimestamp,
+        id = "d7ed708546dd70fdff9191b3e3d6448b",
+        partitionValues = Map.empty,
+        size = 1030,
+        stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        version = 1,
+        timestamp = null
       )
     )
     assert(actualFiles.count(_.expirationTimestamp != null) == 3)

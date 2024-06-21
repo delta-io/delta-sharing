@@ -32,12 +32,14 @@ import scala.util.control.NonFatal
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
 import com.google.common.hash.Hashing
 import io.delta.kernel.Table
+import io.delta.kernel.data.{ColumnarBatch, ColumnVector, FilteredColumnarBatch}
 import io.delta.kernel.defaults.engine.DefaultEngine
 import io.delta.kernel.engine.Engine
 import io.delta.kernel.exceptions.{KernelException, TableNotFoundException}
 import io.delta.kernel.internal.{ScanImpl, SnapshotImpl}
 import io.delta.kernel.internal.actions.{DeletionVectorDescriptor => KernelDeletionVectorDescriptor, Metadata => KernelMetadata, Protocol => KernelProtocol}
 import io.delta.kernel.internal.util.{InternalUtils, VectorUtils}
+import io.delta.kernel.types.{StructType => KernelStructType}
 import org.apache.commons.codec.digest.DigestUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
@@ -48,7 +50,7 @@ import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
 import io.delta.sharing.server.{AbfsFileSigner, CausedBy, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, GCSFileSigner, PreSignedUrl, QueryResult, S3FileSigner, WasbFileSigner}
-import io.delta.sharing.server.actions.{DeltaFormat, DeltaMetadata, DeltaProtocol, DeltaSingleAction}
+import io.delta.sharing.server.actions.{DeltaAddFile, DeltaFormat, DeltaMetadata, DeltaProtocol, DeltaSingleAction}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
@@ -59,23 +61,6 @@ object QueryTypes extends Enumeration {
 
   val QueryLatestSnapshot, QueryVersionSnapshot, QueryCDF, QueryStartingVersion = Value
 }
-
-/**
- * A util class stores all query parameters. Used to compute the checksum in the page token for
- * query validation.
- */
-private case class QueryParamChecksum(
-    version: Option[Long],
-    timestamp: Option[String],
-    startingVersion: Option[Long],
-    startingTimestamp: Option[String],
-    endingVersion: Option[Long],
-    endingTimestamp: Option[String],
-    predicateHints: Seq[String],
-    jsonPredicateHints: Option[String],
-    limitHint: Option[Long],
-    includeHistoricalMetadata: Option[Boolean])
-
 
 /**
  * A table class that wraps `DeltaLog` to provide the methods used by the server.
@@ -91,6 +76,32 @@ class DeltaSharedTableKernel(
     refreshTokenTtlMs: Int) extends DeltaSharedTableProtocol {
 
   protected val tablePath: Path = new Path(tableConfig.getLocation)
+
+  // The ordinals of the fields in the Kernel scan file, used to extract ColumnVectors
+  // from ColumnarBatch.
+  private var scanFileFieldOrdinals: ScanFileFieldOrdinals = _
+
+  private val fileSigner = withClassLoader {
+    val tablePath = new Path(tableConfig.getLocation)
+    val conf = new Configuration()
+    val fs = tablePath.getFileSystem(conf)
+    val (table, engine) = getTableAndEngine()
+
+    val dataPath = new URI(table.getPath(engine))
+
+    fs match {
+      case _: S3AFileSystem =>
+        new S3FileSigner(dataPath, conf, preSignedUrlTimeoutSeconds)
+      case wasb: NativeAzureFileSystem =>
+        WasbFileSigner(wasb, dataPath, conf, preSignedUrlTimeoutSeconds)
+      case abfs: AzureBlobFileSystem =>
+        AbfsFileSigner(abfs, dataPath, preSignedUrlTimeoutSeconds)
+      case gc: GoogleHadoopFileSystem =>
+        new GCSFileSigner(dataPath, conf, preSignedUrlTimeoutSeconds)
+      case _ =>
+        throw new IllegalStateException(s"File system ${fs.getClass} is not supported")
+    }
+  }
 
   /**
    * Run `func` under the classloader of `DeltaSharedTable`. We cannot use the classloader set by
@@ -138,7 +149,6 @@ class DeltaSharedTableKernel(
           case e: io.delta.kernel.exceptions.TableNotFoundException =>
             throw new FileNotFoundException(e.getMessage)
         }
-
       } else if (timestamp.isDefined) {
         try {
           table
@@ -162,7 +172,6 @@ class DeltaSharedTableKernel(
               throw new FileNotFoundException(e.getMessage)
             }
             throw e
-
         }
       }
 
@@ -265,6 +274,15 @@ class DeltaSharedTableKernel(
       )
     }
 
+    val refreshTokenOpt = refreshToken.map(decodeAndValidateRefreshToken)
+    val isVersionQuery = !Seq(version, timestamp).filter(_.isDefined).isEmpty
+
+    val queryType = if (version.isDefined || timestamp.isDefined) {
+      QueryTypes.QueryVersionSnapshot
+    } else {
+      QueryTypes.QueryLatestSnapshot
+    }
+
     val (table, engine) = getTableAndEngine()
 
     val snapshot = getSharedTableSnapshot(
@@ -285,13 +303,51 @@ class DeltaSharedTableKernel(
     val protocol = getResponseProtocol(snapshot.protocol, respondedFormat)
 
     val metadata = getResponseMetadata(snapshot.metadata, version = null, respondedFormat)
-    val actions = Seq(
+    var actions = Seq(
       protocol,
       metadata
     )
 
     if (includeFiles) {
-      throw new DeltaSharingUnsupportedOperationException("not implemented yet")
+      if (predicateHints.isEmpty && jsonPredicateHints.isEmpty && limitHint.isEmpty) {
+        val predicateOpt = Option.empty
+        val scanBuilder = snapshot.kernelSnapshot.getScanBuilder(engine)
+        val scan = predicateOpt match {
+          case Some(p) => scanBuilder.withFilter(engine, p).build()
+          case None => scanBuilder.build()
+        }
+
+        val scanFilesIter = scan.asInstanceOf[ScanImpl].getScanFiles(engine, true)
+        try {
+          while (scanFilesIter.hasNext) {
+            val nextResponse = processBatchByColumnVector(
+              scanFilesIter.next,
+              snapshot.version,
+              queryType,
+              respondedFormat,
+              table,
+              engine,
+              isVersionQuery,
+              snapshot
+            )
+            if (nextResponse.nonEmpty) {
+              actions = actions ++ nextResponse
+            }
+
+          }
+        } finally {
+          scanFilesIter.close()
+        }
+
+        // Return EndStreamAction when `includeRefreshToken` is true
+        if (includeRefreshToken) {
+          throw new DeltaSharingUnsupportedOperationException("not implemented yet")
+        }
+
+      }
+      else {
+        throw new DeltaSharingUnsupportedOperationException("not implemented yet")
+      }
     }
 
     QueryResult(snapshot.version, actions, respondedFormat)
@@ -306,6 +362,145 @@ class DeltaSharedTableKernel(
       responseFormatSet: Set[String] = Set("parquet")): QueryResult = {
 
     throw new DeltaSharingUnsupportedOperationException("not implemented yet")
+  }
+
+  private def processBatchByColumnVector(
+      scanFileBatch: FilteredColumnarBatch,
+      version: Long,
+      queryType: QueryTypes.QueryType,
+      respondedFormat: String,
+      table: Table,
+      engine: Engine,
+      isVersionQuery: Boolean,
+      snapshot: SharedTableSnapshot): Seq[Object] = {
+
+    val batchData = scanFileBatch.getData
+    val batchSize = batchData.getSize
+    val addFileVectors = getAddFileColumnVectors(batchData)
+    val selectionVector = scanFileBatch.getSelectionVector
+    var addFileObjects = Seq[Object]()
+    for (rowId <- 0 until batchSize) {
+      val isSelected = !selectionVector.isPresent ||
+        (!selectionVector.get.isNullAt(rowId) && selectionVector.get.getBoolean(rowId))
+      if (isSelected) {
+        val partitionValues = getDeltaPartitionValues(addFileVectors.partitionValues, rowId)
+        val addFileVectorPath = addFileVectors.path.getString(rowId)
+
+        val dataPath = new Path(table.getPath(engine))
+
+        val cloudPath = absolutePath(dataPath, addFileVectorPath)
+        val signedUrl = fileSigner.sign(cloudPath)
+
+        val addFile = getResponseAddFile(
+          addFileVectors,
+          rowId,
+          version,
+          // Skip returning timestamp since we're not able to retrieve the correct
+          // timestamp for the table version from Kernel. The timestamp is not
+          // needed by the client in snapshot query.
+          timestamp = null,
+          partitionValues,
+          respondedFormat,
+          queryType,
+          signedUrl
+        )
+        addFileObjects = addFileObjects :+ addFile
+      }
+    }
+    addFileObjects
+  }
+
+  private def absolutePath(path: Path, child: String): Path = {
+    val p = new Path(new URI(child))
+    if (p.isAbsolute) {
+      throw new IllegalStateException("table containing absolute paths cannot be shared")
+    } else {
+      new Path(path, p)
+    }
+  }
+
+  // Get the column vectors for each AddFile field from the given batch.
+  private def getAddFileColumnVectors(scanFileBatch: ColumnarBatch): AddFileColumnVectors = {
+    // Get the ordinals of the scan file fields if it's not already done.
+    // We only need to do this once because the scan file schema won't change.
+    if (scanFileFieldOrdinals == null) {
+      retrieveScanFileFieldOrdinals(scanFileBatch.getSchema)
+    }
+    val addFileVector = scanFileBatch.getColumnVector(scanFileFieldOrdinals.addFileOrdinal)
+    AddFileColumnVectors(
+      path = addFileVector.getChild(scanFileFieldOrdinals.addFilePathOrdinal),
+      partitionValues = addFileVector.getChild(scanFileFieldOrdinals.addFilePartitionValuesOrdinal),
+      size = addFileVector.getChild(scanFileFieldOrdinals.addFileSizeOrdinal),
+      modificationTime = addFileVector.getChild(scanFileFieldOrdinals.addFileModTimeOrdinal),
+      dataChange = addFileVector.getChild(scanFileFieldOrdinals.addFileDataChangeOrdinal),
+      stats = addFileVector.getChild(scanFileFieldOrdinals.addFileStatsOrdinal),
+      deletionVector = addFileVector.getChild(scanFileFieldOrdinals.addFileDvOrdinal)
+    )
+  }
+
+  // Given the scan file schema, retrieve the ordinals of each scan file field and store it
+  // as a global variable for later use.
+  private def retrieveScanFileFieldOrdinals(scanFileSchema: KernelStructType): Unit = {
+    val addFileOrdinal = getFieldOrdinal("add", scanFileSchema)
+    val addFileSchema = scanFileSchema.get("add").getDataType.asInstanceOf[KernelStructType]
+    scanFileFieldOrdinals = ScanFileFieldOrdinals(
+      addFileOrdinal = addFileOrdinal,
+      addFilePathOrdinal = getFieldOrdinal("path", addFileSchema),
+      addFilePartitionValuesOrdinal = getFieldOrdinal("partitionValues", addFileSchema),
+      addFileSizeOrdinal = getFieldOrdinal("size", addFileSchema),
+      addFileModTimeOrdinal = getFieldOrdinal("modificationTime", addFileSchema),
+      addFileDataChangeOrdinal = getFieldOrdinal("dataChange", addFileSchema),
+      addFileStatsOrdinal = getFieldOrdinal("stats", addFileSchema),
+      addFileDvOrdinal = getFieldOrdinal("deletionVector", addFileSchema)
+    )
+  }
+
+  // Get the ordinal of the field in the specified schema.
+  // Throw error if the field is not found in the schema.
+  private def getFieldOrdinal(fieldName: String, schema: KernelStructType): Int = {
+    val ordinal = schema.indexOf(fieldName)
+    if (ordinal < 0) {
+      throw new DeltaSharingUnsupportedOperationException(
+        s"There's no `$fieldName` entry in the scan file schema.")
+    }
+    ordinal
+  }
+
+  // Construct the Delta format PartitionValues from Kernel format.
+  private def getDeltaPartitionValues(
+      partitionValuesVector: ColumnVector,
+      rowId: Int): Map[String, String] = {
+    val kernelMap = partitionValuesVector.getMap(rowId)
+    val keys = kernelMap.getKeys
+    val values = kernelMap.getValues
+    var partitionValues = Map.empty[String, String]
+    for (i <- 0 until kernelMap.getSize) {
+      partitionValues += (keys.getString(i) -> values.getString(i))
+    }
+    partitionValues
+  }
+
+
+  private def decodeAndValidateRefreshToken(tokenStr: String): RefreshToken = {
+    val token = try {
+      DeltaSharedTableKernel.decodeToken[RefreshToken](tokenStr)
+    } catch {
+      case NonFatal(_) =>
+        throw new DeltaSharingIllegalArgumentException(
+          s"Error decoding refresh token: $tokenStr."
+        )
+    }
+    if (token.getExpirationTimestamp < System.currentTimeMillis()) {
+      throw new DeltaSharingIllegalArgumentException(
+        "The refresh token has expired. Please restart the query."
+      )
+    }
+    if (token.getId != tableConfig.id) {
+      throw new DeltaSharingIllegalArgumentException(
+        "The table specified in the refresh token does not match the table being queried."
+      )
+    }
+    token
   }
 
   protected def getRespondedFormat(
@@ -436,6 +631,58 @@ class DeltaSharedTableKernel(
     }).json
   }
 
+  private def getResponseAddFile(
+      addFileColumnVectors: AddFileColumnVectors,
+      rowId: Int,
+      version: Long,
+      timestamp: java.lang.Long,
+      partitionValues: Map[String, String],
+      respondedFormat: String,
+      queryType: QueryTypes.QueryType,
+      signedUrl: PreSignedUrl): Object = {
+
+
+    val path = addFileColumnVectors.path.getString(rowId)
+    val size = addFileColumnVectors.size.getLong(rowId)
+    val stats =
+      if (addFileColumnVectors.stats.isNullAt(rowId)) null
+      else addFileColumnVectors.stats.getString(rowId)
+
+    if (respondedFormat == DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
+
+      DeltaResponseFileAction(
+        // Using sha256 instead of m5 because it's less likely to have key collision.
+        id = Hashing.sha256().hashString(path, UTF_8).toString,
+        // `version` is left empty in latest snapshot query
+        version = if (queryType == QueryTypes.QueryLatestSnapshot) null else version,
+        timestamp = timestamp,
+        expirationTimestamp = signedUrl.expirationTimestamp,
+        deltaSingleAction = DeltaSingleAction(
+          add = DeltaAddFile(
+            path = signedUrl.url,
+            partitionValues = partitionValues,
+            size = size,
+            modificationTime = addFileColumnVectors.modificationTime.getLong(rowId),
+            dataChange = addFileColumnVectors.dataChange.getBoolean(rowId),
+            stats = stats
+          )
+        )
+      ).wrap
+    } else {
+      AddFile(
+        url = signedUrl.url,
+        id = Hashing.md5().hashString(path, UTF_8).toString,
+        expirationTimestamp = signedUrl.expirationTimestamp,
+        partitionValues = partitionValues,
+        size = size,
+        stats = stats,
+        // `version` is left empty in latest snapshot query
+        version = if (queryType == QueryTypes.QueryLatestSnapshot) null else version,
+        timestamp = timestamp
+      ).wrap
+    }
+  }
+
   // Parse timestamp string and return the timestamp in milliseconds since epoch.
   // Accepted format: DateTimeFormatter.ISO_OFFSET_DATE_TIME, example: 2022-01-01T00:00:00Z
   private def millisSinceEpoch(timestamp: String): Long = {
@@ -476,3 +723,22 @@ private case class SharedTableSnapshot(
     metadata: KernelMetadata,
     // versionStats: Option[VersionStats],
     kernelSnapshot: SnapshotImpl)
+
+private case class AddFileColumnVectors(
+    path: ColumnVector,
+    partitionValues: ColumnVector,
+    size: ColumnVector,
+    modificationTime: ColumnVector,
+    dataChange: ColumnVector,
+    stats: ColumnVector,
+    deletionVector: ColumnVector)
+
+private case class ScanFileFieldOrdinals(
+    addFileOrdinal: Int,
+    addFilePathOrdinal: Int,
+    addFilePartitionValuesOrdinal: Int,
+    addFileSizeOrdinal: Int,
+    addFileModTimeOrdinal: Int,
+    addFileDataChangeOrdinal: Int,
+    addFileStatsOrdinal: Int,
+    addFileDvOrdinal: Int)
