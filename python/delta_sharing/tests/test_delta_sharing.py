@@ -354,10 +354,10 @@ def test_get_table_protocol(profile_path: str):
                 {
                     "eventTime": [
                         pd.Timestamp("2021-04-28 23:36:51.945"),
-                        pd.Timestamp("2021-04-28 23:36:47.599"),
+                        pd.Timestamp("2021-04-28 23:35:53.156"),
                     ],
                     "date": [date(2021, 4, 28), date(2021, 4, 28)],
-                    "type": ["bar", "foo"],
+                    "type": ["bar", None],
                 }
             ),
             id="limit 2",
@@ -370,11 +370,11 @@ def test_get_table_protocol(profile_path: str):
                 {
                     "eventTime": [
                         pd.Timestamp("2021-04-28 23:36:51.945"),
-                        pd.Timestamp("2021-04-28 23:36:47.599"),
                         pd.Timestamp("2021-04-28 23:35:53.156"),
+                        pd.Timestamp("2021-04-28 23:36:47.599")
                     ],
                     "date": [date(2021, 4, 28), date(2021, 4, 28), date(2021, 4, 28)],
-                    "type": ["bar", "foo", None],
+                    "type": ["bar", None, "foo"],
                 }
             ),
             id="limit 3",
@@ -387,11 +387,11 @@ def test_get_table_protocol(profile_path: str):
                 {
                     "eventTime": [
                         pd.Timestamp("2021-04-28 23:36:51.945"),
-                        pd.Timestamp("2021-04-28 23:36:47.599"),
                         pd.Timestamp("2021-04-28 23:35:53.156"),
+                        pd.Timestamp("2021-04-28 23:36:47.599")
                     ],
                     "date": [date(2021, 4, 28), date(2021, 4, 28), date(2021, 4, 28)],
-                    "type": ["bar", "foo", None],
+                    "type": ["bar", None, "foo"],
                 }
             ),
             id="limit 4",
