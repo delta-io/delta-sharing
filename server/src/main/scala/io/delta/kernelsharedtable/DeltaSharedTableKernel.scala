@@ -274,7 +274,7 @@ class DeltaSharedTableKernel(
       )
     }
 
-    val refreshTokenOpt = refreshToken.map(decodeAndValidateRefreshToken)
+    refreshToken.map(decodeAndValidateRefreshToken)
     val isVersionQuery = !Seq(version, timestamp).filter(_.isDefined).isEmpty
 
     val queryType = if (version.isDefined || timestamp.isDefined) {
@@ -316,7 +316,6 @@ class DeltaSharedTableKernel(
           case Some(p) => scanBuilder.withFilter(engine, p).build()
           case None => scanBuilder.build()
         }
-
         val scanFilesIter = scan.asInstanceOf[ScanImpl].getScanFiles(engine, true)
         try {
           while (scanFilesIter.hasNext) {
@@ -333,7 +332,6 @@ class DeltaSharedTableKernel(
             if (nextResponse.nonEmpty) {
               actions = actions ++ nextResponse
             }
-
           }
         } finally {
           scanFilesIter.close()
@@ -379,15 +377,14 @@ class DeltaSharedTableKernel(
     val addFileVectors = getAddFileColumnVectors(batchData)
     val selectionVector = scanFileBatch.getSelectionVector
     var addFileObjects = Seq[Object]()
+    val dataPath = new Path(table.getPath(engine))
+
     for (rowId <- 0 until batchSize) {
       val isSelected = !selectionVector.isPresent ||
         (!selectionVector.get.isNullAt(rowId) && selectionVector.get.getBoolean(rowId))
       if (isSelected) {
         val partitionValues = getDeltaPartitionValues(addFileVectors.partitionValues, rowId)
         val addFileVectorPath = addFileVectors.path.getString(rowId)
-
-        val dataPath = new Path(table.getPath(engine))
-
         val cloudPath = absolutePath(dataPath, addFileVectorPath)
         val signedUrl = fileSigner.sign(cloudPath)
 
@@ -402,7 +399,8 @@ class DeltaSharedTableKernel(
           partitionValues,
           respondedFormat,
           queryType,
-          signedUrl
+          signedUrl,
+          addFileVectorPath
         )
         addFileObjects = addFileObjects :+ addFile
       }
@@ -639,17 +637,14 @@ class DeltaSharedTableKernel(
       partitionValues: Map[String, String],
       respondedFormat: String,
       queryType: QueryTypes.QueryType,
-      signedUrl: PreSignedUrl): Object = {
-
-
-    val path = addFileColumnVectors.path.getString(rowId)
+      signedUrl: PreSignedUrl,
+      path: String): Object = {
     val size = addFileColumnVectors.size.getLong(rowId)
     val stats =
       if (addFileColumnVectors.stats.isNullAt(rowId)) null
       else addFileColumnVectors.stats.getString(rowId)
 
     if (respondedFormat == DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
-
       DeltaResponseFileAction(
         // Using sha256 instead of m5 because it's less likely to have key collision.
         id = Hashing.sha256().hashString(path, UTF_8).toString,
