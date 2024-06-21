@@ -166,7 +166,7 @@ class DeltaSharingRestClient(
     asyncQueryMaxDuration: Long = 600000L
   ) extends DeltaSharingClient with Logging {
 
-  logError(s"DeltaSharingRestClient with enableAsyncQuery $enableAsyncQuery")
+  logInfo(s"DeltaSharingRestClient with enableAsyncQuery $enableAsyncQuery")
 
   import DeltaSharingRestClient._
 
