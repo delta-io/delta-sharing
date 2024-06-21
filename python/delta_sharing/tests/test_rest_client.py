@@ -386,7 +386,7 @@ def test_list_files_in_table_partitioned_different_schemas(
             ),
         ),
         AddFile(
-            url=response.add_files[2].url,
+            url=response.add_files[1].url,
             id="a892a55d770ee70b34ffb2ebf7dc2fd0",
             partition_values={"date": "2021-04-28"},
             size=573,
@@ -398,7 +398,7 @@ def test_list_files_in_table_partitioned_different_schemas(
             ),
         ),
         AddFile(
-            url=response.add_files[1].url,
+            url=response.add_files[2].url,
             id="f1f8be229d8b18eb6d6a34255f2d7089",
             partition_values={"date": "2021-04-28"},
             size=778,
@@ -603,7 +603,7 @@ def test_list_files_in_table_timestamp(
         assert False
     except Exception as e:
         assert isinstance(e, HTTPError)
-        assert "Please use a timestamp greater" in (str(e))
+        assert "before the earliest available version" in (str(e))
 
     # Use an end time far away, and look for an appropriate error.
     try:

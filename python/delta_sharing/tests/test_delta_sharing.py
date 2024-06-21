@@ -713,7 +713,7 @@ def test_load_as_pandas_exception(
             None,
             "2000-01-01T00:00:00Z",
             None,
-            "Please use a timestamp greater",
+            "before the earliest available version",
             pd.DataFrame({"not_used": []}),
             id="cdf_table_cdf_enabled table changes with starting_timestamp",
         ),
