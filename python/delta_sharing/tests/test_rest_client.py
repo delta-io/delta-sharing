@@ -463,7 +463,7 @@ def test_list_files_in_table_version(
             ),
             version=1,
             timestamp=None
-            ),
+        ),
         AddFile(
             url=response.add_files[2].url,
             id="d7ed708546dd70fdff9191b3e3d6448b",
