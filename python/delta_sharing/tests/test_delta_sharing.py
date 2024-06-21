@@ -311,11 +311,11 @@ def test_get_table_protocol(profile_path: str):
                 {
                     "eventTime": [
                         pd.Timestamp("2021-04-28 23:36:51.945"),
-                        pd.Timestamp("2021-04-28 23:36:47.599"),
                         pd.Timestamp("2021-04-28 23:35:53.156"),
+                        pd.Timestamp("2021-04-28 23:36:47.599"),
                     ],
-                    "date": [date(2021, 4, 28), date(2021, 4, 28), date(2021, 4, 28)],
-                    "type": ["bar", "foo", None],
+                    "date": [date(2021, 4, 28), date(2021, 4, 28), date(2021, 4, 28),],
+                    "type": ["bar", None, "foo",],
                 }
             ),
             id="partitioned and different schemas",
@@ -402,9 +402,9 @@ def test_get_table_protocol(profile_path: str):
             None,
             pd.DataFrame(
                 {
-                    "name": ["1", "2"],
-                    "age": pd.Series([1, 2], dtype="int32"),
-                    "birthday": [date(2020, 1, 1), date(2020, 2, 2)],
+                    "name": ["2", "1"],
+                    "age": pd.Series([2, 1], dtype="int32"),
+                    "birthday": [date(2020, 2, 2), date(2020, 1, 1)],
                 }
             ),
             id="cdf_table_cdf_enabled",
@@ -415,8 +415,8 @@ def test_get_table_protocol(profile_path: str):
             1,
             pd.DataFrame(
                 {
-                    "name": ["1", "3", "2"],
-                    "age": pd.Series([1, 3, 2], dtype="int32"),
+                    "name": ["1", "2", "3"],
+                    "age": pd.Series([1, 2, 3], dtype="int32"),
                     "birthday": [date(2020, 1, 1), date(2020, 1, 1), date(2020, 1, 1)],
                 }
             ),
@@ -430,8 +430,8 @@ def test_get_table_protocol(profile_path: str):
                 {
                     "type": [None, None],
                     "eventTime": [
-                        pd.Timestamp("2021-04-28 23:33:57.955"),
                         pd.Timestamp("2021-04-28 23:33:48.719"),
+                        pd.Timestamp("2021-04-28 23:33:57.955"),
                     ],
                     "date": [date(2021, 4, 28), date(2021, 4, 28)],
                 }
@@ -624,7 +624,7 @@ def test_load_as_pandas_with_json_predicates(
             "share8.default.cdf_table_cdf_enabled",
             None,
             "2000-01-01T00:00:00Z",
-            "Please use a timestamp greater",
+            "greater than or equal to",
             id="timestamp too early ",
         ),
     ],

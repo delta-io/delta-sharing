@@ -496,20 +496,45 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         }
       }
       val responseFormatSet = getResponseFormatSet(capabilitiesMap)
-      val queryResult = deltaSharedTableLoader.loadTable(tableConfig).query(
-        includeFiles = true,
-        request.predicateHints,
-        request.jsonPredicateHints,
-        request.limitHint,
-        request.version,
-        request.timestamp,
-        request.startingVersion,
-        request.endingVersion,
-        request.maxFiles,
-        request.pageToken,
-        request.includeRefreshToken.getOrElse(false),
-        request.refreshToken,
-        responseFormatSet = responseFormatSet)
+      val queryResult = if (
+        request.predicateHints.isEmpty
+          && request.jsonPredicateHints.isEmpty
+          && request.limitHint.isEmpty
+          && request.includeRefreshToken.isEmpty
+          && request.maxFiles.isEmpty
+          && request.startingVersion.isEmpty
+          && request.pageToken.isEmpty) {
+        deltaSharedTableLoader.loadTable(tableConfig, useKernel = true).query(
+          includeFiles = true,
+          request.predicateHints,
+          request.jsonPredicateHints,
+          request.limitHint,
+          request.version,
+          request.timestamp,
+          request.startingVersion,
+          request.endingVersion,
+          request.maxFiles,
+          request.pageToken,
+          request.includeRefreshToken.getOrElse(false),
+          request.refreshToken,
+          responseFormatSet = responseFormatSet)
+      } else {
+        deltaSharedTableLoader.loadTable(tableConfig).query(
+          includeFiles = true,
+          request.predicateHints,
+          request.jsonPredicateHints,
+          request.limitHint,
+          request.version,
+          request.timestamp,
+          request.startingVersion,
+          request.endingVersion,
+          request.maxFiles,
+          request.pageToken,
+          request.includeRefreshToken.getOrElse(false),
+          request.refreshToken,
+          responseFormatSet = responseFormatSet)
+      }
+
       if (queryResult.version < tableConfig.startVersion) {
         throw new DeltaSharingIllegalArgumentException(
           s"You can only query table data since version ${tableConfig.startVersion}."

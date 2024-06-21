@@ -387,18 +387,6 @@ def test_list_files_in_table_partitioned_different_schemas(
         ),
         AddFile(
             url=response.add_files[1].url,
-            id="f1f8be229d8b18eb6d6a34255f2d7089",
-            partition_values={"date": "2021-04-28"},
-            size=778,
-            stats=(
-                r'{"numRecords":1,'
-                r'"minValues":{"eventTime":"2021-04-28T23:36:47.599Z","type":"foo"},'
-                r'"maxValues":{"eventTime":"2021-04-28T23:36:47.599Z","type":"foo"},'
-                r'"nullCount":{"eventTime":0,"type":0}}'
-            ),
-        ),
-        AddFile(
-            url=response.add_files[2].url,
             id="a892a55d770ee70b34ffb2ebf7dc2fd0",
             partition_values={"date": "2021-04-28"},
             size=573,
@@ -409,6 +397,18 @@ def test_list_files_in_table_partitioned_different_schemas(
                 r'"nullCount":{"eventTime":0}}'
             ),
         ),
+        AddFile(
+            url=response.add_files[2].url,
+            id="f1f8be229d8b18eb6d6a34255f2d7089",
+            partition_values={"date": "2021-04-28"},
+            size=778,
+            stats=(
+                r'{"numRecords":1,'
+                r'"minValues":{"eventTime":"2021-04-28T23:36:47.599Z","type":"foo"},'
+                r'"maxValues":{"eventTime":"2021-04-28T23:36:47.599Z","type":"foo"},'
+                r'"nullCount":{"eventTime":0,"type":0}}'
+            ),
+        )
     ]
 
 
@@ -448,24 +448,10 @@ def test_list_files_in_table_version(
                 r'"nullCount":{"name":0,"age":0,"birthday":0}}'
             ),
             version=1,
-            timestamp=1651272635000
+            timestamp=None
         ),
         AddFile(
             url=response.add_files[1].url,
-            id="d7ed708546dd70fdff9191b3e3d6448b",
-            partition_values={},
-            size=1030,
-            stats=(
-                r'{"numRecords":1,'
-                r'"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},'
-                r'"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},'
-                r'"nullCount":{"name":0,"age":0,"birthday":0}}'
-            ),
-            version=1,
-            timestamp=1651272635000
-        ),
-        AddFile(
-            url=response.add_files[2].url,
             id="a6dc5694a4ebcc9a067b19c348526ad6",
             partition_values={},
             size=1030,
@@ -476,8 +462,22 @@ def test_list_files_in_table_version(
                 r'"nullCount":{"name":0,"age":0,"birthday":0}}'
             ),
             version=1,
-            timestamp=1651272635000
+            timestamp=None
         ),
+        AddFile(
+            url=response.add_files[2].url,
+            id="d7ed708546dd70fdff9191b3e3d6448b",
+            partition_values={},
+            size=1030,
+            stats=(
+                r'{"numRecords":1,'
+                r'"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},'
+                r'"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},'
+                r'"nullCount":{"name":0,"age":0,"birthday":0}}'
+            ),
+            version=1,
+            timestamp=None
+        )
     ]
 
 
@@ -593,7 +593,7 @@ def test_list_files_in_table_timestamp(
         assert False
     except Exception as e:
         assert isinstance(e, HTTPError)
-        assert "Invalid timestamp:" in (str(e))
+        assert "Invalid startingTimestamp:" in (str(e))
         assert "randomTimestamp" in (str(e))
 
     # Use a really old start time, and look for an appropriate error.
@@ -603,7 +603,7 @@ def test_list_files_in_table_timestamp(
         assert False
     except Exception as e:
         assert isinstance(e, HTTPError)
-        assert "Please use a timestamp greater" in (str(e))
+        assert "before the earliest available version" in (str(e))
 
     # Use an end time far away, and look for an appropriate error.
     try:
@@ -611,7 +611,7 @@ def test_list_files_in_table_timestamp(
         assert False
     except Exception as e:
         assert isinstance(e, HTTPError)
-        assert "Please use a timestamp less" in str(e)
+        assert "is after the latest available version" in str(e)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
