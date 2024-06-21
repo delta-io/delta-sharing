@@ -83,6 +83,7 @@ class DeltaSharedTableKernel(
 
   private var numRecords = 0L
   private var earlyTermination = false
+  private var minUrlExpirationTimestamp = Long.MaxValue
 
   private val fileSigner = withClassLoader {
     val tablePath = new Path(tableConfig.getLocation)
@@ -343,9 +344,25 @@ class DeltaSharedTableKernel(
           scanFilesIter.close()
         }
 
+        val refreshTokenStr = if (includeRefreshToken) {
+          DeltaSharedTableKernel.encodeToken(
+            RefreshToken(
+              id = Some(tableConfig.id),
+              version = Some(snapshot.version),
+              expirationTimestamp = Some(System.currentTimeMillis() + refreshTokenTtlMs)
+            )
+          )
+        } else {
+          null
+        }
+
         // Return EndStreamAction when `includeRefreshToken` is true
-        if (includeRefreshToken) {
-          throw new DeltaSharingUnsupportedOperationException("not implemented yet")
+        actions = actions ++ {
+          if (includeRefreshToken) {
+            Seq(getEndStreamAction(null, minUrlExpirationTimestamp, refreshTokenStr))
+          } else {
+            Nil
+          }
         }
 
       }
@@ -646,6 +663,7 @@ class DeltaSharedTableKernel(
     val addFileVectorPath = addFileColumnVectors.path.getString(rowId)
     val cloudPath = absolutePath(dataPath, addFileVectorPath)
     val signedUrl = fileSigner.sign(cloudPath)
+    minUrlExpirationTimestamp = minUrlExpirationTimestamp.min(signedUrl.expirationTimestamp)
     val size = addFileColumnVectors.size.getLong(rowId)
     val stats =
       if (addFileColumnVectors.stats.isNullAt(rowId)) null
@@ -685,6 +703,18 @@ class DeltaSharedTableKernel(
         timestamp = timestamp
       ).wrap
     }
+  }
+
+  // Construct and return the end action of the streaming response.
+  private def getEndStreamAction(
+      nextPageTokenStr: String,
+      minUrlExpirationTimestamp: Long,
+      refreshTokenStr: String = null): SingleAction = {
+    EndStreamAction(
+      refreshTokenStr,
+      nextPageTokenStr,
+      if (minUrlExpirationTimestamp == Long.MaxValue) null else minUrlExpirationTimestamp
+    ).wrap
   }
 
   // Parse timestamp string and return the timestamp in milliseconds since epoch.
