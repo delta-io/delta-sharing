@@ -310,12 +310,9 @@ class DeltaSharedTableKernel(
 
     if (includeFiles) {
       if (predicateHints.isEmpty && jsonPredicateHints.isEmpty && limitHint.isEmpty) {
-        val predicateOpt = Option.empty
         val scanBuilder = snapshot.kernelSnapshot.getScanBuilder(engine)
-        val scan = predicateOpt match {
-          case Some(p) => scanBuilder.withFilter(engine, p).build()
-          case None => scanBuilder.build()
-        }
+        val scan = scanBuilder.build()
+
         val scanFilesIter = scan.asInstanceOf[ScanImpl].getScanFiles(engine, true)
         try {
           while (scanFilesIter.hasNext) {
@@ -383,11 +380,6 @@ class DeltaSharedTableKernel(
       val isSelected = !selectionVector.isPresent ||
         (!selectionVector.get.isNullAt(rowId) && selectionVector.get.getBoolean(rowId))
       if (isSelected) {
-        val partitionValues = getDeltaPartitionValues(addFileVectors.partitionValues, rowId)
-        val addFileVectorPath = addFileVectors.path.getString(rowId)
-        val cloudPath = absolutePath(dataPath, addFileVectorPath)
-        val signedUrl = fileSigner.sign(cloudPath)
-
         val addFile = getResponseAddFile(
           addFileVectors,
           rowId,
@@ -396,11 +388,9 @@ class DeltaSharedTableKernel(
           // timestamp for the table version from Kernel. The timestamp is not
           // needed by the client in snapshot query.
           timestamp = null,
-          partitionValues,
           respondedFormat,
           queryType,
-          signedUrl,
-          addFileVectorPath
+          dataPath
         )
         addFileObjects = addFileObjects :+ addFile
       }
@@ -634,11 +624,14 @@ class DeltaSharedTableKernel(
       rowId: Int,
       version: Long,
       timestamp: java.lang.Long,
-      partitionValues: Map[String, String],
       respondedFormat: String,
       queryType: QueryTypes.QueryType,
-      signedUrl: PreSignedUrl,
-      path: String): Object = {
+      dataPath: Path): Object = {
+
+    val partitionValues = getDeltaPartitionValues(addFileColumnVectors.partitionValues, rowId)
+    val addFileVectorPath = addFileColumnVectors.path.getString(rowId)
+    val cloudPath = absolutePath(dataPath, addFileVectorPath)
+    val signedUrl = fileSigner.sign(cloudPath)
     val size = addFileColumnVectors.size.getLong(rowId)
     val stats =
       if (addFileColumnVectors.stats.isNullAt(rowId)) null
@@ -647,7 +640,7 @@ class DeltaSharedTableKernel(
     if (respondedFormat == DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
         // Using sha256 instead of m5 because it's less likely to have key collision.
-        id = Hashing.sha256().hashString(path, UTF_8).toString,
+        id = Hashing.sha256().hashString(addFileVectorPath, UTF_8).toString,
         // `version` is left empty in latest snapshot query
         version = if (queryType == QueryTypes.QueryLatestSnapshot) null else version,
         timestamp = timestamp,
@@ -666,7 +659,7 @@ class DeltaSharedTableKernel(
     } else {
       AddFile(
         url = signedUrl.url,
-        id = Hashing.md5().hashString(path, UTF_8).toString,
+        id = Hashing.md5().hashString(addFileVectorPath, UTF_8).toString,
         expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = partitionValues,
         size = size,
