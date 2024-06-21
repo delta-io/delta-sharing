@@ -611,7 +611,7 @@ def test_list_files_in_table_timestamp(
         assert False
     except Exception as e:
         assert isinstance(e, HTTPError)
-        assert "Please use a timestamp less" in str(e)
+        assert "is after the latest available version" in str(e)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
