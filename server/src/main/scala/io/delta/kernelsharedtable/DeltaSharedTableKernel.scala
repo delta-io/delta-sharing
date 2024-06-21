@@ -312,7 +312,6 @@ class DeltaSharedTableKernel(
       if (predicateHints.isEmpty && jsonPredicateHints.isEmpty && limitHint.isEmpty) {
         val scanBuilder = snapshot.kernelSnapshot.getScanBuilder(engine)
         val scan = scanBuilder.build()
-
         val scanFilesIter = scan.asInstanceOf[ScanImpl].getScanFiles(engine, true)
         try {
           while (scanFilesIter.hasNext) {
