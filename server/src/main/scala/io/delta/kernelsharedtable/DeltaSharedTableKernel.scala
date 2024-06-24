@@ -83,6 +83,7 @@ class DeltaSharedTableKernel(
 
   private var numRecords = 0L
   private var earlyTermination = false
+  private var minUrlExpirationTimestamp = Long.MaxValue
 
   private val fileSigner = withClassLoader {
     val tablePath = new Path(tableConfig.getLocation)
@@ -305,7 +306,6 @@ class DeltaSharedTableKernel(
 
     val respondedFormat = getRespondedFormat(
       responseFormatSet,
-      includeFiles,
       snapshot.protocol.getMinReaderVersion
     )
 
@@ -343,9 +343,25 @@ class DeltaSharedTableKernel(
           scanFilesIter.close()
         }
 
+        val refreshTokenStr = if (includeRefreshToken) {
+          DeltaSharedTableKernel.encodeToken(
+            RefreshToken(
+              id = Some(tableConfig.id),
+              version = Some(snapshot.version),
+              expirationTimestamp = Some(System.currentTimeMillis() + refreshTokenTtlMs)
+            )
+          )
+        } else {
+          null
+        }
+
         // Return EndStreamAction when `includeRefreshToken` is true
-        if (includeRefreshToken) {
-          throw new DeltaSharingUnsupportedOperationException("not implemented yet")
+        actions = actions ++ {
+          if (includeRefreshToken) {
+            Seq(getEndStreamAction(null, minUrlExpirationTimestamp, refreshTokenStr))
+          } else {
+            Nil
+          }
         }
 
       }
@@ -507,19 +523,7 @@ class DeltaSharedTableKernel(
 
   protected def getRespondedFormat(
       responseFormatSet: Set[String],
-      includeFiles: Boolean,
       minReaderVersion: Int): String = {
-    if (includeFiles) {
-      if (responseFormatSet.size != 1) {
-        // The protocol allows this, but we disallow this in the databricks server reduce the code
-        // complexity because there's no actual use case.
-        throw new DeltaSharingUnsupportedOperationException(
-          s"There can be only 1 responseFormat specified for queryTable or queryTableChanges RPC" +
-            s":${responseFormatSet.mkString(",")}."
-        )
-      }
-      responseFormatSet.head
-    } else {
       // includeFiles is false, indicate the query is getTableMetadata.
       if (responseFormatSet.size == 1) {
         // Return as the requested format if there's only one format supported.
@@ -536,7 +540,6 @@ class DeltaSharedTableKernel(
         } else {
           DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA
         }
-      }
     }
   }
 
@@ -646,6 +649,7 @@ class DeltaSharedTableKernel(
     val addFileVectorPath = addFileColumnVectors.path.getString(rowId)
     val cloudPath = absolutePath(dataPath, addFileVectorPath)
     val signedUrl = fileSigner.sign(cloudPath)
+    minUrlExpirationTimestamp = minUrlExpirationTimestamp.min(signedUrl.expirationTimestamp)
     val size = addFileColumnVectors.size.getLong(rowId)
     val stats =
       if (addFileColumnVectors.stats.isNullAt(rowId)) null
@@ -685,6 +689,18 @@ class DeltaSharedTableKernel(
         timestamp = timestamp
       ).wrap
     }
+  }
+
+  // Construct and return the end action of the streaming response.
+  private def getEndStreamAction(
+      nextPageTokenStr: String,
+      minUrlExpirationTimestamp: Long,
+      refreshTokenStr: String = null): SingleAction = {
+    EndStreamAction(
+      refreshTokenStr,
+      nextPageTokenStr,
+      if (minUrlExpirationTimestamp == Long.MaxValue) null else minUrlExpirationTimestamp
+    ).wrap
   }
 
   // Parse timestamp string and return the timestamp in milliseconds since epoch.

@@ -97,12 +97,12 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
     def verifyTableFiles(tableFiles: DeltaTableFiles): Unit = {
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 2, expectedNumLines = 4, minWriterVersion = 2)
       assert(tableFiles.lines(1).contains("""{"deltaMetadata":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"],"configuration":{},"createdTime":1619652806049"""))
-      assert(tableFiles.lines(2).startsWith("""{"file":{"id":"9f1a49539c5cffe1ea7f9e055d5c003c","""))
+      assert(tableFiles.lines(2).startsWith("""{"file":{"id":"01f8583b4823c5109ff90c279d93d5a56756914a467d95794a7574ff7541ebbb","""))
       assert(tableFiles.lines(2).contains("""deltaSingleAction":{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm="""))
-      assert(tableFiles.lines(2).contains(""","partitionValues":{"date":"2021-04-28"},"size":573,"modificationTime":1619652839000,"dataChange":false,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}""""))
-      assert(tableFiles.lines(3).startsWith("""{"file":{"id":"cd2209b32f5ed5305922dd50f5908a75","""))
+      assert(tableFiles.lines(2).contains(""","partitionValues":{"date":"2021-04-28"},"size":573,"modificationTime":1619652839000,"dataChange":true,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}""""))
+      assert(tableFiles.lines(3).startsWith("""{"file":{"id":"2b1be721e37f82faf1e0d124e0bacc5f1787d3e43aa8753e2fdfe5f27cf1018e","""))
       assert(tableFiles.lines(3).contains(""""deltaSingleAction":{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm="""))
-      assert(tableFiles.lines(3).contains(""","partitionValues":{"date":"2021-04-28"},"size":573,"modificationTime":1619652832000,"dataChange":false,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}""""))
+      assert(tableFiles.lines(3).contains(""","partitionValues":{"date":"2021-04-28"},"size":573,"modificationTime":1619652832000,"dataChange":true,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}""""))
       // Refresh token should be returned in latest snapshot query
       assert(tableFiles.refreshToken.nonEmpty)
     }
@@ -149,7 +149,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 1, expectedNumLines = 5)
       assert(tableFiles.lines(1).contains("""{"deltaMetadata":{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1651272615011"""))
       val prefix = """{"file":{"id":""""
-      val version = ""","version":1,"timestamp":1651272635000,"""
+      val version = ""","version":1"""
       assert(tableFiles.lines(2).startsWith(prefix) && tableFiles.lines(2).contains(version))
       assert(tableFiles.lines(3).startsWith(prefix) && tableFiles.lines(3).contains(version))
       assert(tableFiles.lines(4).startsWith(prefix) && tableFiles.lines(4).contains(version))

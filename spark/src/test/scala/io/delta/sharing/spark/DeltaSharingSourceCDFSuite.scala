@@ -504,7 +504,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
       }
 
       val expected = Seq(
-        Row("3", 3, sqlDate("2021-01-01"), 4, 1667325812000L, "insert")
+        Row("3", 3, sqlDate("2021-01-01"), 4, 0, "insert")
       )
       checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
     }

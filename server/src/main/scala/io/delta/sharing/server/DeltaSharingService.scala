@@ -499,7 +499,6 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       val queryResult = if (
         request.predicateHints.isEmpty
           && request.jsonPredicateHints.isEmpty
-          && request.includeRefreshToken.isEmpty
           && request.maxFiles.isEmpty
           && request.startingVersion.isEmpty
           && request.pageToken.isEmpty) {
