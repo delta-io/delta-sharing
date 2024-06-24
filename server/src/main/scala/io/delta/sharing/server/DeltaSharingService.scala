@@ -367,7 +367,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     // asynchronously for a specific table
     // client should be able to handle both cases and for server
     // test please use other table names.
-    if(rand.nextInt(100) > 50 && table == "table2") {
+    if(rand.nextInt(100) > 50 && table == "table2" && !request.pageToken.isDefined) {
         streamingOutput(
           Some(0),
           "parquet",
