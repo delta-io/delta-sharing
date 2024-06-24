@@ -306,7 +306,6 @@ class DeltaSharedTableKernel(
 
     val respondedFormat = getRespondedFormat(
       responseFormatSet,
-      includeFiles,
       snapshot.protocol.getMinReaderVersion
     )
 
@@ -524,19 +523,7 @@ class DeltaSharedTableKernel(
 
   protected def getRespondedFormat(
       responseFormatSet: Set[String],
-      includeFiles: Boolean,
       minReaderVersion: Int): String = {
-    if (includeFiles) {
-      if (responseFormatSet.size != 1) {
-        // The protocol allows this, but we disallow this in the databricks server reduce the code
-        // complexity because there's no actual use case.
-        throw new DeltaSharingUnsupportedOperationException(
-          s"There can be only 1 responseFormat specified for queryTable or queryTableChanges RPC" +
-            s":${responseFormatSet.mkString(",")}."
-        )
-      }
-      responseFormatSet.head
-    } else {
       // includeFiles is false, indicate the query is getTableMetadata.
       if (responseFormatSet.size == 1) {
         // Return as the requested format if there's only one format supported.
@@ -553,7 +540,6 @@ class DeltaSharedTableKernel(
         } else {
           DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA
         }
-      }
     }
   }
 
