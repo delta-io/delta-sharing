@@ -290,6 +290,16 @@ object TestResource {
                 s"s3a://${AWS.bucket}/delta-exchange-test/table_data_loss_no_checkpoint",
                 "00000000-0000-0000-0000-000000000082",
                 historyShared = true
+              ),
+              TableConfig(
+                "table_with_cm_name",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table_with_cm_name",
+                "00000000-0000-0000-0000-000000000081"
+              ),
+              TableConfig(
+                "table_with_cm_id",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table_with_cm_id",
+                "00000000-0000-0000-0000-000000000080"
               )
             )
           )
