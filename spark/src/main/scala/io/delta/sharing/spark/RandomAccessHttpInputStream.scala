@@ -147,7 +147,7 @@ private[sharing] class RandomAccessHttpInputStream(
     } else {
       logDebug(s"Opening file $uri at pos $pos")
 
-     val entity = RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
+      val entity = RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
         val httpRequest = createHttpRequest(pos)
         val response = client.execute(httpRequest)
         val status = response.getStatusLine()
@@ -167,7 +167,8 @@ private[sharing] class RandomAccessHttpInputStream(
             }
           }
           throw new UnexpectedHttpStatus(
-            s"HTTP request failed with status: $status $errorBody, while accessing [$uri]",
+            s"HTTP request failed with status: $status $errorBody," +
+              s" while accessing URI of shared table file",
             statusCode)
         }
         entity
