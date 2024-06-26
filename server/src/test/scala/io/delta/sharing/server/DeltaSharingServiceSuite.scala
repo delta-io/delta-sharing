@@ -1523,7 +1523,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "Unsupported Delta Table Features",
+      expectedErrorMessage = "Unsupported Delta Table Properties",
       headers = headers
     )
   }
@@ -1537,7 +1537,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "Unsupported Delta Table Features",
+      expectedErrorMessage = "Unsupported Delta Table Properties",
       headers = headers
     )
   }

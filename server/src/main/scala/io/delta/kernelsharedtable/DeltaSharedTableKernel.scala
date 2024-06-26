@@ -191,16 +191,6 @@ class DeltaSharedTableKernel(
       clientReaderFeatures
     )
 
-    SnapshotChecker.assertProtocolRead(protocol.getMinReaderVersion)
-
-    SnapshotChecker.assertTableFeatures(
-      isProviderRpc = isProviderRpc,
-      kernelEnabled = true,
-      protocol.getReaderFeatures.asScala.toSet,
-      Some(snapshotVersion),
-      clientReaderFeatures
-    )
-
     val updatedProtocol = if (clientReaderFeatures.isEmpty) {
       // Client does not support advanced features.
       // And after all the validation the table can be treated as having no advanced

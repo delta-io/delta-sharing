@@ -23,17 +23,6 @@ import io.delta.sharing.server.actions.{ColumnMappingTableFeature, DeltaAction}
 object SnapshotChecker {
 
   /**
-   * Assert that the client is up to date with the protocol and allowed
-   * to read the table that is using this Snapshot's `protocol`.
-   */
-  def assertProtocolRead(tblMinReaderVersion: Int): Unit = {
-    val clientVersion = DeltaAction.readerVersion
-    if (clientVersion < tblMinReaderVersion) {
-      throw new DeltaSharingUnsupportedOperationException("Unsupported Delta Reader Version")
-    }
-  }
-
-  /**
    * Assert all properties present in the table are covered/supported either by clientReaderFeatures
    * or flagReaderFeatures.
    *
@@ -76,52 +65,8 @@ object SnapshotChecker {
         case _ => None
       }
     if (unsupportedPropertiesByClient.nonEmpty) {
-      throw new DeltaSharingUnsupportedOperationException("Unsupported Delta Table Features")
+      throw new DeltaSharingUnsupportedOperationException("Unsupported Delta Table Properties")
     }
   }
 
-  /**
-   * Assert all table features are supported by both the server and the client.
-   *
-   * This will NOT fail parquet format requests on tables with advanced features, because
-   * features like DV will persist in protocol.readerFeatures even if it's turned off by
-   * setting table properties. We rely on assertTableProperties to fail the request if
-   * the table properties are actually enabled.
-   */
-  def assertTableFeatures(
-      isProviderRpc: Boolean,
-      kernelEnabled: Boolean,
-      tableFeatures: Set[String],
-      tableVersion: Option[Long],
-      clientReaderFeatures: Set[String] = Set.empty): Unit = {
-    // Check all table features are supported by the server.
-    val supportedTableFeatures = if (kernelEnabled) {
-      DeltaAction.kernelSupportedTableFeatures
-    } else {
-      DeltaAction.supportedTableFeatures
-    }
-    // scalastyle:off caselocale
-    val readerUnsupportedFeatures = tableFeatures.map(_.toLowerCase) --
-      supportedTableFeatures.map(_.name.toLowerCase)
-    // scalastyle:on caselocale
-    if (readerUnsupportedFeatures.nonEmpty) {
-      throw new DeltaSharingUnsupportedOperationException("Unsupported Delta Table Features")
-    }
-
-    // Check all table features are supported by the client.
-    // We only need to check DV and CM here because other features does not require
-    // support from the delta sharing client.
-    val clientUnsupportedFeatures =
-      tableFeatures
-        .filter { feature =>
-          // TODO @pranavsuku-db add deletionvector table feature here
-          feature == ColumnMappingTableFeature.name
-        }
-        // scalastyle:off caselocale
-        .map(_.toLowerCase) -- clientReaderFeatures.map(_.toLowerCase)
-        // scalastyle:on caselocale
-    if (clientReaderFeatures.nonEmpty && clientUnsupportedFeatures.nonEmpty) {
-      throw new DeltaSharingUnsupportedOperationException("Unsupported Delta Table Features")
-    }
-  }
 }
