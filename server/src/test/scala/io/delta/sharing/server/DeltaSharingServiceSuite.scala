@@ -1414,7 +1414,74 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(1).url, 573)
   }
 
-  integrationTest("column mapping query test 1 - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+  integrationTest("column mapping metadata test 1 - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_name/metadata"), Some("GET"), None, responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
+
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+    val expectedProtocol = DeltaFormatResponseProtocol(deltaProtocol = DeltaProtocol(minReaderVersion = 2, minWriterVersion = 5)).wrap
+
+    assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
+
+    val expectedConfigMap: Map[String, String] = List(
+      "delta.enableChangeDataFeed" -> "true",
+      "delta.enableDeletionVectors" -> "false",
+      "delta.columnMapping.maxColumnId" -> "2",
+      "delta.columnMapping.mode" -> "name").toMap
+
+    val expectedMetadata = DeltaResponseMetadata(
+      deltaMetadata = DeltaMetadataCopy(
+        id = "99b3ffc7-9852-4a29-9741-bfe54a326a4a",
+        name = null,
+        description = null,
+        format = DeltaFormat(
+          provider = RESPONSE_FORMAT_PARQUET,
+          options = Map()
+        ),
+        schemaString = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-8bd94026-1115-4d95-aa45-f936cfc5fba3"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6af3f748-93b3-44a0-b0ec-167be74ef613"}}]}""",
+        partitionColumns = Seq("date"),
+        configuration = expectedConfigMap,
+        createdTime = Option(1719346253102L)
+      )
+    ).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[DeltaResponseSingleAction](metadata))
+  }
+
+  integrationTest("column mapping metadata test 2 - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/metadata"), Some("GET"), None, responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+    val expectedProtocol = DeltaFormatResponseProtocol(deltaProtocol = DeltaProtocol(minReaderVersion = 2, minWriterVersion = 5)).wrap
+
+    assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
+
+    val expectedConfigMap: Map[String, String] = List(
+      "delta.enableChangeDataFeed" -> "true",
+      "delta.enableDeletionVectors" -> "false",
+      "delta.columnMapping.maxColumnId" -> "2",
+      "delta.columnMapping.mode" -> "id").toMap
+
+    val expectedMetadata = DeltaResponseMetadata(
+      deltaMetadata = DeltaMetadataCopy(
+        id = "1057409e-4877-4618-9283-11c7f46c4656",
+        name = null,
+        description = null,
+        format = DeltaFormat(
+          provider = RESPONSE_FORMAT_PARQUET,
+          options = Map()
+        ),
+        schemaString = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
+        partitionColumns = Seq("date"),
+        configuration = expectedConfigMap,
+        createdTime = Option(1719346404750L)
+      )
+    ).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[DeltaResponseSingleAction](metadata))
+  }
+
+  integrationTest("column mapping query test 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_name/query"), Some("POST"), Some("{}"), responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
 
     val lines = response.split("\n")
@@ -1476,7 +1543,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 688)
   }
 
-  integrationTest("column mapping query test 2 - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+  integrationTest("column mapping query test 2 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/query"), Some("POST"), Some("{}"), responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
     val lines = response.split("\n")
     val protocol = lines(0)

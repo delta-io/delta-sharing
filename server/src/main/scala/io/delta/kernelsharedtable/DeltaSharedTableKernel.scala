@@ -143,7 +143,6 @@ class DeltaSharedTableKernel(
       timestamp: Option[String],
       validStartVersion: Long,
       clientReaderFeatures: Set[String],
-      flagReaderFeatures: Set[String] = Set.empty,
       isProviderRpc: Boolean = false): SharedTableSnapshot = {
     val snapshot =
       if (version.isDefined) {
@@ -189,8 +188,7 @@ class DeltaSharedTableKernel(
       isProviderRpc = isProviderRpc,
       metadata.getConfiguration.asScala.toMap,
       Some(snapshotVersion),
-      clientReaderFeatures,
-      flagReaderFeatures
+      clientReaderFeatures
     )
 
     SnapshotChecker.assertProtocolRead(protocol.getMinReaderVersion)

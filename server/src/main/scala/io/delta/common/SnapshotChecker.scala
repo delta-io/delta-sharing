@@ -53,18 +53,16 @@ object SnapshotChecker {
    *                           flags for providers to share tables with specific reader features.
    */
   def assertTableProperties(
-                             isProviderRpc: Boolean,
-                             configuration: Map[String, String],
-                             tableVersion: Option[Long],
-                             clientReaderFeatures: Set[String],
-                             flagReaderFeatures: Set[String] = Set.empty): Unit = {
+      isProviderRpc: Boolean,
+      configuration: Map[String, String],
+      tableVersion: Option[Long],
+      clientReaderFeatures: Set[String]): Unit = {
     // An unsupported table property can be supported if it is in part of the client supported
     // table features.
-    def propertySupportedByClientOrFlag(property: String): Boolean = {
+    def propertySupportedByClient(property: String): Boolean = {
       // TODO: @pranavsuku-db add deletionvector logic
       if (property == DeltaAction.columnMappingProperty.property) {
-        ColumnMappingTableFeature.isInSet(clientReaderFeatures) ||
-          ColumnMappingTableFeature.isInSet(flagReaderFeatures)
+        ColumnMappingTableFeature.isInSet(clientReaderFeatures)
       } else {
         // We should not reject any other table properties as they can contain arbitrary keys.
         true
@@ -73,7 +71,7 @@ object SnapshotChecker {
     val unsupportedPropertiesByClient = DeltaAction.tablePropertiesWithDisabledValues
       .flatMap {
         case pr @ DeltaAction.PropertyAllowedValues(property, allowedValues)
-          if !propertySupportedByClientOrFlag(property) =>
+          if !propertySupportedByClient(property) =>
           configuration.get(property).filterNot(allowedValues.contains(_)).map(_ => pr)
         case _ => None
       }
@@ -81,15 +79,6 @@ object SnapshotChecker {
       throw new DeltaSharingUnsupportedOperationException("Unsupported Delta Table Features")
     }
   }
-
-  def getTableFeaturesFromProperties(properties: Map[String, String]): Set[String] =
-    properties.keys
-      .filter(_.contains("delta.feature."))
-      .map { featureProp =>
-        val startIndx = "delta.feature.".length
-        featureProp.substring(startIndx)
-      }
-      .toSet
 
   /**
    * Assert all table features are supported by both the server and the client.
@@ -130,7 +119,7 @@ object SnapshotChecker {
         }
         // scalastyle:off caselocale
         .map(_.toLowerCase) -- clientReaderFeatures.map(_.toLowerCase)
-    // scalastyle:on caselocale
+        // scalastyle:on caselocale
     if (clientReaderFeatures.nonEmpty && clientUnsupportedFeatures.nonEmpty) {
       throw new DeltaSharingUnsupportedOperationException("Unsupported Delta Table Features")
     }
