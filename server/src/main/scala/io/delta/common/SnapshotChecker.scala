@@ -38,11 +38,8 @@ object SnapshotChecker {
    *                      properties of the table.
    * @param tableVersion  The table vesrion associated with the configuration.
    * @param clientReaderFeatures The set of reader features supported by the delta sharing client
-   * @param flagReaderFeatures The set of reader features allowed by the flag, used to enabling
-   *                           flags for providers to share tables with specific reader features.
    */
   def assertTableProperties(
-      isProviderRpc: Boolean,
       configuration: Map[String, String],
       tableVersion: Option[Long],
       clientReaderFeatures: Set[String]): Unit = {

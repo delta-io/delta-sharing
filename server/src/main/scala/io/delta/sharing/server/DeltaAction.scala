@@ -47,14 +47,6 @@ object DeltaAction {
   val tablePropertiesWithDisabledValues: Seq[PropertyAllowedValues] =
     Seq(columnMappingProperty)
 
-  val supportedTableFeatures: Set[TableFeature] = Set(
-    // ReaderWriterFeatures
-    ColumnMappingTableFeature
-  )
-
-  // TODO: @pranavsuku-db make sure that this gets expanded with additional features
-  val kernelSupportedTableFeatures: Set[TableFeature] = supportedTableFeatures
-
   def fromJson(json: String): DeltaAction = {
     JsonUtils.mapper.readValue[DeltaSingleAction](json).unwrap
   }

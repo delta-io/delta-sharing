@@ -142,8 +142,7 @@ class DeltaSharedTableKernel(
       version: Option[Long],
       timestamp: Option[String],
       validStartVersion: Long,
-      clientReaderFeatures: Set[String],
-      isProviderRpc: Boolean = false): SharedTableSnapshot = {
+      clientReaderFeatures: Set[String]): SharedTableSnapshot = {
     val snapshot =
       if (version.isDefined) {
         try {
@@ -185,7 +184,6 @@ class DeltaSharedTableKernel(
     val metadata = snapshot.getMetadata
 
     SnapshotChecker.assertTableProperties(
-      isProviderRpc = isProviderRpc,
       metadata.getConfiguration.asScala.toMap,
       Some(snapshotVersion),
       clientReaderFeatures

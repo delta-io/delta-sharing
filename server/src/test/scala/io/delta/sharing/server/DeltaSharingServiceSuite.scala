@@ -1412,110 +1412,128 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(1).url, 573)
   }
 
+  /**
+   * Utility function to verify the DeltaResponseMetadata
+   */
+  // scalastyle:off argcount
+  def verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr: String,
+      actualMetadataStr: String,
+      minReaderVersionProtocol: Int,
+      minWriterVersionProtocol: Int,
+      enableChangeDataFeed: String,
+      enableDeletionVectors: String,
+      maxColumnId: String,
+      columnMapMode: String,
+      idMetadata: String,
+      providerMetadata: String,
+      schemaStringMetadata: String,
+      partitionColumnsMetadata: Seq[String],
+      createdTimeMetadata: Option[Long]): Unit = {
+
+    val expectedProtocol = DeltaFormatResponseProtocol(deltaProtocol = DeltaProtocol(minReaderVersion = minReaderVersionProtocol, minWriterVersion = minWriterVersionProtocol)).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](actualProtocolStr))
+
+    val expectedConfigMap: Map[String, String] = List(
+      "delta.enableChangeDataFeed" -> enableChangeDataFeed,
+      "delta.enableDeletionVectors" -> enableDeletionVectors,
+      "delta.columnMapping.maxColumnId" -> maxColumnId,
+      "delta.columnMapping.mode" -> columnMapMode).toMap
+    val expectedMetadata = DeltaResponseMetadata(
+      deltaMetadata = DeltaMetadataCopy(
+        id = idMetadata,
+        name = null,
+        description = null,
+        format = DeltaFormat(
+          provider = providerMetadata,
+          options = Map()
+        ),
+        schemaString = schemaStringMetadata,
+        partitionColumns = partitionColumnsMetadata,
+        configuration = expectedConfigMap,
+        createdTime = createdTimeMetadata
+      )
+    ).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[DeltaResponseSingleAction](actualMetadataStr))
+  }
+
+  // Tests that the protocol and metadata from a column mapping table with name mode is correct
   integrationTest("column mapping metadata test 1 - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_name/metadata"), Some("GET"), None, responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
 
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
-    val expectedProtocol = DeltaFormatResponseProtocol(deltaProtocol = DeltaProtocol(minReaderVersion = 2, minWriterVersion = 5)).wrap
 
-    assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
-
-    val expectedConfigMap: Map[String, String] = List(
-      "delta.enableChangeDataFeed" -> "true",
-      "delta.enableDeletionVectors" -> "false",
-      "delta.columnMapping.maxColumnId" -> "2",
-      "delta.columnMapping.mode" -> "name").toMap
-
-    val expectedMetadata = DeltaResponseMetadata(
-      deltaMetadata = DeltaMetadataCopy(
-        id = "99b3ffc7-9852-4a29-9741-bfe54a326a4a",
-        name = null,
-        description = null,
-        format = DeltaFormat(
-          provider = RESPONSE_FORMAT_PARQUET,
-          options = Map()
-        ),
-        schemaString = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-8bd94026-1115-4d95-aa45-f936cfc5fba3"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6af3f748-93b3-44a0-b0ec-167be74ef613"}}]}""",
-        partitionColumns = Seq("date"),
-        configuration = expectedConfigMap,
-        createdTime = Option(1719346253102L)
-      )
-    ).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[DeltaResponseSingleAction](metadata))
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 2,
+      minWriterVersionProtocol = 5,
+      enableChangeDataFeed = "true",
+      enableDeletionVectors = "false",
+      maxColumnId = "2",
+      columnMapMode = "name",
+      idMetadata = "99b3ffc7-9852-4a29-9741-bfe54a326a4a",
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-8bd94026-1115-4d95-aa45-f936cfc5fba3"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6af3f748-93b3-44a0-b0ec-167be74ef613"}}]}""",
+      partitionColumnsMetadata = Seq("date"),
+      createdTimeMetadata = Option(1719346253102L)
+    )
   }
 
+  // Tests that the protocol and metadata from a column mapping table with id mode is correct
   integrationTest("column mapping metadata test 2 - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/metadata"), Some("GET"), None, responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
-    val expectedProtocol = DeltaFormatResponseProtocol(deltaProtocol = DeltaProtocol(minReaderVersion = 2, minWriterVersion = 5)).wrap
 
-    assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
-
-    val expectedConfigMap: Map[String, String] = List(
-      "delta.enableChangeDataFeed" -> "true",
-      "delta.enableDeletionVectors" -> "false",
-      "delta.columnMapping.maxColumnId" -> "2",
-      "delta.columnMapping.mode" -> "id").toMap
-
-    val expectedMetadata = DeltaResponseMetadata(
-      deltaMetadata = DeltaMetadataCopy(
-        id = "1057409e-4877-4618-9283-11c7f46c4656",
-        name = null,
-        description = null,
-        format = DeltaFormat(
-          provider = RESPONSE_FORMAT_PARQUET,
-          options = Map()
-        ),
-        schemaString = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
-        partitionColumns = Seq("date"),
-        configuration = expectedConfigMap,
-        createdTime = Option(1719346404750L)
-      )
-    ).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[DeltaResponseSingleAction](metadata))
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 2,
+      minWriterVersionProtocol = 5,
+      enableChangeDataFeed = "true",
+      enableDeletionVectors = "false",
+      maxColumnId = "2",
+      columnMapMode = "id",
+      idMetadata = "1057409e-4877-4618-9283-11c7f46c4656",
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
+      partitionColumnsMetadata = Seq("date"),
+      createdTimeMetadata = Option(1719346404750L)
+    )
   }
 
+  // Tests that the protocol and metadata from a column mapping table with id mode is correct
+  // for responseFormat containing Delta and Parquet
   integrationTest("column mapping metadata test 3 - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val parquetAndDeltaResponse = RESPONSE_FORMAT_PARQUET + "," + RESPONSE_FORMAT_DELTA
-    // scalastyle:off println
-    System.out.println(parquetAndDeltaResponse)
-    // scalastyle:on println
+
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/metadata"), Some("GET"), None, responseFormat = parquetAndDeltaResponse, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
-    val expectedProtocol = DeltaFormatResponseProtocol(deltaProtocol = DeltaProtocol(minReaderVersion = 2, minWriterVersion = 5)).wrap
 
-    assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
-
-    val expectedConfigMap: Map[String, String] = List(
-      "delta.enableChangeDataFeed" -> "true",
-      "delta.enableDeletionVectors" -> "false",
-      "delta.columnMapping.maxColumnId" -> "2",
-      "delta.columnMapping.mode" -> "id").toMap
-
-    val expectedMetadata = DeltaResponseMetadata(
-      deltaMetadata = DeltaMetadataCopy(
-        id = "1057409e-4877-4618-9283-11c7f46c4656",
-        name = null,
-        description = null,
-        format = DeltaFormat(
-          provider = RESPONSE_FORMAT_PARQUET,
-          options = Map()
-        ),
-        schemaString = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
-        partitionColumns = Seq("date"),
-        configuration = expectedConfigMap,
-        createdTime = Option(1719346404750L)
-      )
-    ).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[DeltaResponseSingleAction](metadata))
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 2,
+      minWriterVersionProtocol = 5,
+      enableChangeDataFeed = "true",
+      enableDeletionVectors = "false",
+      maxColumnId = "2",
+      columnMapMode = "id",
+      idMetadata = "1057409e-4877-4618-9283-11c7f46c4656",
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
+      partitionColumnsMetadata = Seq("date"),
+      createdTimeMetadata = Option(1719346404750L)
+    )
   }
 
+  // Tests that error is caught for empty reader features set
   integrationTest("column mapping empty reader features error test - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val headers: Map[String, String] = List("responseFormat" -> RESPONSE_FORMAT_DELTA).toMap
     assertHttpError(
@@ -1528,6 +1546,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
+  // Tests that error is caught for responseFormat of Parquet
   integrationTest("column mapping responseFormat Parquet reader features col mapping error test - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
     val headers: Map[String, String] = List(
       "responseFormat" -> RESPONSE_FORMAT_PARQUET,
@@ -1542,38 +1561,29 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
+  // Tests that the query from a column mapping table with name mode is correct
   integrationTest("column mapping query test 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_name/query"), Some("POST"), Some("{}"), responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
 
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
-    val expectedProtocol = DeltaFormatResponseProtocol(deltaProtocol = DeltaProtocol(minReaderVersion = 2, minWriterVersion = 5)).wrap
 
-    assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
-
-    val expectedConfigMap: Map[String, String] = List(
-      "delta.enableChangeDataFeed" -> "true",
-      "delta.enableDeletionVectors" -> "false",
-      "delta.columnMapping.maxColumnId" -> "2",
-      "delta.columnMapping.mode" -> "name").toMap
-
-    val expectedMetadata = DeltaResponseMetadata(
-      deltaMetadata = DeltaMetadataCopy(
-        id = "99b3ffc7-9852-4a29-9741-bfe54a326a4a",
-        name = null,
-        description = null,
-        format = DeltaFormat(
-          provider = RESPONSE_FORMAT_PARQUET,
-          options = Map()
-        ),
-        schemaString = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-8bd94026-1115-4d95-aa45-f936cfc5fba3"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6af3f748-93b3-44a0-b0ec-167be74ef613"}}]}""",
-        partitionColumns = Seq("date"),
-        configuration = expectedConfigMap,
-        createdTime = Option(1719346253102L)
-      )
-    ).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[DeltaResponseSingleAction](metadata))
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 2,
+      minWriterVersionProtocol = 5,
+      enableChangeDataFeed = "true",
+      enableDeletionVectors = "false",
+      maxColumnId = "2",
+      columnMapMode = "name",
+      idMetadata = "99b3ffc7-9852-4a29-9741-bfe54a326a4a",
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-8bd94026-1115-4d95-aa45-f936cfc5fba3"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6af3f748-93b3-44a0-b0ec-167be74ef613"}}]}""",
+      partitionColumnsMetadata = Seq("date"),
+      createdTimeMetadata = Option(1719346253102L)
+    )
 
     val files = lines.drop(2)
     val actualFiles = files.map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
@@ -1604,37 +1614,28 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 688)
   }
 
+  // Tests that the query from a column mapping table with id mode is correct
   integrationTest("column mapping query test 2 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/query"), Some("POST"), Some("{}"), responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
-    val expectedProtocol = DeltaFormatResponseProtocol(deltaProtocol = DeltaProtocol(minReaderVersion = 2, minWriterVersion = 5)).wrap
 
-    assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
-
-    val expectedConfigMap: Map[String, String] = List(
-      "delta.enableChangeDataFeed" -> "true",
-      "delta.enableDeletionVectors" -> "false",
-      "delta.columnMapping.maxColumnId" -> "2",
-      "delta.columnMapping.mode" -> "id").toMap
-
-    val expectedMetadata = DeltaResponseMetadata(
-      deltaMetadata = DeltaMetadataCopy(
-        id = "1057409e-4877-4618-9283-11c7f46c4656",
-        name = null,
-        description = null,
-        format = DeltaFormat(
-          provider = RESPONSE_FORMAT_PARQUET,
-          options = Map()
-        ),
-        schemaString = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
-        partitionColumns = Seq("date"),
-        configuration = expectedConfigMap,
-        createdTime = Option(1719346404750L)
-      )
-    ).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[DeltaResponseSingleAction](metadata))
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 2,
+      minWriterVersionProtocol = 5,
+      enableChangeDataFeed = "true",
+      enableDeletionVectors = "false",
+      maxColumnId = "2",
+      columnMapMode = "id",
+      idMetadata = "1057409e-4877-4618-9283-11c7f46c4656",
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
+      partitionColumnsMetadata = Seq("date"),
+      createdTimeMetadata = Option(1719346404750L)
+    )
 
     val files = lines.drop(2)
     val actualFiles = files.map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
@@ -1701,38 +1702,30 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(2).deltaSingleAction.add.path, 653)
   }
 
+  // Tests that the query from a column mapping table with id mode is correct
+  // for responseFormat containing Delta and Parquet
   integrationTest("column mapping query test 3 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
     val parquetAndDeltaResponse = RESPONSE_FORMAT_PARQUET + "," + RESPONSE_FORMAT_DELTA
     val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/query"), Some("POST"), Some("{}"), responseFormat = parquetAndDeltaResponse, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
     val lines = response.split("\n")
     val protocol = lines(0)
     val metadata = lines(1)
-    val expectedProtocol = DeltaFormatResponseProtocol(deltaProtocol = DeltaProtocol(minReaderVersion = 2, minWriterVersion = 5)).wrap
 
-    assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](protocol))
-
-    val expectedConfigMap: Map[String, String] = List(
-      "delta.enableChangeDataFeed" -> "true",
-      "delta.enableDeletionVectors" -> "false",
-      "delta.columnMapping.maxColumnId" -> "2",
-      "delta.columnMapping.mode" -> "id").toMap
-
-    val expectedMetadata = DeltaResponseMetadata(
-      deltaMetadata = DeltaMetadataCopy(
-        id = "1057409e-4877-4618-9283-11c7f46c4656",
-        name = null,
-        description = null,
-        format = DeltaFormat(
-          provider = RESPONSE_FORMAT_PARQUET,
-          options = Map()
-        ),
-        schemaString = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
-        partitionColumns = Seq("date"),
-        configuration = expectedConfigMap,
-        createdTime = Option(1719346404750L)
-      )
-    ).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[DeltaResponseSingleAction](metadata))
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 2,
+      minWriterVersionProtocol = 5,
+      enableChangeDataFeed = "true",
+      enableDeletionVectors = "false",
+      maxColumnId = "2",
+      columnMapMode = "id",
+      idMetadata = "1057409e-4877-4618-9283-11c7f46c4656",
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
+      partitionColumnsMetadata = Seq("date"),
+      createdTimeMetadata = Option(1719346404750L)
+    )
 
     val files = lines.drop(2)
     val actualFiles = files.map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
