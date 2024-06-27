@@ -496,6 +496,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         }
       }
       val responseFormatSet = getResponseFormatSet(capabilitiesMap)
+      val clientReaderFeaturesSet = getReaderFeatures(capabilitiesMap)
       val queryResult = if (
         request.predicateHints.isEmpty
           && request.jsonPredicateHints.isEmpty
@@ -515,7 +516,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           request.pageToken,
           request.includeRefreshToken.getOrElse(false),
           request.refreshToken,
-          responseFormatSet = responseFormatSet)
+          responseFormatSet = responseFormatSet,
+          clientReaderFeaturesSet = clientReaderFeaturesSet)
       } else {
         deltaSharedTableLoader.loadTable(tableConfig).query(
           includeFiles = true,

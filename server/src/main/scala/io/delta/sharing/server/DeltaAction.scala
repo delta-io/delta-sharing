@@ -34,10 +34,44 @@ object DeltaAction {
   val readerVersion = 3
   val writerVersion = 2
 
+  case class PropertyAllowedValues(property: String, allowedValues: Seq[String])
+
+  /**
+   * These properties should be supported according to the readerFeatures.
+   * However, they are not supported by the Delta standalone reader at this point.
+   * Delta standalone reader should still try to read these tables given the properties are not set.
+   */
+
+  val columnMappingProperty: PropertyAllowedValues =
+    PropertyAllowedValues("delta.columnMapping.mode", Seq("none"))
+  val tablePropertiesWithDisabledValues: Seq[PropertyAllowedValues] =
+    Seq(columnMappingProperty)
+
   def fromJson(json: String): DeltaAction = {
     JsonUtils.mapper.readValue[DeltaSingleAction](json).unwrap
   }
 }
+
+/**
+ * Note: this is a stripped down version of TableFeature from Runtime.
+ * Delta standalone only supports basic parsing of reader features.
+ */
+sealed abstract class TableFeature(val name: String) extends java.io.Serializable {
+  // Case-insensitive compare
+  def isInSet(featureSet: Set[String]): Boolean = {
+    // scalastyle:off caselocale
+    featureSet.map(_.toLowerCase).contains(name.toLowerCase)
+    // scalastyle:on caselocale
+  }
+}
+
+/**
+ * These reader-writer features are supported but should not be enabled.
+ * Only these reader-writer features are allowed to be present in delta shared tables.
+ * And the corresponding table properties should not be enabled.
+ * Any other reader-writer features will be rejected.
+ */
+object ColumnMappingTableFeature extends TableFeature(name = "columnMapping")
 
 /**
  * Represents a single change to the state of a Delta table. An order sequence

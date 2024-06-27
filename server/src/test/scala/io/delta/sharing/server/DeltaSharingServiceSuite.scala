@@ -26,12 +26,12 @@ import javax.net.ssl._
 import scala.collection.mutable.ArrayBuffer
 
 import com.linecorp.armeria.server.Server
-import io.delta.standalone.internal.{DeltaResponseProtocol, DeltaResponseSingleAction}
 import io.delta.standalone.internal.DeltaSharedTable.{RESPONSE_FORMAT_DELTA, RESPONSE_FORMAT_PARQUET}
 import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import scalapb.json4s.JsonFormat
 
+import io.delta.sharing.server.actions.{ColumnMappingTableFeature, DeltaAddFile, DeltaFormat, DeltaProtocol, DeltaSingleAction}
 import io.delta.sharing.server.config.ServerConfig
 import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol._
@@ -126,7 +126,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     data: Option[String] = None,
     expectedTableVersion: Option[Long] = None,
     responseFormat: String = RESPONSE_FORMAT_PARQUET,
-    asyncQuery: String = "false"): String = {
+    asyncQuery: String = "false",
+    readerFeatures: String = ""): String = {
     readHttpContent(
       url,
       method,
@@ -134,7 +135,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       responseFormat,
       expectedTableVersion,
       "application/x-ndjson; charset=utf-8",
-      asyncQuery = asyncQuery
+      asyncQuery = asyncQuery,
+      readerFeatures = readerFeatures
     )
   }
 
@@ -142,16 +144,16 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     url: String,
     method: Option[String],
     data: Option[String] = None,
-    responseFormat: String,
+    responseFormat: String = RESPONSE_FORMAT_PARQUET,
     expectedTableVersion: Option[Long] = None,
     expectedContentType: String,
-    asyncQuery: String = "true"): String = {
+    asyncQuery: String = "true",
+    readerFeatures: String = ""): String = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
     var deltaSharingCapabilities = s"asyncquery=$asyncQuery"
-    if (responseFormat == RESPONSE_FORMAT_DELTA) {
-      deltaSharingCapabilities += s";responseFormat=$responseFormat"
-    }
+    deltaSharingCapabilities += s";responseformat=$responseFormat"
+    deltaSharingCapabilities += readerFeatures
     connection.setRequestProperty("delta-sharing-capabilities", deltaSharingCapabilities)
 
     method.foreach(connection.setRequestMethod)
@@ -1408,6 +1410,386 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 778)
     verifyPreSignedUrl(actualFiles(1).url, 573)
+  }
+
+  /**
+   * Utility function to verify the DeltaResponseMetadata
+   */
+  // scalastyle:off argcount
+  def verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr: String,
+      actualMetadataStr: String,
+      minReaderVersionProtocol: Int,
+      minWriterVersionProtocol: Int,
+      enableChangeDataFeed: String,
+      enableDeletionVectors: String,
+      maxColumnId: String,
+      columnMapMode: String,
+      idMetadata: String,
+      providerMetadata: String,
+      schemaStringMetadata: String,
+      partitionColumnsMetadata: Seq[String],
+      createdTimeMetadata: Option[Long]): Unit = {
+
+    val expectedProtocol = DeltaFormatResponseProtocol(deltaProtocol = DeltaProtocol(minReaderVersion = minReaderVersionProtocol, minWriterVersion = minWriterVersionProtocol)).wrap
+    assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](actualProtocolStr))
+
+    val expectedConfigMap: Map[String, String] = List(
+      "delta.enableChangeDataFeed" -> enableChangeDataFeed,
+      "delta.enableDeletionVectors" -> enableDeletionVectors,
+      "delta.columnMapping.maxColumnId" -> maxColumnId,
+      "delta.columnMapping.mode" -> columnMapMode).toMap
+    val expectedMetadata = DeltaResponseMetadata(
+      deltaMetadata = DeltaMetadataCopy(
+        id = idMetadata,
+        name = null,
+        description = null,
+        format = DeltaFormat(
+          provider = providerMetadata,
+          options = Map()
+        ),
+        schemaString = schemaStringMetadata,
+        partitionColumns = partitionColumnsMetadata,
+        configuration = expectedConfigMap,
+        createdTime = createdTimeMetadata
+      )
+    ).wrap
+    assert(expectedMetadata == JsonUtils.fromJson[DeltaResponseSingleAction](actualMetadataStr))
+  }
+
+  // Tests that the protocol and metadata from a column mapping table with name mode is correct
+  integrationTest("column mapping metadata test 1 - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_name/metadata"), Some("GET"), None, responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
+
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 2,
+      minWriterVersionProtocol = 5,
+      enableChangeDataFeed = "true",
+      enableDeletionVectors = "false",
+      maxColumnId = "2",
+      columnMapMode = "name",
+      idMetadata = "99b3ffc7-9852-4a29-9741-bfe54a326a4a",
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-8bd94026-1115-4d95-aa45-f936cfc5fba3"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6af3f748-93b3-44a0-b0ec-167be74ef613"}}]}""",
+      partitionColumnsMetadata = Seq("date"),
+      createdTimeMetadata = Option(1719346253102L)
+    )
+  }
+
+  // Tests that the protocol and metadata from a column mapping table with id mode is correct
+  integrationTest("column mapping metadata test 2 - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/metadata"), Some("GET"), None, responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 2,
+      minWriterVersionProtocol = 5,
+      enableChangeDataFeed = "true",
+      enableDeletionVectors = "false",
+      maxColumnId = "2",
+      columnMapMode = "id",
+      idMetadata = "1057409e-4877-4618-9283-11c7f46c4656",
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
+      partitionColumnsMetadata = Seq("date"),
+      createdTimeMetadata = Option(1719346404750L)
+    )
+  }
+
+  // Tests that the protocol and metadata from a column mapping table with id mode is correct
+  // for responseFormat containing Delta and Parquet
+  integrationTest("column mapping metadata test 3 - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+    val parquetAndDeltaResponse = RESPONSE_FORMAT_PARQUET + "," + RESPONSE_FORMAT_DELTA
+
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/metadata"), Some("GET"), None, responseFormat = parquetAndDeltaResponse, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 2,
+      minWriterVersionProtocol = 5,
+      enableChangeDataFeed = "true",
+      enableDeletionVectors = "false",
+      maxColumnId = "2",
+      columnMapMode = "id",
+      idMetadata = "1057409e-4877-4618-9283-11c7f46c4656",
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
+      partitionColumnsMetadata = Seq("date"),
+      createdTimeMetadata = Option(1719346404750L)
+    )
+  }
+
+  // Tests that error is caught for empty reader features set
+  integrationTest("column mapping empty reader features error test - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+    val headers: Map[String, String] = List("responseFormat" -> RESPONSE_FORMAT_DELTA).toMap
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/metadata"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Unsupported Delta Table Properties",
+      headers = headers
+    )
+  }
+
+  // Tests that error is caught for responseFormat of Parquet
+  integrationTest("column mapping responseFormat Parquet reader features col mapping error test - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+    val headers: Map[String, String] = List(
+      "responseFormat" -> RESPONSE_FORMAT_PARQUET,
+      "delta-sharing-capabilities" -> s"readerFeatures=${ColumnMappingTableFeature.name}").toMap
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/metadata"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Unsupported Delta Table Properties",
+      headers = headers
+    )
+  }
+
+  // Tests that the query from a column mapping table with name mode is correct
+  integrationTest("column mapping query test 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_name/query"), Some("POST"), Some("{}"), responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
+
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 2,
+      minWriterVersionProtocol = 5,
+      enableChangeDataFeed = "true",
+      enableDeletionVectors = "false",
+      maxColumnId = "2",
+      columnMapMode = "name",
+      idMetadata = "99b3ffc7-9852-4a29-9741-bfe54a326a4a",
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-8bd94026-1115-4d95-aa45-f936cfc5fba3"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6af3f748-93b3-44a0-b0ec-167be74ef613"}}]}""",
+      partitionColumnsMetadata = Seq("date"),
+      createdTimeMetadata = Option(1719346253102L)
+    )
+
+    val files = lines.drop(2)
+    val actualFiles = files.map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
+    assert(actualFiles.size == 1)
+
+    val expectedPartitionMap: Map[String, String] = List(
+      "col-8bd94026-1115-4d95-aa45-f936cfc5fba3" -> "2024-06-25").toMap
+    val expectedFiles = Seq(
+      DeltaResponseFileAction(
+        id = "fae5d45962a2617c129aabbbb0313d7f96ffc0d3a5b60fa5e02993c01cd02715",
+        version = null,
+        timestamp = null,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
+        deltaSingleAction = DeltaSingleAction(
+          add = DeltaAddFile(
+            path = actualFiles(0).deltaSingleAction.add.path,
+            partitionValues = expectedPartitionMap,
+            size = 688,
+            modificationTime = 1719346303000L,
+            dataChange = true,
+            stats = """{"numRecords":3,"minValues":{"col-6af3f748-93b3-44a0-b0ec-167be74ef613":"2024-06-25T00:00:00.000Z"},"maxValues":{"col-6af3f748-93b3-44a0-b0ec-167be74ef613":"2024-06-25T01:00:00.000Z"},"nullCount":{"col-6af3f748-93b3-44a0-b0ec-167be74ef613":0}}"""
+          )
+        )
+      )
+    )
+    assert(expectedFiles == actualFiles.toList)
+    assert(actualFiles.count(_.expirationTimestamp != null) == 1)
+    verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 688)
+  }
+
+  // Tests that the query from a column mapping table with id mode is correct
+  integrationTest("column mapping query test 2 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/query"), Some("POST"), Some("{}"), responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 2,
+      minWriterVersionProtocol = 5,
+      enableChangeDataFeed = "true",
+      enableDeletionVectors = "false",
+      maxColumnId = "2",
+      columnMapMode = "id",
+      idMetadata = "1057409e-4877-4618-9283-11c7f46c4656",
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
+      partitionColumnsMetadata = Seq("date"),
+      createdTimeMetadata = Option(1719346404750L)
+    )
+
+    val files = lines.drop(2)
+    val actualFiles = files.map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
+    assert(actualFiles.size == 3)
+
+    val firstExpectedPartitionMap: Map[String, String] = List(
+      "col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21" -> "2024-06-23").toMap
+    val secondExpectedPartitionMap: Map[String, String] = List(
+      "col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21" -> "2024-06-24").toMap
+    val thirdExpectedPartitionMap: Map[String, String] = List(
+      "col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21" -> "2024-06-25").toMap
+    val expectedFiles = Seq(
+      DeltaResponseFileAction(
+        id = "4b90398804797110234e987667aeef902658055cfe3be02281d1ce1d4fe762ca",
+        version = null,
+        timestamp = null,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
+        deltaSingleAction = DeltaSingleAction(
+          add = DeltaAddFile(
+            path = actualFiles(0).deltaSingleAction.add.path,
+            partitionValues = firstExpectedPartitionMap,
+            size = 653,
+            modificationTime = 1719346426000L,
+            dataChange = true,
+            stats = """{"numRecords":1,"minValues":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":"2024-06-23T00:00:00.000Z"},"maxValues":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":"2024-06-23T00:00:00.000Z"},"nullCount":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":0}}"""
+          )
+        )
+      ), DeltaResponseFileAction(
+        id = "c351b3936ee9230044de858bfe7262b757e68496d57b8f2be61db55997141cb0",
+        version = null,
+        timestamp = null,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
+        deltaSingleAction = DeltaSingleAction(
+          add = DeltaAddFile(
+            path = actualFiles(1).deltaSingleAction.add.path,
+            partitionValues = secondExpectedPartitionMap,
+            size = 652,
+            modificationTime = 1719346426000L,
+            dataChange = true,
+            stats = """{"numRecords":1,"minValues":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":"2024-06-24T01:00:00.000Z"},"maxValues":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":"2024-06-24T01:00:00.000Z"},"nullCount":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":0}}"""
+          )
+        )
+      ), DeltaResponseFileAction(
+        id = "016f8b0bd53cf812e1fb198b89ddd8f9136136fe676936cb1b9159939d401e15",
+        version = null,
+        timestamp = null,
+        expirationTimestamp = actualFiles(2).expirationTimestamp,
+        deltaSingleAction = DeltaSingleAction(
+          add = DeltaAddFile(
+            path = actualFiles(2).deltaSingleAction.add.path,
+            partitionValues = thirdExpectedPartitionMap,
+            size = 653,
+            modificationTime = 1719346426000L,
+            dataChange = true,
+            stats = """{"numRecords":1,"minValues":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":"2024-06-25T00:00:00.000Z"},"maxValues":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":"2024-06-25T00:00:00.000Z"},"nullCount":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":0}}"""
+          )
+        )
+      )
+    )
+    assert(expectedFiles == actualFiles.toList)
+    assert(actualFiles.count(_.expirationTimestamp != null) == 3)
+    verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 653)
+    verifyPreSignedUrl(actualFiles(1).deltaSingleAction.add.path, 652)
+    verifyPreSignedUrl(actualFiles(2).deltaSingleAction.add.path, 653)
+  }
+
+  // Tests that the query from a column mapping table with id mode is correct
+  // for responseFormat containing Delta and Parquet
+  integrationTest("column mapping query test 3 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
+    val parquetAndDeltaResponse = RESPONSE_FORMAT_PARQUET + "," + RESPONSE_FORMAT_DELTA
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/query"), Some("POST"), Some("{}"), responseFormat = parquetAndDeltaResponse, readerFeatures = s";readerFeatures=${ColumnMappingTableFeature.name}")
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 2,
+      minWriterVersionProtocol = 5,
+      enableChangeDataFeed = "true",
+      enableDeletionVectors = "false",
+      maxColumnId = "2",
+      columnMapMode = "id",
+      idMetadata = "1057409e-4877-4618-9283-11c7f46c4656",
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}""",
+      partitionColumnsMetadata = Seq("date"),
+      createdTimeMetadata = Option(1719346404750L)
+    )
+
+    val files = lines.drop(2)
+    val actualFiles = files.map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
+    assert(actualFiles.size == 3)
+
+    val firstExpectedPartitionMap: Map[String, String] = List(
+      "col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21" -> "2024-06-23").toMap
+    val secondExpectedPartitionMap: Map[String, String] = List(
+      "col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21" -> "2024-06-24").toMap
+    val thirdExpectedPartitionMap: Map[String, String] = List(
+      "col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21" -> "2024-06-25").toMap
+    val expectedFiles = Seq(
+      DeltaResponseFileAction(
+        id = "4b90398804797110234e987667aeef902658055cfe3be02281d1ce1d4fe762ca",
+        version = null,
+        timestamp = null,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
+        deltaSingleAction = DeltaSingleAction(
+          add = DeltaAddFile(
+            path = actualFiles(0).deltaSingleAction.add.path,
+            partitionValues = firstExpectedPartitionMap,
+            size = 653,
+            modificationTime = 1719346426000L,
+            dataChange = true,
+            stats = """{"numRecords":1,"minValues":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":"2024-06-23T00:00:00.000Z"},"maxValues":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":"2024-06-23T00:00:00.000Z"},"nullCount":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":0}}"""
+          )
+        )
+      ), DeltaResponseFileAction(
+        id = "c351b3936ee9230044de858bfe7262b757e68496d57b8f2be61db55997141cb0",
+        version = null,
+        timestamp = null,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
+        deltaSingleAction = DeltaSingleAction(
+          add = DeltaAddFile(
+            path = actualFiles(1).deltaSingleAction.add.path,
+            partitionValues = secondExpectedPartitionMap,
+            size = 652,
+            modificationTime = 1719346426000L,
+            dataChange = true,
+            stats = """{"numRecords":1,"minValues":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":"2024-06-24T01:00:00.000Z"},"maxValues":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":"2024-06-24T01:00:00.000Z"},"nullCount":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":0}}"""
+          )
+        )
+      ), DeltaResponseFileAction(
+        id = "016f8b0bd53cf812e1fb198b89ddd8f9136136fe676936cb1b9159939d401e15",
+        version = null,
+        timestamp = null,
+        expirationTimestamp = actualFiles(2).expirationTimestamp,
+        deltaSingleAction = DeltaSingleAction(
+          add = DeltaAddFile(
+            path = actualFiles(2).deltaSingleAction.add.path,
+            partitionValues = thirdExpectedPartitionMap,
+            size = 653,
+            modificationTime = 1719346426000L,
+            dataChange = true,
+            stats = """{"numRecords":1,"minValues":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":"2024-06-25T00:00:00.000Z"},"maxValues":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":"2024-06-25T00:00:00.000Z"},"nullCount":{"col-6c51f03a-5218-4630-9c68-fe5f86060101":0}}"""
+          )
+        )
+      )
+    )
+    assert(expectedFiles == actualFiles.toList)
+    assert(actualFiles.count(_.expirationTimestamp != null) == 3)
+    verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 653)
+    verifyPreSignedUrl(actualFiles(1).deltaSingleAction.add.path, 652)
+    verifyPreSignedUrl(actualFiles(2).deltaSingleAction.add.path, 653)
   }
 
   integrationTest("case insensitive") {

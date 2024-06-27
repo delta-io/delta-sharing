@@ -31,6 +31,7 @@ import scala.util.control.NonFatal
 
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
 import com.google.common.hash.Hashing
+import io.delta.common.SnapshotChecker
 import io.delta.kernel.Table
 import io.delta.kernel.data.{ColumnarBatch, ColumnVector, FilteredColumnarBatch}
 import io.delta.kernel.defaults.engine.DefaultEngine
@@ -135,16 +136,13 @@ class DeltaSharedTableKernel(
   }
 
   // Get the table snapshot of the specified version or timestamp
-  // TODO: Validate the protocol and metadata
   private def getSharedTableSnapshot(
       table: Table,
       engine: Engine,
       version: Option[Long],
       timestamp: Option[String],
       validStartVersion: Long,
-      clientReaderFeatures: Set[String],
-      flagReaderFeatures: Set[String] = Set.empty,
-      isProviderRpc: Boolean = false): SharedTableSnapshot = {
+      clientReaderFeatures: Set[String]): SharedTableSnapshot = {
     val snapshot =
       if (version.isDefined) {
         try {
@@ -185,7 +183,18 @@ class DeltaSharedTableKernel(
     val protocol = snapshot.getProtocol
     val metadata = snapshot.getMetadata
 
-    val updatedProtocol =
+    SnapshotChecker.assertTableProperties(
+      metadata.getConfiguration.asScala.toMap,
+      Some(snapshotVersion),
+      clientReaderFeatures
+    )
+
+    val updatedProtocol = if (clientReaderFeatures.isEmpty) {
+      // Client does not support advanced features.
+      // And after all the validation the table can be treated as having no advanced
+      // features/properties, hence we return a "fake" minReaderVersion=1, and cleanup
+      // the readerFeatures.
+      // Otherwise, we return the original protocol.
       new KernelProtocol(
         1,
         if (protocol.getMinWriterVersion < 7) {
@@ -198,22 +207,20 @@ class DeltaSharedTableKernel(
         seqAsJavaList(Seq.empty[String]),
         seqAsJavaList(Seq.empty[String])
       )
-
-    // val versionStats =
-    //  loadVersionStats(snapshotVersion, clientReaderFeatures, flagReaderFeatures, isProviderRpc)
+    } else {
+      protocol
+    }
 
     SharedTableSnapshot(
       snapshotVersion,
       updatedProtocol,
       metadata,
-      // versionStats,
       snapshot
     )
   }
 
   private lazy val fullHistoryShared: Boolean =
     tableConfig.historyShared && tableConfig.startVersion == 0L
-  private lazy val clientReaderFeatures = Set.empty
 
 
   /** Get table version at or after startingTimestamp if it's provided, otherwise return
@@ -301,7 +308,7 @@ class DeltaSharedTableKernel(
       version,
       timestamp,
       validStartVersion = tableConfig.startVersion,
-      clientReaderFeatures = Set.empty
+      clientReaderFeatures = clientReaderFeaturesSet
     )
 
     val respondedFormat = getRespondedFormat(
@@ -524,22 +531,22 @@ class DeltaSharedTableKernel(
   protected def getRespondedFormat(
       responseFormatSet: Set[String],
       minReaderVersion: Int): String = {
-      // includeFiles is false, indicate the query is getTableMetadata.
-      if (responseFormatSet.size == 1) {
-        // Return as the requested format if there's only one format supported.
-        responseFormatSet.head
+    // includeFiles is false, indicate the query is getTableMetadata.
+    if (responseFormatSet.size == 1) {
+      // Return as the requested format if there's only one format supported.
+      responseFormatSet.head
+    } else {
+      // the client can process both parquet and delta response, the server can decide the
+      // respondedFormat
+      if (minReaderVersion == 1 &&
+        responseFormatSet.contains(DeltaSharedTableKernel.RESPONSE_FORMAT_PARQUET)) {
+        // Use parquet as the respondedFormat when 1) it's getTableMetadata rpc 2) the flag is
+        // set to true 3) the requested format is delta,parquet 4) the shared table doesn't have
+        // advanced delta features.
+        DeltaSharedTableKernel.RESPONSE_FORMAT_PARQUET
       } else {
-        // the client can process both parquet and delta response, the server can decide the
-        // respondedFormat
-        if (minReaderVersion == 1 &&
-          responseFormatSet.contains(DeltaSharedTableKernel.RESPONSE_FORMAT_PARQUET)) {
-          // Use parquet as the respondedFormat when 1) it's getTableMetadata rpc 2) the flag is
-          // set to true 3) the requested format is delta,parquet 4) the shared table doesn't have
-          // advanced delta features.
-          DeltaSharedTableKernel.RESPONSE_FORMAT_PARQUET
-        } else {
-          DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA
-        }
+        DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA
+      }
     }
   }
 
@@ -588,7 +595,7 @@ class DeltaSharedTableKernel(
             provider = m.getFormat.getProvider,
             options = m.getFormat.getOptions.asScala.toMap
           ),
-          schemaString = cleanUpTableSchema(m.getSchemaString),
+          schemaString = m.getSchemaString,
           partitionColumns = getPartitionColumns(m),
           configuration = m.getConfiguration.asScala.toMap,
           createdTime = Option(m.getCreatedTime.orElse(null))
@@ -684,7 +691,6 @@ class DeltaSharedTableKernel(
         partitionValues = partitionValues,
         size = size,
         stats = stats,
-        // `version` is left empty in latest snapshot query
         version = if (queryType == QueryTypes.QueryLatestSnapshot) null else version,
         timestamp = timestamp
       ).wrap
@@ -741,7 +747,6 @@ private case class SharedTableSnapshot(
     version: Long,
     protocol: KernelProtocol,
     metadata: KernelMetadata,
-    // versionStats: Option[VersionStats],
     kernelSnapshot: SnapshotImpl)
 
 private case class AddFileColumnVectors(
