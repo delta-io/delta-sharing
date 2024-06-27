@@ -31,7 +31,7 @@ import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import scalapb.json4s.JsonFormat
 
-import io.delta.sharing.server.actions.{ColumnMappingTableFeature, DeltaAddFile, DeltaFormat, DeltaProtocol, DeltaSingleAction}
+import io.delta.sharing.server.actions.{ColumnMappingTableFeature, DeletionVectorDescriptor, DeletionVectorsTableFeature, DeltaAddFile, DeltaFormat, DeltaProtocol, DeltaSingleAction}
 import io.delta.sharing.server.config.ServerConfig
 import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol._
@@ -1421,29 +1421,44 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       actualMetadataStr: String,
       minReaderVersionProtocol: Int,
       minWriterVersionProtocol: Int,
-      enableChangeDataFeed: String,
+      readerFeaturesProtocol: Option[Set[String]] = None,
+      writerFeaturesProtocol: Option[Set[String]] = None,
+      enableChangeDataFeed: String = "",
       enableDeletionVectors: String,
-      maxColumnId: String,
-      columnMapMode: String,
+      checkpointInterval: String = "",
+      maxColumnId: String = "",
+      columnMapMode: String = "",
       idMetadata: String,
+      nameMetadata: Option[String] = None,
+      descriptionMetadata: Option[String] = None,
       providerMetadata: String,
       schemaStringMetadata: String,
-      partitionColumnsMetadata: Seq[String],
+      partitionColumnsMetadata: Seq[String] = Seq(),
       createdTimeMetadata: Option[Long]): Unit = {
 
-    val expectedProtocol = DeltaFormatResponseProtocol(deltaProtocol = DeltaProtocol(minReaderVersion = minReaderVersionProtocol, minWriterVersion = minWriterVersionProtocol)).wrap
+    val expectedProtocol = DeltaFormatResponseProtocol(deltaProtocol = DeltaProtocol(minReaderVersion = minReaderVersionProtocol, minWriterVersion = minWriterVersionProtocol, readerFeatures = readerFeaturesProtocol, writerFeatures = writerFeaturesProtocol)).wrap
     assert(expectedProtocol == JsonUtils.fromJson[DeltaResponseSingleAction](actualProtocolStr))
 
-    val expectedConfigMap: Map[String, String] = List(
-      "delta.enableChangeDataFeed" -> enableChangeDataFeed,
-      "delta.enableDeletionVectors" -> enableDeletionVectors,
-      "delta.columnMapping.maxColumnId" -> maxColumnId,
-      "delta.columnMapping.mode" -> columnMapMode).toMap
+    var expectedConfigList = List("delta.enableDeletionVectors" -> enableDeletionVectors)
+    if (enableChangeDataFeed.nonEmpty) {
+      expectedConfigList = expectedConfigList ++ List("delta.enableChangeDataFeed" -> enableChangeDataFeed)
+    }
+    if (columnMapMode.nonEmpty) {
+      expectedConfigList = expectedConfigList ++
+        List("delta.columnMapping.maxColumnId" -> maxColumnId,
+        "delta.columnMapping.mode" -> columnMapMode)
+    }
+    if (checkpointInterval.nonEmpty) {
+      expectedConfigList = expectedConfigList ++ List("delta.checkpointInterval" -> checkpointInterval)
+    }
+
+    var expectedConfigMap: Map[String, String] = expectedConfigList.toMap
+
     val expectedMetadata = DeltaResponseMetadata(
       deltaMetadata = DeltaMetadataCopy(
         id = idMetadata,
-        name = null,
-        description = null,
+        name = nameMetadata.orNull,
+        description = descriptionMetadata.orNull,
         format = DeltaFormat(
           provider = providerMetadata,
           options = Map()
@@ -1790,6 +1805,233 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 653)
     verifyPreSignedUrl(actualFiles(1).deltaSingleAction.add.path, 652)
     verifyPreSignedUrl(actualFiles(2).deltaSingleAction.add.path, 653)
+  }
+
+  // Tests that the protocol and metadata from a deletion vector table is correct
+  integrationTest("deletion vector metadata test 1 - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/deletion_vectors_with_dvs_dv_property_on/metadata"), Some("GET"), None, responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${DeletionVectorsTableFeature.name}")
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 3,
+      minWriterVersionProtocol = 7,
+      readerFeaturesProtocol = Option(Set("deletionVectors")),
+      writerFeaturesProtocol = Option(Set("deletionVectors")),
+      enableDeletionVectors = "true",
+      checkpointInterval = "10000",
+      idMetadata = "7f10249f-e3ff-4fe4-967a-05637934a7e9",
+      descriptionMetadata = Option("Deletion vectors enabled table. The latest version has DVs turned on and DVs present in the table."),
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"id","type":"long","nullable":true,"metadata":{}},{"name":"value","type":"string","nullable":true,"metadata":{}},{"name":"timestamp","type":"timestamp","nullable":true,"metadata":{}},{"name":"rand","type":"double","nullable":true,"metadata":{}}]}""",
+      createdTimeMetadata = Option(1685559511124L)
+    )
+  }
+
+  // Tests that the protocol and metadata from a deletion vector table is correct
+  // for responseFormat containing Delta and Parquet
+  integrationTest("deletion vector metadata test 2 - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+    val parquetAndDeltaResponse = RESPONSE_FORMAT_PARQUET + "," + RESPONSE_FORMAT_DELTA
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/deletion_vectors_with_dvs_dv_property_on/metadata"), Some("GET"), None, responseFormat = parquetAndDeltaResponse, readerFeatures = s";readerFeatures=${DeletionVectorsTableFeature.name}")
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 3,
+      minWriterVersionProtocol = 7,
+      readerFeaturesProtocol = Option(Set("deletionVectors")),
+      writerFeaturesProtocol = Option(Set("deletionVectors")),
+      enableDeletionVectors = "true",
+      checkpointInterval = "10000",
+      idMetadata = "7f10249f-e3ff-4fe4-967a-05637934a7e9",
+      descriptionMetadata = Option("Deletion vectors enabled table. The latest version has DVs turned on and DVs present in the table."),
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"id","type":"long","nullable":true,"metadata":{}},{"name":"value","type":"string","nullable":true,"metadata":{}},{"name":"timestamp","type":"timestamp","nullable":true,"metadata":{}},{"name":"rand","type":"double","nullable":true,"metadata":{}}]}""",
+      createdTimeMetadata = Option(1685559511124L)
+    )
+  }
+
+  // Tests that error is caught for empty reader features set
+  integrationTest("deletion vector empty reader features error test - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+    val headers: Map[String, String] = List("responseFormat" -> RESPONSE_FORMAT_DELTA).toMap
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/metadata"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Unsupported Delta Table Properties",
+      headers = headers
+    )
+  }
+
+  // Tests that error is caught for responseFormat of Parquet
+  integrationTest("deletion vector responseFormat Parquet reader features deletion vector error test - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
+    val headers: Map[String, String] = List(
+      "responseFormat" -> RESPONSE_FORMAT_PARQUET,
+      "delta-sharing-capabilities" -> s"readerFeatures=${ColumnMappingTableFeature.name}").toMap
+    assertHttpError(
+      url = requestPath("/shares/share8/schemas/default/tables/table_with_cm_id/metadata"),
+      method = "GET",
+      data = None,
+      expectedErrorCode = 400,
+      expectedErrorMessage = "Unsupported Delta Table Properties",
+      headers = headers
+    )
+  }
+
+  // Tests that the query from a deletion vector table is correct
+  integrationTest("deletion vector query test 1 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/deletion_vectors_with_dvs_dv_property_on/query"), Some("POST"), Some("{}"), responseFormat = RESPONSE_FORMAT_DELTA, readerFeatures = s";readerFeatures=${DeletionVectorsTableFeature.name}")
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 3,
+      minWriterVersionProtocol = 7,
+      readerFeaturesProtocol = Option(Set("deletionVectors")),
+      writerFeaturesProtocol = Option(Set("deletionVectors")),
+      enableDeletionVectors = "true",
+      checkpointInterval = "10000",
+      idMetadata = "7f10249f-e3ff-4fe4-967a-05637934a7e9",
+      descriptionMetadata = Option("Deletion vectors enabled table. The latest version has DVs turned on and DVs present in the table."),
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"id","type":"long","nullable":true,"metadata":{}},{"name":"value","type":"string","nullable":true,"metadata":{}},{"name":"timestamp","type":"timestamp","nullable":true,"metadata":{}},{"name":"rand","type":"double","nullable":true,"metadata":{}}]}""",
+      createdTimeMetadata = Option(1685559511124L)
+    )
+
+    val files = lines.drop(2)
+    val actualFiles = files.map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
+    assert(actualFiles.size == 2)
+
+    val dvDescriptor = DeletionVectorDescriptor(
+      storageType = "p",
+      pathOrInlineDv = actualFiles(0).deltaSingleAction.add.deletionVector.pathOrInlineDv,
+      offset = Option(1),
+      sizeInBytes = 38,
+      cardinality = 3
+    )
+    val expectedFiles = Seq(
+      DeltaResponseFileAction(
+        id = "d2b378a1a236bf2f028a5d5a1e9aff551cfba66c1ae0e33a84ba501acb1b2221",
+        version = null,
+        timestamp = null,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
+        deltaSingleAction = DeltaSingleAction(
+          add = DeltaAddFile(
+            path = actualFiles(0).deltaSingleAction.add.path,
+            partitionValues = Map(),
+            size = 1423,
+            modificationTime = 1685559514000L,
+            dataChange = true,
+            stats = """{"numRecords":5,"minValues":{"id":0,"value":"0","timestamp":"2023-05-31T18:58:33.633Z","rand":0.1001744351184638},"maxValues":{"id":4,"value":"4","timestamp":"2023-05-31T18:58:33.633Z","rand":0.9281049271981882},"nullCount":{"id":0,"value":0,"timestamp":0,"rand":0},"tightBounds":false}""",
+            deletionVector = dvDescriptor
+          )
+        )
+      ), DeltaResponseFileAction(
+        id = "6ff5eccfbea8665156db2c235a308f409ddb17a6f245c328e508f92507daaf81",
+        version = null,
+        timestamp = null,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
+        deltaSingleAction = DeltaSingleAction(
+          add = DeltaAddFile(
+            path = actualFiles(1).deltaSingleAction.add.path,
+            partitionValues = Map(),
+            size = 1428,
+            modificationTime = 1685559514000L,
+            dataChange = true,
+            stats = """{"numRecords":5,"minValues":{"id":5,"value":"5","timestamp":"2023-05-31T18:58:33.633Z","rand":0.15263801464228832},"maxValues":{"id":9,"value":"9","timestamp":"2023-05-31T18:58:33.633Z","rand":0.5175919190815845},"nullCount":{"id":0,"value":0,"timestamp":0,"rand":0},"tightBounds":true}"""
+          )
+        )
+      )
+    )
+    assert(expectedFiles == actualFiles.toList)
+    assert(actualFiles.count(_.expirationTimestamp != null) == 2)
+    verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 1423)
+    verifyPreSignedUrl(actualFiles(1).deltaSingleAction.add.path, 1428)
+  }
+
+  // Tests that the query from a deletion vector table is correct for responseFormat containing Delta and Parquet
+  integrationTest("deletion vector query test 2 - /shares/{share}/schemas/{schema}/tables/{table}/query") {
+    val parquetAndDeltaResponse = RESPONSE_FORMAT_PARQUET + "," + RESPONSE_FORMAT_DELTA
+    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/deletion_vectors_with_dvs_dv_property_on/query"), Some("POST"), Some("{}"), responseFormat = parquetAndDeltaResponse, readerFeatures = s";readerFeatures=${DeletionVectorsTableFeature.name}")
+    val lines = response.split("\n")
+    val protocol = lines(0)
+    val metadata = lines(1)
+
+    verifyDeltaResponseProtocolAndMetadata(
+      actualProtocolStr = protocol,
+      actualMetadataStr = metadata,
+      minReaderVersionProtocol = 3,
+      minWriterVersionProtocol = 7,
+      readerFeaturesProtocol = Option(Set("deletionVectors")),
+      writerFeaturesProtocol = Option(Set("deletionVectors")),
+      enableDeletionVectors = "true",
+      checkpointInterval = "10000",
+      idMetadata = "7f10249f-e3ff-4fe4-967a-05637934a7e9",
+      descriptionMetadata = Option("Deletion vectors enabled table. The latest version has DVs turned on and DVs present in the table."),
+      providerMetadata = RESPONSE_FORMAT_PARQUET,
+      schemaStringMetadata = """{"type":"struct","fields":[{"name":"id","type":"long","nullable":true,"metadata":{}},{"name":"value","type":"string","nullable":true,"metadata":{}},{"name":"timestamp","type":"timestamp","nullable":true,"metadata":{}},{"name":"rand","type":"double","nullable":true,"metadata":{}}]}""",
+      createdTimeMetadata = Option(1685559511124L)
+    )
+
+    val files = lines.drop(2)
+    val actualFiles = files.map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
+    assert(actualFiles.size == 2)
+
+    val dvDescriptor = DeletionVectorDescriptor(
+      storageType = "p",
+      pathOrInlineDv = actualFiles(0).deltaSingleAction.add.deletionVector.pathOrInlineDv,
+      offset = Option(1),
+      sizeInBytes = 38,
+      cardinality = 3
+    )
+    val expectedFiles = Seq(
+      DeltaResponseFileAction(
+        id = "d2b378a1a236bf2f028a5d5a1e9aff551cfba66c1ae0e33a84ba501acb1b2221",
+        version = null,
+        timestamp = null,
+        expirationTimestamp = actualFiles(0).expirationTimestamp,
+        deltaSingleAction = DeltaSingleAction(
+          add = DeltaAddFile(
+            path = actualFiles(0).deltaSingleAction.add.path,
+            partitionValues = Map(),
+            size = 1423,
+            modificationTime = 1685559514000L,
+            dataChange = true,
+            stats = """{"numRecords":5,"minValues":{"id":0,"value":"0","timestamp":"2023-05-31T18:58:33.633Z","rand":0.1001744351184638},"maxValues":{"id":4,"value":"4","timestamp":"2023-05-31T18:58:33.633Z","rand":0.9281049271981882},"nullCount":{"id":0,"value":0,"timestamp":0,"rand":0},"tightBounds":false}""",
+            deletionVector = dvDescriptor
+          )
+        )
+      ), DeltaResponseFileAction(
+        id = "6ff5eccfbea8665156db2c235a308f409ddb17a6f245c328e508f92507daaf81",
+        version = null,
+        timestamp = null,
+        expirationTimestamp = actualFiles(1).expirationTimestamp,
+        deltaSingleAction = DeltaSingleAction(
+          add = DeltaAddFile(
+            path = actualFiles(1).deltaSingleAction.add.path,
+            partitionValues = Map(),
+            size = 1428,
+            modificationTime = 1685559514000L,
+            dataChange = true,
+            stats = """{"numRecords":5,"minValues":{"id":5,"value":"5","timestamp":"2023-05-31T18:58:33.633Z","rand":0.15263801464228832},"maxValues":{"id":9,"value":"9","timestamp":"2023-05-31T18:58:33.633Z","rand":0.5175919190815845},"nullCount":{"id":0,"value":0,"timestamp":0,"rand":0},"tightBounds":true}"""
+          )
+        )
+      )
+    )
+    assert(expectedFiles == actualFiles.toList)
+    assert(actualFiles.count(_.expirationTimestamp != null) == 2)
+    verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 1423)
+    verifyPreSignedUrl(actualFiles(1).deltaSingleAction.add.path, 1428)
   }
 
   integrationTest("case insensitive") {

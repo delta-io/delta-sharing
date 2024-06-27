@@ -147,7 +147,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "table_abfs", schema = "default", share = "share_azure"),
         Table(name = "table_gcs", schema = "default", share = "share_gcp"),
         Table(name = "table_with_cm_name", schema = "default", share = "share8"),
-        Table(name = "table_with_cm_id", schema = "default", share = "share8")
+        Table(name = "table_with_cm_id", schema = "default", share = "share8"),
+        Table(name = "deletion_vectors_with_dvs_dv_property_on", schema = "default", share = "share8")
       )
       assert(expected == client.listAllTables().toSet)
     } finally {
