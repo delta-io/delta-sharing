@@ -222,7 +222,6 @@ class DeltaSharedTableKernel(
   private lazy val fullHistoryShared: Boolean =
     tableConfig.historyShared && tableConfig.startVersion == 0L
 
-
   /** Get table version at or after startingTimestamp if it's provided, otherwise return
    *  the latest table version.
    */
@@ -340,7 +339,8 @@ class DeltaSharedTableKernel(
               engine,
               isVersionQuery,
               snapshot,
-              globalLimitHint
+              globalLimitHint,
+              clientReaderFeaturesSet
             )
             if (nextResponse.nonEmpty) {
               actions = actions ++ nextResponse
@@ -400,7 +400,8 @@ class DeltaSharedTableKernel(
       engine: Engine,
       isVersionQuery: Boolean,
       snapshot: SharedTableSnapshot,
-      limitHint: Option[Long]): Seq[Object] = {
+      limitHint: Option[Long],
+      clientReaderFeaturesSet: Set[String]): Seq[Object] = {
 
     val batchData = scanFileBatch.getData
     val batchSize = batchData.getSize
@@ -427,7 +428,8 @@ class DeltaSharedTableKernel(
           timestamp = null,
           respondedFormat,
           queryType,
-          dataPath
+          dataPath,
+          clientReaderFeaturesSet
         )
         addFileObjects = addFileObjects :+ addFile
       }
@@ -668,7 +670,8 @@ class DeltaSharedTableKernel(
       timestamp: java.lang.Long,
       respondedFormat: String,
       queryType: QueryTypes.QueryType,
-      dataPath: Path): Object = {
+      dataPath: Path,
+      clientReaderFeaturesSet: Set[String]): Object = {
 
     val partitionValues = getDeltaPartitionValues(addFileColumnVectors.partitionValues, rowId)
     val addFileVectorPath = addFileColumnVectors.path.getString(rowId)
@@ -677,6 +680,11 @@ class DeltaSharedTableKernel(
     var dvDescriptor = getDeltaDeletionVectorDescriptor(addFileColumnVectors.deletionVector, rowId)
 
     if (dvDescriptor != null) {
+      // scalastyle:off caselocale
+      if (!DeletionVectorsTableFeature.isInSet(clientReaderFeaturesSet)) {
+        throw new DeltaSharingUnsupportedOperationException("Deletion Vector property disabled")
+      }
+      // scalastyle:on caselocale
       val dvAbsolutePath = dvDescriptor.absolutePath(dataPath)
       val presignedDvUrl = fileSigner.sign(dvAbsolutePath)
       minUrlExpirationTimestamp = minUrlExpirationTimestamp.min(presignedDvUrl.expirationTimestamp)
