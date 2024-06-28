@@ -185,15 +185,14 @@ def test_query_table_metadata_non_partitioned_dv(rest_client: DataSharingRestCli
     assert response.delta_table_version > 1
     assert response.protocol == DeltaProtocol(
         min_reader_version=3,
-        min_writer_version = 7,
-        reader_features = ["deletionVectors"],
-        writer_features = ["deletionVectors"])
+        min_writer_version=7,
+        reader_features=["deletionVectors"],
+        writer_features=["deletionVectors"])
 
     configuration_map = {'delta.enableDeletionVectors': 'true', 'delta.checkpointInterval': '10000'}
     assert response.metadata == DeltaMetadata(
         id="7f10249f-e3ff-4fe4-967a-05637934a7e9",
-        description=
-        'Deletion vectors enabled table.'
+        description='Deletion vectors enabled table.'
         ' The latest version has DVs turned on and DVs present in the table.',
         format=Format(provider="parquet", options={}),
         schema_string=(
