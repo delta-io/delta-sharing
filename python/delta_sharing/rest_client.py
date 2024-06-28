@@ -291,9 +291,9 @@ class DataSharingRestClient:
                 next_page_token=tables_json.get("nextPageToken", None),
             )
 
-
     @retry_with_exponential_backoff
-    def query_table_metadata(self, table: Table, delta_response: bool = False) -> QueryTableMetadataResponse:
+    def query_table_metadata(self, table: Table,
+        delta_response: bool = False) -> QueryTableMetadataResponse:
         if (delta_response):
             self.set_delta_format_header()
             with self._get_internal(
@@ -329,7 +329,6 @@ class DataSharingRestClient:
                     protocol=Protocol.from_json(protocol_json["protocol"]),
                     metadata=Metadata.from_json(metadata_json["metaData"]),
                 )
-            
 
     @retry_with_exponential_backoff
     def query_table_version(

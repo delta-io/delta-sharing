@@ -210,7 +210,7 @@ def test_query_table_metadata_non_partitioned_dv_no_header(rest_client: DataShar
     try:
         response = rest_client.query_table_metadata(
             Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default")
-    )
+        )
     except Exception as e:
         assert isinstance(e, HTTPError)
         assert "Unsupported Delta Table Properties" in (str(e))
