@@ -74,6 +74,12 @@ class QueryTableMetadataResponse:
 
 
 @dataclass(frozen=True)
+class QueryTableDeltaMetadataResponse:
+    delta_table_version: int
+    protocol: DeltaProtocol
+    metadata: DeltaMetadata
+
+@dataclass(frozen=True)
 class QueryTableVersionResponse:
     delta_table_version: int
 
@@ -285,23 +291,44 @@ class DataSharingRestClient:
             )
 
     @retry_with_exponential_backoff
-    def query_table_metadata(self, table: Table) -> QueryTableMetadataResponse:
-        with self._get_internal(
-            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
-            return_headers=True
-        ) as values:
-            headers = values[0]
-            # it's a bug in the server if it doesn't return delta-table-version in the header
-            if "delta-table-version" not in headers:
-                raise LookupError("Missing delta-table-version header")
-            lines = values[1]
-            protocol_json = json.loads(next(lines))
-            metadata_json = json.loads(next(lines))
-            return QueryTableMetadataResponse(
-                delta_table_version=int(headers.get("delta-table-version")),
-                protocol=DeltaProtocol.from_json(protocol_json["protocol"]),
-                metadata=DeltaMetadata.from_json(metadata_json["metaData"]),
-            )
+    def query_table_metadata(self, table: Table, delta_response: bool = False) -> QueryTableMetadataResponse:
+        if (delta_response):
+            self.set_delta_format_header()
+            with self._get_internal(
+                f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
+                return_headers=True
+            ) as values:
+                headers = values[0]
+                # it's a bug in the server if it doesn't return delta-table-version in the header
+                if "delta-table-version" not in headers:
+                    raise LookupError("Missing delta-table-version header")
+                lines = values[1]
+                protocol_json = json.loads(next(lines))
+                metadata_json = json.loads(next(lines))
+                return QueryTableDeltaMetadataResponse(
+                    delta_table_version=int(headers.get("delta-table-version")),
+                    protocol=DeltaProtocol.from_json(protocol_json["protocol"]),
+                    metadata=DeltaMetadata.from_json(metadata_json["metaData"]),
+                )
+        else:
+            with self._get_internal(
+                f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
+                return_headers=True
+            ) as values:
+                headers = values[0]
+                # it's a bug in the server if it doesn't return delta-table-version in the header
+                if "delta-table-version" not in headers:
+                    raise LookupError("Missing delta-table-version header")
+                lines = values[1]
+                protocol_json = json.loads(next(lines))
+                metadata_json = json.loads(next(lines))
+                return QueryTableMetadataResponse(
+                    delta_table_version=int(headers.get("delta-table-version")),
+                    protocol=Protocol.from_json(protocol_json["protocol"]),
+                    metadata=Metadata.from_json(metadata_json["metaData"]),
+                )
+            
+
 
     @retry_with_exponential_backoff
     def query_table_version(

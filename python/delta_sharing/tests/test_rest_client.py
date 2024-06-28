@@ -178,9 +178,9 @@ def test_query_table_metadata_non_partitioned(rest_client: DataSharingRestClient
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_table_metadata_non_partitioned_dv(rest_client: DataSharingRestClient):
-    rest_client.set_delta_format_header()
     response = rest_client.query_table_metadata(
-        Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default")
+        Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default"),
+        delta_response = True
     )
     assert response.delta_table_version > 1
     assert response.protocol == DeltaProtocol(
@@ -203,6 +203,17 @@ def test_query_table_metadata_non_partitioned_dv(rest_client: DataSharingRestCli
         created_time=1685559511124,
         configuration=configuration_map
     )
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_metadata_non_partitioned_dv_no_header(rest_client: DataSharingRestClient):
+    try:
+        response = rest_client.query_table_metadata(
+        Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default")
+    )
+    except Exception as e:
+        assert isinstance(e, HTTPError)
+        assert "Unsupported Delta Table Properties" in (str(e))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
