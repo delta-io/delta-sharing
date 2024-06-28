@@ -292,8 +292,9 @@ class DataSharingRestClient:
             )
 
     @retry_with_exponential_backoff
-    def query_table_metadata(self, table: Table,
-        delta_response: bool = False) -> QueryTableMetadataResponse:
+    def query_table_metadata(
+        self, table: Table, delta_response: bool = False
+    ) -> QueryTableMetadataResponse:
         if (delta_response):
             self.set_delta_format_header()
             with self._get_internal(
