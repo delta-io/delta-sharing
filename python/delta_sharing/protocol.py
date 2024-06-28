@@ -175,6 +175,23 @@ class Protocol:
             json = loads(json)
         return Protocol(min_reader_version=int(json["minReaderVersion"]))
 
+@dataclass(frozen=True)
+class DeltaProtocol:
+    min_reader_version: int
+    min_writer_version: int
+    reader_features: list[str]
+    writer_features: list[str]
+
+    @staticmethod
+    def from_json(json) -> "Protocol":
+        if isinstance(json, (str, bytes, bytearray)):
+            json = loads(json)
+        return DeltaProtocol(
+            min_reader_version=int(json["deltaProtocol"]["minReaderVersion"]),
+            min_writer_version=int(json["deltaProtocol"]["minWriterVersion"]),
+            reader_features=list(json["deltaProtocol"]["readerFeatures"]),
+            writer_features=list(json["deltaProtocol"]["writerFeatures"]))
+
 
 @dataclass(frozen=True)
 class Format:
@@ -220,6 +237,43 @@ class Metadata:
             version=json.get("version", None),
             size=json.get("size", None),
             num_files=json.get("numFiles", None)
+        )
+
+@dataclass(frozen=True)
+class DeltaMetadata:
+    id: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    format: Format = field(default_factory=Format)
+    schema_string: Optional[str] = None
+    configuration: Dict[str, str] = field(default_factory=dict)
+    partition_columns: Sequence[str] = field(default_factory=list)
+    version: Optional[int] = None
+    size: Optional[int] = None
+    num_files: Optional[int] = None
+    created_time: Optional[int] = None
+
+    @staticmethod
+    def from_json(json) -> "Metadata":
+        if isinstance(json, (str, bytes, bytearray)):
+            json = loads(json)
+        if "configuration" in json["deltaMetadata"]:
+            configuration = json["deltaMetadata"]["configuration"]
+        else:
+            configuration = {}
+        
+        return DeltaMetadata(
+            id=json["deltaMetadata"]["id"],
+            name=json["deltaMetadata"].get("name", None),
+            description=json["deltaMetadata"].get("description", None),
+            format=Format.from_json(json["deltaMetadata"]["format"]),
+            schema_string=json["deltaMetadata"]["schemaString"],
+            configuration=configuration,
+            partition_columns=json["deltaMetadata"]["partitionColumns"],
+            version=json["deltaMetadata"].get("version", None),
+            size=json["deltaMetadata"].get("size", None),
+            num_files=json["deltaMetadata"].get("numFiles", None),
+            created_time = json["deltaMetadata"].get("createdTime", None)
         )
 
 

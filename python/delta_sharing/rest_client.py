@@ -31,6 +31,8 @@ from delta_sharing.protocol import (
     AddFile,
     FileAction,
     CdfOptions,
+    DeltaMetadata,
+    DeltaProtocol,
     DeltaSharingProfile,
     Metadata,
     Protocol,
@@ -203,6 +205,13 @@ class DataSharingRestClient:
             }
         )
 
+    def set_delta_format_header(self):
+        self._session.headers.update(
+            {
+                "delta-sharing-capabilities": "responseformat=delta;readerfeatures=deletionvectors",
+            }
+        )
+
     @retry_with_exponential_backoff
     def list_shares(
         self, *, max_results: Optional[int] = None, page_token: Optional[str] = None
@@ -290,8 +299,8 @@ class DataSharingRestClient:
             metadata_json = json.loads(next(lines))
             return QueryTableMetadataResponse(
                 delta_table_version=int(headers.get("delta-table-version")),
-                protocol=Protocol.from_json(protocol_json["protocol"]),
-                metadata=Metadata.from_json(metadata_json["metaData"]),
+                protocol=DeltaProtocol.from_json(protocol_json["protocol"]),
+                metadata=DeltaMetadata.from_json(metadata_json["metaData"]),
             )
 
     @retry_with_exponential_backoff
