@@ -51,7 +51,7 @@ import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
 import io.delta.sharing.server.{AbfsFileSigner, CausedBy, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, GCSFileSigner, PreSignedUrl, QueryResult, S3FileSigner, WasbFileSigner}
-import io.delta.sharing.server.actions.{DeltaAddFile, DeltaFormat, DeltaMetadata, DeltaProtocol, DeltaSingleAction}
+import io.delta.sharing.server.actions.{DeletionVectorDescriptor, DeletionVectorsTableFeature, DeltaAddFile, DeltaFormat, DeltaMetadata, DeltaProtocol, DeltaSingleAction}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
@@ -222,7 +222,6 @@ class DeltaSharedTableKernel(
   private lazy val fullHistoryShared: Boolean =
     tableConfig.historyShared && tableConfig.startVersion == 0L
 
-
   /** Get table version at or after startingTimestamp if it's provided, otherwise return
    *  the latest table version.
    */
@@ -340,7 +339,8 @@ class DeltaSharedTableKernel(
               engine,
               isVersionQuery,
               snapshot,
-              globalLimitHint
+              globalLimitHint,
+              clientReaderFeaturesSet
             )
             if (nextResponse.nonEmpty) {
               actions = actions ++ nextResponse
@@ -400,7 +400,8 @@ class DeltaSharedTableKernel(
       engine: Engine,
       isVersionQuery: Boolean,
       snapshot: SharedTableSnapshot,
-      limitHint: Option[Long]): Seq[Object] = {
+      limitHint: Option[Long],
+      clientReaderFeaturesSet: Set[String]): Seq[Object] = {
 
     val batchData = scanFileBatch.getData
     val batchSize = batchData.getSize
@@ -427,7 +428,8 @@ class DeltaSharedTableKernel(
           timestamp = null,
           respondedFormat,
           queryType,
-          dataPath
+          dataPath,
+          clientReaderFeaturesSet
         )
         addFileObjects = addFileObjects :+ addFile
       }
@@ -621,6 +623,24 @@ class DeltaSharedTableKernel(
     VectorUtils.toJavaList[String](metadata.getPartitionColumns).asScala
   }
 
+  // Construct the Delta format DeletionVectorDescriptor class from Kernel format.
+  private def getDeltaDeletionVectorDescriptor(
+      dvVector: ColumnVector,
+      rowId: Int): DeletionVectorDescriptor = {
+    val kernelDv = KernelDeletionVectorDescriptor.fromColumnVector(dvVector, rowId)
+    if (kernelDv == null) {
+      null
+    } else {
+      DeletionVectorDescriptor(
+        storageType = kernelDv.getStorageType,
+        pathOrInlineDv = kernelDv.getPathOrInlineDv,
+        offset = Option(kernelDv.getOffset.orElse(null)),
+        sizeInBytes = kernelDv.getSizeInBytes,
+        cardinality = kernelDv.getCardinality
+      )
+    }
+  }
+
   // Get the table configuration for parquet format response.
   // If the response is in parquet format, return enableChangeDataFeed config only.
   private def getMetadataConfiguration(tableConf: Map[String, String]): Map[String, String ] = {
@@ -650,12 +670,27 @@ class DeltaSharedTableKernel(
       timestamp: java.lang.Long,
       respondedFormat: String,
       queryType: QueryTypes.QueryType,
-      dataPath: Path): Object = {
+      dataPath: Path,
+      clientReaderFeaturesSet: Set[String]): Object = {
 
     val partitionValues = getDeltaPartitionValues(addFileColumnVectors.partitionValues, rowId)
     val addFileVectorPath = addFileColumnVectors.path.getString(rowId)
     val cloudPath = absolutePath(dataPath, addFileVectorPath)
     val signedUrl = fileSigner.sign(cloudPath)
+    var dvDescriptor = getDeltaDeletionVectorDescriptor(addFileColumnVectors.deletionVector, rowId)
+
+    if (dvDescriptor != null) {
+      // scalastyle:off caselocale
+      if (!DeletionVectorsTableFeature.isInSet(clientReaderFeaturesSet)) {
+        throw new DeltaSharingUnsupportedOperationException("Deletion Vector property disabled")
+      }
+      // scalastyle:on caselocale
+      val dvAbsolutePath = dvDescriptor.absolutePath(dataPath)
+      val presignedDvUrl = fileSigner.sign(dvAbsolutePath)
+      minUrlExpirationTimestamp = minUrlExpirationTimestamp.min(presignedDvUrl.expirationTimestamp)
+      dvDescriptor = dvDescriptor.copy(pathOrInlineDv = presignedDvUrl.url, storageType = "p")
+    }
+
     minUrlExpirationTimestamp = minUrlExpirationTimestamp.min(signedUrl.expirationTimestamp)
     val size = addFileColumnVectors.size.getLong(rowId)
     val stats =
@@ -679,7 +714,8 @@ class DeltaSharedTableKernel(
             size = size,
             modificationTime = addFileColumnVectors.modificationTime.getLong(rowId),
             dataChange = addFileColumnVectors.dataChange.getBoolean(rowId),
-            stats = stats
+            stats = stats,
+            deletionVector = dvDescriptor
           )
         )
       ).wrap

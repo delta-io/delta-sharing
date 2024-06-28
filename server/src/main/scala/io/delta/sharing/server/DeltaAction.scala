@@ -44,8 +44,10 @@ object DeltaAction {
 
   val columnMappingProperty: PropertyAllowedValues =
     PropertyAllowedValues("delta.columnMapping.mode", Seq("none"))
+  val deletionVectorsProperty: PropertyAllowedValues =
+    PropertyAllowedValues("delta.enableDeletionVectors", Seq("false"))
   val tablePropertiesWithDisabledValues: Seq[PropertyAllowedValues] =
-    Seq(columnMappingProperty)
+    Seq(columnMappingProperty, deletionVectorsProperty)
 
   def fromJson(json: String): DeltaAction = {
     JsonUtils.mapper.readValue[DeltaSingleAction](json).unwrap
@@ -72,6 +74,7 @@ sealed abstract class TableFeature(val name: String) extends java.io.Serializabl
  * Any other reader-writer features will be rejected.
  */
 object ColumnMappingTableFeature extends TableFeature(name = "columnMapping")
+object DeletionVectorsTableFeature extends TableFeature(name = "deletionVectors")
 
 /**
  * Represents a single change to the state of a Delta table. An order sequence
@@ -117,14 +120,14 @@ sealed trait DeltaFileAction extends DeltaAction {
 }
 
 /** Key to uniquely identify FileActions. */
-case class DeltaFileActionKey(uri: URI)
+case class DeltaFileActionKey(uri: URI, dv: DeletionVectorDescriptor)
 
 object DeltaFileActionKey {
   def apply(fileAction: DeltaFileAction): DeltaFileActionKey = fileAction match {
-    case addFile: DeltaAddFile => DeltaFileActionKey(addFile.pathAsUri)
+    case addFile: DeltaAddFile => DeltaFileActionKey(addFile.pathAsUri, addFile.deletionVector)
     case removeFile: DeltaRemoveFile =>
-      DeltaFileActionKey(removeFile.pathAsUri)
-    case addCDCFile: DeltaAddCDCFile => DeltaFileActionKey(addCDCFile.pathAsUri)
+      DeltaFileActionKey(removeFile.pathAsUri, removeFile.deletionVector)
+    case addCDCFile: DeltaAddCDCFile => DeltaFileActionKey(addCDCFile.pathAsUri, null)
   }
 }
 
@@ -141,7 +144,8 @@ case class DeltaAddFile(
     modificationTime: Long,
     dataChange: Boolean,
     stats: String = null,
-    tags: Map[String, String] = null)
+    tags: Map[String, String] = null,
+    deletionVector: DeletionVectorDescriptor = null)
   extends DeltaFileAction {
   require(path.nonEmpty)
 
@@ -152,16 +156,15 @@ case class DeltaAddFile(
   def removeWithTimestamp(
       timestamp: Long = System.currentTimeMillis(),
       dataChange: Boolean = true): DeltaRemoveFile = {
-    // scalastyle:off
     DeltaRemoveFile(
       path = path,
       deletionTimestamp = Some(timestamp),
       dataChange = dataChange,
       extendedFileMetadata = Some(true),
       partitionValues = partitionValues,
-      size = Some(size)
+      size = Some(size),
+      deletionVector = deletionVector
     )
-    // scalastyle:on
   }
 }
 
@@ -178,7 +181,8 @@ case class DeltaRemoveFile(
     @JsonInclude(JsonInclude.Include.ALWAYS)
     partitionValues: Map[String, String] = null,
     @JsonDeserialize(contentAs = classOf[java.lang.Long])
-    size: Option[Long] = None)
+    size: Option[Long] = None,
+    deletionVector: DeletionVectorDescriptor = null)
   extends DeltaFileAction {
   override def wrap: DeltaSingleAction = DeltaSingleAction(remove = this)
 

@@ -17,7 +17,7 @@
 package io.delta.common
 
 import io.delta.sharing.server.DeltaSharingUnsupportedOperationException
-import io.delta.sharing.server.actions.{ColumnMappingTableFeature, DeltaAction}
+import io.delta.sharing.server.actions.{ColumnMappingTableFeature, DeletionVectorsTableFeature, DeltaAction}
 
 
 object SnapshotChecker {
@@ -46,9 +46,10 @@ object SnapshotChecker {
     // An unsupported table property can be supported if it is in part of the client supported
     // table features.
     def propertySupportedByClient(property: String): Boolean = {
-      // TODO: @pranavsuku-db add deletionvector logic
       if (property == DeltaAction.columnMappingProperty.property) {
         ColumnMappingTableFeature.isInSet(clientReaderFeatures)
+      } else if (property == DeltaAction.deletionVectorsProperty.property) {
+        DeletionVectorsTableFeature.isInSet(clientReaderFeatures)
       } else {
         // We should not reject any other table properties as they can contain arbitrary keys.
         true

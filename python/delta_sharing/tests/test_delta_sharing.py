@@ -111,7 +111,8 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_data_loss_with_checkpoint", share="share8", schema="default"),
         Table(name="table_data_loss_no_checkpoint", share="share8", schema="default"),
         Table(name="table_with_cm_name", share="share8", schema="default"),
-        Table(name="table_with_cm_id", share="share8", schema="default")
+        Table(name="table_with_cm_id", share="share8", schema="default"),
+        Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default")
     ]
 
 
