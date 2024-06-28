@@ -175,6 +175,7 @@ def test_query_table_metadata_non_partitioned(rest_client: DataSharingRestClient
         partition_columns=[],
     )
 
+
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_table_metadata_non_partitioned_dv(rest_client: DataSharingRestClient):
     rest_client.set_delta_format_header()
@@ -182,18 +183,28 @@ def test_query_table_metadata_non_partitioned_dv(rest_client: DataSharingRestCli
         Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default")
     )
     assert response.delta_table_version > 1
-    assert response.protocol == DeltaProtocol(min_reader_version=3, min_writer_version = 7, reader_features = ["deletionVectors"], writer_features = ["deletionVectors"])
+    assert response.protocol == DeltaProtocol(
+        min_reader_version=3,
+        min_writer_version = 7,
+        reader_features = ["deletionVectors"],
+        writer_features = ["deletionVectors"])
 
     configuration_map = {'delta.enableDeletionVectors': 'true', 'delta.checkpointInterval': '10000'}
     assert response.metadata == DeltaMetadata(
         id="7f10249f-e3ff-4fe4-967a-05637934a7e9",
-        description="Deletion vectors enabled table. The latest version has DVs turned on and DVs present in the table.",
+        description=
+        'Deletion vectors enabled table.'
+        ' The latest version has DVs turned on and DVs present in the table.',
         format=Format(provider="parquet", options={}),
-        schema_string=('{"type":"struct","fields":[{"name":"id","type":"long","nullable":true,"metadata":{}},{"name":"value","type":"string","nullable":true,"metadata":{}},{"name":"timestamp","type":"timestamp","nullable":true,"metadata":{}},{"name":"rand","type":"double","nullable":true,"metadata":{}}]}'),
+        schema_string=(
+            '{"type":"struct","fields":[{"name":"id","type":"long","nullable":true,"metadata":{}},'
+            '{"name":"value","type":"string","nullable":true,"metadata":{}},'
+            '{"name":"timestamp","type":"timestamp","nullable":true,"metadata":{}},'
+            '{"name":"rand","type":"double","nullable":true,"metadata":{}}]}'),
         created_time=1685559511124,
         configuration=configuration_map
     )
-    
+
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_table_metadata_partitioned(rest_client: DataSharingRestClient):

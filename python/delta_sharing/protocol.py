@@ -175,6 +175,7 @@ class Protocol:
             json = loads(json)
         return Protocol(min_reader_version=int(json["minReaderVersion"]))
 
+
 @dataclass(frozen=True)
 class DeltaProtocol:
     min_reader_version: int
@@ -239,6 +240,7 @@ class Metadata:
             num_files=json.get("numFiles", None)
         )
 
+
 @dataclass(frozen=True)
 class DeltaMetadata:
     id: Optional[str] = None
@@ -261,7 +263,6 @@ class DeltaMetadata:
             configuration = json["deltaMetadata"]["configuration"]
         else:
             configuration = {}
-        
         return DeltaMetadata(
             id=json["deltaMetadata"]["id"],
             name=json["deltaMetadata"].get("name", None),
@@ -273,7 +274,7 @@ class DeltaMetadata:
             version=json["deltaMetadata"].get("version", None),
             size=json["deltaMetadata"].get("size", None),
             num_files=json["deltaMetadata"].get("numFiles", None),
-            created_time = json["deltaMetadata"].get("createdTime", None)
+            created_time=json["deltaMetadata"].get("createdTime", None)
         )
 
 
