@@ -79,6 +79,7 @@ class QueryTableDeltaMetadataResponse:
     protocol: DeltaProtocol
     metadata: DeltaMetadata
 
+
 @dataclass(frozen=True)
 class QueryTableVersionResponse:
     delta_table_version: int
@@ -290,6 +291,7 @@ class DataSharingRestClient:
                 next_page_token=tables_json.get("nextPageToken", None),
             )
 
+
     @retry_with_exponential_backoff
     def query_table_metadata(self, table: Table, delta_response: bool = False) -> QueryTableMetadataResponse:
         if (delta_response):
@@ -328,7 +330,6 @@ class DataSharingRestClient:
                     metadata=Metadata.from_json(metadata_json["metaData"]),
                 )
             
-
 
     @retry_with_exponential_backoff
     def query_table_version(
