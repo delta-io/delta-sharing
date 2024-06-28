@@ -184,7 +184,7 @@ class DeltaProtocol:
     writer_features: list[str]
 
     @staticmethod
-    def from_json(json) -> "Protocol":
+    def from_json(json) -> "DeltaProtocol":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
         return DeltaProtocol(
@@ -256,7 +256,7 @@ class DeltaMetadata:
     created_time: Optional[int] = None
 
     @staticmethod
-    def from_json(json) -> "Metadata":
+    def from_json(json) -> "DeltaMetadata":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
         if "configuration" in json["deltaMetadata"]:
