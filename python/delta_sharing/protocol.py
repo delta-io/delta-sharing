@@ -180,8 +180,8 @@ class Protocol:
 class DeltaProtocol:
     min_reader_version: int
     min_writer_version: int
-    reader_features: list[str]
-    writer_features: list[str]
+    reader_features: list
+    writer_features: list
 
     @staticmethod
     def from_json(json) -> "DeltaProtocol":
