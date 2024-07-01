@@ -299,31 +299,31 @@ class DataSharingRestClient:
             self.set_delta_format_header()
 
         with self._get_internal(
-                f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
-                return_headers=True
-            ) as values:
-                headers = values[0]
-                # it's a bug in the server if it doesn't return delta-table-version in the header
-                if "delta-table-version" not in headers:
-                    raise LookupError("Missing delta-table-version header")
-                lines = values[1]
-                protocol_json = json.loads(next(lines))
-                metadata_json = json.loads(next(lines))
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
+            return_headers=True
+        ) as values:
+            headers = values[0]
+            # it's a bug in the server if it doesn't return delta-table-version in the header
+            if "delta-table-version" not in headers:
+                raise LookupError("Missing delta-table-version header")
+            lines = values[1]
+            protocol_json = json.loads(next(lines))
+            metadata_json = json.loads(next(lines))
 
-                # if delta format, return delta response
-                if (delta_response):
-                    return QueryTableDeltaMetadataResponse(
-                        delta_table_version=int(headers.get("delta-table-version")),
-                        protocol=DeltaProtocol.from_json(protocol_json["protocol"]),
-                        metadata=DeltaMetadata.from_json(metadata_json["metaData"]),
-                    )
-                # otherwise, return normal response
-                else:
-                    return QueryTableMetadataResponse(
-                        delta_table_version=int(headers.get("delta-table-version")),
-                        protocol=Protocol.from_json(protocol_json["protocol"]),
-                        metadata=Metadata.from_json(metadata_json["metaData"]),
-                    )
+            # if delta format, return delta response
+            if (delta_response):
+                return QueryTableDeltaMetadataResponse(
+                    delta_table_version=int(headers.get("delta-table-version")),
+                    protocol=DeltaProtocol.from_json(protocol_json["protocol"]),
+                    metadata=DeltaMetadata.from_json(metadata_json["metaData"]),
+                )
+            # otherwise, return normal response
+            else:
+                return QueryTableMetadataResponse(
+                    delta_table_version=int(headers.get("delta-table-version")),
+                    protocol=Protocol.from_json(protocol_json["protocol"]),
+                    metadata=Metadata.from_json(metadata_json["metaData"]),
+                )
 
     @retry_with_exponential_backoff
     def query_table_version(
