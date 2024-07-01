@@ -213,7 +213,7 @@ class DataSharingRestClient:
         )
 
     def set_delta_format_header(self):
-        response_format="responseformat=delta;readerfeatures=deletionvectors,columnmapping"
+        response_format = "responseformat=delta;readerfeatures=deletionvectors,columnmapping"
         self._session.headers.update(
             {
                 "delta-sharing-capabilities": response_format,
