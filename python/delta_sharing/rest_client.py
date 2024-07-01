@@ -204,10 +204,12 @@ class DataSharingRestClient:
         )
 
     def set_delta_format_header(self):
-        response_format = "responseformat=delta,parquet;readerfeatures=deletionvectors,columnmapping"
+        response_format = "responseformat=delta,parquet;"
+        reader_features = "readerfeatures=deletionvectors,columnmapping"
+        delta_sharing_capabilities = response_format + reader_features
         self._session.headers.update(
             {
-                "delta-sharing-capabilities": response_format,
+                "delta-sharing-capabilities": delta_sharing_capabilities,
             }
         )
 
@@ -325,7 +327,7 @@ class DataSharingRestClient:
             # it's a bug in the server if it doesn't return responseformat in the header
             if "delta-sharing-capabilities" not in headers:
                 raise LookupError("Missing delta-sharing-capabilities header")
-            
+
             response_format = headers["delta-sharing-capabilities"]
             response_format = response_format.split("=")[1]
 

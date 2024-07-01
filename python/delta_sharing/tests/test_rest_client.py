@@ -221,7 +221,10 @@ def test_query_table_metadata_partitioned_different_schemas(
 def test_autoresolve_query_format(
     rest_client: DataSharingRestClient,
 ):
-    tables = [("table3", "share1", "parquet"), ('deletion_vectors_with_dvs_dv_property_on', "share8", "delta"), ('table_with_cm_name', "share8", "delta")]
+    tables = [
+        ("table3", "share1", "parquet"),
+        ('deletion_vectors_with_dvs_dv_property_on', "share8", "delta"),
+        ('table_with_cm_name', "share8", "delta")]
 
     for table in tables:
         table_name = table[0]
