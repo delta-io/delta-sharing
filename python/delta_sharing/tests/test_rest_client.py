@@ -218,6 +218,23 @@ def test_query_table_metadata_partitioned_different_schemas(
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_autoresolve_query_format(
+    rest_client: DataSharingRestClient,
+):
+    tables = [("table3", "share1", "parquet"), ('deletion_vectors_with_dvs_dv_property_on', "share8", "delta"), ('table_with_cm_name', "share8", "delta")]
+
+    for table in tables:
+        table_name = table[0]
+        table_share = table[1]
+        expected_format = table[2]
+
+        resolved_format = rest_client.autoresolve_query_format(
+            Table(name=table_name, share=table_share, schema="default")
+        )
+        assert resolved_format == expected_format
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_existed_table_version(rest_client: DataSharingRestClient):
     response = rest_client.query_table_version(
         Table(name="table1", share="share1", schema="default")

@@ -203,6 +203,21 @@ class DataSharingRestClient:
             }
         )
 
+    def set_delta_format_header(self):
+        response_format = "responseformat=delta,parquet;readerfeatures=deletionvectors,columnmapping"
+        self._session.headers.update(
+            {
+                "delta-sharing-capabilities": response_format,
+            }
+        )
+
+    def remove_delta_format_header(self):
+        self._session.headers.update(
+            {
+                "delta-sharing-capabilities": "",
+            }
+        )
+
     @retry_with_exponential_backoff
     def list_shares(
         self, *, max_results: Optional[int] = None, page_token: Optional[str] = None
@@ -293,6 +308,30 @@ class DataSharingRestClient:
                 protocol=Protocol.from_json(protocol_json["protocol"]),
                 metadata=Metadata.from_json(metadata_json["metaData"]),
             )
+
+    @retry_with_exponential_backoff
+    def autoresolve_query_format(self, table: Table):
+        self.set_delta_format_header()
+
+        with self._get_internal(
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
+            return_headers=True
+        ) as values:
+            headers = values[0]
+            print(headers)
+            # it's a bug in the server if it doesn't return delta-table-version in the header
+            if "delta-table-version" not in headers:
+                raise LookupError("Missing delta-table-version header")
+            # it's a bug in the server if it doesn't return responseformat in the header
+            if "delta-sharing-capabilities" not in headers:
+                raise LookupError("Missing delta-sharing-capabilities header")
+            
+            response_format = headers["delta-sharing-capabilities"]
+            response_format = response_format.split("=")[1]
+
+            self.remove_delta_format_header()
+
+            return response_format
 
     @retry_with_exponential_backoff
     def query_table_version(
