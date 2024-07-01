@@ -217,7 +217,8 @@ def test_query_table_metadata_partitioned_cm_name(rest_client: DataSharingRestCl
         reader_features=None,
         writer_features=None)
 
-    configuration_map = {'delta.enableChangeDataFeed': 'true', 'delta.enableDeletionVectors': 'false',
+    configuration_map = {
+        'delta.enableChangeDataFeed': 'true', 'delta.enableDeletionVectors': 'false',
         'delta.columnMapping.maxColumnId': '2', 'delta.columnMapping.mode': 'name'}
     assert response.metadata == DeltaMetadata(
         id="99b3ffc7-9852-4a29-9741-bfe54a326a4a",
@@ -246,7 +247,8 @@ def test_query_table_metadata_partitioned_cm_id(rest_client: DataSharingRestClie
         reader_features=None,
         writer_features=None)
 
-    configuration_map = {'delta.enableChangeDataFeed': 'true', 'delta.enableDeletionVectors': 'false',
+    configuration_map = {
+        'delta.enableChangeDataFeed': 'true', 'delta.enableDeletionVectors': 'false',
         'delta.columnMapping.maxColumnId': '2', 'delta.columnMapping.mode': 'id'}
     assert response.metadata == DeltaMetadata(
         id="1057409e-4877-4618-9283-11c7f46c4656",
@@ -256,8 +258,8 @@ def test_query_table_metadata_partitioned_cm_id(rest_client: DataSharingRestClie
             '{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,'
             '"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"'
             'col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp",'
-            '"nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":'
-            '"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}'),
+            '"nullable":true,"metadata":{"delta.columnMapping.id":2,'
+            '"delta.columnMapping.physicalName":"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}'),
         created_time=1719346404750,
         configuration=configuration_map
     )
