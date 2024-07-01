@@ -190,8 +190,8 @@ class DeltaProtocol:
         return DeltaProtocol(
             min_reader_version=int(json["deltaProtocol"]["minReaderVersion"]),
             min_writer_version=int(json["deltaProtocol"]["minWriterVersion"]),
-            reader_features=list(json["deltaProtocol"]["readerFeatures"]),
-            writer_features=list(json["deltaProtocol"]["writerFeatures"]))
+            reader_features=json["deltaProtocol"].get("readerFeatures", None),
+            writer_features=json["deltaProtocol"].get("writerFeatures", None))
 
 
 @dataclass(frozen=True)
@@ -270,7 +270,7 @@ class DeltaMetadata:
             format=Format.from_json(json["deltaMetadata"]["format"]),
             schema_string=json["deltaMetadata"]["schemaString"],
             configuration=configuration,
-            partition_columns=json["deltaMetadata"]["partitionColumns"],
+            partition_columns=json["deltaMetadata"].get("partition_columns", []),
             version=json["deltaMetadata"].get("version", None),
             size=json["deltaMetadata"].get("size", None),
             num_files=json["deltaMetadata"].get("numFiles", None),

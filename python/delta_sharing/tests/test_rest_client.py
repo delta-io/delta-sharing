@@ -206,14 +206,74 @@ def test_query_table_metadata_non_partitioned_dv(rest_client: DataSharingRestCli
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_query_table_metadata_non_partitioned_dv_no_header(rest_client: DataSharingRestClient):
-    try:
-        response = rest_client.query_table_metadata(
-            Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default")
-        )
-    except Exception as e:
-        assert isinstance(e, HTTPError)
-        assert "Unsupported Delta Table Properties" in (str(e))
+def test_query_table_metadata_partitioned_cm_name(rest_client: DataSharingRestClient):
+    response = rest_client.query_table_metadata(
+        Table(name="table_with_cm_name", share="share8", schema="default"),
+        delta_response=True
+    )
+    assert response.protocol == DeltaProtocol(
+        min_reader_version=2,
+        min_writer_version=5,
+        reader_features=None,
+        writer_features=None)
+
+    configuration_map = {'delta.enableChangeDataFeed': 'true', 'delta.enableDeletionVectors': 'false',
+        'delta.columnMapping.maxColumnId': '2', 'delta.columnMapping.mode': 'name'}
+    assert response.metadata == DeltaMetadata(
+        id="99b3ffc7-9852-4a29-9741-bfe54a326a4a",
+        description=None,
+        format=Format(provider="parquet", options={}),
+        schema_string=(
+            '{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,'
+            '"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":'
+            '"col-8bd94026-1115-4d95-aa45-f936cfc5fba3"}},{"name":"eventTime",'
+            '"type":"timestamp","nullable":true,"metadata":{"delta.columnMapping.id":2,'
+            '"delta.columnMapping.physicalName":"col-6af3f748-93b3-44a0-b0ec-167be74ef613"}}]}'),
+        created_time=1719346253102,
+        configuration=configuration_map
+    )
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_metadata_partitioned_cm_id(rest_client: DataSharingRestClient):
+    response = rest_client.query_table_metadata(
+        Table(name="table_with_cm_id", share="share8", schema="default"),
+        delta_response=True
+    )
+    assert response.protocol == DeltaProtocol(
+        min_reader_version=2,
+        min_writer_version=5,
+        reader_features=None,
+        writer_features=None)
+
+    configuration_map = {'delta.enableChangeDataFeed': 'true', 'delta.enableDeletionVectors': 'false',
+        'delta.columnMapping.maxColumnId': '2', 'delta.columnMapping.mode': 'id'}
+    assert response.metadata == DeltaMetadata(
+        id="1057409e-4877-4618-9283-11c7f46c4656",
+        description=None,
+        format=Format(provider="parquet", options={}),
+        schema_string=(
+            '{"type":"struct","fields":[{"name":"date","type":"date","nullable":true,'
+            '"metadata":{"delta.columnMapping.id":1,"delta.columnMapping.physicalName":"'
+            'col-0d00ce77-f27b-4778-b0b0-ca4b8289ca21"}},{"name":"eventTime","type":"timestamp",'
+            '"nullable":true,"metadata":{"delta.columnMapping.id":2,"delta.columnMapping.physicalName":'
+            '"col-6c51f03a-5218-4630-9c68-fe5f86060101"}}]}'),
+        created_time=1719346404750,
+        configuration=configuration_map
+    )
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_metadata_partitioned_cm_dv_no_header(rest_client: DataSharingRestClient):
+    table_names = ['deletion_vectors_with_dvs_dv_property_on', 'table_with_cm_name']
+    for table_name in table_names:
+        try:
+            response = rest_client.query_table_metadata(
+                Table(name=table_name, share="share8", schema="default")
+            )
+        except Exception as e:
+            assert isinstance(e, HTTPError)
+            assert "Unsupported Delta Table Properties" in (str(e))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
