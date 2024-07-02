@@ -209,7 +209,10 @@ class DataSharingRestClient:
         )
 
     def set_delta_format_header(self):
-        delta_sharing_capabilities = DataSharingRestClient.DELTA_RESPONSE_FORMAT + DataSharingRestClient.DELTA_READER_FEATURES
+        delta_sharing_capabilities = (
+            DataSharingRestClient.DELTA_RESPONSE_FORMAT +
+            DataSharingRestClient.DELTA_READER_FEATURES
+        )
         self._session.headers.update(
             {
                 DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER: delta_sharing_capabilities,
@@ -332,16 +335,16 @@ class DataSharingRestClient:
             if "delta-table-version" not in headers:
                 raise LookupError("Missing delta-table-version header")
             if DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER not in headers:
-                return DataSharingRestClient.PARQUET_FORMAT 
+                return DataSharingRestClient.PARQUET_FORMAT
 
             # the response_format will either be responseformat=delta or responseformat=parquet
             response_format = headers[DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER]
 
             # we now parse it to get either "delta" or "parquet"
             if (DataSharingRestClient.DELTA_FORMAT in response_format):
-                return DataSharingRestClient.DELTA_FORMAT 
+                return DataSharingRestClient.DELTA_FORMAT
             else:
-                return DataSharingRestClient.PARQUET_FORMAT 
+                return DataSharingRestClient.PARQUET_FORMAT
 
             # removing the client-reader-features that were set to avoid diverging standard codepath
             self.remove_delta_format_header()
