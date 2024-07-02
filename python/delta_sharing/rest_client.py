@@ -210,7 +210,7 @@ class DataSharingRestClient:
 
     def set_delta_format_header(self):
         delta_sharing_capabilities = (
-            DataSharingRestClient.DELTA_RESPONSE_FORMAT + ';' + 
+            DataSharingRestClient.DELTA_RESPONSE_FORMAT + ';' +
             DataSharingRestClient.DELTA_READER_FEATURES
         )
         self._session.headers.update(
