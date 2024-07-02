@@ -138,7 +138,7 @@ def _client_user_agent() -> str:
 
 class DataSharingRestClient:
     USER_AGENT: ClassVar[str] = _client_user_agent()
-    DELTA_RESPONSE_FORMAT = "responseformat=delta,parquet;"
+    DELTA_RESPONSE_FORMAT = "responseformat=delta,parquet"
     DELTA_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping"
     DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
     DELTA_FORMAT = "delta"
@@ -210,7 +210,7 @@ class DataSharingRestClient:
 
     def set_delta_format_header(self):
         delta_sharing_capabilities = (
-            DataSharingRestClient.DELTA_RESPONSE_FORMAT +
+            DataSharingRestClient.DELTA_RESPONSE_FORMAT + ';' + 
             DataSharingRestClient.DELTA_READER_FEATURES
         )
         self._session.headers.update(
