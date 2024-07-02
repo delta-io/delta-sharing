@@ -88,7 +88,7 @@ class DeltaSharingReader:
     def to_pandas(self) -> pd.DataFrame:
         response_format = self._rest_client.autoresolve_query_format(self._table)
 
-        if (response_format == "delta"):
+        if (response_format == DataSharingRestClient.DELTA_FORMAT):
             raise Exception("Delta format not supported in query yet.")
 
         response = self._rest_client.list_files_in_table(
