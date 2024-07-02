@@ -649,6 +649,47 @@ def test_load_as_pandas_exception(
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
+    "fragments,version,timestamp,error",
+    [
+        pytest.param(
+            "share8.default.deletion_vectors_with_dvs_dv_property_on",
+            None,
+            None,
+            "Delta format not supported in query yet.",
+            id="deletion vector not supported",
+        ),
+        pytest.param(
+            "share8.default.table_with_cm_id",
+            None,
+            None,
+            "Delta format not supported in query yet.",
+            id="column mapping id not supported",
+        ),
+        pytest.param(
+            "share8.default.table_with_cm_name",
+            None,
+            None,
+            "Delta format not supported in query yet.",
+            id="column mapping name not supported",
+        ),
+    ],
+)
+def test_load_as_pandas_exception_dv_cm(
+    profile_path: str,
+    fragments: str,
+    version: Optional[int],
+    timestamp: Optional[str],
+    error: Optional[str]
+):
+    try:
+        load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp)
+        assert False
+    except Exception as e:
+        assert error in str(e)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
     "fragments,starting_version,ending_version,starting_timestamp,ending_timestamp,error,expected",
     [
         pytest.param(
