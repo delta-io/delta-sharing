@@ -371,7 +371,7 @@ class DataSharingRestClient:
             if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
                 raise LookupError("Missing delta-table-version header")
 
-            table_version = int(headers.get( DataSharingRestClient.DELTA_TABLE_VERSION_HEADER))
+            table_version = int(headers.get(DataSharingRestClient.DELTA_TABLE_VERSION_HEADER))
             return QueryTableVersionResponse(delta_table_version=table_version)
 
     @retry_with_exponential_backoff
