@@ -15,11 +15,13 @@
 #
 from typing import Any, Callable, Dict, Optional, Sequence
 from urllib.parse import urlparse
-from json import loads
+from json import loads, dump
 from urllib.request import getproxies
 
 import fsspec
+import os
 import pandas as pd
+import tempfile
 from pyarrow.dataset import dataset
 
 from delta_sharing.converter import to_converters, get_empty_table
@@ -85,10 +87,65 @@ class DeltaSharingReader:
             timestamp=self._timestamp
         )
 
+    def to_pandas_kernel(self):
+        self._rest_client.set_delta_format_header()
+        response = self._rest_client.list_files_in_table(
+            self._table,
+            predicateHints=self._predicateHints,
+            jsonPredicateHints=self._jsonPredicateHints,
+            limitHint=self._limit,
+            version=self._version,
+            timestamp=self._timestamp
+        )
+
+        lines = response.lines
+
+        # Create a temporary directory using the tempfile module
+        temp_dir = tempfile.TemporaryDirectory()
+        delta_log_dir_name = temp_dir.name
+        table_path = "file:///" + delta_log_dir_name
+
+        # Create a new directory named '_delta_log' within the temporary directory
+        log_dir = os.path.join(delta_log_dir_name, '_delta_log')
+        os.makedirs(log_dir)
+
+        # Create a new .json file within the '_delta_log' directory
+        json_file_name = "0".zfill(20) + ".json"
+        json_file_path = os.path.join(log_dir, json_file_name)
+        json_file = open(json_file_path, 'w+')
+
+        protocol_json = loads(lines.pop(0))
+        deltaProtocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
+        dump(deltaProtocol, json_file)
+        json_file.write("\n")
+
+        metadata_json = loads(lines.pop(0))
+        deltaMetadata = {"metaData": metadata_json["metaData"]["deltaMetadata"]}
+        dump(deltaMetadata, json_file)
+        json_file.write("\n")
+
+
+        for line in lines:
+            line_json = loads(line)
+            dump(line_json["file"]["deltaSingleAction"], json_file)
+            json_file.write("\n")
+
+        json_file.close()
+
+
+        json_file = open(json_file_path, 'r')
+        print("PranavSukumar")
+        print(f"Created a new file at {json_file_path}")
+        print("The file read back in and printed back out is")
+        print(json_file.read())
+
+        #temp_dir.cleanup()
+
     def to_pandas(self) -> pd.DataFrame:
         response_format = self._rest_client.autoresolve_query_format(self._table)
 
         if (response_format == DataSharingRestClient.DELTA_FORMAT):
+            self.to_pandas_kernel()
             raise Exception("Delta format not supported in query yet.")
 
         response = self._rest_client.list_files_in_table(
