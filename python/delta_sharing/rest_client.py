@@ -334,7 +334,7 @@ class DataSharingRestClient:
         ) as values:
             headers = values[0]
             # it's a bug in the server if it doesn't return delta-table-version in the header
-            if  DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
+            if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
                 raise LookupError("Missing delta-table-version header")
             if DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER not in headers:
                 return DataSharingRestClient.PARQUET_FORMAT
@@ -368,7 +368,7 @@ class DataSharingRestClient:
             headers = values[0]
 
             # it's a bug in the server if it doesn't return delta-table-version in the header
-            if  DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
+            if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
                 raise LookupError("Missing delta-table-version header")
 
             table_version = int(headers.get( DataSharingRestClient.DELTA_TABLE_VERSION_HEADER))
