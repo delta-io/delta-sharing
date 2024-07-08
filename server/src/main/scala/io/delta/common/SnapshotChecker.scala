@@ -16,8 +16,9 @@
 
 package io.delta.common
 
+import io.delta.common.actions.{ColumnMappingTableFeature, DeletionVectorsTableFeature, DeltaAction}
+
 import io.delta.sharing.server.DeltaSharingUnsupportedOperationException
-import io.delta.sharing.server.actions.{ColumnMappingTableFeature, DeletionVectorsTableFeature, DeltaAction}
 
 
 object SnapshotChecker {

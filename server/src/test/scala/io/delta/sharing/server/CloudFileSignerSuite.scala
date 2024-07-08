@@ -16,6 +16,7 @@
 
 package io.delta.sharing.server
 
+import io.delta.common.GCSFileSigner
 import org.apache.hadoop.fs.Path
 import org.scalatest.FunSuite
 

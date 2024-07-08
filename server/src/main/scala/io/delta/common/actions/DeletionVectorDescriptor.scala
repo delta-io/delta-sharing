@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.server.actions
+package io.delta.common.actions
 
 import java.util.UUID
 

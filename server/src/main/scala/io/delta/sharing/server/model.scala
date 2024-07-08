@@ -18,9 +18,8 @@ package io.delta.sharing.server.model
 
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import io.delta.common.actions.{DeltaFormat, DeltaMetadata, DeltaProtocol, DeltaSingleAction}
 import org.codehaus.jackson.annotate.JsonRawValue
-
-import io.delta.sharing.server.actions.{DeltaFormat, DeltaMetadata, DeltaProtocol, DeltaSingleAction}
 
 case class SingleAction(
     file: AddFile = null,

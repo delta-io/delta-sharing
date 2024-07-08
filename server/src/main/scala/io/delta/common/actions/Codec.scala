@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.server.actions
+package io.delta.common.actions
 
 import java.nio.ByteBuffer
-import java.nio.charset.StandardCharsets.US_ASCII
 import java.util.UUID
 
 /**
