@@ -2,8 +2,6 @@
 
 This adds thin python bindings via maturin and pyo3.
 
-You can see how it would be used in the test.py file.
-
 ## usage
 To test it out you will need to create a venv and set up the deps:
 
