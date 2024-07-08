@@ -142,6 +142,7 @@ class DataSharingRestClient:
     DELTA_RESPONSE_FORMAT = "responseformat=delta,parquet"
     DELTA_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping"
     DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
+    DELTA_TABLE_VERSION_HEADER = "delta-table-version"
     DELTA_FORMAT = "delta"
     PARQUET_FORMAT = "parquet"
 
@@ -307,13 +308,14 @@ class DataSharingRestClient:
         ) as values:
             headers = values[0]
             # it's a bug in the server if it doesn't return delta-table-version in the header
-            if "delta-table-version" not in headers:
+            if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
                 raise LookupError("Missing delta-table-version header")
             lines = values[1]
             protocol_json = json.loads(next(lines))
             metadata_json = json.loads(next(lines))
             return QueryTableMetadataResponse(
-                delta_table_version=int(headers.get("delta-table-version")),
+                delta_table_version=int(headers.get(
+                    DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)),
                 protocol=Protocol.from_json(protocol_json["protocol"]),
                 metadata=Metadata.from_json(metadata_json["metaData"]),
             )
@@ -333,7 +335,7 @@ class DataSharingRestClient:
         ) as values:
             headers = values[0]
             # it's a bug in the server if it doesn't return delta-table-version in the header
-            if "delta-table-version" not in headers:
+            if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
                 raise LookupError("Missing delta-table-version header")
             if DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER not in headers:
                 return DataSharingRestClient.PARQUET_FORMAT
@@ -367,10 +369,10 @@ class DataSharingRestClient:
             headers = values[0]
 
             # it's a bug in the server if it doesn't return delta-table-version in the header
-            if "delta-table-version" not in headers:
+            if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
                 raise LookupError("Missing delta-table-version header")
 
-            table_version = int(headers.get("delta-table-version"))
+            table_version = int(headers.get(DataSharingRestClient.DELTA_TABLE_VERSION_HEADER))
             return QueryTableVersionResponse(delta_table_version=table_version)
 
     @retry_with_exponential_backoff
@@ -403,7 +405,7 @@ class DataSharingRestClient:
         ) as values:
             headers = values[0]
             # it's a bug in the server if it doesn't return delta-table-version in the header
-            if "delta-table-version" not in headers:
+            if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
                 raise LookupError("Missing delta-table-version header")
 
             lines = values[1]
@@ -411,7 +413,8 @@ class DataSharingRestClient:
             if ("delta-sharing-capabilities" in headers and
                 "responseformat=delta" in headers["delta-sharing-capabilities"]):
                 return ListFilesInTableResponse(
-                    delta_table_version=int(headers.get("delta-table-version")),
+                    delta_table_version=int(headers.get(
+                        DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)),
                     protocol = None,
                     metadata = None,
                     add_files = [],

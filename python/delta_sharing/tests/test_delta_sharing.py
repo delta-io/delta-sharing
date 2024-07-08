@@ -484,6 +484,22 @@ def test_get_table_protocol(profile_path: str):
             ),
             id="Google Cloud Storage",
         ),
+        pytest.param(
+            "share8.default.table_with_cm_name",
+            None,
+            None,
+            pd.DataFrame(
+                {
+                    "date": [None, None, None],
+                    "eventTime": [
+                        pd.Timestamp("2024-06-25 00:00:00"),
+                        pd.Timestamp("2024-06-25 01:00:00"),
+                        pd.Timestamp("2024-06-25 00:00:00")
+                    ],
+                }
+            ),
+            id="column map name",
+        ),
     ],
 )
 def test_load_as_pandas_success(
@@ -662,19 +678,12 @@ def test_load_as_pandas_exception(
             "share8.default.table_with_cm_id",
             None,
             None,
-            "Delta format not supported in query yet.",
+            "Kernel error: Generic delta kernel error: Don't support id column mapping yet",
             id="column mapping id not supported",
-        ),
-        pytest.param(
-            "share8.default.table_with_cm_name",
-            None,
-            None,
-            "Delta format not supported in query yet.",
-            id="column mapping name not supported",
         ),
     ],
 )
-def test_load_as_pandas_exception_dv_cm(
+def test_load_as_pandas_exception_kernel(
     profile_path: str,
     fragments: str,
     version: Optional[int],

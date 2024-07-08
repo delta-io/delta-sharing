@@ -18,9 +18,11 @@ from urllib.parse import urlparse
 from json import loads, dump
 from urllib.request import getproxies
 
+import delta_kernel_python
 import fsspec
 import os
 import pandas as pd
+import pyarrow as pa
 import tempfile
 from pyarrow.dataset import dataset
 
@@ -114,8 +116,12 @@ class DeltaSharingReader:
         json_file_path = os.path.join(log_dir, json_file_name)
         json_file = open(json_file_path, 'w+')
 
+        print("PranavSukumar1")
+
         protocol_json = loads(lines.pop(0))
+        print("PranavSukumar2")
         deltaProtocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
+        print("PranavSukumar3")
         dump(deltaProtocol, json_file)
         json_file.write("\n")
 
@@ -132,12 +138,27 @@ class DeltaSharingReader:
 
         json_file.close()
 
-
         json_file = open(json_file_path, 'r')
         print("PranavSukumar")
         print(f"Created a new file at {json_file_path}")
         print("The file read back in and printed back out is")
         print(json_file.read())
+
+        json_file.close()
+
+
+
+        interface = delta_kernel_python.PythonInterface(table_path)
+        table = delta_kernel_python.Table(table_path)
+        snapshot = table.snapshot(interface)
+        print("Table Version %i" % snapshot.version())
+
+        scan = delta_kernel_python.ScanBuilder(snapshot).build()
+        table = pa.Table.from_batches(scan.execute(interface))
+        print(table.to_pandas())
+
+        result = table.to_pandas()
+        return result
 
         #temp_dir.cleanup()
 
@@ -145,8 +166,8 @@ class DeltaSharingReader:
         response_format = self._rest_client.autoresolve_query_format(self._table)
 
         if (response_format == DataSharingRestClient.DELTA_FORMAT):
-            self.to_pandas_kernel()
-            raise Exception("Delta format not supported in query yet.")
+            return self.to_pandas_kernel()
+            # raise Exception("Delta format not supported in query yet.")
 
         response = self._rest_client.list_files_in_table(
             self._table,
