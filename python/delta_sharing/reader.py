@@ -116,51 +116,41 @@ class DeltaSharingReader:
         json_file_path = os.path.join(log_dir, json_file_name)
         json_file = open(json_file_path, 'w+')
 
-        print("PranavSukumar1")
-
+        # Write the protocol action to the log file
         protocol_json = loads(lines.pop(0))
-        print("PranavSukumar2")
         deltaProtocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
-        print("PranavSukumar3")
         dump(deltaProtocol, json_file)
         json_file.write("\n")
 
+        # Write the metadata action to the log file
         metadata_json = loads(lines.pop(0))
         deltaMetadata = {"metaData": metadata_json["metaData"]["deltaMetadata"]}
         dump(deltaMetadata, json_file)
         json_file.write("\n")
 
-
+        # Write the add file actions to the log file
         for line in lines:
             line_json = loads(line)
             dump(line_json["file"]["deltaSingleAction"], json_file)
             json_file.write("\n")
 
+        # Close the file
         json_file.close()
 
-        json_file = open(json_file_path, 'r')
-        print("PranavSukumar")
-        print(f"Created a new file at {json_file_path}")
-        print("The file read back in and printed back out is")
-        print(json_file.read())
-
-        json_file.close()
-
-
-
+        # Invoke delta-kernel-rust to return the pandas dataframe
         interface = delta_kernel_python.PythonInterface(table_path)
         table = delta_kernel_python.Table(table_path)
         snapshot = table.snapshot(interface)
-        print("Table Version %i" % snapshot.version())
 
         scan = delta_kernel_python.ScanBuilder(snapshot).build()
         table = pa.Table.from_batches(scan.execute(interface))
-        print(table.to_pandas())
 
         result = table.to_pandas()
+        temp_dir.cleanup()
+        
         return result
 
-        #temp_dir.cleanup()
+
 
     def to_pandas(self) -> pd.DataFrame:
         response_format = self._rest_client.autoresolve_query_format(self._table)

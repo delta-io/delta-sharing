@@ -668,13 +668,6 @@ def test_load_as_pandas_exception(
     "fragments,version,timestamp,error",
     [
         pytest.param(
-            "share8.default.deletion_vectors_with_dvs_dv_property_on",
-            None,
-            None,
-            "Delta format not supported in query yet.",
-            id="deletion vector not supported",
-        ),
-        pytest.param(
             "share8.default.table_with_cm_id",
             None,
             None,
