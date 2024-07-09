@@ -141,7 +141,7 @@ class DataSharingRestClient:
     USER_AGENT: ClassVar[str] = _client_user_agent()
     DELTA_RESPONSE_FORMAT = "responseformat=delta,parquet"
     DELTA_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping"
-    DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
+    CAPABILITIES_HEADER = "delta-sharing-capabilities"
     DELTA_TABLE_VERSION_HEADER = "delta-table-version"
     DELTA_FORMAT = "delta"
     PARQUET_FORMAT = "parquet"
@@ -217,14 +217,14 @@ class DataSharingRestClient:
         )
         self._session.headers.update(
             {
-                DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER: delta_sharing_capabilities,
+                DataSharingRestClient.CAPABILITIES_HEADER: delta_sharing_capabilities,
             }
         )
 
     def remove_delta_format_header(self):
         self._session.headers.update(
             {
-                DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER: "",
+                DataSharingRestClient.CAPABILITIES_HEADER: "",
             }
         )
 
@@ -337,11 +337,11 @@ class DataSharingRestClient:
             # it's a bug in the server if it doesn't return delta-table-version in the header
             if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
                 raise LookupError("Missing delta-table-version header")
-            if DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER not in headers:
+            if DataSharingRestClient.CAPABILITIES_HEADER not in headers:
                 return DataSharingRestClient.PARQUET_FORMAT
 
             # the response_format will either be responseformat=delta or responseformat=parquet
-            response_format = headers[DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER]
+            response_format = headers[DataSharingRestClient.CAPABILITIES_HEADER]
 
             # we now parse it to get either "delta" or "parquet"
             if (DataSharingRestClient.DELTA_FORMAT in response_format):
@@ -410,16 +410,16 @@ class DataSharingRestClient:
 
             lines = values[1]
 
-            if ("delta-sharing-capabilities" in headers and
-                "responseformat=delta" in headers["delta-sharing-capabilities"]):
-                    return ListFilesInTableResponse(
-                        delta_table_version=int(headers.get(
-                            DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)),
-                        protocol=None,
-                        metadata=None,
-                        add_files=[],
-                        lines=[line for line in lines],
-                    )
+            if (DataSharingRestClient.CAPABILITIES_HEADER in headers and
+                    "responseformat=delta" in headers[DataSharingRestClient.CAPABILITIES_HEADER]):
+                return ListFilesInTableResponse(
+                    delta_table_version=int(headers.get(
+                        DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)),
+                    protocol=None,
+                    metadata=None,
+                    add_files=[],
+                    lines=[line for line in lines],
+                )
             else:
                 protocol_json = json.loads(next(lines))
                 metadata_json = json.loads(next(lines))
