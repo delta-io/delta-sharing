@@ -31,7 +31,6 @@ import scala.util.control.NonFatal
 
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
 import com.google.common.hash.Hashing
-import io.delta.common.SnapshotChecker
 import io.delta.kernel.Table
 import io.delta.kernel.data.{ColumnarBatch, ColumnVector, FilteredColumnarBatch}
 import io.delta.kernel.defaults.engine.DefaultEngine
@@ -50,8 +49,9 @@ import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
-import io.delta.sharing.server.{AbfsFileSigner, CausedBy, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, GCSFileSigner, PreSignedUrl, QueryResult, S3FileSigner, WasbFileSigner}
-import io.delta.sharing.server.actions.{DeletionVectorDescriptor, DeletionVectorsTableFeature, DeltaAddFile, DeltaFormat, DeltaMetadata, DeltaProtocol, DeltaSingleAction}
+import io.delta.sharing.server.{CausedBy, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
+import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, PreSignedUrl, S3FileSigner, SnapshotChecker, WasbFileSigner}
+import io.delta.sharing.server.common.actions.{DeletionVectorDescriptor, DeletionVectorsTableFeature, DeltaAddFile, DeltaFormat, DeltaMetadata, DeltaProtocol, DeltaSingleAction}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}

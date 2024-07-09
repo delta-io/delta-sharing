@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package io.delta.common
+package io.delta.sharing.server.common
 
 import io.delta.sharing.server.DeltaSharingUnsupportedOperationException
-import io.delta.sharing.server.actions.{ColumnMappingTableFeature, DeletionVectorsTableFeature, DeltaAction}
+import io.delta.sharing.server.common.actions.{ColumnMappingTableFeature, DeletionVectorsTableFeature, DeltaAction}
 
 
 object SnapshotChecker {
