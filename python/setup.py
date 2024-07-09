@@ -16,9 +16,10 @@
 # limitations under the License.
 #
 from io import open
-from os import path
+from os import path, chdir
 from setuptools import setup
 import sys
+import subprocess
 
 DESCRIPTION = "Python Connector for Delta Sharing"
 
@@ -49,6 +50,8 @@ setup(
         'aiohttp',
         'dataclasses;python_version<"3.7"',
         'yarl>=1.6.0',
+        'maturin',
+        'pyarrow',
     ],
     extras_require={
         's3': ['s3fs'],
@@ -80,3 +83,6 @@ setup(
         'Programming Language :: Python :: 3.9',
     ],
 )
+
+os.chdir('delta-kernel-python')
+subprocess.check_call([sys.executable, "-m", "maturin", "develop"])
