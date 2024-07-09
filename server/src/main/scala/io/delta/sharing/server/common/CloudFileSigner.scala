@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.server
+package io.delta.sharing.server.common
 
 import java.net.URI
 import java.util.Date

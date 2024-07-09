@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.server.actions
+package io.delta.sharing.server.common.actions
 
 import java.net.URI
 import java.sql.Timestamp
