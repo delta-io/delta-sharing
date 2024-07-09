@@ -84,5 +84,5 @@ setup(
     ],
 )
 
-os.chdir('delta-kernel-python')
+chdir('delta-kernel-python')
 subprocess.check_call([sys.executable, "-m", "maturin", "develop"])
