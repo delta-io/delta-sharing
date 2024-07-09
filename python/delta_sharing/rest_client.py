@@ -412,14 +412,14 @@ class DataSharingRestClient:
 
             if ("delta-sharing-capabilities" in headers and
                 "responseformat=delta" in headers["delta-sharing-capabilities"]):
-                return ListFilesInTableResponse(
-                    delta_table_version=int(headers.get(
-                        DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)),
-                    protocol = None,
-                    metadata = None,
-                    add_files = [],
-                    lines = [line for line in lines],
-                )
+                    return ListFilesInTableResponse(
+                        delta_table_version=int(headers.get(
+                            DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)),
+                        protocol=None,
+                        metadata=None,
+                        add_files=[],
+                        lines=[line for line in lines],
+                    )
             else:
                 protocol_json = json.loads(next(lines))
                 metadata_json = json.loads(next(lines))
@@ -429,7 +429,7 @@ class DataSharingRestClient:
                     protocol=Protocol.from_json(protocol_json["protocol"]),
                     metadata=Metadata.from_json(metadata_json["metaData"]),
                     add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
-                    lines = []
+                    lines=[]
                 )
 
     @retry_with_exponential_backoff
