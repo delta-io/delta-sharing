@@ -36,6 +36,7 @@ import io.delta.kernel.data.{ColumnarBatch, ColumnVector, FilteredColumnarBatch}
 import io.delta.kernel.defaults.engine.DefaultEngine
 import io.delta.kernel.engine.Engine
 import io.delta.kernel.exceptions.{KernelException, TableNotFoundException}
+import io.delta.kernel.expressions.Predicate
 import io.delta.kernel.internal.{ScanImpl, SnapshotImpl}
 import io.delta.kernel.internal.actions.{DeletionVectorDescriptor => KernelDeletionVectorDescriptor, Metadata => KernelMetadata, Protocol => KernelProtocol}
 import io.delta.kernel.internal.util.{InternalUtils, VectorUtils}
@@ -324,9 +325,18 @@ class DeltaSharedTableKernel(
     )
 
     if (includeFiles) {
-      if (predicateHints.isEmpty && jsonPredicateHints.isEmpty) {
+      if (predicateHints.isEmpty) {
+        val predicateOpt = maybeCreatePredicate(
+          jsonPredicateHints,
+          snapshot.kernelSnapshot.getSchema(engine),
+          getPartitionColumns(snapshot.metadata)
+        )
         val scanBuilder = snapshot.kernelSnapshot.getScanBuilder(engine)
-        val scan = scanBuilder.build()
+        val scan = predicateOpt match {
+          case Some(p) => scanBuilder.withFilter(engine, p).build()
+          case None => scanBuilder.build()
+        }
+
         val scanFilesIter = scan.asInstanceOf[ScanImpl].getScanFiles(engine, true)
         try {
           while (scanFilesIter.hasNext && !earlyTermination) {
@@ -389,6 +399,49 @@ class DeltaSharedTableKernel(
       responseFormatSet: Set[String] = Set("parquet")): QueryResult = {
 
     throw new DeltaSharingUnsupportedOperationException("not implemented yet")
+  }
+
+  // Creates a Kernel predicate for data filtering based on
+  // the jsonPredicateHints specified in the request.
+  // If there are any errors during the conversion, not push down predicates to Kernel.
+  private def maybeCreatePredicate(
+      jsonPredicateHints: Option[String],
+      tableSchema: KernelStructType,
+      partitionColumns: Seq[String]): Option[Predicate] = {
+
+    // scalastyle:off println
+    System.out.println("PranavSukumar Initial json Predicate is")
+    System.out.println(jsonPredicateHints)
+    // scalastyle:on println
+    val jsonPredicate = jsonPredicateHints.flatMap { json =>
+      try {
+        PredicateConverter.convertJsonPredicateHints(
+          json,
+          partitionColumns,
+          1L * 1024L * 1024L, // 1MB
+          100,
+          enableV2Predicate = false
+        )(tableSchema)
+      } catch {
+        case e: Exception =>
+          // Skip push down if the jsonPredicateHints cannot be converted.
+          // scalastyle:off println
+          System.out.println("PranavSukumar")
+          System.out.println("Error in JSONHints")
+          // scalastyle:on println
+          None
+      }
+    }
+
+    val finalPredicate = jsonPredicate match {
+      case Some(p1) => Some(p1)
+      case _ => None
+    }
+    // scalastyle:off println
+    System.out.println("PranavSukumar Final Predicate is")
+    System.out.println(finalPredicate)
+    // scalastyle:on println
+    finalPredicate
   }
 
   private def processBatchByColumnVector(
