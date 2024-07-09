@@ -26,7 +26,6 @@ import scala.collection.JavaConverters._
 
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
 import com.google.common.hash.Hashing
-import io.delta.common.{AbfsFileSigner, GCSFileSigner, PreSignedUrl, S3FileSigner, WasbFileSigner}
 import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, Metadata, Protocol, RemoveFile}
 import io.delta.standalone.internal.exception.DeltaErrors
@@ -43,6 +42,7 @@ import scala.util.control.NonFatal
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
 import io.delta.sharing.server.{model, CausedBy, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
+import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, PreSignedUrl, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
 import io.delta.sharing.server.util.JsonUtils

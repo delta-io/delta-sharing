@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.common.actions
+package io.delta.sharing.server.common.actions
 
 import java.nio.ByteBuffer
 import java.util.UUID
