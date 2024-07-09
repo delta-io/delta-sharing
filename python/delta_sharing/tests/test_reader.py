@@ -81,7 +81,11 @@ def test_to_pandas_non_partitioned(tmp_path):
                 add_files = [add_file2]
 
             return ListFilesInTableResponse(
-                delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=add_files,
+                lines=[]
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -156,7 +160,11 @@ def test_to_pandas_partitioned(tmp_path):
                 ),
             ]
             return ListFilesInTableResponse(
-                delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=add_files,
+                lines=[]
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -220,7 +228,11 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
                 ),
             ]
             return ListFilesInTableResponse(
-                delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=add_files,
+                lines=[]
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -280,7 +292,11 @@ def test_to_pandas_empty(rest_client: DataSharingRestClient):
             )
             add_files: Sequence[AddFile] = []
             return ListFilesInTableResponse(
-                delta_table_version=1, protocol=None, metadata=metadata, add_files=add_files
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=add_files,
+                lines=[]
             )
 
         def autoresolve_query_format(self, table: Table):
