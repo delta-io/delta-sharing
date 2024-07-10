@@ -408,11 +408,6 @@ class DeltaSharedTableKernel(
       jsonPredicateHints: Option[String],
       tableSchema: KernelStructType,
       partitionColumns: Seq[String]): Option[Predicate] = {
-
-    // scalastyle:off println
-    System.out.println("PranavSukumar Initial json Predicate is")
-    System.out.println(jsonPredicateHints)
-    // scalastyle:on println
     val jsonPredicate = jsonPredicateHints.flatMap { json =>
       try {
         PredicateConverter.convertJsonPredicateHints(
@@ -420,15 +415,11 @@ class DeltaSharedTableKernel(
           partitionColumns,
           1L * 1024L * 1024L, // 1MB
           100,
-          enableV2Predicate = false
+          enableV2Predicate = true
         )(tableSchema)
       } catch {
         case e: Exception =>
           // Skip push down if the jsonPredicateHints cannot be converted.
-          // scalastyle:off println
-          System.out.println("PranavSukumar")
-          System.out.println("Error in JSONHints")
-          // scalastyle:on println
           None
       }
     }
@@ -437,10 +428,6 @@ class DeltaSharedTableKernel(
       case Some(p1) => Some(p1)
       case _ => None
     }
-    // scalastyle:off println
-    System.out.println("PranavSukumar Final Predicate is")
-    System.out.println(finalPredicate)
-    // scalastyle:on println
     finalPredicate
   }
 

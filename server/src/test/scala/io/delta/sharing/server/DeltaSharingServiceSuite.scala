@@ -1117,9 +1117,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         assert(files(i).contains(expectedDatesSorted(i)))
       }
     }
-    // scalastyle:off println
-    System.out.println("PranavSukumar Test0 Running")
-    // scalastyle:on println
     testPredicateHints("", Seq("2020-01-01", "2020-02-02"))
 
     val hints1 =
@@ -1131,9 +1128,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
            |    {"op":"column","name":"birthday","valueType":"date"},
            |    {"op":"literal","value":"2020-01-01","valueType":"date"}]}
            |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
-    // scalastyle:off println
-    System.out.println("PranavSukumar Test1 Running")
-    // scalastyle:on println
     testPredicateHints(hints1, Seq("2020-01-01"))
 
     val hints2 =
@@ -1145,9 +1139,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
            |    {"op":"column","name":"birthday","valueType":"date"},
            |    {"op":"literal","value":"2020-01-01","valueType":"date"}]}
            |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
-    // scalastyle:off println
-    System.out.println("PranavSukumar Test2 Running")
-    // scalastyle:on println
     testPredicateHints(hints2, Seq("2020-02-02"))
 
     val hints3 =
@@ -1159,9 +1150,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
            |    {"op":"column","name":"birthday","valueType":"date"},
            |    {"op":"literal","value":"2020-01-01","valueType":"date"}]}
            |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
-    // scalastyle:off println
-    System.out.println("PranavSukumar Test3 Running")
-    // scalastyle:on println
     testPredicateHints(hints3, Seq("2020-01-01", "2020-02-02"))
 
     // hints on stats column age.
@@ -1174,9 +1162,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
            |    {"op":"column","name":"age","valueType":"int"},
            |    {"op":"literal","value":"2","valueType":"int"}]}
            |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
-    // scalastyle:off println
-    System.out.println("PranavSukumar Test4 Running")
-    // scalastyle:on println
     testPredicateHints(hints4, Seq("2020-02-02"))
 
     // hints on stats column age.
@@ -1189,9 +1174,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
            |    {"op":"column","name":"age","valueType":"int"},
            |    {"op":"literal","value":"3","valueType":"int"}]}
            |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
-    // scalastyle:off println
-    System.out.println("PranavSukumar Test5 Running")
-    // scalastyle:on println
     testPredicateHints(hints5, Seq("2020-01-01", "2020-02-02"))
 
     // hints on stats and partition columns.
@@ -1207,9 +1189,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
            |    {"op":"column","name":"age","valueType":"int"},
            |    {"op":"literal","value":"2","valueType":"int"}]}
            |]}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
-    // scalastyle:off println
-    System.out.println("PranavSukumar Test6 Running")
-    // scalastyle:on println
     testPredicateHints(hints6, Seq("2020-01-01"))
   }
 
