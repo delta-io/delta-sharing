@@ -26,6 +26,7 @@ import io.delta.kernel.internal.util.InternalUtils
 import io.delta.kernel.types._
 
 import io.delta.sharing.server.DeltaSharingUnsupportedOperationException
+import io.delta.sharing.server.common._
 
 object PredicateConverter {
 

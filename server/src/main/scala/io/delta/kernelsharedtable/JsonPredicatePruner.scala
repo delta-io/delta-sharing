@@ -16,6 +16,8 @@
 
 package io.delta.kernelsharedtable
 
+import io.delta.sharing.server.common._
+
 // Performs pruning of Json predicate op tree, and removes the parts
 // that are not supported in a safe manner.
 //
