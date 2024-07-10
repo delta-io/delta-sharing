@@ -326,69 +326,64 @@ class DeltaSharedTableKernel(
       metadata
     )
 
+    // Note that this will not work if
+    // predicateHints, maxFiles, startingVersion, and pageToken are not all empty
     if (includeFiles) {
-      if (predicateHints.isEmpty) {
-        val predicateOpt = maybeCreatePredicate(
-          jsonPredicateHints,
-          snapshot.kernelSnapshot.getSchema(engine),
-          getPartitionColumns(snapshot.metadata)
-        )
-        val scanBuilder = snapshot.kernelSnapshot.getScanBuilder(engine)
-        val scan = predicateOpt match {
-          case Some(p) => scanBuilder.withFilter(engine, p).build()
-          case None => scanBuilder.build()
-        }
-
-        val scanFilesIter = scan.asInstanceOf[ScanImpl].getScanFiles(engine, true)
-        try {
-          while (scanFilesIter.hasNext && !earlyTermination) {
-            val nextResponse = processBatchByColumnVector(
-              scanFilesIter.next,
-              snapshot.version,
-              queryType,
-              respondedFormat,
-              table,
-              engine,
-              isVersionQuery,
-              snapshot,
-              globalLimitHint,
-              clientReaderFeaturesSet
-            )
-            if (nextResponse.nonEmpty) {
-              actions = actions ++ nextResponse
-            }
-          }
-        } finally {
-          scanFilesIter.close()
-        }
-
-        val refreshTokenStr = if (includeRefreshToken) {
-          DeltaSharedTableKernel.encodeToken(
-            RefreshToken(
-              id = Some(tableConfig.id),
-              version = Some(snapshot.version),
-              expirationTimestamp = Some(System.currentTimeMillis() + refreshTokenTtlMs)
-            )
-          )
-        } else {
-          null
-        }
-
-        // Return EndStreamAction when `includeRefreshToken` is true
-        actions = actions ++ {
-          if (includeRefreshToken) {
-            Seq(getEndStreamAction(null, minUrlExpirationTimestamp, refreshTokenStr))
-          } else {
-            Nil
-          }
-        }
-
+      val predicateOpt = maybeCreatePredicate(
+        jsonPredicateHints,
+        snapshot.kernelSnapshot.getSchema(engine),
+        getPartitionColumns(snapshot.metadata)
+      )
+      val scanBuilder = snapshot.kernelSnapshot.getScanBuilder(engine)
+      val scan = predicateOpt match {
+        case Some(p) => scanBuilder.withFilter(engine, p).build()
+        case None => scanBuilder.build()
       }
-      else {
-        throw new DeltaSharingUnsupportedOperationException("not implemented yet")
+
+      val scanFilesIter = scan.asInstanceOf[ScanImpl].getScanFiles(engine, true)
+      try {
+        while (scanFilesIter.hasNext && !earlyTermination) {
+          val nextResponse = processBatchByColumnVector(
+            scanFilesIter.next,
+            snapshot.version,
+            queryType,
+            respondedFormat,
+            table,
+            engine,
+            isVersionQuery,
+            snapshot,
+            globalLimitHint,
+            clientReaderFeaturesSet
+          )
+          if (nextResponse.nonEmpty) {
+            actions = actions ++ nextResponse
+          }
+        }
+      } finally {
+        scanFilesIter.close()
+      }
+
+      val refreshTokenStr = if (includeRefreshToken) {
+        DeltaSharedTableKernel.encodeToken(
+          RefreshToken(
+            id = Some(tableConfig.id),
+            version = Some(snapshot.version),
+            expirationTimestamp = Some(System.currentTimeMillis() + refreshTokenTtlMs)
+          )
+        )
+      } else {
+        null
+      }
+
+      // Return EndStreamAction when `includeRefreshToken` is true
+      actions = actions ++ {
+        if (includeRefreshToken) {
+          Seq(getEndStreamAction(null, minUrlExpirationTimestamp, refreshTokenStr))
+        } else {
+          Nil
+        }
       }
     }
-
     QueryResult(snapshot.version, actions, respondedFormat)
   }
 
