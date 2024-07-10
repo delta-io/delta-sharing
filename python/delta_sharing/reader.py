@@ -90,7 +90,7 @@ class DeltaSharingReader:
         )
 
     def to_pandas_kernel(self):
-        self._rest_client.set_delta_format_header()
+        self._rest_client.set_sharing_capabilities_header()
         response = self._rest_client.list_files_in_table(
             self._table,
             predicateHints=self._predicateHints,
@@ -155,7 +155,6 @@ class DeltaSharingReader:
 
         if (response_format == DataSharingRestClient.DELTA_FORMAT):
             return self.to_pandas_kernel()
-            # raise Exception("Delta format not supported in query yet.")
 
         response = self._rest_client.list_files_in_table(
             self._table,

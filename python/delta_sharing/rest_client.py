@@ -210,7 +210,7 @@ class DataSharingRestClient:
             }
         )
 
-    def set_delta_format_header(self):
+    def set_sharing_capabilities_header(self):
         delta_sharing_capabilities = (
             DataSharingRestClient.DELTA_RESPONSE_FORMAT + ';' +
             DataSharingRestClient.DELTA_READER_FEATURES
@@ -221,7 +221,7 @@ class DataSharingRestClient:
             }
         )
 
-    def remove_delta_format_header(self):
+    def remove_sharing_capabilities_header(self):
         self._session.headers.update(
             {
                 DataSharingRestClient.CAPABILITIES_HEADER: "",
@@ -327,7 +327,7 @@ class DataSharingRestClient:
         It sends a query table metadata request with capabilities set to parquet and delta
         and uses what the server responds to use in the header.
         """
-        self.set_delta_format_header()
+        self.set_sharing_capabilities_header()
 
         with self._get_internal(
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
@@ -350,7 +350,7 @@ class DataSharingRestClient:
                 return DataSharingRestClient.PARQUET_FORMAT
 
             # removing the client-reader-features that were set to avoid diverging standard codepath
-            self.remove_delta_format_header()
+            self.remove_sharing_capabilities_header()
             return response_format
 
     @retry_with_exponential_backoff
