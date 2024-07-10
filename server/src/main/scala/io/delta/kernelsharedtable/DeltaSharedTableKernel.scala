@@ -403,7 +403,7 @@ class DeltaSharedTableKernel(
 
   // Creates a Kernel predicate for data filtering based on
   // the jsonPredicateHints specified in the request.
-  // If there are any errors during the conversion, not push down predicates to Kernel.
+  // If there are any errors during the conversion do not push down predicates to Kernel.
   private def maybeCreatePredicate(
       jsonPredicateHints: Option[String],
       tableSchema: KernelStructType,
