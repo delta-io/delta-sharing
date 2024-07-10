@@ -86,6 +86,8 @@ class DeltaSharedTableKernel(
   private var numRecords = 0L
   private var earlyTermination = false
   private var minUrlExpirationTimestamp = Long.MaxValue
+  private val JsonPredicateHintSizeLimit = 1L * 1024L * 1024L // 1MB
+  private val JsonPredicateHintMaxTreeDepth = 100
 
   private val fileSigner = withClassLoader {
     val tablePath = new Path(tableConfig.getLocation)
@@ -413,8 +415,8 @@ class DeltaSharedTableKernel(
         PredicateConverter.convertJsonPredicateHints(
           json,
           partitionColumns,
-          1L * 1024L * 1024L, // 1MB
-          100,
+          JsonPredicateHintSizeLimit,
+          JsonPredicateHintMaxTreeDepth,
           enableV2Predicate = true
         )(tableSchema)
       } catch {
