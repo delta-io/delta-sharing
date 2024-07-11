@@ -16,7 +16,7 @@
 
 package io.delta.standalone.internal
 
-import scala.math.Ordering.Implicits
+import io.delta.sharing.server.common.TimestampUtils
 
 // ColumnRange class represents a range of values that a Column can take in a data file.
 // ColumnRange is an interval on the Column type, and all types need to support Ordering.

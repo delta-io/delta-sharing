@@ -20,7 +20,7 @@ package io.delta.standalone.internal
 
 import org.scalatest.FunSuite
 
-import io.delta.sharing.server.util.JsonUtils
+import io.delta.sharing.server.common.{AndOp, BaseOp, ColumnOp, EqualOp, EvalContext, GreaterThanOp, GreaterThanOrEqualOp, IsNullOp, LessThanOp, LessThanOrEqualOp, LiteralOp, NotOp, OrOp}
 
 class JsonPredicateEvaluatorV2Suite extends FunSuite {
 

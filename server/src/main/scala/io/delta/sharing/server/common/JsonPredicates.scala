@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package io.delta.standalone.internal
+package io.delta.sharing.server.common
 
 // NOTE: This file should be kept in sync with the corresponding file
 // in the spark connector.
 
-import scala.collection.mutable.ListBuffer
-
 import com.fasterxml.jackson.annotation.{JsonIgnore, JsonSubTypes, JsonTypeInfo}
+
+import io.delta.sharing.server.util.JsonUtils
 
 /**
  * The evaluation context in which operations will be evaluated.
@@ -457,5 +457,29 @@ object EvalHelper {
           "Error validating " + value + " for type " + valueType + ": " + e
         )
     }
+  }
+}
+
+object JsonPredicates {
+  // A helper that parses json predicates from a json string into its op predicate tree.
+  // Enforces size limit and maxTreeDepth constraints.
+  // NOTE: We throw an recipientRpcInvalidParameter because exceeding these thresholds
+  //       represent recipient side errors which they need to fix.
+  def fromJsonWithLimits(hintsJson: String, sizeLimit: Long, maxTreeDepth: Int): Option[BaseOp] = {
+    if (hintsJson.isEmpty) {
+      return None
+    }
+
+    if (hintsJson.size > sizeLimit) {
+      throw new IllegalArgumentException(
+        "The jsonPredicateHints size is " + hintsJson.size +
+          " which exceeds the limit of " + sizeLimit)
+    }
+    val op = JsonUtils.fromJson[BaseOp](hintsJson)
+    if (op.treeDepthExceeds(maxTreeDepth)) {
+      throw new IllegalArgumentException(
+        "The jsonPredicate tree depth exceeds the limit, which is " + maxTreeDepth)
+    }
+    Some(op)
   }
 }

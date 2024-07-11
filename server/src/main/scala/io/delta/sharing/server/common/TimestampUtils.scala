@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.standalone.internal
+package io.delta.sharing.server.common
 
 // A utility class that supports timestamp operations.
 //
