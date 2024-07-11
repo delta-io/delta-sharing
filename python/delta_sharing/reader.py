@@ -89,8 +89,8 @@ class DeltaSharingReader:
             timestamp=self._timestamp
         )
 
-    def to_pandas_kernel(self):
-        self._rest_client.set_sharing_capabilities_header()
+    def __to_pandas_kernel(self):
+        self._rest_client.set_delta_format_header()
         response = self._rest_client.list_files_in_table(
             self._table,
             predicateHints=self._predicateHints,
@@ -146,7 +146,10 @@ class DeltaSharingReader:
         table = pa.Table.from_batches(scan.execute(interface))
 
         result = table.to_pandas()
+
+        # Delete the temp folder explicitly and remove the delta format from header
         temp_dir.cleanup()
+        self._rest_client.remove_delta_format_header()
 
         return result
 
@@ -154,7 +157,7 @@ class DeltaSharingReader:
         response_format = self._rest_client.autoresolve_query_format(self._table)
 
         if (response_format == DataSharingRestClient.DELTA_FORMAT):
-            return self.to_pandas_kernel()
+            return self.__to_pandas_kernel()
 
         response = self._rest_client.list_files_in_table(
             self._table,

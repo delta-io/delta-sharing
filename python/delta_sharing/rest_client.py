@@ -139,7 +139,8 @@ def _client_user_agent() -> str:
 
 class DataSharingRestClient:
     USER_AGENT: ClassVar[str] = _client_user_agent()
-    DELTA_RESPONSE_FORMAT = "responseformat=delta,parquet"
+    DELTA_RESPONSE_FORMAT = "responseformat=delta"
+    DELTA_AND_PARQUET_RESPONSE_FORMAT = "responseformat=delta,parquet"
     DELTA_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping"
     CAPABILITIES_HEADER = "delta-sharing-capabilities"
     DELTA_TABLE_VERSION_HEADER = "delta-table-version"
@@ -212,7 +213,7 @@ class DataSharingRestClient:
 
     def set_sharing_capabilities_header(self):
         delta_sharing_capabilities = (
-            DataSharingRestClient.DELTA_RESPONSE_FORMAT + ';' +
+            DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT + ';' +
             DataSharingRestClient.DELTA_READER_FEATURES
         )
         self._session.headers.update(
@@ -222,6 +223,24 @@ class DataSharingRestClient:
         )
 
     def remove_sharing_capabilities_header(self):
+        self._session.headers.update(
+            {
+                DataSharingRestClient.CAPABILITIES_HEADER: "",
+            }
+        )
+
+    def set_delta_format_header(self):
+        delta_sharing_capabilities = (
+            DataSharingRestClient.DELTA_RESPONSE_FORMAT + ';' +
+            DataSharingRestClient.DELTA_READER_FEATURES
+        )
+        self._session.headers.update(
+            {
+                DataSharingRestClient.CAPABILITIES_HEADER: delta_sharing_capabilities,
+            }
+        )
+
+    def remove_delta_format_header(self):
         self._session.headers.update(
             {
                 DataSharingRestClient.CAPABILITIES_HEADER: "",
