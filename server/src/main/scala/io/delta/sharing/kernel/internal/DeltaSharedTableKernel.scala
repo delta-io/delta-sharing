@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.kernelsharedtable
+package io.delta.sharing.kernel.internal
 
 import java.io.FileNotFoundException
 import java.net.URI
@@ -23,10 +23,8 @@ import java.sql.Timestamp
 import java.time.OffsetDateTime
 import java.time.format.{DateTimeFormatter, DateTimeParseException}
 import java.util.Base64
-import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable.ListBuffer
 import scala.util.control.NonFatal
 
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
@@ -41,7 +39,6 @@ import io.delta.kernel.internal.{ScanImpl, SnapshotImpl}
 import io.delta.kernel.internal.actions.{DeletionVectorDescriptor => KernelDeletionVectorDescriptor, Metadata => KernelMetadata, Protocol => KernelProtocol}
 import io.delta.kernel.internal.util.{InternalUtils, VectorUtils}
 import io.delta.kernel.types.{StructType => KernelStructType}
-import org.apache.commons.codec.digest.DigestUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.azure.NativeAzureFileSystem
@@ -50,12 +47,12 @@ import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
-import io.delta.sharing.server.{CausedBy, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
-import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, PreSignedUrl, S3FileSigner, SnapshotChecker, WasbFileSigner}
-import io.delta.sharing.server.common.actions.{DeletionVectorDescriptor, DeletionVectorsTableFeature, DeltaAddFile, DeltaFormat, DeltaMetadata, DeltaProtocol, DeltaSingleAction}
+import io.delta.sharing.server.{DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
+import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, S3FileSigner, SnapshotChecker, WasbFileSigner}
+import io.delta.sharing.server.common.actions.{DeletionVectorDescriptor, DeletionVectorsTableFeature, DeltaAddFile, DeltaFormat, DeltaProtocol, DeltaSingleAction}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.model._
-import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
+import io.delta.sharing.server.protocol.RefreshToken
 import io.delta.sharing.server.util.JsonUtils
 
 object QueryTypes extends Enumeration {
@@ -222,9 +219,6 @@ class DeltaSharedTableKernel(
     )
   }
 
-  private lazy val fullHistoryShared: Boolean =
-    tableConfig.historyShared && tableConfig.startVersion == 0L
-
   /** Get table version at or after startingTimestamp if it's provided, otherwise return
    *  the latest table version.
    */
@@ -288,7 +282,6 @@ class DeltaSharedTableKernel(
     }
 
     refreshToken.map(decodeAndValidateRefreshToken)
-    val isVersionQuery = !Seq(version, timestamp).filter(_.isDefined).isEmpty
 
     val queryType = if (version.isDefined || timestamp.isDefined) {
       QueryTypes.QueryVersionSnapshot
@@ -350,8 +343,6 @@ class DeltaSharedTableKernel(
             respondedFormat,
             table,
             engine,
-            isVersionQuery,
-            snapshot,
             globalLimitHint,
             clientReaderFeaturesSet
           )
@@ -435,8 +426,6 @@ class DeltaSharedTableKernel(
       respondedFormat: String,
       table: Table,
       engine: Engine,
-      isVersionQuery: Boolean,
-      snapshot: SharedTableSnapshot,
       limitHint: Option[Long],
       clientReaderFeaturesSet: Set[String]): Seq[Object] = {
 

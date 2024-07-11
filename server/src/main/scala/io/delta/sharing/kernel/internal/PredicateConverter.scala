@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.kernelsharedtable
+package io.delta.sharing.kernel.internal
 
 import java.sql.Date
 
