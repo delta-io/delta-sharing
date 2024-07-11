@@ -16,6 +16,8 @@
 
 package io.delta.standalone.internal
 
+import io.delta.sharing.server.common.{AndOp, BaseOp, ColumnOp, EqualOp, EvalContext, GreaterThanOp, GreaterThanOrEqualOp, IsNullOp, LessThanOp, LessThanOrEqualOp, LiteralOp, NotOp, OpDataTypes, OrOp, TimestampUtils}
+
 // The following EvalResult trait/objects are used to implement logic operations
 // for json predicates in the presence of Unknowns (Similar in spirit to the
 // Dont-Cares or X in Karnaugh maps).

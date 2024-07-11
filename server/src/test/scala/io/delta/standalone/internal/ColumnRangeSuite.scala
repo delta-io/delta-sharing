@@ -20,6 +20,8 @@ package io.delta.standalone.internal
 
 import org.scalatest.FunSuite
 
+import io.delta.sharing.server.common.TimestampUtils
+
 class ColumnRangeSuite extends FunSuite {
 
   test("invalid column range test") {

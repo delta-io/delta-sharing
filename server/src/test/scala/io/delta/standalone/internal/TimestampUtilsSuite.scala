@@ -20,6 +20,8 @@ package io.delta.standalone.internal
 
 import org.scalatest.FunSuite
 
+import io.delta.sharing.server.common.TimestampUtils
+
 class TimestampUtilsSuite extends FunSuite {
   test("basic test") {
     // Only ISO 8601 is supported.
