@@ -25,7 +25,7 @@ import com.fasterxml.jackson.core.JsonGenerator
 import com.fasterxml.jackson.databind.{JsonSerializer, SerializerProvider}
 import com.fasterxml.jackson.databind.annotation.{JsonDeserialize, JsonSerialize}
 
-import io.delta.sharing.server.util.JsonUtils
+import io.delta.sharing.server.common.JsonUtils
 
 
 object DeltaAction {

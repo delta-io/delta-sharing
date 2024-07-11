@@ -41,10 +41,9 @@ import scala.util.control.NonFatal
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
 import io.delta.sharing.server.{model, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
-import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, PreSignedUrl, S3FileSigner, WasbFileSigner}
+import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, JsonUtils, PreSignedUrl, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
-import io.delta.sharing.server.util.JsonUtils
 
 /**
  * A util class stores all query parameters. Used to compute the checksum in the page token for

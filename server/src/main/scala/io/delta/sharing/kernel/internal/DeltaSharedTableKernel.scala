@@ -48,12 +48,11 @@ import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
 import io.delta.sharing.server.{DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
-import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, S3FileSigner, SnapshotChecker, WasbFileSigner}
+import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, JsonUtils, S3FileSigner, SnapshotChecker, WasbFileSigner}
 import io.delta.sharing.server.common.actions.{DeletionVectorDescriptor, DeletionVectorsTableFeature, DeltaAddFile, DeltaFormat, DeltaProtocol, DeltaSingleAction}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol.RefreshToken
-import io.delta.sharing.server.util.JsonUtils
 
 object QueryTypes extends Enumeration {
   type QueryType = Value
