@@ -2,11 +2,9 @@ from json import loads, dump
 
 import delta_kernel_python
 import os
-import pandas as pd
 import pyarrow as pa
 import tempfile
 import time
-from pyarrow.dataset import dataset
 
 
 class DeltaSharingReaderKernel:

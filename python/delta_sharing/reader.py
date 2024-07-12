@@ -15,23 +15,18 @@
 #
 from typing import Any, Callable, Dict, Optional, Sequence
 from urllib.parse import urlparse
-from json import loads, dump
+from json import loads
 from urllib.request import getproxies
 
 import fsspec
 import os
 import subprocess
 import pandas as pd
-import pyarrow as pa
-import tempfile
-import time
 from pyarrow.dataset import dataset
 
 from delta_sharing.converter import to_converters, get_empty_table
 from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, Table
 from delta_sharing.rest_client import DataSharingRestClient
-from delta_sharing.reader_kernel import DeltaSharingReaderKernel
-
 
 class DeltaSharingReader:
     def __init__(
@@ -98,6 +93,8 @@ class DeltaSharingReader:
         os.chdir('delta-kernel-python')
         subprocess.run(["pwd"])
         subprocess.run(["maturin", "develop"])
+
+        from delta_sharing.reader_kernel import DeltaSharingReaderKernel
         return DeltaSharingReaderKernel.to_pandas_kernel(self)
 
     def to_pandas(self) -> pd.DataFrame:
