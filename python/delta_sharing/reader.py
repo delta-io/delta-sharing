@@ -137,6 +137,14 @@ class DeltaSharingReader:
         # Close the file
         json_file.close()
 
+        json_file = open(json_file_path, 'r')
+        print("PranavSukumar")
+        print(f"Created a new file at {json_file_path}")
+        print("The file read back in and printed back out is")
+        print(json_file.read())
+
+        json_file.close()
+
         # Invoke delta-kernel-rust to return the pandas dataframe
         interface = delta_kernel_python.PythonInterface(table_path)
         table = delta_kernel_python.Table(table_path)
