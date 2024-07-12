@@ -77,6 +77,12 @@ jobs:
           sed -i -e "/pandas/d" -e "/pyarrow/d" python/requirements-dev.txt
           conda install -c conda-forge --yes --file python/requirements-dev.txt
           conda list
+          echo PRANAVSUKUMAR
+          pwd
+          cd python
+          pwd
+          cd delta-kernel-python
+          maturin develop
       - name: Build Server
         run: ./build/sbt package
       - name: Run tests
