@@ -28,6 +28,7 @@ from delta_sharing.converter import to_converters, get_empty_table
 from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, Table
 from delta_sharing.rest_client import DataSharingRestClient
 
+
 class DeltaSharingReader:
     def __init__(
         self,
