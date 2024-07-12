@@ -16,6 +16,7 @@
 from datetime import date, datetime
 from typing import Optional, Sequence
 
+import time
 import pandas as pd
 import pytest
 
@@ -112,7 +113,9 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_data_loss_no_checkpoint", share="share8", schema="default"),
         Table(name="table_with_cm_name", share="share8", schema="default"),
         Table(name="table_with_cm_id", share="share8", schema="default"),
-        Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default")
+        Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default"),
+        Table(name="small_table_with_cm", share="share8", schema="default"),
+        Table(name="table_with_large_dv", share="share8", schema="default")
     ]
 
 
@@ -511,6 +514,42 @@ def test_load_as_pandas_success(
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,limit,version,expected",
+    [
+        pytest.param(
+            "share8.default.table_with_cm_name",
+            None,
+            None,
+            pd.DataFrame(
+                {
+                    "eventTime": [
+                        pd.Timestamp("2021-04-28 06:32:22.421"),
+                        pd.Timestamp("2021-04-28 06:32:02.070"),
+                    ],
+                    "date": [date(2021, 4, 28), date(2021, 4, 28)],
+                }
+            ),
+            id="largedv",
+        ),
+    ],
+)
+def test_performance_large_cm(
+    profile_path: str,
+    fragments: str,
+    limit: Optional[int],
+    version: Optional[int],
+    expected: pd.DataFrame
+):
+    start = time.time()
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    end = time.time()
+    print("PranavSukumar")
+    print("Time taken to load table is: " + str(end-start) + " seconds")
+    print(pdf)
 
 
 # We will test predicates with the table share8.default.cdf_table_with_partition

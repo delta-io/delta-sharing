@@ -305,7 +305,17 @@ object TestResource {
                 "deletion_vectors_with_dvs_dv_property_on",
                 s"s3a://${AWS.bucket}/delta-exchange-test/deletion_vectors_with_dvs_dv_property_on",
                 "00000000-0000-0000-0000-000000000079"
-              )
+              ),
+              TableConfig(
+                "small_table_with_cm",
+                s"s3a://${AWS.bucket}/delta-sharing-perf-test/small_table_with_cm",
+                "00000000-0000-0000-0000-000000000078"
+              ),
+              TableConfig(
+                "table_with_large_dv",
+                s"s3a://${AWS.bucket}/delta-sharing-perf-test/table_with_large_dv",
+                "00000000-0000-0000-0000-000000000077"
+              ),
             )
           )
         )
