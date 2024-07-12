@@ -151,15 +151,21 @@ class DeltaSharingReader:
         snapshot = table.snapshot(interface)
 
         scan = delta_kernel_python.ScanBuilder(snapshot).build()
-        table = pa.Table.from_batches(scan.execute(interface))
+        try:
+            scan_execute = scan.execute(interface)
+            table = pa.Table.from_batches(scan_execute)
 
-        result = table.to_pandas()
+            result = table.to_pandas()
 
-        # Delete the temp folder explicitly and remove the delta format from header
-        temp_dir.cleanup()
-        self._rest_client.remove_delta_format_header()
+            # Delete the temp folder explicitly and remove the delta format from header
+            temp_dir.cleanup()
+            self._rest_client.remove_delta_format_header()
 
-        return result
+            return result
+        except Exception as e:
+            print("PranavSukumarError")
+            print(e)
+
 
     def to_pandas(self) -> pd.DataFrame:
         response_format = self._rest_client.autoresolve_query_format(self._table)
