@@ -18,17 +18,19 @@ from urllib.parse import urlparse
 from json import loads, dump
 from urllib.request import getproxies
 
-import delta_kernel_python
 import fsspec
 import os
+import subprocess
 import pandas as pd
 import pyarrow as pa
 import tempfile
+import time
 from pyarrow.dataset import dataset
 
 from delta_sharing.converter import to_converters, get_empty_table
 from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, Table
 from delta_sharing.rest_client import DataSharingRestClient
+from delta_sharing.reader_kernel import DeltaSharingReaderKernel
 
 
 class DeltaSharingReader:
@@ -90,68 +92,13 @@ class DeltaSharingReader:
         )
 
     def __to_pandas_kernel(self):
-        self._rest_client.set_delta_format_header()
-        response = self._rest_client.list_files_in_table(
-            self._table,
-            predicateHints=self._predicateHints,
-            jsonPredicateHints=self._jsonPredicateHints,
-            limitHint=self._limit,
-            version=self._version,
-            timestamp=self._timestamp
-        )
-
-        lines = response.lines
-
-        # Create a temporary directory using the tempfile module
-        temp_dir = tempfile.TemporaryDirectory()
-        delta_log_dir_name = temp_dir.name
-        table_path = "file:///" + delta_log_dir_name
-
-        # Create a new directory named '_delta_log' within the temporary directory
-        log_dir = os.path.join(delta_log_dir_name, '_delta_log')
-        os.makedirs(log_dir)
-
-        # Create a new .json file within the '_delta_log' directory
-        json_file_name = "0".zfill(20) + ".json"
-        json_file_path = os.path.join(log_dir, json_file_name)
-        json_file = open(json_file_path, 'w+')
-
-        # Write the protocol action to the log file
-        protocol_json = loads(lines.pop(0))
-        deltaProtocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
-        dump(deltaProtocol, json_file)
-        json_file.write("\n")
-
-        # Write the metadata action to the log file
-        metadata_json = loads(lines.pop(0))
-        deltaMetadata = {"metaData": metadata_json["metaData"]["deltaMetadata"]}
-        dump(deltaMetadata, json_file)
-        json_file.write("\n")
-
-        # Write the add file actions to the log file
-        for line in lines:
-            line_json = loads(line)
-            dump(line_json["file"]["deltaSingleAction"], json_file)
-            json_file.write("\n")
-
-        # Close the file
-        json_file.close()
-
-        # Invoke delta-kernel-rust to return the pandas dataframe
-        interface = delta_kernel_python.PythonInterface(table_path)
-        table = delta_kernel_python.Table(table_path)
-        snapshot = table.snapshot(interface)
-
-        scan = delta_kernel_python.ScanBuilder(snapshot).build()
-        table = pa.Table.from_batches(scan.execute(interface))
-
-        result = table.to_pandas()
-
-        # Delete the temp folder explicitly and remove the delta format from header
-        temp_dir.cleanup()
-        self._rest_client.remove_delta_format_header()
-
-        return result
+        # Run the "maturin develop" command
+        subprocess.run(["echo", "PRANAVSUKUMAR"])
+        subprocess.run(["pwd"])
+        os.chdir('delta-kernel-python')
+        subprocess.run(["pwd"])
+        subprocess.run(["maturin", "develop"])
+        return DeltaSharingReaderKernel.to_pandas_kernel(self)
 
     def to_pandas(self) -> pd.DataFrame:
         response_format = self._rest_client.autoresolve_query_format(self._table)
