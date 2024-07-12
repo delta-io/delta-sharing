@@ -5,6 +5,7 @@ fsspec>=0.7.4
 requests
 aiohttp
 yarl>=1.6.0
+maturin
 
 # Linter
 mypy==0.812
