@@ -79,6 +79,10 @@ jobs:
           conda list
           echo PRANAVSUKUMAR
           pwd
+          cd python
+          pwd
+          cd delta-kernel-python
+          maturin develop
       - name: Build Server
         run: ./build/sbt package
       - name: Run tests
