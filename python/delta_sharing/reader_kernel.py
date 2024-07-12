@@ -8,6 +8,7 @@ import tempfile
 import time
 from pyarrow.dataset import dataset
 
+
 class DeltaSharingReaderKernel:
     @staticmethod
     def to_pandas_kernel(delta_sharing_reader):
@@ -73,7 +74,6 @@ class DeltaSharingReaderKernel:
         print(json_file.read())
 
         json_file.close()
-
 
         print("PranavSukumar")
         print("Time to save log file locally is " + str(end-start) + " seconds")
