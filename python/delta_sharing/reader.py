@@ -166,7 +166,6 @@ class DeltaSharingReader:
             print("PranavSukumarError")
             print(e)
 
-
     def to_pandas(self) -> pd.DataFrame:
         response_format = self._rest_client.autoresolve_query_format(self._table)
 
