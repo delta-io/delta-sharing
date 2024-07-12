@@ -151,7 +151,10 @@ class DeltaSharingReader:
         snapshot = table.snapshot(interface)
 
         scan = delta_kernel_python.ScanBuilder(snapshot).build()
-        table = pa.Table.from_batches(scan.execute(interface))
+        scan_execute = scan.execute(interface)
+        print("PranavSukumar scan_execute output:")
+        print(scan_execute)
+        table = pa.Table.from_batches(scan_execute)
 
         result = table.to_pandas()
 

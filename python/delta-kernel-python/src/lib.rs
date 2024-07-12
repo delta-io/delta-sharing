@@ -117,7 +117,12 @@ impl Scan {
                                 ArrowError::CastError("Couldn't cast to ArrowEngineData".to_string())
                             })?
                             .into();
-                        if let Some(mask) = res.mask {
+                        if let Some(mut mask) = res.mask {
+                            let extra_rows = record_batch.num_rows() - mask.len();
+                            if extra_rows > 0 {
+                                // we need to extend the mask here in case it's too short
+                                mask.extend(std::iter::repeat(true).take(extra_rows));
+                            }
                             let filtered_batch = filter_record_batch(&record_batch, &mask.into())?;
                             Ok(filtered_batch)
                         } else {
