@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use arrow::compute::filter_record_batch;
-use arrow::datatypes::SchemaRef;
+use arrow::datatypes::{Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::pyarrow::PyArrowType;
-use delta_kernel::engine::arrow_data::ArrowEngineData;
-use delta_kernel::engine::default::executor::tokio::TokioBackgroundExecutor;
 use delta_kernel::engine::default::DefaultEngine;
+use delta_kernel::engine::default::executor::tokio::TokioBackgroundExecutor;
+use delta_kernel::scan::ScanResult;
+use delta_kernel::engine::arrow_data::ArrowEngineData;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -87,38 +88,59 @@ impl Scan {
         &self,
         engine_interface: &PythonInterface,
     ) -> DeltaPyResult<PyArrowType<Box<dyn RecordBatchReader + Send>>> {
-        let result_schema: SchemaRef =
-            Arc::new(self.0.schema().as_ref().try_into().map_err(|e| {
-                delta_kernel::Error::Generic(format!("Could not get result schema: {e}"))
-            })?);
-        let results = self.0.execute(engine_interface.0.as_ref())?;
-        let record_batch_iter = RecordBatchIterator::new(
-            results.into_iter().map(|res| {
-                let data = res
-                    .raw_data
-                    .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
-                let record_batch: RecordBatch = data
+        let mut results = self.0.execute(engine_interface.0.as_ref())?;
+        match results.pop() {
+            Some(last) => {
+                // TODO(nick): This is a terrible way to have to get the schema
+                let rb: RecordBatch = last
+                    .raw_data?
                     .into_any()
                     .downcast::<ArrowEngineData>()
                     .map_err(|_| {
-                        ArrowError::CastError("Couldn't cast to ArrowEngineData".to_string())
+                        delta_kernel::Error::engine_data_type("Couldn't cast to ArrowEngineData")
                     })?
                     .into();
-                if let Some(mut mask) = res.mask {
-                    let extra_rows = record_batch.num_rows() - mask.len();
-                    if extra_rows > 0 {
-                        // we need to extend the mask here in case it's too short
-                        mask.extend(std::iter::repeat(true).take(extra_rows));
-                    }
-                    let filtered_batch = filter_record_batch(&record_batch, &mask.into())?;
-                    Ok(filtered_batch)
-                } else {
-                    Ok(record_batch)
-                }
-            }),
-            result_schema,
-        );
-        Ok(PyArrowType(Box::new(record_batch_iter)))
+                let schema: SchemaRef = rb.schema();
+                results.push(ScanResult {
+                    raw_data: Ok(Box::new(ArrowEngineData::new(rb))),
+                    mask: last.mask,
+                });
+                let record_batch_iter = RecordBatchIterator::new(
+                    results.into_iter().map(|res| {
+                        let data = res
+                            .raw_data
+                            .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+                        let record_batch: RecordBatch = data
+                            .into_any()
+                            .downcast::<ArrowEngineData>()
+                            .map_err(|_| {
+                                ArrowError::CastError("Couldn't cast to ArrowEngineData".to_string())
+                            })?
+                            .into();
+                        if let Some(mut mask) = res.mask {
+                            let extra_rows = record_batch.num_rows() - mask.len();
+                            if extra_rows > 0 {
+                                // we need to extend the mask here in case it's too short
+                                mask.extend(std::iter::repeat(true).take(extra_rows));
+                            }
+                            let filtered_batch = filter_record_batch(&record_batch, &mask.into())?;
+                            Ok(filtered_batch)
+                        } else {
+                            Ok(record_batch)
+                        }
+                    }),
+                    schema,
+                );
+                Ok(PyArrowType(Box::new(record_batch_iter)))
+            }
+            None => {
+                // no results, return empty iterator
+                Ok(PyArrowType(Box::new(RecordBatchIterator::new(
+                    vec![],
+                    Arc::new(Schema::empty()),
+                ))))
+            }
+        }
     }
 }
 
@@ -143,7 +165,7 @@ impl PythonInterface {
 /// `delta_kernel_python`, and _must_ the `lib.name` setting in the `Cargo.toml`, otherwise Python
 /// will not be able to import the module.
 #[pymodule]
-fn delta_kernel_python(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn delta_kernel_python(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Table>()?;
     m.add_class::<PythonInterface>()?;
     m.add_class::<Snapshot>()?;
