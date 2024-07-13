@@ -19,9 +19,9 @@ package io.delta.sharing.server
 import java.util.concurrent.TimeUnit
 
 import com.google.common.cache.CacheBuilder
-import io.delta.kernelsharedtable.DeltaSharedTableKernel
 import io.delta.standalone.internal.DeltaSharedTable
 
+import io.delta.sharing.kernel.internal.DeltaSharedTableKernel
 import io.delta.sharing.server.config.{ServerConfig, TableConfig}
 
 

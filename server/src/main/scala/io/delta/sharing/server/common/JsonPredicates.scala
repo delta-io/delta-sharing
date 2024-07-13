@@ -21,8 +21,6 @@ package io.delta.sharing.server.common
 
 import com.fasterxml.jackson.annotation.{JsonIgnore, JsonSubTypes, JsonTypeInfo}
 
-import io.delta.sharing.server.util.JsonUtils
-
 /**
  * The evaluation context in which operations will be evaluated.
  *

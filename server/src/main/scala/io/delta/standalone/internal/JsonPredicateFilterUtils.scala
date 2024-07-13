@@ -19,8 +19,7 @@ package io.delta.standalone.internal
 import io.delta.standalone.internal.actions.AddFile
 import org.slf4j.LoggerFactory
 
-import io.delta.sharing.server.common.{BaseOp, EvalContext}
-import io.delta.sharing.server.util.JsonUtils
+import io.delta.sharing.server.common.{BaseOp, EvalContext, JsonUtils}
 
 // This is used to unpack stats from delta actions.
 case class ActionStats(

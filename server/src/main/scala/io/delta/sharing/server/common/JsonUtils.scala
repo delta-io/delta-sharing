@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.delta.sharing.server.util
+package io.delta.sharing.server.common
 
 import java.io.OutputStream
 
