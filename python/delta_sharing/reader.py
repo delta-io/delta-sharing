@@ -96,7 +96,7 @@ class DeltaSharingReader:
         with client reader features added. It then saves the resposne into a temporary
         json file stored in temporary storage. It calls delta-kernel-rust python wrapper
         to return the df.
-        
+
         Returns: a pandas df
         """
         self._rest_client.set_delta_format_header()
@@ -146,24 +146,13 @@ class DeltaSharingReader:
         # Close the file
         json_file.close()
 
-        json_file = open(json_file_path, 'r')
-        print("PranavSukumar")
-        print(f"Created a new file at {json_file_path}")
-        print("The file read back in and printed back out is")
-        print(json_file.read())
-
-        json_file.close()
-
         # Invoke delta-kernel-rust to return the pandas dataframe
         interface = delta_kernel_python.PythonInterface(table_path)
         table = delta_kernel_python.Table(table_path)
         snapshot = table.snapshot(interface)
 
         scan = delta_kernel_python.ScanBuilder(snapshot).build()
-        scan_execute = scan.execute(interface)
-        print("PranavSukumar scan_execute output:")
-        print(scan_execute)
-        table = pa.Table.from_batches(scan_execute)
+        table = pa.Table.from_batches(scan.execute(interface))
 
         result = table.to_pandas()
 
