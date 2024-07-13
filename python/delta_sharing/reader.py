@@ -90,6 +90,15 @@ class DeltaSharingReader:
         )
 
     def __to_pandas_kernel(self):
+        """
+        This function calls delta-kernel-rust python wrapper to load a df for a table
+        with advanced reader features. It sets the header of the request to delta format
+        with client reader features added. It then saves the resposne into a temporary
+        json file stored in temporary storage. It calls delta-kernel-rust python wrapper
+        to return the df.
+        
+        Returns: a pandas df
+        """
         self._rest_client.set_delta_format_header()
         response = self._rest_client.list_files_in_table(
             self._table,
