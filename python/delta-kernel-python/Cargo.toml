@@ -1,0 +1,20 @@
+[package]
+name = "delta-kernel-python"
+edition = "2021"
+license = "Apache-2.0"
+version = "0.0.0"
+
+[lib]
+name = "delta_kernel_python"
+# "cdylib" is necessary to produce a shared library for Python to import from.
+crate-type = ["cdylib"]
+
+[dependencies]
+arrow = { version = "^52.0", features = ["pyarrow"] }
+delta_kernel = {version = "^0.1", features = ["cloud", "default", "default-engine"]}
+url = "2"
+
+[dependencies.pyo3]
+version = "0.21.0"
+# "abi3-py38" tells pyo3 (and maturin) to build using the stable ABI with minimum Python version 3.8
+features = ["abi3-py38"]

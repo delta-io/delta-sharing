@@ -82,6 +82,7 @@ class ListFilesInTableResponse:
     protocol: Protocol
     metadata: Metadata
     add_files: Sequence[AddFile]
+    lines: Sequence[str]
 
 
 @dataclass(frozen=True)
@@ -138,9 +139,10 @@ def _client_user_agent() -> str:
 
 class DataSharingRestClient:
     USER_AGENT: ClassVar[str] = _client_user_agent()
-    DELTA_RESPONSE_FORMAT = "responseformat=delta,parquet"
+    DELTA_RESPONSE_FORMAT = "responseformat=delta"
+    DELTA_AND_PARQUET_RESPONSE_FORMAT = "responseformat=delta,parquet"
     DELTA_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping"
-    DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
+    CAPABILITIES_HEADER = "delta-sharing-capabilities"
     DELTA_TABLE_VERSION_HEADER = "delta-table-version"
     DELTA_FORMAT = "delta"
     PARQUET_FORMAT = "parquet"
@@ -209,6 +211,20 @@ class DataSharingRestClient:
             }
         )
 
+    def set_sharing_capabilities_header(self):
+        delta_sharing_capabilities = (
+            DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT + ';' +
+            DataSharingRestClient.DELTA_READER_FEATURES
+        )
+        self._session.headers.update(
+            {
+                DataSharingRestClient.CAPABILITIES_HEADER: delta_sharing_capabilities,
+            }
+        )
+
+    def remove_sharing_capabilities_header(self):
+        del self._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+
     def set_delta_format_header(self):
         delta_sharing_capabilities = (
             DataSharingRestClient.DELTA_RESPONSE_FORMAT + ';' +
@@ -216,16 +232,12 @@ class DataSharingRestClient:
         )
         self._session.headers.update(
             {
-                DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER: delta_sharing_capabilities,
+                DataSharingRestClient.CAPABILITIES_HEADER: delta_sharing_capabilities,
             }
         )
 
     def remove_delta_format_header(self):
-        self._session.headers.update(
-            {
-                DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER: "",
-            }
-        )
+        del self._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
 
     @retry_with_exponential_backoff
     def list_shares(
@@ -326,7 +338,7 @@ class DataSharingRestClient:
         It sends a query table metadata request with capabilities set to parquet and delta
         and uses what the server responds to use in the header.
         """
-        self.set_delta_format_header()
+        self.set_sharing_capabilities_header()
 
         with self._get_internal(
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
@@ -336,11 +348,11 @@ class DataSharingRestClient:
             # it's a bug in the server if it doesn't return delta-table-version in the header
             if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
                 raise LookupError("Missing delta-table-version header")
-            if DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER not in headers:
+            if DataSharingRestClient.CAPABILITIES_HEADER not in headers:
                 return DataSharingRestClient.PARQUET_FORMAT
 
             # the response_format will either be responseformat=delta or responseformat=parquet
-            response_format = headers[DataSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER]
+            response_format = headers[DataSharingRestClient.CAPABILITIES_HEADER]
 
             # we now parse it to get either "delta" or "parquet"
             if (DataSharingRestClient.DELTA_FORMAT in response_format):
@@ -349,7 +361,7 @@ class DataSharingRestClient:
                 return DataSharingRestClient.PARQUET_FORMAT
 
             # removing the client-reader-features that were set to avoid diverging standard codepath
-            self.remove_delta_format_header()
+            self.remove_sharing_capabilities_header()
             return response_format
 
     @retry_with_exponential_backoff
@@ -408,16 +420,28 @@ class DataSharingRestClient:
                 raise LookupError("Missing delta-table-version header")
 
             lines = values[1]
-            protocol_json = json.loads(next(lines))
-            metadata_json = json.loads(next(lines))
 
-            return ListFilesInTableResponse(
-                delta_table_version=int(headers.get(
-                    DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)),
-                protocol=Protocol.from_json(protocol_json["protocol"]),
-                metadata=Metadata.from_json(metadata_json["metaData"]),
-                add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
-            )
+            if (DataSharingRestClient.CAPABILITIES_HEADER in headers and
+                    "responseformat=delta" in headers[DataSharingRestClient.CAPABILITIES_HEADER]):
+                return ListFilesInTableResponse(
+                    delta_table_version=int(headers.get(
+                        DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)),
+                    protocol=None,
+                    metadata=None,
+                    add_files=[],
+                    lines=[line for line in lines],
+                )
+            else:
+                protocol_json = json.loads(next(lines))
+                metadata_json = json.loads(next(lines))
+
+                return ListFilesInTableResponse(
+                    delta_table_version=int(headers.get("delta-table-version")),
+                    protocol=Protocol.from_json(protocol_json["protocol"]),
+                    metadata=Metadata.from_json(metadata_json["metaData"]),
+                    add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
+                    lines=[]
+                )
 
     @retry_with_exponential_backoff
     def list_table_changes(self, table: Table, cdfOptions: CdfOptions) -> ListTableChangesResponse:
