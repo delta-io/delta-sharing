@@ -97,7 +97,7 @@ def retry_with_exponential_backoff(func):
         times_retried = 0
         sleep_ms = 100
         while True:
-            times_retried += 1
+            times_retried += 100
             try:
                 return func(self, *arg, **kwargs)
             except Exception as e:
