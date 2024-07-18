@@ -531,6 +531,76 @@ def test_load_as_pandas_success(
             ),
             id="dv",
         ),
+        pytest.param(
+            "share8.default.deletion_vectors_with_dvs_dv_property_on",
+            6,
+            None,
+            pd.DataFrame(
+                {
+                    "id": [3, 4, 5, 6, 7, 8],
+                    "value": ["3", "4", "5", "6", "7", "8"],
+                    "timestamp": [
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00")
+                    ],
+                    "rand": [
+                        0.7918174793484931,
+                        0.9281049271981882,
+                        0.27796520310701633,
+                        0.15263801464228832,
+                        0.1981143710215575,
+                        0.3069439236599195
+                    ],
+                }
+            ),
+            id="dv",
+        ),
+        pytest.param(
+            "share8.default.deletion_vectors_with_dvs_dv_property_on",
+            3,
+            None,
+            pd.DataFrame(
+                {
+                    "id": [3, 4, 5],
+                    "value": ["3", "4", "5"],
+                    "timestamp": [
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00")
+                    ],
+                    "rand": [
+                        0.7918174793484931,
+                        0.9281049271981882,
+                        0.27796520310701633
+                    ],
+                }
+            ),
+            id="dv",
+        ),
+        pytest.param(
+            "share8.default.deletion_vectors_with_dvs_dv_property_on",
+            2,
+            None,
+            pd.DataFrame(
+                {
+                    "id": [3, 4],
+                    "value": ["3", "4"],
+                    "timestamp": [
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00")
+                    ],
+                    "rand": [
+                        0.7918174793484931,
+                        0.9281049271981882
+                    ],
+                }
+            ),
+            id="dv",
+        ),
     ],
 )
 def test_load_as_pandas_success_dv(
@@ -559,6 +629,35 @@ def test_load_as_pandas_success_dv(
                     "eventTime": [
                         pd.Timestamp("2024-06-25T00:00:00.000+00:00"),
                         pd.Timestamp("2024-06-25T01:00:00.000+00:00"),
+                        pd.Timestamp("2024-06-25T00:00:00.000+00:00")
+                    ],
+                }
+            ),
+            id="column map name",
+        ),
+        pytest.param(
+            "share8.default.table_with_cm_name",
+            2,
+            None,
+            pd.DataFrame(
+                {
+                    "date": [date(2024, 6, 25), date(2024, 6, 25)],
+                    "eventTime": [
+                        pd.Timestamp("2024-06-25T00:00:00.000+00:00"),
+                        pd.Timestamp("2024-06-25T01:00:00.000+00:00")
+                    ],
+                }
+            ),
+            id="column map name",
+        ),
+        pytest.param(
+            "share8.default.table_with_cm_name",
+            1,
+            None,
+            pd.DataFrame(
+                {
+                    "date": [date(2024, 6, 25)],
+                    "eventTime": [
                         pd.Timestamp("2024-06-25T00:00:00.000+00:00")
                     ],
                 }

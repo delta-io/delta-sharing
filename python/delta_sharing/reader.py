@@ -150,11 +150,12 @@ class DeltaSharingReader:
         interface = delta_kernel_python.PythonInterface(table_path)
         table = delta_kernel_python.Table(table_path)
         snapshot = table.snapshot(interface)
-
         scan = delta_kernel_python.ScanBuilder(snapshot).build()
         table = pa.Table.from_batches(scan.execute(interface))
-
         result = table.to_pandas()
+
+        # Apply residual limit that was not handled from server pushdown
+        result = result.head(self._limit)
 
         # Delete the temp folder explicitly and remove the delta format from header
         temp_dir.cleanup()
