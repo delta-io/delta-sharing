@@ -34,7 +34,7 @@ jobs:
       matrix:
         python-version: [3.7, 3.8, 3.9]
         include:
-          - pandas-version: 1.2.4
+          - pandas-version: 2.2.2
             pyarrow-version: 16.1.0
     env:
       PYTHON_VERSION: ${{ matrix.python-version }}
