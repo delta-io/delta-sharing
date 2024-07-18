@@ -259,7 +259,7 @@ class SharingClient:
             response = self._rest_client.list_all_tables(share=share, page_token=page_token)
             tables.extend(response.tables)
             page_token = response.next_page_token
-            if page_token is None:
+            if page_token is None or page_token == "":
                 return tables
 
     def list_shares(self) -> Sequence[Share]:
@@ -290,7 +290,7 @@ class SharingClient:
             response = self._rest_client.list_schemas(share=share, page_token=page_token)
             schemas.extend(response.schemas)
             page_token = response.next_page_token
-            if page_token is None:
+            if page_token is None or page_token == "":
                 return schemas
 
     def list_tables(self, schema: Schema) -> Sequence[Table]:
@@ -306,7 +306,7 @@ class SharingClient:
             response = self._rest_client.list_tables(schema=schema, page_token=page_token)
             tables.extend(response.tables)
             page_token = response.next_page_token
-            if page_token is None:
+            if page_token is None or page_token == "":
                 return tables
 
     def list_all_tables(self) -> Sequence[Table]:
