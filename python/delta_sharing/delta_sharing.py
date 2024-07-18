@@ -274,7 +274,7 @@ class SharingClient:
             response = self._rest_client.list_shares(page_token=page_token)
             shares.extend(response.shares)
             page_token = response.next_page_token
-            if page_token is None:
+            if page_token is None or page_token == "":
                 return shares
 
     def list_schemas(self, share: Share) -> Sequence[Schema]:
