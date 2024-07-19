@@ -1838,6 +1838,72 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
+  // Tests that the query from a deletion vector table with a limit is correct
+  integrationTest("deletion vector query test with limit - /shares/{share}/schemas/{schema}/tables/{table}/query") {
+    // Test respondedFormat=delta and respondedFormat=parquet,delta
+    val parquetAndDeltaResponse = RESPONSE_FORMAT_PARQUET + "," + RESPONSE_FORMAT_DELTA
+    val p =
+      """
+        |{
+        | "limitHint": 3
+        |}
+        |""".stripMargin
+    Seq(RESPONSE_FORMAT_DELTA, parquetAndDeltaResponse).foreach { responseFormatValue =>
+      val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/deletion_vectors_with_dvs_dv_property_on/query"), Some("POST"), Some(p), responseFormat = responseFormatValue, readerFeatures = s";readerFeatures=${DeletionVectorsTableFeature.name}")
+      val lines = response.split("\n")
+
+      val files = lines.drop(2)
+      val actualFiles = files.map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
+      assert(actualFiles.size == 2)
+
+      val dvDescriptor = DeletionVectorDescriptor(
+        storageType = "p",
+        pathOrInlineDv = actualFiles(0).deltaSingleAction.add.deletionVector.pathOrInlineDv,
+        offset = Option(1),
+        sizeInBytes = 38,
+        cardinality = 3
+      )
+      val expectedFiles = Seq(
+        DeltaResponseFileAction(
+          id = "d2b378a1a236bf2f028a5d5a1e9aff551cfba66c1ae0e33a84ba501acb1b2221",
+          version = null,
+          timestamp = null,
+          expirationTimestamp = actualFiles(0).expirationTimestamp,
+          deltaSingleAction = DeltaSingleAction(
+            add = DeltaAddFile(
+              path = actualFiles(0).deltaSingleAction.add.path,
+              partitionValues = Map(),
+              size = 1423,
+              modificationTime = 1685559514000L,
+              dataChange = true,
+              stats = """{"numRecords":5,"minValues":{"id":0,"value":"0","timestamp":"2023-05-31T18:58:33.633Z","rand":0.1001744351184638},"maxValues":{"id":4,"value":"4","timestamp":"2023-05-31T18:58:33.633Z","rand":0.9281049271981882},"nullCount":{"id":0,"value":0,"timestamp":0,"rand":0},"tightBounds":false}""",
+              deletionVector = dvDescriptor
+            )
+          )
+        ), DeltaResponseFileAction(
+          id = "6ff5eccfbea8665156db2c235a308f409ddb17a6f245c328e508f92507daaf81",
+          version = null,
+          timestamp = null,
+          expirationTimestamp = actualFiles(1).expirationTimestamp,
+          deltaSingleAction = DeltaSingleAction(
+            add = DeltaAddFile(
+              path = actualFiles(1).deltaSingleAction.add.path,
+              partitionValues = Map(),
+              size = 1428,
+              modificationTime = 1685559514000L,
+              dataChange = true,
+              stats = """{"numRecords":5,"minValues":{"id":5,"value":"5","timestamp":"2023-05-31T18:58:33.633Z","rand":0.15263801464228832},"maxValues":{"id":9,"value":"9","timestamp":"2023-05-31T18:58:33.633Z","rand":0.5175919190815845},"nullCount":{"id":0,"value":0,"timestamp":0,"rand":0},"tightBounds":true}"""
+            )
+          )
+        )
+      )
+      assert(expectedFiles == actualFiles.toList)
+      assert(actualFiles.count(_.expirationTimestamp != null) == 2)
+      verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 1423)
+      verifyPreSignedUrl(actualFiles(1).deltaSingleAction.add.path, 1428)
+    }
+  }
+
   integrationTest("case insensitive") {
     val response = readNDJson(requestPath("/shares/sHare1/schemas/deFault/tables/taBle3/metadata"), expectedTableVersion = Some(4))
     val Array(protocol, metadata) = response.split("\n")
