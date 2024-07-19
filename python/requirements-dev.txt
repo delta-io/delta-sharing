@@ -1,5 +1,5 @@
 # Dependencies. When you update don't forget to update setup.py.
-pandas
+pandas>=2.0.3
 pyarrow>=16.1.0
 fsspec>=0.7.4
 requests
@@ -8,7 +8,7 @@ yarl>=1.6.0
 maturin
 
 # Linter
-mypy==0.812
+mypy==0.981
 flake8
 
 # Code formatter. Only support Python 3.6+
