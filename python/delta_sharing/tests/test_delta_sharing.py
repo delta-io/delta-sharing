@@ -112,7 +112,8 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_data_loss_no_checkpoint", share="share8", schema="default"),
         Table(name="table_with_cm_name", share="share8", schema="default"),
         Table(name="table_with_cm_id", share="share8", schema="default"),
-        Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default")
+        Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default"),
+        Table(name="dv_and_cm_table", share="share8", schema="default")
     ]
 
 
@@ -675,6 +676,38 @@ def test_load_as_pandas_success_cm(
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
     expected['eventTime'] = expected['eventTime'].astype('datetime64[us, UTC]')
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,limit,version,expected",
+    [
+        pytest.param(
+            "share8.default.dv_and_cm_table",
+            5,
+            None,
+            pd.DataFrame(
+                {
+                    "id": [0, 2, 3, 4, 5],
+                    "rand": [74, 45, 37, 69, 58],
+                    "partition_col": [3, 3, 3, 3, 3]
+                }
+            ),
+            id="deletion vector and column map name",
+        )
+    ],
+)
+def test_load_as_pandas_success_dv_and_cm(
+    profile_path: str,
+    fragments: str,
+    limit: Optional[int],
+    version: Optional[int],
+    expected: pd.DataFrame
+):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    expected['rand'] = expected['rand'].astype('int32')
+    expected['partition_col'] = expected['partition_col'].astype('int32')
     pd.testing.assert_frame_equal(pdf, expected)
 
 
