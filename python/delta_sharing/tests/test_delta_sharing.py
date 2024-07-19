@@ -112,7 +112,8 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_data_loss_no_checkpoint", share="share8", schema="default"),
         Table(name="table_with_cm_name", share="share8", schema="default"),
         Table(name="table_with_cm_id", share="share8", schema="default"),
-        Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default")
+        Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default"),
+        Table(name="dv_and_cm_table", share="share8", schema="default")
     ]
 
 
@@ -484,22 +485,6 @@ def test_get_table_protocol(profile_path: str):
             ),
             id="Google Cloud Storage",
         ),
-        pytest.param(
-            "share8.default.table_with_cm_name",
-            None,
-            None,
-            pd.DataFrame(
-                {
-                    "date": [None, None, None],
-                    "eventTime": [
-                        pd.Timestamp("2024-06-25 00:00:00"),
-                        pd.Timestamp("2024-06-25 01:00:00"),
-                        pd.Timestamp("2024-06-25 00:00:00")
-                    ],
-                }
-            ),
-            id="column map name",
-        ),
     ],
 )
 def test_load_as_pandas_success(
@@ -510,6 +495,219 @@ def test_load_as_pandas_success(
     expected: pd.DataFrame
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,limit,version,expected",
+    [
+        pytest.param(
+            "share8.default.deletion_vectors_with_dvs_dv_property_on",
+            None,
+            None,
+            pd.DataFrame(
+                {
+                    "id": [3, 4, 5, 6, 7, 8, 9],
+                    "value": ["3", "4", "5", "6", "7", "8", "9"],
+                    "timestamp": [
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                    ],
+                    "rand": [
+                        0.7918174793484931,
+                        0.9281049271981882,
+                        0.27796520310701633,
+                        0.15263801464228832,
+                        0.1981143710215575,
+                        0.3069439236599195,
+                        0.5175919190815845,
+                    ],
+                }
+            ),
+            id="dv",
+        ),
+        pytest.param(
+            "share8.default.deletion_vectors_with_dvs_dv_property_on",
+            6,
+            None,
+            pd.DataFrame(
+                {
+                    "id": [3, 4, 5, 6, 7, 8],
+                    "value": ["3", "4", "5", "6", "7", "8"],
+                    "timestamp": [
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00")
+                    ],
+                    "rand": [
+                        0.7918174793484931,
+                        0.9281049271981882,
+                        0.27796520310701633,
+                        0.15263801464228832,
+                        0.1981143710215575,
+                        0.3069439236599195
+                    ],
+                }
+            ),
+            id="dv",
+        ),
+        pytest.param(
+            "share8.default.deletion_vectors_with_dvs_dv_property_on",
+            3,
+            None,
+            pd.DataFrame(
+                {
+                    "id": [3, 4, 5],
+                    "value": ["3", "4", "5"],
+                    "timestamp": [
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00")
+                    ],
+                    "rand": [
+                        0.7918174793484931,
+                        0.9281049271981882,
+                        0.27796520310701633
+                    ],
+                }
+            ),
+            id="dv",
+        ),
+        pytest.param(
+            "share8.default.deletion_vectors_with_dvs_dv_property_on",
+            2,
+            None,
+            pd.DataFrame(
+                {
+                    "id": [3, 4],
+                    "value": ["3", "4"],
+                    "timestamp": [
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00")
+                    ],
+                    "rand": [
+                        0.7918174793484931,
+                        0.9281049271981882
+                    ],
+                }
+            ),
+            id="dv",
+        ),
+    ],
+)
+def test_load_as_pandas_success_dv(
+    profile_path: str,
+    fragments: str,
+    limit: Optional[int],
+    version: Optional[int],
+    expected: pd.DataFrame
+):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    expected['timestamp'] = expected['timestamp'].astype('datetime64[us, UTC]')
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,limit,version,expected",
+    [
+        pytest.param(
+            "share8.default.table_with_cm_name",
+            None,
+            None,
+            pd.DataFrame(
+                {
+                    "date": [date(2024, 6, 25), date(2024, 6, 25), date(2024, 6, 25)],
+                    "eventTime": [
+                        pd.Timestamp("2024-06-25T00:00:00.000+00:00"),
+                        pd.Timestamp("2024-06-25T01:00:00.000+00:00"),
+                        pd.Timestamp("2024-06-25T00:00:00.000+00:00")
+                    ],
+                }
+            ),
+            id="column map name",
+        ),
+        pytest.param(
+            "share8.default.table_with_cm_name",
+            2,
+            None,
+            pd.DataFrame(
+                {
+                    "date": [date(2024, 6, 25), date(2024, 6, 25)],
+                    "eventTime": [
+                        pd.Timestamp("2024-06-25T00:00:00.000+00:00"),
+                        pd.Timestamp("2024-06-25T01:00:00.000+00:00")
+                    ],
+                }
+            ),
+            id="column map name",
+        ),
+        pytest.param(
+            "share8.default.table_with_cm_name",
+            1,
+            None,
+            pd.DataFrame(
+                {
+                    "date": [date(2024, 6, 25)],
+                    "eventTime": [
+                        pd.Timestamp("2024-06-25T00:00:00.000+00:00")
+                    ],
+                }
+            ),
+            id="column map name",
+        ),
+    ],
+)
+def test_load_as_pandas_success_cm(
+    profile_path: str,
+    fragments: str,
+    limit: Optional[int],
+    version: Optional[int],
+    expected: pd.DataFrame
+):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    expected['eventTime'] = expected['eventTime'].astype('datetime64[us, UTC]')
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,limit,version,expected",
+    [
+        pytest.param(
+            "share8.default.dv_and_cm_table",
+            5,
+            None,
+            pd.DataFrame(
+                {
+                    "id": [0, 2, 3, 4, 5],
+                    "rand": [74, 45, 37, 69, 58],
+                    "partition_col": [3, 3, 3, 3, 3]
+                }
+            ),
+            id="deletion vector and column map name",
+        )
+    ],
+)
+def test_load_as_pandas_success_dv_and_cm(
+    profile_path: str,
+    fragments: str,
+    limit: Optional[int],
+    version: Optional[int],
+    expected: pd.DataFrame
+):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    expected['rand'] = expected['rand'].astype('int32')
+    expected['partition_col'] = expected['partition_col'].astype('int32')
     pd.testing.assert_frame_equal(pdf, expected)
 
 

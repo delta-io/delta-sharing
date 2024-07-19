@@ -703,26 +703,23 @@ class DeltaSharedTableKernel(
     val cloudPath = absolutePath(dataPath, addFileVectorPath)
     val signedUrl = fileSigner.sign(cloudPath)
     var dvDescriptor = getDeltaDeletionVectorDescriptor(addFileColumnVectors.deletionVector, rowId)
-
-    if (dvDescriptor != null) {
-      // scalastyle:off caselocale
-      if (!DeletionVectorsTableFeature.isInSet(clientReaderFeaturesSet)) {
-        throw new DeltaSharingUnsupportedOperationException("Deletion Vector property disabled")
-      }
-      // scalastyle:on caselocale
-      val dvAbsolutePath = dvDescriptor.absolutePath(dataPath)
-      val presignedDvUrl = fileSigner.sign(dvAbsolutePath)
-      minUrlExpirationTimestamp = minUrlExpirationTimestamp.min(presignedDvUrl.expirationTimestamp)
-      dvDescriptor = dvDescriptor.copy(pathOrInlineDv = presignedDvUrl.url, storageType = "p")
-    }
-
-    minUrlExpirationTimestamp = minUrlExpirationTimestamp.min(signedUrl.expirationTimestamp)
     val size = addFileColumnVectors.size.getLong(rowId)
     val stats =
       if (addFileColumnVectors.stats.isNullAt(rowId)) null
       else addFileColumnVectors.stats.getString(rowId)
-
+    minUrlExpirationTimestamp = minUrlExpirationTimestamp.min(signedUrl.expirationTimestamp)
     numRecords += JsonUtils.extractNumRecords(stats).getOrElse(0L)
+
+    if (dvDescriptor != null) {
+      if (!DeletionVectorsTableFeature.isInSet(clientReaderFeaturesSet)) {
+        throw new DeltaSharingUnsupportedOperationException("Deletion Vector property disabled")
+      }
+      val dvAbsolutePath = dvDescriptor.absolutePath(dataPath)
+      val presignedDvUrl = fileSigner.sign(dvAbsolutePath)
+      minUrlExpirationTimestamp = minUrlExpirationTimestamp.min(presignedDvUrl.expirationTimestamp)
+      dvDescriptor = dvDescriptor.copy(pathOrInlineDv = presignedDvUrl.url, storageType = "p")
+      numRecords -= dvDescriptor.cardinality
+    }
 
     if (respondedFormat == DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(

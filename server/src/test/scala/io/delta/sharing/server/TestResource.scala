@@ -305,6 +305,11 @@ object TestResource {
                 "deletion_vectors_with_dvs_dv_property_on",
                 s"s3a://${AWS.bucket}/delta-exchange-test/deletion_vectors_with_dvs_dv_property_on",
                 "00000000-0000-0000-0000-000000000079"
+              ),
+              TableConfig(
+                "dv_and_cm_table",
+                s"s3a://${AWS.bucket}/delta-exchange-test/dv_and_cm_table",
+                "00000000-0000-0000-0000-000000000078"
               )
             )
           )
