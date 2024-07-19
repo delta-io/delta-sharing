@@ -2,7 +2,7 @@
 name = "delta-kernel-python"
 edition = "2021"
 license = "Apache-2.0"
-version = "0.0.0"
+version = "0.2.0"
 
 [lib]
 name = "delta_kernel_python"
