@@ -7,6 +7,13 @@ cd ..
 # Clean up uncommitted files
 #git clean -fdx
 
+python3 -m venv .venv
+source .venv/bin/activate
+pip install maturin
+maturin develop
+pip install pyarrow
+pip install pandas
+
 cd python
 python3 setup.py clean --all
 rm -rf delta_sharing.egg-info dist
