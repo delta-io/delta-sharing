@@ -43,6 +43,7 @@ setup(
     ],
     python_requires='>=3.8',
     install_requires=[
+        'delta_kernel_rust_sharing_wrapper',
         'pandas',
         'pyarrow>=16.1.0',
         'fsspec>=0.7.4',

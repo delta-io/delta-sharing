@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 from json import loads, dump
 from urllib.request import getproxies
 
-import delta_kernel_python
+import delta_kernel_rust_sharing_wrapper
 import fsspec
 import os
 import pandas as pd
@@ -147,10 +147,10 @@ class DeltaSharingReader:
         json_file.close()
 
         # Invoke delta-kernel-rust to return the pandas dataframe
-        interface = delta_kernel_python.PythonInterface(table_path)
-        table = delta_kernel_python.Table(table_path)
+        interface = delta_kernel_rust_sharing_wrapper.PythonInterface(table_path)
+        table = delta_kernel_rust_sharing_wrapper.Table(table_path)
         snapshot = table.snapshot(interface)
-        scan = delta_kernel_python.ScanBuilder(snapshot).build()
+        scan = delta_kernel_rust_sharing_wrapper.ScanBuilder(snapshot).build()
         table = pa.Table.from_batches(scan.execute(interface))
         result = table.to_pandas()
 
