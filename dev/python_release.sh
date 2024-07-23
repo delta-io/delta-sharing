@@ -7,12 +7,14 @@ cd ..
 # Clean up uncommitted files
 #git clean -fdx
 
+cd python
+cd delta-kernel-rust-sharing-wrapper
+rm -Rf .venv
 python3 -m venv .venv
 source .venv/bin/activate
 pip install maturin
-maturin develop
-pip install pyarrow
-pip install pandas
+maturin build
+
 
 cd python
 python3 setup.py clean --all

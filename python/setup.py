@@ -84,5 +84,5 @@ setup(
     ],
 )
 
-chdir('delta-kernel-python')
+chdir('delta-kernel-rust-sharing-wrapper')
 subprocess.check_call([sys.executable, "-m", "maturin", "develop"])
