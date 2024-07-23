@@ -51,8 +51,6 @@ setup(
         'aiohttp',
         'dataclasses;python_version<"3.8"',
         'yarl>=1.6.0',
-        'maturin',
-        'pyarrow',
     ],
     extras_require={
         's3': ['s3fs'],
@@ -81,6 +79,8 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules",
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
     ],
 )
 
