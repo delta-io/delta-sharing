@@ -261,6 +261,16 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     ResponseHeaders.builder(200).set(DELTA_TABLE_VERSION_HEADER, version.toString)
   }
 
+  @Get("/shares/{share}/schemas/{schema}/tables/{table}/getCloudToken")
+  def getCloudToken(
+      req: HttpRequest,
+      @Param("share") share: String,
+      @Param("schema") schema: String,
+      @Param("table") table: String): HttpResponse = processRequest {
+    val headers = ResponseHeaders.builder(200).set("Cloud-Token-Header", "Cloud Token Stub").build()
+    HttpResponse.of(headers)
+  }
+
   // TODO: deprecate HEAD request in favor of the GET request
   @Head("/shares/{share}/schemas/{schema}/tables/{table}")
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/version")

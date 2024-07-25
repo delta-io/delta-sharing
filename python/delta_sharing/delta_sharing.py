@@ -241,6 +241,19 @@ def load_table_changes_as_pandas(
     ))
 
 
+def query_cloud_sharing_token(url: str):
+    profile_json, share, schema, table = _parse_url(url)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
+    return DeltaSharingReader(
+        table=Table(name=table, share=share, schema=schema),
+        rest_client=DataSharingRestClient(profile),
+        jsonPredicateHints=None,
+        limit=None,
+        version=None,
+        timestamp=None
+    ).query_cloud_sharing_token()
+
+
 class SharingClient:
     """
     A Delta Sharing client to query shares/schemas/tables from a Delta Sharing Server.

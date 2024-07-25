@@ -89,6 +89,9 @@ class DeltaSharingReader:
             timestamp=self._timestamp
         )
 
+    def query_cloud_sharing_token(self) -> str:
+        return self._rest_client.query_cloud_sharing_token(self._table)
+
     def __to_pandas_kernel(self):
         """
         This function calls delta-kernel-rust python wrapper to load a df for a table

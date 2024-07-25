@@ -473,6 +473,14 @@ class DataSharingRestClient:
                 actions=actions,
             )
 
+    @retry_with_exponential_backoff
+    def query_cloud_sharing_token(self, table: Table) -> str:
+        query_str = f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/getCloudToken"
+        with self._get_internal(query_str, return_headers=True) as values:
+            headers = values[0]
+            cloud_token = headers.get("Cloud-Token-Header")
+            return cloud_token
+
     def close(self):
         self._session.close()
 
