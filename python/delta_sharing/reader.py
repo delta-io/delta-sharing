@@ -32,6 +32,8 @@ from delta_sharing.rest_client import DataSharingRestClient
 
 
 class DeltaSharingReader:
+    FILE_NUMBER_WARNING_THRESH = 5000
+
     def __init__(
         self,
         table: Table,
@@ -148,7 +150,7 @@ class DeltaSharingReader:
         # Close the file
         json_file.close()
 
-        if (num_files > 5000):
+        if (num_files > DeltaSharingReader.FILE_NUMBER_WARNING_THRESH):
             print("Warning: Queries with a large number of files take a large ammount of time")
 
         # Invoke delta-kernel-rust to return the pandas dataframe
