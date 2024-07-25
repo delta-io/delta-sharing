@@ -160,7 +160,7 @@ class DeltaSharingReader:
         if (num_files == 0):
             schema = scan.execute(interface).schema
             return pd.DataFrame(columns=schema.names)
-            
+
         table = pa.Table.from_batches(scan.execute(interface))
         result = table.to_pandas()
 
