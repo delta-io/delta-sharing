@@ -111,7 +111,6 @@ class DeltaSharingReader:
 
         lines = response.lines
 
-
         # Create a temporary directory using the tempfile module
         temp_dir = tempfile.TemporaryDirectory()
         delta_log_dir_name = temp_dir.name
@@ -171,7 +170,7 @@ class DeltaSharingReader:
         # Delete the temp folder explicitly and remove the delta format from header
         temp_dir.cleanup()
         self._rest_client.remove_delta_format_header()
-        
+
         return result
 
     def to_pandas(self) -> pd.DataFrame:
