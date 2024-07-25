@@ -111,6 +111,7 @@ class DeltaSharingReader:
 
         lines = response.lines
 
+
         # Create a temporary directory using the tempfile module
         temp_dir = tempfile.TemporaryDirectory()
         delta_log_dir_name = temp_dir.name
@@ -137,6 +138,8 @@ class DeltaSharingReader:
         dump(deltaMetadata, json_file)
         json_file.write("\n")
 
+        num_files = len(lines)
+
         # Write the add file actions to the log file
         for line in lines:
             line_json = loads(line)
@@ -146,11 +149,19 @@ class DeltaSharingReader:
         # Close the file
         json_file.close()
 
+        if (num_files > 5000):
+            print("Warning: Queries with a large number of files take a large ammount of time")
+
         # Invoke delta-kernel-rust to return the pandas dataframe
         interface = delta_kernel_python.PythonInterface(table_path)
         table = delta_kernel_python.Table(table_path)
         snapshot = table.snapshot(interface)
         scan = delta_kernel_python.ScanBuilder(snapshot).build()
+
+        if (num_files == 0):
+            schema = scan.execute(interface).schema
+            return pd.DataFrame(columns=schema.names)
+            
         table = pa.Table.from_batches(scan.execute(interface))
         result = table.to_pandas()
 
@@ -160,7 +171,7 @@ class DeltaSharingReader:
         # Delete the temp folder explicitly and remove the delta format from header
         temp_dir.cleanup()
         self._rest_client.remove_delta_format_header()
-
+        
         return result
 
     def to_pandas(self) -> pd.DataFrame:
