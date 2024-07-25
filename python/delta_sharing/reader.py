@@ -159,6 +159,7 @@ class DeltaSharingReader:
         snapshot = table.snapshot(interface)
         scan = delta_kernel_python.ScanBuilder(snapshot).build()
 
+        # The table is empty so use the schema to return an empty table with correct col names
         if (num_files == 0):
             schema = scan.execute(interface).schema
             return pd.DataFrame(columns=schema.names)
