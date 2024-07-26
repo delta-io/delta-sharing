@@ -58,7 +58,7 @@ class DeltaSharingReader:
         self._limit = limit
         self._version = version
         self._timestamp = timestamp
-        self._use_delta_format= use_delta_format
+        self._use_delta_format = use_delta_format
 
     @property
     def table(self) -> Table:
