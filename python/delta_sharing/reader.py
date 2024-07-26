@@ -137,6 +137,8 @@ class DeltaSharingReader:
         dump(deltaMetadata, json_file)
         json_file.write("\n")
 
+        num_files = len(lines)
+
         # Write the add file actions to the log file
         for line in lines:
             line_json = loads(line)
@@ -151,6 +153,12 @@ class DeltaSharingReader:
         table = delta_kernel_python.Table(table_path)
         snapshot = table.snapshot(interface)
         scan = delta_kernel_python.ScanBuilder(snapshot).build()
+
+        # The table is empty so use the schema to return an empty table with correct col names
+        if (num_files == 0):
+            schema = scan.execute(interface).schema
+            return pd.DataFrame(columns=schema.names)
+
         table = pa.Table.from_batches(scan.execute(interface))
         result = table.to_pandas()
 
