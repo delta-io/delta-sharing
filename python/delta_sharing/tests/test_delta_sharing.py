@@ -760,7 +760,7 @@ def test_load_as_pandas_success_empty_dv_and_cm(
         )
     ],
 )
-def test_load_as_pandas_success_client_delta_kernel_enabled_normal_table(
+def test_load_as_pandas_success_client_delta_kernel_enabled_with_normal_table(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
