@@ -42,7 +42,7 @@ class DeltaSharingReader:
         limit: Optional[int] = None,
         version: Optional[int] = None,
         timestamp: Optional[str] = None,
-        useKernel: Optional[bool] = None,
+        use_delta_format: Optional[bool] = None,
     ):
         self._table = table
         self._rest_client = rest_client
@@ -58,7 +58,7 @@ class DeltaSharingReader:
         self._limit = limit
         self._version = version
         self._timestamp = timestamp
-        self._useKernel = useKernel
+        self._use_delta_format= use_delta_format
 
     @property
     def table(self) -> Table:
@@ -176,9 +176,8 @@ class DeltaSharingReader:
     def to_pandas(self) -> pd.DataFrame:
         response_format = ""
         # If client indicates to use delta format use it, otherwise autoresolve the format
-        if (self._useKernel is not None):
-            if self._useKernel:
-                response_format = DataSharingRestClient.DELTA_FORMAT
+        if self._use_delta_format:
+            response_format = DataSharingRestClient.DELTA_FORMAT
         else:
             response_format = self._rest_client.autoresolve_query_format(self._table)
 
