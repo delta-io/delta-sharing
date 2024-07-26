@@ -127,7 +127,7 @@ def load_as_pandas(
         limit=limit,
         version=version,
         timestamp=timestamp,
-        useKernel = useKernel
+        useKernel=useKernel
     ).to_pandas()
 
 
