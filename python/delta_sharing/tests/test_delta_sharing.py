@@ -711,6 +711,30 @@ def test_load_as_pandas_success_dv_and_cm(
     pd.testing.assert_frame_equal(pdf, expected)
 
 
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,limit,version,expected",
+    [
+        pytest.param(
+            "share8.default.dv_and_cm_table",
+            0,
+            None,
+            pd.DataFrame(columns=["id", "rand", "partition_col"]),
+            id="test empty table share",
+        )
+    ],
+)
+def test_load_as_pandas_success_empty_dv_and_cm(
+    profile_path: str,
+    fragments: str,
+    limit: Optional[int],
+    version: Optional[int],
+    expected: pd.DataFrame
+):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
 # We will test predicates with the table share8.default.cdf_table_with_partition
 # This table is partitioned by birthday column of type date.
 # There are two partitions: 2020-02-02, and 2020-01-01.
