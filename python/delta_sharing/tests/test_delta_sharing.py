@@ -954,7 +954,7 @@ def test_load_as_pandas_exception_kernel(
     "fragments,version,timestamp,error",
     [
         pytest.param(
-            "share8.default.table_with_cm_id",
+            "share8.default.table_with_cm_name",
             None,
             None,
             "Unsupported Delta Table Properties",
