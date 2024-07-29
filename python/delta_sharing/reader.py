@@ -175,11 +175,12 @@ class DeltaSharingReader:
 
     def to_pandas(self) -> pd.DataFrame:
         response_format = ""
-        # If client indicates to use delta format use it, otherwise autoresolve the format
-        if self._use_delta_format:
-            response_format = DataSharingRestClient.DELTA_FORMAT
-        else:
+        # If client does not specify which format to use, autoresolve it.
+        # Otherwise use the specified format.
+        if self._use_delta_format is None:
             response_format = self._rest_client.autoresolve_query_format(self._table)
+        elif self._use_delta_format:
+            response_format = response_format = DataSharingRestClient.DELTA_FORMAT
 
         # If the response format is delta, use delta kernel rust
         if (response_format == DataSharingRestClient.DELTA_FORMAT):
