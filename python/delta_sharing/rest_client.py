@@ -344,6 +344,9 @@ class DataSharingRestClient:
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
             return_headers=True
         ) as values:
+            # removing the client-reader-features that were set to avoid diverging standard codepath
+            self.remove_sharing_capabilities_header()
+
             headers = values[0]
             # it's a bug in the server if it doesn't return delta-table-version in the header
             if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
@@ -359,10 +362,6 @@ class DataSharingRestClient:
                 return DataSharingRestClient.DELTA_FORMAT
             else:
                 return DataSharingRestClient.PARQUET_FORMAT
-
-            # removing the client-reader-features that were set to avoid diverging standard codepath
-            self.remove_sharing_capabilities_header()
-            return response_format
 
     @retry_with_exponential_backoff
     def query_table_version(
