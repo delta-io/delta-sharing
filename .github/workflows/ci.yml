@@ -23,6 +23,8 @@ jobs:
             arch: arm64
           - os: ubuntu-latest
             arch: x86_64
+          - os: ubuntu-latest
+            arch: arm64
           - os: windows-latest
             arch: x86_64
 
@@ -67,11 +69,21 @@ jobs:
           maturin build --release
         shell: powershell
 
-      - name: Build wheel (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Build wheel (Linux x86_64)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x86_64'
         run: |
           cd python/delta-kernel-python
           maturin build --release
+        shell: bash
+
+      - name: Build wheel (Linux arm64)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          rustup target add aarch64-unknown-linux-gnu
+          cd python/delta-kernel-python
+          maturin build --release --target aarch64-unknown-linux-gnu
         shell: bash
 
       - name: Upload wheels
