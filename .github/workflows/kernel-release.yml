@@ -24,7 +24,7 @@ jobs:
           - os: ubuntu-latest
             arch: x86_64
           - os: ubuntu-latest
-            arch: aarch64
+            arch: arm64
           - os: windows-latest
             arch: x86_64
 
@@ -77,7 +77,7 @@ jobs:
         shell: bash
 
       - name: Build wheel (ARM Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'aarch64'
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
           cd python/delta-kernel-python
           maturin build --release
