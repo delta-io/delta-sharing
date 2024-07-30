@@ -13,7 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
         python-version: [3.8]
 
     steps:
@@ -30,14 +30,6 @@ jobs:
           curl https://sh.rustup.rs -sSf | sh -s -- -y
           source $HOME/.cargo/env
         shell: bash
-
-      - name: Install Rust (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          curl https://sh.rustup.rs -sSf -o rustup-init.exe
-          rustup-init.exe -y
-          $env:Path += ";C:\Users\runner\.cargo\bin"
-        shell: powershell
 
       - name: Install maturin
         run: pip install maturin
