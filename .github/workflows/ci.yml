@@ -71,23 +71,6 @@ jobs:
             pip3 install delta_kernel_python --find-links dist --force-reinstall
             cd ../../python/delta-kernel-python && pytest
 
-  sdist:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build sdist
-        uses: PyO3/maturin-action@v1
-        with:
-          command: sdist
-          args: --out dist --manifest-path ../../python/delta-kernel-python/Cargo.toml
-        env:
-          NODE_OPTIONS: --max_old_space_size=32768
-      - name: Upload sdist
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-sdist
-          path: dist
-
   release:
     name: Release
     runs-on: ubuntu-latest
