@@ -45,7 +45,7 @@ jobs:
       - name: Build wheel
         run: |
           pwd
-          cd ../../python/delta-kernel-python
+          cd python/delta-kernel-python
           maturin build --release
         shell: bash
 
