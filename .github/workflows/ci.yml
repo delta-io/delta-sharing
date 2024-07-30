@@ -14,14 +14,11 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8"]
         arch:
           - x86_64
           - aarch64
           - armv7
-          - s390x
-          - ppc64le
-          - x86
         include:
           - os: macos-latest
             arch: x86_64
@@ -73,7 +70,7 @@ jobs:
       - name: Build wheel (Linux)
         if: runner.os == 'Linux'
         run: |
-          rustup target add ${{ matrix.arch }}
+          rustup target add ${{ matrix.arch }}-unknown-linux-gnu
           cd python/delta-kernel-python
           cross build --release --target ${{ matrix.arch }}-unknown-linux-gnu
         shell: bash
