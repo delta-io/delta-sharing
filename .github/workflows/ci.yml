@@ -68,13 +68,10 @@ jobs:
           cd python/delta-kernel-python
           maturin build --release
         shell: bash
-      
-      - name: Build wheel (aarch64 Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'aarch64'
+
+      - name: Build wheel (ARM64 Linux)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
-          cargo install cross
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu qemu-user-static
           rustup target add aarch64-unknown-linux-gnu
           cd python/delta-kernel-python
           maturin build --release --target aarch64-unknown-linux-gnu
