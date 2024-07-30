@@ -34,13 +34,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Rust (Linux and macOS)
-        if: runner.os != 'Windows'
-        run: |
-          curl https://sh.rustup.rs -sSf | sh -s -- -y
-          source $HOME/.cargo/env
-        shell: bash
-
       - name: Install maturin
         run: pip install maturin
 
@@ -60,14 +53,14 @@ jobs:
           maturin build --release --target aarch64-apple-darwin
         shell: bash
 
-      - name: Build wheel (Windows)
+      - name: Build wheel (x86_64 Windows)
         if: runner.os == 'Windows'
         run: |
           cd python/delta-kernel-python
           maturin build --release
         shell: powershell
 
-      - name: Build wheel (Linux)
+      - name: Build wheel (x86_64 Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
           cd python/delta-kernel-python
