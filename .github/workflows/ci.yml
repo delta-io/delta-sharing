@@ -79,6 +79,7 @@ jobs:
       - name: Build wheel (aarch64 Linux)
         if: matrix.os == 'ubuntu-latest' && matrix.arch == 'aarch64'
         run: |
+          export PKG_CONFIG_PATH=/usr/aarch64-linux-gnu/lib/pkgconfig
           rustup target add aarch64-unknown-linux-gnu	
           cd python/delta-kernel-python
           maturin build --release --target aarch64-unknown-linux-gnu
