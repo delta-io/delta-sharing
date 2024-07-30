@@ -23,8 +23,6 @@ jobs:
             arch: arm64
           - os: ubuntu-latest
             arch: x86_64
-          - os: ubuntu-latest
-            arch: arm64
           - os: windows-latest
             arch: x86_64
 
@@ -69,32 +67,11 @@ jobs:
           maturin build --release
         shell: powershell
 
-      - name: Build wheel (Linux x86_64)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x86_64'
+      - name: Build wheel (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           cd python/delta-kernel-python
           maturin build --release
-        shell: bash
-
-      - name: Build wheel (Linux arm64)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
-        run: |
-          sudo dpkg --add-architecture arm64
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          sudo apt-get install -y libssl-dev:arm64 libc6-dev-arm64-cross
-          rustup target add aarch64-unknown-linux-gnu
-          cd python/delta-kernel-python
-          export OPENSSL_DIR=/usr/aarch64-linux-gnu
-          export OPENSSL_LIB_DIR=/usr/aarch64-linux-gnu/lib
-          export OPENSSL_INCLUDE_DIR=/usr/aarch64-linux-gnu/include
-          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
-          export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
-          export CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
-          PKG_CONFIG_PATH="/usr/lib/aarch64-linux-gnu/pkgconfig" \
-          PKG_CONFIG_ALLOW_CROSS=1 \
-          OPENSSL_STATIC=1 \
-          maturin build --release --target aarch64-unknown-linux-gnu
         shell: bash
 
       - name: Upload wheels
