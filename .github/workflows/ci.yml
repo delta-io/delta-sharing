@@ -18,7 +18,6 @@ jobs:
         arch:
           - x86_64
           - aarch64
-          - armv7
         include:
           - os: macos-latest
             arch: x86_64
