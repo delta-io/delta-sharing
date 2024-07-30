@@ -69,8 +69,8 @@ jobs:
           maturin build --release
         shell: bash
 
-      - name: Build wheel (ARM64 Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
+      - name: Build wheel (aarch64 Linux)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'aarch64'
         run: |
           rustup target add aarch64-unknown-linux-gnu
           cd python/delta-kernel-python
