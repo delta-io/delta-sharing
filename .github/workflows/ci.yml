@@ -38,6 +38,8 @@ jobs:
           args: --release --out dist --manifest-path ../../python/delta-kernel-python/Cargo.toml
           sccache: 'true'
           manylinux: auto
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -78,6 +80,7 @@ jobs:
         with:
           command: sdist
           args: --out dist --manifest-path ../../python/delta-kernel-python/Cargo.toml
+        env:
           NODE_OPTIONS: --max_old_space_size=8192
       - name: Upload sdist
         uses: actions/upload-artifact@v4
