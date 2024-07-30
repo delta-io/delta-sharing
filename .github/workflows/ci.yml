@@ -14,16 +14,12 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.8"]
-        arch:
-          - x86_64
-          - aarch64
+        python-version: [3.8]
         include:
           - os: macos-latest
             arch: x86_64
           - os: macos-latest
             arch: arm64
-
     steps:
       - uses: actions/checkout@v2
 
@@ -42,40 +38,15 @@ jobs:
       - name: Install maturin
         run: pip install maturin
 
-      - name: Install cross and QEMU (Linux)
-        if: runner.os == 'Linux'
+      - name: Build wheel
         run: |
-          cargo install cross
-          sudo apt-get update
-          sudo apt-get install -y qemu-user-static
-
-      - name: Build wheel (x86_64 macOS)
-        if: matrix.os == 'macos-latest' && matrix.arch == 'x86_64'
-        run: |
-          rustup target add x86_64-apple-darwin
+          pwd
           cd python/delta-kernel-python
-          maturin build --release --target x86_64-apple-darwin
-        shell: bash
-
-      - name: Build wheel (ARM macOS)
-        if: matrix.os == 'macos-latest' && matrix.arch == 'arm64'
-        run: |
-          rustup target add aarch64-apple-darwin
-          cd python/delta-kernel-python
-          maturin build --release --target aarch64-apple-darwin
-        shell: bash
-
-
-      - name: Build wheel (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          rustup target add ${{ matrix.arch }}-unknown-linux-gnu
-          cd python/delta-kernel-python
-          cross build --release --target ${{ matrix.arch }}-unknown-linux-gnu
+          maturin build --release
         shell: bash
 
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
           name: wheels
-          path: python/delta-kernel-python/target/${{ matrix.arch }}-unknown-linux-gnu/release/*.whl
+          path: python/delta-kernel-python/target/wheels/*.whl
