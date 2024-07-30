@@ -72,6 +72,7 @@ jobs:
       - name: Build wheel (aarch64 Linux)
         if: matrix.os == 'ubuntu-latest' && matrix.arch == 'aarch64'
         run: |
+          sudo apt-get update
           sudo apt-get install -y aarch64-linux-gnu-gcc
           rustup target add aarch64-unknown-linux-gnu
           cd python/delta-kernel-python
