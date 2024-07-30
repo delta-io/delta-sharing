@@ -10,12 +10,12 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: [3.8]
-        arch: [x86_64, arm64, aarch64]
+        arch: [x86_64, arm64]
         include:
           - os: macos-latest
             arch: x86_64
@@ -23,8 +23,6 @@ jobs:
             arch: arm64
           - os: ubuntu-latest
             arch: x86_64
-          - os: ubuntu-latest
-            arch: aarch64
           - os: windows-latest
             arch: x86_64
 
@@ -45,21 +43,6 @@ jobs:
 
       - name: Install maturin
         run: pip install maturin
-
-      - name: Set up QEMU for cross-compilation
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'aarch64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu binfmt-support qemu-user-static
-          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-
-      - name: Build wheel using manylinux2014 (AARCH64 Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'aarch64'
-        run: |
-          docker run --rm -e PLAT=aarch64 \
-            -v $(pwd):/io quay.io/pypa/manylinux2014_aarch64 \
-            /opt/python/cp38-cp38/bin/python -m pip wheel /io -w /io/wheelhouse/
-        shell: bash
 
       - name: Build wheel (x86_64 macOS)
         if: matrix.os == 'macos-latest' && matrix.arch == 'x86_64'
@@ -84,8 +67,8 @@ jobs:
           maturin build --release
         shell: powershell
 
-      - name: Build wheel (x86_64 Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x86_64'
+      - name: Build wheel (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           cd python/delta-kernel-python
           maturin build --release
