@@ -15,7 +15,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: [3.8]
-        arch: [x86_64, arm64, aarch64]
+        arch: [x86_64, arm64]
         include:
           - os: macos-latest
             arch: x86_64
@@ -23,8 +23,6 @@ jobs:
             arch: arm64
           - os: ubuntu-latest
             arch: x86_64
-          - os: ubuntu-latest
-            arch: aarch64
           - os: windows-latest
             arch: x86_64
 
@@ -69,32 +67,11 @@ jobs:
           maturin build --release
         shell: powershell
 
-      - name: Build wheel (x86_64 Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x86_64'
+      - name: Build wheel (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           cd python/delta-kernel-python
           maturin build --release
-        shell: bash
-
-      - name: Build wheel (aarch64 Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'aarch64'
-        run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          sudo apt-get install -y libssl-dev:arm64
-          export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu
-          export PKG_CONFIG_PATH=/usr/aarch64-linux-gnu/lib/pkgconfig
-          export OPENSSL_DIR=/usr/aarch64-linux-gnu
-          export OPENSSL_INCLUDE_DIR=/usr/aarch64-linux-gnu/include
-          export OPENSSL_LIB_DIR=/usr/aarch64-linux-gnu/lib
-          export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu
-          export PKG_CONFIG_PATH=/usr/aarch64-linux-gnu/lib/pkgconfig
-          export OPENSSL_DIR=/usr/aarch64-linux-gnu
-          export OPENSSL_INCLUDE_DIR=/usr/aarch64-linux-gnu/include
-          export OPENSSL_LIB_DIR=/usr/aarch64-linux-gnu/lib
-          
-          rustup target add aarch64-unknown-linux-gnu	
-          cd python/delta-kernel-python
-          maturin build --release --target aarch64-unknown-linux-gnu
         shell: bash
 
       - name: Upload wheels
