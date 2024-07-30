@@ -74,7 +74,7 @@ jobs:
         run: |
           cargo install cross
           sudo apt-get update
-          sudo apt-get install -y qemu-user-static
+          sudo apt-get install -y gcc-aarch64-linux-gnu qemu-user-static
           rustup target add aarch64-unknown-linux-gnu
           cd python/delta-kernel-python
           maturin build --release --target aarch64-unknown-linux-gnu
