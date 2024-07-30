@@ -63,7 +63,7 @@ jobs:
         shell: powershell
 
       - name: Build wheel (x86_64 Linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x86_64'
         run: |
           cd python/delta-kernel-python
           maturin build --release
