@@ -1,4 +1,4 @@
-name: Build wheels
+name: Build wheels for delta-kernel-python
 
 on:
   push:
@@ -70,14 +70,14 @@ jobs:
         shell: powershell
 
       - name: Build wheel (x86_64 Linux)
-        if: matrix.os == 'ubuntu-latest'&& matrix.arch == 'x86_64'
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x86_64'
         run: |
           cd python/delta-kernel-python
           maturin build --release
         shell: bash
 
       - name: Build wheel (ARM Linux)
-        if: matrix.os == 'ubuntu-latest'&& matrix.arch == 'aarch64'
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'aarch64'
         run: |
           cd python/delta-kernel-python
           maturin build --release
