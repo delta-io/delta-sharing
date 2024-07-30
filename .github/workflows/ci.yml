@@ -15,11 +15,17 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: [3.8]
+        arch: [x86_64, arm64]
         include:
           - os: macos-latest
             arch: x86_64
           - os: macos-latest
             arch: arm64
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: windows-latest
+            arch: x86_64
+
     steps:
       - uses: actions/checkout@v2
 
@@ -54,8 +60,15 @@ jobs:
           maturin build --release --target aarch64-apple-darwin
         shell: bash
 
-      - name: Build wheel (other platforms)
-        if: matrix.os != 'macos-latest'
+      - name: Build wheel (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd python/delta-kernel-python
+          maturin build --release
+        shell: powershell
+
+      - name: Build wheel (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           cd python/delta-kernel-python
           maturin build --release
