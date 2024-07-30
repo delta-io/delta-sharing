@@ -15,73 +15,135 @@ on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  linux:
-    runs-on: ${{ matrix.platform.runner }}
+  build:
+    runs-on: ${{ matrix.os }}
+    needs: lint
     strategy:
+      fail-fast: false
       matrix:
-        platform:
-          - runner: ubuntu-latest
-            target: x86
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 3.x
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.platform.target }}
-          args: --release --out dist --manifest-path ../../python/delta-kernel-python/Cargo.toml
-          sccache: 'true'
-          manylinux: auto
-        env:
-          NODE_OPTIONS: --max_old_space_size=32768
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-linux-${{ matrix.platform.target }}
-          path: dist
-      - name: pytest
-        if: ${{ startsWith(matrix.platform.target, 'x86_64') }}
-        shell: bash
-        run: |
-          set -e
-          python3 -m venv .venv
-          source .venv/bin/activate
-          pip install delta_kernel_python --find-links dist --force-reinstall
-          pip install pytest
-          cd ../../python/delta-kernel-python && pytest
-      - name: pytest
-        if: ${{ !startsWith(matrix.platform.target, 'x86') && matrix.platform.target != 'ppc64' }}
-        uses: uraimo/run-on-arch-action@v2
-        with:
-          arch: ${{ matrix.platform.target }}
-          distro: ubuntu22.04
-          githubToken: ${{ github.token }}
-          install: |
-            apt-get update
-            apt-get install -y --no-install-recommends python3 python3-pip
-            pip3 install -U pip pytest
-          run: |
-            set -e
-            pip3 install delta_kernel_python --find-links dist --force-reinstall
-            cd ../../python/delta-kernel-python && pytest
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        exclude:
+          # There is a known issue where Python C extensions
+          # can not be built on Python 3.5 on Windows.
+          # https://github.com/actions/virtual-environments/issues/34
+          # Therefore, ujson can't be compiled and the build would fail.
+          - os: windows-latest
+            python-version: 3.5
 
-  release:
-    name: Release
-    runs-on: ubuntu-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
-    needs: [linux]
     steps:
-      - uses: actions/download-artifact@v4
-      - name: Publish to PyPI
-        uses: PyO3/maturin-action@v1
-        env:
-          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v1
         with:
-          command: upload
-          args: --non-interactive --skip-existing wheels-*/*
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
+
+      - name: Add poetry to path
+        if:  matrix.os != 'windows-latest'
+        run: echo "${HOME}/.poetry/bin" >> $GITHUB_PATH
+      
+      - name: Add poetry to path
+        if:  matrix.os == 'windows-latest'
+        run: echo "${HOME}/.poetry/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install package deps
+        run: | 
+          poetry install
+
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+
+      - name: Build Python package
+        run: | 
+          cd ../../python/delta-kernel-python
+          poetry run maturin develop --release
+
+      - name: pytest
+        run: poetry run pytest tests
+
+      - name: Benchmark
+        run: poetry run pytest benchmarks --compare
+
+  python-publish:
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        exclude:
+          # There is a known issue where Python C extensions
+          # can not be built on Python 3.5 on Windows.
+          # https://github.com/actions/virtual-environments/issues/34
+          # Therefore, ujson can't be compiled and the build would fail.
+          - os: windows-latest
+            python-version: 3.5
+    steps:
+      - uses: actions/checkout@v1
+
+      - uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install
+
+      - name: Build Python package
+        run: |
+          cd ../../python/delta-kernel-python
+          poetry run maturin build --release --no-sdist --strip --interpreter python${{matrix.python_version}}
+
+      - name: List wheels
+        if: matrix.os == 'windows-latest'
+        run: dir target\wheels\
+
+      - name: List wheels
+        if:  matrix.os != 'windows-latest'
+        run: find ./target/wheels/
+
+      # Note: Windows doesn't support glob
+      # https://stackoverflow.com/a/52481267/270334
+      - name: Install wheels
+        if:  matrix.os == 'windows-latest'
+        run: pip install --find-links=target\wheels hyperjson
+
+      - name: Install wheels
+        if:  matrix.os != 'windows-latest'
+        run: pip install target/wheels/hyperjson*.whl
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: target/wheels/hyperjson*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: PyPi publish
+        if: github.event_name == 'release' && github.event.action == 'created'
+        env:
+          MATURIN_PASSWORD: ${{ secrets.PYPI }}
+        run: |
+          cd ../../python/delta-kernel-python
+          poetry run maturin publish --username __token__
