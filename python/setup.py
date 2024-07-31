@@ -82,6 +82,3 @@ setup(
         'Programming Language :: Python :: 3.11',
     ],
 )
-
-chdir('delta-kernel-rust-sharing-wrapper')
-subprocess.check_call([sys.executable, "-m", "maturin", "develop"])

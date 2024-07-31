@@ -1,9 +1,5 @@
 #!/bin/bash -e -pipe
 
-# Switch to the project root directory
-cd $( dirname $0 )
-cd ..
-
 # Clean up uncommitted files
 #git clean -fdx
 
