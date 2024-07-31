@@ -62,12 +62,12 @@ jobs:
           maturin build --release --target aarch64-apple-darwin
         shell: bash
 
-      - name: Build wheel (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          cd python/delta-kernel-python
-          maturin build --release
-        shell: powershell
+#      - name: Build wheel (Windows)
+#        if: runner.os == 'Windows'
+#        run: |
+#          cd python/delta-kernel-python
+#          maturin build --release
+#        shell: powershell
 
       - name: Build wheel (x86_64 Linux)
         if: runner.os == 'ubuntu-latest' && runner.arch == 'x86_64'
