@@ -1,4 +1,4 @@
-name: Build wheels for delta-kernel-python
+name: Build wheels for delta-kernel-python 1
 
 on:
   push:
@@ -70,21 +70,17 @@ jobs:
         shell: powershell
 
       - name: Build wheel (x86_64 Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x86_64'
+        if: runner.os == 'ubuntu-latest' && runner.arch == 'x86_64'
         run: |
           cd python/delta-kernel-python
           maturin build --release
         shell: bash
 
       - name: Build wheel (aarch64 Linux)
-          if: matrix.os == 'ubuntu-latest' && matrix.arch == 'aarch64'
+          if: runner.os == 'ubuntu-latest' && runner.arch == 'arm64'
           run: |
-            cargo install cross
-            sudo apt-get update
-            sudo apt-get install -y qemu-user-static
-            rustup target add aarch64-unknown-linux-gnu
-            cd python/delta-kernel-python
-            maturin build --release --target aarch64-unknown-linux-gnu
+          cd python/delta-kernel-python
+          maturin build --release
           shell: bash
 
       - name: Upload wheels
