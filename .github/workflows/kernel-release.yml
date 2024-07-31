@@ -23,8 +23,6 @@ jobs:
             arch: arm64
           - os: ubuntu-latest
             arch: x86_64
-          - os: ubuntu-latest
-            arch: arm64
           - os: windows-latest
             arch: x86_64
 
@@ -74,16 +72,6 @@ jobs:
         run: |
           cd python/delta-kernel-python
           maturin build --release
-        shell: bash
-
-      - name: Build wheel (aarch64 Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
-          cd python/delta-kernel-python
-          CC=aarch64-linux-gnu-gcc maturin build --release --target manylinux2014_aarch64
         shell: bash
 
       - name: Upload wheels
