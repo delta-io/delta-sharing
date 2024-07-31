@@ -139,11 +139,11 @@ impl PythonInterface {
     }
 }
 
-/// Define the delta_kernel_python module. The name of this function _must_ be
-/// `delta_kernel_python`, and _must_ the `lib.name` setting in the `Cargo.toml`, otherwise Python
+/// Define the delta_kernel_rust_sharing_wrapper module. The name of this function _must_ be
+/// `delta_kernel_rust_sharing_wrapper`, and _must_ the `lib.name` setting in the `Cargo.toml`, otherwise Python
 /// will not be able to import the module.
 #[pymodule]
-fn delta_kernel_python(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn delta_kernel_rust_sharing_wrapper(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Table>()?;
     m.add_class::<PythonInterface>()?;
     m.add_class::<Snapshot>()?;

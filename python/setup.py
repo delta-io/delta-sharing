@@ -41,17 +41,15 @@ setup(
     packages=[
         'delta_sharing',
     ],
-    python_requires='>=3.7',
+    python_requires='>=3.8',
     install_requires=[
         'pandas',
-        'pyarrow>=4.0.0',
+        'pyarrow>=16.1.0',
         'fsspec>=0.7.4',
         'requests',
         'aiohttp',
-        'dataclasses;python_version<"3.7"',
+        'dataclasses;python_version<"3.8"',
         'yarl>=1.6.0',
-        'maturin',
-        'pyarrow',
     ],
     extras_require={
         's3': ['s3fs'],
@@ -78,11 +76,12 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
         "Topic :: Software Development :: Libraries :: Python Modules",
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
     ],
 )
 
-chdir('delta-kernel-python')
+chdir('delta-kernel-rust-sharing-wrapper')
 subprocess.check_call([sys.executable, "-m", "maturin", "develop"])
