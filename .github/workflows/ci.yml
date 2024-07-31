@@ -15,7 +15,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: [3.8]
-        arch: [x86_64, arm64, aarch64]
+        arch: [x86_64, arm64]
         include:
           - os: macos-latest
             arch: x86_64
@@ -23,8 +23,6 @@ jobs:
             arch: arm64
           - os: ubuntu-latest
             arch: x86_64
-          - os: ubuntu-latest
-            arch: aarch64
           - os: windows-latest
             arch: x86_64
 
@@ -63,14 +61,7 @@ jobs:
         shell: powershell
 
       - name: Build wheel (x86_64 Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x86_64'
-        run: |
-          cd python/delta-kernel-python
-          maturin build --release
-        shell: bash
-
-      - name: Build wheel (aarch64 Linux)
-        if: runner.os == 'ubuntu-latest' && runner.arch == 'aarch64'
+        if: matrix.os == 'ubuntu-latest'
         run: |
           cd python/delta-kernel-python
           maturin build --release
