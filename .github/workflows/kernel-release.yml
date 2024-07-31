@@ -70,17 +70,20 @@ jobs:
 #        shell: powershell
 
       - name: Build wheel (x86_64 Linux)
-        if: runner.os == 'ubuntu-latest' && runner.arch == 'x86_64'
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x86_64'
         run: |
           cd python/delta-kernel-python
           maturin build --release
         shell: bash
 
-      - name: Build wheel (arm64 Linux)
-        if: runner.os == 'ubuntu-latest' && runner.arch == 'arm64'
+      - name: Build wheel (aarch64 Linux)
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'arm64'
         run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
           cd python/delta-kernel-python
-          maturin build --release
+          maturin build --release --target manylinux2014_arm64
         shell: bash
 
       - name: Upload wheels
