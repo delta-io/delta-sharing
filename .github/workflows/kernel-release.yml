@@ -15,7 +15,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: [3.8]
-        arch: [x86_64, arm64, aarch64]
+        arch: [x86_64, arm64]
         include:
           - os: macos-latest
             arch: x86_64
@@ -24,7 +24,7 @@ jobs:
           - os: ubuntu-latest
             arch: x86_64
           - os: ubuntu-latest
-            arch: aarch64
+            arch: arm64
           - os: windows-latest
             arch: x86_64
 
@@ -76,12 +76,12 @@ jobs:
           maturin build --release
         shell: bash
 
-      - name: Build wheel (aarch64 Linux)
-          if: runner.os == 'ubuntu-latest' && runner.arch == 'arm64'
-          run: |
+      - name: Build wheel (arm64 Linux)
+        if: runner.os == 'ubuntu-latest' && runner.arch == 'arm64'
+        run: |
           cd python/delta-kernel-python
           maturin build --release
-          shell: bash
+        shell: bash
 
       - name: Upload wheels
         uses: actions/upload-artifact@v2
