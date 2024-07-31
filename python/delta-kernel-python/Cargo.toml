@@ -10,6 +10,7 @@ name = "delta_kernel_python"
 crate-type = ["cdylib"]
 
 [dependencies]
+openssl = { version = "0.10", features = ["vendored"] } 
 arrow = { version = "^52.0", features = ["pyarrow"] }
 delta_kernel = {version = "^0.2", features = ["cloud", "default", "default-engine"]}
 url = "2"
