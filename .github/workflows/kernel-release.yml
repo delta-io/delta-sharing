@@ -83,7 +83,7 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
           cd python/delta-kernel-python
-          maturin build --release --target manylinux2014_arm64
+          maturin build --release --target manylinux2014_aarch64
         shell: bash
 
       - name: Upload wheels
