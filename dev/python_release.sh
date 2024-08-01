@@ -1,14 +1,19 @@
 #!/bin/bash -e -pipe
 
-# Clean up uncommitted files
-#git clean -fdx
+# Switch to the project root directory
+cd $( dirname $0 )
+cd ..
 
+# Clean up uncommitted files
+git clean -fdx
+
+# Clean existing artifacts
 cd python
 python3 setup.py clean --all
 rm -rf delta_sharing.egg-info dist
 cd ..
 
-printf "Please type the python release version: "
+printf "Please type the release version: "
 read VERSION
 echo $VERSION
 
@@ -19,7 +24,7 @@ git add python/delta_sharing/version.py
 git commit -m "Update Python connector version to $VERSION" --allow-empty
 
 # Switch to the release commit
-git checkout v$VERSION
+git checkout py-v$VERSION
 
 # Generate Python artifacts
 cd python/
