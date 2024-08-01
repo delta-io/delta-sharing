@@ -28,4 +28,6 @@ cd python/
 python3 setup.py sdist bdist_wheel
 cd ..
 
+git checkout main
+
 echo "=== Generated all release artifacts ==="
