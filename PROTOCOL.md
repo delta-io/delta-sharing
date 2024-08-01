@@ -2082,7 +2082,7 @@ The API supports a start parameter and and an end parameter. The start/end param
 You can specify a version as a Long or a timestamp as a string in the [Timestamp Format](#timestamp-format).
 
 The change data feed represents row-level changes between versions of a Delta table. It records change data for UPDATE, DELETE, and MERGE operations. If you leverage the connectors provided by this library to read change data feed, it results in three metadata columns that identify the type of change event, in addition to the data columns:
-- _change_type (type: String): There are four values: insert, update_preimage, update_postimage, delete. preimage is the value before the udpate, postimage is the value after the update.
+- _change_type (type: String): There are four values: insert, update_preimage, update_postimage, delete. preimage is the value before the update, postimage is the value after the update.
 - _commit_version (type: Long): The table version containing the change.
 - _commit_timestamp (type: Long): The unix timestamp associated when the commit of the change was created, in milliseconds. 
 
