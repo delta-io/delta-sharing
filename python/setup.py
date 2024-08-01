@@ -16,10 +16,9 @@
 # limitations under the License.
 #
 from io import open
-from os import path, chdir
+from os import path
 from setuptools import setup
 import sys
-import subprocess
 
 DESCRIPTION = "Python Connector for Delta Sharing"
 
