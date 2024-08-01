@@ -78,7 +78,7 @@ jobs:
           conda install -c conda-forge --yes --file python/requirements-dev.txt
           conda list
           cd python
-          cd delta-kernel-python
+          cd delta-kernel-rust-sharing-wrapper
           maturin develop
       - name: Build Server
         run: ./build/sbt package
