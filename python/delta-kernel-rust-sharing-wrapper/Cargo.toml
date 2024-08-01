@@ -2,7 +2,7 @@
 name = "delta-kernel-rust-sharing-wrapper"
 edition = "2021"
 license = "Apache-2.0"
-version = "0.0.1"
+version = "0.1.0"
 
 [lib]
 name = "delta_kernel_rust_sharing_wrapper"
