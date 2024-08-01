@@ -42,6 +42,7 @@ class DeltaSharingReader:
         limit: Optional[int] = None,
         version: Optional[int] = None,
         timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
     ):
         self._table = table
         self._rest_client = rest_client
@@ -57,6 +58,7 @@ class DeltaSharingReader:
         self._limit = limit
         self._version = version
         self._timestamp = timestamp
+        self._use_delta_format = use_delta_format
 
     @property
     def table(self) -> Table:
@@ -172,11 +174,19 @@ class DeltaSharingReader:
         return result
 
     def to_pandas(self) -> pd.DataFrame:
-        response_format = self._rest_client.autoresolve_query_format(self._table)
+        response_format = ""
+        # If client does not specify which format to use, autoresolve it.
+        # Otherwise use the specified format.
+        if self._use_delta_format is None:
+            response_format = self._rest_client.autoresolve_query_format(self._table)
+        elif self._use_delta_format:
+            response_format = response_format = DataSharingRestClient.DELTA_FORMAT
 
+        # If the response format is delta, use delta kernel rust
         if (response_format == DataSharingRestClient.DELTA_FORMAT):
             return self.__to_pandas_kernel()
 
+        # Otherwise use the standard approach
         response = self._rest_client.list_files_in_table(
             self._table,
             predicateHints=self._predicateHints,

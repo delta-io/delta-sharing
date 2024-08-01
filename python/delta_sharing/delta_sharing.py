@@ -104,6 +104,7 @@ def load_as_pandas(
     version: Optional[int] = None,
     timestamp: Optional[str] = None,
     jsonPredicateHints: Optional[str] = None,
+    use_delta_format: Optional[bool] = None,
 ) -> pd.DataFrame:
     """
     Load the shared table using the given url as a pandas DataFrame.
@@ -125,7 +126,8 @@ def load_as_pandas(
         jsonPredicateHints=jsonPredicateHints,
         limit=limit,
         version=version,
-        timestamp=timestamp
+        timestamp=timestamp,
+        use_delta_format=use_delta_format
     ).to_pandas()
 
 

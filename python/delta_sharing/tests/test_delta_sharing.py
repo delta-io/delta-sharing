@@ -710,6 +710,10 @@ def test_load_as_pandas_success_dv_and_cm(
     expected['partition_col'] = expected['partition_col'].astype('int32')
     pd.testing.assert_frame_equal(pdf, expected)
 
+    # Test client specifying explicit delta format
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None, None, True)
+    pd.testing.assert_frame_equal(pdf, expected)
+
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
@@ -732,6 +736,39 @@ def test_load_as_pandas_success_empty_dv_and_cm(
     expected: pd.DataFrame
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,limit,version,expected",
+    [
+        pytest.param(
+            "share1.default.table1",
+            None,
+            None,
+            pd.DataFrame(
+                {
+                    "eventTime": [
+                        pd.Timestamp("2021-04-28T06:32:22.421+00:00"),
+                        pd.Timestamp("2021-04-28T06:32:02.070+00:00"),
+                    ],
+                    "date": [date(2021, 4, 28), date(2021, 4, 28)],
+                }
+            ),
+            id="non partitioned",
+        )
+    ],
+)
+def test_load_as_pandas_success_client_delta_kernel_enabled_with_normal_table(
+    profile_path: str,
+    fragments: str,
+    limit: Optional[int],
+    version: Optional[int],
+    expected: pd.DataFrame
+):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None, None, True)
+    expected['eventTime'] = expected['eventTime'].astype('datetime64[us, UTC]')
     pd.testing.assert_frame_equal(pdf, expected)
 
 
@@ -907,6 +944,33 @@ def test_load_as_pandas_exception_kernel(
 ):
     try:
         load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp)
+        assert False
+    except Exception as e:
+        assert error in str(e)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,version,timestamp,error",
+    [
+        pytest.param(
+            "share8.default.table_with_cm_name",
+            None,
+            None,
+            "Unsupported Delta Table Properties",
+            id="column mapping id not supported",
+        ),
+    ],
+)
+def test_load_as_pandas_exception_client_delta_kernel_disabled_with_delta_table(
+    profile_path: str,
+    fragments: str,
+    version: Optional[int],
+    timestamp: Optional[str],
+    error: Optional[str]
+):
+    try:
+        load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp, None, False)
         assert False
     except Exception as e:
         assert error in str(e)
