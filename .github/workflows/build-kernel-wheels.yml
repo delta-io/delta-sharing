@@ -1,0 +1,74 @@
+name: Build wheels for 4 os for delta-kernel-rust-sharing-wrapper
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: [3.8]
+        arch: [x86_64, arm64]
+        include:
+          - os: macos-latest
+            arch: x86_64
+          - os: macos-latest
+            arch: arm64
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: windows-latest
+            arch: x86_64
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build wheel (x86_64 macOS)
+        if: matrix.os == 'macos-latest' && matrix.arch == 'x86_64'
+        run: |
+          rustup target add x86_64-apple-darwin
+          cd python/delta-kernel-python
+          maturin build --release --target x86_64-apple-darwin
+        shell: bash
+
+      - name: Build wheel (ARM macOS)
+        if: matrix.os == 'macos-latest' && matrix.arch == 'arm64'
+        run: |
+          rustup target add aarch64-apple-darwin
+          cd python/delta-kernel-python
+          maturin build --release --target aarch64-apple-darwin
+        shell: bash
+
+      - name: Build wheel (x86_64 Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd python/delta-kernel-python
+          maturin build --release
+        shell: powershell
+
+      - name: Build wheel (x86_64 Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cd python/delta-kernel-python
+          maturin build --release
+        shell: bash
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: python/delta-kernel-python/target/wheels/*.whl
