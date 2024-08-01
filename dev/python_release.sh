@@ -4,9 +4,6 @@
 cd $( dirname $0 )
 cd ..
 
-# Clean up uncommitted files
-git clean -fdx
-
 # Clean existing artifacts
 cd python
 python3 setup.py clean --all
