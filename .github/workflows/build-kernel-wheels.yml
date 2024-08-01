@@ -1,4 +1,4 @@
-name: Build wheels for 4 os for delta-kernel-rust-sharing-wrapper
+name: Build wheels for 4 os for delta-kernel-rust-sharing-wrapper 
 
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
         if: matrix.os == 'macos-latest' && matrix.arch == 'x86_64'
         run: |
           rustup target add x86_64-apple-darwin
-          cd python/delta-kernel-python
+          cd python/delta-kernel-rust-sharing-wrapper
           maturin build --release --target x86_64-apple-darwin
         shell: bash
 
@@ -49,21 +49,21 @@ jobs:
         if: matrix.os == 'macos-latest' && matrix.arch == 'arm64'
         run: |
           rustup target add aarch64-apple-darwin
-          cd python/delta-kernel-python
+          cd python/delta-kernel-rust-sharing-wrapper
           maturin build --release --target aarch64-apple-darwin
         shell: bash
 
       - name: Build wheel (x86_64 Windows)
         if: runner.os == 'Windows'
         run: |
-          cd python/delta-kernel-python
+          cd python/delta-kernel-rust-sharing-wrapper
           maturin build --release
         shell: powershell
 
       - name: Build wheel (x86_64 Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          cd python/delta-kernel-python
+          cd python/delta-kernel-rust-sharing-wrapper
           maturin build --release
         shell: bash
 
@@ -71,4 +71,4 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: wheels
-          path: python/delta-kernel-python/target/wheels/*.whl
+          path: python/delta-kernel-rust-sharing-wrapper/target/wheels/*.whl
