@@ -10,7 +10,7 @@ python3 setup.py clean --all
 rm -rf delta_sharing.egg-info dist
 cd ..
 
-printf "Please type the release version: "
+printf "Please type the python release version: "
 read VERSION
 echo $VERSION
 
