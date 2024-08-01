@@ -21,7 +21,7 @@ git add python/delta_sharing/version.py
 git commit -m "Update Python connector version to $VERSION" --allow-empty
 
 # Switch to the release commit
-git checkout py-v$VERSION
+git checkout v$VERSION
 
 # Generate Python artifacts
 cd python/
