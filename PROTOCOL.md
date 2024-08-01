@@ -2460,11 +2460,11 @@ responses to be compatible with legacy servers.
 ### responseFormat
 Indicates the format to expect in the [API Response Format in Parquet](#api-response-format-in-parquet), two values are supported.
 
-- parquet: Represents the format of the delta sharing protocol that has been used in `delta-sharing-spark` 1.0 
+- **parquet**: Represents the format of the delta sharing protocol that has been used in `delta-sharing-spark` 1.0 
 and less, also the default format if `responseFormat` is missing from the header. All the existing delta
 sharing connectors are able to process data in this format. 
 - **delta**: format can be used to read a shared delta table with minReaderVersion > 1, which contains 
-readerFeatures such as Deletion Vector or Column Mapping. `delta-sharing-spark` libraries 
+readerFeatures such as Deletion Vectors or Column Mapping. `delta-sharing-spark` libraries 
 that are able to process `responseformat=delta` will be released soon.
 
 ### readerFeatures
