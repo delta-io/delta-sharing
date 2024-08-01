@@ -1,11 +1,11 @@
 [package]
-name = "delta-kernel-python"
+name = "delta-kernel-rust-sharing-wrapper"
 edition = "2021"
 license = "Apache-2.0"
-version = "0.0.0"
+version = "0.0.1"
 
 [lib]
-name = "delta_kernel_python"
+name = "delta_kernel_rust_sharing_wrapper"
 # "cdylib" is necessary to produce a shared library for Python to import from.
 crate-type = ["cdylib"]
 
