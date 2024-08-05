@@ -197,7 +197,10 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       val profile = s"""{
                        |  "shareCredentialsVersion": 2,
                        |  "type" : "oauth_client_credentials",
-                       |  ${mandatoryFields.filter(_ != missingField).map(f => s""""$f": "value"""").mkString(",\n")}
+                       |  ${mandatoryFields
+                              .filter(_ != missingField)
+                              .map(f => s""""$f": "value"""")
+                              .mkString(",\n")}
                        |}""".stripMargin
 
       val e = intercept[IllegalArgumentException] {
