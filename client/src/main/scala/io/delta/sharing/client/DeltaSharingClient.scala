@@ -29,6 +29,7 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import org.apache.commons.io.IOUtils
 import org.apache.commons.io.input.BoundedInputStream
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.security.alias.CredentialProviderFactory
 import org.apache.hadoop.util.VersionInfo
 import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
 import org.apache.http.client.config.RequestConfig
@@ -41,6 +42,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 
 import io.delta.sharing.client.model._
+import io.delta.sharing.client.auth.AuthCredentialProviderFactory
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
 
 /** An interface to fetch Delta metadata from remote server. */
@@ -202,6 +204,11 @@ class DeltaSharingRestClient(
     created = true
     client
   }
+
+  private lazy val credentialProvider = AuthCredentialProviderFactory.createCredentialProvider(
+    profileProvider.getProfile,
+    client
+  )
 
   override def getProfileProvider: DeltaSharingProfileProvider = profileProvider
 
@@ -931,13 +938,18 @@ class DeltaSharingRestClient(
   }
 
   private def tokenExpired(profile: DeltaSharingProfile): Boolean = {
-    if (profile.expirationTime == null) return false
-    try {
-      val expirationTime = Timestamp.valueOf(
-        LocalDateTime.parse(profile.expirationTime, ISO_DATE_TIME))
-      expirationTime.before(Timestamp.valueOf(LocalDateTime.now()))
-    } catch {
-      case _: Throwable => false
+    profile match {
+      case bt @  BearerTokenDeltaSharingProfile(shareCredentialsVersion, endpoint, bearerToken, expirationTime) => {
+        if (expirationTime == null) return false
+        try {
+          val expirationTime = Timestamp.valueOf(
+            LocalDateTime.parse(bt.expirationTime, ISO_DATE_TIME))
+          expirationTime.before(Timestamp.valueOf(LocalDateTime.now()))
+        } catch {
+          case _: Throwable => false
+        }
+      }
+      case _ => false
     }
   }
 
@@ -951,11 +963,11 @@ class DeltaSharingRestClient(
       )
     }
     val headers = Map(
-      HttpHeaders.AUTHORIZATION -> s"Bearer ${profileProvider.getProfile.bearerToken}",
       HttpHeaders.USER_AGENT -> getUserAgent(),
       DELTA_SHARING_CAPABILITIES_HEADER -> getDeltaSharingCapabilities()
     ) ++ customeHeaders
     headers.foreach(header => httpRequest.setHeader(header._1, header._2))
+    credentialProvider.addAuthHeader(httpRequest)
 
     httpRequest
   }
@@ -1023,7 +1035,7 @@ class DeltaSharingRestClient(
           var additionalErrorInfo = ""
           if (statusCode == HttpStatus.SC_UNAUTHORIZED && tokenExpired(profile)) {
             additionalErrorInfo = s"It may be caused by an expired token as it has expired " +
-              s"at ${profile.expirationTime}"
+              s"at ${profile.asInstanceOf[BearerTokenDeltaSharingProfile].expirationTime}"
           }
           // Only show the last 100 lines in the error to keep it contained.
           val responseToShow = lines.drop(lines.size - 100).mkString("\n")

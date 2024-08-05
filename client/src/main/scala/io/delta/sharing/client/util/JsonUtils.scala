@@ -17,7 +17,7 @@
 package io.delta.sharing.client.util
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include
-import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
+import com.fasterxml.jackson.databind.{DeserializationFeature, JsonNode, ObjectMapper}
 import com.fasterxml.jackson.module.scala.{DefaultScalaModule, ScalaObjectMapper}
 
 private[sharing] object JsonUtils {
@@ -36,5 +36,9 @@ private[sharing] object JsonUtils {
 
   def fromJson[T: Manifest](json: String): T = {
     mapper.readValue[T](json)
+  }
+
+  def readTree(json: String) : JsonNode = {
+    mapper.readTree(json)
   }
 }
