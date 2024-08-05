@@ -17,17 +17,16 @@
 package io.delta.sharing.client
 
 import java.nio.charset.StandardCharsets.UTF_8
+import java.util.Locale
 
 import com.fasterxml.jackson.core.JsonParser
-import com.fasterxml.jackson.databind.{DeserializationContext, JsonDeserializer, ObjectMapper}
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.node.ObjectNode
+import com.fasterxml.jackson.databind.{DeserializationContext, JsonDeserializer}
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.spark.delta.sharing.TableRefreshResult
-import com.fasterxml.jackson.databind.module.SimpleModule
-import com.fasterxml.jackson.databind.node.ObjectNode
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
 
 import io.delta.sharing.client.util.JsonUtils
 
@@ -37,11 +36,10 @@ sealed trait DeltaSharingProfile {
   val endpoint: String
 }
 
-case class BearerTokenDeltaSharingProfile(
-                                           override val shareCredentialsVersion: Option[Int],
-                                           override val endpoint: String = null,
-                                           bearerToken: String = null,
-                                           expirationTime: String = null
+case class BearerTokenDeltaSharingProfile(override val shareCredentialsVersion: Option[Int],
+                                          override val endpoint: String = null,
+                                          bearerToken: String = null,
+                                          expirationTime: String = null
                                          ) extends DeltaSharingProfile
 
 object BearerTokenDeltaSharingProfile {
@@ -72,7 +70,7 @@ case class OAuthClientCredentialsDeltaSharingProfile(
                                                       tokenEndpoint: String = null,
                                                       clientId: String = null,
                                                       clientSecret: String = null,
-                                                      scope: Option[String] = None,
+                                                      scope: Option[String] = None
                                                     ) extends DeltaSharingProfile
 
 
@@ -80,7 +78,7 @@ private[client] class DeltaSharingProfileDeserializer extends JsonDeserializer[D
   override def deserialize(p: JsonParser, ctxt: DeserializationContext): DeltaSharingProfile = {
     val node: ObjectNode = p.getCodec.readTree(p).asInstanceOf[ObjectNode]
 
-    if (node.has("type") && node.get("type").asText().toLowerCase == "oauth_client_credentials") {
+    if (node.has("type") && node.get("type").asText().toLowerCase(Locale.ROOT) == "oauth_client_credentials") {
       // Deserialize as OAuthClientCredentialsDeltaSharingProfile
       OAuthClientCredentialsDeltaSharingProfile(
         shareCredentialsVersion = Option(node.get("shareCredentialsVersion")).map(_.asInt()),
@@ -155,7 +153,7 @@ trait DeltaSharingProfileProvider {
   // `refresher` takes an optional refreshToken, and returns
   // (idToUrlMap, minUrlExpirationTimestamp, refreshToken)
   def getCustomRefresher(
-      refresher: Option[String] => TableRefreshResult): Option[String] => TableRefreshResult = {
+                          refresher: Option[String] => TableRefreshResult): Option[String] => TableRefreshResult = {
     refresher
   }
 }
@@ -164,9 +162,8 @@ trait DeltaSharingProfileProvider {
  * Load [[DeltaSharingProfile]] from a file. `conf` should be provided to load the file from remote
  * file systems.
  */
-private[sharing] class DeltaSharingFileProfileProvider(
-    conf: Configuration,
-    file: String) extends DeltaSharingProfileProvider {
+private[sharing] class DeltaSharingFileProfileProvider(conf: Configuration,
+                                                       file: String) extends DeltaSharingProfileProvider {
 
   val profile = {
     val input = new Path(file).getFileSystem(conf).open(new Path(file))

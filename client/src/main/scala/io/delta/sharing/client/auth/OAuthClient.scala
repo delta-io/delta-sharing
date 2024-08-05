@@ -28,7 +28,12 @@ case class OAuthClientCredentials(accessToken: String,
                                   expiresIn: Long,
                                   creationTimestamp: Long)
 
-private[client] class OAuthClient(httpClient: CloseableHttpClient, tokenEndpoint: String, clientId: String, clientSecret: String, scope: Option[String] = None) {
+private[client] class OAuthClient(httpClient:
+                                  CloseableHttpClient,
+                                  tokenEndpoint: String,
+                                  clientId: String,
+                                  clientSecret: String,
+                                  scope: Option[String] = None) {
 
   def clientCredentials(): OAuthClientCredentials = {
     val credentials = Base64.getEncoder.encodeToString(s"$clientId:$clientSecret".getBytes("UTF-8"))

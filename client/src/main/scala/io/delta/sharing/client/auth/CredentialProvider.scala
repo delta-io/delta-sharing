@@ -22,7 +22,8 @@ import org.apache.http.impl.client.CloseableHttpClient
 import io.delta.sharing.client.{BearerTokenDeltaSharingProfile, DeltaSharingProfile, OAuthClientCredentialsDeltaSharingProfile}
 
 private[client] object AuthCredentialProviderFactory {
-  def createCredentialProvider(profile: DeltaSharingProfile, client: CloseableHttpClient): CredentialProvider = {
+  def createCredentialProvider(profile: DeltaSharingProfile,
+                               client: CloseableHttpClient): CredentialProvider = {
     profile match {
       case oauthProfile: OAuthClientCredentialsDeltaSharingProfile =>
         OAuthClientCredentialsAuthProvider(client, oauthProfile)
@@ -33,7 +34,7 @@ private[client] object AuthCredentialProviderFactory {
 }
 
 private[client] trait CredentialProvider {
-  def addAuthHeader(httpRequest: HttpRequestBase) : Unit
+  def addAuthHeader(httpRequest: HttpRequestBase): Unit
 }
 
 private[client] case class BearerTokenAuthProvider(bearerToken: String) extends CredentialProvider {
@@ -42,10 +43,13 @@ private[client] case class BearerTokenAuthProvider(bearerToken: String) extends 
   }
 }
 
-private[client] case class OAuthClientCredentialsAuthProvider(client: CloseableHttpClient, profile: OAuthClientCredentialsDeltaSharingProfile)
+private[client] case class
+OAuthClientCredentialsAuthProvider(client: CloseableHttpClient,
+                                   profile: OAuthClientCredentialsDeltaSharingProfile)
   extends CredentialProvider {
 
-  private[auth] lazy val oauthClient = new OAuthClient(client, profile.tokenEndpoint, profile.clientId, profile.clientSecret, profile.scope)
+  private[auth] lazy val oauthClient = new OAuthClient(client,
+    profile.tokenEndpoint, profile.clientId, profile.clientSecret, profile.scope)
 
   private var currentToken: Option[OAuthClientCredentials] = None
 
@@ -60,10 +64,12 @@ private[client] case class OAuthClientCredentialsAuthProvider(client: CloseableH
 
   // Method to set the current token for testing purposes
   private[auth] def setCurrentToken(token: OAuthClientCredentials): Unit = {
-    synchronized { currentToken = Some(token) }
+    synchronized {
+      currentToken = Some(token)
+    }
   }
 
-  private def refreshToken() : Unit = {
+  private def refreshToken(): Unit = {
     synchronized {
       if (currentToken.isEmpty || needsRefresh(currentToken.get)) {
         val newToken = oauthClient.clientCredentials()

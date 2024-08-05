@@ -29,7 +29,6 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import org.apache.commons.io.IOUtils
 import org.apache.commons.io.input.BoundedInputStream
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.security.alias.CredentialProviderFactory
 import org.apache.hadoop.util.VersionInfo
 import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
 import org.apache.http.client.config.RequestConfig
@@ -41,8 +40,8 @@ import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 
-import io.delta.sharing.client.model._
 import io.delta.sharing.client.auth.AuthCredentialProviderFactory
+import io.delta.sharing.client.model._
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
 
 /** An interface to fetch Delta metadata from remote server. */
@@ -939,7 +938,7 @@ class DeltaSharingRestClient(
 
   private def tokenExpired(profile: DeltaSharingProfile): Boolean = {
     profile match {
-      case bt @  BearerTokenDeltaSharingProfile(shareCredentialsVersion, endpoint, bearerToken, expirationTime) => {
+      case bt @ BearerTokenDeltaSharingProfile(_, _, _, expirationTime) =>
         if (expirationTime == null) return false
         try {
           val expirationTime = Timestamp.valueOf(
@@ -948,7 +947,6 @@ class DeltaSharingRestClient(
         } catch {
           case _: Throwable => false
         }
-      }
       case _ => false
     }
   }
