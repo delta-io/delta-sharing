@@ -15,11 +15,13 @@
  */
 package io.delta.sharing.client.auth
 
-import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
-import org.apache.http.impl.client.HttpClients
-import java.net.InetSocketAddress
-import java.io.OutputStream
+import java.io.IOException
 
+import org.apache.http.{HttpException, HttpResponse}
+import org.apache.http.entity.{ContentType, StringEntity}
+import org.apache.http.impl.bootstrap.{HttpServer, ServerBootstrap}
+import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
+import org.apache.http.protocol.{HttpContext, HttpRequestHandler}
 import org.apache.spark.SparkFunSuite
 
 class OAuthClientSuite extends SparkFunSuite {
@@ -27,26 +29,32 @@ class OAuthClientSuite extends SparkFunSuite {
   var server: HttpServer = _
 
   def startServer(): Unit = {
-    server = HttpServer.create(new InetSocketAddress(1080), 0)
-    server.createContext("/token", new HttpHandler {
-      override def handle(exchange: HttpExchange): Unit = {
-        val response = """{
-                         | "access_token": "test-access-token",
-                         | "expires_in": 3600,
-                         | "token_type": "bearer"
-                         |}""".stripMargin
-        exchange.sendResponseHeaders(200, response.getBytes.length)
-        val os: OutputStream = exchange.getResponseBody
-        os.write(response.getBytes)
-        os.close()
+    val handler = new HttpRequestHandler {
+      @throws[HttpException]
+      @throws[IOException]
+      override def handle(request: org.apache.http.HttpRequest,
+                          response: HttpResponse, context: HttpContext): Unit = {
+        val responseBody =
+          """{
+            | "access_token": "test-access-token",
+            | "expires_in": 3600,
+            | "token_type": "bearer"
+            |}""".stripMargin
+        response.setEntity(new StringEntity(responseBody, ContentType.APPLICATION_JSON))
+        response.setStatusCode(200)
       }
-    })
-    server.setExecutor(null)
+    }
+
+    server = ServerBootstrap.bootstrap()
+      .setListenerPort(1080)
+      .registerHandler("/token", handler)
+      .create()
+
     server.start()
   }
 
   def stopServer(): Unit = {
-    if (server != null) server.stop(0)
+    if (server != null) server.stop()
   }
 
   override def beforeAll(): Unit = {
@@ -58,8 +66,9 @@ class OAuthClientSuite extends SparkFunSuite {
   }
 
   test("OAuthClient should parse token response correctly") {
-    val httpClient = HttpClients.createDefault()
-    val oauthClient = new OAuthClient(httpClient, "http://localhost:1080/token", "client-id", "client-secret")
+    val httpClient: CloseableHttpClient = HttpClients.createDefault()
+    val oauthClient = new OAuthClient(httpClient,
+      "http://localhost:1080/token", "client-id", "client-secret")
 
     val start = System.currentTimeMillis()
 

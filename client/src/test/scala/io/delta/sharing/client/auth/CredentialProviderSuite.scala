@@ -33,10 +33,12 @@ class CredentialProviderSuite extends AnyFunSuite with MockitoSugar {
 
     provider.addAuthHeader(request)
 
-    assert(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue == s"Bearer $bearerToken")
+    assert(request.getFirstHeader(HttpHeaders.AUTHORIZATION)
+      .getValue == s"Bearer $bearerToken")
   }
 
-  test("OAuthClientCredentialsAuthProvider should exchange clientId and clientSecret for an access token on the first request") {
+  test("OAuthClientCredentialsAuthProvider should exchange clientId and clientSecret" +
+    " for an access token on the first request") {
     val client = mock[CloseableHttpClient]
     val mockOauthClient = mock[OAuthClient]
     val profile = OAuthClientCredentialsDeltaSharingProfile(
@@ -48,16 +50,19 @@ class CredentialProviderSuite extends AnyFunSuite with MockitoSugar {
     val request = new HttpGet("http://example.com")
 
     // Mock the token refresh
-    val token = OAuthClientCredentials("access-token", 3600, System.currentTimeMillis())
+    val token = OAuthClientCredentials("access-token",
+      3600, System.currentTimeMillis())
     when(mockOauthClient.clientCredentials()).thenReturn(token)
 
     provider.addAuthHeader(request)
 
-    assert(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue == s"Bearer ${token.accessToken}")
+    assert(request.getFirstHeader(HttpHeaders.AUTHORIZATION)
+      .getValue == s"Bearer ${token.accessToken}")
     verify(mockOauthClient, times(1)).clientCredentials()
   }
 
-  test("OAuthClientCredentialsAuthProvider should re-use current token if valid for another 11 minutes") {
+  test("OAuthClientCredentialsAuthProvider should re-use current token" +
+    " if valid for another 11 minutes") {
     val client = mock[CloseableHttpClient]
     val mockOauthClient = mock[OAuthClient]
     val profile = OAuthClientCredentialsDeltaSharingProfile(
@@ -69,14 +74,16 @@ class CredentialProviderSuite extends AnyFunSuite with MockitoSugar {
     val request = new HttpGet("http://example.com")
 
     // Set a token that is valid for another 11 minutes
-    val validToken = OAuthClientCredentials("valid-token", 11 * 60, System.currentTimeMillis())
+    val validToken = OAuthClientCredentials("valid-token",
+      11 * 60, System.currentTimeMillis())
     provider.setCurrentToken(validToken)
 
     provider.addAuthHeader(request)
 
     // Verify that the token is not refreshed
     verify(mockOauthClient, never()).clientCredentials()
-    assert(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue == s"Bearer ${validToken.accessToken}")
+    assert(request.getFirstHeader(HttpHeaders.AUTHORIZATION)
+      .getValue == s"Bearer ${validToken.accessToken}")
   }
 
   test("OAuthClientCredentialsAuthProvider should refresh token if expired") {
@@ -91,7 +98,8 @@ class CredentialProviderSuite extends AnyFunSuite with MockitoSugar {
     val request = new HttpGet("http://example.com")
 
     // Mock the token refresh
-    val expiredToken = OAuthClientCredentials("expired-token", 1, System.currentTimeMillis() - 3600 * 1000)
+    val expiredToken = OAuthClientCredentials("expired-token",
+      1, System.currentTimeMillis() - 3600 * 1000)
     val newToken = OAuthClientCredentials("new-token", 3600, System.currentTimeMillis())
     when(mockOauthClient.clientCredentials()).thenReturn(newToken)
 
@@ -100,7 +108,8 @@ class CredentialProviderSuite extends AnyFunSuite with MockitoSugar {
 
     provider.addAuthHeader(request)
 
-    assert(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue == s"Bearer ${newToken.accessToken}")
+    assert(request.getFirstHeader(HttpHeaders.AUTHORIZATION)
+      .getValue == s"Bearer ${newToken.accessToken}")
     verify(mockOauthClient, times(1)).clientCredentials()
   }
 
@@ -112,7 +121,8 @@ class CredentialProviderSuite extends AnyFunSuite with MockitoSugar {
     )
     val provider = new OAuthClientCredentialsAuthProvider(client, profile)
 
-    val expiredToken = OAuthClientCredentials("expired-token", 1, System.currentTimeMillis() - 3600 * 1000)
+    val expiredToken = OAuthClientCredentials("expired-token",
+      1, System.currentTimeMillis() - 3600 * 1000)
 
     assert(provider.needsRefresh(expiredToken))
   }
@@ -124,7 +134,8 @@ class CredentialProviderSuite extends AnyFunSuite with MockitoSugar {
     )
     val provider = new OAuthClientCredentialsAuthProvider(client, profile)
 
-    val tokenExpiringSoon = OAuthClientCredentials("expiring-soon-token", 9 * 60, System.currentTimeMillis())
+    val tokenExpiringSoon = OAuthClientCredentials("expiring-soon-token",
+      9 * 60, System.currentTimeMillis())
 
     assert(provider.needsRefresh(tokenExpiringSoon))
   }
@@ -136,7 +147,8 @@ class CredentialProviderSuite extends AnyFunSuite with MockitoSugar {
     )
     val provider = new OAuthClientCredentialsAuthProvider(client, profile)
 
-    val validToken = OAuthClientCredentials("valid-token", 11 * 60, System.currentTimeMillis())
+    val validToken = OAuthClientCredentials("valid-token",
+      11 * 60, System.currentTimeMillis())
 
     assert(!provider.needsRefresh(validToken))
   }
