@@ -20,9 +20,9 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.util.Locale
 
 import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.databind.{DeserializationContext, JsonDeserializer}
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import com.fasterxml.jackson.databind.node.ObjectNode
-import com.fasterxml.jackson.databind.{DeserializationContext, JsonDeserializer}
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
@@ -45,7 +45,8 @@ case class BearerTokenDeltaSharingProfile(override val shareCredentialsVersion: 
 object BearerTokenDeltaSharingProfile {
   private[client] def validate(profile: BearerTokenDeltaSharingProfile): Unit = {
     if (profile.bearerToken == null) {
-      throw new IllegalArgumentException("Cannot find the 'bearerToken' field in the profile file")
+      throw new IllegalArgumentException(
+        "Cannot find the 'bearerToken' field in the profile file")
     }
   }
 }
@@ -53,32 +54,39 @@ object BearerTokenDeltaSharingProfile {
 object OAuthClientCredentialsDeltaSharingProfile {
   private[client] def validate(profile: OAuthClientCredentialsDeltaSharingProfile): Unit = {
     if (profile.tokenEndpoint == null) {
-      throw new IllegalArgumentException("Cannot find the 'tokenEndpoint' field in the profile file")
+      throw new IllegalArgumentException(
+        "Cannot find the 'tokenEndpoint' field in the profile file")
     }
     if (profile.clientId == null) {
-      throw new IllegalArgumentException("Cannot find the 'clientId' field in the profile file")
+      throw new IllegalArgumentException(
+        "Cannot find the 'clientId' field in the profile file")
     }
     if (profile.clientSecret == null) {
-      throw new IllegalArgumentException("Cannot find the 'clientSecret' field in the profile file")
+      throw new IllegalArgumentException(
+        "Cannot find the 'clientSecret' field in the profile file")
     }
   }
 }
 
-case class OAuthClientCredentialsDeltaSharingProfile(
-                                                      override val shareCredentialsVersion: Option[Int],
-                                                      override val endpoint: String = null,
-                                                      tokenEndpoint: String = null,
-                                                      clientId: String = null,
-                                                      clientSecret: String = null,
-                                                      scope: Option[String] = None
-                                                    ) extends DeltaSharingProfile
+case class
+OAuthClientCredentialsDeltaSharingProfile(override
+                                          val shareCredentialsVersion: Option[Int],
+                                          override
+                                          val endpoint: String = null,
+                                          tokenEndpoint: String = null,
+                                          clientId: String = null,
+                                          clientSecret: String = null,
+                                          scope: Option[String] = None
+                                         ) extends DeltaSharingProfile
 
 
-private[client] class DeltaSharingProfileDeserializer extends JsonDeserializer[DeltaSharingProfile] {
+private[client]
+class DeltaSharingProfileDeserializer extends JsonDeserializer[DeltaSharingProfile] {
   override def deserialize(p: JsonParser, ctxt: DeserializationContext): DeltaSharingProfile = {
     val node: ObjectNode = p.getCodec.readTree(p).asInstanceOf[ObjectNode]
 
-    if (node.has("type") && node.get("type").asText().toLowerCase(Locale.ROOT) == "oauth_client_credentials") {
+    if (node.has("type") &&
+      node.get("type").asText().toLowerCase(Locale.ROOT) == "oauth_client_credentials") {
       // Deserialize as OAuthClientCredentialsDeltaSharingProfile
       OAuthClientCredentialsDeltaSharingProfile(
         shareCredentialsVersion = Option(node.get("shareCredentialsVersion")).map(_.asInt()),
@@ -105,9 +113,13 @@ private[client] class DeltaSharingProfileDeserializer extends JsonDeserializer[D
 object DeltaSharingProfile {
   val CURRENT = 2
 
-  // This acts as a constructor to ensure backward compatibility for DeltaSharingProfile instantiation
-  def apply(shareCredentialsVersion: Some[Int], endpoint: String, bearerToken: String, expirationTime: String = null): DeltaSharingProfile = {
-    new BearerTokenDeltaSharingProfile(shareCredentialsVersion, endpoint, bearerToken, expirationTime)
+  // constructor to ensure backward compatibility for DeltaSharingProfile instantiation
+  def apply(shareCredentialsVersion: Some[Int],
+            endpoint: String,
+            bearerToken: String,
+            expirationTime: String = null): DeltaSharingProfile = {
+    new BearerTokenDeltaSharingProfile(shareCredentialsVersion,
+      endpoint, bearerToken, expirationTime)
   }
 
   private[client] def validate(profile: DeltaSharingProfile): Unit = {
@@ -153,7 +165,9 @@ trait DeltaSharingProfileProvider {
   // `refresher` takes an optional refreshToken, and returns
   // (idToUrlMap, minUrlExpirationTimestamp, refreshToken)
   def getCustomRefresher(
-                          refresher: Option[String] => TableRefreshResult): Option[String] => TableRefreshResult = {
+                          refresher:
+                          Option[String] => TableRefreshResult):
+  Option[String] => TableRefreshResult = {
     refresher
   }
 }
@@ -162,8 +176,9 @@ trait DeltaSharingProfileProvider {
  * Load [[DeltaSharingProfile]] from a file. `conf` should be provided to load the file from remote
  * file systems.
  */
-private[sharing] class DeltaSharingFileProfileProvider(conf: Configuration,
-                                                       file: String) extends DeltaSharingProfileProvider {
+private[sharing]
+class DeltaSharingFileProfileProvider(conf: Configuration,
+                                      file: String) extends DeltaSharingProfileProvider {
 
   val profile = {
     val input = new Path(file).getFileSystem(conf).open(new Path(file))
