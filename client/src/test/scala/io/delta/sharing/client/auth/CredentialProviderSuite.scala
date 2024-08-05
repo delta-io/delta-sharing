@@ -18,7 +18,6 @@ package io.delta.sharing.client.auth
 import org.apache.http.HttpHeaders
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.impl.client.CloseableHttpClient
-
 import org.mockito.Mockito._
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.mockito.MockitoSugar
