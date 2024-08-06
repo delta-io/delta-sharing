@@ -98,7 +98,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       )
     }
     assert(e.getMessage.contains(
-      "Cannot find the 'shareCredentialsVersion' field in the profile file"))
+      "BearerTokenDeltaSharingProfile only supports version 1"))
   }
 
   test("shareCredentialsVersion is not supported") {
@@ -204,6 +204,24 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
         scope = Some("testScope")
       )
     )
+  }
+
+  test("oauth_client_credentials only supports version 2") {
+    val e = intercept[IllegalArgumentException] {
+      testProfile(
+        """{
+          |  "shareCredentialsVersion": 1,
+          |  "endpoint": "foo",
+          |  "tokenEndpoint": "bar",
+          |  "clientId": "abc",
+          |  "clientSecret": "xyz",
+          |  "type" : "oauth_client_credentials",
+          |  "scope": "testScope"
+          |}
+          |""".stripMargin,
+        null
+      )
+    }
   }
 
   test("oauth mandatory config is missing") {
