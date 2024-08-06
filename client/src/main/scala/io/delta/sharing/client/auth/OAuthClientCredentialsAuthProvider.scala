@@ -13,40 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package io.delta.sharing.client.auth
 
 import org.apache.http.HttpHeaders
 import org.apache.http.client.methods.HttpRequestBase
 import org.apache.http.impl.client.CloseableHttpClient
 
-import io.delta.sharing.client.{BearerTokenDeltaSharingProfile, DeltaSharingProfile, OAuthClientCredentialsDeltaSharingProfile}
+import io.delta.sharing.client.OAuthClientCredentialsDeltaSharingProfile
 
-private[client] object AuthCredentialProviderFactory {
-  def createCredentialProvider(profile: DeltaSharingProfile,
-                               client: CloseableHttpClient): CredentialProvider = {
-    profile match {
-      case oauthProfile: OAuthClientCredentialsDeltaSharingProfile =>
-        OAuthClientCredentialsAuthProvider(client, oauthProfile)
-      case BearerTokenDeltaSharingProfile(_, _, bearerToken, _) =>
-        BearerTokenAuthProvider(bearerToken)
-    }
-  }
-}
-
-private[client] trait CredentialProvider {
-  def addAuthHeader(httpRequest: HttpRequestBase): Unit
-}
-
-private[client] case class BearerTokenAuthProvider(bearerToken: String) extends CredentialProvider {
-  override def addAuthHeader(httpRequest: HttpRequestBase): Unit = {
-    httpRequest.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer $bearerToken")
-  }
-}
-
-private[client] case class
-OAuthClientCredentialsAuthProvider(client: CloseableHttpClient,
-                                   profile: OAuthClientCredentialsDeltaSharingProfile)
-  extends CredentialProvider {
+private[client] case class OAuthClientCredentialsAuthProvider(
+                                           client: CloseableHttpClient,
+                                           profile: OAuthClientCredentialsDeltaSharingProfile)
+  extends AuthCredentialProvider {
 
   private[auth] lazy val oauthClient = new OAuthClient(client,
     profile.tokenEndpoint, profile.clientId, profile.clientSecret, profile.scope)

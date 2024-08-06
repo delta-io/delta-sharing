@@ -24,18 +24,7 @@ import org.scalatestplus.mockito.MockitoSugar
 
 import io.delta.sharing.client.OAuthClientCredentialsDeltaSharingProfile
 
-class CredentialProviderSuite extends AnyFunSuite with MockitoSugar {
-
-  test("BearerTokenAuthProvider should add Authorization header") {
-    val bearerToken = "test-token"
-    val provider = BearerTokenAuthProvider(bearerToken)
-    val request = new HttpGet("http://example.com")
-
-    provider.addAuthHeader(request)
-
-    assert(request.getFirstHeader(HttpHeaders.AUTHORIZATION)
-      .getValue == s"Bearer $bearerToken")
-  }
+class OAuthClientCredentialsAuthProviderSuite extends AnyFunSuite with MockitoSugar {
 
   test("OAuthClientCredentialsAuthProvider should exchange clientId and clientSecret" +
     " for an access token on the first request") {
