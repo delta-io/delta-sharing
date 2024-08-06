@@ -20,9 +20,3 @@ import org.apache.http.client.methods.HttpRequestBase
 private[client] trait AuthCredentialProvider {
   def addAuthHeader(httpRequest: HttpRequestBase): Unit
 }
-
-
-
-
-
-
