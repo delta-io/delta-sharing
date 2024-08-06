@@ -16,6 +16,7 @@
 package io.delta.sharing.client.auth
 
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 import org.apache.http.{HttpException, HttpRequest, HttpResponse}
 import org.apache.http.entity.{ContentType, StringEntity}
@@ -35,12 +36,12 @@ class OAuthClientSuite extends SparkFunSuite {
 
     server.start()
 
-    Thread.sleep(1000)
+    Thread.sleep(2000)
   }
 
   def stopServer(): Unit = {
     if (server != null) {
-      server.stop()
+      server.shutdown(2, TimeUnit.SECONDS)
       server = null
     }
   }
