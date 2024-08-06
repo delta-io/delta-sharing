@@ -41,7 +41,7 @@ private[client] case class OAuthClientCredentialsAuthProvider(
   }
 
   // Method to set the current token for testing purposes
-  private[auth] def setCurrentToken(token: OAuthClientCredentials): Unit = {
+  private[auth] def setCurrentTokenForTesting(token: OAuthClientCredentials): Unit = {
     synchronized {
       currentToken = Some(token)
     }

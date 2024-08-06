@@ -31,7 +31,8 @@ class OAuthClientCredentialsAuthProviderSuite extends AnyFunSuite with MockitoSu
     val client = mock[CloseableHttpClient]
     val mockOauthClient = mock[OAuthClient]
     val profile = OAuthClientCredentialsDeltaSharingProfile(
-      Some(1), "http://example.com/token", "client-id", "client-secret"
+      Some(2),
+      "http://example.com/delta-sharing", "http://example.com/token", "client-id", "client-secret"
     )
     val provider = new OAuthClientCredentialsAuthProvider(client, profile) {
       override lazy val oauthClient: OAuthClient = mockOauthClient
@@ -55,7 +56,8 @@ class OAuthClientCredentialsAuthProviderSuite extends AnyFunSuite with MockitoSu
     val client = mock[CloseableHttpClient]
     val mockOauthClient = mock[OAuthClient]
     val profile = OAuthClientCredentialsDeltaSharingProfile(
-      Some(1), "http://example.com/token", "client-id", "client-secret"
+      Some(2),
+      "http://example.com/delta-sharing", "http://example.com/token", "client-id", "client-secret"
     )
     val provider = new OAuthClientCredentialsAuthProvider(client, profile) {
       override lazy val oauthClient: OAuthClient = mockOauthClient
@@ -65,7 +67,7 @@ class OAuthClientCredentialsAuthProviderSuite extends AnyFunSuite with MockitoSu
     // Set a token that is valid for another 11 minutes
     val validToken = OAuthClientCredentials("valid-token",
       11 * 60, System.currentTimeMillis())
-    provider.setCurrentToken(validToken)
+    provider.setCurrentTokenForTesting(validToken)
 
     provider.addAuthHeader(request)
 
@@ -79,7 +81,8 @@ class OAuthClientCredentialsAuthProviderSuite extends AnyFunSuite with MockitoSu
     val client = mock[CloseableHttpClient]
     val mockOauthClient = mock[OAuthClient]
     val profile = OAuthClientCredentialsDeltaSharingProfile(
-      Some(1), "http://example.com/token", "client-id", "client-secret"
+      Some(2),
+      "http://example.com/delta-sharing", "http://example.com/token", "client-id", "client-secret"
     )
     val provider = new OAuthClientCredentialsAuthProvider(client, profile) {
       override lazy val oauthClient: OAuthClient = mockOauthClient
@@ -93,7 +96,7 @@ class OAuthClientCredentialsAuthProviderSuite extends AnyFunSuite with MockitoSu
     when(mockOauthClient.clientCredentials()).thenReturn(newToken)
 
     // Set the expired token
-    provider.setCurrentToken(expiredToken)
+    provider.setCurrentTokenForTesting(expiredToken)
 
     provider.addAuthHeader(request)
 
@@ -106,7 +109,8 @@ class OAuthClientCredentialsAuthProviderSuite extends AnyFunSuite with MockitoSu
   test("needsRefresh should return true if the token is expired") {
     val client = mock[CloseableHttpClient]
     val profile = OAuthClientCredentialsDeltaSharingProfile(
-      Some(1), "http://example.com/token", "client-id", "client-secret"
+      Some(2),
+      "http://example.com/delta-sharing", "http://example.com/token", "client-id", "client-secret"
     )
     val provider = new OAuthClientCredentialsAuthProvider(client, profile)
 
@@ -119,7 +123,8 @@ class OAuthClientCredentialsAuthProviderSuite extends AnyFunSuite with MockitoSu
   test("needsRefresh should return true if the token expires in less than 10 minutes") {
     val client = mock[CloseableHttpClient]
     val profile = OAuthClientCredentialsDeltaSharingProfile(
-      Some(1), "http://example.com/token", "client-id", "client-secret"
+      Some(2),
+      "http://example.com/delta-sharing", "http://example.com/token", "client-id", "client-secret"
     )
     val provider = new OAuthClientCredentialsAuthProvider(client, profile)
 
@@ -132,7 +137,8 @@ class OAuthClientCredentialsAuthProviderSuite extends AnyFunSuite with MockitoSu
   test("needsRefresh should return false if the token is valid for more than 10 minutes") {
     val client = mock[CloseableHttpClient]
     val profile = OAuthClientCredentialsDeltaSharingProfile(
-      Some(1), "http://example.com/token", "client-id", "client-secret"
+      Some(2),
+      "http://example.com/delta-sharing", "http://example.com/token", "client-id", "client-secret"
     )
     val provider = new OAuthClientCredentialsAuthProvider(client, profile)
 
@@ -140,5 +146,32 @@ class OAuthClientCredentialsAuthProviderSuite extends AnyFunSuite with MockitoSu
       11 * 60, System.currentTimeMillis())
 
     assert(!provider.needsRefresh(validToken))
+  }
+
+
+
+  test("OAuthClientCredentialsAuthProvider isExpired always is false") {
+    val client = mock[CloseableHttpClient]
+    val profile = OAuthClientCredentialsDeltaSharingProfile(
+      Some(2),
+      "http://example.com/delta-sharing", "http://example.com/token", "client-id", "client-secret"
+    )
+    val provider = new OAuthClientCredentialsAuthProvider(client, profile)
+
+    val validToken = OAuthClientCredentials("valid-token", 3600, System.currentTimeMillis())
+    provider.setCurrentTokenForTesting(validToken)
+
+    assert(!provider.isExpired)
+  }
+
+  test("OAuthClientCredentialsAuthProvider getExpirationTime should return None") {
+    val client = mock[CloseableHttpClient]
+    val profile = OAuthClientCredentialsDeltaSharingProfile(
+      Some(2),
+      "http://example.com/delta-sharing", "http://example.com/token", "client-id", "client-secret"
+    )
+    val provider = new OAuthClientCredentialsAuthProvider(client, profile)
+
+    assert(provider.getExpirationTime.isEmpty)
   }
 }

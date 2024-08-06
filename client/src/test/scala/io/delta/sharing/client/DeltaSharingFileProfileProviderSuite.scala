@@ -85,6 +85,22 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       "Cannot find the 'shareCredentialsVersion' field in the profile file"))
   }
 
+  test("shareCredentialsVersion is incorrect") {
+    val e = intercept[IllegalArgumentException] {
+      testProfile(
+        """{
+          |  "shareCredentialsVersion" : 2,
+          |  "endpoint": "foo",
+          |  "bearerToken": "bar"
+          |}
+          |""".stripMargin,
+        null
+      )
+    }
+    assert(e.getMessage.contains(
+      "Cannot find the 'shareCredentialsVersion' field in the profile file"))
+  }
+
   test("shareCredentialsVersion is not supported") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
