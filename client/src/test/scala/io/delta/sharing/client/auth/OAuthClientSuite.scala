@@ -34,6 +34,8 @@ class OAuthClientSuite extends SparkFunSuite {
       .create()
 
     server.start()
+
+    Thread.sleep(1000)
   }
 
   def stopServer(): Unit = {
@@ -105,9 +107,7 @@ class OAuthClientSuite extends SparkFunSuite {
     stopServer()
   }
 
-  override def afterAll(): Unit = {
-    if (server != null) {
-      server.stop()
-    }
+  override def afterEach(): Unit = {
+    stopServer()
   }
 }
