@@ -19,4 +19,6 @@ import org.apache.http.client.methods.HttpRequestBase
 
 private[client] trait AuthCredentialProvider {
   def addAuthHeader(httpRequest: HttpRequestBase): Unit
+  def isExpired(): Boolean = false
+  def getExpirationTime(): Option[String]
 }

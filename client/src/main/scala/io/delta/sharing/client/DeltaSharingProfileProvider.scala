@@ -22,7 +22,7 @@ import java.util.Locale
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.{DeserializationContext, JsonDeserializer}
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.node.ObjectNode
+import com.fasterxml.jackson.databind.node.{BaseJsonNode, ObjectNode}
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
@@ -37,21 +37,21 @@ sealed trait DeltaSharingProfile {
   val endpoint: String
 
 
-  private [client] def validate(profile: DeltaSharingProfile): Unit = {
-    if (profile.shareCredentialsVersion.isEmpty) {
+  private [client] def validate(): Unit = {
+    if (shareCredentialsVersion.isEmpty) {
       throw new IllegalArgumentException(
         "Cannot find the 'shareCredentialsVersion' field in the profile file")
     }
 
-    if (profile.shareCredentialsVersion.get > DeltaSharingProfile.CURRENT) {
+    if (shareCredentialsVersion.get > DeltaSharingProfile.CURRENT) {
       throw new IllegalArgumentException(
         s"'shareCredentialsVersion' in the profile is " +
-          s"${profile.shareCredentialsVersion.get} which is too new. The current release " +
+          s"${shareCredentialsVersion.get} which is too new. The current release " +
           s"supports version ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer " +
           s"release.")
     }
 
-    validateNotNullAndEmpty(profile.endpoint, "endpoint")
+    validateNotNullAndEmpty(endpoint, "endpoint")
   }
 
 }
@@ -61,7 +61,10 @@ case class BearerTokenDeltaSharingProfile(override val shareCredentialsVersion: 
                                           bearerToken: String = null,
                                           expirationTime: String = null
                                          ) extends DeltaSharingProfile {
-  super.validate(this)
+  super.validate()
+  if (shareCredentialsVersion.get != 1) {
+    throw new IllegalArgumentException("BearerTokenDeltaSharingProfile only supports version 1")
+  }
   DeltaSharingProfile.validateNotNullAndEmpty(bearerToken, "bearerToken")
 }
 
@@ -76,7 +79,11 @@ OAuthClientCredentialsDeltaSharingProfile(override
                                           scope: Option[String] = None
                                          ) extends DeltaSharingProfile {
 
-  super.validate(this)
+  super.validate()
+  if (shareCredentialsVersion.get != 2) {
+    throw new IllegalArgumentException(
+      "OAuthClientCredentialsDeltaSharingProfile only supports version 2")
+  }
   DeltaSharingProfile.validateNotNullAndEmpty(tokenEndpoint, "tokenEndpoint")
   DeltaSharingProfile.validateNotNullAndEmpty(clientId, "clientId")
   DeltaSharingProfile.validateNotNullAndEmpty(clientSecret, "clientSecret")
@@ -88,26 +95,25 @@ class DeltaSharingProfileDeserializer extends JsonDeserializer[DeltaSharingProfi
   override def deserialize(p: JsonParser, ctxt: DeserializationContext): DeltaSharingProfile = {
     val node: ObjectNode = p.getCodec.readTree(p).asInstanceOf[ObjectNode]
 
-    if (node.has("type") &&
-      node.get("type").asText().toLowerCase(Locale.ROOT) == "oauth_client_credentials") {
-      // Deserialize as OAuthClientCredentialsDeltaSharingProfile
-      OAuthClientCredentialsDeltaSharingProfile(
-        shareCredentialsVersion = Option(node.get("shareCredentialsVersion")).map(_.asInt()),
-        endpoint = Option(node.get("endpoint")).map(_.asText()).orNull,
-        tokenEndpoint = Option(node.get("tokenEndpoint")).map(_.asText()).orNull,
-        clientId = Option(node.get("clientId")).map(_.asText()).orNull,
-        clientSecret = Option(node.get("clientSecret")).map(_.asText()).orNull,
-        scope = Option(node.get("scope")).map(_.asText())
-      )
-
-    } else {
-      // Deserialize as BearerTokenDeltaSharingProfile
-      BearerTokenDeltaSharingProfile(
-        shareCredentialsVersion = Option(node.get("shareCredentialsVersion")).map(_.asInt()),
-        endpoint = Option(node.get("endpoint")).map(_.asText()).orNull,
-        bearerToken = Option(node.get("bearerToken")).map(_.asText()).orNull,
-        expirationTime = Option(node.get("expirationTime")).map(_.asText()).orNull
-      )
+    val profileType = node.path("type").asText("bearer_token").toLowerCase(Locale.ROOT)
+    profileType match {
+      case "bearer_token" =>
+        BearerTokenDeltaSharingProfile(
+          shareCredentialsVersion = Option(node.get("shareCredentialsVersion")).map(_.asInt()),
+          endpoint = Option(node.get("endpoint")).map(_.asText()).orNull,
+          bearerToken = Option(node.get("bearerToken")).map(_.asText()).orNull,
+          expirationTime = Option(node.get("expirationTime")).map(_.asText()).orNull
+        )
+      case "oauth_client_credentials" =>
+        OAuthClientCredentialsDeltaSharingProfile(
+          shareCredentialsVersion = Option(node.get("shareCredentialsVersion")).map(_.asInt()),
+          endpoint = Option(node.get("endpoint")).map(_.asText()).orNull,
+          tokenEndpoint = Option(node.get("tokenEndpoint")).map(_.asText()).orNull,
+          clientId = Option(node.get("clientId")).map(_.asText()).orNull,
+          clientSecret = Option(node.get("clientSecret")).map(_.asText()).orNull,
+          scope = Option(node.get("scope")).map(_.asText())
+        )
+      case _ => throw new IllegalArgumentException(s"Unknown profile type $profileType")
     }
   }
 }
@@ -190,6 +196,7 @@ class DeltaSharingFileProfileProvider(conf: Configuration,
       input.close()
     }
 
+    profile.validate()
     DeltaSharingProfile.validate(profile)
 
     profile

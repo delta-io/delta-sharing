@@ -204,7 +204,7 @@ class DeltaSharingRestClient(
     client
   }
 
-  private lazy val credentialProvider = AuthCredentialProviderFactory.createCredentialProvider(
+  private lazy val authCredentialProvider = AuthCredentialProviderFactory.createCredentialProvider(
     profileProvider.getProfile,
     client
   )
@@ -936,19 +936,8 @@ class DeltaSharingRestClient(
     new HttpHost(url.getHost, port, protocol)
   }
 
-  private def tokenExpired(profile: DeltaSharingProfile): Boolean = {
-    profile match {
-      case bt @ BearerTokenDeltaSharingProfile(_, _, _, expirationTime) =>
-        if (expirationTime == null) return false
-        try {
-          val expirationTime = Timestamp.valueOf(
-            LocalDateTime.parse(bt.expirationTime, ISO_DATE_TIME))
-          expirationTime.before(Timestamp.valueOf(LocalDateTime.now()))
-        } catch {
-          case _: Throwable => false
-        }
-      case _ => false
-    }
+  private def tokenExpired(): Boolean = {
+    authCredentialProvider.isExpired()
   }
 
   private[client] def prepareHeaders(httpRequest: HttpRequestBase): HttpRequestBase = {
@@ -965,7 +954,7 @@ class DeltaSharingRestClient(
       DELTA_SHARING_CAPABILITIES_HEADER -> getDeltaSharingCapabilities()
     ) ++ customeHeaders
     headers.foreach(header => httpRequest.setHeader(header._1, header._2))
-    credentialProvider.addAuthHeader(httpRequest)
+    authCredentialProvider.addAuthHeader(httpRequest)
 
     httpRequest
   }
@@ -1031,9 +1020,9 @@ class DeltaSharingRestClient(
         if (!(statusCode == HttpStatus.SC_OK ||
           (allowNoContent && statusCode == HttpStatus.SC_NO_CONTENT))) {
           var additionalErrorInfo = ""
-          if (statusCode == HttpStatus.SC_UNAUTHORIZED && tokenExpired(profile)) {
+          if (statusCode == HttpStatus.SC_UNAUTHORIZED && tokenExpired()) {
             additionalErrorInfo = s"It may be caused by an expired token as it has expired " +
-              s"at ${profile.asInstanceOf[BearerTokenDeltaSharingProfile].expirationTime}"
+              s"at ${authCredentialProvider.getExpirationTime()}"
           }
           // Only show the last 100 lines in the error to keep it contained.
           val responseToShow = lines.drop(lines.size - 100).mkString("\n")

@@ -61,6 +61,8 @@ private[client] case class OAuthClientCredentialsAuthProvider(
     val expirationTime = token.creationTimestamp + token.expiresIn * 1000
     expirationTime - now < OAuthClientCredentialsAuthProvider.expirationThresholdInSeconds * 1000
   }
+
+  override def getExpirationTime(): Option[String] = None
 }
 
 private[client] object OAuthClientCredentialsAuthProvider {

@@ -16,12 +16,34 @@
 
 package io.delta.sharing.client.auth
 
+import java.sql.Timestamp
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter.ISO_DATE_TIME
+
 import org.apache.http.HttpHeaders
 import org.apache.http.client.methods.HttpRequestBase
 
-private[client] case class BearerTokenAuthProvider(bearerToken: String)
+private[client] case class BearerTokenAuthProvider(bearerToken: String, expirationTime: String)
   extends AuthCredentialProvider {
   override def addAuthHeader(httpRequest: HttpRequestBase): Unit = {
     httpRequest.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer $bearerToken")
+  }
+
+  override def isExpired(): Boolean = {
+    if (expirationTime == null) return false
+    try {
+      val expirationTimeAsTimeStamp = Timestamp.valueOf(
+        LocalDateTime.parse(expirationTime, ISO_DATE_TIME))
+      expirationTimeAsTimeStamp.before(Timestamp.valueOf(LocalDateTime.now()))
+    } catch {
+      case _: Throwable => false
+    }
+  }
+
+  override def getExpirationTime(): Option[String] = {
+    expirationTime match {
+      case null => None
+      case _ => Some(expirationTime)
+    }
   }
 }

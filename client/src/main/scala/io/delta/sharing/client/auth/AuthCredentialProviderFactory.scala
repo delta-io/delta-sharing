@@ -26,8 +26,8 @@ private[client] object AuthCredentialProviderFactory {
     profile match {
       case oauthProfile: OAuthClientCredentialsDeltaSharingProfile =>
         OAuthClientCredentialsAuthProvider(client, oauthProfile)
-      case BearerTokenDeltaSharingProfile(_, _, bearerToken, _) =>
-        BearerTokenAuthProvider(bearerToken)
+      case BearerTokenDeltaSharingProfile(_, _, bearerToken, expirationTime) =>
+        BearerTokenAuthProvider(bearerToken, expirationTime)
     }
   }
 }
