@@ -29,15 +29,37 @@ The Delta Sharing Python Connector is a Python library that implements the [Delt
 
 ## System Requirements
 
-Python 3.6+
+Python 3.8+
+If running Linux, glibc version >= 2.31 (for automatic delta-kernel-rust-sharing-wrapper package installation, please see next section for more details)
 
 ## Installation
 
 ```
-pip install delta-sharing
+pip3 install delta-sharing
 ```
 
 If you are using [Databricks Runtime](https://docs.databricks.com/runtime/dbr.html), you can follow [Databricks Libraries doc](https://docs.databricks.com/libraries/index.html) to install the library on your clusters.
+
+If this doesn’t work because of an issue downloading delta-kernel-rust-sharing-wrapper try the following:
+- Check python3 version >= 3.8
+- Upgrade your pip3 to the latest version
+- Check the linux glibc version >= 2.31
+
+If you cannot upgrade glibc or your OS is not supported by the delta-kernel-rust-sharing-wrapper pypi install  you will need to install the package manually.
+See https://pypi.org/project/delta-kernel-rust-sharing-wrapper/0.1.0/#files for supported OS.
+
+To install the delta-kernel-rust-sharing-wrapper package manually:
+```
+pip3 install delta-sharing==1.1.0 
+# you need to use the older version of the delta-sharing package which did not bake delta-kernel-rust-sharing-wrapper into the installation
+
+cd [delta-sharing-root]/python/delta-kernel-rust-sharing-wrapper
+python3 -m venv .venv
+source .venv/bin/activate
+pip3 install maturin
+maturin develop
+```
+
 
 ## Accessing Shared Data
 
