@@ -39,6 +39,10 @@ private[client] class OAuthClient(httpClient:
                                   scope: Option[String] = None) {
 
   def clientCredentials(): OAuthClientCredentials = {
+
+    // see client credentials grant spec detail here:
+    // https://www.oauth.com/oauth2-servers/access-tokens/client-credentials/
+    // https://datatracker.ietf.org/doc/html/rfc6749
     val credentials = Base64.getEncoder.encodeToString(s"$clientId:$clientSecret".getBytes("UTF-8"))
 
     val post = new HttpPost(tokenEndpoint)
@@ -54,7 +58,7 @@ private[client] class OAuthClient(httpClient:
     try {
       response = httpClient.execute(post)
       val responseString = getResponseAsString(response.getEntity)
-      if (response.getStatusLine.getStatusCode != 200 || responseString == null) {
+      if (response.getStatusLine.getStatusCode != 200) {
         throw new RuntimeException(s"Failed to get OAuth token from token endpoint: " +
           s"Token Endpoint responded: ${response.getStatusLine} with response: $responseString")
       }

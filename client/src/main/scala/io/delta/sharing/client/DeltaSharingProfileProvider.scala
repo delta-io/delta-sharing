@@ -28,44 +28,41 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.spark.delta.sharing.TableRefreshResult
 
+import io.delta.sharing.client.DeltaSharingProfile.validateNotNullAndEmpty
 import io.delta.sharing.client.util.JsonUtils
 
 @JsonDeserialize(using = classOf[DeltaSharingProfileDeserializer])
 sealed trait DeltaSharingProfile {
   val shareCredentialsVersion: Option[Int]
   val endpoint: String
+
+
+  private [client] def validate(profile: DeltaSharingProfile): Unit = {
+    if (profile.shareCredentialsVersion.isEmpty) {
+      throw new IllegalArgumentException(
+        "Cannot find the 'shareCredentialsVersion' field in the profile file")
+    }
+
+    if (profile.shareCredentialsVersion.get > DeltaSharingProfile.CURRENT) {
+      throw new IllegalArgumentException(
+        s"'shareCredentialsVersion' in the profile is " +
+          s"${profile.shareCredentialsVersion.get} which is too new. The current release " +
+          s"supports version ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer " +
+          s"release.")
+    }
+
+    validateNotNullAndEmpty(profile.endpoint, "endpoint")
+  }
+
 }
 
 case class BearerTokenDeltaSharingProfile(override val shareCredentialsVersion: Option[Int],
                                           override val endpoint: String = null,
                                           bearerToken: String = null,
                                           expirationTime: String = null
-                                         ) extends DeltaSharingProfile
-
-object BearerTokenDeltaSharingProfile {
-  private[client] def validate(profile: BearerTokenDeltaSharingProfile): Unit = {
-    if (profile.bearerToken == null) {
-      throw new IllegalArgumentException(
-        "Cannot find the 'bearerToken' field in the profile file")
-    }
-  }
-}
-
-object OAuthClientCredentialsDeltaSharingProfile {
-  private[client] def validate(profile: OAuthClientCredentialsDeltaSharingProfile): Unit = {
-    if (profile.tokenEndpoint == null) {
-      throw new IllegalArgumentException(
-        "Cannot find the 'tokenEndpoint' field in the profile file")
-    }
-    if (profile.clientId == null) {
-      throw new IllegalArgumentException(
-        "Cannot find the 'clientId' field in the profile file")
-    }
-    if (profile.clientSecret == null) {
-      throw new IllegalArgumentException(
-        "Cannot find the 'clientSecret' field in the profile file")
-    }
-  }
+                                         ) extends DeltaSharingProfile {
+  super.validate(this)
+  DeltaSharingProfile.validateNotNullAndEmpty(bearerToken, "bearerToken")
 }
 
 case class
@@ -77,7 +74,13 @@ OAuthClientCredentialsDeltaSharingProfile(override
                                           clientId: String = null,
                                           clientSecret: String = null,
                                           scope: Option[String] = None
-                                         ) extends DeltaSharingProfile
+                                         ) extends DeltaSharingProfile {
+
+  super.validate(this)
+  DeltaSharingProfile.validateNotNullAndEmpty(tokenEndpoint, "tokenEndpoint")
+  DeltaSharingProfile.validateNotNullAndEmpty(clientId, "clientId")
+  DeltaSharingProfile.validateNotNullAndEmpty(clientSecret, "clientSecret")
+}
 
 
 private[client]
@@ -113,40 +116,39 @@ class DeltaSharingProfileDeserializer extends JsonDeserializer[DeltaSharingProfi
 object DeltaSharingProfile {
   val CURRENT = 2
 
-  // constructor to ensure backward compatibility for DeltaSharingProfile instantiation
+  /**
+   * Constructor to ensure backward compatibility for DeltaSharingProfile instantiation
+   *
+   * Note that the preferred way of creating a profile is using the concrete case classes.
+   * Use the following case classes directly:
+   * BearerTokenDeltaSharingProfile or OAuthClientCredentialsDeltaSharingProfile
+   */
   def apply(shareCredentialsVersion: Some[Int],
             endpoint: String,
             bearerToken: String,
             expirationTime: String = null): DeltaSharingProfile = {
-    new BearerTokenDeltaSharingProfile(shareCredentialsVersion,
+    BearerTokenDeltaSharingProfile(shareCredentialsVersion,
       endpoint, bearerToken, expirationTime)
   }
 
   private[client] def validate(profile: DeltaSharingProfile): Unit = {
-    if (profile.shareCredentialsVersion.isEmpty) {
-      throw new IllegalArgumentException(
-        "Cannot find the 'shareCredentialsVersion' field in the profile file")
-    }
 
-    if (profile.shareCredentialsVersion.get > DeltaSharingProfile.CURRENT) {
-      throw new IllegalArgumentException(
-        s"'shareCredentialsVersion' in the profile is " +
-          s"${profile.shareCredentialsVersion.get} which is too new. The current release " +
-          s"supports version ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer " +
-          s"release.")
-    }
-    if (profile.endpoint == null) {
-      throw new IllegalArgumentException("Cannot find the 'endpoint' field in the profile file")
-    }
 
-    profile match {
-      case bearerTokenProfile: BearerTokenDeltaSharingProfile =>
-        BearerTokenDeltaSharingProfile.validate(bearerTokenProfile)
-      case oauthProfile: OAuthClientCredentialsDeltaSharingProfile =>
-        OAuthClientCredentialsDeltaSharingProfile.validate(oauthProfile)
+  }
+
+  private [client] def validateNotNullAndEmpty(fieldValue: String,
+                                               fieldName: String): Unit = {
+    if (fieldValue == null || fieldValue.isEmpty) {
+      throw new IllegalArgumentException(s"Cannot find the '$fieldName' field in the profile file")
     }
   }
 
+  private [client] def validateNotNullAndEmpty(fieldValue: Option[Long],
+                                               fieldName: String): Unit = {
+    if (fieldValue == null || fieldValue.isEmpty) {
+      throw new IllegalArgumentException(s"Cannot find the '$fieldName' field in the profile file")
+    }
+  }
 }
 
 /**

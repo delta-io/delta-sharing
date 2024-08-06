@@ -34,10 +34,9 @@ private[client] case class OAuthClientCredentialsAuthProvider(
 
   override def addAuthHeader(httpRequest: HttpRequestBase): Unit = {
     if (currentToken.isEmpty || needsRefresh(currentToken.get)) {
-      refreshToken()
+      maybeRefreshToken()
     }
 
-    // assert currentToken is not empty
     httpRequest.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer ${currentToken.get.accessToken}")
   }
 
@@ -48,7 +47,7 @@ private[client] case class OAuthClientCredentialsAuthProvider(
     }
   }
 
-  private def refreshToken(): Unit = {
+  private def maybeRefreshToken(): Unit = {
     synchronized {
       if (currentToken.isEmpty || needsRefresh(currentToken.get)) {
         val newToken = oauthClient.clientCredentials()
