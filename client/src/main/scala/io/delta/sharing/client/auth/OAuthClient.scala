@@ -17,6 +17,9 @@ package io.delta.sharing.client.auth
 
 import java.util.Base64
 
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node.BaseJsonNode
+import org.apache.http.HttpEntity
 import org.apache.http.client.methods.{CloseableHttpResponse, HttpPost}
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.CloseableHttpClient
@@ -50,24 +53,43 @@ private[client] class OAuthClient(httpClient:
     var response: CloseableHttpResponse = null
     try {
       response = httpClient.execute(post)
-      val entity = response.getEntity
-      if (entity != null) {
-        val responseString = EntityUtils.toString(entity)
-        parseOAuthTokenResponse(responseString)
-      } else {
-        throw new RuntimeException("No response from token endpoint")
+      val responseString = getResponseAsString(response.getEntity)
+      if (response.getStatusLine.getStatusCode != 200 || responseString == null) {
+        throw new RuntimeException(s"Failed to get OAuth token from token endpoint: " +
+          s"Token Endpoint responded: ${response.getStatusLine} with response: $responseString")
       }
+
+      parseOAuthTokenResponse(responseString)
+
     } finally {
       if (response != null) response.close()
     }
   }
 
   private def parseOAuthTokenResponse(response: String): OAuthClientCredentials = {
+    if (response == null || response.isEmpty) {
+      throw new RuntimeException("Empty response from OAuth token endpoint")
+    }
     val jsonNode = JsonUtils.readTree(response)
+    if (!jsonNode.has("access_token") || !jsonNode.get("access_token").isTextual) {
+      throw new RuntimeException("Missing 'access_token' field in OAuth token response")
+    }
+    if (!jsonNode.has("expires_in") || !jsonNode.get("expires_in").isNumber) {
+      throw new RuntimeException("Missing 'expires_in' field in OAuth token response")
+    }
+
     OAuthClientCredentials(
       jsonNode.get("access_token").asText(),
       jsonNode.get("expires_in").asLong(),
       System.currentTimeMillis()
     )
+  }
+
+  private def getResponseAsString(httpEntity: HttpEntity) : String = {
+    if (httpEntity != null) {
+      EntityUtils.toString(httpEntity)
+    } else {
+      null
+    }
   }
 }
