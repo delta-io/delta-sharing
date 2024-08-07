@@ -53,7 +53,6 @@ sealed trait DeltaSharingProfile {
 
     validateNotNullAndEmpty(endpoint, "endpoint")
   }
-
 }
 
 case class BearerTokenDeltaSharingProfile(override val shareCredentialsVersion: Option[Int],
@@ -169,9 +168,7 @@ trait DeltaSharingProfileProvider {
   // `refresher` takes an optional refreshToken, and returns
   // (idToUrlMap, minUrlExpirationTimestamp, refreshToken)
   def getCustomRefresher(
-                          refresher:
-                          Option[String] => TableRefreshResult):
-  Option[String] => TableRefreshResult = {
+    refresher: Option[String] => TableRefreshResult): Option[String] => TableRefreshResult = {
     refresher
   }
 }
