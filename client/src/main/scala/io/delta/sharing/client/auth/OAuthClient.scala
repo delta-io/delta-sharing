@@ -54,6 +54,7 @@ private[client] class OAuthClient(httpClient:
     val body = s"grant_type=client_credentials$scopeParam"
     post.setEntity(new StringEntity(body))
 
+    // retries on temporary errors (connection error or 500, 429) from token endpoint
     RetryUtils.runWithExponentialBackoff(
       OAuthClient.numRetries, OAuthClient.maxRetryDurationInMillis) {
       var response: CloseableHttpResponse = null
