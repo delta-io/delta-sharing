@@ -135,12 +135,7 @@ object DeltaSharingProfile {
             bearerToken: String,
             expirationTime: String = null): DeltaSharingProfile = {
     BearerTokenDeltaSharingProfile(shareCredentialsVersion = shareCredentialsVersion,
-      endpoint = endpoint, bearerToken = bearerToken, expirationTime =  expirationTime)
-  }
-
-  private[client] def validate(profile: DeltaSharingProfile): Unit = {
-
-
+      endpoint = endpoint, bearerToken = bearerToken, expirationTime = expirationTime)
   }
 
   private [client] def validateNotNullAndEmpty(fieldValue: String,
@@ -198,7 +193,6 @@ class DeltaSharingFileProfileProvider(conf: Configuration,
     }
 
     profile.validate()
-    DeltaSharingProfile.validate(profile)
 
     profile
   }
