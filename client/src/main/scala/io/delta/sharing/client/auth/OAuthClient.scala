@@ -25,7 +25,7 @@ import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.CloseableHttpClient
 import org.apache.http.util.EntityUtils
 
-import io.delta.sharing.client.util.JsonUtils
+import io.delta.sharing.client.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
 
 case class OAuthClientCredentials(accessToken: String,
                                   expiresIn: Long,
@@ -54,19 +54,22 @@ private[client] class OAuthClient(httpClient:
     val body = s"grant_type=client_credentials$scopeParam"
     post.setEntity(new StringEntity(body))
 
-    var response: CloseableHttpResponse = null
-    try {
-      response = httpClient.execute(post)
-      val responseString = getResponseAsString(response.getEntity)
-      if (response.getStatusLine.getStatusCode != 200) {
-        throw new RuntimeException(s"Failed to get OAuth token from token endpoint: " +
-          s"Token Endpoint responded: ${response.getStatusLine} with response: $responseString")
+    RetryUtils.runWithExponentialBackoff(
+      OAuthClient.numRetries, OAuthClient.maxRetryDurationInMillis) {
+      var response: CloseableHttpResponse = null
+      try {
+        response = httpClient.execute(post)
+        val responseString = getResponseAsString(response.getEntity)
+        if (response.getStatusLine.getStatusCode != 200) {
+          throw new UnexpectedHttpStatus(s"Failed to get OAuth token from token endpoint: " +
+            s"Token Endpoint responded: ${response.getStatusLine} with response: $responseString",
+            response.getStatusLine.getStatusCode)
+        }
+
+        parseOAuthTokenResponse(responseString)
+      } finally {
+        if (response != null) response.close()
       }
-
-      parseOAuthTokenResponse(responseString)
-
-    } finally {
-      if (response != null) response.close()
     }
   }
 
@@ -96,4 +99,9 @@ private[client] class OAuthClient(httpClient:
       null
     }
   }
+}
+
+private[auth] object OAuthClient {
+  val numRetries = 3
+  val maxRetryDurationInMillis = 30000 // 30 seconds
 }
