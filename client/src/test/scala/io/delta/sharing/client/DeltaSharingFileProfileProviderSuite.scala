@@ -98,7 +98,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       )
     }
     assert(e.getMessage.contains(
-      "BearerTokenDeltaSharingProfile only supports version 1"))
+      "bearer_token only supports version 1"))
   }
 
   test("shareCredentialsVersion is not supported") {
@@ -222,6 +222,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
         null
       )
     }
+    assert(e.getMessage.contains(s"oauth_client_credentials only supports version 2"))
   }
 
   test("oauth mandatory config is missing") {
@@ -242,5 +243,38 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       }
       assert(e.getMessage.contains(s"Cannot find the '$missingField' field in the profile file"))
     }
+  }
+
+  test("OAuthClientCredentialsDeltaSharingProfile.type is prepopulated") {
+    val profile = OAuthClientCredentialsDeltaSharingProfile(
+      shareCredentialsVersion = Some(2),
+      endpoint = "foo",
+      tokenEndpoint = "bar",
+      clientId = "abc",
+      clientSecret = "xyz",
+      scope = Some("testScope")
+    )
+
+    assert(profile.`type` == "oauth_client_credentials")
+  }
+
+  test("DeltaSharingProfile.type is prepopulated") {
+    val profile = DeltaSharingProfile(
+      shareCredentialsVersion = Some(1),
+      endpoint = "foo",
+      bearerToken = "bar"
+    )
+
+    assert(profile.`type` == "bearer_token")
+  }
+
+  test("BearerTokenDeltaSharingProfile.type is prepopulated") {
+    val profile = BearerTokenDeltaSharingProfile(
+      shareCredentialsVersion = Some(1),
+      endpoint = "foo",
+      bearerToken = "bar"
+    )
+
+    assert(profile.`type` == "bearer_token")
   }
 }

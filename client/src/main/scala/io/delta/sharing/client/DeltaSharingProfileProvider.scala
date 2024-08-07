@@ -22,7 +22,7 @@ import java.util.Locale
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.{DeserializationContext, JsonDeserializer}
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.node.{BaseJsonNode, ObjectNode}
+import com.fasterxml.jackson.databind.node.ObjectNode
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
@@ -35,7 +35,7 @@ import io.delta.sharing.client.util.JsonUtils
 sealed trait DeltaSharingProfile {
   val shareCredentialsVersion: Option[Int]
   val endpoint: String
-
+  val `type` : String
 
   private [client] def validate(): Unit = {
     if (shareCredentialsVersion.isEmpty) {
@@ -59,36 +59,37 @@ sealed trait DeltaSharingProfile {
 case class BearerTokenDeltaSharingProfile(override val shareCredentialsVersion: Option[Int],
                                           override val endpoint: String = null,
                                           bearerToken: String = null,
-                                          expirationTime: String = null
-                                         ) extends DeltaSharingProfile {
+                                          expirationTime: String = null)
+  extends DeltaSharingProfile {
+  override val `type`: String = "bearer_token"
+
   super.validate()
   if (shareCredentialsVersion.get != 1) {
-    throw new IllegalArgumentException("BearerTokenDeltaSharingProfile only supports version 1")
+    throw new IllegalArgumentException(
+      s"${`type`} only supports version 1")
   }
   DeltaSharingProfile.validateNotNullAndEmpty(bearerToken, "bearerToken")
 }
 
 case class
-OAuthClientCredentialsDeltaSharingProfile(override
-                                          val shareCredentialsVersion: Option[Int],
-                                          override
-                                          val endpoint: String = null,
+OAuthClientCredentialsDeltaSharingProfile(override val shareCredentialsVersion: Option[Int],
+                                          override val endpoint: String = null,
                                           tokenEndpoint: String = null,
                                           clientId: String = null,
                                           clientSecret: String = null,
                                           scope: Option[String] = None
                                          ) extends DeltaSharingProfile {
+  override val `type`: String = "oauth_client_credentials"
 
   super.validate()
   if (shareCredentialsVersion.get != 2) {
     throw new IllegalArgumentException(
-      "OAuthClientCredentialsDeltaSharingProfile only supports version 2")
+      s"${`type`} only supports version 2")
   }
   DeltaSharingProfile.validateNotNullAndEmpty(tokenEndpoint, "tokenEndpoint")
   DeltaSharingProfile.validateNotNullAndEmpty(clientId, "clientId")
   DeltaSharingProfile.validateNotNullAndEmpty(clientSecret, "clientSecret")
 }
-
 
 private[client]
 class DeltaSharingProfileDeserializer extends JsonDeserializer[DeltaSharingProfile] {
@@ -133,8 +134,8 @@ object DeltaSharingProfile {
             endpoint: String,
             bearerToken: String,
             expirationTime: String = null): DeltaSharingProfile = {
-    BearerTokenDeltaSharingProfile(shareCredentialsVersion,
-      endpoint, bearerToken, expirationTime)
+    BearerTokenDeltaSharingProfile(shareCredentialsVersion = shareCredentialsVersion,
+      endpoint = endpoint, bearerToken = bearerToken, expirationTime =  expirationTime)
   }
 
   private[client] def validate(profile: DeltaSharingProfile): Unit = {
