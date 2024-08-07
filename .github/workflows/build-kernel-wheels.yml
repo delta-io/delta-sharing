@@ -2,11 +2,13 @@ name: Build wheels for 4 os for delta-kernel-rust-sharing-wrapper
 
 on:
   push:
-    branches:
-      - main
+    paths:
+      - python/delta-sharing-kernel/**
+      - .github/workflows/**
   pull_request:
-    branches:
-      - main
+    paths:
+      - python/delta-sharing-kernel/**
+      - .github/workflows/**
 
 jobs:
   build:
