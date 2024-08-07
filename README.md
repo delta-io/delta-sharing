@@ -50,8 +50,8 @@ See https://pypi.org/project/delta-kernel-rust-sharing-wrapper/0.1.0/#files for 
 
 To install the delta-kernel-rust-sharing-wrapper package manually:
 ```
-pip3 install delta-sharing==1.1.0 
 # you need to use the older version of the delta-sharing package which did not bake delta-kernel-rust-sharing-wrapper into the installation
+pip3 install delta-sharing==1.1.0 
 
 cd [delta-sharing-root]/python/delta-kernel-rust-sharing-wrapper
 python3 -m venv .venv
