@@ -55,10 +55,11 @@ sealed trait DeltaSharingProfile {
   }
 }
 
-case class BearerTokenDeltaSharingProfile(override val shareCredentialsVersion: Option[Int],
-                                          override val endpoint: String = null,
-                                          bearerToken: String = null,
-                                          expirationTime: String = null)
+case class BearerTokenDeltaSharingProfile(
+    override val shareCredentialsVersion: Option[Int],
+    override val endpoint: String = null,
+    bearerToken: String = null,
+    expirationTime: String = null)
   extends DeltaSharingProfile {
   override val `type`: String = "bearer_token"
 
@@ -70,14 +71,14 @@ case class BearerTokenDeltaSharingProfile(override val shareCredentialsVersion: 
   DeltaSharingProfile.validateNotNullAndEmpty(bearerToken, "bearerToken")
 }
 
-case class
-OAuthClientCredentialsDeltaSharingProfile(override val shareCredentialsVersion: Option[Int],
-                                          override val endpoint: String = null,
-                                          tokenEndpoint: String = null,
-                                          clientId: String = null,
-                                          clientSecret: String = null,
-                                          scope: Option[String] = None
-                                         ) extends DeltaSharingProfile {
+case class OAuthClientCredentialsDeltaSharingProfile(
+    override val shareCredentialsVersion: Option[Int],
+    override val endpoint: String = null,
+    tokenEndpoint: String = null,
+    clientId: String = null,
+    clientSecret: String = null,
+    scope: Option[String] = None) extends DeltaSharingProfile {
+
   override val `type`: String = "oauth_client_credentials"
 
   super.validate()
@@ -94,7 +95,6 @@ private[client]
 class DeltaSharingProfileDeserializer extends JsonDeserializer[DeltaSharingProfile] {
   override def deserialize(p: JsonParser, ctxt: DeserializationContext): DeltaSharingProfile = {
     val node: ObjectNode = p.getCodec.readTree(p).asInstanceOf[ObjectNode]
-
     val profileType = node.path("type").asText("bearer_token").toLowerCase(Locale.ROOT)
     profileType match {
       case "bearer_token" =>
@@ -117,7 +117,6 @@ class DeltaSharingProfileDeserializer extends JsonDeserializer[DeltaSharingProfi
     }
   }
 }
-
 
 object DeltaSharingProfile {
   val CURRENT = 2
@@ -168,7 +167,7 @@ trait DeltaSharingProfileProvider {
   // `refresher` takes an optional refreshToken, and returns
   // (idToUrlMap, minUrlExpirationTimestamp, refreshToken)
   def getCustomRefresher(
-    refresher: Option[String] => TableRefreshResult): Option[String] => TableRefreshResult = {
+      refresher: Option[String] => TableRefreshResult): Option[String] => TableRefreshResult = {
     refresher
   }
 }
@@ -177,9 +176,9 @@ trait DeltaSharingProfileProvider {
  * Load [[DeltaSharingProfile]] from a file. `conf` should be provided to load the file from remote
  * file systems.
  */
-private[sharing]
-class DeltaSharingFileProfileProvider(conf: Configuration,
-                                      file: String) extends DeltaSharingProfileProvider {
+private[sharing] class DeltaSharingFileProfileProvider(
+    conf: Configuration,
+    file: String) extends DeltaSharingProfileProvider {
 
   val profile = {
     val input = new Path(file).getFileSystem(conf).open(new Path(file))
