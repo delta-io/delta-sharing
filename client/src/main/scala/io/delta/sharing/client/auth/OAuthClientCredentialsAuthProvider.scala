@@ -16,6 +16,8 @@
 
 package io.delta.sharing.client.auth
 
+import java.util.concurrent.locks.ReentrantReadWriteLock
+
 import org.apache.http.HttpHeaders
 import org.apache.http.client.methods.HttpRequestBase
 import org.apache.http.impl.client.CloseableHttpClient
@@ -23,40 +25,62 @@ import org.apache.http.impl.client.CloseableHttpClient
 import io.delta.sharing.client.OAuthClientCredentialsDeltaSharingProfile
 
 private[client] case class OAuthClientCredentialsAuthProvider(
-                                           client: CloseableHttpClient,
-                                           authConfig: AuthConfig,
-                                           profile: OAuthClientCredentialsDeltaSharingProfile)
-  extends AuthCredentialProvider {
+  client: CloseableHttpClient,
+  authConfig: AuthConfig,
+  profile: OAuthClientCredentialsDeltaSharingProfile) extends AuthCredentialProvider {
 
-
+  private val readWriteLock = new ReentrantReadWriteLock()
+  private val readLock = readWriteLock.readLock
+  private val writeLock = readWriteLock.writeLock
 
   private[auth] lazy val oauthClient = new OAuthClient(client, authConfig,
     profile.tokenEndpoint, profile.clientId, profile.clientSecret, profile.scope)
 
-  // this can be updated on different thread, access must ensure correct synchronization
-  @volatile private var currentToken: Option[OAuthClientCredentials] = None
+  // this can be updated on different thread
+  // read has be through readLock and write has to be through writeLock
+  private var currentToken: Option[OAuthClientCredentials] = None
 
   override def addAuthHeader(httpRequest: HttpRequestBase): Unit = {
-    if (currentToken.isEmpty || needsRefresh(currentToken.get)) {
-      maybeRefreshToken()
-    }
+    val token = maybeRefreshToken()
 
-    httpRequest.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer ${currentToken.get.accessToken}")
+    readLock.lock()
+    try {
+      httpRequest.setHeader(HttpHeaders.AUTHORIZATION, s"Bearer ${token.accessToken}")
+    } finally {
+      readLock.unlock()
+    }
   }
 
   // Method to set the current token for testing purposes
   private[auth] def setCurrentTokenForTesting(token: OAuthClientCredentials): Unit = {
-    synchronized {
+    writeLock.lock()
+    try {
       currentToken = Some(token)
+    } finally {
+      writeLock.unlock()
     }
   }
 
-  private def maybeRefreshToken(): Unit = {
-    synchronized {
+  private def maybeRefreshToken(): OAuthClientCredentials = {
+    readLock.lock()
+    try {
+      if (currentToken.isDefined && !needsRefresh(currentToken.get)) {
+        return currentToken.get
+      }
+    } finally {
+      readLock.unlock()
+    }
+
+    writeLock.lock()
+    try {
       if (currentToken.isEmpty || needsRefresh(currentToken.get)) {
         val newToken = oauthClient.clientCredentials()
         currentToken = Some(newToken)
       }
+
+      currentToken.get
+    } finally {
+      writeLock.unlock()
     }
   }
 
