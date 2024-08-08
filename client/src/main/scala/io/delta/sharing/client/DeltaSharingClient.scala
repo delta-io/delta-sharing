@@ -1213,8 +1213,11 @@ object DeltaSharingRestClient extends Logging {
         classOf[Int],
         classOf[Boolean],
         classOf[Long],
-        classOf[Long]
-      ).newInstance(profileProvider,
+        classOf[Long],
+        classOf[Int],
+        classOf[Int],
+        classOf[Int]
+    ).newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
         java.lang.Long.valueOf(maxRetryDurationMillis),
