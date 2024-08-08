@@ -29,7 +29,7 @@ The Delta Sharing Python Connector is a Python library that implements the [Delt
 
 ## System Requirements
 
-Python 3.8+
+Python 3.8+ for delta-sharing version 1.1+, Python 3.6+ for older versions
 If running Linux, glibc version >= 2.31 (for automatic delta-kernel-rust-sharing-wrapper package installation, please see next section for more details)
 
 ## Installation
