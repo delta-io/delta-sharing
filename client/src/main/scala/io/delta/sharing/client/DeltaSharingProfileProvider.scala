@@ -28,14 +28,15 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.spark.delta.sharing.TableRefreshResult
 
-import io.delta.sharing.client.DeltaSharingProfile.validateNotNullAndEmpty
+import io.delta.sharing.client.DeltaSharingProfile.{validateNotNullAndEmpty, BEARER_TOKEN,
+  OAUTH_CLIENT_CREDENTIALS}
 import io.delta.sharing.client.util.JsonUtils
 
 @JsonDeserialize(using = classOf[DeltaSharingProfileDeserializer])
 sealed trait DeltaSharingProfile {
   val shareCredentialsVersion: Option[Int]
   val endpoint: String
-  val `type` : String
+  val profileType : String
 
   private [client] def validate(): Unit = {
     if (shareCredentialsVersion.isEmpty) {
@@ -61,12 +62,12 @@ case class BearerTokenDeltaSharingProfile(
     bearerToken: String = null,
     expirationTime: String = null)
   extends DeltaSharingProfile {
-  override val `type`: String = "bearer_token"
+  override val profileType: String = BEARER_TOKEN
 
   super.validate()
   if (shareCredentialsVersion.get != 1) {
     throw new IllegalArgumentException(
-      s"${`type`} only supports version 1")
+      s"${profileType} only supports version 1")
   }
   DeltaSharingProfile.validateNotNullAndEmpty(bearerToken, "bearerToken")
 }
@@ -79,12 +80,12 @@ case class OAuthClientCredentialsDeltaSharingProfile(
     clientSecret: String = null,
     scope: Option[String] = None) extends DeltaSharingProfile {
 
-  override val `type`: String = "oauth_client_credentials"
+  override val profileType: String = OAUTH_CLIENT_CREDENTIALS
 
   super.validate()
   if (shareCredentialsVersion.get != 2) {
     throw new IllegalArgumentException(
-      s"${`type`} only supports version 2")
+      s"$profileType only supports version 2")
   }
   DeltaSharingProfile.validateNotNullAndEmpty(tokenEndpoint, "tokenEndpoint")
   DeltaSharingProfile.validateNotNullAndEmpty(clientId, "clientId")
@@ -135,6 +136,9 @@ object DeltaSharingProfile {
     BearerTokenDeltaSharingProfile(shareCredentialsVersion = shareCredentialsVersion,
       endpoint = endpoint, bearerToken = bearerToken, expirationTime = expirationTime)
   }
+
+  private [client] val BEARER_TOKEN: String = "bearer_token"
+  private [client] val OAUTH_CLIENT_CREDENTIALS: String = "oauth_client_credentials"
 
   private [client] def validateNotNullAndEmpty(fieldValue: String,
                                                fieldName: String): Unit = {

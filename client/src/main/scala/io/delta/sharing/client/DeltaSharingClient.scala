@@ -40,7 +40,7 @@ import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 
-import io.delta.sharing.client.auth.AuthCredentialProviderFactory
+import io.delta.sharing.client.auth.{AuthConfig, AuthCredentialProviderFactory}
 import io.delta.sharing.client.model._
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
 
@@ -164,7 +164,10 @@ class DeltaSharingRestClient(
     maxFilesPerReq: Int = 100000,
     enableAsyncQuery: Boolean = false,
     asyncQueryPollIntervalMillis: Long = 10000L,
-    asyncQueryMaxDuration: Long = 600000L
+    asyncQueryMaxDuration: Long = 600000L,
+    tokenExchangeMaxRetries: Int = 5,
+    tokenExchangeMaxRetryDurationInSeconds: Int = 60,
+    tokenRenewalThresholdInSeconds: Int = 600
   ) extends DeltaSharingClient with Logging {
 
   logInfo(s"DeltaSharingRestClient with enableAsyncQuery $enableAsyncQuery")
@@ -206,6 +209,8 @@ class DeltaSharingRestClient(
 
   private lazy val authCredentialProvider = AuthCredentialProviderFactory.createCredentialProvider(
     profileProvider.getProfile,
+    AuthConfig(tokenExchangeMaxRetries,
+      tokenExchangeMaxRetryDurationInSeconds, tokenRenewalThresholdInSeconds),
     client
   )
 
@@ -1188,6 +1193,11 @@ object DeltaSharingRestClient extends Logging {
     val asyncQueryMaxDurationMillis = ConfUtils.asyncQueryTimeout(sqlConf)
     val asyncQueryPollDurationMillis = ConfUtils.asyncQueryPollIntervalMillis(sqlConf)
 
+    val tokenExchangeMaxRetries = ConfUtils.tokenExchangeMaxRetries(sqlConf)
+    val tokenExchangeMaxRetryDurationInSeconds =
+      ConfUtils.tokenExchangeMaxRetryDurationInSeconds(sqlConf)
+    val tokenRenewalThresholdInSeconds = ConfUtils.tokenRenewalThresholdInSeconds(sqlConf)
+
     val clientClass = ConfUtils.clientClass(sqlConf)
     Class.forName(clientClass)
       .getConstructor(
@@ -1216,7 +1226,10 @@ object DeltaSharingRestClient extends Logging {
         java.lang.Integer.valueOf(maxFilesPerReq),
         java.lang.Boolean.valueOf(useAsyncQuery),
         java.lang.Long.valueOf(asyncQueryPollDurationMillis),
-        java.lang.Long.valueOf(asyncQueryMaxDurationMillis)
+        java.lang.Long.valueOf(asyncQueryMaxDurationMillis),
+        java.lang.Integer.valueOf(tokenExchangeMaxRetries),
+        java.lang.Integer.valueOf(tokenExchangeMaxRetryDurationInSeconds),
+        java.lang.Integer.valueOf(tokenRenewalThresholdInSeconds)
       ).asInstanceOf[DeltaSharingClient]
   }
 }

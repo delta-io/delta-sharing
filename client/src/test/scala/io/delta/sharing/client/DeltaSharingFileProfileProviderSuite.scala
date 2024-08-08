@@ -255,7 +255,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       scope = Some("testScope")
     )
 
-    assert(profile.`type` == "oauth_client_credentials")
+    assert(profile.`profileType` == "oauth_client_credentials")
   }
 
   test("DeltaSharingProfile.type is prepopulated") {
@@ -265,7 +265,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       bearerToken = "bar"
     )
 
-    assert(profile.`type` == "bearer_token")
+    assert(profile.`profileType` == "bearer_token")
   }
 
   test("BearerTokenDeltaSharingProfile.type is prepopulated") {
@@ -275,6 +275,6 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       bearerToken = "bar"
     )
 
-    assert(profile.`type` == "bearer_token")
+    assert(profile.`profileType` == "bearer_token")
   }
 }

@@ -24,13 +24,17 @@ import io.delta.sharing.client.OAuthClientCredentialsDeltaSharingProfile
 
 private[client] case class OAuthClientCredentialsAuthProvider(
                                            client: CloseableHttpClient,
+                                           authConfig: AuthConfig,
                                            profile: OAuthClientCredentialsDeltaSharingProfile)
   extends AuthCredentialProvider {
 
-  private[auth] lazy val oauthClient = new OAuthClient(client,
+
+
+  private[auth] lazy val oauthClient = new OAuthClient(client, authConfig,
     profile.tokenEndpoint, profile.clientId, profile.clientSecret, profile.scope)
 
-  private var currentToken: Option[OAuthClientCredentials] = None
+  // this can be updated on different thread, access must ensure correct synchronization
+  @volatile private var currentToken: Option[OAuthClientCredentials] = None
 
   override def addAuthHeader(httpRequest: HttpRequestBase): Unit = {
     if (currentToken.isEmpty || needsRefresh(currentToken.get)) {
@@ -59,13 +63,8 @@ private[client] case class OAuthClientCredentialsAuthProvider(
   private[auth] def needsRefresh(token: OAuthClientCredentials): Boolean = {
     val now = System.currentTimeMillis()
     val expirationTime = token.creationTimestamp + token.expiresIn * 1000
-    expirationTime - now < OAuthClientCredentialsAuthProvider.expirationThresholdInSeconds * 1000
+    expirationTime - now < authConfig.tokenRenewalThresholdInSeconds * 1000
   }
 
   override def getExpirationTime(): Option[String] = None
-}
-
-private[client] object OAuthClientCredentialsAuthProvider {
-  // We will refresh the token if it expires in less than 10 minutes.
-  private val expirationThresholdInSeconds = 60 * 10 // 10 minutes
 }

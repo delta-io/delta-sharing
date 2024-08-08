@@ -20,12 +20,17 @@ import org.apache.http.impl.client.CloseableHttpClient
 
 import io.delta.sharing.client.{BearerTokenDeltaSharingProfile, DeltaSharingProfile, OAuthClientCredentialsDeltaSharingProfile}
 
+private[client] case class AuthConfig(tokenExchangeMaxRetries: Int = 5,
+                                      tokenExchangeMaxRetryDurationInSeconds: Long = 60,
+                                      tokenRenewalThresholdInSeconds: Long = 600)
+
 private[client] object AuthCredentialProviderFactory {
   def createCredentialProvider(profile: DeltaSharingProfile,
+                               authConfig: AuthConfig,
                                client: CloseableHttpClient): AuthCredentialProvider = {
     profile match {
       case oauthProfile: OAuthClientCredentialsDeltaSharingProfile =>
-        OAuthClientCredentialsAuthProvider(client, oauthProfile)
+        OAuthClientCredentialsAuthProvider(client, authConfig, oauthProfile)
       case BearerTokenDeltaSharingProfile(_, _, bearerToken, expirationTime) =>
         BearerTokenAuthProvider(bearerToken, expirationTime)
     }

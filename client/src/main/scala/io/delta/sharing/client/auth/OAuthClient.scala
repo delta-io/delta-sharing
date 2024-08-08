@@ -33,6 +33,7 @@ case class OAuthClientCredentials(accessToken: String,
 
 private[client] class OAuthClient(httpClient:
                                   CloseableHttpClient,
+                                  authConfig: AuthConfig,
                                   tokenEndpoint: String,
                                   clientId: String,
                                   clientSecret: String,
@@ -56,7 +57,8 @@ private[client] class OAuthClient(httpClient:
 
     // retries on temporary errors (connection error or 500, 429) from token endpoint
     RetryUtils.runWithExponentialBackoff(
-      OAuthClient.numRetries, OAuthClient.maxRetryDurationInMillis) {
+      authConfig.tokenExchangeMaxRetries,
+      authConfig.tokenExchangeMaxRetryDurationInSeconds * 1000) {
       var response: CloseableHttpResponse = null
       try {
         response = httpClient.execute(post)
@@ -102,7 +104,3 @@ private[client] class OAuthClient(httpClient:
   }
 }
 
-private[auth] object OAuthClient {
-  val numRetries = 3
-  val maxRetryDurationInMillis = 30000 // 30 seconds
-}

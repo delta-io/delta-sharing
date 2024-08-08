@@ -66,7 +66,7 @@ class OAuthClientSuite extends SparkFunSuite {
     startServer(handler)
 
     val httpClient: CloseableHttpClient = HttpClients.createDefault()
-    val oauthClient = new OAuthClient(httpClient,
+    val oauthClient = new OAuthClient(httpClient, AuthConfig(),
       "http://localhost:1080/token", "client-id", "client-secret")
 
     val start = System.currentTimeMillis()
@@ -97,7 +97,7 @@ class OAuthClientSuite extends SparkFunSuite {
     startServer(handler)
 
     val httpClient: CloseableHttpClient = HttpClients.createDefault()
-    val oauthClient = new OAuthClient(httpClient,
+    val oauthClient = new OAuthClient(httpClient, AuthConfig(),
       "http://localhost:1080/token", "client-id", "client-secret")
 
     val e = intercept[RuntimeException] {
