@@ -18,12 +18,14 @@ package io.delta.sharing.client
 
 import java.net.{URI, URLDecoder, URLEncoder}
 import java.util.concurrent.TimeUnit
+
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.http.{HttpClientConnection, HttpHost, HttpRequest, HttpResponse}
 import org.apache.http.auth.{AuthScope, UsernamePasswordCredentials}
 import org.apache.http.client.config.RequestConfig
+import org.apache.http.client.utils.URIBuilder
 import org.apache.http.conn.routing.HttpRoute
 import org.apache.http.impl.client.{BasicCredentialsProvider, HttpClientBuilder, RequestWrapper}
 import org.apache.http.impl.conn.{DefaultRoutePlanner, DefaultSchemePortResolver}
@@ -31,10 +33,9 @@ import org.apache.http.protocol.{HttpContext, HttpRequestExecutor}
 import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.{PreSignedUrlCache, PreSignedUrlFetcher}
 import org.apache.spark.internal.Logging
+
 import io.delta.sharing.client.model.FileAction
 import io.delta.sharing.client.util.ConfUtils
-import org.apache.http.client.methods.{HttpGet, HttpRequestWrapper}
-import org.apache.http.client.utils.URIBuilder
 
 /** Read-only file system for delta paths. */
 private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
@@ -108,7 +109,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
           }
         }
         clientBuilder.setRoutePlanner(routePlanner)
-       }
+      }
     }
     clientBuilder.build()
   }
@@ -238,4 +239,3 @@ private[sharing] object DeltaSharingFileSystem {
       sizeString.toLong)
   }
 }
-

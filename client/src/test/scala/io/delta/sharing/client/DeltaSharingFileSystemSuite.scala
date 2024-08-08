@@ -17,16 +17,18 @@
 package io.delta.sharing.client
 
 import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.http.client.methods.{HttpGet, HttpPost}
+import org.apache.http.client.utils.URIBuilder
+import org.apache.http.entity.StringEntity
 import org.apache.http.util.EntityUtils
 import org.apache.spark.SparkFunSuite
 import org.sparkproject.jetty.server.Server
 import org.sparkproject.jetty.servlet.{ServletHandler, ServletHolder}
+
 import io.delta.sharing.client.model._
 import io.delta.sharing.client.util.{ConfUtils, ProxyServer}
-import org.apache.http.client.utils.URIBuilder
-import org.apache.http.entity.StringEntity
 
 class DeltaSharingFileSystemSuite extends SparkFunSuite {
   import DeltaSharingFileSystem._
@@ -66,6 +68,7 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
   }
 
   test("traffic goes through a proxy when a proxy configured") {
+    // Create a local HTTP server.
     val server = new Server(0)
     val handler = new ServletHandler()
     server.setHandler(handler)
