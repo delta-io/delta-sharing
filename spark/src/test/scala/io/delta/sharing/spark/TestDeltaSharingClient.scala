@@ -49,7 +49,10 @@ class TestDeltaSharingClient(
     maxFilesPerReq: Int = 10000,
     enableAsyncQuery: Boolean = false,
     asyncQueryPollIntervalMillis: Long = 1000L,
-    asyncQueryMaxDuration: Long = Long.MaxValue
+    asyncQueryMaxDuration: Long = Long.MaxValue,
+    tokenExchangeMaxRetries: Int = 5,
+    tokenExchangeMaxRetryDurationInSeconds: Int = 60,
+    tokenRenewalThresholdInSeconds: Int = 600
   ) extends DeltaSharingClient {
 
   import DeltaSharingOptions.RESPONSE_FORMAT_PARQUET

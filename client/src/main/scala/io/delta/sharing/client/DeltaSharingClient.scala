@@ -40,6 +40,7 @@ import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 
+import io.delta.sharing.client.auth.{AuthConfig, AuthCredentialProviderFactory}
 import io.delta.sharing.client.model._
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
 
@@ -163,7 +164,10 @@ class DeltaSharingRestClient(
     maxFilesPerReq: Int = 100000,
     enableAsyncQuery: Boolean = false,
     asyncQueryPollIntervalMillis: Long = 10000L,
-    asyncQueryMaxDuration: Long = 600000L
+    asyncQueryMaxDuration: Long = 600000L,
+    tokenExchangeMaxRetries: Int = 5,
+    tokenExchangeMaxRetryDurationInSeconds: Int = 60,
+    tokenRenewalThresholdInSeconds: Int = 600
   ) extends DeltaSharingClient with Logging {
 
   logInfo(s"DeltaSharingRestClient with enableAsyncQuery $enableAsyncQuery")
@@ -202,6 +206,13 @@ class DeltaSharingRestClient(
     created = true
     client
   }
+
+  private lazy val authCredentialProvider = AuthCredentialProviderFactory.createCredentialProvider(
+    profileProvider.getProfile,
+    AuthConfig(tokenExchangeMaxRetries,
+      tokenExchangeMaxRetryDurationInSeconds, tokenRenewalThresholdInSeconds),
+    client
+  )
 
   override def getProfileProvider: DeltaSharingProfileProvider = profileProvider
 
@@ -930,15 +941,8 @@ class DeltaSharingRestClient(
     new HttpHost(url.getHost, port, protocol)
   }
 
-  private def tokenExpired(profile: DeltaSharingProfile): Boolean = {
-    if (profile.expirationTime == null) return false
-    try {
-      val expirationTime = Timestamp.valueOf(
-        LocalDateTime.parse(profile.expirationTime, ISO_DATE_TIME))
-      expirationTime.before(Timestamp.valueOf(LocalDateTime.now()))
-    } catch {
-      case _: Throwable => false
-    }
+  private def tokenExpired(): Boolean = {
+    authCredentialProvider.isExpired()
   }
 
   private[client] def prepareHeaders(httpRequest: HttpRequestBase): HttpRequestBase = {
@@ -951,11 +955,11 @@ class DeltaSharingRestClient(
       )
     }
     val headers = Map(
-      HttpHeaders.AUTHORIZATION -> s"Bearer ${profileProvider.getProfile.bearerToken}",
       HttpHeaders.USER_AGENT -> getUserAgent(),
       DELTA_SHARING_CAPABILITIES_HEADER -> getDeltaSharingCapabilities()
     ) ++ customeHeaders
     headers.foreach(header => httpRequest.setHeader(header._1, header._2))
+    authCredentialProvider.addAuthHeader(httpRequest)
 
     httpRequest
   }
@@ -1021,9 +1025,9 @@ class DeltaSharingRestClient(
         if (!(statusCode == HttpStatus.SC_OK ||
           (allowNoContent && statusCode == HttpStatus.SC_NO_CONTENT))) {
           var additionalErrorInfo = ""
-          if (statusCode == HttpStatus.SC_UNAUTHORIZED && tokenExpired(profile)) {
+          if (statusCode == HttpStatus.SC_UNAUTHORIZED && tokenExpired()) {
             additionalErrorInfo = s"It may be caused by an expired token as it has expired " +
-              s"at ${profile.expirationTime}"
+              s"at ${authCredentialProvider.getExpirationTime()}"
           }
           // Only show the last 100 lines in the error to keep it contained.
           val responseToShow = lines.drop(lines.size - 100).mkString("\n")
@@ -1189,6 +1193,11 @@ object DeltaSharingRestClient extends Logging {
     val asyncQueryMaxDurationMillis = ConfUtils.asyncQueryTimeout(sqlConf)
     val asyncQueryPollDurationMillis = ConfUtils.asyncQueryPollIntervalMillis(sqlConf)
 
+    val tokenExchangeMaxRetries = ConfUtils.tokenExchangeMaxRetries(sqlConf)
+    val tokenExchangeMaxRetryDurationInSeconds =
+      ConfUtils.tokenExchangeMaxRetryDurationInSeconds(sqlConf)
+    val tokenRenewalThresholdInSeconds = ConfUtils.tokenRenewalThresholdInSeconds(sqlConf)
+
     val clientClass = ConfUtils.clientClass(sqlConf)
     Class.forName(clientClass)
       .getConstructor(
@@ -1204,8 +1213,11 @@ object DeltaSharingRestClient extends Logging {
         classOf[Int],
         classOf[Boolean],
         classOf[Long],
-        classOf[Long]
-      ).newInstance(profileProvider,
+        classOf[Long],
+        classOf[Int],
+        classOf[Int],
+        classOf[Int]
+    ).newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
         java.lang.Long.valueOf(maxRetryDurationMillis),
@@ -1217,7 +1229,10 @@ object DeltaSharingRestClient extends Logging {
         java.lang.Integer.valueOf(maxFilesPerReq),
         java.lang.Boolean.valueOf(useAsyncQuery),
         java.lang.Long.valueOf(asyncQueryPollDurationMillis),
-        java.lang.Long.valueOf(asyncQueryMaxDurationMillis)
+        java.lang.Long.valueOf(asyncQueryMaxDurationMillis),
+        java.lang.Integer.valueOf(tokenExchangeMaxRetries),
+        java.lang.Integer.valueOf(tokenExchangeMaxRetryDurationInSeconds),
+        java.lang.Integer.valueOf(tokenRenewalThresholdInSeconds)
       ).asInstanceOf[DeltaSharingClient]
   }
 }

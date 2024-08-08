@@ -170,4 +170,92 @@ class ConfUtilsSuite extends SparkFunSuite {
       getProxyConfig(conf)
     }.getMessage.contains(PROXY_PORT)
   }
+
+  test("tokenExchangeMaxRetries - default value") {
+    assert(tokenExchangeMaxRetries(newConf()) == 5)
+  }
+
+  test("tokenExchangeMaxRetries - new value") {
+    assert(tokenExchangeMaxRetries(newConf(Map(OAUTH_RETRIES_CONF -> "6"))) == 6)
+  }
+
+  test("tokenExchangeMaxRetries - invalid scenario") {
+    intercept[IllegalArgumentException] {
+      tokenExchangeMaxRetries(newConf(Map(OAUTH_RETRIES_CONF -> "-1")))
+    }.getMessage.contains(OAUTH_RETRIES_CONF)
+  }
+
+  test("tokenExchangeMaxRetryDurationInSeconds - default value") {
+    assert(tokenExchangeMaxRetryDurationInSeconds(newConf()) == 60)
+  }
+
+  test("tokenExchangeMaxRetryDurationInSeconds - new value") {
+    assert(tokenExchangeMaxRetryDurationInSeconds(
+      newConf(Map(OAUTH_MAX_RETRY_DURATION_CONF -> "600"))) == 600)
+  }
+
+  test("tokenExchangeMaxRetryDurationInSeconds - invalid scenario") {
+    intercept[IllegalArgumentException] {
+      tokenExchangeMaxRetryDurationInSeconds(newConf(Map(OAUTH_MAX_RETRY_DURATION_CONF -> "-1")))
+    }.getMessage.contains(OAUTH_MAX_RETRY_DURATION_CONF)
+  }
+
+  test("tokenRenewalThresholdInSeconds - default value") {
+    assert(tokenRenewalThresholdInSeconds(newConf()) == 600)
+  }
+
+  test("tokenRenewalThresholdInSeconds - new value") {
+    assert(tokenRenewalThresholdInSeconds(
+      newConf(Map(OAUTH_EXPIRATION_THRESHOLD_CONF -> "300"))) == 300)
+  }
+
+  test("tokenRenewalThresholdInSeconds - invalid scenario") {
+    intercept[IllegalArgumentException] {
+      tokenRenewalThresholdInSeconds(newConf(Map(OAUTH_EXPIRATION_THRESHOLD_CONF -> "-1")))
+    }.getMessage.contains(OAUTH_EXPIRATION_THRESHOLD_CONF)
+  }
+
+  test("tokenExchangeMaxRetries with SQLConf - default value") {
+    assert(tokenExchangeMaxRetries(newSqlConf()) == 5)
+  }
+
+  test("tokenExchangeMaxRetries with SQLConf - new value") {
+    assert(tokenExchangeMaxRetries(newSqlConf(Map(OAUTH_RETRIES_CONF -> "6"))) == 6)
+  }
+
+  test("tokenExchangeMaxRetries with SQLConf - invalid scenario") {
+    intercept[IllegalArgumentException] {
+      tokenExchangeMaxRetries(newSqlConf(Map(OAUTH_RETRIES_CONF -> "-1")))
+    }.getMessage.contains(OAUTH_RETRIES_CONF)
+  }
+
+  test("tokenExchangeMaxRetryDurationInSeconds with SQLConf - default value") {
+    assert(tokenExchangeMaxRetryDurationInSeconds(newSqlConf()) == 60)
+  }
+
+  test("tokenExchangeMaxRetryDurationInSeconds with SQLConf - new value") {
+    assert(tokenExchangeMaxRetryDurationInSeconds(
+      newSqlConf(Map(OAUTH_MAX_RETRY_DURATION_CONF -> "600"))) == 600)
+  }
+
+  test("tokenExchangeMaxRetryDurationInSeconds with SQLConf - invalid scenario") {
+    intercept[IllegalArgumentException] {
+      tokenExchangeMaxRetryDurationInSeconds(newSqlConf(Map(OAUTH_MAX_RETRY_DURATION_CONF -> "-1")))
+    }.getMessage.contains(OAUTH_MAX_RETRY_DURATION_CONF)
+  }
+
+  test("tokenRenewalThresholdInSeconds with SQLConf - default value") {
+    assert(tokenRenewalThresholdInSeconds(newSqlConf()) == 600)
+  }
+
+  test("tokenRenewalThresholdInSeconds with SQLConf - new value") {
+    assert(tokenRenewalThresholdInSeconds(
+      newSqlConf(Map(OAUTH_EXPIRATION_THRESHOLD_CONF -> "300"))) == 300)
+  }
+
+  test("tokenRenewalThresholdInSeconds with SQLConf - invalid scenario") {
+    intercept[IllegalArgumentException] {
+      tokenRenewalThresholdInSeconds(newSqlConf(Map(OAUTH_EXPIRATION_THRESHOLD_CONF -> "-1")))
+    }.getMessage.contains(OAUTH_EXPIRATION_THRESHOLD_CONF)
+  }
 }
