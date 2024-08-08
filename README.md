@@ -60,7 +60,6 @@ pip3 install maturin
 maturin develop
 ```
 
-
 ## Accessing Shared Data
 
 The connector accesses shared tables based on [profile files](PROTOCOL.md#profile-file-format), which are JSON files containing a user's credentials to access a Delta Sharing Server. We have several ways to get started:
