@@ -85,6 +85,22 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       "Cannot find the 'shareCredentialsVersion' field in the profile file"))
   }
 
+  test("shareCredentialsVersion is incorrect") {
+    val e = intercept[IllegalArgumentException] {
+      testProfile(
+        """{
+          |  "shareCredentialsVersion" : 2,
+          |  "endpoint": "foo",
+          |  "bearerToken": "bar"
+          |}
+          |""".stripMargin,
+        null
+      )
+    }
+    assert(e.getMessage.contains(
+      "bearer_token only supports version 1"))
+  }
+
   test("shareCredentialsVersion is not supported") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
@@ -144,5 +160,121 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
         expirationTime = "2021-11-12T00:12:29.0Z"
       )
     )
+  }
+
+  test("oauth_client_credentials profile without optional scope") {
+    testProfile(
+      """{
+        |  "shareCredentialsVersion": 2,
+        |  "endpoint": "foo",
+        |  "tokenEndpoint": "bar",
+        |  "clientId": "abc",
+        |  "clientSecret": "xyz",
+        |  "type" : "oauth_client_credentials"
+        |}
+        |""".stripMargin,
+      OAuthClientCredentialsDeltaSharingProfile(
+        shareCredentialsVersion = Some(2),
+        endpoint = "foo",
+        tokenEndpoint = "bar",
+        clientId = "abc",
+        clientSecret = "xyz"
+      )
+    )
+  }
+
+  test("oauth_client_credentials profile with optional scope") {
+    testProfile(
+      """{
+        |  "shareCredentialsVersion": 2,
+        |  "endpoint": "foo",
+        |  "tokenEndpoint": "bar",
+        |  "clientId": "abc",
+        |  "clientSecret": "xyz",
+        |  "type" : "oauth_client_credentials",
+        |  "scope": "testScope"
+        |}
+        |""".stripMargin,
+      OAuthClientCredentialsDeltaSharingProfile(
+        shareCredentialsVersion = Some(2),
+        endpoint = "foo",
+        tokenEndpoint = "bar",
+        clientId = "abc",
+        clientSecret = "xyz",
+        scope = Some("testScope")
+      )
+    )
+  }
+
+  test("oauth_client_credentials only supports version 2") {
+    val e = intercept[IllegalArgumentException] {
+      testProfile(
+        """{
+          |  "shareCredentialsVersion": 1,
+          |  "endpoint": "foo",
+          |  "tokenEndpoint": "bar",
+          |  "clientId": "abc",
+          |  "clientSecret": "xyz",
+          |  "type" : "oauth_client_credentials",
+          |  "scope": "testScope"
+          |}
+          |""".stripMargin,
+        null
+      )
+    }
+    assert(e.getMessage.contains(s"oauth_client_credentials only supports version 2"))
+  }
+
+  test("oauth mandatory config is missing") {
+    val mandatoryFields = Seq("endpoint", "tokenEndpoint", "clientId", "clientSecret")
+
+    for (missingField <- mandatoryFields) {
+      val profile = s"""{
+                       |  "shareCredentialsVersion": 2,
+                       |  "type" : "oauth_client_credentials",
+                       |  ${mandatoryFields
+                              .filter(_ != missingField)
+                              .map(f => s""""$f": "value"""")
+                              .mkString(",\n")}
+                       |}""".stripMargin
+
+      val e = intercept[IllegalArgumentException] {
+        testProfile(profile, null)
+      }
+      assert(e.getMessage.contains(s"Cannot find the '$missingField' field in the profile file"))
+    }
+  }
+
+  test("OAuthClientCredentialsDeltaSharingProfile.type is prepopulated") {
+    val profile = OAuthClientCredentialsDeltaSharingProfile(
+      shareCredentialsVersion = Some(2),
+      endpoint = "foo",
+      tokenEndpoint = "bar",
+      clientId = "abc",
+      clientSecret = "xyz",
+      scope = Some("testScope")
+    )
+
+    assert(profile.profileType == "oauth_client_credentials")
+  }
+
+  test("DeltaSharingProfile.type is prepopulated") {
+    val profile = DeltaSharingProfile(
+      shareCredentialsVersion = Some(1),
+      endpoint = "foo",
+      bearerToken = "bar"
+    )
+
+    assert(profile.profileType == "bearer_token")
+  }
+
+  test("BearerTokenDeltaSharingProfile.type is prepopulated") {
+    val profile = BearerTokenDeltaSharingProfile(
+      shareCredentialsVersion = Some(1),
+      endpoint = "foo",
+      bearerToken = "bar"
+    )
+
+    assert(profile.profileType == "bearer_token")
   }
 }
