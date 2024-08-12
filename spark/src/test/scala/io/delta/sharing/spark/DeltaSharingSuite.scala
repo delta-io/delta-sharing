@@ -545,7 +545,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("table1 with storage proxy") {
-    val proxyServer = new TestStorageProxyServer(0)
+    val proxyServer = new TestStorageProxyServer
     proxyServer.initialize()
     withSQLConf("spark.delta.sharing.network.proxyHost" -> s"${proxyServer.getHost()}",
       "spark.delta.sharing.network.proxyPort" -> s"${proxyServer.getPort()}",
