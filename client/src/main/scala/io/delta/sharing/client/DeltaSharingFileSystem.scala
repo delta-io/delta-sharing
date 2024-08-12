@@ -78,13 +78,9 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
                                 connection: HttpClientConnection,
                                 context: HttpContext): HttpResponse = {
             try {
-              logInfo(s"Downgrading the request to http: $request")
-              logInfo(s"REQUEST CONNECTION: ${connection}")
-              logInfo(s"REQUEST CONTEXT: ${context}")
               val modifiedUri: URI = {
                 new URIBuilder(request.getRequestLine.getUri).setScheme("http").build()
               }
-              logInfo(s"REQUEST PARAMS: ${request.getParams}")
               val wrappedRequest = new RequestWrapper(request)
               wrappedRequest.setURI(modifiedUri)
 
