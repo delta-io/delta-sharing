@@ -18,7 +18,7 @@ package io.delta.sharing.spark
 
 import java.io.EOFException
 
-import scala.util.Random
+import scala.util.{Random}
 
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
@@ -542,5 +542,26 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       sql("CREATE table foo USING deltaSharing")
     }
     assert(e.getMessage.contains("LOCATION must be specified"))
+  }
+
+  integrationTest("table1 with storage proxy") {
+    val proxyServer = new TestStorageProxyServer(0)
+    proxyServer.initialize()
+    withSQLConf("spark.delta.sharing.network.proxyHost" -> s"${proxyServer.getHost()}",
+      "spark.delta.sharing.network.proxyPort" -> s"${proxyServer.getPort()}",
+      "spark.delta.sharing.never.use.https" -> "true") {
+
+      val tablePath = testProfileFile.getCanonicalPath + "#share1.default.table1"
+      val expected = Seq(
+        Row(sqlTimestamp("2021-04-27 23:32:02.07"), sqlDate("2021-04-28")),
+        Row(sqlTimestamp("2021-04-27 23:32:22.421"), sqlDate("2021-04-28"))
+      )
+      checkAnswer(spark.read.format("deltaSharing").load(tablePath), expected)
+      withTable("delta_sharing_test") {
+        sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
+        checkAnswer(sql(s"SELECT * FROM delta_sharing_test"), expected)
+      }
+      proxyServer.stop()
+    }
   }
 }
