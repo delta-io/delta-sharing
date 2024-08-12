@@ -549,7 +549,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     proxyServer.initialize()
     withSQLConf("spark.delta.sharing.network.proxyHost" -> s"${proxyServer.getHost()}",
       "spark.delta.sharing.network.proxyPort" -> s"${proxyServer.getPort()}",
-      "spark.delta.sharing.never.use.https" -> "true") {
+      "spark.delta.sharing.network.never.use.https" -> "true") {
 
       val tablePath = testProfileFile.getCanonicalPath + "#share1.default.table1"
       val expected = Seq(

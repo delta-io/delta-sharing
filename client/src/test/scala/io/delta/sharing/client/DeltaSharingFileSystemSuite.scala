@@ -263,7 +263,7 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
       val conf = new Configuration
       conf.set(ConfUtils.PROXY_HOST, proxyServer.getHost())
       conf.set(ConfUtils.PROXY_PORT, proxyServer.getPort().toString)
-      conf.setBoolean("spark.delta.sharing.never.use.https", true)
+      conf.setBoolean("spark.delta.sharing.network.never.use.https", true)
 
       // Configure the httpClient to use the ProxyConfig.
       val fs = new DeltaSharingFileSystem() {

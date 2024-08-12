@@ -30,7 +30,7 @@ import org.sparkproject.jetty.util.ssl.SslContextFactory
 /**
  * A simple proxy server that forwards storage access while upgrading the connection to https.
  * This is used to test the behavior of the DeltaSharingFileSystem when
- * "spark.delta.sharing.never.use.https" is set to true.
+ * "spark.delta.sharing.network.never.use.https" is set to true.
  */
 class TestStorageProxyServer {
   private val server = new Server(0)

@@ -89,7 +89,7 @@ object ConfUtils {
     "spark.delta.sharing.oauth.tokenRenewalThresholdInSeconds"
   val OAUTH_EXPIRATION_THRESHOLD_SECONDS_DEFAULT = 10 * 60 /* 10 mins */
 
-  val NEVER_USE_HTTPS = "spark.delta.sharing.never.use.https"
+  val NEVER_USE_HTTPS = "spark.delta.sharing.network.never.use.https"
   val NEVER_USE_HTTPS_DEFAULT = "false"
 
   def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
