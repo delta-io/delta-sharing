@@ -98,7 +98,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
         }
         clientBuilder.setRequestExecutor(httpRequestDowngradeExecutor)
       }
-       if (proxyConfig.noProxyHosts.nonEmpty || neverUseHttps) {
+      if (proxyConfig.noProxyHosts.nonEmpty || neverUseHttps) {
         val routePlanner = new DefaultRoutePlanner(DefaultSchemePortResolver.INSTANCE) {
           override def determineRoute(target: HttpHost,
                                       request: HttpRequest,
