@@ -39,59 +39,6 @@ class AuthConfig:
         self.token_renewal_threshold_in_seconds = token_renewal_threshold_in_seconds
 
 
-class AuthCredentialProviderFactory:
-    __oauth_auth_provider_cache : Dict[
-        DeltaSharingProfile,
-        OAuthClientCredentialsAuthProvider] = {}
-
-    @staticmethod
-    def create_auth_credential_provider(profile: DeltaSharingProfile):
-        if profile.share_credentials_version == 2:
-            if profile.type == "oauth_client_credentials":
-                return AuthCredentialProviderFactory.__oauth_client_credentials(profile)
-            elif profile.type == "bearer_token":
-                return AuthCredentialProviderFactory.__auth_bearer_token(profile)
-            elif profile.type == "basic":
-                return AuthCredentialProviderFactory.__auth_basic(profile)
-            else:
-                return AuthCredentialProviderFactory.__auth_bearer_token(profile)
-        else:
-            return AuthCredentialProviderFactory.__auth_bearer_token(profile)
-
-    @staticmethod
-    def __oauth_client_credentials(profile):
-        # Once a clientId/clientSecret is exchanged for an accessToken,
-        # the accessToken can be reused until it expires.
-        # The Python client re-creates DeltaSharingClient for different requests.
-        # To ensure the OAuth access_token is reused,
-        # we keep a mapping from profile -> OAuthClientCredentialsAuthProvider.
-        # This prevents re-initializing OAuthClientCredentialsAuthProvider for the same profile,
-        # ensuring the access_token can be reused.
-        if profile in AuthCredentialProviderFactory.__oauth_auth_provider_cache:
-            return AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile]
-
-        oauth_client = OAuthClient(
-            token_endpoint=profile.token_endpoint,
-            client_id=profile.client_id,
-            client_secret=profile.client_secret,
-            scope=profile.scope
-        )
-        provider = OAuthClientCredentialsAuthProvider(
-            oauth_client=oauth_client,
-            auth_config=AuthConfig()
-        )
-        AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile] = provider
-        return provider
-
-    @staticmethod
-    def __auth_bearer_token(profile):
-        return BearerTokenAuthProvider(profile.bearer_token, profile.expiration_time)
-
-    @staticmethod
-    def __auth_basic(profile):
-        return BasicAuthProvider(profile.endpoint, profile.username, profile.password)
-
-
 class AuthCredentialProvider(ABC):
     @abstractmethod
     def add_auth_header(self, session: requests.Session) -> None:
@@ -224,3 +171,56 @@ class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
 
     def get_expiration_time(self) -> Optional[str]:
         return None
+
+
+class AuthCredentialProviderFactory:
+    __oauth_auth_provider_cache : Dict[
+        DeltaSharingProfile,
+        OAuthClientCredentialsAuthProvider] = {}
+
+    @staticmethod
+    def create_auth_credential_provider(profile: DeltaSharingProfile):
+        if profile.share_credentials_version == 2:
+            if profile.type == "oauth_client_credentials":
+                return AuthCredentialProviderFactory.__oauth_client_credentials(profile)
+            elif profile.type == "bearer_token":
+                return AuthCredentialProviderFactory.__auth_bearer_token(profile)
+            elif profile.type == "basic":
+                return AuthCredentialProviderFactory.__auth_basic(profile)
+            else:
+                return AuthCredentialProviderFactory.__auth_bearer_token(profile)
+        else:
+            return AuthCredentialProviderFactory.__auth_bearer_token(profile)
+
+    @staticmethod
+    def __oauth_client_credentials(profile):
+        # Once a clientId/clientSecret is exchanged for an accessToken,
+        # the accessToken can be reused until it expires.
+        # The Python client re-creates DeltaSharingClient for different requests.
+        # To ensure the OAuth access_token is reused,
+        # we keep a mapping from profile -> OAuthClientCredentialsAuthProvider.
+        # This prevents re-initializing OAuthClientCredentialsAuthProvider for the same profile,
+        # ensuring the access_token can be reused.
+        if profile in AuthCredentialProviderFactory.__oauth_auth_provider_cache:
+            return AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile]
+
+        oauth_client = OAuthClient(
+            token_endpoint=profile.token_endpoint,
+            client_id=profile.client_id,
+            client_secret=profile.client_secret,
+            scope=profile.scope
+        )
+        provider = OAuthClientCredentialsAuthProvider(
+            oauth_client=oauth_client,
+            auth_config=AuthConfig()
+        )
+        AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile] = provider
+        return provider
+
+    @staticmethod
+    def __auth_bearer_token(profile):
+        return BearerTokenAuthProvider(profile.bearer_token, profile.expiration_time)
+
+    @staticmethod
+    def __auth_basic(profile):
+        return BasicAuthProvider(profile.endpoint, profile.username, profile.password)
