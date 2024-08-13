@@ -20,7 +20,10 @@ import pytest
 import pytest
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
-from delta_sharing.auth import OAuthClient, OAuthClientCredentialsAuthProvider, OAuthClientCredentials, AuthConfig
+from delta_sharing.auth import (OAuthClient,
+                                OAuthClientCredentialsAuthProvider,
+                                OAuthClientCredentials,
+                                AuthConfig)
 from requests import Session
 import requests
 from datetime import datetime, timedelta
@@ -32,7 +35,6 @@ from delta_sharing.auth import BasicAuthProvider
 from delta_sharing.auth import AuthCredentialProviderFactory
 from delta_sharing.protocol import DeltaSharingProfile
 
-###### bearer token test
 
 def test_bearer_token_auth_provider_initialization():
     token = "test-token"
@@ -41,12 +43,14 @@ def test_bearer_token_auth_provider_initialization():
     assert provider.bearer_token == token
     assert provider.expiration_time == expiration_time
 
+
 def test_bearer_token_auth_provider_add_auth_header():
     token = "test-token"
     provider = BearerTokenAuthProvider(token, None)
     session = requests.Session()
     provider.add_auth_header(session)
     assert session.headers["Authorization"] == f"Bearer {token}"
+
 
 def test_bearer_token_auth_provider_is_expired():
     expired_token = "expired-token"
@@ -59,6 +63,7 @@ def test_bearer_token_auth_provider_is_expired():
     provider = BearerTokenAuthProvider(valid_token, expiration_time)
     assert not provider.is_expired()
 
+
 def test_bearer_token_auth_provider_get_expiration_time():
     token = "test-token"
     expiration_time = "2021-11-12T00:12:29.0Z"
@@ -68,7 +73,6 @@ def test_bearer_token_auth_provider_get_expiration_time():
     provider = BearerTokenAuthProvider(token, None)
     assert provider.get_expiration_time() is None
 
-###### oauth test
 
 def test_oauth_client_credentials_auth_provider_exchange_token():
     oauth_client = MagicMock(spec=OAuthClient)
@@ -87,8 +91,10 @@ def test_oauth_client_credentials_auth_provider_exchange_token():
 
     provider.add_auth_header(mock_session)
 
-    mock_session.headers.update.assert_called_once_with({"Authorization": f"Bearer {token.access_token}"})
+    mock_session.headers.update.assert_called_once_with(
+        {"Authorization": f"Bearer {token.access_token}"})
     oauth_client.client_credentials.assert_called_once()
+
 
 def test_oauth_client_credentials_auth_provider_reuse_token():
     oauth_client = MagicMock(spec=OAuthClient)
@@ -102,13 +108,16 @@ def test_oauth_client_credentials_auth_provider_reuse_token():
     mock_session = MagicMock(spec=Session)
     mock_session.headers = MagicMock()
 
-    valid_token = OAuthClientCredentials("valid-token", 3600, int(datetime.now().timestamp()))
+    valid_token = OAuthClientCredentials(
+        "valid-token", 3600, int(datetime.now().timestamp()))
     provider.current_token = valid_token
 
     provider.add_auth_header(mock_session)
 
-    mock_session.headers.update.assert_called_once_with({"Authorization": f"Bearer {valid_token.access_token}"})
+    mock_session.headers.update.assert_called_once_with(
+        {"Authorization": f"Bearer {valid_token.access_token}"})
     oauth_client.client_credentials.assert_not_called()
+
 
 def test_oauth_client_credentials_auth_provider_refresh_token():
     oauth_client = MagicMock(spec=OAuthClient)
@@ -122,15 +131,19 @@ def test_oauth_client_credentials_auth_provider_refresh_token():
     mock_session = MagicMock(spec=Session)
     mock_session.headers = MagicMock()
 
-    expired_token = OAuthClientCredentials("expired-token", 1, int(datetime.now().timestamp()) - 3600)
-    new_token = OAuthClientCredentials("new-token", 3600, int(datetime.now().timestamp()))
+    expired_token = OAuthClientCredentials(
+        "expired-token", 1, int(datetime.now().timestamp()) - 3600)
+    new_token = OAuthClientCredentials(
+        "new-token", 3600, int(datetime.now().timestamp()))
     provider.current_token = expired_token
     oauth_client.client_credentials.return_value = new_token
 
     provider.add_auth_header(mock_session)
 
-    mock_session.headers.update.assert_called_once_with({"Authorization": f"Bearer {new_token.access_token}"})
+    mock_session.headers.update.assert_called_once_with(
+        {"Authorization": f"Bearer {new_token.access_token}"})
     oauth_client.client_credentials.assert_called_once()
+
 
 def test_oauth_client_credentials_auth_provider_needs_refresh():
     oauth_client = MagicMock(spec=OAuthClient)
@@ -142,14 +155,18 @@ def test_oauth_client_credentials_auth_provider_needs_refresh():
 
     provider = OAuthClientCredentialsAuthProvider(oauth_client)
 
-    expired_token = OAuthClientCredentials("expired-token", 1, int(datetime.now().timestamp()) - 3600)
+    expired_token = OAuthClientCredentials(
+        "expired-token", 1, int(datetime.now().timestamp()) - 3600)
     assert provider.needs_refresh(expired_token)
 
-    token_expiring_soon = OAuthClientCredentials("expiring-soon-token", 600 - 5, int(datetime.now().timestamp()))
+    token_expiring_soon = OAuthClientCredentials(
+        "expiring-soon-token", 600 - 5, int(datetime.now().timestamp()))
     assert provider.needs_refresh(token_expiring_soon)
 
-    valid_token = OAuthClientCredentials("valid-token", 600 + 10, int(datetime.now().timestamp()))
+    valid_token = OAuthClientCredentials(
+        "valid-token", 600 + 10, int(datetime.now().timestamp()))
     assert not provider.needs_refresh(valid_token)
+
 
 def test_oauth_client_credentials_auth_provider_is_expired():
     oauth_client = MagicMock(spec=OAuthClient)
@@ -162,6 +179,7 @@ def test_oauth_client_credentials_auth_provider_is_expired():
     provider = OAuthClientCredentialsAuthProvider(oauth_client)
     assert not provider.is_expired()
 
+
 def test_oauth_client_credentials_auth_provider_get_expiration_time():
     oauth_client = MagicMock(spec=OAuthClient)
     profile = MagicMock()
@@ -173,12 +191,12 @@ def test_oauth_client_credentials_auth_provider_get_expiration_time():
     provider = OAuthClientCredentialsAuthProvider(oauth_client)
     assert provider.get_expiration_time() is None
 
-##### basic auth provider test
 
 def test_basic_auth_provider_initialization():
     provider = BasicAuthProvider("https://localhost", "username", "password")
     assert provider.username == "username"
     assert provider.password == "password"
+
 
 def test_basic_auth_provider_add_auth_header():
     provider = BasicAuthProvider("https://localhost", "username", "password")
@@ -189,15 +207,16 @@ def test_basic_auth_provider_add_auth_header():
     session.post("https://localhost/delta-sharing/", data={"grant_type": "client_credentials"})
     assert session.auth == ("username", "password")
 
+
 def test_basic_auth_provider_is_expired():
     provider = BasicAuthProvider("https://localhost", "username", "password")
     assert not provider.is_expired()
+
 
 def test_basic_auth_provider_get_expiration_time():
     provider = BasicAuthProvider("https://localhost", "username", "password")
     assert provider.get_expiration_time() is None
 
-#### test factory
 
 def test_factory_creation():
     profile_basic = DeltaSharingProfile(
@@ -231,6 +250,7 @@ def test_factory_creation():
     provider = AuthCredentialProviderFactory.create_auth_credential_provider(profile_oauth)
     assert isinstance(provider, OAuthClientCredentialsAuthProvider)
 
+
 def test_oauth_auth_provider_reused():
     profile_oauth1 = DeltaSharingProfile(
         share_credentials_version=2,
@@ -255,6 +275,7 @@ def test_oauth_auth_provider_reused():
     provider2 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_oauth2)
 
     assert provider1 == provider2
+
 
 def test_oauth_auth_provider_with_different_profiles():
     profile_oauth1 = DeltaSharingProfile(

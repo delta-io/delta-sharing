@@ -44,6 +44,7 @@ from delta_sharing.auth import (
     AuthCredentialProvider
 )
 
+
 @dataclass(frozen=True)
 class ListSharesResponse:
     shares: Sequence[Share]
@@ -102,6 +103,7 @@ class _PrivateClass:
 
     def display(self):
         print(f"Value: {self.value}")
+
 
 def retry_with_exponential_backoff(func):
     def func_with_retry(self, *arg, **kwargs):
@@ -172,7 +174,8 @@ class DataSharingRestClient:
 
     def __auth_session(self, profile):
         self._session = requests.Session()
-        self._auth_credential_provider = AuthCredentialProviderFactory.create_auth_credential_provider(profile)
+        self._auth_credential_provider = (
+            AuthCredentialProviderFactory.create_auth_credential_provider(profile))
         if urlparse(profile.endpoint).hostname == "localhost":
             self._session.verify = False
 
@@ -512,5 +515,3 @@ class DataSharingRestClient:
                 return False
         else:
             return False
-
-

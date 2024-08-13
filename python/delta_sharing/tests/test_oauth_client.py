@@ -21,6 +21,7 @@ from unittest.mock import patch
 from datetime import datetime
 from delta_sharing.auth import OAuthClient, OAuthClientCredentials
 
+
 class MockServer:
     def __init__(self):
         self.url = "http://localhost:1080/token"
@@ -35,13 +36,17 @@ class MockServer:
     def get_response(self):
         return self.responses.pop(0)
 
+
 @pytest.fixture
 def mock_server():
     server = MockServer()
     yield server
 
+
 def test_oauth_client_should_parse_token_response_correctly(mock_server):
-    mock_server.add_response(200, '{"access_token": "test-access-token", "expires_in": 3600, "token_type": "bearer"}')
+    mock_server.add_response(
+        200,
+        '{"access_token": "test-access-token", "expires_in": 3600, "token_type": "bearer"}')
 
     with patch('requests.post') as mock_post:
         mock_post.side_effect = lambda *args, **kwargs: mock_server.get_response()
@@ -60,6 +65,7 @@ def test_oauth_client_should_parse_token_response_correctly(mock_server):
         assert int(start) <= token.creation_timestamp
 
         assert token.creation_timestamp <= int(end)
+
 
 def test_oauth_client_should_handle_401_unauthorized_response(mock_server):
     mock_server.add_response(401, 'Unauthorized')

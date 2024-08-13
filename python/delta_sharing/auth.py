@@ -28,13 +28,16 @@ from delta_sharing.protocol import (
     DeltaSharingProfile,
 )
 
+
 class AuthConfig:
     def __init__(self, token_exchange_max_retries=5,
                  token_exchange_max_retry_duration_in_seconds=60,
                  token_renewal_threshold_in_seconds=600):
         self.token_exchange_max_retries = token_exchange_max_retries
-        self.token_exchange_max_retry_duration_in_seconds = token_exchange_max_retry_duration_in_seconds
+        self.token_exchange_max_retry_duration_in_seconds = (
+            token_exchange_max_retry_duration_in_seconds)
         self.token_renewal_threshold_in_seconds = token_renewal_threshold_in_seconds
+
 
 class AuthCredentialProviderFactory:
     __oauth_auth_provider_cache = {}
@@ -58,7 +61,8 @@ class AuthCredentialProviderFactory:
         # Once a clientId/clientSecret is exchanged for an accessToken,
         # the accessToken can be reused until it expires.
         # The Python client re-creates DeltaSharingClient for different requests.
-        # To ensure the OAuth access_token is reused, we keep a mapping from profile -> OAuthClientCredentialsAuthProvider.
+        # To ensure the OAuth access_token is reused,
+        # we keep a mapping from profile -> OAuthClientCredentialsAuthProvider.
         # This prevents re-initializing OAuthClientCredentialsAuthProvider for the same profile,
         # ensuring the access_token can be reused.
         if profile in AuthCredentialProviderFactory.__oauth_auth_provider_cache:
@@ -77,7 +81,6 @@ class AuthCredentialProviderFactory:
         AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile] = provider
         return provider
 
-
     @staticmethod
     def __auth_bearer_token(profile):
         return BearerTokenAuthProvider(profile.bearer_token, profile.expiration_time)
@@ -85,6 +88,7 @@ class AuthCredentialProviderFactory:
     @staticmethod
     def __auth_basic(profile):
         return BasicAuthProvider(profile.endpoint, profile.username, profile.password)
+
 
 class AuthCredentialProvider(ABC):
     @abstractmethod
@@ -97,6 +101,7 @@ class AuthCredentialProvider(ABC):
     @abstractmethod
     def get_expiration_time(self) -> Optional[str]:
         pass
+
 
 class BearerTokenAuthProvider(AuthCredentialProvider):
     def __init__(self, bearer_token: str, expiration_time: Optional[str]):
@@ -148,14 +153,19 @@ class OAuthClientCredentials:
 
 
 class OAuthClient:
-    def __init__(self, token_endpoint: str, client_id: str, client_secret: str, scope: Optional[str] = None):
+    def __init__(self,
+                 token_endpoint: str,
+                 client_id: str,
+                 client_secret: str,
+                 scope: Optional[str] = None):
         self.token_endpoint = token_endpoint
         self.client_id = client_id
         self.client_secret = client_secret
         self.scope = scope
 
     def client_credentials(self) -> OAuthClientCredentials:
-        credentials = base64.b64encode(f"{self.client_id}:{self.client_secret}".encode('utf-8')).decode('utf-8')
+        credentials = base64.b64encode(
+            f"{self.client_id}:{self.client_secret}".encode('utf-8')).decode('utf-8')
         headers = {
             'accept': 'application/json',
             'authorization': f'Basic {credentials}',
@@ -179,6 +189,7 @@ class OAuthClient:
             json_node['expires_in'],
             int(datetime.now().timestamp())
         )
+
 
 class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
     def __init__(self, oauth_client: OAuthClient, auth_config: AuthConfig = AuthConfig()):
