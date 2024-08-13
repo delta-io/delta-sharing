@@ -40,7 +40,9 @@ class AuthConfig:
 
 
 class AuthCredentialProviderFactory:
-    __oauth_auth_provider_cache = {}
+    __oauth_auth_provider_cache : Dict[
+        DeltaSharingProfile,
+        OAuthClientCredentialsAuthProvider] = {}
 
     @staticmethod
     def create_auth_credential_provider(profile: DeltaSharingProfile):
@@ -100,7 +102,7 @@ class AuthCredentialProvider(ABC):
 
     @abstractmethod
     def get_expiration_time(self) -> Optional[str]:
-        pass
+        return None
 
 
 class BearerTokenAuthProvider(AuthCredentialProvider):
@@ -139,10 +141,10 @@ class BasicAuthProvider(AuthCredentialProvider):
         session.post(self.endpoint, data={"grant_type": "client_credentials"},)
 
     def is_expired(self) -> bool:
-        False
+        return False
 
     def get_expiration_time(self) -> Optional[str]:
-        None
+        return None
 
 
 class OAuthClientCredentials:
