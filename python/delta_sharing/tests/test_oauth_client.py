@@ -15,11 +15,10 @@
 #
 import pytest
 import requests
-from requests.auth import HTTPBasicAuth
 from requests.models import Response
 from unittest.mock import patch
 from datetime import datetime
-from delta_sharing.auth import OAuthClient, OAuthClientCredentials
+from delta_sharing.auth import OAuthClient
 
 
 class MockServer:

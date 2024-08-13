@@ -22,7 +22,6 @@ from urllib.parse import quote, urlparse
 import time
 import logging
 import pprint
-from datetime import datetime
 
 import requests
 from requests.exceptions import HTTPError, ConnectionError

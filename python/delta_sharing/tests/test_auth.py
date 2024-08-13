@@ -14,25 +14,19 @@
 # limitations under the License.
 #
 
-import io
-
-import pytest
 import pytest
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
 from delta_sharing.auth import (OAuthClient,
+                                BasicAuthProvider,
+                                AuthCredentialProviderFactory,
                                 OAuthClientCredentialsAuthProvider,
                                 OAuthClientCredentials,
                                 AuthConfig)
 from requests import Session
 import requests
-from datetime import datetime, timedelta
-import pytest
 from delta_sharing.auth import BearerTokenAuthProvider
-import requests
 from unittest.mock import MagicMock
-from delta_sharing.auth import BasicAuthProvider
-from delta_sharing.auth import AuthCredentialProviderFactory
 from delta_sharing.protocol import DeltaSharingProfile
 
 
