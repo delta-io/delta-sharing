@@ -186,11 +186,11 @@ def test_share_profile_bearer(tmp_path):
         DeltaSharingProfile.read_from_file(io.StringIO(json))
 
 
-def test_share_profile_oauth2(tmp_path):
+def oauth_client_credentials(tmp_path):
     json = """
         {
             "shareCredentialsVersion": 2,
-            "type": "persistent_oauth2.0",
+            "type": "oauth_client_credentials",
             "endpoint": "https://localhost/delta-sharing/",
             "tokenEndpoint": "tokenEndpoint",
             "clientId": "clientId",

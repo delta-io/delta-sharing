@@ -39,6 +39,10 @@ from delta_sharing.protocol import (
     Table,
 )
 
+from delta_sharing.auth import (
+    AuthCredentialProviderFactory,
+    AuthCredentialProvider
+)
 
 @dataclass(frozen=True)
 class ListSharesResponse:
@@ -91,6 +95,13 @@ class ListTableChangesResponse:
     metadata: Metadata
     actions: Sequence[FileAction]
 
+
+class _PrivateClass:
+    def __init__(self, value):
+        self.value = value
+
+    def display(self):
+        print(f"Value: {self.value}")
 
 def retry_with_exponential_backoff(func):
     def func_with_retry(self, *arg, **kwargs):
@@ -151,65 +162,19 @@ class DataSharingRestClient:
         self._profile = profile
         self._num_retries = num_retries
         self._sleeper = lambda sleep_ms: time.sleep(sleep_ms / 1000)
-        self.auth_session(profile)
+        self.__auth_session(profile)
 
-    def auth_session(self, profile):
+        self._session.headers.update(
+            {
+                "User-Agent": DataSharingRestClient.USER_AGENT,
+            }
+        )
+
+    def __auth_session(self, profile):
         self._session = requests.Session()
-        self.__auth_broker(profile)
+        self._auth_credential_provider = AuthCredentialProviderFactory.create_auth_credential_provider(profile)
         if urlparse(profile.endpoint).hostname == "localhost":
             self._session.verify = False
-
-    def __auth_broker(self, profile):
-        if profile.share_credentials_version == 2:
-            if profile.type == "persistent_oauth2.0":
-                self.__auth_persistent_oauth2(profile)
-            elif profile.type == "bearer_token":
-                self.__auth_bearer_token(profile)
-            elif profile.type == "basic":
-                self.__auth_basic(profile)
-            else:
-                self.__auth_bearer_token(profile)
-        else:
-            self.__auth_bearer_token(profile)
-
-    def __auth_bearer_token(self, profile):
-        self._session.headers.update(
-            {
-                "Authorization": f"Bearer {profile.bearer_token}",
-                "User-Agent": DataSharingRestClient.USER_AGENT,
-            }
-        )
-
-    def __auth_persistent_oauth2(self, profile):
-        headers = {"Content-Type": "application/x-www-form-urlencoded",
-                   "Accept": "application/json"}
-
-        response = requests.post(profile.token_endpoint,
-                                 data={"grant_type": "client_credentials"},
-                                 headers=headers,
-                                 auth=(profile.client_id,
-                                       profile.client_secret),)
-
-        bearer_token = "{}".format(response.json()["access_token"])
-
-        self._session.headers.update(
-            {
-                "Authorization": f"Bearer {bearer_token}",
-                "User-Agent": DataSharingRestClient.USER_AGENT,
-            }
-        )
-
-    def __auth_basic(self, profile):
-        self._session.auth = (profile.username, profile.password)
-
-        response = self._session.post(profile.endpoint,
-                                      data={"grant_type": "client_credentials"},)
-
-        self._session.headers.update(
-            {
-                "User-Agent": DataSharingRestClient.USER_AGENT,
-            }
-        )
 
     def set_sharing_capabilities_header(self):
         delta_sharing_capabilities = (
@@ -502,6 +467,7 @@ class DataSharingRestClient:
         **kwargs,
     ):
         assert target.startswith("/"), "Targets should start with '/'"
+        self._auth_credential_provider.add_auth_header(self._session)
         response = request(f"{self._profile.endpoint}{target}", **kwargs)
         try:
             response.raise_for_status()
@@ -541,11 +507,10 @@ class DataSharingRestClient:
     def _error_on_expired_token(self, error):
         if isinstance(error, HTTPError) and error.response.status_code == 401:
             try:
-                expiration_time = datetime.strptime(
-                    self._profile.expiration_time, "%Y-%m-%dT%H:%M:%S.%fZ"
-                )
-                return datetime.now() > expiration_time
+                self._auth_credential_provider.is_expired()
             except Exception:
                 return False
         else:
             return False
+
+
