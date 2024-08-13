@@ -43,7 +43,7 @@ def mock_server():
 def test_oauth_client_should_parse_token_response_correctly(mock_server):
     mock_server.add_response(200, '{"access_token": "test-access-token", "expires_in": 3600, "token_type": "bearer"}')
 
-    with (patch('requests.post') as mock_post):
+    with patch('requests.post') as mock_post:
         mock_post.side_effect = lambda *args, **kwargs: mock_server.get_response()
         oauth_client = OAuthClient(
             token_endpoint=mock_server.url,
