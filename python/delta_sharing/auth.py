@@ -23,6 +23,7 @@ import json
 import threading
 import requests.sessions
 import time
+from typing import Dict
 
 from delta_sharing.protocol import (
     DeltaSharingProfile,
