@@ -14,8 +14,7 @@
 # limitations under the License.
 #
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from datetime import datetime, timedelta
 from delta_sharing.auth import (OAuthClient,
                                 BasicAuthProvider,
