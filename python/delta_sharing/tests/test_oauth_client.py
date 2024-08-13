@@ -62,7 +62,6 @@ def test_oauth_client_should_parse_token_response_correctly(mock_server):
         assert token.access_token == "test-access-token"
         assert token.expires_in == 3600
         assert int(start) <= token.creation_timestamp
-
         assert token.creation_timestamp <= int(end)
 
 

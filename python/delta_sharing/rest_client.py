@@ -93,14 +93,6 @@ class ListTableChangesResponse:
     actions: Sequence[FileAction]
 
 
-class _PrivateClass:
-    def __init__(self, value):
-        self.value = value
-
-    def display(self):
-        print(f"Value: {self.value}")
-
-
 def retry_with_exponential_backoff(func):
     def func_with_retry(self, *arg, **kwargs):
         times_retried = 0
