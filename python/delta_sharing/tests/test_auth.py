@@ -21,12 +21,10 @@ from delta_sharing.auth import (OAuthClient,
                                 BasicAuthProvider,
                                 AuthCredentialProviderFactory,
                                 OAuthClientCredentialsAuthProvider,
-                                OAuthClientCredentials,
-                                AuthConfig)
+                                OAuthClientCredentials)
 from requests import Session
 import requests
 from delta_sharing.auth import BearerTokenAuthProvider
-from unittest.mock import MagicMock
 from delta_sharing.protocol import DeltaSharingProfile
 
 
