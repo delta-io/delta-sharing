@@ -35,15 +35,27 @@ class OAuthClientSuite extends SparkFunSuite {
       .create()
 
     server.start()
-
-    Thread.sleep(2000)
   }
 
   def stopServer(): Unit = {
     if (server != null) {
-      server.shutdown(2, TimeUnit.SECONDS)
+      server.shutdown(5, TimeUnit.SECONDS)
       server = null
     }
+    waitForPortRelease(1080, 10000)
+  }
+
+  def waitForPortRelease(port: Int, timeoutMillis: Int): Unit = {
+    val startTime = System.currentTimeMillis()
+    while (System.currentTimeMillis() - startTime < timeoutMillis) {
+      try {
+        new java.net.Socket("localhost", port).close()
+      } catch {
+        case _: java.net.ConnectException => return // Port is released
+      }
+      Thread.sleep(100) // Wait for 100 milliseconds before checking again
+    }
+    throw new RuntimeException(s"Port $port is not released after $timeoutMillis milliseconds")
   }
 
   test("OAuthClient should parse token response correctly") {
