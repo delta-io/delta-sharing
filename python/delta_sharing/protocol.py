@@ -109,7 +109,7 @@ class DeltaSharingProfile:
                 )
             else:
                 raise ValueError(
-                    "The current release does not supports {type} type. "
+                    f"The current release does not supports {type} type. "
                     "Please check type.")
         else:
             raise ValueError(

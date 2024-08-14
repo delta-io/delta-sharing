@@ -184,14 +184,17 @@ class AuthCredentialProviderFactory:
         if profile.share_credentials_version == 2:
             if profile.type == "oauth_client_credentials":
                 return AuthCredentialProviderFactory.__oauth_client_credentials(profile)
-            elif profile.type == "bearer_token":
-                return AuthCredentialProviderFactory.__auth_bearer_token(profile)
             elif profile.type == "basic":
                 return AuthCredentialProviderFactory.__auth_basic(profile)
             else:
-                return AuthCredentialProviderFactory.__auth_bearer_token(profile)
-        else:
+                raise RuntimeError("unsupported profile.type")
+        elif (profile.share_credentials_version == 1 and
+              (profile.type is None or profile.type == "bearer_token")):
             return AuthCredentialProviderFactory.__auth_bearer_token(profile)
+        else:
+            raise RuntimeError(f"unsupported"
+                               f" profile.type: {profile.type} "
+                               f" profile.share_credentials_version {profile.share_credentials_version}")
 
     @staticmethod
     def __oauth_client_credentials(profile):

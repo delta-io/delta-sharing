@@ -221,7 +221,7 @@ def test_factory_creation():
     assert isinstance(provider, BasicAuthProvider)
 
     profile_bearer = DeltaSharingProfile(
-        share_credentials_version=2,
+        share_credentials_version=1,
         type="bearer_token",
         endpoint="https://localhost/delta-sharing/",
         bearer_token="token",
