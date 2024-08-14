@@ -22,13 +22,14 @@ import java.util.concurrent.TimeUnit
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
-import org.apache.http.{HttpHost, HttpRequest}
+import org.apache.http.{HttpClientConnection, HttpHost, HttpRequest, HttpResponse}
 import org.apache.http.auth.{AuthScope, UsernamePasswordCredentials}
 import org.apache.http.client.config.RequestConfig
+import org.apache.http.client.utils.URIBuilder
 import org.apache.http.conn.routing.HttpRoute
-import org.apache.http.impl.client.{BasicCredentialsProvider, HttpClientBuilder}
+import org.apache.http.impl.client.{BasicCredentialsProvider, HttpClientBuilder, RequestWrapper}
 import org.apache.http.impl.conn.{DefaultRoutePlanner, DefaultSchemePortResolver}
-import org.apache.http.protocol.HttpContext
+import org.apache.http.protocol.{HttpContext, HttpRequestExecutor}
 import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.{PreSignedUrlCache, PreSignedUrlFetcher}
 import org.apache.spark.internal.Logging
@@ -69,7 +70,31 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
       val proxy = new HttpHost(proxyConfig.host, proxyConfig.port)
       clientBuilder.setProxy(proxy)
 
-      if (proxyConfig.noProxyHosts.nonEmpty) {
+      val neverUseHttps = ConfUtils.getNeverUseHttps(getConf)
+      if (neverUseHttps) {
+        val httpRequestDowngradeExecutor = new HttpRequestExecutor {
+          override def execute(
+                                request: HttpRequest,
+                                connection: HttpClientConnection,
+                                context: HttpContext): HttpResponse = {
+            try {
+              val modifiedUri: URI = {
+                new URIBuilder(request.getRequestLine.getUri).setScheme("http").build()
+              }
+              val wrappedRequest = new RequestWrapper(request)
+              wrappedRequest.setURI(modifiedUri)
+
+              return super.execute(wrappedRequest, connection, context)
+            } catch {
+              case e: Exception =>
+                logInfo("Failed to downgrade the request to http", e)
+            }
+            super.execute(request, connection, context)
+          }
+        }
+        clientBuilder.setRequestExecutor(httpRequestDowngradeExecutor)
+      }
+      if (proxyConfig.noProxyHosts.nonEmpty || neverUseHttps) {
         val routePlanner = new DefaultRoutePlanner(DefaultSchemePortResolver.INSTANCE) {
           override def determineRoute(target: HttpHost,
                                       request: HttpRequest,

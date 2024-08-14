@@ -19,7 +19,9 @@ package io.delta.sharing.client
 import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.http.client.methods.HttpGet
+import org.apache.http.client.methods.{HttpGet, HttpPost}
+import org.apache.http.client.utils.URIBuilder
+import org.apache.http.entity.StringEntity
 import org.apache.http.util.EntityUtils
 import org.apache.spark.SparkFunSuite
 import org.sparkproject.jetty.server.Server
@@ -228,6 +230,79 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
 
       // Assert that the request is not passed through proxy.
       assert(proxyServer.getCapturedRequests().size == 1)
+    } finally {
+      server.stop()
+      proxyServer.stop()
+    }
+  }
+
+  test("https traffic is downgraded to http when configured") {
+    val server = new Server(0)
+    val handler = new ServletHandler()
+    server.setHandler(handler)
+    handler.addServletWithMapping(new ServletHolder(new HttpServlet {
+      override def doGet(req: HttpServletRequest, resp: HttpServletResponse): Unit = {
+        resp.setContentType("text/plain")
+        resp.setStatus(HttpServletResponse.SC_OK)
+
+        // scalastyle:off println
+        resp.getWriter.println("Hello, World!")
+        // scalastyle:on println
+      }
+    }), "/*")
+    server.start()
+    do {
+      Thread.sleep(100)
+    } while (!server.isStarted())
+
+    // Create a local HTTP proxy server.
+    val proxyServer = new ProxyServer(0)
+    proxyServer.initialize()
+    try {
+      // Create a ProxyConfig with the host and port of the local proxy server.
+      val conf = new Configuration
+      conf.set(ConfUtils.PROXY_HOST, proxyServer.getHost())
+      conf.set(ConfUtils.PROXY_PORT, proxyServer.getPort().toString)
+      conf.setBoolean("spark.delta.sharing.network.never.use.https", true)
+
+      // Configure the httpClient to use the ProxyConfig.
+      val fs = new DeltaSharingFileSystem() {
+        override def getConf = {
+          conf
+        }
+      }
+
+      // Get http client instance.
+      val httpClient = fs.createHttpClient()
+
+      val httpsUri = new URIBuilder(server.getURI)
+        .setScheme("https")
+        .setPath("test")
+        .build();
+
+      // Send an HTTPS GET request to the local server through the httpClient.
+      val getRequest = new HttpGet(httpsUri)
+      val getResponse = httpClient.execute(getRequest)
+
+      // Assert that the request is successful.
+      assert(getResponse.getStatusLine.getStatusCode == HttpServletResponse.SC_OK)
+      val content = EntityUtils.toString(getResponse.getEntity)
+      assert(content.trim == "Hello, World!")
+
+      // Assert that the request is passed through proxy.
+      assert(proxyServer.getCapturedRequests().size == 1)
+
+      // Assert that the request scheme is http
+      val capturedRequest = proxyServer.getCapturedRequests().head
+      assert(capturedRequest.getScheme.equals("http"))
+
+      // Assert that HTTPS POST request is successfully sent to proxy
+      val postRequest = new HttpPost(httpsUri)
+      postRequest.setHeader("Content-type", "application/json")
+      postRequest.setEntity(new StringEntity("asdfasdf"))
+      httpClient.execute(postRequest)
+
+      assert(proxyServer.getCapturedRequests().size == 2)
     } finally {
       server.stop()
       proxyServer.stop()

@@ -78,6 +78,23 @@ object ConfUtils {
   val PROXY_PORT = "spark.delta.sharing.network.proxyPort"
   val NO_PROXY_HOSTS = "spark.delta.sharing.network.noProxyHosts"
 
+<<<<<<< HEAD
+=======
+  val OAUTH_RETRIES_CONF = "spark.delta.sharing.oauth.tokenExchangeMaxRetries"
+  val OAUTH_RETRIES_DEFAULT = 5
+
+  val OAUTH_MAX_RETRY_DURATION_CONF =
+    "spark.delta.sharing.oauth.tokenExchangeMaxRetryDurationInSeconds"
+  val OAUTH_MAX_RETRY_DURATION_SECONDS_DEFAULT = 1 * 60 /* 1 mins */
+
+  val OAUTH_EXPIRATION_THRESHOLD_CONF =
+    "spark.delta.sharing.oauth.tokenRenewalThresholdInSeconds"
+  val OAUTH_EXPIRATION_THRESHOLD_SECONDS_DEFAULT = 10 * 60 /* 10 mins */
+
+  val NEVER_USE_HTTPS = "spark.delta.sharing.network.never.use.https"
+  val NEVER_USE_HTTPS_DEFAULT = "false"
+
+>>>>>>> e26d824 (Add logic in DeltaSharingFileSystem to conditionally downgrade https requests to http (#559))
   def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
     val proxyHost = conf.get(PROXY_HOST, null)
     val proxyPortAsString = conf.get(PROXY_PORT, null)
@@ -93,6 +110,10 @@ object ConfUtils {
 
     val noProxyList = conf.getTrimmedStrings(NO_PROXY_HOSTS).toSeq
     Some(ProxyConfig(proxyHost, proxyPort, noProxyHosts = noProxyList))
+  }
+
+  def getNeverUseHttps(conf: Configuration): Boolean = {
+    conf.getBoolean(NEVER_USE_HTTPS, NEVER_USE_HTTPS_DEFAULT.toBoolean)
   }
 
   def numRetries(conf: Configuration): Int = {
