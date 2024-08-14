@@ -33,6 +33,7 @@ from delta_sharing.protocol import (
 # These classes are not part of the public API and should not be used directly by users.
 # Internal classes may change or be removed at any time without notice.
 
+
 class AuthConfig:
     def __init__(self, token_exchange_max_retries=5,
                  token_exchange_max_retry_duration_in_seconds=60,
