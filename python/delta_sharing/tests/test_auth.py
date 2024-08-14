@@ -16,14 +16,14 @@
 
 from unittest.mock import MagicMock
 from datetime import datetime, timedelta
-from delta_sharing.auth import (OAuthClient,
-                                BasicAuthProvider,
-                                AuthCredentialProviderFactory,
-                                OAuthClientCredentialsAuthProvider,
-                                OAuthClientCredentials)
+from delta_sharing._internal_auth import (OAuthClient,
+                                          BasicAuthProvider,
+                                          AuthCredentialProviderFactory,
+                                          OAuthClientCredentialsAuthProvider,
+                                          OAuthClientCredentials)
 from requests import Session
 import requests
-from delta_sharing.auth import BearerTokenAuthProvider
+from delta_sharing._internal_auth import BearerTokenAuthProvider
 from delta_sharing.protocol import DeltaSharingProfile
 
 

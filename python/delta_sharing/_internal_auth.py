@@ -29,6 +29,9 @@ from delta_sharing.protocol import (
     DeltaSharingProfile,
 )
 
+# This module contains internal implementation classes.
+# These classes are not part of the public API and should not be used directly by users.
+# Internal classes may change or be removed at any time without notice.
 
 class AuthConfig:
     def __init__(self, token_exchange_max_retries=5,

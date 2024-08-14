@@ -38,7 +38,7 @@ from delta_sharing.protocol import (
     Table,
 )
 
-from delta_sharing.auth import AuthCredentialProviderFactory
+from delta_sharing._internal_auth import AuthCredentialProviderFactory
 
 
 @dataclass(frozen=True)
