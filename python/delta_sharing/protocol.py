@@ -35,6 +35,7 @@ class DeltaSharingProfile:
     client_secret: Optional[str] = None
     username: Optional[str] = None
     password: Optional[str] = None
+    scope: Optional[str] = None
 
     def __post_init__(self):
         if self.share_credentials_version > DeltaSharingProfile.CURRENT:
@@ -77,7 +78,7 @@ class DeltaSharingProfile:
             )
         elif share_credentials_version == 2:
             type = json["type"]
-            if type == "persistent_oauth2.0":
+            if type == "oauth_client_credentials":
                 token_endpoint = json["tokenEndpoint"]
                 if token_endpoint is not None and token_endpoint.endswith("/"):
                     token_endpoint = token_endpoint[:-1]
@@ -88,6 +89,7 @@ class DeltaSharingProfile:
                     token_endpoint=token_endpoint,
                     client_id=json["clientId"],
                     client_secret=json["clientSecret"],
+                    scope=json.get("scope"),
                 )
             elif type == "bearer_token":
                 return DeltaSharingProfile(
@@ -107,7 +109,7 @@ class DeltaSharingProfile:
                 )
             else:
                 raise ValueError(
-                    "The current release does not supports {type} type. "
+                    f"The current release does not supports {type} type. "
                     "Please check type.")
         else:
             raise ValueError(
