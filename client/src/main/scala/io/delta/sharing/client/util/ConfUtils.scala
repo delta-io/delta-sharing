@@ -78,6 +78,9 @@ object ConfUtils {
   val PROXY_PORT = "spark.delta.sharing.network.proxyPort"
   val NO_PROXY_HOSTS = "spark.delta.sharing.network.noProxyHosts"
 
+  val NEVER_USE_HTTPS = "spark.delta.sharing.network.never.use.https"
+  val NEVER_USE_HTTPS_DEFAULT = "false"
+
   def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
     val proxyHost = conf.get(PROXY_HOST, null)
     val proxyPortAsString = conf.get(PROXY_PORT, null)
@@ -93,6 +96,10 @@ object ConfUtils {
 
     val noProxyList = conf.getTrimmedStrings(NO_PROXY_HOSTS).toSeq
     Some(ProxyConfig(proxyHost, proxyPort, noProxyHosts = noProxyList))
+  }
+
+  def getNeverUseHttps(conf: Configuration): Boolean = {
+    conf.getBoolean(NEVER_USE_HTTPS, NEVER_USE_HTTPS_DEFAULT.toBoolean)
   }
 
   def numRetries(conf: Configuration): Int = {
