@@ -21,7 +21,6 @@ ThisBuild / parallelExecution := false
 // update this version when picking up a new Flame release
 val aiqSparkVersion = "3-3-2-aiq109"
 
-val sparkVersion = aiqSparkVersion.substring(0, 5).replace("-", ".")
 val defaultScalaVersion = "2.12.15"
 
 lazy val commonSettings = Seq(
@@ -39,7 +38,7 @@ lazy val commonSettings = Seq(
     "-Dspark.sql.sources.parallelPartitionDiscovery.parallelism=5",
     "-Dspark.delta.sharing.network.sslTrustAll=true",
     s"-Dazure.account.key=${sys.env.getOrElse("AZURE_TEST_ACCOUNT_KEY", "")}",
-    "-Xmx1024m",
+    "-Xmx1024m"
   ),
   javaOptions ++= Seq(
     "--add-opens=java.base/java.lang=ALL-UNNAMED",
@@ -66,9 +65,9 @@ lazy val commonSettings = Seq(
   )
 )
 
-lazy val root = (project in file(".")).enablePlugins(PublishToArtifactory).aggregate(client, spark, server)
+lazy val root = (project in file(".")).aggregate(client, spark, server)
 
-lazy val client = (project in file("client")) settings(
+lazy val client = (project in file("client")) enablePlugins(PublishToArtifactory) settings(
   name := "delta-sharing-client",
   commonSettings,
   scalaStyleSettings,
@@ -95,7 +94,7 @@ lazy val client = (project in file("client")) settings(
   }
 )
 
-lazy val spark = (project in file("spark")) dependsOn(client) settings(
+lazy val spark = (project in file("spark")) dependsOn(client) enablePlugins(PublishToArtifactory) settings(
   name := "delta-sharing-spark",
   commonSettings,
   scalaStyleSettings,
@@ -120,7 +119,7 @@ lazy val spark = (project in file("spark")) dependsOn(client) settings(
   }
 )
 
-lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) settings(
+lazy val server = (project in file("server")) enablePlugins(PublishToArtifactory, JavaAppPackaging) settings(
   name := "delta-sharing-server",
   commonSettings,
   scalaStyleSettings,

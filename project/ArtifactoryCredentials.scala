@@ -11,7 +11,8 @@ object ArtifactoryCredentials extends AutoPlugin {
     }
   )
 
-  // Applying this to all builds automatically for now. trigger = allRequirements with no requirements
+  // Applying this to all builds automatically for now.
+  // trigger = allRequirements with no requirements
   override def trigger: PluginTrigger = allRequirements
 
   override def projectSettings: Seq[Def.Setting[_]] = credentialSettings
