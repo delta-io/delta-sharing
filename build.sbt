@@ -18,15 +18,18 @@ import sbt.ExclusionRule
 
 ThisBuild / parallelExecution := false
 
-val sparkVersion = "3.3.2"
-val scala212 = "2.12.10"
-val scala213 = "2.13.11"
+// update this version when picking up a new Flame release
+val aiqSparkVersion = "3-3-2-aiq109"
+
+val sparkVersion = aiqSparkVersion.substring(0, 5).replace("-", ".")
+val defaultScalaVersion = "2.12.15"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
   fork := true,
-  javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
-  scalacOptions += "-target:jvm-1.8",
+  scalaVersion := defaultScalaVersion,
+  javacOptions ++= Seq("-source", "17", "-target", "17"),
+  scalacOptions ++= Seq("-release", "17"),
   // Configurations to speed up tests and reduce memory footprint
   Test / javaOptions ++= Seq(
     "-Dspark.ui.enabled=false",
@@ -36,24 +39,46 @@ lazy val commonSettings = Seq(
     "-Dspark.sql.sources.parallelPartitionDiscovery.parallelism=5",
     "-Dspark.delta.sharing.network.sslTrustAll=true",
     s"-Dazure.account.key=${sys.env.getOrElse("AZURE_TEST_ACCOUNT_KEY", "")}",
-    "-Xmx1024m"
+    "-Xmx1024m",
+  ),
+  javaOptions ++= Seq(
+    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+    "--add-opens=java.base/java.math=ALL-UNNAMED",
+    "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+    "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+    "--add-opens=java.base/java.io=ALL-UNNAMED",
+    "--add-opens=java.base/java.net=ALL-UNNAMED",
+    "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    "--add-opens=java.base/java.util=ALL-UNNAMED",
+    "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
+    "--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED",
+    "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+    "--add-opens=java.base/sun.nio.cs=ALL-UNNAMED",
+    "--add-opens=java.base/sun.security.action=ALL-UNNAMED",
+    "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
+  ),
+  resolvers ++= Seq(
+    "Spark Packages Repo".at("https://dl.bintray.com/spark-packages/maven"),
+    "aiq-artifacts".at("s3://s3-us-east-1.amazonaws.com/aiq-artifacts/releases"),
+    "Artifactory".at("https://actioniq.jfrog.io/artifactory/aiq-sbt-local/"),
+    DefaultMavenRepository,
+    Resolver.mavenLocal,
   )
 )
 
-lazy val root = (project in file(".")).aggregate(client, spark, server)
+lazy val root = (project in file(".")).enablePlugins(PublishToArtifactory).aggregate(client, spark, server)
 
 lazy val client = (project in file("client")) settings(
   name := "delta-sharing-client",
-  crossScalaVersions := Seq(scala212, scala213),
   commonSettings,
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
     "org.apache.httpcomponents" % "httpclient" % "4.5.13",
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-    "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-sql" % aiqSparkVersion % "provided",
+    "org.apache.spark" %% "spark-catalyst" % aiqSparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-core" % aiqSparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-sql" % aiqSparkVersion % "test" classifier "tests",
     "org.scalatest" %% "scalatest" % "3.2.3" % "test",
     "org.scalatestplus" %% "mockito-4-11" % "3.2.18.0" % "test"
   ),
@@ -72,15 +97,14 @@ lazy val client = (project in file("client")) settings(
 
 lazy val spark = (project in file("spark")) dependsOn(client) settings(
   name := "delta-sharing-spark",
-  crossScalaVersions := Seq(scala212, scala213),
   commonSettings,
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-    "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-sql" % aiqSparkVersion % "provided",
+    "org.apache.spark" %% "spark-catalyst" % aiqSparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-core" % aiqSparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-sql" % aiqSparkVersion % "test" classifier "tests",
     "org.scalatest" %% "scalatest" % "3.2.3" % "test"
   ),
   Compile / sourceGenerators += Def.task {
@@ -98,7 +122,6 @@ lazy val spark = (project in file("spark")) dependsOn(client) settings(
 
 lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) settings(
   name := "delta-sharing-server",
-  scalaVersion := scala212,
   commonSettings,
   scalaStyleSettings,
   releaseSettings,
@@ -214,20 +237,9 @@ lazy val releaseSettings = Seq(
   publishArtifact := true,
   Test / publishArtifact := false,
 
-  publishTo := {
-    val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value) {
-      Some("snapshots" at nexus + "content/repositories/snapshots")
-    } else {
-      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
-    }
-  },
-
-  releasePublishArtifactsAction := PgpKeys.publishSigned.value,
-
   releaseCrossBuild := true,
 
-  licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
+  licenses += ("Apache-2.0", url("http://opensource.org/licenses/Apache-2.0")),
 
   pomExtra :=
     <url>https://github.com/delta-io/delta-sharing</url>
@@ -292,7 +304,6 @@ lazy val releaseSettings = Seq(
 // Looks like some of release settings should be set for the root project as well.
 publishArtifact := false  // Don't release the root project
 publish := {}
-publishTo := Some("snapshots" at "https://oss.sonatype.org/content/repositories/snapshots")
 releaseCrossBuild := false
 // crossScalaVersions must be set to Nil on the root project
 crossScalaVersions := Nil
@@ -304,7 +315,6 @@ releaseProcess := Seq[ReleaseStep](
   setReleaseVersion,
   commitReleaseVersion,
   tagRelease,
-  releaseStepCommandAndRemaining("+publishSigned"),
   setNextVersion,
   commitNextVersion
 )

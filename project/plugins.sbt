@@ -15,14 +15,6 @@
  */
 ThisBuild / libraryDependencySchemes += "org.scala-lang.modules" %% "scala-xml" % VersionScheme.Always
 
-resolvers += Resolver.url("artifactory", url("https://scalasbt.artifactoryonline.com/scalasbt/sbt-plugin-releases"))(Resolver.ivyStylePatterns)
-
-resolvers += "Typesafe Repository" at "https://repo.typesafe.com/typesafe/releases/"
-
-resolvers += Resolver.url(
-  "typesafe sbt-plugins",
-  url("https://dl.bintray.com/typesafe/sbt-plugins"))(Resolver.ivyStylePatterns)
-
 addSbtPlugin("com.github.gseitz" % "sbt-release" % "1.0.13")
 
 addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "2.3")
@@ -34,5 +26,9 @@ addSbtPlugin("com.thesamet" % "sbt-protoc" % "1.0.6")
 addSbtPlugin("com.github.sbt" % "sbt-native-packager" % "1.9.16")
 
 addSbtPlugin("com.github.sbt" % "sbt-pgp" % "2.1.2")
+
+// Custom version of fm-sbt-s3-resolver published to our Artifactory for DEVX-275
+// See repo here: https://github.com/ActionIQ/sbt-s3-resolver
+addSbtPlugin("co.actioniq" % "sbt-s3-resolver" % "1.0.1")
 
 libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.11.12"
