@@ -156,7 +156,8 @@ class DataSharingRestClient:
 
         self._session.headers.update(
             {
-                "User-Agent": DataSharingRestClient.USER_AGENT,
+                "Custom-Header-Recipient-Id": "f1894b13-8362-42a1-a618-5ca99e6ca642",
+                "User-Agent": "f1894b13-8362-42a1-a618-5ca99e6ca642"
             }
         )
 
