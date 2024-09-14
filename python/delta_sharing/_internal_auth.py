@@ -133,9 +133,9 @@ class ManagedIdentityAuthProvider(AuthCredentialProvider):
         if response.status_code == 200:
             # Return the access token
             responseAsJson = response.json()
-            OAuthClientCredentials(access_token=responseAsJson.get("access_token"),
-                                   expires_in=responseAsJson.get("expires_in"),
-                                   creation_timestamp=int(datetime.now().timestamp()))
+            return OAuthClientCredentials(access_token=responseAsJson.get("access_token"),
+                                          expires_in=responseAsJson.get("expires_in"),
+                                          creation_timestamp=int(datetime.now().timestamp()))
         else:
             # Handle errors
             raise Exception(f"Failed to obtain token: {response.status_code} - {response.text}")
