@@ -99,6 +99,12 @@ class DeltaSharingProfile:
                     bearer_token=json["bearerToken"],
                     expiration_time=json.get("expirationTime")
                 )
+            elif type == "oidc_managed_identity":
+                return DeltaSharingProfile(
+                share_credentials_version=share_credentials_version,
+                type=type,
+                endpoint=endpoint
+            )
             elif type == "basic":
                 return DeltaSharingProfile(
                     share_credentials_version=share_credentials_version,
