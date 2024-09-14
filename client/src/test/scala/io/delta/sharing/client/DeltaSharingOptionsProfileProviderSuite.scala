@@ -18,26 +18,24 @@ package io.delta.sharing.client
 
 import org.apache.spark.SparkFunSuite
 
-import io.delta.sharing.spark.DeltaSharingOptions
-
 
 
 class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
 
-  private def testProfile(options: DeltaSharingOptions, expected: DeltaSharingProfile): Unit = {
-    assert(new DeltaSharingOptionsProfileProvider(options)
+  private def testProfile(
+      shareCredentialsOptions: Map[String, String], expected: DeltaSharingProfile): Unit = {
+    assert(new DeltaSharingOptionsProfileProvider(shareCredentialsOptions)
       .getProfile == expected)
-
   }
 
   test("parse") {
     testProfile(
-      new DeltaSharingOptions(Map(
+      Map(
         "shareCredentialsVersion" -> "1",
         "endpoint" -> "foo",
         "bearerToken" -> "bar",
-        "expirationTime" -> "2021-11-12T00:12:29.0Z"
-      )),
+        "expirationTime" -> "2021-11-12T00:12:29Z"
+      ),
       DeltaSharingProfile(
         shareCredentialsVersion = Some(1),
         endpoint = "foo",
@@ -49,11 +47,11 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
 
   test("expirationTime is optional") {
     testProfile(
-      new DeltaSharingOptions(Map(
+      Map(
         "shareCredentialsVersion" -> "1",
         "endpoint" -> "foo",
         "bearerToken" -> "bar"
-      )),
+      ),
       DeltaSharingProfile(
         shareCredentialsVersion = Some(1),
         endpoint = "foo",
@@ -65,10 +63,10 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
   test("shareCredentialsVersion is missing") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
-        new DeltaSharingOptions(Map(
+        Map(
           "endpoint" -> "foo",
           "bearerToken" -> "bar"
-        )),
+        ),
         null
       )
     }
@@ -79,11 +77,11 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
   test("shareCredentialsVersion is incorrect") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
-        new DeltaSharingOptions(Map(
+        Map(
           "shareCredentialsVersion" -> "2",
           "endpoint" -> "foo",
           "bearerToken" -> "bar"
-        )),
+        ),
         null
       )
     }
@@ -94,9 +92,9 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
   test("shareCredentialsVersion is not supported") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
-        new DeltaSharingOptions(Map(
+        Map(
           "shareCredentialsVersion" -> "100"
-        )),
+        ),
         null
       )
     }
@@ -107,10 +105,10 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
   test("endpoint is missing") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
-        new DeltaSharingOptions(Map(
+        Map(
           "shareCredentialsVersion" -> "1",
           "bearerToken" -> "bar"
-        )),
+        ),
         null
       )
     }
@@ -120,10 +118,10 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
   test("bearerToken is missing") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
-        new DeltaSharingOptions(Map(
+        Map(
           "shareCredentialsVersion" -> "1",
           "endpoint" -> "foo"
-        )),
+        ),
         null
       )
     }
@@ -132,13 +130,13 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
 
   test("unknown field should be ignored") {
     testProfile(
-      new DeltaSharingOptions(Map(
+      Map(
       "shareCredentialsVersion" -> "1",
       "endpoint" -> "foo",
       "bearerToken" -> "bar",
       "expirationTime" -> "2021-11-12T00:12:29Z",
       "futureField" -> "xyz"
-      )),
+      ),
       DeltaSharingProfile(
         shareCredentialsVersion = Some(1),
         endpoint = "foo",
@@ -150,14 +148,14 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
 
   test("oauth_client_credentials profile without optional scope") {
     testProfile(
-      new DeltaSharingOptions(Map(
+      Map(
         "shareCredentialsVersion" -> "2",
         "endpoint" -> "foo",
         "tokenEndpoint" -> "bar",
         "clientId" -> "abc",
         "clientSecret" -> "xyz",
         "type" -> "oauth_client_credentials"
-      )),
+      ),
       OAuthClientCredentialsDeltaSharingProfile(
         shareCredentialsVersion = Some(2),
         endpoint = "foo",
@@ -170,7 +168,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
 
   test("oauth_client_credentials profile with optional scope") {
     testProfile(
-      new DeltaSharingOptions(Map(
+      Map(
         "shareCredentialsVersion" -> "2",
         "endpoint" -> "foo",
         "tokenEndpoint" -> "bar",
@@ -178,7 +176,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
         "clientSecret" -> "xyz",
         "type" -> "oauth_client_credentials",
         "scope" -> "testScope"
-      )),
+      ),
       OAuthClientCredentialsDeltaSharingProfile(
         shareCredentialsVersion = Some(2),
         endpoint = "foo",
@@ -193,7 +191,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
   test("oauth_client_credentials only supports version 2") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
-        new DeltaSharingOptions(Map(
+        Map(
           "shareCredentialsVersion" -> "1",
           "endpoint" -> "foo",
           "tokenEndpoint" -> "bar",
@@ -201,7 +199,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
           "clientSecret" -> "xyz",
           "type" -> "oauth_client_credentials",
           "scope" -> "testScope"
-        )),
+        ),
         null
       )
     }
@@ -213,12 +211,12 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
 
     for (missingField <- mandatoryFields) {
 
-      val profile = new DeltaSharingOptions(
+      val profile = {
         mandatoryFields
         .filter(_ != missingField)
         .map(f => f -> "value")
         .toMap + ("shareCredentialsVersion" -> "2", "type" -> "oauth_client_credentials")
-      )
+      }
 
       val e = intercept[IllegalArgumentException] {
         testProfile(profile, null)
