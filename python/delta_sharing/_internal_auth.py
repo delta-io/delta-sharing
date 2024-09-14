@@ -258,7 +258,7 @@ class AuthCredentialProviderFactory:
             if profile.type == "oauth_client_credentials" or profile.type == "oidc_client_credentials":
                 return AuthCredentialProviderFactory.__oauth_client_credentials(profile)
             elif profile.type == "oidc_managed_identity":
-                return AuthCredentialProviderFactory.__oauth_client_credentials(profile)
+                return AuthCredentialProviderFactory.__oidc_managed_identity(profile)
             elif profile.type == "basic":
                 return AuthCredentialProviderFactory.__auth_basic(profile)
         elif (profile.share_credentials_version == 1 and
@@ -292,6 +292,22 @@ class AuthCredentialProviderFactory:
             oauth_client=oauth_client,
             auth_config=AuthConfig()
         )
+        AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile] = provider
+        return provider
+
+    @staticmethod
+    def __oidc_managed_identity(profile):
+        # Once a clientId/clientSecret is exchanged for an accessToken,
+        # the accessToken can be reused until it expires.
+        # The Python client re-creates DeltaSharingClient for different requests.
+        # To ensure the OAuth access_token is reused,
+        # we keep a mapping from profile -> OAuthClientCredentialsAuthProvider.
+        # This prevents re-initializing OAuthClientCredentialsAuthProvider for the same profile,
+        # ensuring the access_token can be reused.
+        if profile in AuthCredentialProviderFactory.__oauth_auth_provider_cache:
+            return AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile]
+
+        provider = ManagedIdentityAuthProvider()
         AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile] = provider
         return provider
 
