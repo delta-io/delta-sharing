@@ -87,7 +87,7 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
     // profile as opts
     var options = new DeltaSharingOptions(Map(
       "shareCredentialsVersion" -> "1",
-      "type" -> "bearer_token",
+      "shareCredentialsType" -> "bearer_token",
       "endpoint" -> "foo",
       "tokenEndpoint" -> "bar",
       "clientId" -> "abc",
