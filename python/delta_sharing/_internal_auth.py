@@ -142,6 +142,11 @@ class ManagedIdentityAuthProvider(AuthCredentialProvider):
 
     def add_auth_header(self,session: requests.Session) -> None:
         token = self.maybe_refresh_token()
+
+        print("######")
+        print(token)
+        print("######")
+
         with self.lock:
             session.headers.update(
                 {
