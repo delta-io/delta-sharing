@@ -24,6 +24,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.spark.delta.sharing.TableRefreshResult
 
 import io.delta.sharing.client.util.JsonUtils
+import io.delta.sharing.spark.DeltaSharingOptions
 
 case class DeltaSharingProfile(
     shareCredentialsVersion: Option[Int],
@@ -89,6 +90,24 @@ private[sharing] class DeltaSharingFileProfileProvider(
     if (profile.bearerToken == null) {
       throw new IllegalArgumentException("Cannot find the 'bearerToken' field in the profile file")
     }
+    profile
+  }
+
+  override def getProfile: DeltaSharingProfile = profile
+}
+
+/**
+ * Load [[DeltaSharingProfile]] from options.
+ */
+private[sharing] class DeltaSharingOptionsProfileProvider(
+    options: DeltaSharingOptions) extends DeltaSharingProfileProvider {
+
+  val profile = {
+    val profile = {
+      JsonUtils.fromJson[DeltaSharingProfile](JsonUtils.toJson(options))
+    }
+    profile.validate()
+
     profile
   }
 
