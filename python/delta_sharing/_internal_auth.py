@@ -106,6 +106,70 @@ class OAuthClientCredentials:
         self.creation_timestamp = creation_timestamp
 
 
+class ManagedIdentityAuthProvider(AuthCredentialProvider):
+    def __init__(self,  auth_config: AuthConfig = AuthConfig()):
+        self.auth_config = auth_config
+        self.current_token: Optional[OAuthClientCredentials] = None
+        self.lock = threading.RLock()
+
+    def get_managed_identity_token(self) -> OAuthClientCredentials:
+        # Azure IMDS endpoint to get the access token
+        url = "http://169.254.169.254/metadata/identity/oauth2/token"
+
+        resource = "https://management.azure.com/"
+        # Headers required to access Azure Instance Metadata Service
+        headers = {"Metadata": "true"}
+
+        # Parameters to specify the resource and API version
+        params = {
+            "api-version": "2019-08-01",
+            "resource": resource
+        }
+
+        # Make the GET request to fetch the token
+        response = requests.get(url, headers=headers, params=params)
+
+        # Check if the request was successful
+        if response.status_code == 200:
+            # Return the access token
+            responseAsJson = response.json()
+            OAuthClientCredentials(access_token=responseAsJson.get("access_token"),
+                                   expires_in=responseAsJson.get("expires_in"),
+                                   creation_timestamp=int(datetime.now().timestamp()))
+        else:
+            # Handle errors
+            raise Exception(f"Failed to obtain token: {response.status_code} - {response.text}")
+
+    def add_auth_header(self,session: requests.Session) -> None:
+        token = self.maybe_refresh_token()
+        with self.lock:
+            session.headers.update(
+                {
+                    "Authorization": f"Bearer {token.access_token}",
+                }
+            )
+
+    def maybe_refresh_token(self) -> OAuthClientCredentials:
+        with self.lock:
+            if self.current_token and not self.needs_refresh(self.current_token):
+                return self.current_token
+            new_token = self.get_managed_identity_token()
+            self.current_token = new_token
+            return new_token
+
+    def needs_refresh(self, token: OAuthClientCredentials) -> bool:
+        now = int(time.time())
+        expiration_time = token.creation_timestamp + token.expires_in
+        return expiration_time - now < self.auth_config.token_renewal_threshold_in_seconds
+
+    def is_expired(self) -> bool:
+        return False
+
+    def get_expiration_time(self) -> Optional[str]:
+        return None
+
+
+
 class OAuthClient:
     def __init__(self,
                  token_endpoint: str,
@@ -186,7 +250,9 @@ class AuthCredentialProviderFactory:
     @staticmethod
     def create_auth_credential_provider(profile: DeltaSharingProfile):
         if profile.share_credentials_version == 2:
-            if profile.type == "oauth_client_credentials":
+            if profile.type == "oauth_client_credentials" or profile.type == "oidc_client_credentials":
+                return AuthCredentialProviderFactory.__oauth_client_credentials(profile)
+            elif profile.type == "oidc_managed_identity":
                 return AuthCredentialProviderFactory.__oauth_client_credentials(profile)
             elif profile.type == "basic":
                 return AuthCredentialProviderFactory.__auth_basic(profile)
