@@ -105,28 +105,7 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
     str
   }.getOrElse(RESPONSE_FORMAT_PARQUET)
 
-  val shareCredentialsVersion = options.get(PROFILE_SHARE_CREDENTIALS_VERSION).map { str =>
-    Try(str.toInt).toOption.getOrElse {
-      throw DeltaSharingErrors.illegalDeltaSharingOptionException(
-        PROFILE_SHARE_CREDENTIALS_VERSION, str, "must be an integer")
-    }
-  }
-
-  val `type` = options.get(PROFILE_SHARE_CREDENTIALS_TYPE)
-
-  val endpoint = options.get(PROFILE_ENDPOINT)
-
-  val tokenEndpoint = options.get(PROFILE_TOKEN_ENDPOINT)
-
-  val clientId = options.get(PROFILE_CLIENT_ID)
-
-  val clientSecret = options.get(PROFILE_CLIENT_SECRET)
-
-  val scope = options.get(PROFILE_SCOPE)
-
-  val bearerToken = options.get(PROFILE_BEARER_TOKEN)
-
-  val expirationTime = options.get(PROFILE_EXPIRATION_TIME).map(getFormattedTimestamp(_))
+  val shareCredentialsOptions: Map[String, String] = prepareShareCredentialsOptions()
 
   def isTimeTravel: Boolean = versionAsOf.isDefined || timestampAsOf.isDefined
 
@@ -154,6 +133,21 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
       )
     } else {
      Map.empty[String, String]
+    }
+  }
+
+  private def prepareShareCredentialsOptions(): Map[String, String] = {
+    validShareCredentialsOptions.filter { option =>
+      options.contains(option._1)
+    }.map { option =>
+      val key = option._1
+      val value = key match {
+        case PROFILE_EXPIRATION_TIME =>
+          getFormattedTimestamp(options.get(key).get)
+        case _ =>
+          options.get(key).get
+      }
+      key -> value
     }
   }
 
@@ -220,7 +214,7 @@ object DeltaSharingOptions extends Logging {
   val RESPONSE_FORMAT_DELTA = "delta"
 
   val PROFILE_SHARE_CREDENTIALS_VERSION = "shareCredentialsVersion"
-  val PROFILE_SHARE_CREDENTIALS_TYPE = "type"
+  val PROFILE_TYPE = "type"
   val PROFILE_ENDPOINT = "endpoint"
   val PROFILE_TOKEN_ENDPOINT = "tokenEndpoint"
   val PROFILE_CLIENT_ID = "clientId"
@@ -236,6 +230,18 @@ object DeltaSharingOptions extends Logging {
     CDF_END_TIMESTAMP -> "",
     CDF_START_VERSION -> "",
     CDF_END_VERSION -> ""
+  )
+
+  val validShareCredentialsOptions = Map(
+    PROFILE_SHARE_CREDENTIALS_VERSION -> "",
+    PROFILE_TYPE -> "",
+    PROFILE_ENDPOINT -> "",
+    PROFILE_TOKEN_ENDPOINT -> "",
+    PROFILE_CLIENT_ID -> "",
+    PROFILE_CLIENT_SECRET -> "",
+    PROFILE_SCOPE -> "",
+    PROFILE_BEARER_TOKEN -> "",
+    PROFILE_EXPIRATION_TIME -> ""
   )
 }
 

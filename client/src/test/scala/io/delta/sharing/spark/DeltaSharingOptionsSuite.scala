@@ -81,9 +81,11 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
     assert(options.options.get(DeltaSharingOptions.CDF_END_VERSION) == Some("2"))
     assert(options.options.get(DeltaSharingOptions.CDF_END_TIMESTAMP) == Some("2020-01-01"))
     assert(options.options.get("notreservedoption") == Some("random"))
+  }
 
+  test("Parse shareCredentials map successfully") {
     // profile as opts
-    options = new DeltaSharingOptions(Map(
+    var options = new DeltaSharingOptions(Map(
       "shareCredentialsVersion" -> "1",
       "type" -> "bearer_token",
       "endpoint" -> "foo",
@@ -94,15 +96,25 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
       "bearerToken" -> "bar",
       "expirationTime" -> "2022-01-01T00:00:00-02:00"
     ))
-    assert(options.shareCredentialsVersion == Some(1))
-    assert(options.`type` == Some("bearer_token"))
-    assert(options.endpoint == Some("foo"))
-    assert(options.tokenEndpoint == Some("bar"))
-    assert(options.clientId == Some("abc"))
-    assert(options.clientSecret == Some("xyz"))
-    assert(options.scope == Some("testScope"))
-    assert(options.bearerToken == Some("bar"))
-    assert(options.expirationTime == Some("2022-01-01T02:00:00Z"))
+
+    assert(options.shareCredentialsOptions.get(
+      DeltaSharingOptions.PROFILE_SHARE_CREDENTIALS_VERSION) == Some("1"))
+    assert(options.shareCredentialsOptions.get(
+      DeltaSharingOptions.PROFILE_TYPE) == Some("bearer_token"))
+    assert(options.shareCredentialsOptions.get(
+      DeltaSharingOptions.PROFILE_ENDPOINT) == Some("foo"))
+    assert(options.shareCredentialsOptions.get(
+      DeltaSharingOptions.PROFILE_TOKEN_ENDPOINT) == Some("bar"))
+    assert(options.shareCredentialsOptions.get(
+      DeltaSharingOptions.PROFILE_CLIENT_ID) == Some("abc"))
+    assert(options.shareCredentialsOptions.get(
+      DeltaSharingOptions.PROFILE_CLIENT_SECRET) == Some("xyz"))
+    assert(options.shareCredentialsOptions.get(
+      DeltaSharingOptions.PROFILE_SCOPE) == Some("testScope"))
+    assert(options.shareCredentialsOptions.get(
+      DeltaSharingOptions.PROFILE_BEARER_TOKEN) == Some("bar"))
+    assert(options.shareCredentialsOptions.get(
+      DeltaSharingOptions.PROFILE_EXPIRATION_TIME) == Some("2022-01-01T02:00:00Z"))
 
   }
 
