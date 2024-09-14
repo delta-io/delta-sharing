@@ -31,6 +31,7 @@ import org.apache.spark.delta.sharing.TableRefreshResult
 import io.delta.sharing.client.DeltaSharingProfile.{validateNotNullAndEmpty, BEARER_TOKEN,
   OAUTH_CLIENT_CREDENTIALS}
 import io.delta.sharing.client.util.JsonUtils
+import io.delta.sharing.spark.DeltaSharingOptions
 
 @JsonDeserialize(using = classOf[DeltaSharingProfileDeserializer])
 sealed trait DeltaSharingProfile {
@@ -192,6 +193,24 @@ private[sharing] class DeltaSharingFileProfileProvider(
       input.close()
     }
 
+    profile.validate()
+
+    profile
+  }
+
+  override def getProfile: DeltaSharingProfile = profile
+}
+
+/**
+ * Load [[DeltaSharingProfile]] from options.
+ */
+private[sharing] class DeltaSharingOptionsProfileProvider(
+    options: DeltaSharingOptions) extends DeltaSharingProfileProvider {
+
+  val profile = {
+    val profile = {
+      JsonUtils.fromJson[DeltaSharingProfile](JsonUtils.toJson(options))
+    }
     profile.validate()
 
     profile

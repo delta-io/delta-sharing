@@ -105,6 +105,29 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
     str
   }.getOrElse(RESPONSE_FORMAT_PARQUET)
 
+  val shareCredentialsVersion = options.get(PROFILE_SHARE_CREDENTIALS_VERSION).map { str =>
+    Try(str.toInt).toOption.getOrElse {
+      throw DeltaSharingErrors.illegalDeltaSharingOptionException(
+        PROFILE_SHARE_CREDENTIALS_VERSION, str, "must be an integer")
+    }
+  }
+
+  val `type` = options.get(PROFILE_SHARE_CREDENTIALS_TYPE)
+
+  val endpoint = options.get(PROFILE_ENDPOINT)
+
+  val tokenEndpoint = options.get(PROFILE_TOKEN_ENDPOINT)
+
+  val clientId = options.get(PROFILE_CLIENT_ID)
+
+  val clientSecret = options.get(PROFILE_CLIENT_SECRET)
+
+  val scope = options.get(PROFILE_SCOPE)
+
+  val bearerToken = options.get(PROFILE_BEARER_TOKEN)
+
+  val expirationTime = options.get(PROFILE_EXPIRATION_TIME).map(getFormattedTimestamp(_))
+
   def isTimeTravel: Boolean = versionAsOf.isDefined || timestampAsOf.isDefined
 
   // Parse the input timestamp string and TimestampType, and generate a formatted timestamp string
@@ -193,9 +216,18 @@ object DeltaSharingOptions extends Logging {
   val TIME_TRAVEL_TIMESTAMP = "timestampAsOf"
 
   val RESPONSE_FORMAT = "responseFormat"
-
   val RESPONSE_FORMAT_PARQUET = "parquet"
   val RESPONSE_FORMAT_DELTA = "delta"
+
+  val PROFILE_SHARE_CREDENTIALS_VERSION = "shareCredentialsVersion"
+  val PROFILE_SHARE_CREDENTIALS_TYPE = "type"
+  val PROFILE_ENDPOINT = "endpoint"
+  val PROFILE_TOKEN_ENDPOINT = "tokenEndpoint"
+  val PROFILE_CLIENT_ID = "clientId"
+  val PROFILE_CLIENT_SECRET = "clientSecret"
+  val PROFILE_SCOPE = "scope"
+  val PROFILE_BEARER_TOKEN = "bearerToken"
+  val PROFILE_EXPIRATION_TIME = "expirationTime"
 
   val validCdfOptions = Map(
     CDF_READ_OPTION -> "",
