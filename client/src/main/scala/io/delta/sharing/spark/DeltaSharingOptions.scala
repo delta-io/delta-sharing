@@ -214,7 +214,7 @@ object DeltaSharingOptions extends Logging {
   val RESPONSE_FORMAT_DELTA = "delta"
 
   val PROFILE_SHARE_CREDENTIALS_VERSION = "shareCredentialsVersion"
-  val PROFILE_TYPE = "type"
+  val PROFILE_TYPE = "shareCredentialsType"
   val PROFILE_ENDPOINT = "endpoint"
   val PROFILE_TOKEN_ENDPOINT = "tokenEndpoint"
   val PROFILE_CLIENT_ID = "clientId"
