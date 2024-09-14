@@ -132,19 +132,32 @@ class ManagedIdentityAuthProvider(AuthCredentialProvider):
         # Check if the request was successful
         if response.status_code == 200:
             # Return the access token
-            responseAsJson = response.json()
-            return OAuthClientCredentials(access_token=responseAsJson.get("access_token"),
-                                          expires_in=responseAsJson.get("expires_in"),
-                                          creation_timestamp=int(datetime.now().timestamp()))
+            response_as_json = response.json()
+            return self.parse_oauth_token_response(response_as_json)
+
         else:
             # Handle errors
             raise Exception(f"Failed to obtain token: {response.status_code} - {response.text}")
+
+    def parse_oauth_token_response(self, response: str) -> OAuthClientCredentials:
+        if not response:
+            raise RuntimeError("Empty response from OAuth token endpoint")
+        json_node = json.loads(response)
+        if 'access_token' not in json_node or not isinstance(json_node['access_token'], str):
+            raise RuntimeError("Missing 'access_token' field in OAuth token response")
+        if 'expires_in' not in json_node or not isinstance(json_node['expires_in'], int):
+            raise RuntimeError("Missing 'expires_in' field in OAuth token response")
+        return OAuthClientCredentials(
+            json_node['access_token'],
+            json_node['expires_in'],
+            int(datetime.now().timestamp())
+        )
 
     def add_auth_header(self,session: requests.Session) -> None:
         token = self.maybe_refresh_token()
 
         print("######")
-        print(token)
+        print(token.access_token)
         print("######")
 
         with self.lock:
