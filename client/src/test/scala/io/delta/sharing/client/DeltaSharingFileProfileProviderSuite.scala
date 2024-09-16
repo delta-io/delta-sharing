@@ -82,7 +82,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       )
     }
     assert(e.getMessage.contains(
-      "Cannot find the 'shareCredentialsVersion' field in the profile file"))
+      "Cannot find the 'shareCredentialsVersion' field in the profile"))
   }
 
   test("shareCredentialsVersion is incorrect") {
@@ -126,7 +126,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
         null
       )
     }
-    assert(e.getMessage.contains("Cannot find the 'endpoint' field in the profile file"))
+    assert(e.getMessage.contains("Cannot find the 'endpoint' field in the profile"))
   }
 
   test("bearerToken is missing") {
@@ -140,7 +140,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
         null
       )
     }
-    assert(e.getMessage.contains("Cannot find the 'bearerToken' field in the profile file"))
+    assert(e.getMessage.contains("Cannot find the 'bearerToken' field in the profile"))
   }
 
   test("unknown field should be ignored") {
@@ -241,7 +241,7 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       val e = intercept[IllegalArgumentException] {
         testProfile(profile, null)
       }
-      assert(e.getMessage.contains(s"Cannot find the '$missingField' field in the profile file"))
+      assert(e.getMessage.contains(s"Cannot find the '$missingField' field in the profile"))
     }
   }
 
