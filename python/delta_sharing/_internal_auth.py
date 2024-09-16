@@ -132,8 +132,7 @@ class ManagedIdentityAuthProvider(AuthCredentialProvider):
         # Check if the request was successful
         if response.status_code == 200:
             # Return the access token
-            response_as_json = response.json()
-            return self.parse_oauth_token_response(response_as_json)
+            return self.parse_oauth_token_response(response.text)
 
         else:
             # Handle errors
@@ -145,11 +144,18 @@ class ManagedIdentityAuthProvider(AuthCredentialProvider):
         json_node = json.loads(response)
         if 'access_token' not in json_node or not isinstance(json_node['access_token'], str):
             raise RuntimeError("Missing 'access_token' field in OAuth token response")
-        if 'expires_in' not in json_node or not isinstance(json_node['expires_in'], int):
+        expires_in = None
+        if 'expires_in' not in json_node:
             raise RuntimeError("Missing 'expires_in' field in OAuth token response")
+        elif isinstance(json_node['expires_in'], int):
+            expires_in = json_node['expires_in']
+        elif isinstance(json_node['expires_in'], str):
+            expires_in = int(json_node['expires_in'])
+        else:
+            raise RuntimeError("Invalid 'expires_in' field in OAuth token response")
         return OAuthClientCredentials(
             json_node['access_token'],
-            json_node['expires_in'],
+            expires_in,
             int(datetime.now().timestamp())
         )
 
