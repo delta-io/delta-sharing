@@ -281,10 +281,10 @@ class DeltaSharingRestClient(
   private def checkRespondedFormat(respondedFormat: String, rpc: String, table: String): Unit = {
     if (!responseFormatSet.contains(respondedFormat)) {
       logError(s"RespondedFormat($respondedFormat) is different from requested " +
-        s"responseFormat($responseFormat) for $rpc for table $table.")
+        s"responseFormat($responseFormat) for $rpc for table $table, queryId[$queryId].")
       throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
         s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
-        s" != requestedFormat($responseFormat).")
+        s" != requestedFormat($responseFormat), queryId[$queryId].")
     }
   }
 
@@ -716,7 +716,7 @@ class DeltaSharingRestClient(
         |$expectedProtocol, $expectedMetadata. Actual: version $version,
         |$respondedFormat, ${lines(0)}, ${lines(1)}""".stripMargin
       logError(s"Error while fetching next page files at url $targetUrl " +
-        s"with body(${JsonUtils.toJson(requestBody.orNull)}: $errorMsg)")
+        s"with body(${JsonUtils.toJson(requestBody.orNull)}: $errorMsg), queryId[$queryId].")
       throw new IllegalStateException(errorMsg)
     }
 
@@ -1008,7 +1008,8 @@ class DeltaSharingRestClient(
             }
           } catch {
             case e: org.apache.http.ConnectionClosedException =>
-              val error = s"Request to delta sharing server failed due to ${e}."
+              val error = s"Request to delta sharing server failed for queryId[$queryId] " +
+                s"due to ${e}."
               logError(error)
               lineBuffer += error
               lineBuffer.toList
