@@ -45,6 +45,12 @@ import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, Unexpecte
 
 /** An interface to fetch Delta metadata from remote server. */
 trait DeltaSharingClient {
+
+  protected var dsQueryId: Option[String] = None
+
+  def getQueryId: String = {
+    dsQueryId.getOrElse("dsQueryIdNotSet")
+  }
   def listAllTables(): Seq[Table]
 
   def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long
@@ -175,8 +181,6 @@ class DeltaSharingRestClient(
   // Convert the responseFormat to a Seq to be used later.
   private val responseFormatSet = responseFormat.split(",").toSet
 
-  private var queryId: Option[String] = None
-
   private lazy val client = {
     val clientBuilder: HttpClientBuilder = if (sslTrustAll) {
       val sslBuilder = new SSLContextBuilder()
@@ -281,10 +285,10 @@ class DeltaSharingRestClient(
   private def checkRespondedFormat(respondedFormat: String, rpc: String, table: String): Unit = {
     if (!responseFormatSet.contains(respondedFormat)) {
       logError(s"RespondedFormat($respondedFormat) is different from requested " +
-        s"responseFormat($responseFormat) for $rpc for table $table, queryId[$queryId].")
+        s"responseFormat($responseFormat) for $rpc for table $table, dsQueryId[$dsQueryId].")
       throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
         s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
-        s" != requestedFormat($responseFormat), queryId[$queryId].")
+        s" != requestedFormat($responseFormat), dsQueryId[$dsQueryId].")
     }
   }
 
@@ -716,7 +720,7 @@ class DeltaSharingRestClient(
         |$expectedProtocol, $expectedMetadata. Actual: version $version,
         |$respondedFormat, ${lines(0)}, ${lines(1)}""".stripMargin
       logError(s"Error while fetching next page files at url $targetUrl " +
-        s"with body(${JsonUtils.toJson(requestBody.orNull)}: $errorMsg), queryId[$queryId].")
+        s"with body(${JsonUtils.toJson(requestBody.orNull)}: $errorMsg), dsQueryId[$dsQueryId].")
       throw new IllegalStateException(errorMsg)
     }
 
@@ -974,8 +978,8 @@ class DeltaSharingRestClient(
       allowNoContent: Boolean = false,
       fetchAsOneString: Boolean = false
   ): (Option[Long], Option[String], Seq[String]) = {
-    // Reset queryId before calling RetryUtils, and before prepareHeaders.
-    queryId = Some(UUID.randomUUID().toString().split('-').head)
+    // Reset dsQueryId before calling RetryUtils, and before prepareHeaders.
+    dsQueryId = Some(UUID.randomUUID().toString().split('-').head)
     RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
       val profile = profileProvider.getProfile
       val response = client.execute(
@@ -1008,7 +1012,7 @@ class DeltaSharingRestClient(
             }
           } catch {
             case e: org.apache.http.ConnectionClosedException =>
-              val error = s"Request to delta sharing server failed for queryId[$queryId] " +
+              val error = s"Request to delta sharing server failed for dsQueryId[$dsQueryId] " +
                 s"due to ${e}."
               logError(error)
               lineBuffer += error
@@ -1059,7 +1063,7 @@ class DeltaSharingRestClient(
   }
 
   private def getQueryIdString: String = {
-    s"QueryId-${queryId.getOrElse("not_set")}"
+    s"QueryId-${dsQueryId.getOrElse("not_set")}"
   }
 
   // The value for delta-sharing-capabilities header, semicolon separated capabilities.
