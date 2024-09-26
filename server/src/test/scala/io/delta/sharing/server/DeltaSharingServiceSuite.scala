@@ -127,7 +127,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     expectedTableVersion: Option[Long] = None,
     responseFormat: String = RESPONSE_FORMAT_PARQUET,
     asyncQuery: String = "false",
-    readerFeatures: String = ""): String = {
+    readerFeatures: String = "",
+    includeEndStreamAction: Boolean = false): String = {
     readHttpContent(
       url,
       method,
@@ -136,7 +137,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       expectedTableVersion,
       "application/x-ndjson; charset=utf-8",
       asyncQuery = asyncQuery,
-      readerFeatures = readerFeatures
+      readerFeatures = readerFeatures,
+      includeEndStreamAction = includeEndStreamAction
     )
   }
 
@@ -148,12 +150,16 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     expectedTableVersion: Option[Long] = None,
     expectedContentType: String,
     asyncQuery: String = "true",
-    readerFeatures: String = ""): String = {
+    readerFeatures: String = "",
+    includeEndStreamAction: Boolean = false): String = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
     var deltaSharingCapabilities = s"asyncquery=$asyncQuery"
     deltaSharingCapabilities += s";responseformat=$responseFormat"
     deltaSharingCapabilities += readerFeatures
+    if (includeEndStreamAction) {
+      deltaSharingCapabilities += s";includeendstreamaction=true"
+    }
     connection.setRequestProperty("delta-sharing-capabilities", deltaSharingCapabilities)
 
     method.foreach(connection.setRequestMethod)
@@ -179,7 +185,11 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       s"Incorrect content type: $contentType. Error: $content")
     if (expectedTableVersion.isDefined) {
       val responseCapabilities = connection.getHeaderField("delta-sharing-capabilities")
-      assert(responseCapabilities == s"responseformat=$responseFormat",
+      var expectedHeader = s"responseformat=$responseFormat"
+      if (includeEndStreamAction) {
+        expectedHeader += s";includeendstreamaction=true"
+      }
+      assert(responseCapabilities == expectedHeader,
         s"Incorrect response format: $responseCapabilities")
     }
     val deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
@@ -566,81 +576,95 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/query") {
-    Seq(
-      RESPONSE_FORMAT_PARQUET,
-      RESPONSE_FORMAT_DELTA,
-      s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
-      s"$RESPONSE_FORMAT_PARQUET,$RESPONSE_FORMAT_DELTA"
-    ).foreach { responseFormat =>
-      val respondedFormat = if (responseFormat == RESPONSE_FORMAT_DELTA) {
-        RESPONSE_FORMAT_DELTA
-      } else {
-        RESPONSE_FORMAT_PARQUET
-      }
-      val p =
-        s"""
-          |{
-          |  "predicateHints": [
-          |    "date = CAST('2021-04-28' AS DATE)"
-          |  ]
-          |}
-          |""".stripMargin
-      val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table1/query"), Some("POST"), Some(p), Some(2), respondedFormat)
-      val lines = response.split("\n")
-      val protocol = lines(0)
-      val metadata = lines(1)
-      if (responseFormat == RESPONSE_FORMAT_DELTA) {
-        val responseProtocol = JsonUtils.fromJson[DeltaResponseSingleAction](protocol).protocol
-        assert(responseProtocol.deltaProtocol.minReaderVersion == 1)
+    Seq(true, false).foreach { includeEndStreamAction =>
+      Seq(
+        RESPONSE_FORMAT_PARQUET,
+        RESPONSE_FORMAT_DELTA,
+        s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
+        s"$RESPONSE_FORMAT_PARQUET,$RESPONSE_FORMAT_DELTA"
+      ).foreach { responseFormat =>
+        val respondedFormat = if (responseFormat == RESPONSE_FORMAT_DELTA) {
+          RESPONSE_FORMAT_DELTA
+        } else {
+          RESPONSE_FORMAT_PARQUET
+        }
+        val p =
+          s"""
+             |{
+             |  "predicateHints": [
+             |    "date = CAST('2021-04-28' AS DATE)"
+             |  ]
+             |}
+             |""".stripMargin
+        val response = readNDJson(
+          requestPath("/shares/share1/schemas/default/tables/table1/query"),
+          Some("POST"),
+          Some(p),
+          Some(2),
+          respondedFormat,
+          includeEndStreamAction = includeEndStreamAction)
+        var lines = response.split("\n").toSeq
+        val protocol = lines(0)
+        val metadata = lines(1)
+        if (includeEndStreamAction) {
+          val endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
+          assert(endAction != null)
+          assert(endAction.minUrlExpirationTimestamp != null)
+          lines = lines.dropRight(1)
+        }
+        if (responseFormat == RESPONSE_FORMAT_DELTA) {
+          val responseProtocol = JsonUtils.fromJson[DeltaResponseSingleAction](protocol).protocol
+          assert(responseProtocol.deltaProtocol.minReaderVersion == 1)
 
-        // unable to construct the delta action because the cases classes like AddFile/Metadata
-        // are private to io.delta.standalone.internal.
-        // So we only verify a couple important fields.
-        val responseMetadata = JsonUtils.fromJson[DeltaResponseSingleAction](metadata).metaData
-        assert(responseMetadata.deltaMetadata.id == "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf")
+          // unable to construct the delta action because the cases classes like AddFile/Metadata
+          // are private to io.delta.standalone.internal.
+          // So we only verify a couple important fields.
+          val responseMetadata = JsonUtils.fromJson[DeltaResponseSingleAction](metadata).metaData
+          assert(responseMetadata.deltaMetadata.id == "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf")
 
-        val actualFiles = lines.drop(2).map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
-        assert(actualFiles(0).id == "061cb3683a467066995f8cdaabd8667d")
-        assert(actualFiles(0).deltaSingleAction.add != null)
-        assert(actualFiles(1).id == "e268cbf70dbaa6143e7e9fa3e2d3b00e")
-        assert(actualFiles(1).deltaSingleAction.add != null)
-        assert(actualFiles.count(_.expirationTimestamp > System.currentTimeMillis()) == 2)
-        verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 781)
-        verifyPreSignedUrl(actualFiles(1).deltaSingleAction.add.path, 781)
-      } else {
-        val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-        assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
-        val expectedMetadata = Metadata(
-          id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
-          format = Format(),
-          schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
-          partitionColumns = Nil).wrap
-        assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-        val files = lines.drop(2)
-        val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
-        assert(actualFiles.size == 2)
-        val expectedFiles = Seq(
-          AddFile(
-            url = actualFiles(0).url,
-            expirationTimestamp = actualFiles(0).expirationTimestamp,
-            id = "061cb3683a467066995f8cdaabd8667d",
-            partitionValues = Map.empty,
-            size = 781,
-            stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
-          ),
-          AddFile(
-            url = actualFiles(1).url,
-            expirationTimestamp = actualFiles(1).expirationTimestamp,
-            id = "e268cbf70dbaa6143e7e9fa3e2d3b00e",
-            partitionValues = Map.empty,
-            size = 781,
-            stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
+          val actualFiles = lines.drop(2).map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
+          assert(actualFiles(0).id == "061cb3683a467066995f8cdaabd8667d")
+          assert(actualFiles(0).deltaSingleAction.add != null)
+          assert(actualFiles(1).id == "e268cbf70dbaa6143e7e9fa3e2d3b00e")
+          assert(actualFiles(1).deltaSingleAction.add != null)
+          assert(actualFiles.count(_.expirationTimestamp > System.currentTimeMillis()) == 2)
+          verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 781)
+          verifyPreSignedUrl(actualFiles(1).deltaSingleAction.add.path, 781)
+        } else {
+          val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+          assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+          val expectedMetadata = Metadata(
+            id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
+            format = Format(),
+            schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
+            partitionColumns = Nil).wrap
+          assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+          val files = lines.drop(2)
+          val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+          assert(actualFiles.size == 2)
+          val expectedFiles = Seq(
+            AddFile(
+              url = actualFiles(0).url,
+              expirationTimestamp = actualFiles(0).expirationTimestamp,
+              id = "061cb3683a467066995f8cdaabd8667d",
+              partitionValues = Map.empty,
+              size = 781,
+              stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
+            ),
+            AddFile(
+              url = actualFiles(1).url,
+              expirationTimestamp = actualFiles(1).expirationTimestamp,
+              id = "e268cbf70dbaa6143e7e9fa3e2d3b00e",
+              partitionValues = Map.empty,
+              size = 781,
+              stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
+            )
           )
-        )
-        assert(actualFiles.count(_.expirationTimestamp != null) == 2)
-        assert(expectedFiles == actualFiles.toList)
-        verifyPreSignedUrl(actualFiles(0).url, 781)
-        verifyPreSignedUrl(actualFiles(1).url, 781)
+          assert(actualFiles.count(_.expirationTimestamp != null) == 2)
+          assert(expectedFiles == actualFiles.toList)
+          verifyPreSignedUrl(actualFiles(0).url, 781)
+          verifyPreSignedUrl(actualFiles(1).url, 781)
+        }
       }
     }
   }
@@ -692,13 +716,19 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("table1 - non partitioned - paginated query") {
-    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
+    Seq(
+      (RESPONSE_FORMAT_PARQUET, true),
+      (RESPONSE_FORMAT_PARQUET, false),
+      (RESPONSE_FORMAT_DELTA, true),
+      (RESPONSE_FORMAT_DELTA, false)
+    ).foreach { case (responseFormat, includeEndStreamAction) =>
       var response = readNDJson(
         requestPath("/shares/share1/schemas/default/tables/table1/query"),
         Some("POST"),
         Some("""{"maxFiles": 1}"""),
         Some(2),
-        responseFormat
+        responseFormat,
+        includeEndStreamAction = includeEndStreamAction
       )
       var lines = response.split("\n")
       assert(lines.length == 4)
@@ -787,31 +817,34 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("refresh query returns the same set of files as initial query") {
-    val initialResponse = readNDJson(
-      requestPath("/shares/share1/schemas/default/tables/table1/query"),
-      Some("POST"),
-      Some("""{"includeRefreshToken": true}"""),
-      Some(2)
-    ).split("\n")
-    assert(initialResponse.length == 5)
-    val endAction = JsonUtils.fromJson[SingleAction](initialResponse.last).endStreamAction
-    assert(endAction.refreshToken != null)
+    Seq(true, false).foreach { includeEndStreamAction =>
+      val initialResponse = readNDJson(
+        requestPath("/shares/share1/schemas/default/tables/table1/query"),
+        Some("POST"),
+        Some("""{"includeRefreshToken": true}"""),
+        Some(2),
+        includeEndStreamAction = includeEndStreamAction
+      ).split("\n")
+      assert(initialResponse.length == 5)
+      val endAction = JsonUtils.fromJson[SingleAction](initialResponse.last).endStreamAction
+      assert(endAction.refreshToken != null)
 
-    val refreshResponse = readNDJson(
-      requestPath("/shares/share1/schemas/default/tables/table1/query"),
-      Some("POST"),
-      Some(s"""{"includeRefreshToken": true, "refreshToken": "${endAction.refreshToken}"}"""),
-      Some(2)
-    ).split("\n")
-    assert(refreshResponse.length == 5)
-    // protocol
-    assert(initialResponse(0) == refreshResponse(0))
-    // metadata
-    assert(initialResponse(1) == refreshResponse(1))
-    // files
-    val initialFiles = initialResponse.slice(2, 4).map(f => JsonUtils.fromJson[SingleAction](f).file)
-    val refreshedFiles = refreshResponse.slice(2, 4).map(f => JsonUtils.fromJson[SingleAction](f).file)
-    assert(initialFiles.map(_.id) sameElements refreshedFiles.map(_.id))
+      val refreshResponse = readNDJson(
+        requestPath("/shares/share1/schemas/default/tables/table1/query"),
+        Some("POST"),
+        Some(s"""{"includeRefreshToken": true, "refreshToken": "${endAction.refreshToken}"}"""),
+        Some(2)
+      ).split("\n")
+      assert(refreshResponse.length == 5)
+      // protocol
+      assert(initialResponse(0) == refreshResponse(0))
+      // metadata
+      assert(initialResponse(1) == refreshResponse(1))
+      // files
+      val initialFiles = initialResponse.slice(2, 4).map(f => JsonUtils.fromJson[SingleAction](f).file)
+      val refreshedFiles = refreshResponse.slice(2, 4).map(f => JsonUtils.fromJson[SingleAction](f).file)
+      assert(initialFiles.map(_.id) sameElements refreshedFiles.map(_.id))
+    }
   }
 
   integrationTest("refresh query - exception") {

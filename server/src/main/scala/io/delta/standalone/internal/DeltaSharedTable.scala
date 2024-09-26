@@ -330,7 +330,8 @@ class DeltaSharedTable(
       includeRefreshToken: Boolean,
       refreshToken: Option[String],
       responseFormatSet: Set[String],
-      clientReaderFeaturesSet: Set[String] = Set.empty): QueryResult = withClassLoader {
+      clientReaderFeaturesSet: Set[String],
+      includeEndStreamAction: Boolean): QueryResult = withClassLoader {
     // scalastyle:on argcount
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
@@ -413,7 +414,8 @@ class DeltaSharedTable(
           maxFiles,
           pageTokenOpt,
           queryParamChecksum,
-          responseFormat
+          responseFormat,
+          includeEndStreamAction
         )
       } else if (includeFiles) {
         val ts = if (isVersionQuery) {
@@ -505,7 +507,7 @@ class DeltaSharedTable(
         // For backwards compatibility, return an `endStreamAction` object only when
         // `includeRefreshToken` is true or `maxFiles` is specified
         filteredFiles ++ {
-          if (includeRefreshToken || maxFiles.isDefined) {
+          if (includeRefreshToken || maxFiles.isDefined || includeEndStreamAction) {
             Seq(getEndStreamAction(nextPageTokenStr, minUrlExpirationTimestamp, refreshTokenStr))
           } else {
             Nil
@@ -525,7 +527,8 @@ class DeltaSharedTable(
       maxFilesOpt: Option[Int],
       pageTokenOpt: Option[QueryTablePageToken],
       queryParamChecksum: String,
-      responseFormat: String
+      responseFormat: String,
+      includeEndStreamAction: Boolean
     ): Seq[Object] = {
     // For subsequent page calls, instead of using the current latestVersion, use latestVersion in
     // the pageToken (which is equal to the latestVersion when the first page call is received),
@@ -645,7 +648,8 @@ class DeltaSharedTable(
       }
     // Return an `endStreamAction` object only when `maxFiles` is specified for
     // backwards compatibility.
-    if (maxFilesOpt.isDefined) {
+    if (maxFilesOpt.isDefined || includeEndStreamAction) {
+      // TODO(Ask why nextPageTokenStr is always null
       actions.append(getEndStreamAction(null, minUrlExpirationTimestamp))
     }
     actions.toSeq
