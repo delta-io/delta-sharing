@@ -84,14 +84,6 @@ case class ParsedDeltaSharingTablePath(
     schema: String,
     table: String)
 
-// A case class containing the parsed response of delta sharing rpcs.
-case class ParsedDeltaSharingResponse(
-    version: Long,
-    respondedFormat: String,
-    includedEndStreamAction: Option[Boolean],
-    lines: Seq[String],
-    capabilities: Option[String])
-
 private[sharing] trait PaginationResponse {
   def nextPageToken: Option[String]
 }
@@ -170,7 +162,6 @@ class DeltaSharingRestClient(
     readerFeatures: String = "",
     queryTablePaginationEnabled: Boolean = false,
     maxFilesPerReq: Int = 100000,
-    includeEndStreamAction: Boolean = true,
     enableAsyncQuery: Boolean = false,
     asyncQueryPollIntervalMillis: Long = 10000L,
     asyncQueryMaxDuration: Long = 600000L,
@@ -188,7 +179,7 @@ class DeltaSharingRestClient(
   // Convert the responseFormat to a Seq to be used later.
   private val responseFormatSet = responseFormat.split(",").toSet
 
-  private var dsQueryId: Option[String] = None
+  private var queryId: Option[String] = None
 
   private lazy val client = {
     val clientBuilder: HttpClientBuilder = if (sslTrustAll) {
@@ -320,34 +311,25 @@ class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata" +
         s"$encodedParams")
-    val response = getNDJson(target)
+    val (version, respondedFormat, lines) = getNDJson(target)
 
     checkRespondedFormat(
-      response.respondedFormat,
+      respondedFormat,
       rpc = "getMetadata",
       table = s"${table.share}.${table.schema}.${table.name}"
     )
 
-    if (response.respondedFormat == RESPONSE_FORMAT_DELTA) {
-      return DeltaTableMetadata(
-        response.version,
-        lines = response.lines,
-        respondedFormat = response.respondedFormat
-      )
+    if (respondedFormat == RESPONSE_FORMAT_DELTA) {
+      return DeltaTableMetadata(version, lines = lines, respondedFormat = respondedFormat)
     }
 
-    val protocol = JsonUtils.fromJson[SingleAction](response.lines(0)).protocol
+    val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
-    val metadata = JsonUtils.fromJson[SingleAction](response.lines(1)).metaData
-    if (response.lines.size != 2) {
+    val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
+    if (lines.size != 2) {
       throw new IllegalStateException("received more than two lines")
     }
-    DeltaTableMetadata(
-      response.version,
-      protocol,
-      metadata,
-      respondedFormat = response.respondedFormat
-    )
+    DeltaTableMetadata(version, protocol, metadata, respondedFormat = respondedFormat)
   }
 
   private def checkProtocol(protocol: Protocol): Unit = {
@@ -474,8 +456,7 @@ class DeltaSharingRestClient(
       val (version, respondedFormat, lines, _) = getFilesByPage(table, target, request)
       (version, respondedFormat, lines)
     } else {
-      val response = getNDJson(target, request)
-      (response.version, response.respondedFormat, response.lines)
+      getNDJson(target, request)
     }
 
     checkRespondedFormat(
@@ -526,15 +507,13 @@ class DeltaSharingRestClient(
     val (version, respondedFormat, lines, queryIdOpt) = if (enableAsyncQuery) {
       getNDJsonWithAsync(table, targetUrl, request)
     } else {
-      val response = getNDJson(targetUrl, request)
-      (response.version, response.respondedFormat, response.lines, None)
+      val (version, respondedFormat, lines) = getNDJson(targetUrl, request)
+      (version, respondedFormat, lines, None)
     }
 
     var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
     if (endStreamAction.isEmpty) {
-      logWarning(
-        s"EndStreamAction is not returned in the response for paginated query($dsQueryId)."
-      )
+      logWarning("EndStreamAction is not returned in the response for paginated query.")
     }
 
     val protocol = filteredLines(0)
@@ -585,9 +564,7 @@ class DeltaSharingRestClient(
       allLines.appendAll(res._1)
       endStreamAction = res._2
       if (endStreamAction.isEmpty) {
-        logWarning(
-          s"EndStreamAction is not returned in the response for paginated query($dsQueryId)."
-        )
+        logWarning("EndStreamAction is not returned in the response for paginated query.")
       }
       // Throw an error if the first page is expiring before we get all pages
       if (minUrlExpirationTimestamp.exists(_ <= System.currentTimeMillis())) {
@@ -620,8 +597,7 @@ class DeltaSharingRestClient(
       )
       getCDFFilesByPage(target)
     } else {
-      val response = getNDJson(target, requireVersion = false)
-      (response.version, response.respondedFormat, response.lines)
+      getNDJson(target, requireVersion = false)
     }
 
     checkRespondedFormat(
@@ -673,12 +649,10 @@ class DeltaSharingRestClient(
 
     // Fetch first page
     var updatedUrl = s"$targetUrl&maxFiles=$maxFilesPerReq"
-    val response = getNDJson(updatedUrl, requireVersion = false)
-    var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(response.lines)
+    val (version, respondedFormat, lines) = getNDJson(updatedUrl, requireVersion = false)
+    var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
     if (endStreamAction.isEmpty) {
-      logWarning(
-        s"EndStreamAction is not returned in the response for paginated query($dsQueryId)."
-      )
+      logWarning("EndStreamAction is not returned in the response for paginated query.")
     }
     val protocol = filteredLines(0)
     val metadata = filteredLines(1)
@@ -697,8 +671,8 @@ class DeltaSharingRestClient(
       val res = fetchNextPageFiles(
         targetUrl = updatedUrl,
         requestBody = None,
-        expectedVersion = response.version,
-        expectedRespondedFormat = response.respondedFormat,
+        expectedVersion = version,
+        expectedRespondedFormat = respondedFormat,
         expectedProtocol = protocol,
         expectedMetadata = metadata,
         pageNumber = numPages
@@ -706,9 +680,7 @@ class DeltaSharingRestClient(
       allLines.appendAll(res._1)
       endStreamAction = res._2
       if (endStreamAction.isEmpty) {
-        logWarning(
-          s"EndStreamAction is not returned in the response for paginated query($dsQueryId)."
-        )
+        logWarning("EndStreamAction is not returned in the response for paginated query.")
       }
       // Throw an error if the first page is expiring before we get all pages
       if (minUrlExpirationTimestamp.exists(_ <= System.currentTimeMillis())) {
@@ -721,7 +693,7 @@ class DeltaSharingRestClient(
       s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
       s"of ${allLines.size} files"
     )
-    (response.version, response.respondedFormat, allLines.toSeq)
+    (version, respondedFormat, allLines.toSeq)
   }
 
   // Send next page query request. Validate the response and return next page files
@@ -736,32 +708,31 @@ class DeltaSharingRestClient(
       expectedMetadata: String,
       pageNumber: Int): (Seq[String], Option[EndStreamAction]) = {
     val start = System.currentTimeMillis()
-    val response = if (requestBody.isDefined) {
+    val (version, respondedFormat, lines) = if (requestBody.isDefined) {
       getNDJson(targetUrl, requestBody.get)
     } else {
       getNDJson(targetUrl, requireVersion = false)
     }
     logInfo(s"Took ${System.currentTimeMillis() - start} to fetch ${pageNumber}th page " +
-      s"of ${response.lines.size} lines.")
+      s"of ${lines.size} lines.")
 
     // Validate that version/format/protocol/metadata in the response don't change across pages
-    if (response.version != expectedVersion ||
-      response.respondedFormat != expectedRespondedFormat ||
-      response.lines.size < 2 ||
-      response.lines(0) != expectedProtocol ||
-      response.lines(1) != expectedMetadata) {
+    if (version != expectedVersion ||
+      respondedFormat != expectedRespondedFormat ||
+      lines(0) != expectedProtocol ||
+      lines(1) != expectedMetadata) {
       val errorMsg = s"""
         |Received inconsistent version/format/protocol/metadata across pages.
         |Expected: version $expectedVersion, $expectedRespondedFormat,
-        |$expectedProtocol, $expectedMetadata. Actual: version ${response.version},
-        |${response.respondedFormat}, ${response.lines}""".stripMargin
+        |$expectedProtocol, $expectedMetadata. Actual: version $version,
+        |$respondedFormat, ${lines(0)}, ${lines(1)}""".stripMargin
       logError(s"Error while fetching next page files at url $targetUrl " +
         s"with body(${JsonUtils.toJson(requestBody.orNull)}: $errorMsg)")
       throw new IllegalStateException(errorMsg)
     }
 
     // Drop protocol + metadata, then extract endStreamAction if there's any
-    maybeExtractEndStreamAction(response.lines.drop(2))
+    maybeExtractEndStreamAction(lines.drop(2))
   }
 
   // Check the last line and extract EndStreamAction if there is one.
@@ -804,12 +775,10 @@ class DeltaSharingRestClient(
   }
 
   private def getNDJson(
-      target: String, requireVersion: Boolean = true): ParsedDeltaSharingResponse = {
+      target: String, requireVersion: Boolean = true): (Long, String, Seq[String]) = {
     val (version, capabilities, lines) = getResponse(new HttpGet(target))
-    val (respondedFormat, includedEndStreamAction) = getRespondedHeaders(capabilities)
-
-    val response = ParsedDeltaSharingResponse(
-      version = version.getOrElse {
+    (
+      version.getOrElse {
         if (requireVersion) {
           throw new IllegalStateException(s"Cannot find " +
             s"${RESPONSE_TABLE_VERSION_HEADER_KEY} in the header")
@@ -817,13 +786,9 @@ class DeltaSharingRestClient(
           0L
         }
       },
-      respondedFormat = respondedFormat,
-      includedEndStreamAction = includedEndStreamAction,
-      lines,
-      capabilities = capabilities
+      getRespondedFormat(capabilities),
+      lines
     )
-    checkEndStreamAction(response)
-    response
   }
 
   private def getQueryInfoTargetUrl(table: Table, queryId: String) = {
@@ -847,8 +812,7 @@ class DeltaSharingRestClient(
       maxFiles = maxFiles,
       pageToken = pageToken)
 
-    val response = getNDJson(target, request)
-    (response.version, response.respondedFormat, response.lines)
+    getNDJson(target, request)
   }
 
   /*
@@ -886,13 +850,13 @@ class DeltaSharingRestClient(
       target: String,
       request: QueryTableRequest): (Long, String, Seq[String], Option[String]) = {
     // Initial query to get NDJson data
-    val response = getNDJson(target, request)
+    val (initialVersion, initialRespondedFormat, initialLines) = getNDJson(target, request)
 
     // Check if the query is still pending
-    var (lines, queryIdOpt, queryPending) = checkQueryPending(response.lines)
+    var (lines, queryIdOpt, queryPending) = checkQueryPending(initialLines)
 
-    var version = response.version
-    var respondedFormat = response.respondedFormat
+    var version = initialVersion
+    var respondedFormat = initialRespondedFormat
 
     val startTime = System.currentTimeMillis()
     // Loop while the query is pending
@@ -924,64 +888,27 @@ class DeltaSharingRestClient(
     (version, respondedFormat, lines, queryIdOpt)
   }
 
-  private def getNDJson[T: Manifest](target: String, data: T): ParsedDeltaSharingResponse = {
+
+  private def getNDJson[T: Manifest](target: String, data: T): (Long, String, Seq[String]) = {
     val httpPost = new HttpPost(target)
     val json = JsonUtils.toJson(data)
     httpPost.setHeader("Content-type", "application/json")
     httpPost.setEntity(new StringEntity(json, UTF_8))
     val (version, capabilities, lines) = getResponse(httpPost)
-    val (respondedFormat, includedEndStreamAction) = getRespondedHeaders(capabilities)
-
-    val response = ParsedDeltaSharingResponse(
-      version = version.getOrElse {
+    (
+      version.getOrElse {
         throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
       },
-      respondedFormat = respondedFormat,
-      includedEndStreamAction = includedEndStreamAction,
-      lines,
-      capabilities = capabilities
-    )
-    checkEndStreamAction(response)
-    response
-  }
-
-  private def checkEndStreamAction(response: ParsedDeltaSharingResponse): Unit = {
-    if (includeEndStreamAction) {
-      // Only perform additional check when includeEndStreamAction = true
-      response.includedEndStreamAction match {
-        case Some(true) =>
-          val lastLineAction = JsonUtils.fromJson[SingleAction](response.lines.last)
-          if (lastLineAction.endStreamAction == null) {
-            throw new IllegalStateException("Client sets includeEndStreamAction=true in the " +
-              s"header, server responded with the header set to true(${response.capabilities}, " +
-              s"and ${response.lines.size} lines, and last line parsed as $lastLineAction, " +
-              s"for query($dsQueryId).")
-          }
-        case Some(false) =>
-          throw new IllegalStateException(
-            "Client sets includeEndStreamAction=true in the header, but server responded with" +
-              s" the header set to false(${response.capabilities}), for query($dsQueryId)."
-          )
-        case None =>
-          logWarning(
-            s"Client sets includeEndStreamAction=true in the header, but server didn't " +
-              s"respond with the header for query($dsQueryId)."
-          )
-      }
-    }
-  }
-
-  private def getRespondedHeaders(capabilities: Option[String]): (String, Option[Boolean]) = {
-    val capabilitiesMap = parseDeltaSharingCapabilities(capabilities)
-    val respondedIESAStrOpt = capabilitiesMap
-      .get(DELTA_SHARING_CAPABILITIES_INCLUDE_END_STREAM_ACTION)
-    (
-      capabilitiesMap.get(RESPONSE_FORMAT).getOrElse(RESPONSE_FORMAT_PARQUET),
-      respondedIESAStrOpt.map(_.toBoolean)
+      getRespondedFormat(capabilities),
+      lines
     )
   }
 
-  private def parseDeltaSharingCapabilities(capabilities: Option[String]): Map[String, String] = {
+  private def getRespondedFormat(capabilities: Option[String]): String = {
+    val capabilitiesMap = getDeltaSharingCapabilitiesMap(capabilities)
+    capabilitiesMap.get(RESPONSE_FORMAT).getOrElse(RESPONSE_FORMAT_PARQUET)
+  }
+  private def getDeltaSharingCapabilitiesMap(capabilities: Option[String]): Map[String, String] = {
     if (capabilities.isEmpty) {
       return Map.empty[String, String]
     }
@@ -1029,7 +956,7 @@ class DeltaSharingRestClient(
     }
     val headers = Map(
       HttpHeaders.USER_AGENT -> getUserAgent(),
-      DELTA_SHARING_CAPABILITIES_HEADER -> constructDeltaSharingCapabilities()
+      DELTA_SHARING_CAPABILITIES_HEADER -> getDeltaSharingCapabilities()
     ) ++ customeHeaders
     headers.foreach(header => httpRequest.setHeader(header._1, header._2))
     authCredentialProvider.addAuthHeader(httpRequest)
@@ -1051,8 +978,8 @@ class DeltaSharingRestClient(
       allowNoContent: Boolean = false,
       fetchAsOneString: Boolean = false
   ): (Option[Long], Option[String], Seq[String]) = {
-    // Reset dsQueryId before calling RetryUtils, and before prepareHeaders.
-    dsQueryId = Some(UUID.randomUUID().toString().split('-').head)
+    // Reset queryId before calling RetryUtils, and before prepareHeaders.
+    queryId = Some(UUID.randomUUID().toString().split('-').head)
     RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
       val profile = profileProvider.getProfile
       val response = client.execute(
@@ -1135,13 +1062,13 @@ class DeltaSharingRestClient(
   }
 
   private def getQueryIdString: String = {
-    s"QueryId-${dsQueryId.getOrElse("not_set")}"
+    s"QueryId-${queryId.getOrElse("not_set")}"
   }
 
   // The value for delta-sharing-capabilities header, semicolon separated capabilities.
   // Each capability is in the format of "key=value1,value2", values are separated by comma.
   // Example: "capability1=value1;capability2=value3,value4,value5"
-  private def constructDeltaSharingCapabilities(): String = {
+  private def getDeltaSharingCapabilities(): String = {
     var capabilities = Seq[String](s"${RESPONSE_FORMAT}=$responseFormat")
     if (responseFormatSet.contains(RESPONSE_FORMAT_DELTA) && readerFeatures.nonEmpty) {
       capabilities = capabilities :+ s"$READER_FEATURES=$readerFeatures"
@@ -1149,10 +1076,6 @@ class DeltaSharingRestClient(
 
     if (enableAsyncQuery) {
      capabilities = capabilities :+ s"$DELTA_SHARING_CAPABILITIES_ASYNC_READ=true"
-    }
-
-    if (includeEndStreamAction) {
-      capabilities = capabilities :+ s"$DELTA_SHARING_CAPABILITIES_INCLUDE_END_STREAM_ACTION=true"
     }
 
     val cap = capabilities.mkString(DELTA_SHARING_CAPABILITIES_DELIMITER)
@@ -1177,10 +1100,10 @@ object DeltaSharingRestClient extends Logging {
   val RESPONSE_FORMAT = "responseformat"
   val READER_FEATURES = "readerfeatures"
   val DELTA_SHARING_CAPABILITIES_ASYNC_READ = "asyncquery"
-  val DELTA_SHARING_CAPABILITIES_INCLUDE_END_STREAM_ACTION = "includeEndStreamAction"
   val RESPONSE_FORMAT_DELTA = "delta"
   val RESPONSE_FORMAT_PARQUET = "parquet"
   val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
+  val QUERY_PENDING_TRUE = "pending"
 
   lazy val USER_AGENT = {
     try {
