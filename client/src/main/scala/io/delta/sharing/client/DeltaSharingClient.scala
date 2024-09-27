@@ -960,6 +960,13 @@ class DeltaSharingRestClient(
     httpRequest
   }
 
+
+  import org.apache.http.HttpEntity
+  private def getEntityDebugStr(entity: HttpEntity): String = {
+    s"isRepeatable:${entity.isRepeatable},isChunked:${entity.isChunked}," +
+      s"getContentLength:${entity.getContentLength},isStreaming:${entity.isStreaming}"
+  }
+
   private def debugoutput(str: String): Unit = {
     // scalastyle:off println
     Console.println(s"----[linzhou]----$str")
