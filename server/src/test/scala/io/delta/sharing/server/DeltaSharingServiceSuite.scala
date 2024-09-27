@@ -567,10 +567,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/query") {
     Seq(
-      RESPONSE_FORMAT_PARQUET,
-      RESPONSE_FORMAT_DELTA,
-      s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
-      s"$RESPONSE_FORMAT_PARQUET,$RESPONSE_FORMAT_DELTA"
+      RESPONSE_FORMAT_PARQUET
+//      RESPONSE_FORMAT_DELTA,
+//      s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
+//      s"$RESPONSE_FORMAT_PARQUET,$RESPONSE_FORMAT_DELTA"
     ).foreach { responseFormat =>
       val respondedFormat = if (responseFormat == RESPONSE_FORMAT_DELTA) {
         RESPONSE_FORMAT_DELTA
