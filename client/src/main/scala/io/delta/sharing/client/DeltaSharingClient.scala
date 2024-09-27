@@ -1058,9 +1058,9 @@ class DeltaSharingRestClient(
         if (!(statusCode == HttpStatus.SC_OK ||
           (allowNoContent && statusCode == HttpStatus.SC_NO_CONTENT))) {
           var additionalErrorInfo = ""
-          if (statusCode == HttpStatus.SC_UNAUTHORIZED && tokenExpired()) {
+          if (statusCode == HttpStatus.SC_UNAUTHORIZED && tokenExpired(profile)) {
             additionalErrorInfo = s"It may be caused by an expired token as it has expired " +
-              s"at ${authCredentialProvider.getExpirationTime()}"
+              s"at ${profile.expirationTime}"
           }
           // Only show the last 100 lines in the error to keep it contained.
           val responseToShow = lines.drop(lines.size - 100).mkString("\n")
