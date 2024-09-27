@@ -466,6 +466,7 @@ class DeltaSharingRestClient(
       refreshToken = None,
       idempotency_key = None
     )
+
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       logInfo(
         s"Making paginated queryTable from version $startingVersion requests for table " +
@@ -475,7 +476,8 @@ class DeltaSharingRestClient(
       (version, respondedFormat, lines)
     } else {
       val response = getNDJson(target, request)
-      (response.version, response.respondedFormat, response.lines)
+      val (filteredLines, _) = maybeExtractEndStreamAction(response.lines)
+      (response.version, response.respondedFormat, filteredLines)
     }
 
     checkRespondedFormat(
@@ -954,8 +956,8 @@ class DeltaSharingRestClient(
           if (lastLineAction.endStreamAction == null) {
             throw new IllegalStateException("Client sets includeEndStreamAction=true in the " +
               s"header, server responded with the header set to true(${response.capabilities}, " +
-              s"and ${response.lines.size} lines, and last line parsed as $lastLineAction, " +
-              s"for query($dsQueryId).")
+              s"and ${response.lines.size} lines, and last line parsed as " +
+              s"${lastLineAction.unwrap.getClass()}, for query($dsQueryId).")
           }
         case Some(false) =>
           throw new IllegalStateException(
@@ -965,7 +967,7 @@ class DeltaSharingRestClient(
         case None =>
           logWarning(
             s"Client sets includeEndStreamAction=true in the header, but server didn't " +
-              s"respond with the header for query($dsQueryId)."
+              s"respond with the header(${response.capabilities}) for query($dsQueryId)."
           )
       }
     }
@@ -1177,7 +1179,7 @@ object DeltaSharingRestClient extends Logging {
   val RESPONSE_FORMAT = "responseformat"
   val READER_FEATURES = "readerfeatures"
   val DELTA_SHARING_CAPABILITIES_ASYNC_READ = "asyncquery"
-  val DELTA_SHARING_CAPABILITIES_INCLUDE_END_STREAM_ACTION = "includeEndStreamAction"
+  val DELTA_SHARING_CAPABILITIES_INCLUDE_END_STREAM_ACTION = "includeendstreamaction"
   val RESPONSE_FORMAT_DELTA = "delta"
   val RESPONSE_FORMAT_PARQUET = "parquet"
   val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
