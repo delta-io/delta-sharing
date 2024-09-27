@@ -272,7 +272,8 @@ class DeltaSharedTableKernel(
       includeRefreshToken: Boolean,
       refreshToken: Option[String],
       responseFormatSet: Set[String],
-      clientReaderFeaturesSet: Set[String] = Set.empty): QueryResult = withClassLoader {
+      clientReaderFeaturesSet: Set[String],
+      includeEndStreamQuery: Boolean): QueryResult = withClassLoader {
 
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
@@ -367,7 +368,7 @@ class DeltaSharedTableKernel(
 
       // Return EndStreamAction when `includeRefreshToken` is true
       actions = actions ++ {
-        if (includeRefreshToken) {
+        if (includeRefreshToken || includeEndStreamQuery) {
           Seq(getEndStreamAction(null, minUrlExpirationTimestamp, refreshTokenStr))
         } else {
           Nil
