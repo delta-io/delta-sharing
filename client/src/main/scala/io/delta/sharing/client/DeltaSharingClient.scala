@@ -1270,6 +1270,7 @@ object DeltaSharingRestClient extends Logging {
     val queryTablePaginationEnabled = ConfUtils.queryTablePaginationEnabled(sqlConf)
     val maxFilesPerReq = ConfUtils.maxFilesPerQueryRequest(sqlConf)
     val useAsyncQuery = ConfUtils.useAsyncQuery(sqlConf)
+    val includeEndStreamAction = ConfUtils.includeEndStreamAction(sqlConf)
     val asyncQueryMaxDurationMillis = ConfUtils.asyncQueryTimeout(sqlConf)
     val asyncQueryPollDurationMillis = ConfUtils.asyncQueryPollIntervalMillis(sqlConf)
 
@@ -1292,6 +1293,7 @@ object DeltaSharingRestClient extends Logging {
         classOf[Boolean],
         classOf[Int],
         classOf[Boolean],
+        classOf[Boolean],
         classOf[Long],
         classOf[Long],
         classOf[Int],
@@ -1307,6 +1309,7 @@ object DeltaSharingRestClient extends Logging {
         readerFeatures,
         java.lang.Boolean.valueOf(queryTablePaginationEnabled),
         java.lang.Integer.valueOf(maxFilesPerReq),
+        java.lang.Boolean.valueOf(includeEndStreamAction),
         java.lang.Boolean.valueOf(useAsyncQuery),
         java.lang.Long.valueOf(asyncQueryPollDurationMillis),
         java.lang.Long.valueOf(asyncQueryMaxDurationMillis),
