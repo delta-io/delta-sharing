@@ -587,6 +587,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
 
     val responseFormatSet = getResponseFormatSet(capabilitiesMap)
+    val includeEndStreamAction = getIncludeEndStreamAction(capabilitiesMap)
     val queryResult = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
       getCdfOptionsMap(
         Option(startingVersion),
@@ -597,11 +598,17 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false),
       Option(maxFiles).map(_.toInt),
       Option(pageToken),
-      responseFormatSet = responseFormatSet
+      responseFormatSet = responseFormatSet,
+      includeEndStreamAction
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${queryResult.actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
+    streamingOutput(
+      Some(queryResult.version),
+      queryResult.responseFormat,
+      queryResult.actions,
+      includeEndStreamAction
+    )
   }
 
   private def streamingOutput(
