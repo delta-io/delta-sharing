@@ -505,7 +505,7 @@ class DeltaSharedTable(
           null
         }
         // For backwards compatibility, return an `endStreamAction` object only when
-        // `includeRefreshToken` is true or `maxFiles` is specified
+        // `includeRefreshToken` is true, `maxFiles` is specified or includeEndStreamAction.
         filteredFiles ++ {
           if (includeRefreshToken || maxFiles.isDefined || includeEndStreamAction) {
             Seq(getEndStreamAction(nextPageTokenStr, minUrlExpirationTimestamp, refreshTokenStr))
@@ -646,10 +646,9 @@ class DeltaSharedTable(
           case _ => ()
         }
       }
-    // Return an `endStreamAction` object only when `maxFiles` is specified for
-    // backwards compatibility.
+    // Return an `endStreamAction` object only when `maxFiles` or includeEndStreamAction is
+    // specified for backwards compatibility.
     if (maxFilesOpt.isDefined || includeEndStreamAction) {
-      // TODO(Ask why nextPageTokenStr is always null
       actions.append(getEndStreamAction(null, minUrlExpirationTimestamp))
     }
     actions.toSeq

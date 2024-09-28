@@ -189,8 +189,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       if (includeEndStreamAction) {
         expectedHeader += s";includeendstreamaction=true"
       }
-      assert(responseCapabilities == expectedHeader,
-        s"Incorrect response format: $responseCapabilities")
+      assert(responseCapabilities == expectedHeader, s"Incorrect header: $responseCapabilities")
     }
     val deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
     expectedTableVersion.foreach { v =>

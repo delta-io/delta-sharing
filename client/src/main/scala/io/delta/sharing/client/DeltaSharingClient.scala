@@ -327,6 +327,10 @@ class DeltaSharingRestClient(
       rpc = "getMetadata",
       table = s"${table.share}.${table.schema}.${table.name}"
     )
+    if (response.lines.size != 2) {
+      throw new IllegalStateException(s"received more than two lines:${response.lines.size}, " +
+        s"for query($dsQueryId).")
+    }
 
     if (response.respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(
@@ -339,9 +343,6 @@ class DeltaSharingRestClient(
     val protocol = JsonUtils.fromJson[SingleAction](response.lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](response.lines(1)).metaData
-    if (response.lines.size != 2) {
-      throw new IllegalStateException("received more than two lines")
-    }
     DeltaTableMetadata(
       response.version,
       protocol,
@@ -975,11 +976,11 @@ class DeltaSharingRestClient(
 
   private def getRespondedHeaders(capabilities: Option[String]): (String, Option[Boolean]) = {
     val capabilitiesMap = parseDeltaSharingCapabilities(capabilities)
-    val respondedIESAStrOpt = capabilitiesMap
+    val includedEndStreamActionOpt = capabilitiesMap
       .get(DELTA_SHARING_CAPABILITIES_INCLUDE_END_STREAM_ACTION)
     (
       capabilitiesMap.get(RESPONSE_FORMAT).getOrElse(RESPONSE_FORMAT_PARQUET),
-      respondedIESAStrOpt.map(_.toBoolean)
+      includedEndStreamActionOpt.map(_.toBoolean)
     )
   }
 
