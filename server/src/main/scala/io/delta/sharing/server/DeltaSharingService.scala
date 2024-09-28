@@ -499,7 +499,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       }
       val responseFormatSet = getResponseFormatSet(capabilitiesMap)
       val clientReaderFeaturesSet = getReaderFeatures(capabilitiesMap)
-      val includeEndStreamAction = getIncludeEndStreamAction(capabilitiesMap)
+      val includeEndStreamAction = getRequestEndStreamAction(capabilitiesMap)
       val queryResult = if (
         request.predicateHints.isEmpty
           && request.maxFiles.isEmpty
@@ -611,7 +611,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       includeEndStreamAction: Boolean = false): HttpResponse = {
     var capabilities = Seq[String](s"${DELTA_SHARING_RESPONSE_FORMAT}=$responseFormat")
     if (includeEndStreamAction) {
-      capabilities = capabilities :+ s"$DELTA_SHARING_CAPABILITIES_INCLUDE_END_STREAM_ACTION=true"
+      capabilities = capabilities :+ s"$DELTA_SHARING_END_STREAM_ACTION=true"
     }
     val dsCapHeader = capabilities.mkString(DELTA_SHARING_CAPABILITIES_DELIMITER)
 
@@ -647,7 +647,7 @@ object DeltaSharingService {
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
   val DELTA_SHARING_RESPONSE_FORMAT = "responseformat"
   val DELTA_SHARING_CAPABILITIES_ASYNC_QUERY = "asyncquery"
-  val DELTA_SHARING_CAPABILITIES_INCLUDE_END_STREAM_ACTION = "includeendstreamaction"
+  val DELTA_SHARING_END_STREAM_ACTION = "endstreamaction"
   val DELTA_SHARING_READER_FEATURES = "readerfeatures"
   val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
 
@@ -783,9 +783,9 @@ object DeltaSharingService {
     headerCapabilities.get(DELTA_SHARING_CAPABILITIES_ASYNC_QUERY).exists(_.toBoolean)
   }
 
-  private[server] def getIncludeEndStreamAction(
+  private[server] def getRequestEndStreamAction(
       headerCapabilities: Map[String, String]): Boolean = {
-    headerCapabilities.get(DELTA_SHARING_CAPABILITIES_INCLUDE_END_STREAM_ACTION).exists(_.toBoolean)
+    headerCapabilities.get(DELTA_SHARING_END_STREAM_ACTION).exists(_.toBoolean)
   }
 
   def main(args: Array[String]): Unit = {

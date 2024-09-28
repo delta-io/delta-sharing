@@ -158,7 +158,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     deltaSharingCapabilities += s";responseformat=$responseFormat"
     deltaSharingCapabilities += readerFeatures
     if (includeEndStreamAction) {
-      deltaSharingCapabilities += s";includeendstreamaction=true"
+      deltaSharingCapabilities += s";endstreamaction=true"
     }
     connection.setRequestProperty("delta-sharing-capabilities", deltaSharingCapabilities)
 
@@ -187,7 +187,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val responseCapabilities = connection.getHeaderField("delta-sharing-capabilities")
       var expectedHeader = s"responseformat=$responseFormat"
       if (includeEndStreamAction) {
-        expectedHeader += s";includeendstreamaction=true"
+        expectedHeader += s";endstreamaction=true"
       }
       assert(responseCapabilities == expectedHeader, s"Incorrect header: $responseCapabilities")
     }
