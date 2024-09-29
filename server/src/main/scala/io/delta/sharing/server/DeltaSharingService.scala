@@ -26,7 +26,7 @@ import javax.annotation.Nullable
 import scala.collection.JavaConverters._
 import scala.util.Try
 
-import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
+import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpResponseWriter, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
 import com.linecorp.armeria.common.auth.OAuth2Token
 import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
@@ -204,7 +204,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       case e: AccessDeniedException => throw e
       case e: KernelException => throw e
       case e: TableNotFoundException => throw e
-      case e: Throwable => throw new DeltaInternalException(e)
+//      case e: Throwable => throw new DeltaInternalException(e)
     }
   }
 
@@ -293,7 +293,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     if (headerString == null) {
       return Map.empty[String, String]
     }
-    headerString.toLowerCase().split(";")
+    headerString.toLowerCase().split(DELTA_SHARING_CAPABILITIES_DELIMITER)
       .map(_.split("="))
       .filter(_.size == 2)
       .map { splits =>
@@ -343,7 +343,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       includeRefreshToken = false,
       refreshToken = None,
       responseFormatSet = responseFormatSet,
-      clientReaderFeaturesSet = clientReaderFeaturesSet)
+      clientReaderFeaturesSet = clientReaderFeaturesSet,
+      includeEndStreamAction = false)
     streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
   }
 
@@ -394,7 +395,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         pageToken = request.pageToken,
         false,
         None,
-        responseFormatSet = responseFormatSet)
+        responseFormatSet = responseFormatSet,
+        clientReaderFeaturesSet = Set.empty[String],
+        includeEndStreamAction = false)
       if (queryResult.version < tableConfig.startVersion) {
         throw new DeltaSharingIllegalArgumentException(
           s"You can only query table data since version ${tableConfig.startVersion}."
@@ -496,6 +499,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       }
       val responseFormatSet = getResponseFormatSet(capabilitiesMap)
       val clientReaderFeaturesSet = getReaderFeatures(capabilitiesMap)
+      val includeEndStreamAction = getIncludeEndStreamAction(capabilitiesMap)
       val queryResult = if (
         request.predicateHints.isEmpty
           && request.maxFiles.isEmpty
@@ -515,9 +519,10 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           request.includeRefreshToken.getOrElse(false),
           request.refreshToken,
           responseFormatSet = responseFormatSet,
-          clientReaderFeaturesSet = clientReaderFeaturesSet)
+          clientReaderFeaturesSet = clientReaderFeaturesSet,
+          includeEndStreamAction = includeEndStreamAction)
       } else {
-        deltaSharedTableLoader.loadTable(tableConfig).query(
+        deltaSharedTableLoader.loadTable(tableConfig, useKernel = false).query(
           includeFiles = true,
           request.predicateHints,
           request.jsonPredicateHints,
@@ -530,7 +535,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           request.pageToken,
           request.includeRefreshToken.getOrElse(false),
           request.refreshToken,
-          responseFormatSet = responseFormatSet)
+          responseFormatSet = responseFormatSet,
+          clientReaderFeaturesSet = Set.empty[String],
+          includeEndStreamAction = includeEndStreamAction)
       }
 
       if (queryResult.version < tableConfig.startVersion) {
@@ -558,9 +565,13 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           Some(queryResult.version),
           queryResult.responseFormat, queryResult.actions, Some(executor)
         )
-//        println(s"----[zhoulin]----trying to sleep ($elapsedTime)ms.")
-//        Thread.sleep(3000)
-//        executor.shutdownNow()
+        if (true) {
+          println(s"----[zhoulin]----before sleep ($elapsedTime)ms.")
+          Thread.sleep(3000)
+          println(s"----[zhoulin]----after  sleep ($elapsedTime)ms.")
+//          executor.shutdownNow()
+          a.close()
+        }
         a
       } else {
         implicit val context = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
@@ -569,7 +580,10 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         val f = Future {
           streamingOutput(
             Some(queryResult.version),
-            queryResult.responseFormat, queryResult.actions, Some(executor)
+            queryResult.responseFormat,
+            queryResult.actions,
+            Some(executor),
+            includeEndStreamAction = includeEndStreamAction
           )
         }
 
@@ -645,16 +659,23 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       version: Option[Long],
       responseFormat: String,
       actions: Seq[Object],
-      executorOpt: Option[java.util.concurrent.Executor] = None): HttpResponse = {
+      executorOpt: Option[java.util.concurrent.ExecutorService] = None,
+      includeEndStreamAction: Boolean = false): HttpResponseWriter = {
+    var capabilities = Seq[String](s"${DELTA_SHARING_RESPONSE_FORMAT}=$responseFormat")
+    if (includeEndStreamAction) {
+      capabilities = capabilities :+ s"$DELTA_SHARING_CAPABILITIES_INCLUDE_END_STREAM_ACTION=true"
+    }
+    val dsCapHeader = capabilities.mkString(DELTA_SHARING_CAPABILITIES_DELIMITER)
+
     val headers = if (version.isDefined) {
       createHeadersBuilderForTableVersion(version.get)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
-      .set(DELTA_SHARING_CAPABILITIES_HEADER, s"$DELTA_SHARING_RESPONSE_FORMAT=$responseFormat")
+      .set(DELTA_SHARING_CAPABILITIES_HEADER, dsCapHeader)
       .build()
     } else {
       ResponseHeaders.builder(200)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
-      .set(DELTA_SHARING_CAPABILITIES_HEADER, s"$DELTA_SHARING_RESPONSE_FORMAT=$responseFormat")
+      .set(DELTA_SHARING_CAPABILITIES_HEADER, dsCapHeader)
       .build()
     }
     ResponseConversionUtil.streamingFrom(
@@ -663,14 +684,16 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       HttpHeaders.of(),
       (o: Object) => processRequest {
         val out = new ByteArrayOutputStream
-//        Thread.sleep(1000)
         JsonUtils.mapper.writeValue(out, o)
         out.write('\n')
         Console.println(s"----[zhoulin]----server object,($elapsedTime)ms, [${out.toString}].")
-//        if (out.toString.contains("https://delta-exchange-test")) {
-//          Console.println(s"----[zhoulin]----trying to stop.")
+        if (out.toString.contains("https://delta-exchange-test")) {
+          Console.println(s"----[zhoulin]----trying to sleep.")
+          Thread.sleep(5000)
+          Console.println(s"----[zhoulin]----Done sleep.")
+//          executorOpt.get.shutdownNow()
 //          throw new IllegalArgumentException("lin zhou exception.")
-//        }
+        }
         HttpData.wrap(out.toByteArray)
       },
       executorOpt.getOrElse(ServiceRequestContext.current().blockingTaskExecutor()))
@@ -684,7 +707,9 @@ object DeltaSharingService {
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
   val DELTA_SHARING_RESPONSE_FORMAT = "responseformat"
   val DELTA_SHARING_CAPABILITIES_ASYNC_QUERY = "asyncquery"
+  val DELTA_SHARING_CAPABILITIES_INCLUDE_END_STREAM_ACTION = "includeendstreamaction"
   val DELTA_SHARING_READER_FEATURES = "readerfeatures"
+  val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
 
   private val parser = {
     val parser = ArgumentParsers
@@ -816,6 +841,11 @@ object DeltaSharingService {
 
   private[server] def getAsyncQuery(headerCapabilities: Map[String, String]): Boolean = {
     headerCapabilities.get(DELTA_SHARING_CAPABILITIES_ASYNC_QUERY).exists(_.toBoolean)
+  }
+
+  private[server] def getIncludeEndStreamAction(
+      headerCapabilities: Map[String, String]): Boolean = {
+    headerCapabilities.get(DELTA_SHARING_CAPABILITIES_INCLUDE_END_STREAM_ACTION).exists(_.toBoolean)
   }
 
   def main(args: Array[String]): Unit = {

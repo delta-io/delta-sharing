@@ -42,7 +42,8 @@ trait DeltaSharedTableProtocol {
       includeRefreshToken: Boolean,
       refreshToken: Option[String],
       responseFormatSet: Set[String],
-      clientReaderFeaturesSet: Set[String] = Set.empty): QueryResult
+      clientReaderFeaturesSet: Set[String],
+      includeEndStreamAction: Boolean): QueryResult
 
   def queryCDF(
       cdfOptions: Map[String, String],
