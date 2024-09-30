@@ -561,7 +561,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
       if (true) {
         val executor = Executors.newSingleThreadExecutor()
-        val a = streamingOutput(
+        val responseWriter = streamingOutput(
           Some(queryResult.version),
           queryResult.responseFormat, queryResult.actions, Some(executor)
         )
@@ -570,9 +570,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           Thread.sleep(3000)
           println(s"----[zhoulin]----after  sleep ($elapsedTime)ms.")
 //          executor.shutdownNow()
-          a.close()
+          responseWriter.close()
         }
-        a
+        responseWriter
       } else {
         implicit val context = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
