@@ -92,7 +92,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     var httpRequestBase = new DeltaSharingRestClient(
       testProfileProvider, forStreaming = false, readerFeatures = "willBeIgnored").prepareHeaders(httpRequest)
     checkUserAgent(httpRequestBase, false)
-    checkDeltaSharingCapabilities(httpRequestBase, "responseformat=parquet")
+    checkDeltaSharingCapabilities(httpRequestBase, s"${RESPONSE_FORMAT}=parquet;$DELTA_SHARING_END_STREAM_ACTION=true")
 
     val readerFeatures = "deletionVectors,columnMapping,timestampNTZ"
     httpRequestBase = new DeltaSharingRestClient(
@@ -102,14 +102,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       readerFeatures = readerFeatures).prepareHeaders(httpRequest)
     checkUserAgent(httpRequestBase, true)
     checkDeltaSharingCapabilities(
-      httpRequestBase, s"responseformat=delta;readerfeatures=$readerFeatures"
+      httpRequestBase, s"$RESPONSE_FORMAT=delta;$READER_FEATURES=$readerFeatures;$DELTA_SHARING_END_STREAM_ACTION=true"
     )
 
     httpRequestBase = new DeltaSharingRestClient(
       testProfileProvider,
       forStreaming = true,
       responseFormat = s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
-      readerFeatures = readerFeatures).prepareHeaders(httpRequest)
+      readerFeatures = readerFeatures,
+      includeEndStreamAction = false).prepareHeaders(httpRequest)
     checkUserAgent(httpRequestBase, true)
     checkDeltaSharingCapabilities(
       httpRequestBase, s"responseformat=delta,parquet;readerfeatures=$readerFeatures"
