@@ -587,6 +587,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
 
     val responseFormatSet = getResponseFormatSet(capabilitiesMap)
+    val includeEndStreamAction = getEndStreamActionInHeader(capabilitiesMap)
     val queryResult = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
       getCdfOptionsMap(
         Option(startingVersion),
@@ -597,11 +598,17 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false),
       Option(maxFiles).map(_.toInt),
       Option(pageToken),
-      responseFormatSet = responseFormatSet
+      responseFormatSet = responseFormatSet,
+      includeEndStreamAction
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${queryResult.actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
+    streamingOutput(
+      Some(queryResult.version),
+      queryResult.responseFormat,
+      queryResult.actions,
+      includeEndStreamAction
+    )
   }
 
   private def streamingOutput(
@@ -767,6 +774,10 @@ object DeltaSharingService {
     endingVersion.map(DeltaDataSource.CDF_END_VERSION_KEY -> _) ++
     startingTimestamp.map(DeltaDataSource.CDF_START_TIMESTAMP_KEY -> _) ++
     endingTimestamp.map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> _)).toMap
+  }
+
+  private def getEndStreamActionInHeader(headerCapabilities: Map[String, String]): Boolean = {
+    headerCapabilities.get(DELTA_SHARING_END_STREAM_ACTION).map(_.toBoolean).getOrElse(false)
   }
 
   private[server] def getResponseFormatSet(headerCapabilities: Map[String, String]): Set[String] = {

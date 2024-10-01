@@ -384,7 +384,8 @@ class DeltaSharedTableKernel(
       includeHistoricalMetadata: Boolean = false,
       maxFiles: Option[Int],
       pageToken: Option[String],
-      responseFormatSet: Set[String] = Set("parquet")): QueryResult = {
+      responseFormatSet: Set[String] = Set("parquet"),
+      includeEndStreamAction: Boolean): QueryResult = {
 
     throw new DeltaSharingUnsupportedOperationException("not implemented yet")
   }

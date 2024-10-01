@@ -659,7 +659,8 @@ class DeltaSharedTable(
       includeHistoricalMetadata: Boolean = false,
       maxFiles: Option[Int],
       pageToken: Option[String],
-      responseFormatSet: Set[String] = Set(DeltaSharedTable.RESPONSE_FORMAT_PARQUET)
+      responseFormatSet: Set[String] = Set(DeltaSharedTable.RESPONSE_FORMAT_PARQUET),
+      includeEndStreamAction: Boolean
   ): QueryResult = withClassLoader {
     // Step 1: validate pageToken if it's specified
     lazy val queryParamChecksum = computeChecksum(
@@ -818,7 +819,7 @@ class DeltaSharedTable(
     }
     // Return an `endStreamAction` object only when `maxFiles` is specified for
     // backwards compatibility.
-    if (maxFiles.isDefined) {
+    if (maxFiles.isDefined || includeEndStreamAction) {
       actions.append(getEndStreamAction(null, minUrlExpirationTimestamp))
     }
     QueryResult(start, actions.toSeq, responseFormat)

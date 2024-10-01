@@ -89,7 +89,8 @@ case class ParsedDeltaSharingTablePath(
  *
  * @param version the table version of the shared table.
  * @param respondedFormat the sharing format (parquet or delta), used to parse the lines.
- * @param includedEndStreamAction whether the last line is required to be an EndStreamAction.
+ * @param includedEndStreamAction whether the last line is required to be an EndStreamAction, parsed
+ *                                from the response header.
  * @param lines all lines in the response.
  * @param capabilities value of delta-sharing-capabilities in the response header
  */
@@ -187,7 +188,8 @@ class DeltaSharingRestClient(
     tokenRenewalThresholdInSeconds: Int = 600
   ) extends DeltaSharingClient with Logging {
 
-  logInfo(s"DeltaSharingRestClient with enableAsyncQuery $enableAsyncQuery")
+  logInfo(s"DeltaSharingRestClient with includeEndStreamAction: $includeEndStreamAction, " +
+    s"enableAsyncQuery:$enableAsyncQuery")
 
   import DeltaSharingRestClient._
 
@@ -632,7 +634,8 @@ class DeltaSharingRestClient(
       getCDFFilesByPage(target)
     } else {
       val response = getNDJson(target, requireVersion = false)
-      (response.version, response.respondedFormat, response.lines)
+      val (filteredLines, _) = maybeExtractEndStreamAction(response.lines)
+      (response.version, response.respondedFormat, filteredLines)
     }
 
     checkRespondedFormat(
@@ -969,6 +972,9 @@ class DeltaSharingRestClient(
               s"and ${response.lines.size} lines, and last line parsed as " +
               s"${lastLineAction.unwrap.getClass()}, for query($dsQueryId).")
           }
+          logInfo(
+            s"Successfully verified endStreamAction in the response for query($dsQueryId)."
+          )
         case Some(false) =>
           logWarning(s"Client sets ${DELTA_SHARING_END_STREAM_ACTION}=true in the " +
             s"header, but the server responded with the header set to false(" +
