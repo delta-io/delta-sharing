@@ -17,6 +17,7 @@
 package org.apache.spark.sql
 
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.types.StructType
 
@@ -27,9 +28,15 @@ object DeltaSharingScanUtils {
     Dataset.ofRows(spark, plan)
   }
 
-  // A wraper to expose sqlContext.internalCreateDataFrame
+  // A wrapper to expose sqlContext.internalCreateDataFrame
   def internalCreateDataFrame(spark: SparkSession, schema: StructType): DataFrame = {
     spark.sqlContext.internalCreateDataFrame(
       spark.sparkContext.emptyRDD[InternalRow], schema, isStreaming = true)
+  }
+
+  // A wrapper to expose Column.apply(expr: Expression) function.
+  // This is needed because the Column object is in private[sql] scope.
+  def toColumn(expr: Expression): Column = {
+    Column(expr)
   }
 }
