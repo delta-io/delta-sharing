@@ -51,6 +51,11 @@ trait DeltaSharingClient {
   def getQueryId: String = {
     dsQueryId.getOrElse("dsQueryIdNotSet")
   }
+
+  protected def getDsQueryIdForLogging: String = {
+    s" for query($dsQueryId)."
+  }
+
   def listAllTables(): Seq[Table]
 
   def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long
@@ -273,7 +278,7 @@ class DeltaSharingRestClient(
     val (version, _, _) = getResponse(new HttpGet(target), true, true)
     version.getOrElse {
       throw new IllegalStateException(s"Cannot find " +
-        s"${RESPONSE_TABLE_VERSION_HEADER_KEY} in the header")
+        s"${RESPONSE_TABLE_VERSION_HEADER_KEY} in the header," + getDsQueryIdForLogging)
     }
   }
 
@@ -285,10 +290,10 @@ class DeltaSharingRestClient(
   private def checkRespondedFormat(respondedFormat: String, rpc: String, table: String): Unit = {
     if (!responseFormatSet.contains(respondedFormat)) {
       logError(s"RespondedFormat($respondedFormat) is different from requested " +
-        s"responseFormat($responseFormat) for $rpc for table $table, dsQueryId[$dsQueryId].")
+        s"responseFormat($responseFormat) for $rpc for table $table," + getDsQueryIdForLogging)
       throw new IllegalArgumentException("The responseFormat returned from the delta sharing " +
         s"server doesn't match the requested responseFormat: respondedFormat($respondedFormat)" +
-        s" != requestedFormat($responseFormat), dsQueryId[$dsQueryId].")
+        s" != requestedFormat($responseFormat)," + getDsQueryIdForLogging)
     }
   }
 
@@ -320,7 +325,7 @@ class DeltaSharingRestClient(
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
     if (lines.size != 2) {
-      throw new IllegalStateException("received more than two lines")
+      throw new IllegalStateException("received more than two lines," + getDsQueryIdForLogging)
     }
     DeltaTableMetadata(version, protocol, metadata, respondedFormat = respondedFormat)
   }
@@ -329,7 +334,8 @@ class DeltaSharingRestClient(
     if (protocol.minReaderVersion > DeltaSharingProfile.CURRENT) {
       throw new IllegalArgumentException(s"The table requires a newer version" +
         s" ${protocol.minReaderVersion} to read. But the current release supports version " +
-        s"is ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer release.")
+        s"is ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer release."
+        + getDsQueryIdForLogging)
     }
   }
 
@@ -404,7 +410,7 @@ class DeltaSharingRestClient(
       if (action.file != null) {
         files.append(action.file)
       } else {
-        throw new IllegalStateException(s"Unexpected Line:${line}")
+        throw new IllegalStateException(s"Unexpected Line:${line}," + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
@@ -444,7 +450,8 @@ class DeltaSharingRestClient(
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       logInfo(
         s"Making paginated queryTable from version $startingVersion requests for table " +
-        s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
+        s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq" +
+        getDsQueryIdForLogging
       )
       val (version, respondedFormat, lines, _) = getFilesByPage(table, target, request)
       (version, respondedFormat, lines)
@@ -473,7 +480,8 @@ class DeltaSharingRestClient(
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
+        case _ => throw new IllegalStateException(
+          s"Unexpected Line:${line}," + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
@@ -506,7 +514,7 @@ class DeltaSharingRestClient(
 
     var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
     if (endStreamAction.isEmpty) {
-      logWarning("EndStreamAction is not returned in the response for paginated query.")
+      logWarning("EndStreamAction is not returned in the response" + getDsQueryIdForLogging)
     }
 
     val protocol = filteredLines(0)
@@ -557,17 +565,18 @@ class DeltaSharingRestClient(
       allLines.appendAll(res._1)
       endStreamAction = res._2
       if (endStreamAction.isEmpty) {
-        logWarning("EndStreamAction is not returned in the response for paginated query.")
+        logWarning("EndStreamAction is not returned in the response" + getDsQueryIdForLogging)
       }
       // Throw an error if the first page is expiring before we get all pages
       if (minUrlExpirationTimestamp.exists(_ <= System.currentTimeMillis())) {
-        throw new IllegalStateException("Unable to fetch all pages before minimum url expiration.")
+        throw new IllegalStateException(
+          "Unable to fetch all pages before minimum url expiration," + getDsQueryIdForLogging)
       }
     }
 
     // TODO: remove logging once changes are rolled out
     logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
-      s"of ${allLines.size} files")
+      s"of ${allLines.size} files," + getDsQueryIdForLogging)
     (version, respondedFormat, allLines.toSeq, refreshToken)
   }
 
@@ -586,7 +595,8 @@ class DeltaSharingRestClient(
       // TODO: remove logging once changes are rolled out
       logInfo(
         s"Making paginated queryTableChanges requests for table " +
-          s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq"
+          s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq," +
+          getDsQueryIdForLogging
       )
       getCDFFilesByPage(target)
     } else {
@@ -618,7 +628,8 @@ class DeltaSharingRestClient(
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
+        case _ => throw new IllegalStateException(
+          s"Unexpected Line:${line}, " + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
@@ -645,7 +656,7 @@ class DeltaSharingRestClient(
     val (version, respondedFormat, lines) = getNDJson(updatedUrl, requireVersion = false)
     var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
     if (endStreamAction.isEmpty) {
-      logWarning("EndStreamAction is not returned in the response for paginated query.")
+      logWarning("EndStreamAction is not returned in the response" + getDsQueryIdForLogging)
     }
     val protocol = filteredLines(0)
     val metadata = filteredLines(1)
@@ -673,18 +684,19 @@ class DeltaSharingRestClient(
       allLines.appendAll(res._1)
       endStreamAction = res._2
       if (endStreamAction.isEmpty) {
-        logWarning("EndStreamAction is not returned in the response for paginated query.")
+        logWarning("EndStreamAction is not returned in the response" + getDsQueryIdForLogging)
       }
       // Throw an error if the first page is expiring before we get all pages
       if (minUrlExpirationTimestamp.exists(_ <= System.currentTimeMillis())) {
-        throw new IllegalStateException("Unable to fetch all pages before minimum url expiration.")
+        throw new IllegalStateException(
+          s"Unable to fetch all pages before minimum url expiration," + getDsQueryIdForLogging)
       }
     }
 
     // TODO: remove logging once changes are rolled out
     logInfo(
       s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
-      s"of ${allLines.size} files"
+      s"of ${allLines.size} files," + getDsQueryIdForLogging
     )
     (version, respondedFormat, allLines.toSeq)
   }
@@ -707,7 +719,7 @@ class DeltaSharingRestClient(
       getNDJson(targetUrl, requireVersion = false)
     }
     logInfo(s"Took ${System.currentTimeMillis() - start} to fetch ${pageNumber}th page " +
-      s"of ${lines.size} lines.")
+      s"of ${lines.size} lines," + getDsQueryIdForLogging)
 
     // Validate that version/format/protocol/metadata in the response don't change across pages
     if (version != expectedVersion ||
@@ -718,9 +730,9 @@ class DeltaSharingRestClient(
         |Received inconsistent version/format/protocol/metadata across pages.
         |Expected: version $expectedVersion, $expectedRespondedFormat,
         |$expectedProtocol, $expectedMetadata. Actual: version $version,
-        |$respondedFormat, ${lines(0)}, ${lines(1)}""".stripMargin
+        |$respondedFormat, ${lines},$getDsQueryIdForLogging""".stripMargin
       logError(s"Error while fetching next page files at url $targetUrl " +
-        s"with body(${JsonUtils.toJson(requestBody.orNull)}: $errorMsg), dsQueryId[$dsQueryId].")
+        s"with body(${JsonUtils.toJson(requestBody.orNull)}: $errorMsg).")
       throw new IllegalStateException(errorMsg)
     }
 
@@ -774,7 +786,7 @@ class DeltaSharingRestClient(
       version.getOrElse {
         if (requireVersion) {
           throw new IllegalStateException(s"Cannot find " +
-            s"${RESPONSE_TABLE_VERSION_HEADER_KEY} in the header")
+            s"${RESPONSE_TABLE_VERSION_HEADER_KEY} in the header," + getDsQueryIdForLogging)
         } else {
           0L
         }
@@ -890,7 +902,8 @@ class DeltaSharingRestClient(
     val (version, capabilities, lines) = getResponse(httpPost)
     (
       version.getOrElse {
-        throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
+        throw new IllegalStateException(
+          "Cannot find Delta-Table-Version in the header," + getDsQueryIdForLogging)
       },
       getRespondedFormat(capabilities),
       lines
@@ -917,7 +930,7 @@ class DeltaSharingRestClient(
     val (_, _, response) = getResponse(new HttpGet(target), false, true)
     if (response.size != 1) {
       throw new IllegalStateException(
-        "Unexpected response for target: " +  target + ", response=" + response
+        s"Unexpected response for target: $target, response=$response,"  + getDsQueryIdForLogging
       )
     }
     JsonUtils.fromJson[R](response(0))
@@ -1012,8 +1025,8 @@ class DeltaSharingRestClient(
             }
           } catch {
             case e: org.apache.http.ConnectionClosedException =>
-              val error = s"Request to delta sharing server failed for dsQueryId[$dsQueryId] " +
-                s"due to ${e}."
+              val error = s"Request to delta sharing server failed"  + getDsQueryIdForLogging +
+                s" due to ${e}."
               logError(error)
               lineBuffer += error
               lineBuffer.toList
@@ -1033,7 +1046,8 @@ class DeltaSharingRestClient(
           // Only show the last 100 lines in the error to keep it contained.
           val responseToShow = lines.drop(lines.size - 100).mkString("\n")
           throw new UnexpectedHttpStatus(
-            s"HTTP request failed with status: $status $responseToShow. $additionalErrorInfo",
+            s"HTTP request failed with status: $status $responseToShow. $additionalErrorInfo"
+              + getDsQueryIdForLogging,
             statusCode)
         }
         (
