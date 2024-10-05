@@ -777,7 +777,9 @@ object DeltaSharingService {
   }
 
   private def getEndStreamActionInHeader(headerCapabilities: Map[String, String]): Boolean = {
-    headerCapabilities.get(DELTA_SHARING_INCLUDE_END_STREAM_ACTION).map(_.toBoolean).getOrElse(false)
+    headerCapabilities.get(
+      DELTA_SHARING_INCLUDE_END_STREAM_ACTION
+    ).map(_.toBoolean).getOrElse(false)
   }
 
   private[server] def getResponseFormatSet(headerCapabilities: Map[String, String]): Set[String] = {
