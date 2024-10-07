@@ -86,7 +86,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
     def getEndStreamActionHeader(includeEndStreamAction: Boolean): String = {
       if (includeEndStreamAction) {
-        s";$DELTA_SHARING_END_STREAM_ACTION=true"
+        s";$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
       } else {
         ""
       }
