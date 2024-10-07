@@ -606,7 +606,9 @@ class DeltaSharingRestClient(
         expectedRespondedFormat = respondedFormat,
         expectedProtocol = protocol,
         expectedMetadata = metadata,
-        pageNumber = numPages
+        pageNumber = numPages,
+        // EndStreamAction is not supported for async queries yet.
+        checkEndStreamActionHeader = !enableAsyncQuery
       )
       allLines.appendAll(res._1)
       endStreamAction = res._2
@@ -732,7 +734,8 @@ class DeltaSharingRestClient(
         expectedRespondedFormat = response.respondedFormat,
         expectedProtocol = protocol,
         expectedMetadata = metadata,
-        pageNumber = numPages
+        pageNumber = numPages,
+        checkEndStreamActionHeader = true
       )
       allLines.appendAll(res._1)
       endStreamAction = res._2
@@ -767,14 +770,20 @@ class DeltaSharingRestClient(
       expectedRespondedFormat: String,
       expectedProtocol: String,
       expectedMetadata: String,
-      pageNumber: Int): (Seq[String], Option[EndStreamAction]) = {
+      pageNumber: Int,
+      checkEndStreamActionHeader: Boolean): (Seq[String], Option[EndStreamAction]) = {
     val start = System.currentTimeMillis()
     val response = if (requestBody.isDefined) {
       getNDJsonPost(
-        target = targetUrl, data = requestBody.get, checkEndStreamActionHeader = true
+        target = targetUrl,
+        data = requestBody.get,
+        checkEndStreamActionHeader = checkEndStreamActionHeader
       )
     } else {
-      getNDJson(targetUrl, requireVersion = false, checkEndStreamActionHeader = true)
+      getNDJson(
+        target = targetUrl,
+        requireVersion = false,
+        checkEndStreamActionHeader = checkEndStreamActionHeader)
     }
     logInfo(s"Took ${System.currentTimeMillis() - start} to fetch ${pageNumber}th page " +
       s"of ${response.lines.size} lines," + getDsQueryIdForLogging)
@@ -1009,16 +1018,16 @@ class DeltaSharingRestClient(
               s"${lastLineAction.unwrap.getClass()}," + getDsQueryIdForLogging)
           }
           logInfo(
-            s"[zhoulin]Successfully verified includeEndStreamAction in the response header" +
+            s"Successfully verified includeEndStreamAction in the response header" +
               getDsQueryIdForLogging
           )
         case Some(false) =>
-          logWarning(s"[linzhou] sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
+          logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
             s"header, but the server responded with the header set to false(" +
             s"${response.capabilities})," + getDsQueryIdForLogging
           )
         case None =>
-          logWarning(s"[linzhou] sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the" +
+          logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the" +
             s" header, but server didn't respond with the header(${response.capabilities}), " +
             s"for query($dsQueryId)."
           )
