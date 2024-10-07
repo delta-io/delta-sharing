@@ -559,7 +559,7 @@ class DeltaSharingRestClient(
     var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
     if (endStreamAction.isEmpty) {
       logWarning(
-        s"EndStreamAction is not returned in the response" + getDsQueryIdForLogging
+        s"EndStreamAction is not returned in the paginated response" + getDsQueryIdForLogging
       )
     }
 
@@ -614,7 +614,7 @@ class DeltaSharingRestClient(
       endStreamAction = res._2
       if (endStreamAction.isEmpty) {
         logWarning(
-          s"EndStreamAction is not returned in the response" + getDsQueryIdForLogging
+          s"EndStreamAction is not returned in the paginated response" + getDsQueryIdForLogging
         )
       }
       // Throw an error if the first page is expiring before we get all pages
@@ -710,7 +710,7 @@ class DeltaSharingRestClient(
     var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(response.lines)
     if (endStreamAction.isEmpty) {
       logWarning(
-        s"EndStreamAction is not returned in the response" + getDsQueryIdForLogging
+        s"EndStreamAction is not returned in the paginated response" + getDsQueryIdForLogging
       )
     }
     val protocol = filteredLines(0)
@@ -741,7 +741,7 @@ class DeltaSharingRestClient(
       endStreamAction = res._2
       if (endStreamAction.isEmpty) {
         logWarning(
-          s"EndStreamAction is not returned in the response" + getDsQueryIdForLogging
+          s"EndStreamAction is not returned in the paginated response" + getDsQueryIdForLogging
         )
       }
       // Throw an error if the first page is expiring before we get all pages
