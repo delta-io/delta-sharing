@@ -107,7 +107,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       (true, true),
       (true, false),
       (false, true),
-      (false, false),
+      (false, false)
     ).foreach { case (forStreaming, includeEndStreamAction) =>
       var client = new DeltaSharingRestClient(
         testProfileProvider,
