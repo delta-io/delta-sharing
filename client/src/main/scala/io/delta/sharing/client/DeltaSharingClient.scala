@@ -40,6 +40,7 @@ import org.apache.spark.sql.SparkSession
 import io.delta.sharing.client.auth.{AuthConfig, AuthCredentialProviderFactory}
 import io.delta.sharing.client.model._
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
+import io.delta.sharing.spark.MissingEndStreamActionException
 
 /** An interface to fetch Delta metadata from remote server. */
 trait DeltaSharingClient {
@@ -983,7 +984,7 @@ class DeltaSharingRestClient(
         case Some(true) =>
           val lastLineAction = JsonUtils.fromJson[SingleAction](response.lines.last)
           if (lastLineAction.endStreamAction == null) {
-            throw new IllegalStateException(s"Client sets " +
+            throw new MissingEndStreamActionException(s"Client sets " +
               s"${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
               s"header, server responded with the header set to true(${response.capabilities}, " +
               s"and ${response.lines.size} lines, and last line parsed as " +

@@ -24,6 +24,7 @@ import org.apache.spark.SparkFunSuite
 
 import io.delta.sharing.client.util.{RetryUtils, UnexpectedHttpStatus}
 import io.delta.sharing.client.util.RetryUtils._
+import io.delta.sharing.spark.MissingEndStreamActionException
 
 class RetryUtilsSuite extends SparkFunSuite {
   test("shouldRetry") {
@@ -35,6 +36,7 @@ class RetryUtilsSuite extends SparkFunSuite {
     assert(shouldRetry(new IOException))
     assert(shouldRetry(new java.net.SocketTimeoutException))
     assert(!shouldRetry(new RuntimeException))
+    assert(shouldRetry(new MissingEndStreamActionException("missing")))
   }
 
   test("runWithExponentialBackoff") {
