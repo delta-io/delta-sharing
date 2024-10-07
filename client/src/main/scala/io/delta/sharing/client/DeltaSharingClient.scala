@@ -494,7 +494,9 @@ class DeltaSharingRestClient(
       val (version, respondedFormat, lines, _) = getFilesByPage(table, target, request)
       (version, respondedFormat, lines)
     } else {
-      val response = getNDJsonPost(target, request, checkEndStreamActionHeader)
+      val response = getNDJsonPost(
+        target = target, data = request, checkEndStreamActionHeader = true
+      )
       val (filteredLines, _) = maybeExtractEndStreamAction(response.lines)
       (response.version, response.respondedFormat, filteredLines)
     }
@@ -548,7 +550,9 @@ class DeltaSharingRestClient(
     val (version, respondedFormat, lines, queryIdOpt) = if (enableAsyncQuery) {
       getNDJsonWithAsync(table, targetUrl, request)
     } else {
-      val response = getNDJsonPost(targetUrl, request, checkEndStreamActionHeader)
+      val response = getNDJsonPost(
+        target = targetUrl, data = request, checkEndStreamActionHeader = true
+      )
       (response.version, response.respondedFormat, response.lines, None)
     }
 
@@ -766,7 +770,9 @@ class DeltaSharingRestClient(
       pageNumber: Int): (Seq[String], Option[EndStreamAction]) = {
     val start = System.currentTimeMillis()
     val response = if (requestBody.isDefined) {
-      getNDJsonPost(targetUrl, requestBody.get, checkEndStreamActionHeader)
+      getNDJsonPost(
+        target = targetUrl, data = requestBody.get, checkEndStreamActionHeader = true
+      )
     } else {
       getNDJson(targetUrl, requireVersion = false, checkEndStreamActionHeader = true)
     }
@@ -880,7 +886,9 @@ class DeltaSharingRestClient(
       maxFiles = maxFiles,
       pageToken = pageToken)
 
-    val response = getNDJsonPost(target, request, checkEndStreamActionHeader)
+    val response = getNDJsonPost(
+      target = target, data = request, checkEndStreamActionHeader = false
+    )
     (response.version, response.respondedFormat, response.lines)
   }
 
@@ -919,7 +927,9 @@ class DeltaSharingRestClient(
       target: String,
       request: QueryTableRequest): (Long, String, Seq[String], Option[String]) = {
     // Initial query to get NDJson data
-    val response = getNDJsonPost(target, request, checkEndStreamActionHeader)
+    val response = getNDJsonPost(
+      target = target, data = request, checkEndStreamActionHeader = false
+    )
 
     // Check if the query is still pending
     var (lines, queryIdOpt, queryPending) = checkQueryPending(response.lines)
