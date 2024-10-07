@@ -37,10 +37,10 @@ import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 
-import io.delta.sharing.spark.MissingEndStreamActionException
 import io.delta.sharing.client.auth.{AuthConfig, AuthCredentialProviderFactory}
 import io.delta.sharing.client.model._
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
+import io.delta.sharing.spark.MissingEndStreamActionException
 
 /** An interface to fetch Delta metadata from remote server. */
 trait DeltaSharingClient {
