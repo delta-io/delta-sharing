@@ -113,7 +113,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         testProfileProvider,
         forStreaming = forStreaming,
         includeEndStreamAction = includeEndStreamAction,
-        readerFeatures = "willBeIgnored").prepareHeaders(httpRequest)
+        readerFeatures = "willBeIgnored")
+        .prepareHeaders(httpRequest, setIncludeEndStreamAction = includeEndStreamAction)
       checkUserAgent(client, forStreaming)
       checkDeltaSharingCapabilities(client, "parquet", "", includeEndStreamAction)
 
@@ -123,7 +124,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         forStreaming = forStreaming,
         includeEndStreamAction = includeEndStreamAction,
         responseFormat = RESPONSE_FORMAT_DELTA,
-        readerFeatures = readerFeatures).prepareHeaders(httpRequest)
+        readerFeatures = readerFeatures)
+        .prepareHeaders(httpRequest, setIncludeEndStreamAction = includeEndStreamAction)
       checkUserAgent(client, forStreaming)
       checkDeltaSharingCapabilities(
         client, "delta", s";$READER_FEATURES=$readerFeatures", includeEndStreamAction
@@ -134,7 +136,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         forStreaming = forStreaming,
         includeEndStreamAction = includeEndStreamAction,
         responseFormat = s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
-        readerFeatures = readerFeatures).prepareHeaders(httpRequest)
+        readerFeatures = readerFeatures)
+        .prepareHeaders(httpRequest, setIncludeEndStreamAction = includeEndStreamAction)
       checkUserAgent(client, forStreaming)
       checkDeltaSharingCapabilities(
         client, s"delta,parquet", s";$READER_FEATURES=$readerFeatures", includeEndStreamAction
