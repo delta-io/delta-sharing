@@ -19,7 +19,7 @@ dependencies {
         api("org.apache.hadoop:hadoop-client-api:3.4.0")
         api("org.apache.hadoop:hadoop-client-runtime:3.4.0")
         api("io.delta:delta-standalone_2.13:3.2.0")
-        api("io.delta:delta-sharing-spark_2.13:3.2.0")
+        api("io.delta:delta-sharing-spark_2.13:3.2.1")
         api("org.apache.spark:spark-sql_2.13:3.5.1")
         api("org.apache.iceberg:iceberg-api:1.6.1")
         api("org.apache.iceberg:iceberg-core:1.5.2")
