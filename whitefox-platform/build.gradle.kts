@@ -31,6 +31,6 @@ dependencies {
         api("software.amazon.awssdk:s3-transfer-manager:2.25.60")
         api("software.amazon.awssdk:utils:2.25.60")
         api("software.amazon.awssdk:url-connection-client:2.25.60")
-        api("com.github.jsqlparser:jsqlparser:4.9")
+        api("com.github.jsqlparser:jsqlparser:5.0")
     }
 }
