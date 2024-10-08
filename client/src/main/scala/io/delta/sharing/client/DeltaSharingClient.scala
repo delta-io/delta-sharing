@@ -875,7 +875,7 @@ class DeltaSharingRestClient(
       lines,
       capabilities = capabilities
     )
-    if (setIncludeEndStreamAction) {
+    if (includeEndStreamAction && setIncludeEndStreamAction) {
       checkEndStreamAction(response)
     }
     response
@@ -1007,40 +1007,38 @@ class DeltaSharingRestClient(
       lines,
       capabilities = capabilities
     )
-    if (setIncludeEndStreamAction) {
+    if (includeEndStreamAction && setIncludeEndStreamAction) {
       checkEndStreamAction(response)
     }
     response
   }
 
   private def checkEndStreamAction(response: ParsedDeltaSharingResponse): Unit = {
-    if (includeEndStreamAction) {
-      // Only perform additional check when includeEndStreamAction = true
-      response.includeEndStreamActionHeader match {
-        case Some(true) =>
-          val lastLineAction = JsonUtils.fromJson[SingleAction](response.lines.last)
-          if (lastLineAction.endStreamAction == null) {
-            throw new IllegalStateException(s"Client sets " +
-              s"${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
-              s"header, server responded with the header set to true(${response.capabilities}, " +
-              s"and ${response.lines.size} lines, and last line parsed as " +
-              s"${lastLineAction.unwrap.getClass()}," + getDsQueryIdForLogging)
-          }
-          logInfo(
-            s"Successfully verified includeEndStreamAction in the response header" +
-              getDsQueryIdForLogging
-          )
-        case Some(false) =>
-          logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
-            s"header, but the server responded with the header set to false(" +
-            s"${response.capabilities})," + getDsQueryIdForLogging
-          )
-        case None =>
-          logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the" +
-            s" header, but server didn't respond with the header(${response.capabilities}), " +
-            s"for query($dsQueryId)."
-          )
-      }
+    // Only perform additional check when includeEndStreamAction = true
+    response.includeEndStreamActionHeader match {
+      case Some(true) =>
+        val lastLineAction = JsonUtils.fromJson[SingleAction](response.lines.last)
+        if (lastLineAction.endStreamAction == null) {
+          throw new IllegalStateException(s"Client sets " +
+            s"${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
+            s"header, server responded with the header set to true(${response.capabilities}, " +
+            s"and ${response.lines.size} lines, and last line parsed as " +
+            s"${lastLineAction.unwrap.getClass()}," + getDsQueryIdForLogging)
+        }
+        logInfo(
+          s"Successfully verified includeEndStreamAction in the response header" +
+            getDsQueryIdForLogging
+        )
+      case Some(false) =>
+        logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
+          s"header, but the server responded with the header set to false(" +
+          s"${response.capabilities})," + getDsQueryIdForLogging
+        )
+      case None =>
+        logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the" +
+          s" header, but server didn't respond with the header(${response.capabilities}), " +
+          s"for query($dsQueryId)."
+        )
     }
   }
 
