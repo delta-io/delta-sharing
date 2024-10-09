@@ -411,7 +411,6 @@ class DataSharingRestClient:
                     AddFile.from_json(json_obj["file"])
                     for json_obj in parse_json_stream(lines)
                 ]
- 
                 return ListFilesInTableResponse(
                     delta_table_version=int(headers.get("delta-table-version")),
                     protocol=Protocol.from_json(protocol_json["protocol"]),
