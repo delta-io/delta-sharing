@@ -390,24 +390,24 @@ class DataSharingRestClient:
                 protocol_json = json.loads(next(lines))
                 metadata_json = json.loads(next(lines))
 
-                # Read the remaining content into a single string
-                remaining_content = ''.join(lines)
+                def parse_json_stream(lines):
+                    buffer = ''
+                    decoder = json.JSONDecoder()
+                    for line in lines:
+                        buffer += line
+                        while True:
+                            buffer = buffer.lstrip()
+                            if not buffer:
+                                break
+                            try:
+                                obj, idx = decoder.raw_decode(buffer)
+                                yield obj
+                                buffer = buffer[idx:]
+                            except json.JSONDecodeError:
+                                # Not enough data to decode; read more lines
+                                break
 
-                decoder = json.JSONDecoder()
-                idx = 0
-                n = len(remaining_content)
-                add_files = []
-                while idx < n:
-                    try:
-                        obj, end = decoder.raw_decode(remaining_content, idx)
-                        add_files.append(AddFile.from_json(obj["file"]))
-                        idx = end
-                        # Skip any whitespace between JSON objects
-                        while idx < n and remaining_content[idx].isspace():
-                            idx += 1
-                    except json.JSONDecodeError as e:
-                        print(f"JSON Decode Error at position {idx}: {e}")
-                        break
+                add_files = [AddFile.from_json(json_obj["file"])for json_obj in parse_json_stream(lines)]
 
                 return ListFilesInTableResponse(
                     delta_table_version=int(headers.get("delta-table-version")),
