@@ -708,10 +708,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         asyncQuery = "true"
       )
 
-      var lines = response.split("\n")
+      val lines = response.split("\n")
       assert(lines.length == 4)
-
-      print(s"response: $response")
     }
   }
 
