@@ -387,35 +387,33 @@ class DataSharingRestClient:
                     lines=[line for line in lines],
                 )
             else:
-                protocol_json = json.loads(next(lines))
-                metadata_json = json.loads(next(lines))
-
                 def parse_json_stream(lines):
+                    import json
+
                     buffer = ''
                     decoder = json.JSONDecoder()
                     for line in lines:
-                        buffer += line
-                        while True:
-                            buffer = buffer.lstrip()
-                            if not buffer:
-                                break
-                            try:
-                                obj, idx = decoder.raw_decode(buffer)
-                                yield obj
-                                buffer = buffer[idx:]
-                            except json.JSONDecodeError:
-                                # Not enough data to decode; read more lines
-                                break
+                        buffer += line.strip()
 
-                add_files = [
-                    AddFile.from_json(json_obj["file"])
-                    for json_obj in parse_json_stream(lines)
-                ]
+                        while buffer:
+                            try:
+                                # Attempt to decode a JSON object from the buffer
+                                obj, idx = decoder.raw_decode(buffer)
+                                json_str = buffer[:idx]
+                                yield json_str
+                                buffer = buffer[idx:].lstrip()
+                            except json.JSONDecodeError:
+                                # Incomplete JSON data; read more lines
+                                break
+                parsed_lines = parse_json_stream(lines)
+                protocol_json = json.loads(next(parsed_lines))
+                metadata_json = json.loads(next(parsed_lines))
+
                 return ListFilesInTableResponse(
                     delta_table_version=int(headers.get("delta-table-version")),
                     protocol=Protocol.from_json(protocol_json["protocol"]),
                     metadata=Metadata.from_json(metadata_json["metaData"]),
-                    add_files=add_files,
+                    add_files=[AddFile.from_json(json.loads(file)["file"]) for file in parsed_lines],
                     lines=[]
                 )
 
