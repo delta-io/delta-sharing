@@ -413,7 +413,10 @@ class DataSharingRestClient:
                     delta_table_version=int(headers.get("delta-table-version")),
                     protocol=Protocol.from_json(protocol_json["protocol"]),
                     metadata=Metadata.from_json(metadata_json["metaData"]),
-                    add_files=[AddFile.from_json(json.loads(file)["file"]) for file in parsed_lines],
+                    add_files=[
+                        AddFile.from_json(json.loads(file)["file"])
+                        for file in parsed_lines
+                    ],
                     lines=[]
                 )
 
