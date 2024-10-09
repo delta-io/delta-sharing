@@ -49,7 +49,7 @@ private[sharing] object RetryUtils extends Logging {
             ", totalDuration=" + totalDuration + " : " + e.getMessage,
             e
           )
-          if (shouldRetry(e) && times <= numRetries && totalDuration <= maxDurationMillis) {
+          if (shouldRetry(e) && times <= 2 && totalDuration <= maxDurationMillis) {
             logWarning(s"Sleeping $sleepMs ms to retry on error: ${e.getMessage}.")
             sleeper(sleepMs)
             sleepMs *= 2
