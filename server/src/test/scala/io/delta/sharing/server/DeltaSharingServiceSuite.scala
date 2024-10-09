@@ -694,7 +694,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       )
 
       val lines = response.split("\n")
-      print(s"response: $response")
+      print(s"--response--: $response")
       assert(lines.length == 4)
     }
   }

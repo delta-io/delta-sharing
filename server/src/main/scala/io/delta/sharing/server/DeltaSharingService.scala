@@ -344,9 +344,10 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
 
     // simulate async query with 50% chance of return
-    // asynchronously client should be able to hand both cases
-    // this is for test purpose only and shouldn't cause flakiness
-    if(rand.nextInt(100) > 50) {
+    // asynchronously for a specific table
+    // client should be able to handle both cases and for server
+    // test please use other table names.
+    if(rand.nextInt(100) > 50 && table == "table2" && !request.pageToken.isDefined) {
         streamingOutput(
           Some(0),
           "parquet",
@@ -354,7 +355,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
             SingleAction(queryStatus = QueryStatus(queryId))
           )
         )
-      } else {
+    } else {
 
       // we are reusing the table here to simulate a view query result
       val tableConfig = sharedTableManager.getTable(share, schema, table)
