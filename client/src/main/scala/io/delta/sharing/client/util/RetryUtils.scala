@@ -50,11 +50,11 @@ private[sharing] object RetryUtils extends Logging {
             e
           )
           if (shouldRetry(e) && times <= numRetries && totalDuration <= maxDurationMillis) {
-            logWarning(s"Sleeping $sleepMs ms to retry")
+            logWarning(s"Sleeping $sleepMs ms to retry on error: ${e.getMessage}.")
             sleeper(sleepMs)
             sleepMs *= 2
           } else {
-            logError(s"Not retrying delta sharing rpc on error: ${e.getMessage}", e)
+            logError(s"Not retrying delta sharing rpc on error: ${e.getMessage}.")
             throw e
           }
       }
