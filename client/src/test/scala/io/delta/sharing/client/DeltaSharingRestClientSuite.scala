@@ -84,8 +84,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(h.contains(" java/"))
     }
 
-    def getEndStreamActionHeader(includeEndStreamAction: Boolean): String = {
-      if (includeEndStreamAction) {
+    def getEndStreamActionHeader(endStreamActionEnabled: Boolean): String = {
+      if (endStreamActionEnabled) {
         s";$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
       } else {
         ""
@@ -96,9 +96,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       request: HttpRequestBase,
       responseFormat: String,
       readerFeatures: String,
-      includeEndStreamAction: Boolean): Unit = {
+      endStreamActionEnabled: Boolean): Unit = {
       val expected = s"${RESPONSE_FORMAT}=$responseFormat$readerFeatures" +
-        getEndStreamActionHeader(includeEndStreamAction)
+        getEndStreamActionHeader(endStreamActionEnabled)
       val h = request.getFirstHeader(DELTA_SHARING_CAPABILITIES_HEADER)
       assert(h.getValue == expected)
     }
@@ -108,39 +108,39 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       (true, false),
       (false, true),
       (false, false)
-    ).foreach { case (forStreaming, includeEndStreamAction) =>
+    ).foreach { case (forStreaming, endStreamActionEnabled) =>
       var client = new DeltaSharingRestClient(
         testProfileProvider,
         forStreaming = forStreaming,
-        includeEndStreamAction = includeEndStreamAction,
+        endStreamActionEnabled = endStreamActionEnabled,
         readerFeatures = "willBeIgnored")
-        .prepareHeaders(httpRequest, setIncludeEndStreamAction = includeEndStreamAction)
+        .prepareHeaders(httpRequest, setIncludeEndStreamAction = endStreamActionEnabled)
       checkUserAgent(client, forStreaming)
-      checkDeltaSharingCapabilities(client, "parquet", "", includeEndStreamAction)
+      checkDeltaSharingCapabilities(client, "parquet", "", endStreamActionEnabled)
 
       val readerFeatures = "deletionVectors,columnMapping,timestampNTZ"
       client = new DeltaSharingRestClient(
         testProfileProvider,
         forStreaming = forStreaming,
-        includeEndStreamAction = includeEndStreamAction,
+        endStreamActionEnabled = endStreamActionEnabled,
         responseFormat = RESPONSE_FORMAT_DELTA,
         readerFeatures = readerFeatures)
-        .prepareHeaders(httpRequest, setIncludeEndStreamAction = includeEndStreamAction)
+        .prepareHeaders(httpRequest, setIncludeEndStreamAction = endStreamActionEnabled)
       checkUserAgent(client, forStreaming)
       checkDeltaSharingCapabilities(
-        client, "delta", s";$READER_FEATURES=$readerFeatures", includeEndStreamAction
+        client, "delta", s";$READER_FEATURES=$readerFeatures", endStreamActionEnabled
       )
 
       client = new DeltaSharingRestClient(
         testProfileProvider,
         forStreaming = forStreaming,
-        includeEndStreamAction = includeEndStreamAction,
+        endStreamActionEnabled = endStreamActionEnabled,
         responseFormat = s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
         readerFeatures = readerFeatures)
-        .prepareHeaders(httpRequest, setIncludeEndStreamAction = includeEndStreamAction)
+        .prepareHeaders(httpRequest, setIncludeEndStreamAction = endStreamActionEnabled)
       checkUserAgent(client, forStreaming)
       checkDeltaSharingCapabilities(
-        client, s"delta,parquet", s";$READER_FEATURES=$readerFeatures", includeEndStreamAction
+        client, s"delta,parquet", s";$READER_FEATURES=$readerFeatures", endStreamActionEnabled
       )
     }
   }

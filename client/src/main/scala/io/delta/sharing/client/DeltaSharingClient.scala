@@ -188,7 +188,7 @@ class DeltaSharingRestClient(
     readerFeatures: String = "",
     queryTablePaginationEnabled: Boolean = false,
     maxFilesPerReq: Int = 100000,
-    includeEndStreamAction: Boolean = true,
+    endStreamActionEnabled: Boolean = true,
     enableAsyncQuery: Boolean = false,
     asyncQueryPollIntervalMillis: Long = 10000L,
     asyncQueryMaxDuration: Long = 600000L,
@@ -197,7 +197,7 @@ class DeltaSharingRestClient(
     tokenRenewalThresholdInSeconds: Int = 600
   ) extends DeltaSharingClient with Logging {
 
-  logInfo(s"DeltaSharingRestClient with includeEndStreamAction: $includeEndStreamAction, " +
+  logInfo(s"DeltaSharingRestClient with endStreamActionEnabled: $endStreamActionEnabled, " +
     s"enableAsyncQuery:$enableAsyncQuery")
 
   import DeltaSharingRestClient._
@@ -501,7 +501,7 @@ class DeltaSharingRestClient(
       (version, respondedFormat, lines)
     } else {
       val response = getNDJsonPost(
-        target = target, data = request, setIncludeEndStreamAction = true
+        target = target, data = request, setIncludeEndStreamAction = endStreamActionEnabled
       )
       val (filteredLines, _) = maybeExtractEndStreamAction(response.lines)
       (response.version, response.respondedFormat, filteredLines)
@@ -557,7 +557,7 @@ class DeltaSharingRestClient(
       getNDJsonWithAsync(table, targetUrl, request)
     } else {
       val response = getNDJsonPost(
-        target = targetUrl, data = request, setIncludeEndStreamAction = true
+        target = targetUrl, data = request, setIncludeEndStreamAction = endStreamActionEnabled
       )
       (response.version, response.respondedFormat, response.lines, None)
     }
@@ -657,7 +657,9 @@ class DeltaSharingRestClient(
       )
       getCDFFilesByPage(target)
     } else {
-      val response = getNDJson(target, requireVersion = false, setIncludeEndStreamAction = true)
+      val response = getNDJson(
+        target, requireVersion = false, setIncludeEndStreamAction = endStreamActionEnabled
+      )
       val (filteredLines, _) = maybeExtractEndStreamAction(response.lines)
       (response.version, response.respondedFormat, filteredLines)
     }
@@ -712,7 +714,9 @@ class DeltaSharingRestClient(
 
     // Fetch first page
     var updatedUrl = s"$targetUrl&maxFiles=$maxFilesPerReq"
-    val response = getNDJson(updatedUrl, requireVersion = false, setIncludeEndStreamAction = true)
+    val response = getNDJson(
+      updatedUrl, requireVersion = false, setIncludeEndStreamAction = endStreamActionEnabled
+    )
     var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(response.lines)
     if (endStreamAction.isEmpty) {
       logWarning(
@@ -741,7 +745,7 @@ class DeltaSharingRestClient(
         expectedProtocol = protocol,
         expectedMetadata = metadata,
         pageNumber = numPages,
-        setIncludeEndStreamAction = true
+        setIncludeEndStreamAction = endStreamActionEnabled
       )
       allLines.appendAll(res._1)
       endStreamAction = res._2
@@ -876,7 +880,7 @@ class DeltaSharingRestClient(
       lines,
       capabilities = capabilities
     )
-    if (includeEndStreamAction && setIncludeEndStreamAction) {
+    if (setIncludeEndStreamAction) {
       checkEndStreamAction(response)
     }
     response
@@ -1008,14 +1012,14 @@ class DeltaSharingRestClient(
       lines,
       capabilities = capabilities
     )
-    if (includeEndStreamAction && setIncludeEndStreamAction) {
+    if (setIncludeEndStreamAction) {
       checkEndStreamAction(response)
     }
     response
   }
 
   private def checkEndStreamAction(response: ParsedDeltaSharingResponse): Unit = {
-    // Only perform additional check when includeEndStreamAction = true
+    // Only perform additional check when endStreamActionEnabled = true
     response.includeEndStreamActionHeader match {
       case Some(true) =>
         val lastLineAction = JsonUtils.fromJson[SingleAction](response.lines.last)
@@ -1233,7 +1237,7 @@ class DeltaSharingRestClient(
       capabilities = capabilities :+ s"$DELTA_SHARING_CAPABILITIES_ASYNC_READ=true"
     }
 
-    if (includeEndStreamAction && setIncludeEndStreamAction) {
+    if (setIncludeEndStreamAction) {
       capabilities = capabilities :+ s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
     }
 
@@ -1349,7 +1353,7 @@ object DeltaSharingRestClient extends Logging {
     val queryTablePaginationEnabled = ConfUtils.queryTablePaginationEnabled(sqlConf)
     val maxFilesPerReq = ConfUtils.maxFilesPerQueryRequest(sqlConf)
     val useAsyncQuery = ConfUtils.useAsyncQuery(sqlConf)
-    val includeEndStreamAction = ConfUtils.includeEndStreamAction(sqlConf)
+    val endStreamActionEnabled = ConfUtils.includeEndStreamAction(sqlConf)
     val asyncQueryMaxDurationMillis = ConfUtils.asyncQueryTimeout(sqlConf)
     val asyncQueryPollDurationMillis = ConfUtils.asyncQueryPollIntervalMillis(sqlConf)
 
@@ -1388,7 +1392,7 @@ object DeltaSharingRestClient extends Logging {
         readerFeatures,
         java.lang.Boolean.valueOf(queryTablePaginationEnabled),
         java.lang.Integer.valueOf(maxFilesPerReq),
-        java.lang.Boolean.valueOf(includeEndStreamAction),
+        java.lang.Boolean.valueOf(endStreamActionEnabled),
         java.lang.Boolean.valueOf(useAsyncQuery),
         java.lang.Long.valueOf(asyncQueryPollDurationMillis),
         java.lang.Long.valueOf(asyncQueryMaxDurationMillis),
