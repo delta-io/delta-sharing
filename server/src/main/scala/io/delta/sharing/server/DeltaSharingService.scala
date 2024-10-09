@@ -275,7 +275,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     if (headerString == null) {
       return Map.empty[String, String]
     }
-    headerString.toLowerCase().split(";")
+    headerString.toLowerCase().split(DELTA_SHARING_CAPABILITIES_DELIMITER)
       .map(_.split("="))
       .filter(_.size == 2)
       .map { splits =>
@@ -323,7 +323,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       pageToken = None,
       includeRefreshToken = false,
       refreshToken = None,
-      responseFormatSet = responseFormatSet)
+      responseFormatSet = responseFormatSet,
+      includeEndStreamAction = false)
     streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
   }
 
@@ -373,7 +374,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         pageToken = request.pageToken,
         false,
         None,
-        responseFormatSet = responseFormatSet)
+        responseFormatSet = responseFormatSet,
+        includeEndStreamAction = false)
       if (queryResult.version < tableConfig.startVersion) {
         throw new DeltaSharingIllegalArgumentException(
           s"You can only query table data since version ${tableConfig.startVersion}."
@@ -474,6 +476,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         }
       }
       val responseFormatSet = getResponseFormatSet(capabilitiesMap)
+      val includeEndStreamAction = getRequestEndStreamAction(capabilitiesMap)
       val queryResult = deltaSharedTableLoader.loadTable(tableConfig).query(
         includeFiles = true,
         request.predicateHints,
@@ -487,7 +490,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         request.pageToken,
         request.includeRefreshToken.getOrElse(false),
         request.refreshToken,
-        responseFormatSet = responseFormatSet)
+        responseFormatSet = responseFormatSet,
+        includeEndStreamAction = includeEndStreamAction)
       if (queryResult.version < tableConfig.startVersion) {
         throw new DeltaSharingIllegalArgumentException(
           s"You can only query table data since version ${tableConfig.startVersion}."
@@ -495,7 +499,12 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       }
       logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
         s"and sign ${queryResult.actions.length - 2} urls for table $share/$schema/$table")
-      streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
+      streamingOutput(
+        Some(queryResult.version),
+        queryResult.responseFormat,
+        queryResult.actions,
+        includeEndStreamAction = includeEndStreamAction
+      )
     }
   }
 
@@ -530,6 +539,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
 
     val responseFormatSet = getResponseFormatSet(capabilitiesMap)
+    val includeEndStreamAction = getRequestEndStreamAction(capabilitiesMap)
     val queryResult = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
       getCdfOptionsMap(
         Option(startingVersion),
@@ -540,21 +550,34 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false),
       Option(maxFiles).map(_.toInt),
       Option(pageToken),
-      responseFormatSet = responseFormatSet
+      responseFormatSet = responseFormatSet,
+      includeEndStreamAction = includeEndStreamAction
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${queryResult.actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
+    streamingOutput(
+      Some(queryResult.version),
+      queryResult.responseFormat,
+      queryResult.actions,
+      includeEndStreamAction = includeEndStreamAction
+    )
   }
 
   private def streamingOutput(
       version: Option[Long],
       responseFormat: String,
-      actions: Seq[Object]): HttpResponse = {
+      actions: Seq[Object],
+      includeEndStreamAction: Boolean = false): HttpResponse = {
+    var capabilities = Seq[String](s"${DELTA_SHARING_RESPONSE_FORMAT}=$responseFormat")
+    if (includeEndStreamAction) {
+      capabilities = capabilities :+ s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+    }
+    val dsCapHeader = capabilities.mkString(DELTA_SHARING_CAPABILITIES_DELIMITER)
+
     val headers = if (version.isDefined) {
       createHeadersBuilderForTableVersion(version.get)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
-      .set(DELTA_SHARING_CAPABILITIES_HEADER, s"$DELTA_SHARING_RESPONSE_FORMAT=$responseFormat")
+      .set(DELTA_SHARING_CAPABILITIES_HEADER, dsCapHeader)
       .build()
     } else {
       ResponseHeaders.builder(200)
@@ -583,6 +606,8 @@ object DeltaSharingService {
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
   val DELTA_SHARING_RESPONSE_FORMAT = "responseformat"
   val DELTA_SHARING_CAPABILITIES_ASYNC_QUERY = "asyncquery"
+  val DELTA_SHARING_INCLUDE_END_STREAM_ACTION = "includeendstreamaction"
+  val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
 
   private val parser = {
     val parser = ArgumentParsers
@@ -706,6 +731,11 @@ object DeltaSharingService {
     headerCapabilities.get(DELTA_SHARING_RESPONSE_FORMAT).getOrElse(
       DeltaSharedTable.RESPONSE_FORMAT_PARQUET
     ).split(",").toSet
+  }
+
+  private[server] def getRequestEndStreamAction(
+      headerCapabilities: Map[String, String]): Boolean = {
+    headerCapabilities.get(DELTA_SHARING_INCLUDE_END_STREAM_ACTION).exists(_.toBoolean)
   }
 
   private[server] def getAsyncQuery(headerCapabilities: Map[String, String]): Boolean = {
