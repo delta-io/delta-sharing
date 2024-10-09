@@ -1180,8 +1180,8 @@ class DeltaSharingRestClient(
           // Only show the last 100 lines in the error to keep it contained.
           val responseToShow = lines.drop(lines.size - 100).mkString("\n")
           throw new UnexpectedHttpStatus(
-            s"HTTP request failed with status$getDsQueryIdForLogging: $status." +
-              s" $additionalErrorInfo $responseToShow",
+            s"HTTP request failed with status: $status" +
+              Seq(getDsQueryIdForLogging, additionalErrorInfo, responseToShow).mkString(" "),
             statusCode)
         }
         val capabilities = Option(
