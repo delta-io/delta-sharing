@@ -403,7 +403,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Option(startingTimestamp),
         Option(endingTimestamp)
       ),
-      includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false)
+      includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false),
+      includeEndStreamAction = includeEndStreamAction
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
