@@ -18,6 +18,9 @@ package io.delta.sharing.spark
 
 import org.apache.spark.sql.types.StructType
 
+class MissingEndStreamActionException(message: String) extends IllegalStateException(message)
+
+
 object DeltaSharingErrors {
   def nonExistentDeltaSharingTable(tableId: String): Throwable = {
     new IllegalStateException(s"Delta sharing table ${tableId} doesn't exist. " +

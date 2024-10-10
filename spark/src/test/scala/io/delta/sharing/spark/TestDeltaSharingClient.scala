@@ -36,7 +36,8 @@ class TestDeltaSharingClient(
     numRetries: Int = 10,
     maxRetryDuration: Long = Long.MaxValue,
     sslTrustAll: Boolean = false,
-    includeHistoricalMetadata: Boolean = false) extends DeltaSharingClient {
+    includeHistoricalMetadata: Boolean = false,
+    endStreamActionEnabled: Boolean = true) extends DeltaSharingClient {
 
   private val metadataString =
     """{"metaData":{"id":"93351cf1-c931-4326-88f0-d10e29e71b21","format":

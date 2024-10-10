@@ -164,6 +164,7 @@ private[sharing] object RemoteDeltaLog {
     val numRetries = ConfUtils.numRetries(sqlConf)
     val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(sqlConf)
     val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
+    val endStreamActionEnabled = ConfUtils.includeEndStreamAction(sqlConf)
 
     val clientClass =
       sqlConf.getConfString("spark.delta.sharing.client.class",
@@ -172,13 +173,19 @@ private[sharing] object RemoteDeltaLog {
     val client: DeltaSharingClient =
       Class.forName(clientClass)
         .getConstructor(classOf[DeltaSharingProfileProvider],
-          classOf[Int], classOf[Int], classOf[Long], classOf[Boolean], classOf[Boolean])
-        .newInstance(profileProvider,
+          classOf[Int],
+          classOf[Int],
+          classOf[Long],
+          classOf[Boolean],
+          classOf[Boolean],
+          classOf[Boolean]
+        ).newInstance(profileProvider,
           java.lang.Integer.valueOf(timeoutInSeconds),
           java.lang.Integer.valueOf(numRetries),
           java.lang.Long.valueOf(maxRetryDurationMillis),
           java.lang.Boolean.valueOf(sslTrustAll),
-          java.lang.Boolean.valueOf(forStreaming))
+          java.lang.Boolean.valueOf(forStreaming),
+          java.lang.Boolean.valueOf(endStreamActionEnabled))
         .asInstanceOf[DeltaSharingClient]
     new RemoteDeltaLog(deltaSharingTable, new Path(path + getFormattedTimestampWithUUID), client)
   }
