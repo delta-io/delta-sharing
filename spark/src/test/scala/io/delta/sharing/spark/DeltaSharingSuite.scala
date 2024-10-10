@@ -448,7 +448,8 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
         .option("startingVersion", 0).load(tablePath)
       checkAnswer(df, Nil)
     }
-    assert (ex.getMessage.contains("""400 Bad Request {"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
+    assert(ex.getMessage.contains("""400 Bad Request"""))
+    assert(ex.getMessage.contains("""{"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
   }
 
   integrationTest("azure support") {

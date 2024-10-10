@@ -39,7 +39,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
     val httpRequest = new HttpGet("random_url")
 
     val client = new DeltaSharingRestClient(testProfileProvider)
-    var h = client.prepareHeaders(httpRequest).getFirstHeader(DeltaSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER)
+    var h = client.prepareHeaders(httpRequest, setIncludeEndStreamAction = false).getFirstHeader(DeltaSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER)
     // scalastyle:off caselocale
     assert(h.getValue.toLowerCase().contains(s"responseformat=${DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET}"))
 
@@ -47,7 +47,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       testProfileProvider,
       responseFormat = DeltaSharingRestClient.RESPONSE_FORMAT_DELTA
     )
-    h = deltaClient.prepareHeaders(httpRequest).getFirstHeader(DeltaSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER)
+    h = deltaClient.prepareHeaders(httpRequest, setIncludeEndStreamAction = false).getFirstHeader(DeltaSharingRestClient.DELTA_SHARING_CAPABILITIES_HEADER)
     // scalastyle:off caselocale
     assert(h.getValue.toLowerCase().contains(s"responseformat=${DeltaSharingRestClient.RESPONSE_FORMAT_DELTA}"))
   }
