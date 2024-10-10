@@ -26,6 +26,7 @@ class DeltaSharingSourceParamsSuite extends QueryTest
   with SharedSparkSession with DeltaSharingIntegrationTest {
 
   import testImplicits._
+  lazy val shareCredentialsOptions: Map[String, String] = Map.empty
 
   // VERSION 0: CREATE TABLE
   // VERSION 1: INSERT 3 rows, 3 add files
@@ -33,7 +34,7 @@ class DeltaSharingSourceParamsSuite extends QueryTest
   // VERSION 3: UPDATE 1 row, 1 remove file and 1 add file
   lazy val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
 
-  lazy val deltaLog = RemoteDeltaLog(tablePath, forStreaming = true)
+  lazy val deltaLog = RemoteDeltaLog(tablePath, shareCredentialsOptions, forStreaming = true)
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
     val options = new DeltaSharingOptions(parameters)
