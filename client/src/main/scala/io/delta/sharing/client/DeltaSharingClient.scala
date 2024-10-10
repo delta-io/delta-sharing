@@ -983,8 +983,8 @@ class DeltaSharingRestClient(
         )
       case None =>
         logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the" +
-          s" header, but server didn't respond with the header(${capabilities}), " +
-          s"for query($dsQueryId)."
+          s" header, but server didn't respond with the header(${capabilities})," +
+          getDsQueryIdForLogging
         )
     }
   }
