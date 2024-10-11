@@ -87,7 +87,7 @@ class ConfUtilsSuite extends SparkFunSuite {
     assert(includeEndStreamAction(newConf()) == false)
     assert(includeEndStreamAction(newConf(Map(INCLUDE_END_STREAM_ACTION_CONF -> "true"))) == true)
     assert(includeEndStreamAction(newConf(Map(INCLUDE_END_STREAM_ACTION_CONF -> "false"))) == false)
-    assert(includeEndStreamAction(newConf(Map(INCLUDE_END_STREAM_ACTION_CONF -> "random"))) == false)
+    assert(includeEndStreamAction(newConf(Map(INCLUDE_END_STREAM_ACTION_CONF -> "rdm"))) == false)
 
     assert(includeEndStreamAction(newSqlConf()) == false)
     assert(
