@@ -115,7 +115,7 @@ private[spark] class DeltaSharingRestClient(
     maxRetryDuration: Long = Long.MaxValue,
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
-    endStreamActionEnabled: Boolean = true
+    endStreamActionEnabled: Boolean = false
   ) extends DeltaSharingClient with Logging {
 
   logInfo(s"DeltaSharingRestClient with endStreamActionEnabled: $endStreamActionEnabled.")
