@@ -84,18 +84,20 @@ class ConfUtilsSuite extends SparkFunSuite {
   }
 
   test("includeEndStreamAction") {
-    assert(includeEndStreamAction(newConf()) == true)
+    assert(includeEndStreamAction(newConf()) == false)
+    assert(includeEndStreamAction(newConf(Map(INCLUDE_END_STREAM_ACTION_CONF -> "true"))) == true)
     assert(includeEndStreamAction(newConf(Map(INCLUDE_END_STREAM_ACTION_CONF -> "false"))) == false)
-    assert(includeEndStreamAction(newConf(Map(INCLUDE_END_STREAM_ACTION_CONF -> "random"))) == true)
+    assert(includeEndStreamAction(newConf(Map(INCLUDE_END_STREAM_ACTION_CONF -> "random"))) == false)
 
-    assert(includeEndStreamAction(newSqlConf()) == true)
+    assert(includeEndStreamAction(newSqlConf()) == false)
+    assert(
+      includeEndStreamAction(newSqlConf(Map(INCLUDE_END_STREAM_ACTION_CONF -> "true"))) == true
+    )
     assert(
       includeEndStreamAction(newSqlConf(Map(INCLUDE_END_STREAM_ACTION_CONF -> "false"))) == false
     )
     intercept[IllegalArgumentException] {
-      assert(
-        includeEndStreamAction(newSqlConf(Map(INCLUDE_END_STREAM_ACTION_CONF -> "random"))) == false
-      )
+      includeEndStreamAction(newSqlConf(Map(INCLUDE_END_STREAM_ACTION_CONF -> "random")))
     }.getMessage.contains(INCLUDE_END_STREAM_ACTION_CONF)
   }
 
