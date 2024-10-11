@@ -39,6 +39,9 @@ object ConfUtils {
   val USE_ASYNC_QUERY_CONF = "spark.delta.sharing.network.useAsyncQuery"
   val USE_ASYNC_QUERY_DEFAULT = "false"
 
+  val INCLUDE_END_STREAM_ACTION_CONF = "spark.delta.sharing.query.includeEndStreamAction"
+  val INCLUDE_END_STREAM_ACTION_DEFAULT = "false"
+
   val TIMEOUT_CONF = "spark.delta.sharing.network.timeout"
   val TIMEOUT_DEFAULT = "320s"
 
@@ -163,6 +166,14 @@ object ConfUtils {
 
   def useAsyncQuery(conf: SQLConf): Boolean = {
     conf.getConfString(USE_ASYNC_QUERY_CONF, USE_ASYNC_QUERY_DEFAULT).toBoolean
+  }
+
+  def includeEndStreamAction(conf: Configuration): Boolean = {
+    conf.getBoolean(INCLUDE_END_STREAM_ACTION_CONF, INCLUDE_END_STREAM_ACTION_DEFAULT.toBoolean)
+  }
+
+  def includeEndStreamAction(conf: SQLConf): Boolean = {
+    conf.getConfString(INCLUDE_END_STREAM_ACTION_CONF, INCLUDE_END_STREAM_ACTION_DEFAULT).toBoolean
   }
 
   def timeoutInSeconds(conf: Configuration): Int = {

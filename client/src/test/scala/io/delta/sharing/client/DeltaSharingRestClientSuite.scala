@@ -67,8 +67,6 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   integrationTest("Check headers") {
-    val httpRequest = new HttpGet("random_url")
-
     def checkUserAgent(request: HttpRequestBase, containsStreaming: Boolean): Unit = {
       val h = request.getFirstHeader(HttpHeaders.USER_AGENT).getValue
       if (containsStreaming) {
@@ -84,36 +82,66 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(h.contains(" java/"))
     }
 
-    def checkDeltaSharingCapabilities(request: HttpRequestBase, expected: String): Unit = {
+    def getEndStreamActionHeader(endStreamActionEnabled: Boolean): String = {
+      if (endStreamActionEnabled) {
+        s";$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+      } else {
+        ""
+      }
+    }
+
+    def checkDeltaSharingCapabilities(
+        request: HttpRequestBase,
+        responseFormat: String,
+        readerFeatures: String,
+        endStreamActionEnabled: Boolean): Unit = {
+      val expected = s"${RESPONSE_FORMAT}=$responseFormat$readerFeatures" +
+        getEndStreamActionHeader(endStreamActionEnabled)
       val h = request.getFirstHeader(DELTA_SHARING_CAPABILITIES_HEADER)
       assert(h.getValue == expected)
     }
 
-    var httpRequestBase = new DeltaSharingRestClient(
-      testProfileProvider, forStreaming = false, readerFeatures = "willBeIgnored").prepareHeaders(httpRequest)
-    checkUserAgent(httpRequestBase, false)
-    checkDeltaSharingCapabilities(httpRequestBase, "responseformat=parquet")
+    Seq(
+      (true, true),
+      (true, false),
+      (false, true),
+      (false, false)
+    ).foreach { case (forStreaming, endStreamActionEnabled) =>
+      val httpRequest = new HttpGet("random_url")
+      var request = new DeltaSharingRestClient(
+        testProfileProvider,
+        forStreaming = forStreaming,
+        endStreamActionEnabled = endStreamActionEnabled,
+        readerFeatures = "willBeIgnored")
+        .prepareHeaders(httpRequest, setIncludeEndStreamAction = endStreamActionEnabled)
+      checkUserAgent(request, forStreaming)
+      checkDeltaSharingCapabilities(request, "parquet", "", endStreamActionEnabled)
 
-    val readerFeatures = "deletionVectors,columnMapping,timestampNTZ"
-    httpRequestBase = new DeltaSharingRestClient(
-      testProfileProvider,
-      forStreaming = true,
-      responseFormat = RESPONSE_FORMAT_DELTA,
-      readerFeatures = readerFeatures).prepareHeaders(httpRequest)
-    checkUserAgent(httpRequestBase, true)
-    checkDeltaSharingCapabilities(
-      httpRequestBase, s"responseformat=delta;readerfeatures=$readerFeatures"
-    )
+      val readerFeatures = "deletionVectors,columnMapping,timestampNTZ"
+      request = new DeltaSharingRestClient(
+        testProfileProvider,
+        forStreaming = forStreaming,
+        endStreamActionEnabled = endStreamActionEnabled,
+        responseFormat = RESPONSE_FORMAT_DELTA,
+        readerFeatures = readerFeatures)
+        .prepareHeaders(httpRequest, setIncludeEndStreamAction = endStreamActionEnabled)
+      checkUserAgent(request, forStreaming)
+      checkDeltaSharingCapabilities(
+        request, "delta", s";$READER_FEATURES=$readerFeatures", endStreamActionEnabled
+      )
 
-    httpRequestBase = new DeltaSharingRestClient(
-      testProfileProvider,
-      forStreaming = true,
-      responseFormat = s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
-      readerFeatures = readerFeatures).prepareHeaders(httpRequest)
-    checkUserAgent(httpRequestBase, true)
-    checkDeltaSharingCapabilities(
-      httpRequestBase, s"responseformat=delta,parquet;readerfeatures=$readerFeatures"
-    )
+      request = new DeltaSharingRestClient(
+        testProfileProvider,
+        forStreaming = forStreaming,
+        endStreamActionEnabled = endStreamActionEnabled,
+        responseFormat = s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
+        readerFeatures = readerFeatures)
+        .prepareHeaders(httpRequest, setIncludeEndStreamAction = endStreamActionEnabled)
+      checkUserAgent(request, forStreaming)
+      checkDeltaSharingCapabilities(
+        request, s"delta,parquet", s";$READER_FEATURES=$readerFeatures", endStreamActionEnabled
+      )
+    }
   }
 
   integrationTest("listAllTables") {
@@ -1100,7 +1128,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               false
             )
           }.getMessage
-          assert(errorMessage.contains("""400 Bad Request {"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
+          assert(errorMessage.contains("""400 Bad Request for query"""))
+          assert(errorMessage.contains("""{"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
           assert(errorMessage.contains("table files missing"))
         } finally {
           client.close()
