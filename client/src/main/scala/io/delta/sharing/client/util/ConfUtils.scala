@@ -40,7 +40,7 @@ object ConfUtils {
   val USE_ASYNC_QUERY_DEFAULT = "false"
 
   val INCLUDE_END_STREAM_ACTION_CONF = "spark.delta.sharing.query.includeEndStreamAction"
-  val INCLUDE_END_STREAM_ACTION_DEFAULT = "true"
+  val INCLUDE_END_STREAM_ACTION_DEFAULT = "false"
 
   val TIMEOUT_CONF = "spark.delta.sharing.network.timeout"
   val TIMEOUT_DEFAULT = "320s"

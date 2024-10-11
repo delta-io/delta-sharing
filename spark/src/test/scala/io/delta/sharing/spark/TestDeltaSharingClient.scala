@@ -47,7 +47,7 @@ class TestDeltaSharingClient(
     readerFeatures: String = "",
     queryTablePaginationEnabled: Boolean = false,
     maxFilesPerReq: Int = 10000,
-    endStreamActionEnabled: Boolean = true,
+    endStreamActionEnabled: Boolean = false,
     enableAsyncQuery: Boolean = false,
     asyncQueryPollIntervalMillis: Long = 1000L,
     asyncQueryMaxDuration: Long = Long.MaxValue
