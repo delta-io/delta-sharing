@@ -31,6 +31,7 @@ import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import scalapb.json4s.JsonFormat
 
+import io.delta.sharing.server.DeltaSharingService.DELTA_SHARING_INCLUDE_END_STREAM_ACTION
 import io.delta.sharing.server.common.JsonUtils
 import io.delta.sharing.server.common.actions.{ColumnMappingTableFeature, DeletionVectorDescriptor, DeletionVectorsTableFeature, DeltaAddFile, DeltaFormat, DeltaProtocol, DeltaSingleAction}
 import io.delta.sharing.server.config.ServerConfig
@@ -158,7 +159,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     deltaSharingCapabilities += s";responseformat=$responseFormat"
     deltaSharingCapabilities += readerFeatures
     if (includeEndStreamAction) {
-      deltaSharingCapabilities += s";endstreamaction=true"
+      deltaSharingCapabilities += s";$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
     }
     connection.setRequestProperty("delta-sharing-capabilities", deltaSharingCapabilities)
 
@@ -187,7 +188,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       val responseCapabilities = connection.getHeaderField("delta-sharing-capabilities")
       var expectedHeader = s"responseformat=$responseFormat"
       if (includeEndStreamAction) {
-        expectedHeader += s";endstreamaction=true"
+        expectedHeader += s";$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
       }
       assert(responseCapabilities == expectedHeader, s"Incorrect header: $responseCapabilities")
     }
@@ -707,10 +708,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         asyncQuery = "true"
       )
 
-      var lines = response.split("\n")
+      val lines = response.split("\n")
       assert(lines.length == 4)
-
-      print(s"response: $response")
     }
   }
 

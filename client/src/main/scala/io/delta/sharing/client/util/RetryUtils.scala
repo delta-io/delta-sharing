@@ -22,6 +22,8 @@ import scala.util.control.NonFatal
 
 import org.apache.spark.internal.Logging
 
+import io.delta.sharing.spark.MissingEndStreamActionException
+
 private[sharing] object RetryUtils extends Logging {
 
   // Expose it for testing
@@ -48,11 +50,11 @@ private[sharing] object RetryUtils extends Logging {
             e
           )
           if (shouldRetry(e) && times <= numRetries && totalDuration <= maxDurationMillis) {
-            logWarning(s"Sleeping $sleepMs ms to retry")
+            logWarning(s"Sleeping $sleepMs ms to retry on error: ${e.getMessage}.")
             sleeper(sleepMs)
             sleepMs *= 2
           } else {
-            logError(s"Not retrying delta sharing rpc on error: ${e.getMessage}", e)
+            logError(s"Not retrying delta sharing rpc on error: ${e.getMessage}.")
             throw e
           }
       }
@@ -70,6 +72,7 @@ private[sharing] object RetryUtils extends Logging {
         } else {
           false
         }
+      case _: MissingEndStreamActionException => true
       case _: java.net.SocketTimeoutException => true
       // do not retry on ConnectionClosedException because it can be caused by invalid json returned
       // from the delta sharing server.
