@@ -493,7 +493,7 @@ class DeltaSharingRestClient(
       logInfo(
         s"Making paginated queryTable from version $startingVersion requests for table " +
         s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq, " +
-        s"for query($dsQueryId)."
+          getDsQueryIdForLogging
       )
       val (version, respondedFormat, lines, _) = getFilesByPage(table, target, request)
       (version, respondedFormat, lines)
@@ -651,7 +651,7 @@ class DeltaSharingRestClient(
       logInfo(
         s"Making paginated queryTableChanges requests for table " +
           s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq, " +
-          s"for query($dsQueryId)."
+          getDsQueryIdForLogging
       )
       getCDFFilesByPage(target)
     } else {
@@ -1032,7 +1032,7 @@ class DeltaSharingRestClient(
       case None =>
         logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the" +
           s" header, but server didn't respond with the header(${capabilities}), " +
-          s"for query($dsQueryId)."
+          getDsQueryIdForLogging
         )
     }
   }
@@ -1161,7 +1161,7 @@ class DeltaSharingRestClient(
             }
           } catch {
             case e: org.apache.http.ConnectionClosedException =>
-              val error = s"Request to delta sharing server failed for query($dsQueryId) " +
+              val error = s"Request to delta sharing server failed$getDsQueryIdForLogging " +
                 s"due to ${e}."
               logError(error)
               lineBuffer += error
