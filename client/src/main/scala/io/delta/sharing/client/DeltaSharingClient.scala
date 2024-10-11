@@ -471,7 +471,7 @@ class DeltaSharingRestClient(
       val (version, respondedFormat, lines) = getNDJsonPost(
         target,
         request,
-        setIncludeEndStreamAction = true
+        setIncludeEndStreamAction = endStreamActionEnabled
       )
       val (filteredLines, _) = maybeExtractEndStreamAction(lines)
       (version, respondedFormat, filteredLines)
