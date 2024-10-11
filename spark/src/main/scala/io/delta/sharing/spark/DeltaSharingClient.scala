@@ -48,6 +48,10 @@ private[sharing] trait DeltaSharingClient {
 
   protected var dsQueryId: Option[String] = None
 
+  def getQueryId: String = {
+    dsQueryId.getOrElse("dsQueryIdNotSet")
+  }
+
   protected def getDsQueryIdForLogging: String = {
     s" for query($dsQueryId)."
   }
@@ -113,6 +117,9 @@ private[spark] class DeltaSharingRestClient(
     forStreaming: Boolean = false,
     endStreamActionEnabled: Boolean = true
   ) extends DeltaSharingClient with Logging {
+
+  logInfo(s"DeltaSharingRestClient with endStreamActionEnabled: $endStreamActionEnabled.")
+
   import DeltaSharingRestClient._
 
   @volatile private var created = false
@@ -214,7 +221,7 @@ private[spark] class DeltaSharingRestClient(
     )
     version.getOrElse {
       throw new IllegalStateException(s"Cannot find $RESPONSE_TABLE_VERSION_HEADER_KEY in the " +
-        s"header")
+        "header," + getDsQueryIdForLogging)
     }
   }
 
@@ -231,7 +238,8 @@ private[spark] class DeltaSharingRestClient(
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
     if (lines.size != 2) {
-      throw new IllegalStateException("received more than two lines")
+      throw new IllegalStateException(s"received more than two lines:${lines.size}," +
+        getDsQueryIdForLogging)
     }
     DeltaTableMetadata(version, protocol, metadata)
   }
@@ -240,7 +248,8 @@ private[spark] class DeltaSharingRestClient(
     if (protocol.minReaderVersion > DeltaSharingRestClient.CURRENT) {
       throw new IllegalArgumentException(s"The table requires a newer version" +
         s" ${protocol.minReaderVersion} to read. But the current release supports version " +
-        s"is ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer release.")
+        s"is ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer release." +
+        getDsQueryIdForLogging)
     }
   }
 
@@ -281,7 +290,7 @@ private[spark] class DeltaSharingRestClient(
       }
     }
     if (includeRefreshToken && refreshTokenOpt.isEmpty) {
-      logWarning("includeRefreshToken=true but refresh token is not returned.")
+      logWarning("includeRefreshToken=true but refresh token is not returned " + getQueryIdString)
     }
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](filteredLines(0)).protocol
@@ -293,7 +302,7 @@ private[spark] class DeltaSharingRestClient(
       if (action.file != null) {
         files.append(action.file)
       } else {
-        throw new IllegalStateException(s"Unexpected Line:${line}")
+        throw new IllegalStateException(s"Unexpected Line:${line}" + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(version, protocol, metadata, files.toSeq, refreshToken = refreshTokenOpt)
@@ -337,7 +346,8 @@ private[spark] class DeltaSharingRestClient(
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
+        case _ => throw new IllegalStateException(s"Unexpected Line:${line}" +
+          getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
@@ -380,7 +390,8 @@ private[spark] class DeltaSharingRestClient(
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
+        case _ => throw new IllegalStateException(s"Unexpected Line:${line}" +
+          getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
@@ -428,7 +439,7 @@ private[spark] class DeltaSharingRestClient(
     version.getOrElse {
       if (requireVersion) {
         throw new IllegalStateException(s"Cannot find $RESPONSE_TABLE_VERSION_HEADER_KEY in the " +
-          s"header")
+          s"header," + getDsQueryIdForLogging)
       } else {
         0L
       }
@@ -448,7 +459,7 @@ private[spark] class DeltaSharingRestClient(
     )
     version.getOrElse {
       throw new IllegalStateException(s"Cannot find $RESPONSE_TABLE_VERSION_HEADER_KEY in the " +
-        s"header")
+        s"header," + getDsQueryIdForLogging)
     } -> lines
   }
 
@@ -461,7 +472,7 @@ private[spark] class DeltaSharingRestClient(
     )
     if (response.size != 1) {
       throw new IllegalStateException(
-        "Unexpected response for target: " +  target + ", response=" + response
+        s"Unexpected response for target:$target, response=$response" + getDsQueryIdForLogging
       )
     }
     JsonUtils.fromJson[R](response(0))
@@ -557,7 +568,8 @@ private[spark] class DeltaSharingRestClient(
             }
           } catch {
             case e: org.apache.http.ConnectionClosedException =>
-              val error = s"Request to delta sharing server failed due to ${e}."
+              val error = s"Request to delta sharing server failed$getDsQueryIdForLogging" +
+                s" due to ${e}."
               logError(error)
               lineBuffer += error
               lineBuffer.toList
@@ -577,7 +589,8 @@ private[spark] class DeltaSharingRestClient(
           // Only show the last 100 lines in the error to keep it contained.
           val responseToShow = lines.drop(lines.size - 100).mkString("\n")
           throw new UnexpectedHttpStatus(
-            s"HTTP request failed with status: $status $responseToShow. $additionalErrorInfo",
+            s"HTTP request failed with status: $status" +
+              Seq(getDsQueryIdForLogging, additionalErrorInfo, responseToShow).mkString(" "),
             statusCode)
         }
         if (setIncludeEndStreamAction) {

@@ -18,6 +18,7 @@ package io.delta.sharing.spark
 
 // scalastyle:off import.ordering.noEmptyLine
 import java.lang.ref.WeakReference
+import java.util.UUID
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -111,6 +112,8 @@ case class DeltaSharingSource(
   assert(deltaLog.client.getForStreaming,
     "forStreaming must be true for client in DeltaSharingSource.")
 
+  private val sourceId = Some(UUID.randomUUID().toString().split('-').head)
+
   // The snapshot that's used to construct the dataframe, constructed when source is initialized.
   // Use latest snapshot instead of snapshot at startingVersion, to allow easy recovery from
   // failures on schema incompatibility.
@@ -159,9 +162,11 @@ case class DeltaSharingSource(
     val interval = 30000.max(
       ConfUtils.streamingQueryTableVersionIntervalSeconds(spark.sessionState.conf) * 1000
     )
+    logInfo(s"Configured queryTableVersionIntervalMilliSeconds:${interval}," +
+      getTableInfoForLogging)
     if (interval < 30000) {
-      throw new IllegalArgumentException("QUERY_TABLE_VERSION_INTERVAL_MILLIS must not be less " +
-        "than 30 seconds.")
+      throw new IllegalArgumentException(s"QUERY_TABLE_VERSION_INTERVAL_MILLIS($interval) must " +
+        "not be less than 30 seconds." + getTableInfoForLogging)
     }
     interval
   }
@@ -176,6 +181,13 @@ case class DeltaSharingSource(
     TableRefreshResult(Map.empty[String, String], None, None)
   }
 
+  private lazy val getTableInfoForLogging: String =
+    s" for table(id:$tableId, name:${deltaLog.table.toString}, source:$sourceId)"
+
+  private def getQueryIdForLogging: String = {
+    s", with queryId(${deltaLog.client.getQueryId})"
+  }
+
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
   // rpcs to avoid traffic jam on the delta sharing server.
@@ -184,13 +196,14 @@ case class DeltaSharingSource(
     if (lastGetVersionTimestamp == -1 ||
       (currentTimeMillis - lastGetVersionTimestamp) >= QUERY_TABLE_VERSION_INTERVAL_MILLIS) {
       val serverVersion = deltaLog.client.getTableVersion(deltaLog.table)
-      logInfo(s"Got table version $serverVersion from Delta Sharing Server.")
+      logInfo(s"Got table version $serverVersion from Delta Sharing Server," +
+        getTableInfoForLogging)
       if (serverVersion < 0) {
         throw new IllegalStateException(s"Delta Sharing Server returning negative table version:" +
-          s"$serverVersion.")
+          s"$serverVersion," + getTableInfoForLogging)
       } else if (serverVersion < latestTableVersion) {
         logWarning(s"Delta Sharing Server returning smaller table version:$serverVersion < " +
-          s"$latestTableVersion.")
+          s"$latestTableVersion," + getTableInfoForLogging)
       }
       latestTableVersion = serverVersion
       lastGetVersionTimestamp = currentTimeMillis
@@ -255,8 +268,8 @@ case class DeltaSharingSource(
         logWarning(s"The asked file(" +
           s"$fromVersion, $fromIndex, $isStartingVersion) is not included in sortedFetchedFiles[" +
           s"(${headFile.version}, ${headFile.index}, ${headFile.isSnapshot}) to " +
-          s"(${lastFile.version}, ${lastFile.index}, ${lastFile.isSnapshot})], " +
-          s"for table(id:$tableId, name:${deltaLog.table.toString})")
+          s"(${lastFile.version}, ${lastFile.index}, ${lastFile.isSnapshot})]," +
+          getTableInfoForLogging)
         sortedFetchedFiles = Seq.empty
       } else {
         return
@@ -274,8 +287,7 @@ case class DeltaSharingSource(
     if (endingVersionForQuery < currentLatestVersion) {
       logInfo(s"Reducing ending version for delta sharing rpc from currentLatestVersion(" +
         s"$currentLatestVersion) to endingVersionForQuery($endingVersionForQuery), fromVersion:" +
-        s"$fromVersion, maxVersionsPerRpc:$maxVersionsPerRpc, " +
-        s"for table(id:$tableId, name:${deltaLog.table.toString})."
+        s"$fromVersion, maxVersionsPerRpc:$maxVersionsPerRpc," + getTableInfoForLogging
       )
     }
 
@@ -342,7 +354,7 @@ case class DeltaSharingSource(
   ): Unit = {
     synchronized {
       logInfo(s"Refreshing sortedFetchedFiles(size: ${sortedFetchedFiles.size}) with newIdToUrl(" +
-        s"size: ${newIdToUrl.size}), for table(id:$tableId, name:${deltaLog.table.toString}).")
+        s"size: ${newIdToUrl.size})," + getTableInfoForLogging + getQueryIdForLogging)
       lastQueryTableTimestamp = queryTimestamp
       minUrlExpirationTimestamp = newMinUrlExpiration
       if (!CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpirationTimestamp)) {
@@ -361,7 +373,7 @@ case class DeltaSharingSource(
             val newUrl = newIdToUrl.getOrElse(
               indexedFile.add.id,
               throw new IllegalStateException(s"cannot find url for id ${indexedFile.add.id} " +
-                s"when refreshing table ${deltaLog.path}")
+                s"when refreshing table ${deltaLog.path}," + getTableInfoForLogging)
             )
             indexedFile.add.copy(url = newUrl)
           },
@@ -372,7 +384,7 @@ case class DeltaSharingSource(
             val newUrl = newIdToUrl.getOrElse(
               indexedFile.remove.id,
               throw new IllegalStateException(s"cannot find url for id ${indexedFile.remove.id} " +
-                s"when refreshing table ${deltaLog.path}")
+                s"when refreshing table ${deltaLog.path}," + getTableInfoForLogging)
             )
             indexedFile.remove.copy(url = newUrl)
           },
@@ -383,7 +395,7 @@ case class DeltaSharingSource(
             val newUrl = newIdToUrl.getOrElse(
               indexedFile.cdc.id,
               throw new IllegalStateException(s"cannot find url for id ${indexedFile.cdc.id} " +
-                s"when refreshing table ${deltaLog.path}")
+                s"when refreshing table ${deltaLog.path}," + getTableInfoForLogging)
             )
             indexedFile.cdc.copy(url = newUrl)
           },
@@ -392,7 +404,7 @@ case class DeltaSharingSource(
         )
       }
       logInfo(s"Refreshed ${numUrlsRefreshed} urls in sortedFetchedFiles(size: " +
-        s"${sortedFetchedFiles.size}).")
+        s"${sortedFetchedFiles.size})," + getTableInfoForLogging)
     }
   }
 
@@ -418,8 +430,8 @@ case class DeltaSharingSource(
       isStartingVersion: Boolean,
       endingVersionForQuery: Long): Unit = {
     logInfo(s"Fetching files with fromVersion($fromVersion), fromIndex($fromIndex), " +
-      s"isStartingVersion($isStartingVersion), endingVersionForQuery($endingVersionForQuery), " +
-      s"for table(id:$tableId, name:${deltaLog.table.toString})."
+      s"isStartingVersion($isStartingVersion), endingVersionForQuery($endingVersionForQuery)," +
+      getTableInfoForLogging
     )
     resetGlobalTimestamp()
     if (isStartingVersion) {
@@ -466,7 +478,7 @@ case class DeltaSharingSource(
       val numFiles = tableFiles.files.size
       logInfo(
         s"Fetched ${numFiles} files for table version ${tableFiles.version} from" +
-          " delta sharing server."
+          s" delta sharing server," + getTableInfoForLogging + getQueryIdForLogging
       )
       tableFiles.files.sortWith(fileActionCompareFunc).zipWithIndex.foreach {
         case (file, index) if (index > fromIndex) =>
@@ -520,11 +532,13 @@ case class DeltaSharingSource(
 
         TableRefreshResult(idToUrl, minUrlExpiration, None)
       }
-      val allAddFiles = validateCommitAndFilterAddFiles(tableFiles).groupBy(a => a.version)
+      val filteredAddFiles = validateCommitAndFilterAddFiles(tableFiles)
+      val allAddFiles = filteredAddFiles.groupBy(a => a.version)
       logInfo(
-        s"Fetched and filtered ${allAddFiles.size} files from startingVersion " +
+        s"Fetched ${tableFiles.addFiles.size} files, filtered ${filteredAddFiles.size} " +
+          s"files in ${allAddFiles.size} versions from startingVersion " +
           s"${fromVersion} to endingVersion ${endingVersionForQuery} from " +
-          "delta sharing server."
+          s"delta sharing server," + getTableInfoForLogging + getQueryIdForLogging
       )
       for (v <- fromVersion to endingVersionForQuery) {
         val vAddFiles = allAddFiles.getOrElse(v, ArrayBuffer[AddFileForCDF]())
@@ -564,8 +578,7 @@ case class DeltaSharingSource(
       fromIndex: Long,
       endingVersionForQuery: Long): Unit = {
     logInfo(s"Fetching CDF files with fromVersion($fromVersion), fromIndex($fromIndex), " +
-      s"endingVersionForQuery($endingVersionForQuery), " +
-      s"for table(id:$tableId, name:${deltaLog.table.toString}).")
+      s"endingVersionForQuery($endingVersionForQuery)," + getTableInfoForLogging)
     resetGlobalTimestamp()
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table,
@@ -834,7 +847,7 @@ case class DeltaSharingSource(
         case cdf: AddCDCFile => cdfFiles.append(cdf)
         case add: AddFileForCDF => addFiles.append(add)
         case remove: RemoveFile => removeFiles.append(remove)
-        case f => throw new IllegalStateException(s"Unexpected File:${f}")
+        case f => throw new IllegalStateException(s"Unexpected File:${f},$getTableInfoForLogging")
       }
     }
 
@@ -1010,8 +1023,8 @@ case class DeltaSharingSource(
   }
 
   override def getBatch(startOffsetOption: Option[Offset], end: Offset): DataFrame = {
-    logInfo(s"getBatch with startOffsetOption($startOffsetOption) and end($end), " +
-      s"for table(id:$tableId, name:${deltaLog.table.toString})")
+    logInfo(s"getBatch with startOffsetOption($startOffsetOption) and end($end)," +
+      getTableInfoForLogging)
     val endOffset = DeltaSharingSourceOffset(tableId, end)
 
     val (startVersion, startIndex, isStartingVersion, startSourceVersion) = if (
@@ -1037,8 +1050,8 @@ case class DeltaSharingSource(
     } else {
       val startOffset = DeltaSharingSourceOffset(tableId, startOffsetOption.get)
       if (startOffset == endOffset) {
-        logInfo(s"startOffset($startOffset) is the same as endOffset($endOffset) in getBatch, " +
-          s"for table(id:$tableId, name:${deltaLog.table.toString})")
+        logInfo(s"startOffset($startOffset) is the same as endOffset($endOffset) in getBatch," +
+          getTableInfoForLogging)
         previousOffset = endOffset
         // This happens only if we recover from a failure and `MicroBatchExecution` tries to call
         // us with the previous offsets. The returned DataFrame will be dropped immediately, so we
@@ -1138,7 +1151,7 @@ case class DeltaSharingSource(
     } else if (options.startingTimestamp.isDefined) {
       val version = deltaLog.client.getTableVersion(deltaLog.table, options.startingTimestamp)
       logInfo(s"Got table version $version for timestamp ${options.startingTimestamp} " +
-        s"from Delta Sharing Server.")
+        s"from Delta Sharing Server," + getTableInfoForLogging)
       Some(version)
     } else {
       None

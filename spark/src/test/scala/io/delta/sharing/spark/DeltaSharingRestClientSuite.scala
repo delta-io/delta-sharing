@@ -810,7 +810,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           false
         )
       }.getMessage
-      assert(errorMessage.contains("""400 Bad Request {"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
+      assert(errorMessage.contains("""400 Bad Request for query"""))
+      assert(errorMessage.contains("""{"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
       assert(errorMessage.contains("table files missing"))
     } finally {
       client.close()
