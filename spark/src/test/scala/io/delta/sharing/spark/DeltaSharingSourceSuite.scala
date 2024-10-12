@@ -42,6 +42,7 @@ class DeltaSharingSourceSuite extends QueryTest
   //   https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html
 
   import testImplicits._
+  lazy val shareCredentialsOptions: Map[String, String] = Map.empty
 
   // VERSION 0: CREATE TABLE
   // VERSION 1: INSERT 3 rows, 3 add files
@@ -67,7 +68,7 @@ class DeltaSharingSourceSuite extends QueryTest
   lazy val toNotNullTable = testProfileFile.getCanonicalPath +
     "#share8.default.streaming_null_to_notnull"
 
-  lazy val deltaLog = RemoteDeltaLog(tablePath, forStreaming = true)
+  lazy val deltaLog = RemoteDeltaLog(tablePath, shareCredentialsOptions, forStreaming = true)
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
     val options = new DeltaSharingOptions(parameters)
