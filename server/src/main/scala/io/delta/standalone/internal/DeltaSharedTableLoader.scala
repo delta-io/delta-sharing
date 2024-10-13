@@ -185,6 +185,7 @@ class DeltaSharedTable(
     snapshot.version
   }
 
+  // scalastyle:off argcount
   def query(
       includeFiles: Boolean,
       predicateHints: Seq[String],
@@ -195,7 +196,8 @@ class DeltaSharedTable(
       startingVersion: Option[Long],
       endingVersion: Option[Long],
       includeRefreshToken: Boolean,
-      refreshToken: Option[String]
+      refreshToken: Option[String],
+      includeEndStreamAction: Boolean
   ): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
@@ -245,7 +247,7 @@ class DeltaSharedTable(
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
-        queryDataChangeSinceStartVersion(startingVersion.get, endingVersion)
+        queryDataChangeSinceStartVersion(startingVersion.get, endingVersion, includeEndStreamAction)
       } else if (includeFiles) {
         val ts = if (isVersionQuery) {
           val timestampsByVersion = DeltaSharingHistoryManager.getTimestampsByVersion(
@@ -305,6 +307,8 @@ class DeltaSharedTable(
               )
             )
             Seq(model.EndStreamAction(refreshTokenStr).wrap)
+          } else if (includeEndStreamAction) {
+            Seq(model.EndStreamAction(null).wrap)
           } else {
             Nil
           }
@@ -319,7 +323,8 @@ class DeltaSharedTable(
 
   private def queryDataChangeSinceStartVersion(
       startingVersion: Long,
-      endingVersion: Option[Long]
+      endingVersion: Option[Long],
+      includeEndStreamAction: Boolean
   ): Seq[model.SingleAction] = {
     var latestVersion = tableVersion
     if (startingVersion > latestVersion) {
@@ -388,12 +393,16 @@ class DeltaSharedTable(
         case _ => ()
       }
     }
+    if (includeEndStreamAction) {
+      actions.append(model.EndStreamAction(null).wrap)
+    }
     actions.toSeq
   }
 
   def queryCDF(
       cdfOptions: Map[String, String],
-      includeHistoricalMetadata: Boolean = false
+      includeHistoricalMetadata: Boolean = false,
+      includeEndStreamAction: Boolean = false
   ): (Long, Seq[model.SingleAction]) = withClassLoader {
     val actions = ListBuffer[model.SingleAction]()
 
@@ -494,6 +503,9 @@ class DeltaSharedTable(
         )
         actions.append(modelRemoveFile.wrap)
       }
+    }
+    if (includeEndStreamAction) {
+      actions.append(model.EndStreamAction(null).wrap)
     }
     start -> actions.toSeq
   }

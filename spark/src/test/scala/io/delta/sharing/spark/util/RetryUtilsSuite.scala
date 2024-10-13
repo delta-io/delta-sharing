@@ -22,6 +22,8 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.SparkFunSuite
 
+import io.delta.sharing.spark.MissingEndStreamActionException
+
 class RetryUtilsSuite extends SparkFunSuite {
   import RetryUtils._
 
@@ -34,6 +36,7 @@ class RetryUtilsSuite extends SparkFunSuite {
     assert(shouldRetry(new IOException))
     assert(shouldRetry(new java.net.SocketTimeoutException))
     assert(!shouldRetry(new RuntimeException))
+    assert(shouldRetry(new MissingEndStreamActionException("missing")))
   }
 
   test("runWithExponentialBackoff") {

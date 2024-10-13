@@ -19,7 +19,7 @@ package io.delta.sharing.spark
 import java.sql.Timestamp
 
 import org.apache.http.HttpHeaders
-import org.apache.http.client.methods.HttpGet
+import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
 
 import io.delta.sharing.spark.model.{
   AddCDCFile,
@@ -37,21 +37,61 @@ import io.delta.sharing.spark.util.UnexpectedHttpStatus
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
+  import DeltaSharingRestClient._
+
   integrationTest("Check headers") {
-    val httpRequest = new HttpGet("random_url")
+    def checkUserAgent(request: HttpRequestBase, containsStreaming: Boolean): Unit = {
+      val h = request.getFirstHeader(HttpHeaders.USER_AGENT).getValue
+      if (containsStreaming) {
+        assert(h.contains(SPARK_STRUCTURED_STREAMING) == containsStreaming)
+      } else {
+        assert(!h.contains(SPARK_STRUCTURED_STREAMING))
+        assert(h.contains("Delta-Sharing-Spark"))
+      }
 
-    val client = new DeltaSharingRestClient(testProfileProvider, forStreaming = false)
-    var h = client.prepareHeaders(httpRequest).getFirstHeader(HttpHeaders.USER_AGENT).getValue
-    assert(!h.contains(DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING))
-    assert(h.contains("Delta-Sharing-Spark"))
-    assert(h.contains(" QueryId-"))
-    assert(h.contains(" Hadoop/"))
-    assert(h.contains(" Linux/"))
-    assert(h.contains(" java/"))
+      assert(h.contains(" QueryId-"))
+      assert(h.contains(" Hadoop/"))
+      assert(h.contains(" Linux/"))
+      assert(h.contains(" java/"))
+    }
 
-    val streamingClient = new DeltaSharingRestClient(testProfileProvider, forStreaming = true)
-    h = streamingClient.prepareHeaders(httpRequest).getFirstHeader(HttpHeaders.USER_AGENT).getValue
-    assert(h.contains(DeltaSharingRestClient.SPARK_STRUCTURED_STREAMING))
+    def getEndStreamActionHeader(endStreamActionEnabled: Boolean): String = {
+      if (endStreamActionEnabled) {
+        s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+      } else {
+        ""
+      }
+    }
+
+    def checkDeltaSharingCapabilities(
+      request: HttpRequestBase,
+      endStreamActionEnabled: Boolean): Unit = {
+      if (endStreamActionEnabled) {
+        val expected = getEndStreamActionHeader(endStreamActionEnabled)
+        val h = request.getFirstHeader(DELTA_SHARING_CAPABILITIES_HEADER)
+        assert(
+          h.getValue == expected, s"actual header:$h, endStreamActionEnabled:$endStreamActionEnabled"
+        )
+      } else {
+        assert(!request.containsHeader(DELTA_SHARING_CAPABILITIES_HEADER))
+      }
+    }
+
+    Seq(
+      (true, true),
+      (true, false),
+      (false, true),
+      (false, false)
+    ).foreach { case (forStreaming, endStreamActionEnabled) =>
+      val httpRequest = new HttpGet("random_url")
+      val request = new DeltaSharingRestClient(
+        testProfileProvider,
+        forStreaming = forStreaming,
+        endStreamActionEnabled = endStreamActionEnabled
+      ).prepareHeaders(httpRequest, endStreamActionEnabled)
+      checkUserAgent(request, forStreaming)
+      checkDeltaSharingCapabilities(request, endStreamActionEnabled)
+    }
   }
 
   integrationTest("listAllTables") {
@@ -770,7 +810,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           false
         )
       }.getMessage
-      assert(errorMessage.contains("""400 Bad Request {"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
+      assert(errorMessage.contains("""400 Bad Request for query"""))
+      assert(errorMessage.contains("""{"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
       assert(errorMessage.contains("table files missing"))
     } finally {
       client.close()

@@ -30,6 +30,9 @@ object ConfUtils {
   val MAX_RETRY_DURATION_CONF = "spark.delta.sharing.network.maxRetryDuration"
   val MAX_RETRY_DURATION_DEFAULT_MILLIS = 10L * 60L* 1000L /* 10 mins */
 
+  val INCLUDE_END_STREAM_ACTION_CONF = "spark.delta.sharing.query.includeEndStreamAction"
+  val INCLUDE_END_STREAM_ACTION_DEFAULT = "false"
+
   val TIMEOUT_CONF = "spark.delta.sharing.network.timeout"
   val TIMEOUT_DEFAULT = "320s"
 
@@ -63,6 +66,14 @@ object ConfUtils {
       conf.getConfString(MAX_RETRY_DURATION_CONF, MAX_RETRY_DURATION_DEFAULT_MILLIS.toString).toLong
     validateNonNeg(maxDur, MAX_RETRY_DURATION_CONF)
     maxDur
+  }
+
+  def includeEndStreamAction(conf: Configuration): Boolean = {
+    conf.getBoolean(INCLUDE_END_STREAM_ACTION_CONF, INCLUDE_END_STREAM_ACTION_DEFAULT.toBoolean)
+  }
+
+  def includeEndStreamAction(conf: SQLConf): Boolean = {
+    conf.getConfString(INCLUDE_END_STREAM_ACTION_CONF, INCLUDE_END_STREAM_ACTION_DEFAULT).toBoolean
   }
 
   def timeoutInSeconds(conf: Configuration): Int = {

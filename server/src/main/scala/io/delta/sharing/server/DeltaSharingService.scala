@@ -285,7 +285,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       startingVersion = None,
       endingVersion = None,
       includeRefreshToken = false,
-      refreshToken = None
+      refreshToken = None,
+      includeEndStreamAction = false
     )
     streamingOutput(Some(v), actions)
   }
@@ -293,6 +294,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/query")
   @ConsumesJson
   def listFiles(
+      req: HttpRequest,
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
@@ -343,6 +345,10 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         )
       }
     }
+    val capabilitiesMap = getDeltaSharingCapabilitiesMap(
+      req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
+    )
+    val includeEndStreamAction = getRequestEndStreamAction(capabilitiesMap)
     val (version, actions) = deltaSharedTableLoader.loadTable(tableConfig).query(
       includeFiles = true,
       request.predicateHints,
@@ -353,7 +359,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       request.startingVersion,
       request.endingVersion,
       request.includeRefreshToken.getOrElse(false),
-      request.refreshToken
+      request.refreshToken,
+      includeEndStreamAction = includeEndStreamAction
     )
     if (version < tableConfig.startVersion) {
       throw new DeltaSharingIllegalArgumentException(
@@ -362,12 +369,13 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(version), actions)
+    streamingOutput(Some(version), actions, includeEndStreamAction)
   }
 
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/changes")
   @ConsumesJson
   def listCdfFiles(
+      req: HttpRequest,
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
@@ -384,6 +392,10 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         s"$share.$schema.$table")
     }
 
+    val capabilitiesMap = getDeltaSharingCapabilitiesMap(
+      req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
+    )
+    val includeEndStreamAction = getRequestEndStreamAction(capabilitiesMap)
     val (v, actions) = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
       getCdfOptionsMap(
         Option(startingVersion),
@@ -391,21 +403,32 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Option(startingTimestamp),
         Option(endingTimestamp)
       ),
-      includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false)
+      includeHistoricalMetadata = Try(includeHistoricalMetadata.toBoolean).getOrElse(false),
+      includeEndStreamAction = includeEndStreamAction
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${actions.length - 2} urls for table $share/$schema/$table")
-    streamingOutput(Some(v), actions)
+    streamingOutput(Some(v), actions, includeEndStreamAction)
   }
 
-  private def streamingOutput(version: Option[Long], actions: Seq[SingleAction]): HttpResponse = {
+  private def streamingOutput(
+      version: Option[Long],
+      actions: Seq[SingleAction],
+      includeEndStreamAction: Boolean = false): HttpResponse = {
+    val capabilities = if (includeEndStreamAction) {
+      s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+    } else {
+      ""
+    }
     val headers = if (version.isDefined) {
       createHeadersBuilderForTableVersion(version.get)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
+      .set(DELTA_SHARING_CAPABILITIES_HEADER, capabilities)
       .build()
     } else {
       ResponseHeaders.builder(200)
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
+      .set(DELTA_SHARING_CAPABILITIES_HEADER, capabilities)
       .build()
     }
     ResponseConversionUtil.streamingFrom(
@@ -420,12 +443,27 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       },
       ServiceRequestContext.current().blockingTaskExecutor())
   }
+
+  private def getDeltaSharingCapabilitiesMap(headerString: String): Map[String, String] = {
+    if (headerString == null) {
+      return Map.empty[String, String]
+    }
+    headerString.toLowerCase().split(DELTA_SHARING_CAPABILITIES_DELIMITER)
+      .map(_.split("="))
+      .filter(_.size == 2)
+      .map { splits =>
+        (splits(0), splits(1))
+      }.toMap
+  }
 }
 
 
 object DeltaSharingService {
   val DELTA_TABLE_VERSION_HEADER = "Delta-Table-Version"
   val DELTA_TABLE_METADATA_CONTENT_TYPE = "application/x-ndjson; charset=utf-8"
+  val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
+  val DELTA_SHARING_INCLUDE_END_STREAM_ACTION = "includeendstreamaction"
+  val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
 
   val SPARK_STRUCTURED_STREAMING = "SparkStructuredStreaming"
 
@@ -545,6 +583,11 @@ object DeltaSharingService {
     endingVersion.map(DeltaDataSource.CDF_END_VERSION_KEY -> _) ++
     startingTimestamp.map(DeltaDataSource.CDF_START_TIMESTAMP_KEY -> _) ++
     endingTimestamp.map(DeltaDataSource.CDF_END_TIMESTAMP_KEY -> _)).toMap
+  }
+
+  private[server] def getRequestEndStreamAction(
+      headerCapabilities: Map[String, String]): Boolean = {
+    headerCapabilities.get(DELTA_SHARING_INCLUDE_END_STREAM_ACTION).exists(_.toBoolean)
   }
 
   def main(args: Array[String]): Unit = {

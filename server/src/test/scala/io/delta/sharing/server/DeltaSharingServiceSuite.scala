@@ -26,11 +26,11 @@ import javax.net.ssl._
 import scala.collection.mutable.ArrayBuffer
 
 import com.linecorp.armeria.server.Server
-import io.delta.standalone.internal.DeltaCDFErrors
 import org.apache.commons.io.IOUtils
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import scalapb.json4s.JsonFormat
 
+import io.delta.sharing.server.DeltaSharingService.DELTA_SHARING_INCLUDE_END_STREAM_ACTION
 import io.delta.sharing.server.config.ServerConfig
 import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol._
@@ -111,13 +111,15 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     url: String,
     method: Option[String] = None,
     data: Option[String] = None,
-    expectedTableVersion: Option[Long] = None): String = {
+    expectedTableVersion: Option[Long] = None,
+    includeEndStreamAction: Boolean = false): String = {
     readHttpContent(
       url,
       method,
       data,
       expectedTableVersion,
-      "application/x-ndjson; charset=utf-8"
+      "application/x-ndjson; charset=utf-8",
+      includeEndStreamAction = includeEndStreamAction
     )
   }
 
@@ -127,9 +129,14 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     method: Option[String],
     data: Option[String] = None,
     expectedTableVersion: Option[Long] = None,
-    expectedContentType: String): String = {
+    expectedContentType: String,
+    includeEndStreamAction: Boolean = false): String = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
+    if (includeEndStreamAction) {
+      val deltaSharingCapabilities = s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+      connection.setRequestProperty("delta-sharing-capabilities", deltaSharingCapabilities)
+    }
     method.foreach(connection.setRequestMethod)
     data.foreach { d =>
       connection.setDoOutput(true)
@@ -154,6 +161,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
     expectedTableVersion.foreach { v =>
       assert(v.toString == deltaTableVersion)
+    }
+    if (includeEndStreamAction) {
+      val responseCapabilities = connection.getHeaderField("delta-sharing-capabilities")
+      val expectedCapabilities = s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+      assert(responseCapabilities == expectedCapabilities,
+        s"Incorrect header: $responseCapabilities")
     }
     content
   }
@@ -501,51 +514,94 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("table1 - non partitioned - /shares/{share}/schemas/{schema}/tables/{table}/query") {
-    val p =
-      """
-        |{
-        |  "predicateHints": [
-        |    "date = CAST('2021-04-28' AS DATE)"
-        |  ]
-        |}
-        |""".stripMargin
-    val response = readNDJson(requestPath("/shares/share1/schemas/default/tables/table1/query"), Some("POST"), Some(p), Some(2))
-    val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
-    val expectedMetadata = Metadata(
-      id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
-      format = Format(),
-      schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
-      partitionColumns = Nil).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-    val files = lines.drop(2)
-    val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
-    assert(actualFiles.size == 2)
-    val expectedFiles = Seq(
-      AddFile(
-        url = actualFiles(0).url,
-        expirationTimestamp = actualFiles(0).expirationTimestamp,
-        id = "061cb3683a467066995f8cdaabd8667d",
-        partitionValues = Map.empty,
-        size = 781,
-        stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
-      ),
-      AddFile(
-        url = actualFiles(1).url,
-        expirationTimestamp = actualFiles(1).expirationTimestamp,
-        id = "e268cbf70dbaa6143e7e9fa3e2d3b00e",
-        partitionValues = Map.empty,
-        size = 781,
-        stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
+    Seq(true, false).foreach { includeEndStreamAction =>
+      val p =
+        """
+          |{
+          |  "predicateHints": [
+          |    "date = CAST('2021-04-28' AS DATE)"
+          |  ]
+          |}
+          |""".stripMargin
+      val response = readNDJson(
+        requestPath("/shares/share1/schemas/default/tables/table1/query"),
+        Some("POST"),
+        Some(p),
+        Some(2),
+        includeEndStreamAction = includeEndStreamAction)
+      var lines = response.split("\n")
+      val protocol = lines(0)
+      val metadata = lines(1)
+      val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+      assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+      val expectedMetadata = Metadata(
+        id = "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},{"name":"date","type":"date","nullable":true,"metadata":{}}]}""",
+        partitionColumns = Nil).wrap
+      assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      if (includeEndStreamAction) {
+        val endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
+        assert(endAction != null, lines.last)
+        lines = lines.dropRight(1)
+      }
+      val files = lines.drop(2)
+      val actualFiles = files.map(f => JsonUtils.fromJson[SingleAction](f).file)
+      assert(actualFiles.size == 2)
+      val expectedFiles = Seq(
+        AddFile(
+          url = actualFiles(0).url,
+          expirationTimestamp = actualFiles(0).expirationTimestamp,
+          id = "061cb3683a467066995f8cdaabd8667d",
+          partitionValues = Map.empty,
+          size = 781,
+          stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:22.421Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
+        ),
+        AddFile(
+          url = actualFiles(1).url,
+          expirationTimestamp = actualFiles(1).expirationTimestamp,
+          id = "e268cbf70dbaa6143e7e9fa3e2d3b00e",
+          partitionValues = Map.empty,
+          size = 781,
+          stats = """{"numRecords":1,"minValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"maxValues":{"eventTime":"2021-04-28T06:32:02.070Z","date":"2021-04-28"},"nullCount":{"eventTime":0,"date":0}}"""
+        )
       )
-    )
-    assert(actualFiles.count(_.expirationTimestamp != null) == 2)
-    assert(expectedFiles == actualFiles.toList)
-    verifyPreSignedUrl(actualFiles(0).url, 781)
-    verifyPreSignedUrl(actualFiles(1).url, 781)
+      assert(actualFiles.count(_.expirationTimestamp != null) == 2)
+      assert(expectedFiles == actualFiles.toList)
+      verifyPreSignedUrl(actualFiles(0).url, 781)
+      verifyPreSignedUrl(actualFiles(1).url, 781)
+    }
+  }
+
+  integrationTest("refresh query returns the same set of files as initial query") {
+    Seq(true, false).foreach { includeEndStreamAction =>
+      val initialResponse = readNDJson(
+        requestPath("/shares/share1/schemas/default/tables/table1/query"),
+        Some("POST"),
+        Some("""{"includeRefreshToken": true}"""),
+        Some(2),
+        includeEndStreamAction = includeEndStreamAction
+      ).split("\n")
+      assert(initialResponse.length == 5)
+      val endAction = JsonUtils.fromJson[SingleAction](initialResponse.last).endStreamAction
+      assert(endAction.refreshToken != null)
+
+      val refreshResponse = readNDJson(
+        requestPath("/shares/share1/schemas/default/tables/table1/query"),
+        Some("POST"),
+        Some(s"""{"includeRefreshToken": true, "refreshToken": "${endAction.refreshToken}"}"""),
+        Some(2)
+      ).split("\n")
+      assert(refreshResponse.length == 5)
+      // protocol
+      assert(initialResponse(0) == refreshResponse(0))
+      // metadata
+      assert(initialResponse(1) == refreshResponse(1))
+      // files
+      val initialFiles = initialResponse.slice(2, 4).map(f => JsonUtils.fromJson[SingleAction](f).file)
+      val refreshedFiles = refreshResponse.slice(2, 4).map(f => JsonUtils.fromJson[SingleAction](f).file)
+      assert(initialFiles.map(_.id) sameElements refreshedFiles.map(_.id))
+    }
   }
 
   integrationTest("table2 - partitioned - /shares/{share}/schemas/{schema}/tables/{table}/metadata") {
@@ -1386,63 +1442,76 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("cdf_table_cdf_enabled_changes - query table changes") {
-    val response = readNDJson(requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"), Some("GET"), None, Some(0))
-    val lines = response.split("\n")
-    val protocol = lines(0)
-    val metadata = lines(1)
-    val expectedProtocol = Protocol(minReaderVersion = 1).wrap
-    assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
-    val expectedMetadata = Metadata(
-      id = "16736144-3306-4577-807a-d3f899b77670",
-      format = Format(),
-      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
-      configuration = Map("enableChangeDataFeed" -> "true"),
-      partitionColumns = Nil,
-      version = 5).wrap
-    assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
-    val files = lines.drop(2)
-    assert(files.size == 5)
-    verifyAddCDCFile(
-      files(0),
-      size = 1301,
-      partitionValues = Map.empty,
-      version = 2,
-      timestamp = 1651272655000L
-    )
-    verifyAddCDCFile(
-      files(1),
-      size = 1416,
-      partitionValues = Map.empty,
-      version = 3,
-      timestamp = 1651272660000L
-    )
-    verifyAddFile(
-      files(2),
-      size = 1030,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-      partitionValues = Map.empty,
-      version = 1,
-      timestamp = 1651272635000L
-    )
-    verifyAddFile(
-      files(3),
-      size = 1030,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-      partitionValues = Map.empty,
-      version = 1,
-      timestamp = 1651272635000L
-    )
-    verifyAddFile(
-      files(4),
-      size = 1030,
-      stats =
-        """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
-      partitionValues = Map.empty,
-      version = 1,
-      timestamp = 1651272635000L
-    )
+    Seq(true, false).foreach { includeEndStreamAction =>
+      val response = readNDJson(
+        requestPath("/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3"),
+        Some("GET"),
+        None,
+        Some(0),
+        includeEndStreamAction = includeEndStreamAction
+      )
+      var lines = response.split("\n")
+      val protocol = lines(0)
+      val metadata = lines(1)
+      val expectedProtocol = Protocol(minReaderVersion = 1).wrap
+      assert(expectedProtocol == JsonUtils.fromJson[SingleAction](protocol))
+      val expectedMetadata = Metadata(
+        id = "16736144-3306-4577-807a-d3f899b77670",
+        format = Format(),
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
+        configuration = Map("enableChangeDataFeed" -> "true"),
+        partitionColumns = Nil,
+        version = 5).wrap
+      assert(expectedMetadata == JsonUtils.fromJson[SingleAction](metadata))
+      if (includeEndStreamAction) {
+        val endAction = JsonUtils.fromJson[SingleAction](lines.last).endStreamAction
+        assert(endAction != null)
+        lines = lines.dropRight(1)
+      }
+      val files = lines.drop(2)
+      assert(files.size == 5)
+      verifyAddCDCFile(
+        files(0),
+        size = 1301,
+        partitionValues = Map.empty,
+        version = 2,
+        timestamp = 1651272655000L
+      )
+      verifyAddCDCFile(
+        files(1),
+        size = 1416,
+        partitionValues = Map.empty,
+        version = 3,
+        timestamp = 1651272660000L
+      )
+      verifyAddFile(
+        files(2),
+        size = 1030,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        partitionValues = Map.empty,
+        version = 1,
+        timestamp = 1651272635000L
+      )
+      verifyAddFile(
+        files(3),
+        size = 1030,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        partitionValues = Map.empty,
+        version = 1,
+        timestamp = 1651272635000L
+      )
+      verifyAddFile(
+        files(4),
+        size = 1030,
+        stats =
+          """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}""",
+        partitionValues = Map.empty,
+        version = 1,
+        timestamp = 1651272635000L
+      )
+    }
   }
 
 

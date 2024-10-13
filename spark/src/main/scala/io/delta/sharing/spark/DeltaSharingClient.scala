@@ -45,6 +45,17 @@ import io.delta.sharing.spark.util.{JsonUtils, RetryUtils, UnexpectedHttpStatus}
 
 /** An interface to fetch Delta metadata from remote server. */
 private[sharing] trait DeltaSharingClient {
+
+  protected var dsQueryId: Option[String] = None
+
+  def getQueryId: String = {
+    dsQueryId.getOrElse("dsQueryIdNotSet")
+  }
+
+  protected def getDsQueryIdForLogging: String = {
+    s" for query($dsQueryId)."
+  }
+
   def listAllTables(): Seq[Table]
 
   def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long
@@ -103,13 +114,15 @@ private[spark] class DeltaSharingRestClient(
     numRetries: Int = 10,
     maxRetryDuration: Long = Long.MaxValue,
     sslTrustAll: Boolean = false,
-    forStreaming: Boolean = false
+    forStreaming: Boolean = false,
+    endStreamActionEnabled: Boolean = false
   ) extends DeltaSharingClient with Logging {
+
+  logInfo(s"DeltaSharingRestClient with endStreamActionEnabled: $endStreamActionEnabled.")
+
   import DeltaSharingRestClient._
 
   @volatile private var created = false
-
-  private var queryId: Option[String] = None
 
   private lazy val client = {
     val clientBuilder: HttpClientBuilder = if (sslTrustAll) {
@@ -200,9 +213,15 @@ private[spark] class DeltaSharingRestClient(
     val target =
       getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/" +
         s"$encodedTableName/version$encodedParam")
-    val (version, _) = getResponse(new HttpGet(target), true, true)
+    val (version, _) = getResponse(
+      new HttpGet(target),
+      allowNoContent = true,
+      fetchAsOneString = true,
+      setIncludeEndStreamAction = false
+    )
     version.getOrElse {
-      throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
+      throw new IllegalStateException(s"Cannot find $RESPONSE_TABLE_VERSION_HEADER_KEY in the " +
+        "header," + getDsQueryIdForLogging)
     }
   }
 
@@ -212,12 +231,15 @@ private[spark] class DeltaSharingRestClient(
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/metadata")
-    val (version, lines) = getNDJson(target)
+    val (version, lines) = getNDJson(
+      target, requireVersion = true, setIncludeEndStreamAction = false
+    )
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
     if (lines.size != 2) {
-      throw new IllegalStateException("received more than two lines")
+      throw new IllegalStateException(s"received more than two lines:${lines.size}," +
+        getDsQueryIdForLogging)
     }
     DeltaTableMetadata(version, protocol, metadata)
   }
@@ -226,7 +248,8 @@ private[spark] class DeltaSharingRestClient(
     if (protocol.minReaderVersion > DeltaSharingRestClient.CURRENT) {
       throw new IllegalArgumentException(s"The table requires a newer version" +
         s" ${protocol.minReaderVersion} to read. But the current release supports version " +
-        s"is ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer release.")
+        s"is ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer release." +
+        getDsQueryIdForLogging)
     }
   }
 
@@ -245,7 +268,7 @@ private[spark] class DeltaSharingRestClient(
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
-    val (version, lines) = getNDJson(
+    val (version, lines) = getNDJsonPost(
       target,
       QueryTableRequest(
         predicates,
@@ -257,7 +280,8 @@ private[spark] class DeltaSharingRestClient(
         jsonPredicateHints,
         Some(includeRefreshToken),
         refreshToken
-      )
+      ),
+      setIncludeEndStreamAction = endStreamActionEnabled
     )
     val (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
     val refreshTokenOpt = endStreamAction.flatMap { e =>
@@ -266,7 +290,7 @@ private[spark] class DeltaSharingRestClient(
       }
     }
     if (includeRefreshToken && refreshTokenOpt.isEmpty) {
-      logWarning("includeRefreshToken=true but refresh token is not returned.")
+      logWarning("includeRefreshToken=true but refresh token is not returned " + getQueryIdString)
     }
     require(versionAsOf.isEmpty || versionAsOf.get == version)
     val protocol = JsonUtils.fromJson[SingleAction](filteredLines(0)).protocol
@@ -278,7 +302,7 @@ private[spark] class DeltaSharingRestClient(
       if (action.file != null) {
         files.append(action.file)
       } else {
-        throw new IllegalStateException(s"Unexpected Line:${line}")
+        throw new IllegalStateException(s"Unexpected Line:${line}" + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(version, protocol, metadata, files.toSeq, refreshToken = refreshTokenOpt)
@@ -294,7 +318,7 @@ private[spark] class DeltaSharingRestClient(
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
-    val (version, lines) = getNDJson(
+    val (version, lines) = getNDJsonPost(
       target,
       QueryTableRequest(
         /* predicateHint */ Nil,
@@ -306,21 +330,24 @@ private[spark] class DeltaSharingRestClient(
         /* jsonPredicateHints */ None,
         /* includeRefreshToken */ None,
         /* refreshToken */ None
-      )
+      ),
+      setIncludeEndStreamAction = endStreamActionEnabled
     )
-    val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
+    val (filteredLines, _) = maybeExtractEndStreamAction(lines)
+    val protocol = JsonUtils.fromJson[SingleAction](filteredLines(0)).protocol
     checkProtocol(protocol)
-    val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
+    val metadata = JsonUtils.fromJson[SingleAction](filteredLines(1)).metaData
     val addFiles = ArrayBuffer[AddFileForCDF]()
     val removeFiles = ArrayBuffer[RemoveFile]()
     val additionalMetadatas = ArrayBuffer[Metadata]()
-    lines.drop(2).foreach { line =>
+    filteredLines.drop(2).foreach { line =>
       val action = JsonUtils.fromJson[SingleAction](line).unwrap
       action match {
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
+        case _ => throw new IllegalStateException(s"Unexpected Line:${line}" +
+          getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
@@ -344,23 +371,27 @@ private[spark] class DeltaSharingRestClient(
 
     val target = getTargetUrl(
       s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
-    val (version, lines) = getNDJson(target, requireVersion = false)
-    val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
+    val (version, lines) = getNDJson(
+      target, requireVersion = false, setIncludeEndStreamAction = endStreamActionEnabled
+    )
+    val (filteredLines, _) = maybeExtractEndStreamAction(lines)
+    val protocol = JsonUtils.fromJson[SingleAction](filteredLines(0)).protocol
     checkProtocol(protocol)
-    val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
+    val metadata = JsonUtils.fromJson[SingleAction](filteredLines(1)).metaData
 
     val addFiles = ArrayBuffer[AddFileForCDF]()
     val cdfFiles = ArrayBuffer[AddCDCFile]()
     val removeFiles = ArrayBuffer[RemoveFile]()
     val additionalMetadatas = ArrayBuffer[Metadata]()
-    lines.drop(2).foreach { line =>
+    filteredLines.drop(2).foreach { line =>
       val action = JsonUtils.fromJson[SingleAction](line).unwrap
       action match {
         case c: AddCDCFile => cdfFiles.append(c)
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => throw new IllegalStateException(s"Unexpected Line:${line}")
+        case _ => throw new IllegalStateException(s"Unexpected Line:${line}" +
+          getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
@@ -398,33 +429,50 @@ private[spark] class DeltaSharingRestClient(
     }.mkString("&")
   }
 
-  private def getNDJson(target: String, requireVersion: Boolean = true): (Long, Seq[String]) = {
-    val (version, lines) = getResponse(new HttpGet(target))
+  private def getNDJson(
+      target: String,
+      requireVersion: Boolean,
+      setIncludeEndStreamAction: Boolean): (Long, Seq[String]) = {
+    val (version, lines) = getResponse(
+      new HttpGet(target), setIncludeEndStreamAction = setIncludeEndStreamAction
+    )
     version.getOrElse {
       if (requireVersion) {
-        throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
+        throw new IllegalStateException(s"Cannot find $RESPONSE_TABLE_VERSION_HEADER_KEY in the " +
+          s"header," + getDsQueryIdForLogging)
       } else {
         0L
       }
     } -> lines
   }
 
-  private def getNDJson[T: Manifest](target: String, data: T): (Long, Seq[String]) = {
+  private def getNDJsonPost[T: Manifest](
+      target: String,
+      data: T,
+      setIncludeEndStreamAction: Boolean): (Long, Seq[String]) = {
     val httpPost = new HttpPost(target)
     val json = JsonUtils.toJson(data)
     httpPost.setHeader("Content-type", "application/json")
     httpPost.setEntity(new StringEntity(json, UTF_8))
-    val (version, lines) = getResponse(httpPost)
+    val (version, lines) = getResponse(
+      httpPost, setIncludeEndStreamAction = setIncludeEndStreamAction
+    )
     version.getOrElse {
-      throw new IllegalStateException("Cannot find Delta-Table-Version in the header")
+      throw new IllegalStateException(s"Cannot find $RESPONSE_TABLE_VERSION_HEADER_KEY in the " +
+        s"header," + getDsQueryIdForLogging)
     } -> lines
   }
 
   private def getJson[R: Manifest](target: String): R = {
-    val (_, response) = getResponse(new HttpGet(target), false, true)
+    val (_, response) = getResponse(
+      new HttpGet(target),
+      allowNoContent = false,
+      fetchAsOneString = true,
+      setIncludeEndStreamAction = false
+    )
     if (response.size != 1) {
       throw new IllegalStateException(
-        "Unexpected response for target: " +  target + ", response=" + response
+        s"Unexpected response for target:$target, response=$response" + getDsQueryIdForLogging
       )
     }
     JsonUtils.fromJson[R](response(0))
@@ -452,7 +500,8 @@ private[spark] class DeltaSharingRestClient(
     }
   }
 
-  private[spark] def prepareHeaders(httpRequest: HttpRequestBase): HttpRequestBase = {
+  private[spark] def prepareHeaders(
+      httpRequest: HttpRequestBase, setIncludeEndStreamAction: Boolean): HttpRequestBase = {
     val customeHeaders = profileProvider.getCustomHeaders
     if (customeHeaders.contains(HttpHeaders.AUTHORIZATION)
       || customeHeaders.contains(HttpHeaders.USER_AGENT)) {
@@ -464,7 +513,7 @@ private[spark] class DeltaSharingRestClient(
     val headers = Map(
       HttpHeaders.AUTHORIZATION -> s"Bearer ${profileProvider.getProfile.bearerToken}",
       HttpHeaders.USER_AGENT -> getUserAgent()
-    ) ++ customeHeaders
+    ) ++ customeHeaders ++ constructDeltaSharingCapabilities(setIncludeEndStreamAction)
     headers.foreach(header => httpRequest.setHeader(header._1, header._2))
 
     httpRequest
@@ -482,15 +531,16 @@ private[spark] class DeltaSharingRestClient(
   private def getResponse(
       httpRequest: HttpRequestBase,
       allowNoContent: Boolean = false,
-      fetchAsOneString: Boolean = false
+      fetchAsOneString: Boolean = false,
+      setIncludeEndStreamAction: Boolean = false
   ): (Option[Long], Seq[String]) = {
-    // Reset queryId before calling RetryUtils, and before prepareHeaders.
-    queryId = Some(UUID.randomUUID().toString().split('-').head)
+    // Reset dsQueryId before calling RetryUtils, and before prepareHeaders.
+    dsQueryId = Some(UUID.randomUUID().toString().split('-').head)
     RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
       val profile = profileProvider.getProfile
       val response = client.execute(
         getHttpHost(profile.endpoint),
-        prepareHeaders(httpRequest),
+        prepareHeaders(httpRequest, setIncludeEndStreamAction),
         HttpClientContext.create()
       )
       try {
@@ -518,7 +568,8 @@ private[spark] class DeltaSharingRestClient(
             }
           } catch {
             case e: org.apache.http.ConnectionClosedException =>
-              val error = s"Request to delta sharing server failed due to ${e}."
+              val error = s"Request to delta sharing server failed$getDsQueryIdForLogging" +
+                s" due to ${e}."
               logError(error)
               lineBuffer += error
               lineBuffer.toList
@@ -538,10 +589,19 @@ private[spark] class DeltaSharingRestClient(
           // Only show the last 100 lines in the error to keep it contained.
           val responseToShow = lines.drop(lines.size - 100).mkString("\n")
           throw new UnexpectedHttpStatus(
-            s"HTTP request failed with status: $status $responseToShow. $additionalErrorInfo",
+            s"HTTP request failed with status: $status" +
+              Seq(getDsQueryIdForLogging, additionalErrorInfo, responseToShow).mkString(" "),
             statusCode)
         }
-        Option(response.getFirstHeader("Delta-Table-Version")).map(_.getValue.toLong) -> lines
+        if (setIncludeEndStreamAction) {
+          val capabilities = Option(
+            response.getFirstHeader(DELTA_SHARING_CAPABILITIES_HEADER)
+          ).map(_.getValue)
+          val capabilitiesMap = parseDeltaSharingCapabilities(capabilities)
+          checkEndStreamAction(capabilities, capabilitiesMap, lines)
+        }
+        Option(response.getFirstHeader(RESPONSE_TABLE_VERSION_HEADER_KEY)).map(
+          _.getValue.toLong) -> lines
       } finally {
         response.close()
       }
@@ -560,7 +620,69 @@ private[spark] class DeltaSharingRestClient(
   }
 
   private def getQueryIdString: String = {
-    s"QueryId-${queryId.getOrElse("not_set")}"
+    s"QueryId-${dsQueryId.getOrElse("not_set")}"
+  }
+
+  private def checkEndStreamAction(
+      capabilities: Option[String],
+      capabilitiesMap: Map[String, String],
+      lines: Seq[String]): Unit = {
+    val includeEndStreamActionHeader = getRespondedIncludeEndStreamActionHeader(capabilitiesMap)
+    includeEndStreamActionHeader match {
+      case Some(true) =>
+        val lastLineAction = JsonUtils.fromJson[SingleAction](lines.last)
+        if (lastLineAction.endStreamAction == null) {
+          throw new MissingEndStreamActionException(s"Client sets " +
+            s"${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
+            s"header, server responded with the header set to true(${capabilities}, " +
+            s"and ${lines.size} lines, and last line parsed as " +
+            s"${lastLineAction.unwrap.getClass()}," + getDsQueryIdForLogging)
+        }
+        logInfo(
+          s"Successfully verified endStreamAction in the response" + getDsQueryIdForLogging
+        )
+      case Some(false) =>
+        logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
+          s"header, but the server responded with the header set to false(" +
+          s"${capabilities})," + getDsQueryIdForLogging
+        )
+      case None =>
+        logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the" +
+          s" header, but server didn't respond with the header(${capabilities}), " +
+          getDsQueryIdForLogging
+        )
+    }
+  }
+
+  // includeEndStreamActionHeader indicates whether the last line is required to be an
+  // EndStreamAction, parsed from the response header.
+  private def getRespondedIncludeEndStreamActionHeader(
+      capabilitiesMap: Map[String, String]): Option[Boolean] = {
+    capabilitiesMap.get(DELTA_SHARING_INCLUDE_END_STREAM_ACTION).map(_.toBoolean)
+  }
+
+  private def parseDeltaSharingCapabilities(capabilities: Option[String]): Map[String, String] = {
+    if (capabilities.isEmpty) {
+      return Map.empty[String, String]
+    }
+    capabilities.get.toLowerCase().split(DELTA_SHARING_CAPABILITIES_DELIMITER)
+      .map(_.split("="))
+      .filter(_.size == 2)
+      .map { splits =>
+        (splits(0), splits(1))
+      }.toMap
+  }
+
+  // The value for delta-sharing-capabilities header, semicolon separated capabilities.
+  // Each capability is in the format of "key=value1,value2", values are separated by comma.
+  // Example: "capability1=value1;capability2=value3,value4,value5"
+  private def constructDeltaSharingCapabilities(
+      setIncludeEndStreamAction: Boolean): Map[String, String] = {
+    if (setIncludeEndStreamAction) {
+      Map(DELTA_SHARING_CAPABILITIES_HEADER -> s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true")
+    } else {
+      Map.empty[String, String]
+    }
   }
 
   def close(): Unit = {
@@ -578,6 +700,10 @@ private[spark] object DeltaSharingRestClient extends Logging {
   val CURRENT = 1
 
   val SPARK_STRUCTURED_STREAMING = "Delta-Sharing-SparkStructuredStreaming"
+  val RESPONSE_TABLE_VERSION_HEADER_KEY = "Delta-Table-Version"
+  val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
+  val DELTA_SHARING_INCLUDE_END_STREAM_ACTION = "includeendstreamaction"
+  val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
 
   lazy val USER_AGENT = {
     try {
