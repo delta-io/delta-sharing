@@ -42,14 +42,16 @@ trait DeltaSharedTableProtocol {
       includeRefreshToken: Boolean,
       refreshToken: Option[String],
       responseFormatSet: Set[String],
-      clientReaderFeaturesSet: Set[String] = Set.empty): QueryResult
+      clientReaderFeaturesSet: Set[String],
+      includeEndStreamAction: Boolean): QueryResult
 
   def queryCDF(
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean = false,
       maxFiles: Option[Int],
       pageToken: Option[String],
-      responseFormatSet: Set[String] = Set("parquet")): QueryResult
+      responseFormatSet: Set[String] = Set("parquet"),
+      includeEndStreamAction: Boolean): QueryResult
 
   def validateTable(inputFullHistoryShared: Boolean): Unit = {}
 

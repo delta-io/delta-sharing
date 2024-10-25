@@ -18,9 +18,10 @@ package io.delta.sharing.client.util
 
 import java.io.{InterruptedIOException, IOException}
 
-import scala.util.control.NonFatal
-
 import org.apache.spark.internal.Logging
+
+import io.delta.sharing.spark.MissingEndStreamActionException
+
 
 private[sharing] object RetryUtils extends Logging {
 
@@ -70,6 +71,7 @@ private[sharing] object RetryUtils extends Logging {
         } else {
           false
         }
+      case _: MissingEndStreamActionException => true
       case _: java.net.SocketTimeoutException => true
       // do not retry on ConnectionClosedException because it can be caused by invalid json returned
       // from the delta sharing server.
