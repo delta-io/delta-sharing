@@ -425,7 +425,8 @@ class DeltaSharingRestClient(
         respondedFormat = respondedFormat
       )
     }
-    require(versionAsOf.isEmpty || versionAsOf.get == version)
+    require(versionAsOf.isEmpty || versionAsOf.get == version,
+      s"versionAsOf: $versionAsOf, version:$version")
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
@@ -1355,8 +1356,8 @@ object DeltaSharingRestClient extends Logging {
         readerFeatures,
         java.lang.Boolean.valueOf(queryTablePaginationEnabled),
         java.lang.Integer.valueOf(maxFilesPerReq),
-        java.lang.Boolean.valueOf(useAsyncQuery),
         java.lang.Boolean.valueOf(endStreamActionEnabled),
+        java.lang.Boolean.valueOf(useAsyncQuery),
         java.lang.Long.valueOf(asyncQueryPollDurationMillis),
         java.lang.Long.valueOf(asyncQueryMaxDurationMillis),
         java.lang.Integer.valueOf(tokenExchangeMaxRetries),

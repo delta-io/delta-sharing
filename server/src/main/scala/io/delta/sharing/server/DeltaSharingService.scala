@@ -499,8 +499,6 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       val responseFormatSet = getResponseFormatSet(capabilitiesMap)
       val clientReaderFeaturesSet = getReaderFeatures(capabilitiesMap)
       val includeEndStreamAction = getRequestEndStreamAction(capabilitiesMap)
-      // scalastyle:off println
-      Console.println(s"----[linzhou]----Service,includeEndStreamAction:$includeEndStreamAction")
       val queryResult = if (
         request.predicateHints.isEmpty
           && request.maxFiles.isEmpty
