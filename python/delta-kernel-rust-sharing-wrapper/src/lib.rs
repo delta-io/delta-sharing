@@ -92,11 +92,11 @@ impl Scan {
                 delta_kernel::Error::Generic(format!("Could not get result schema: {e}"))
             })?);
         let results = self.0.execute(engine_interface.0.as_ref())?;
-        let record_batch_iter = RecordBatchIterator::new(
-            results.into_iter().map(|res| {
-                let data = res
-                    .raw_data
-                    .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+        let record_batches: Vec<_> = results
+            .map(|res| {
+                let scan_res = res.and_then(|res| Ok((res.full_mask(), res.raw_data?)));
+                let (mask, data) =
+                    scan_res.map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
                 let record_batch: RecordBatch = data
                     .into_any()
                     .downcast::<ArrowEngineData>()
@@ -104,20 +104,15 @@ impl Scan {
                         ArrowError::CastError("Couldn't cast to ArrowEngineData".to_string())
                     })?
                     .into();
-                if let Some(mut mask) = res.mask {
-                    let extra_rows = record_batch.num_rows() - mask.len();
-                    if extra_rows > 0 {
-                        // we need to extend the mask here in case it's too short
-                        mask.extend(std::iter::repeat(true).take(extra_rows));
-                    }
+                if let Some(mask) = mask {
                     let filtered_batch = filter_record_batch(&record_batch, &mask.into())?;
                     Ok(filtered_batch)
                 } else {
                     Ok(record_batch)
                 }
-            }),
-            result_schema,
-        );
+            })
+            .collect();
+        let record_batch_iter = RecordBatchIterator::new(record_batches, result_schema);
         Ok(PyArrowType(Box::new(record_batch_iter)))
     }
 }
