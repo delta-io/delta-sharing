@@ -930,7 +930,7 @@ def test_load_as_pandas_exception(
             "share8.default.table_with_cm_id",
             None,
             None,
-            "Kernel error: Generic delta kernel error: Don't support id column mapping yet",
+            "Kernel error: Generic delta kernel error: Column ID mapping mode not supported",
             id="column mapping id not supported",
         ),
     ],
