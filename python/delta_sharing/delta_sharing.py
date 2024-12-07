@@ -242,6 +242,7 @@ def load_table_changes_as_pandas(
         ending_version=ending_version,
         starting_timestamp=starting_timestamp,
         ending_timestamp=ending_timestamp,
+        include_historical_metadata=use_delta_format
     ))
 
 

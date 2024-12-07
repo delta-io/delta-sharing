@@ -414,6 +414,8 @@ class DataSharingRestClient:
             params.append(f"endingVersion={cdfOptions.ending_version}")
         if cdfOptions.ending_timestamp is not None:
             params.append(f"endingTimestamp={quote(cdfOptions.ending_timestamp)}")
+        if cdfOptions.include_historical_metadata is not None:
+            params.append(f"includeHistoricalMetadata={cdfOptions.include_historical_metadata}")
         query_str += "&".join(params)
 
         with self._get_internal(query_str, return_headers=True) as (headers, lines):
