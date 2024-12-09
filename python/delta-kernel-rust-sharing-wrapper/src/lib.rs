@@ -4,16 +4,18 @@ use arrow::compute::filter_record_batch;
 use arrow::datatypes::SchemaRef;
 use arrow::error::ArrowError;
 use arrow::pyarrow::PyArrowType;
-use delta_kernel::engine::arrow_data::ArrowEngineData;
+use arrow::record_batch::{RecordBatch, RecordBatchIterator, RecordBatchReader};
+
 use delta_kernel::engine::default::executor::tokio::TokioBackgroundExecutor;
 use delta_kernel::engine::default::DefaultEngine;
+use delta_kernel::scan::ScanResult;
+use delta_kernel::{engine::arrow_data::ArrowEngineData, schema::StructType};
+use delta_kernel::{DeltaResult, Engine};
+
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use url::Url;
-
-use arrow::record_batch::{RecordBatch, RecordBatchIterator, RecordBatchReader};
-use delta_kernel::Engine;
 
 use std::collections::HashMap;
 
@@ -78,6 +80,37 @@ impl ScanBuilder {
     }
 }
 
+fn try_get_schema(schema: &Arc<StructType>) -> Result<SchemaRef, delta_kernel::Error> {
+    Ok(Arc::new(schema.as_ref().try_into().map_err(|e| {
+        delta_kernel::Error::Generic(format!("Could not get result schema: {e}"))
+    })?))
+}
+
+fn try_create_record_batch_iter(
+    results: impl Iterator<Item = DeltaResult<ScanResult>>,
+    result_schema: SchemaRef,
+) -> RecordBatchIterator<Vec<Result<RecordBatch, ArrowError>>> {
+    let record_batches: Vec<_> = results
+        .map(|res| {
+            let scan_res = res.and_then(|res| Ok((res.full_mask(), res.raw_data?)));
+            let (mask, data) =
+                scan_res.map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+            let record_batch: RecordBatch = data
+                .into_any()
+                .downcast::<ArrowEngineData>()
+                .map_err(|_| ArrowError::CastError("Couldn't cast to ArrowEngineData".to_string()))?
+                .into();
+            if let Some(mask) = mask {
+                let filtered_batch = filter_record_batch(&record_batch, &mask.into())?;
+                Ok(filtered_batch)
+            } else {
+                Ok(record_batch)
+            }
+        })
+        .collect();
+    RecordBatchIterator::new(record_batches, result_schema)
+}
+
 #[pyclass]
 struct Scan(delta_kernel::scan::Scan);
 
@@ -87,32 +120,55 @@ impl Scan {
         &self,
         engine_interface: &PythonInterface,
     ) -> DeltaPyResult<PyArrowType<Box<dyn RecordBatchReader + Send>>> {
-        let result_schema: SchemaRef =
-            Arc::new(self.0.schema().as_ref().try_into().map_err(|e| {
-                delta_kernel::Error::Generic(format!("Could not get result schema: {e}"))
-            })?);
+        let result_schema: SchemaRef = try_get_schema(self.0.schema())?;
         let results = self.0.execute(engine_interface.0.as_ref())?;
-        let record_batches: Vec<_> = results
-            .map(|res| {
-                let scan_res = res.and_then(|res| Ok((res.full_mask(), res.raw_data?)));
-                let (mask, data) =
-                    scan_res.map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
-                let record_batch: RecordBatch = data
-                    .into_any()
-                    .downcast::<ArrowEngineData>()
-                    .map_err(|_| {
-                        ArrowError::CastError("Couldn't cast to ArrowEngineData".to_string())
-                    })?
-                    .into();
-                if let Some(mask) = mask {
-                    let filtered_batch = filter_record_batch(&record_batch, &mask.into())?;
-                    Ok(filtered_batch)
-                } else {
-                    Ok(record_batch)
-                }
-            })
-            .collect();
-        let record_batch_iter = RecordBatchIterator::new(record_batches, result_schema);
+        let record_batch_iter = try_create_record_batch_iter(results, result_schema);
+        Ok(PyArrowType(Box::new(record_batch_iter)))
+    }
+}
+
+#[pyclass]
+struct TableChangesScanBuilder(
+    Option<delta_kernel::table_changes::table_changes_scan::TableChangesScanBuilder>
+);
+
+#[pymethods]
+impl TableChangesScanBuilder {
+    #[new]
+    #[pyo3(signature = (table, engine_interface, start_version, end_version=None))]
+    fn new(
+        table: &Table,
+        engine_interface: &PythonInterface,
+        start_version: u64,
+        end_version: Option<u64>,
+    ) -> DeltaPyResult<TableChangesScanBuilder> {
+        let table_changes =
+            table
+                .0
+                .table_changes(engine_interface.0.as_ref(), start_version, end_version)?;
+        Ok(TableChangesScanBuilder(Some(
+            table_changes.into_scan_builder(),
+        )))
+    }
+
+    fn build(&mut self) -> DeltaPyResult<TableChangesScan> {
+        let scan = self.0.take().unwrap().build()?;
+        Ok(TableChangesScan(scan))
+    }
+}
+
+#[pyclass]
+struct TableChangesScan(delta_kernel::table_changes::table_changes_scan::TableChangesScan);
+
+#[pymethods]
+impl TableChangesScan {
+    fn execute(
+        &self,
+        engine_interface: &PythonInterface,
+    ) -> DeltaPyResult<PyArrowType<Box<dyn RecordBatchReader + Send>>> {
+        let result_schema: SchemaRef = try_get_schema(self.0.schema())?;
+        let results = self.0.execute(engine_interface.0.as_ref())?;
+        let record_batch_iter = try_create_record_batch_iter(results, result_schema);
         Ok(PyArrowType(Box::new(record_batch_iter)))
     }
 }
@@ -144,5 +200,7 @@ fn delta_kernel_rust_sharing_wrapper(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Snapshot>()?;
     m.add_class::<ScanBuilder>()?;
     m.add_class::<Scan>()?;
+    m.add_class::<TableChangesScanBuilder>()?;
+    m.add_class::<TableChangesScan>()?;
     Ok(())
 }

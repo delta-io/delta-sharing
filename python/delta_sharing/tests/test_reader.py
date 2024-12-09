@@ -404,7 +404,7 @@ def test_table_changes_to_pandas_non_partitioned(tmp_path):
                     version=version4,
                 ),
             ]
-            return ListTableChangesResponse(protocol=None, metadata=metadata, actions=actions)
+            return ListTableChangesResponse(protocol=None, metadata=metadata, actions=actions, lines=None)
 
         def autoresolve_query_format(self, table: Table):
             return "parquet"
@@ -470,7 +470,7 @@ def test_table_changes_to_pandas_partitioned(tmp_path):
                     version=version,
                 ),
             ]
-            return ListTableChangesResponse(protocol=None, metadata=metadata, actions=actions)
+            return ListTableChangesResponse(protocol=None, metadata=metadata, actions=actions, lines=None)
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.table_changes_to_pandas(CdfOptions())
@@ -494,7 +494,7 @@ def test_table_changes_empty(tmp_path):
                     '],"type":"struct"}'
                 )
             )
-            return ListTableChangesResponse(protocol=None, metadata=metadata, actions=[])
+            return ListTableChangesResponse(protocol=None, metadata=metadata, actions=[], lines=None)
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.table_changes_to_pandas(CdfOptions())
