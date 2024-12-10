@@ -505,3 +505,160 @@ def test_table_changes_empty(tmp_path):
     assert pdf.columns.values[2] == DeltaSharingReader._change_type_col_name()
     assert pdf.columns.values[3] == DeltaSharingReader._commit_version_col_name()
     assert pdf.columns.values[4] == DeltaSharingReader._commit_timestamp_col_name()
+
+def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
+    # Create basic data frame.
+    pdf1 = pd.DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
+    pdf2 = pd.DataFrame({"a": [4, 5, 6], "b": ["d", "e", "f"]})
+    pdf3 = pd.DataFrame({"a": [7, 8, 9], "b": ["x", "y", "z"]})
+    pdf4 = pd.DataFrame({"a": [7, 8, 9], "b": ["x", "y", "z"]})
+
+    # Add change type (which is present in the parquet files).
+    pdf3[DeltaSharingReader._change_type_col_name()] = "update_preimage"
+    pdf4[DeltaSharingReader._change_type_col_name()] = "update_postimage"
+
+    # Save.
+    pdf1.to_parquet(tmp_path / "pdf1.parquet")
+    pdf2.to_parquet(tmp_path / "pdf2.parquet")
+    pdf3.to_parquet(tmp_path / "pdf3.parquet")
+    pdf4.to_parquet(tmp_path / "pdf4.parquet")
+
+    # Version and timestamp are not in the parquet files; but are expected by the conversion.
+    timestamp1 = 1652110000000
+    timestamp2 = 1652120000000
+    timestamp3 = 1652130000000
+    timestamp4 = 1652140000000
+
+    version1 = 1
+    version2 = 2
+    version3 = 3
+    version4 = 4
+
+    # The change type is also expected for add/remove actions.
+    pdf1[DeltaSharingReader._change_type_col_name()] = "insert"
+    pdf2[DeltaSharingReader._change_type_col_name()] = "delete"
+
+    pdf1[DeltaSharingReader._commit_version_col_name()] = version1
+    pdf2[DeltaSharingReader._commit_version_col_name()] = version2
+    pdf3[DeltaSharingReader._commit_version_col_name()] = version3
+    pdf4[DeltaSharingReader._commit_version_col_name()] = version4
+
+    pdf1[DeltaSharingReader._commit_timestamp_col_name()] = timestamp1
+    pdf2[DeltaSharingReader._commit_timestamp_col_name()] = timestamp2
+    pdf3[DeltaSharingReader._commit_timestamp_col_name()] = timestamp3
+    pdf4[DeltaSharingReader._commit_timestamp_col_name()] = timestamp4
+
+    class RestClientMock:
+        def list_table_changes(
+            self, table: Table, cdfOptions: CdfOptions
+        ) -> ListTableChangesResponse:
+            assert table == Table("table_name", "share_name", "schema_name")
+
+            schema_string = (
+                '{"fields":['
+                '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
+                '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
+                '],"type":"struct"}'
+            ).replace('"',r'\"')
+            lines = [
+                f'''{{
+                    "protocol": {{
+                        "deltaProtocol": {{
+                            "minReaderVersion": 2,
+                            "minWriterVersion": 6
+                        }}
+                    }}
+                }}''',
+                f'''{{
+                    "metaData":{{
+                        "version":{version1},
+                        "deltaMetadata":{{
+                            "id":"some-table-id",
+                            "format": {{
+                                "provider": "parquet",
+                                "options": {{}}
+                            }},
+                            "schemaString":"{schema_string}",
+                            "partitionColumns":[],
+                            "configuration":{{
+                                "delta.enableChangeDataFeed": "true"
+                            }}
+                        }}
+                    }}
+                }}''',
+                f'''{{
+                    "file":{{
+                        "id":"pdf1",
+                        "version":{version1},
+                        "timestamp":{timestamp1},
+                        "deltaSingleAction":{{
+                            "add":{{
+                                "path":"{str(tmp_path / "pdf1.parquet")}",
+                                "partitionValues":{{}},
+                                "modificationTime":{timestamp1},
+                                "dataChange": true,
+                                "size":0
+                            }}
+                        }}
+                    }}
+                }}''',
+                f'''{{
+                    "file":{{
+                        "id":"pdf2",
+                        "version":{version2},
+                        "timestamp":{timestamp2},
+                        "deltaSingleAction":{{
+                            "remove":{{
+                                "path":"{str(tmp_path / "pdf2.parquet")}",
+                                "partitionValues":{{}},
+                                "dataChange": true,
+                                "size":0
+                            }}
+                        }}
+                    }}
+                }}''',
+                f'''{{
+                    "file":{{
+                        "id":"pdf3",
+                        "version":{version3},
+                        "timestamp":{timestamp3},
+                        "deltaSingleAction":{{
+                            "cdc":{{
+                                "path":"{str(tmp_path / "pdf3.parquet")}",
+                                "partitionValues":{{}},
+                                "dataChange": false,
+                                "size":0
+                            }}
+                        }}
+                    }}
+                }}''',
+                f'''{{
+                    "file":{{
+                        "id":"pdf4",
+                        "version":{version4},
+                        "timestamp":{timestamp4},
+                        "deltaSingleAction":{{
+                            "cdc":{{
+                                "path":"{str(tmp_path / "pdf4.parquet")}",
+                                "partitionValues":{{}},
+                                "dataChange": false,
+                                "size":0
+                            }}
+                        }}
+                    }}
+                }}'''
+            ]
+            return ListTableChangesResponse(protocol=None, metadata=None, actions=None, lines=lines)
+
+        def set_delta_format_header(self):
+            return
+
+        def remove_delta_format_header(self):
+            return
+
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock(), use_delta_format=True)
+    pdf = reader.table_changes_to_pandas(CdfOptions())
+
+    expected = pd.concat([pdf1, pdf2, pdf3, pdf4]).reset_index(drop=True)
+    pd.testing.assert_frame_equal(pdf, expected)
+
