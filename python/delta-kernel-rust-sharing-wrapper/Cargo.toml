@@ -2,7 +2,7 @@
 name = "delta-kernel-rust-sharing-wrapper"
 edition = "2021"
 license = "Apache-2.0"
-version = "0.1.0"
+version = "0.2.0"
 
 [lib]
 name = "delta_kernel_rust_sharing_wrapper"
@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 arrow = { version = "53.3.0", features = ["pyarrow"] }
-delta_kernel = {version = "0.5", features = ["cloud", "default", "default-engine"]}
+delta_kernel = { version = "0.6.0", features = ["cloud", "default-engine"]}
 openssl = { version = "0.10", features = ["vendored"] }
 url = "2"
 
