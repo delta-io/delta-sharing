@@ -312,3 +312,4 @@ class CdfOptions:
     ending_version: Optional[int] = None
     starting_timestamp: Optional[str] = None
     ending_timestamp: Optional[str] = None
+    include_historical_metadata: Optional[bool] = None
