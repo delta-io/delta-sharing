@@ -215,7 +215,8 @@ def load_table_changes_as_pandas(
     starting_version: Optional[int] = None,
     ending_version: Optional[int] = None,
     starting_timestamp: Optional[str] = None,
-    ending_timestamp: Optional[str] = None
+    ending_timestamp: Optional[str] = None,
+    use_delta_format: Optional[bool] = None
 ) -> pd.DataFrame:
     """
     Load the table changes of shared table as a pandas DataFrame using the given url.
@@ -235,11 +236,15 @@ def load_table_changes_as_pandas(
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
+        use_delta_format=use_delta_format
     ).table_changes_to_pandas(CdfOptions(
         starting_version=starting_version,
         ending_version=ending_version,
         starting_timestamp=starting_timestamp,
         ending_timestamp=ending_timestamp,
+        # when using delta format, we need to get metadata changes and
+        # handle them properly when replaying the delta log
+        include_historical_metadata=use_delta_format
     ))
 
 
