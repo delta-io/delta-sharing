@@ -91,6 +91,7 @@ class ListTableChangesResponse:
     protocol: Protocol
     metadata: Metadata
     actions: Sequence[FileAction]
+    lines: Sequence[str]
 
 
 def retry_with_exponential_backoff(func):
@@ -413,20 +414,35 @@ class DataSharingRestClient:
             params.append(f"endingVersion={cdfOptions.ending_version}")
         if cdfOptions.ending_timestamp is not None:
             params.append(f"endingTimestamp={quote(cdfOptions.ending_timestamp)}")
+        if cdfOptions.include_historical_metadata is not None:
+            params.append(f"includeHistoricalMetadata={cdfOptions.include_historical_metadata}")
         query_str += "&".join(params)
 
-        with self._get_internal(query_str) as lines:
-            protocol_json = json.loads(next(lines))
-            metadata_json = json.loads(next(lines))
-            actions: List[FileAction] = []
-            for line in lines:
-                actions.append(FileAction.from_json(json.loads(line)))
+        with self._get_internal(query_str, return_headers=True) as (headers, lines):
+            if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
+                raise LookupError("Missing delta-table-version header")
 
-            return ListTableChangesResponse(
-                protocol=Protocol.from_json(protocol_json["protocol"]),
-                metadata=Metadata.from_json(metadata_json["metaData"]),
-                actions=actions,
-            )
+            if (DataSharingRestClient.CAPABILITIES_HEADER in headers and
+                    "responseformat=delta" in headers[DataSharingRestClient.CAPABILITIES_HEADER]):
+                return ListTableChangesResponse(
+                    protocol=None,
+                    metadata=None,
+                    actions=None,
+                    lines=list(lines),
+                )
+            else:
+                protocol_json = json.loads(next(lines))
+                metadata_json = json.loads(next(lines))
+                actions: List[FileAction] = []
+                for line in lines:
+                    actions.append(FileAction.from_json(json.loads(line)))
+
+                return ListTableChangesResponse(
+                    protocol=Protocol.from_json(protocol_json["protocol"]),
+                    metadata=Metadata.from_json(metadata_json["metaData"]),
+                    actions=actions,
+                    lines=None
+                )
 
     def close(self):
         self._session.close()
