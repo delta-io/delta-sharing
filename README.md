@@ -46,7 +46,7 @@ If this doesn’t work because of an issue downloading delta-kernel-rust-sharing
 - Check the linux glibc version >= 2.31
 
 If you cannot upgrade glibc or your OS is not supported by the delta-kernel-rust-sharing-wrapper pypi install  you will need to install the package manually.
-See https://pypi.org/project/delta-kernel-rust-sharing-wrapper/0.1.0/#files for supported OS.
+See https://pypi.org/project/delta-kernel-rust-sharing-wrapper/0.2.0/#files for supported OS.
 
 To install the delta-kernel-rust-sharing-wrapper package manually:
 ```
