@@ -108,6 +108,9 @@ If the table supports history sharing(`tableConfig.cdfEnabled=true` in the OSS D
 # Load table changes from version 0 to version 5, as a Pandas DataFrame.
 delta_sharing.load_table_changes_as_pandas(table_url, starting_version=0, ending_version=5)
 
+# Load table changes from version 0 to version 5 as a Pandas DataFrame, explicitly using Delta Format.
+delta_sharing.load_table_changes_as_pandas(table_url, starting_version=0, ending_version=5, use_delta_format=True)
+
 # If the code is running with PySpark, you can load table changes as Spark DataFrame.
 delta_sharing.load_table_changes_as_spark(table_url, starting_version=0, ending_version=5)
 ```
