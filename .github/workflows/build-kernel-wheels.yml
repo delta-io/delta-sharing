@@ -1,4 +1,4 @@
-name: Build wheels for 4 os for delta-kernel-rust-sharing-wrapper 
+name: Build delta-kernel-rust-sharing-wrapper wheels for 4 OS and 2 architectures
 
 on:
   push:
@@ -18,17 +18,13 @@ jobs:
         os: [ubuntu-latest, ubuntu-20.04, macos-latest, windows-latest]
         python-version: [3.8]
         arch: [x86_64, arm64]
-        include:
-          - os: macos-latest
-            arch: x86_64
-          - os: macos-latest
-            arch: arm64
+        exclude:
           - os: ubuntu-latest
-            arch: x86_64
+            arch: arm64
           - os: ubuntu-20.04
-            arch: x86_64
+            arch: arm64
           - os: windows-latest
-            arch: x86_64
+            arch: arm64
 
     steps:
       - uses: actions/checkout@v2
