@@ -3,11 +3,11 @@ name: Build delta-kernel-rust-sharing-wrapper wheels for 4 OS and 2 architecture
 on:
   push:
     paths:
-      - python/delta-sharing-kernel/**
+      - python/delta-kernel-rust-sharing-wrapper/**
       - .github/workflows/**
   pull_request:
     paths:
-      - python/delta-sharing-kernel/**
+      - python/delta-kernel-rust-sharing-wrapper/**
       - .github/workflows/**
 
 jobs:
