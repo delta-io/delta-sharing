@@ -23,7 +23,7 @@ import fsspec
 
 @dataclass(frozen=True)
 class DeltaSharingProfile:
-    CURRENT: ClassVar[int] = 2
+    CURRENT: ClassVar[int] = 3
 
     share_credentials_version: int
     endpoint: str
@@ -159,7 +159,7 @@ class Table:
 
 @dataclass(frozen=True)
 class Protocol:
-    CURRENT: ClassVar[int] = 1
+    CURRENT: ClassVar[int] = 3
 
     min_reader_version: int
 
@@ -175,7 +175,8 @@ class Protocol:
     def from_json(json) -> "Protocol":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        return Protocol(min_reader_version=int(json["minReaderVersion"]))
+            deltaProtocol = json["deltaProtocol"]
+        return Protocol(min_reader_version=int(deltaProtocol["minReaderVersion"]))
 
 
 @dataclass(frozen=True)
@@ -206,7 +207,7 @@ class Metadata:
     @staticmethod
     def from_json(json) -> "Metadata":
         if isinstance(json, (str, bytes, bytearray)):
-            json = loads(json)
+            json = loads(json)["deltaMetadata"]
         if "configuration" in json:
             configuration = json["configuration"]
         else:
