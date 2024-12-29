@@ -57,7 +57,7 @@ def mock_server():
 def test_oauth_client_should_parse_token_response_correctly(mock_server,
                                                             response_data,
                                                             expected_expires_in,
-                                                            access_token):
+                                                            expected_access_token):
     mock_server.add_response(
         200,
         response_data)
@@ -74,7 +74,7 @@ def test_oauth_client_should_parse_token_response_correctly(mock_server,
         token = oauth_client.client_credentials()
         end = datetime.now().timestamp()
 
-        assert token.access_token == access_token
+        assert token.access_token == expected_access_token
         assert token.expires_in == expected_expires_in
         assert int(start) <= token.creation_timestamp
         assert token.creation_timestamp <= int(end)
