@@ -136,11 +136,15 @@ class OAuthClient:
         json_node = json.loads(response)
         if 'access_token' not in json_node or not isinstance(json_node['access_token'], str):
             raise RuntimeError("Missing 'access_token' field in OAuth token response")
-        if 'expires_in' not in json_node or not isinstance(json_node['expires_in'], int):
+        if 'expires_in' not in json_node: 
             raise RuntimeError("Missing 'expires_in' field in OAuth token response")
+        try:
+            expires_in = int(json_node['expires_in'])  # Convert to int if it's a string
+        except ValueError:
+            raise RuntimeError("'expires_in' field must be an integer or a string convertible to integer")
         return OAuthClientCredentials(
             json_node['access_token'],
-            json_node['expires_in'],
+            expires_in,
             int(datetime.now().timestamp())
         )
 
