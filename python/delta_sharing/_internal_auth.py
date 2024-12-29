@@ -133,7 +133,8 @@ class OAuthClient:
     def parse_oauth_token_response(self, response: str) -> OAuthClientCredentials:
         if not response:
             raise RuntimeError("Empty response from OAuth token endpoint")
-        # Parsing the response per oauth spec https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
+        # Parsing the response per oauth spec
+        # https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
         json_node = json.loads(response)
         if 'access_token' not in json_node or not isinstance(json_node['access_token'], str):
             raise RuntimeError("Missing 'access_token' field in OAuth token response")
@@ -142,7 +143,7 @@ class OAuthClient:
         try:
             # OAuth spec requires 'expires_in' to be an integer, e.g., 3600.
             # See https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
-            # But some token endpoints return `expires_in` as a string e.g., "3600" instead of an integer.
+            # But some token endpoints return `expires_in` as a string e.g., "3600".
             # This test ensures the client can handle such cases.
             # Example request resulting in 'expires_in' as a string:
             # curl -X POST \

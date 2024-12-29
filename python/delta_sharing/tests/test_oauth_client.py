@@ -45,7 +45,7 @@ def mock_server():
 @pytest.mark.parametrize("response_data, expected_expires_in, access_token", [
     # OAuth spec requires 'expires_in' to be an integer, e.g., 3600.
     # See https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
-    # But some token endpoints return `expires_in` as a string e.g., "3600" instead of an integer.
+    # But some token endpoints return `expires_in` as a string e.g., "3600".
     # This test ensures the client can handle such cases.
     # The test case ensures that we support both integer and string values for 'expires_in' field.
     ('{"access_token": "test-access-token", "expires_in": 3600, "token_type": "bearer"}',
@@ -54,7 +54,10 @@ def mock_server():
     ('{"access_token": "test-access-token", "expires_in": "3600", "token_type": "bearer"}',
      3600, "test-access-token")
 ])
-def test_oauth_client_should_parse_token_response_correctly(mock_server, response_data, expected_expires_in, access_token):
+def test_oauth_client_should_parse_token_response_correctly(mock_server,
+                                                            response_data,
+                                                            expected_expires_in,
+                                                            access_token):
     mock_server.add_response(
         200,
         response_data)
