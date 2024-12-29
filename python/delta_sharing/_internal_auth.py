@@ -144,7 +144,7 @@ class OAuthClient:
             # See https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
             # But some token endpoints return `expires_in` as a string e.g., "3600" instead of an integer.
             # This test ensures the client can handle such cases.
-            # Example request:
+            # Example request resulting in 'expires_in' as a string:
             # curl -X POST \
             #   https://login.windows.net/$TENANT_ID/oauth2/token \
             #   -H "Content-Type: application/x-www-form-urlencoded" \
