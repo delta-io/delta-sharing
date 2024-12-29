@@ -133,12 +133,26 @@ class OAuthClient:
     def parse_oauth_token_response(self, response: str) -> OAuthClientCredentials:
         if not response:
             raise RuntimeError("Empty response from OAuth token endpoint")
+        # Parsing the response per oauth spec https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
         json_node = json.loads(response)
         if 'access_token' not in json_node or not isinstance(json_node['access_token'], str):
             raise RuntimeError("Missing 'access_token' field in OAuth token response")
-        if 'expires_in' not in json_node: 
+        if 'expires_in' not in json_node:
             raise RuntimeError("Missing 'expires_in' field in OAuth token response")
         try:
+            # OAuth spec requires 'expires_in' to be an integer, e.g., 3600.
+            # See https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
+            # But some token endpoints return `expires_in` as a string e.g., "3600" instead of an integer.
+            # This test ensures the client can handle such cases.
+            # Example request:
+            # curl -X POST \
+            #   https://login.windows.net/$TENANT_ID/oauth2/token \
+            #   -H "Content-Type: application/x-www-form-urlencoded" \
+            #   -d "grant_type=client_credentials" \
+            #   -d "client_id=$CLIENT_ID" \
+            #   -d "client_secret=$CLIENT_SECRET" \
+            #   -d "scope=https://graph.microsoft.com/.default"
+            # This ensures that we support both integer and string values for 'expires_in' field.
             expires_in = int(json_node['expires_in'])  # Convert to int if it's a string
         except ValueError:
             raise RuntimeError("'expires_in' field must be an integer or a string convertible to integer")

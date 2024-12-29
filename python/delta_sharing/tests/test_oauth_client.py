@@ -43,19 +43,16 @@ def mock_server():
 
 
 @pytest.mark.parametrize("response_data, expected_expires_in, access_token", [
-    ('{"access_token": "test-access-token", "expires_in": 3600, "token_type": "bearer"}', 3600, "test-access-token"),
-    # Some token endpoints return the `expires_in` value as a string. For example, EntraID may behave this way in certain cases.
-    # The OAuth specification requires this to be an integer, but some token endpoints do not strictly follow the OAuth spec.
-    # This test case ensures that the client can handle such cases.
-    # Example request:
-    # curl -X POST \
-    #   https://login.windows.net/$TENANT_ID/oauth2/token \
-    #   -H "Content-Type: application/x-www-form-urlencoded" \
-    #   -d "grant_type=client_credentials" \
-    #   -d "client_id=$CLIENT_ID" \
-    #   -d "client_secret=$CLIENT_SECRET" \
-    #   -d "scope=https://graph.microsoft.com/.default"
-    ('{"access_token": "test-access-token", "expires_in": "3600", "token_type": "bearer"}', 3600, "test-access-token")
+    # OAuth spec requires 'expires_in' to be an integer, e.g., 3600.
+    # See https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
+    # But some token endpoints return `expires_in` as a string e.g., "3600" instead of an integer.
+    # This test ensures the client can handle such cases.
+    # The test case ensures that we support both integer and string values for 'expires_in' field.
+    ('{"access_token": "test-access-token", "expires_in": 3600, "token_type": "bearer"}',
+     3600,
+     "test-access-token"),
+    ('{"access_token": "test-access-token", "expires_in": "3600", "token_type": "bearer"}',
+     3600, "test-access-token")
 ])
 def test_oauth_client_should_parse_token_response_correctly(mock_server, response_data, expected_expires_in, access_token):
     mock_server.add_response(
