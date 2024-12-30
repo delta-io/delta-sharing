@@ -57,7 +57,7 @@ def mock_server():
         '{"access_token": "test-access-token", "expires_in": "3600", "token_type": "bearer"}',
         3600,
         "test-access-token"
-     )
+    )
 ])
 def test_oauth_client_should_parse_token_response_correctly(mock_server,
                                                             response_data,
