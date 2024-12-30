@@ -133,8 +133,6 @@ class OAuthClient:
     def parse_oauth_token_response(self, response: str) -> OAuthClientCredentials:
         if not response:
             raise RuntimeError("Empty response from OAuth token endpoint")
-        print("response oauth")
-        print(response)
         # Parsing the response per oauth spec
         # https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
         json_node = json.loads(response)
