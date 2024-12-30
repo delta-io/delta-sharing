@@ -281,12 +281,20 @@ class DataSharingRestClient:
             lines = values[1]
             protocol_json = json.loads(next(lines))
             metadata_json = json.loads(next(lines))
+
+            if "deltaProtocol" in protocol_json["protocol"]:
+                protocol = Protocol.from_json(json.dumps(protocol_json["protocol"]["deltaProtocol"]))
+            else:
+                protocol = Protocol.from_json(json.dumps(protocol_json["protocol"]))
+
+            if "deltaMetadata" in metadata_json["metaData"]:
+                metadata = Metadata.from_json(json.dumps(metadata_json["metaData"]["deltaMetadata"]))
+            else:
+                metadata = Metadata.from_json(json.dumps(metadata_json["metaData"]))
+
             return QueryTableMetadataResponse(
                 delta_table_version=int(headers.get(
-                    DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)),
-                protocol=Protocol.from_json(json.dumps(protocol_json["protocol"])),
-                metadata=Metadata.from_json(json.dumps(metadata_json["metaData"])),
-            )
+                    DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)), protocol=protocol, metadata=metadata)
 
     @retry_with_exponential_backoff
     def autoresolve_query_format(self, table: Table):

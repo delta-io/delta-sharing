@@ -175,8 +175,7 @@ class Protocol:
     def from_json(json) -> "Protocol":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-            deltaProtocol = json["deltaProtocol"]
-        return Protocol(min_reader_version=int(deltaProtocol["minReaderVersion"]))
+        return Protocol(min_reader_version=int(json["minReaderVersion"]))
 
 
 @dataclass(frozen=True)
@@ -207,7 +206,7 @@ class Metadata:
     @staticmethod
     def from_json(json) -> "Metadata":
         if isinstance(json, (str, bytes, bytearray)):
-            json = loads(json)["deltaMetadata"]
+            json = loads(json)
         if "configuration" in json:
             configuration = json["configuration"]
         else:
