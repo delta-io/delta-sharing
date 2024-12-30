@@ -283,12 +283,14 @@ class DataSharingRestClient:
             metadata_json = json.loads(next(lines))
 
             if "deltaProtocol" in protocol_json["protocol"]:
-                protocol = Protocol.from_json(json.dumps(protocol_json["protocol"]["deltaProtocol"]))
+                protocol = Protocol.from_json(
+                    json.dumps(protocol_json["protocol"]["deltaProtocol"]))
             else:
                 protocol = Protocol.from_json(json.dumps(protocol_json["protocol"]))
 
             if "deltaMetadata" in metadata_json["metaData"]:
-                metadata = Metadata.from_json(json.dumps(metadata_json["metaData"]["deltaMetadata"]))
+                metadata = Metadata.from_json(
+                    json.dumps(metadata_json["metaData"]["deltaMetadata"]))
             else:
                 metadata = Metadata.from_json(json.dumps(metadata_json["metaData"]))
 
