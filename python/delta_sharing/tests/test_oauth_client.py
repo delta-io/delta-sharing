@@ -49,14 +49,14 @@ def mock_server():
     # This test ensures the client can handle such cases.
     # The test case ensures that we support both integer and string values for 'expires_in' field.
     (
-            '{"access_token": "test-access-token", "expires_in": 3600, "token_type": "bearer"}',
-            3600,
-            "test-access-token"
+        '{"access_token": "test-access-token", "expires_in": 3600, "token_type": "bearer"}',
+        3600,
+        "test-access-token"
     ),
     (
-            '{"access_token": "test-access-token", "expires_in": "3600", "token_type": "bearer"}',
-            3600,
-            "test-access-token"
+        '{"access_token": "test-access-token", "expires_in": "3600", "token_type": "bearer"}',
+        3600,
+        "test-access-token"
      )
 ])
 def test_oauth_client_should_parse_token_response_correctly(mock_server,
