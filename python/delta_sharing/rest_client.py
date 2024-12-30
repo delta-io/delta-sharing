@@ -297,7 +297,9 @@ class DataSharingRestClient:
             return QueryTableMetadataResponse(
                 delta_table_version=int(headers.get(
                     DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)),
-                        protocol=protocol, metadata=metadata)
+                protocol=protocol,
+                metadata=metadata
+            )
 
     @retry_with_exponential_backoff
     def autoresolve_query_format(self, table: Table):
