@@ -77,6 +77,8 @@ private[client] class OAuthClient(httpClient:
   }
 
   private def parseOAuthTokenResponse(response: String): OAuthClientCredentials = {
+    // Parsing the response per oauth spec
+    // https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
     if (response == null || response.isEmpty) {
       throw new RuntimeException("Empty response from OAuth token endpoint")
     }
@@ -84,13 +86,38 @@ private[client] class OAuthClient(httpClient:
     if (!jsonNode.has("access_token") || !jsonNode.get("access_token").isTextual) {
       throw new RuntimeException("Missing 'access_token' field in OAuth token response")
     }
-    if (!jsonNode.has("expires_in") || !jsonNode.get("expires_in").isNumber) {
+    if (!jsonNode.has("expires_in")) {
       throw new RuntimeException("Missing 'expires_in' field in OAuth token response")
+    }
+
+    // OAuth spec requires 'expires_in' to be an integer, e.g., 3600.
+    // See https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
+    // But some token endpoints return `expires_in` as a string e.g., "3600".
+    // This ensures that we support both integer and string values for 'expires_in' field.
+    // Example request resulting in 'expires_in' as a string:
+    // curl -X POST \
+    //  https://login.windows.net/$TENANT_ID/oauth2/token \
+    //  -H "Content-Type: application/x-www-form-urlencoded" \
+    //  -d "grant_type=client_credentials" \
+    //  -d "client_id=$CLIENT_ID" \
+    //  -d "client_secret=$CLIENT_SECRET" \
+    //  -d "scope=https://graph.microsoft.com/.default"
+    val expiresIn : Long = jsonNode.get("expires_in") match {
+      case n if n.isNumber => n.asLong()
+      case n if n.isTextual =>
+        try {
+          n.asText().toLong
+        } catch {
+          case _: NumberFormatException =>
+            throw new RuntimeException("Invalid 'expires_in' field in OAuth token response")
+        }
+      case _ =>
+        throw new RuntimeException("Invalid 'expires_in' field in OAuth token response")
     }
 
     OAuthClientCredentials(
       jsonNode.get("access_token").asText(),
-      jsonNode.get("expires_in").asLong(),
+      expiresIn,
       System.currentTimeMillis()
     )
   }
