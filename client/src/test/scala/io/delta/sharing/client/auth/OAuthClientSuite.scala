@@ -91,7 +91,7 @@ class OAuthClientSuite extends SparkFunSuite with TableDrivenPropertyChecks {
   )
 
   forAll(tokenExchangeSuccessScenarios) { testScenario =>
-    test("OAuthClient should parse token response correctly") {
+    test(s"OAuthClient should parse token response correctly for ${testScenario.responseBody}") {
       val handler = new HttpRequestHandler {
         @throws[HttpException]
         @throws[IOException]
