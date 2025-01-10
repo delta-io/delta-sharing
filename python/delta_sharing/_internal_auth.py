@@ -158,7 +158,6 @@ class OAuthClient:
             raise RuntimeError(
                 "'expires_in' field must be an integer or a string convertible to integer"
             )
-        #print(json_node['access_token'])
         return OAuthClientCredentials(
             json_node['access_token'],
             expires_in,
