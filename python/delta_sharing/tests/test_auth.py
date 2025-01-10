@@ -355,6 +355,7 @@ def test_azure_managed_identity_auth_provider_needs_refresh():
         "valid-token", 600 + 10, int(datetime.now().timestamp()))
     assert not provider.needs_refresh(valid_token)
 
+
 def test_azure_managed_identity_auth_provider_is_expired():
     mock_client = MagicMock(spec=AzureManagedIdentityClient)
     provider = AzureManagedIdentityAuthProvider(managed_identity_client=mock_client)
@@ -373,5 +374,7 @@ def test_factory_creation_managed_identity():
         type="experimental_managed_identity",
         endpoint="https://localhost/delta-sharing/"
     )
-    provider = AuthCredentialProviderFactory.create_auth_credential_provider(profile_managed_identity)
+    provider = AuthCredentialProviderFactory.create_auth_credential_provider(
+        profile_managed_identity
+    )
     assert isinstance(provider, AzureManagedIdentityAuthProvider)

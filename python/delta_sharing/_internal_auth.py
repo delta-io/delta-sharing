@@ -257,7 +257,9 @@ class AzureManagedIdentityClient:
 
 
 class AzureManagedIdentityAuthProvider(AuthCredentialProvider):
-    def __init__(self,  managed_identity_client: AzureManagedIdentityClient, auth_config: AuthConfig = AuthConfig()):
+    def __init__(self,
+                 managed_identity_client: AzureManagedIdentityClient,
+                 auth_config: AuthConfig = AuthConfig()):
         self.auth_config = auth_config
         self.managed_identity_client = managed_identity_client
         self.current_token: Optional[OAuthClientCredentials] = None
