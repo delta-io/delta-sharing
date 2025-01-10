@@ -20,12 +20,12 @@ from delta_sharing._internal_auth import (OAuthClient,
                                           BasicAuthProvider,
                                           AuthCredentialProviderFactory,
                                           OAuthClientCredentialsAuthProvider,
-                                          OAuthClientCredentials, AzureManagedIdentityAuthProvider)
+                                          OAuthClientCredentials, AzureManagedIdentityAuthProvider,
+                                          AzureManagedIdentityClient)
 from requests import Session
 import requests
 from delta_sharing._internal_auth import BearerTokenAuthProvider
 from delta_sharing.protocol import DeltaSharingProfile
-
 
 def test_bearer_token_auth_provider_initialization():
     token = "test-token"
@@ -293,13 +293,18 @@ def test_oauth_auth_provider_with_different_profiles():
 
     assert provider1 != provider2
 
+
+
+
+
 def test_azure_managed_identity_auth_provider_initialization():
-    provider = AzureManagedIdentityAuthProvider()
+    mock_managed_identity_client = MagicMock(spec=AzureManagedIdentityClient)
+    provider = AzureManagedIdentityAuthProvider(managed_identity_client = mock_managed_identity_client)
     assert provider.current_token is None
 
-
 def test_azure_managed_identity_auth_provider_add_auth_header():
-    provider = AzureManagedIdentityAuthProvider()
+    mock_managed_identity_client = MagicMock(spec=AzureManagedIdentityClient)
+    provider = AzureManagedIdentityAuthProvider(managed_identity_client = mock_managed_identity_client)
     mock_session = MagicMock(spec=Session)
     mock_session.headers = MagicMock()
 
@@ -312,9 +317,9 @@ def test_azure_managed_identity_auth_provider_add_auth_header():
         {"Authorization": f"Bearer {token.access_token}"}
     )
 
-
 def test_azure_managed_identity_auth_provider_refresh_token():
-    provider = AzureManagedIdentityAuthProvider()
+    mock_managed_identity_client = MagicMock(spec=AzureManagedIdentityClient)
+    provider = AzureManagedIdentityAuthProvider(managed_identity_client=mock_managed_identity_client)
     mock_session = MagicMock(spec=Session)
     mock_session.headers = MagicMock()
 
@@ -324,16 +329,18 @@ def test_azure_managed_identity_auth_provider_refresh_token():
         "new-token", 3600, int(datetime.now().timestamp()))
     provider.current_token = expired_token
 
-    with patch.object(provider, 'managed_identity_token', return_value=new_token):
-        provider.add_auth_header(mock_session)
+    mock_managed_identity_client.managed_identity_token.return_value = new_token
+
+    provider.add_auth_header(mock_session)
 
     mock_session.headers.update.assert_called_once_with(
         {"Authorization": f"Bearer {new_token.access_token}"}
     )
-
+    mock_managed_identity_client.managed_identity_token.assert_called_once()
 
 def test_azure_managed_identity_auth_provider_needs_refresh():
-    provider = AzureManagedIdentityAuthProvider()
+    mock_managed_identity_client = MagicMock(spec=AzureManagedIdentityClient)
+    provider = AzureManagedIdentityAuthProvider(managed_identity_client = mock_managed_identity_client)
 
     expired_token = OAuthClientCredentials(
         "expired-token", 1, int(datetime.now().timestamp()) - 3600)
@@ -347,16 +354,15 @@ def test_azure_managed_identity_auth_provider_needs_refresh():
         "valid-token", 600 + 10, int(datetime.now().timestamp()))
     assert not provider.needs_refresh(valid_token)
 
-
 def test_azure_managed_identity_auth_provider_is_expired():
-    provider = AzureManagedIdentityAuthProvider()
+    mock_managed_identity_client = MagicMock(spec=AzureManagedIdentityClient)
+    provider = AzureManagedIdentityAuthProvider(managed_identity_client = mock_managed_identity_client)
     assert not provider.is_expired()
 
-
 def test_azure_managed_identity_auth_provider_get_expiration_time():
-    provider = AzureManagedIdentityAuthProvider()
+    mock_managed_identity_client = MagicMock(spec=AzureManagedIdentityClient)
+    provider = AzureManagedIdentityAuthProvider(managed_identity_client = mock_managed_identity_client)
     assert provider.get_expiration_time() is None
-
 
 def test_factory_creation_managed_identity():
     profile_managed_identity = DeltaSharingProfile(

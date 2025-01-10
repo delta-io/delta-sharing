@@ -198,12 +198,9 @@ class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
         return None
 
 
-class AzureManagedIdentityAuthProvider(AuthCredentialProvider):
-    def __init__(self,  auth_config: AuthConfig = AuthConfig()):
-        self.auth_config = auth_config
-        self.current_token: Optional[OAuthClientCredentials] = None
-        self.lock = threading.RLock()
-
+class AzureManagedIdentityClient:
+    def __init__(self):
+        None
 
     def managed_identity_token(self) -> OAuthClientCredentials:
         # Azure IMDS endpoint to get the access token.
@@ -224,6 +221,7 @@ class AzureManagedIdentityAuthProvider(AuthCredentialProvider):
 
         # Make the GET request to fetch the token
         response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
 
         # Check if the request was successful
         if response.status_code == 200:
@@ -236,7 +234,7 @@ class AzureManagedIdentityAuthProvider(AuthCredentialProvider):
 
     def parse_oauth_token_response(self, response: str) -> OAuthClientCredentials:
         if not response:
-            raise RuntimeError("Empty response from OAuth token endpoint")
+            raise RuntimeError("Empty response from azure managed identity endpoint")
         # Parsing the response according to azure managed identity spec
         # https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
         json_node = json.loads(response)
@@ -256,6 +254,15 @@ class AzureManagedIdentityAuthProvider(AuthCredentialProvider):
             int(datetime.now().timestamp())
         )
 
+
+class AzureManagedIdentityAuthProvider(AuthCredentialProvider):
+    def __init__(self,  managed_identity_client: AzureManagedIdentityClient, auth_config: AuthConfig = AuthConfig()):
+        self.auth_config = auth_config
+        self.managed_identity_client = managed_identity_client
+        self.current_token: Optional[OAuthClientCredentials] = None
+        self.lock = threading.RLock()
+
+
     def add_auth_header(self,session: requests.Session) -> None:
         token = self.maybe_refresh_token()
 
@@ -270,7 +277,7 @@ class AzureManagedIdentityAuthProvider(AuthCredentialProvider):
         with self.lock:
             if self.current_token and not self.needs_refresh(self.current_token):
                 return self.current_token
-            new_token = self.managed_identity_token()
+            new_token = self.managed_identity_client.managed_identity_token()
             self.current_token = new_token
             return new_token
 
@@ -284,6 +291,7 @@ class AzureManagedIdentityAuthProvider(AuthCredentialProvider):
 
     def get_expiration_time(self) -> Optional[str]:
         return None
+
 
 class AuthCredentialProviderFactory:
     __oauth_auth_provider_cache : Dict[
@@ -350,6 +358,7 @@ class AuthCredentialProviderFactory:
         if profile in AuthCredentialProviderFactory.__managed_identity_provider_cache:
             return AuthCredentialProviderFactory.__managed_identity_provider_cache[profile]
 
-        provider = AzureManagedIdentityAuthProvider()
+        managed_identity_client = AzureManagedIdentityClient()
+        provider = AzureManagedIdentityAuthProvider(managed_identity_client = managed_identity_client)
         AuthCredentialProviderFactory.__managed_identity_provider_cache[profile] = provider
         return provider
