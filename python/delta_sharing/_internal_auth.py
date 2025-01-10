@@ -204,7 +204,8 @@ class AzureManagedIdentityClient:
 
     def managed_identity_token(self) -> OAuthClientCredentials:
         # Azure IMDS endpoint to get the access token.
-        # This interface allows any client application running on the VM to acquire an access token via HTTP REST calls.
+        # This interface allows any client application running on the Azure VM
+        # to acquire an access token via HTTP REST calls.
         # For more details, see:
         # https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
         url = "http://169.254.169.254/metadata/identity/oauth2/token"
@@ -261,7 +262,6 @@ class AzureManagedIdentityAuthProvider(AuthCredentialProvider):
         self.managed_identity_client = managed_identity_client
         self.current_token: Optional[OAuthClientCredentials] = None
         self.lock = threading.RLock()
-
 
     def add_auth_header(self,session: requests.Session) -> None:
         token = self.maybe_refresh_token()
@@ -359,6 +359,6 @@ class AuthCredentialProviderFactory:
             return AuthCredentialProviderFactory.__managed_identity_provider_cache[profile]
 
         managed_identity_client = AzureManagedIdentityClient()
-        provider = AzureManagedIdentityAuthProvider(managed_identity_client = managed_identity_client)
+        provider = AzureManagedIdentityAuthProvider(managed_identity_client=managed_identity_client)
         AuthCredentialProviderFactory.__managed_identity_provider_cache[profile] = provider
         return provider

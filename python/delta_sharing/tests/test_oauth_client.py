@@ -100,4 +100,3 @@ def test_oauth_client_should_handle_401_unauthorized_response(mock_server):
         except requests.HTTPError as e:
             assert e.response.status_code == 401
 
-

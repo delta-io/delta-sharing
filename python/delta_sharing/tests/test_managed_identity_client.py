@@ -27,6 +27,7 @@ import pytest
 from requests import Response
 from delta_sharing._internal_auth import AzureManagedIdentityClient
 
+
 class MockServer:
     def __init__(self):
         self.url = "http://169.254.169.254/metadata/identity/oauth2/token"
@@ -50,14 +51,14 @@ def mock_server():
 
 @pytest.mark.parametrize("response_data, expected_expires_in, expected_access_token", [
     (
-            '{"access_token": "test-access-token", "expires_in": 3600, "token_type": "bearer"}',
-            3600,
-            "test-access-token"
+        '{"access_token": "test-access-token", "expires_in": 3600, "token_type": "bearer"}',
+        3600,
+        "test-access-token"
     ),
     (
-            '{"access_token": "test-access-token", "expires_in": "3600", "token_type": "bearer"}',
-            3600,
-            "test-access-token"
+        '{"access_token": "test-access-token", "expires_in": "3600", "token_type": "bearer"}',
+        3600,
+        "test-access-token"
     )
 ])
 def test_managed_identity_client_should_parse_token_response_correctly(mock_server,
