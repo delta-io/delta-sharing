@@ -13,13 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import pytest
-import requests
-from requests.models import Response
-from unittest.mock import patch
-from datetime import datetime
-from delta_sharing._internal_auth import OAuthClient
-
 from datetime import datetime
 from unittest.mock import patch
 
