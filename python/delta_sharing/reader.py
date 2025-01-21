@@ -36,16 +36,16 @@ from delta_sharing.fake_checkpoint import get_fake_checkpoint_byte_array
 
 class DeltaSharingReader:
     def __init__(
-            self,
-            table: Table,
-            rest_client: DataSharingRestClient,
-            *,
-            predicateHints: Optional[Sequence[str]] = None,
-            jsonPredicateHints: Optional[str] = None,
-            limit: Optional[int] = None,
-            version: Optional[int] = None,
-            timestamp: Optional[str] = None,
-            use_delta_format: Optional[bool] = None,
+        self,
+        table: Table,
+        rest_client: DataSharingRestClient,
+        *,
+        predicateHints: Optional[Sequence[str]] = None,
+        jsonPredicateHints: Optional[str] = None,
+        limit: Optional[int] = None,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
     ):
         self._table = table
         self._rest_client = rest_client
@@ -187,7 +187,7 @@ class DeltaSharingReader:
                 pdfs.append(pdf)
                 left -= len(pdf)
                 assert (
-                        left >= 0
+                    left >= 0
                 ), f"'_to_pandas' returned too many rows. Required: {left}, returned: {len(pdf)}"
                 if left == 0:
                     break
@@ -241,14 +241,14 @@ class DeltaSharingReader:
         return table_path
 
     def __write_temp_delta_log_cdf(
-            self,
-            log_dir: str,
-            delta_protocol: dict,
-            min_version: int,
-            max_version: int,
-            version_to_metadata: Dict[int, Any],
-            version_to_actions: Dict[int, Any],
-            version_to_timestamp: Dict[int, int]
+        self,
+        log_dir: str,
+        delta_protocol: dict,
+        min_version: int,
+        max_version: int,
+        version_to_metadata: Dict[int, Any],
+        version_to_actions: Dict[int, Any],
+        version_to_timestamp: Dict[int, int]
     ):
         min_version_file_name = str(min_version).zfill(20) + ".json"
         min_version_path = os.path.join(log_dir, min_version_file_name)
@@ -398,13 +398,13 @@ class DeltaSharingReader:
         return pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
 
     def _copy(
-            self,
-            *,
-            predicateHints: Optional[Sequence[str]],
-            jsonPredicateHints: Optional[str],
-            limit: Optional[int],
-            version: Optional[int],
-            timestamp: Optional[str]
+        self,
+        *,
+        predicateHints: Optional[Sequence[str]],
+        jsonPredicateHints: Optional[str],
+        limit: Optional[int],
+        version: Optional[int],
+        timestamp: Optional[str]
     ) -> "DeltaSharingReader":
         return DeltaSharingReader(
             table=self._table,
@@ -417,11 +417,11 @@ class DeltaSharingReader:
 
     @staticmethod
     def _to_pandas(
-            action: FileAction,
-            converters: Dict[str, Callable[[str], Any]],
-            for_cdf: bool,
-            limit: Optional[int],
-            session: Optional[requests.Session]
+        action: FileAction,
+        converters: Dict[str, Callable[[str], Any]],
+        for_cdf: bool,
+        limit: Optional[int],
+        session: Optional[requests.Session]
     ) -> pd.DataFrame:
         url = urlparse(action.url)
         if "storage.googleapis.com" in (url.netloc.lower()):

@@ -126,11 +126,11 @@ def _client_user_agent() -> str:
         import platform
 
         return (
-                f"Delta-Sharing-Python/{__version__}"
-                + f" pandas/{pandas.__version__}"
-                + f" PyArrow/{pyarrow.__version__}"
-                + f" Python/{platform.python_version()}"
-                + f" System/{platform.platform()}"
+            f"Delta-Sharing-Python/{__version__}"
+            + f" pandas/{pandas.__version__}"
+            + f" PyArrow/{pyarrow.__version__}"
+            + f" Python/{platform.python_version()}"
+            + f" System/{platform.platform()}"
         )
     except Exception as e:
         logging.warning(
@@ -174,8 +174,8 @@ class DataSharingRestClient:
 
     def set_sharing_capabilities_header(self):
         delta_sharing_capabilities = (
-                DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT + ';' +
-                DataSharingRestClient.DELTA_READER_FEATURES
+            DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT + ';' +
+            DataSharingRestClient.DELTA_READER_FEATURES
         )
         self._session.headers.update(
             {
@@ -188,8 +188,8 @@ class DataSharingRestClient:
 
     def set_delta_format_header(self):
         delta_sharing_capabilities = (
-                DataSharingRestClient.DELTA_RESPONSE_FORMAT + ';' +
-                DataSharingRestClient.DELTA_READER_FEATURES
+            DataSharingRestClient.DELTA_RESPONSE_FORMAT + ';' +
+            DataSharingRestClient.DELTA_READER_FEATURES
         )
         self._session.headers.update(
             {
@@ -202,7 +202,7 @@ class DataSharingRestClient:
 
     @retry_with_exponential_backoff
     def list_shares(
-            self, *, max_results: Optional[int] = None, page_token: Optional[str] = None
+        self, *, max_results: Optional[int] = None, page_token: Optional[str] = None
     ) -> ListSharesResponse:
         data: Dict = {}
         if max_results is not None:
@@ -219,7 +219,7 @@ class DataSharingRestClient:
 
     @retry_with_exponential_backoff
     def list_schemas(
-            self, share: Share, *, max_results: Optional[int] = None, page_token: Optional[str] = None
+        self, share: Share, *, max_results: Optional[int] = None, page_token: Optional[str] = None
     ) -> ListSchemasResponse:
         data: Dict = {}
         if max_results is not None:
@@ -238,7 +238,7 @@ class DataSharingRestClient:
 
     @retry_with_exponential_backoff
     def list_tables(
-            self, schema: Schema, *, max_results: Optional[int] = None, page_token: Optional[str] = None
+        self, schema: Schema, *, max_results: Optional[int] = None, page_token: Optional[str] = None
     ) -> ListTablesResponse:
         data: Dict = {}
         if max_results is not None:
@@ -247,7 +247,7 @@ class DataSharingRestClient:
             data["pageToken"] = page_token
 
         with self._get_internal(
-                f"/shares/{schema.share}/schemas/{schema.name}/tables", data
+            f"/shares/{schema.share}/schemas/{schema.name}/tables", data
         ) as lines:
             tables_json = json.loads(next(lines))
             return ListTablesResponse(
@@ -257,7 +257,7 @@ class DataSharingRestClient:
 
     @retry_with_exponential_backoff
     def list_all_tables(
-            self, share: Share, *, max_results: Optional[int] = None, page_token: Optional[str] = None
+        self, share: Share, *, max_results: Optional[int] = None, page_token: Optional[str] = None
     ) -> ListAllTablesResponse:
         data: Dict = {}
         if max_results is not None:
@@ -275,8 +275,8 @@ class DataSharingRestClient:
     @retry_with_exponential_backoff
     def query_table_metadata(self, table: Table) -> QueryTableMetadataResponse:
         with self._get_internal(
-                f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
-                return_headers=True
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
+            return_headers=True
         ) as values:
             headers = values[0]
             # it's a bug in the server if it doesn't return delta-table-version in the header
@@ -302,8 +302,8 @@ class DataSharingRestClient:
         self.set_sharing_capabilities_header()
 
         with self._get_internal(
-                f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
-                return_headers=True
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
+            return_headers=True
         ) as values:
             # removing the client-reader-features that were set to avoid diverging standard codepath
             self.remove_sharing_capabilities_header()
@@ -326,16 +326,16 @@ class DataSharingRestClient:
 
     @retry_with_exponential_backoff
     def query_table_version(
-            self,
-            table: Table,
-            starting_timestamp: Optional[str] = None,
+        self,
+        table: Table,
+        starting_timestamp: Optional[str] = None,
     ) -> QueryTableVersionResponse:
         query_str = f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/version"
         if starting_timestamp is not None:
             query_str += f"?startingTimestamp={quote(starting_timestamp)}"
         with self._get_internal(
-                query_str,
-                return_headers=True
+            query_str,
+            return_headers=True
         ) as values:
             headers = values[0]
 
@@ -348,14 +348,14 @@ class DataSharingRestClient:
 
     @retry_with_exponential_backoff
     def list_files_in_table(
-            self,
-            table: Table,
-            *,
-            predicateHints: Optional[Sequence[str]] = None,
-            jsonPredicateHints: Optional[str] = None,
-            limitHint: Optional[int] = None,
-            version: Optional[int] = None,
-            timestamp: Optional[str] = None,
+        self,
+        table: Table,
+        *,
+        predicateHints: Optional[Sequence[str]] = None,
+        jsonPredicateHints: Optional[str] = None,
+        limitHint: Optional[int] = None,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
     ) -> ListFilesInTableResponse:
         data: Dict = {}
         if predicateHints is not None:
@@ -370,9 +370,9 @@ class DataSharingRestClient:
             data["timestamp"] = timestamp
 
         with self._post_internal(
-                f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query",
-                data=data,
-                return_headers=True
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query",
+            data=data,
+            return_headers=True
         ) as values:
             headers = values[0]
             # it's a bug in the server if it doesn't return delta-table-version in the header
@@ -452,30 +452,30 @@ class DataSharingRestClient:
         self._session.close()
 
     def _get_internal(
-            self,
-            target: str,
-            data: Optional[Dict[str, Any]] = None,
-            return_headers: bool = False,
+        self,
+        target: str,
+        data: Optional[Dict[str, Any]] = None,
+        return_headers: bool = False,
     ):
         return self._request_internal(
             request=self._session.get, return_headers=return_headers, target=target, params=data)
 
     def _post_internal(
-            self,
-            target: str,
-            data: Optional[Dict[str, Any]] = None,
-            return_headers: bool = False,
+        self,
+        target: str,
+        data: Optional[Dict[str, Any]] = None,
+        return_headers: bool = False,
     ):
         return self._request_internal(
             request=self._session.post, return_headers=return_headers, target=target, json=data)
 
     @contextmanager
     def _request_internal(
-            self,
-            request,
-            return_headers,
-            target: str,
-            **kwargs,
+        self,
+        request,
+        return_headers,
+        target: str,
+        **kwargs,
     ):
         assert target.startswith("/"), "Targets should start with '/'"
         self._auth_credential_provider.add_auth_header(self._session)

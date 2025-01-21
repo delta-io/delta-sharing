@@ -54,8 +54,8 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
 
 
 def get_table_version(
-        url: str,
-        starting_timestamp: Optional[str] = None
+    url: str,
+    starting_timestamp: Optional[str] = None
 ) -> int:
     """
     Get the shared table version using the given url.
@@ -101,13 +101,13 @@ def get_table_metadata(url: str) -> Metadata:
 
 
 def load_as_pandas(
-        url: str,
-        limit: Optional[int] = None,
-        version: Optional[int] = None,
-        timestamp: Optional[str] = None,
-        jsonPredicateHints: Optional[str] = None,
-        use_delta_format: Optional[bool] = None,
-        sharing_client: Optional[SharingClient] = None,
+    url: str,
+    limit: Optional[int] = None,
+    version: Optional[int] = None,
+    timestamp: Optional[str] = None,
+    jsonPredicateHints: Optional[str] = None,
+    use_delta_format: Optional[bool] = None,
+    sharing_client: Optional[SharingClient] = None,
 ) -> pd.DataFrame:
     """
     Load the shared table using the given url as a pandas DataFrame.
@@ -136,9 +136,9 @@ def load_as_pandas(
 
 
 def load_as_spark(
-        url: str,
-        version: Optional[int] = None,
-        timestamp: Optional[str] = None
+    url: str,
+    version: Optional[int] = None,
+    timestamp: Optional[str] = None
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed,
@@ -170,11 +170,11 @@ def load_as_spark(
 
 
 def load_table_changes_as_spark(
-        url: str,
-        starting_version: Optional[int] = None,
-        ending_version: Optional[int] = None,
-        starting_timestamp: Optional[str] = None,
-        ending_timestamp: Optional[str] = None
+    url: str,
+    starting_version: Optional[int] = None,
+    ending_version: Optional[int] = None,
+    starting_timestamp: Optional[str] = None,
+    ending_timestamp: Optional[str] = None
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the table changes of a shared table as a Spark DataFrame using the given url.
@@ -215,13 +215,13 @@ def load_table_changes_as_spark(
 
 
 def load_table_changes_as_pandas(
-        url: str,
-        starting_version: Optional[int] = None,
-        ending_version: Optional[int] = None,
-        starting_timestamp: Optional[str] = None,
-        ending_timestamp: Optional[str] = None,
-        use_delta_format: Optional[bool] = None,
-        sharing_client: Optional[SharingClient] = None,
+    url: str,
+    starting_version: Optional[int] = None,
+    ending_version: Optional[int] = None,
+    starting_timestamp: Optional[str] = None,
+    ending_timestamp: Optional[str] = None,
+    use_delta_format: Optional[bool] = None,
+    sharing_client: Optional[SharingClient] = None,
 ) -> pd.DataFrame:
     """
     Load the table changes of shared table as a pandas DataFrame using the given url.
