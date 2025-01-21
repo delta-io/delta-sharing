@@ -16,6 +16,7 @@
 from itertools import chain
 from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
 from pathlib import Path
+import requests
 
 import pandas as pd
 
@@ -26,6 +27,7 @@ try:
 except ImportError:
     pass
 
+from delta_sharing.delta_sharing import SharingClient
 from delta_sharing.protocol import DeltaSharingProfile, Schema, Share, Table
 from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import DataSharingRestClient
@@ -52,8 +54,8 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
 
 
 def get_table_version(
-    url: str,
-    starting_timestamp: Optional[str] = None
+        url: str,
+        starting_timestamp: Optional[str] = None
 ) -> int:
     """
     Get the shared table version using the given url.
@@ -99,12 +101,13 @@ def get_table_metadata(url: str) -> Metadata:
 
 
 def load_as_pandas(
-    url: str,
-    limit: Optional[int] = None,
-    version: Optional[int] = None,
-    timestamp: Optional[str] = None,
-    jsonPredicateHints: Optional[str] = None,
-    use_delta_format: Optional[bool] = None,
+        url: str,
+        limit: Optional[int] = None,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+        jsonPredicateHints: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
+        sharing_client: Optional[SharingClient] = None,
 ) -> pd.DataFrame:
     """
     Load the shared table using the given url as a pandas DataFrame.
@@ -120,9 +123,10 @@ def load_as_pandas(
     """
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
+    rest_client = (sharing_client and sharing_client.rest_client) or DataSharingRestClient(profile)
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
-        rest_client=DataSharingRestClient(profile),
+        rest_client=rest_client,
         jsonPredicateHints=jsonPredicateHints,
         limit=limit,
         version=version,
@@ -132,9 +136,9 @@ def load_as_pandas(
 
 
 def load_as_spark(
-    url: str,
-    version: Optional[int] = None,
-    timestamp: Optional[str] = None
+        url: str,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed,
@@ -166,11 +170,11 @@ def load_as_spark(
 
 
 def load_table_changes_as_spark(
-    url: str,
-    starting_version: Optional[int] = None,
-    ending_version: Optional[int] = None,
-    starting_timestamp: Optional[str] = None,
-    ending_timestamp: Optional[str] = None
+        url: str,
+        starting_version: Optional[int] = None,
+        ending_version: Optional[int] = None,
+        starting_timestamp: Optional[str] = None,
+        ending_timestamp: Optional[str] = None
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the table changes of a shared table as a Spark DataFrame using the given url.
@@ -211,12 +215,13 @@ def load_table_changes_as_spark(
 
 
 def load_table_changes_as_pandas(
-    url: str,
-    starting_version: Optional[int] = None,
-    ending_version: Optional[int] = None,
-    starting_timestamp: Optional[str] = None,
-    ending_timestamp: Optional[str] = None,
-    use_delta_format: Optional[bool] = None
+        url: str,
+        starting_version: Optional[int] = None,
+        ending_version: Optional[int] = None,
+        starting_timestamp: Optional[str] = None,
+        ending_timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
+        sharing_client: Optional[SharingClient] = None,
 ) -> pd.DataFrame:
     """
     Load the table changes of shared table as a pandas DataFrame using the given url.
@@ -233,9 +238,10 @@ def load_table_changes_as_pandas(
     """
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
+    rest_client = (sharing_client and sharing_client.rest_client) or DataSharingRestClient(profile)
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
-        rest_client=DataSharingRestClient(profile),
+        rest_client=rest_client,
         use_delta_format=use_delta_format
     ).table_changes_to_pandas(CdfOptions(
         starting_version=starting_version,
@@ -251,13 +257,25 @@ def load_table_changes_as_pandas(
 class SharingClient:
     """
     A Delta Sharing client to query shares/schemas/tables from a Delta Sharing Server.
-    """
 
-    def __init__(self, profile: Union[str, BinaryIO, TextIO, Path, DeltaSharingProfile]):
+    :param profile: The path to the profile file or a DeltaSharingProfile object.
+    :param session: An optional requests.Session object to use for HTTP requests.
+                    You can use this to customize proxy settings, authentication, etc.
+    """
+    def __init__(self, profile: Union[str, BinaryIO, TextIO, Path, DeltaSharingProfile], session: Optional[requests.Session] = None):
         if not isinstance(profile, DeltaSharingProfile):
             profile = DeltaSharingProfile.read_from_file(profile)
         self._profile = profile
-        self._rest_client = DataSharingRestClient(profile)
+        self._rest_client = DataSharingRestClient(profile, session=session)
+
+    @property
+    def rest_client(self) -> DataSharingRestClient:
+        """
+        Get the underlying DataSharingRestClient used by this SharingClient.
+
+        :return: The DataSharingRestClient instance.
+        """
+        return self._rest_client
 
     def __list_all_tables_in_share(self, share: Share) -> Sequence[Table]:
         tables: List[Table] = []

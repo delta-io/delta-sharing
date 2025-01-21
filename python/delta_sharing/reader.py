@@ -24,6 +24,7 @@ import fsspec
 import os
 import pandas as pd
 import pyarrow as pa
+import requests
 import tempfile
 from pyarrow.dataset import dataset
 
@@ -35,16 +36,16 @@ from delta_sharing.fake_checkpoint import get_fake_checkpoint_byte_array
 
 class DeltaSharingReader:
     def __init__(
-        self,
-        table: Table,
-        rest_client: DataSharingRestClient,
-        *,
-        predicateHints: Optional[Sequence[str]] = None,
-        jsonPredicateHints: Optional[str] = None,
-        limit: Optional[int] = None,
-        version: Optional[int] = None,
-        timestamp: Optional[str] = None,
-        use_delta_format: Optional[bool] = None,
+            self,
+            table: Table,
+            rest_client: DataSharingRestClient,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
+            limit: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[str] = None,
+            use_delta_format: Optional[bool] = None,
     ):
         self._table = table
         self._rest_client = rest_client
@@ -172,20 +173,21 @@ class DeltaSharingReader:
 
         converters = to_converters(schema_json)
 
+        session = self._rest_client.get_session()
         if self._limit is None:
             pdfs = [
                 DeltaSharingReader._to_pandas(
-                    file, converters, False, None) for file in response.add_files
+                    file, converters, False, None, session=session) for file in response.add_files
             ]
         else:
             left = self._limit
             pdfs = []
             for file in response.add_files:
-                pdf = DeltaSharingReader._to_pandas(file, converters, False, left)
+                pdf = DeltaSharingReader._to_pandas(file, converters, False, left, session=session)
                 pdfs.append(pdf)
                 left -= len(pdf)
                 assert (
-                    left >= 0
+                        left >= 0
                 ), f"'_to_pandas' returned too many rows. Required: {left}, returned: {len(pdf)}"
                 if left == 0:
                     break
@@ -239,14 +241,14 @@ class DeltaSharingReader:
         return table_path
 
     def __write_temp_delta_log_cdf(
-        self,
-        log_dir: str,
-        delta_protocol: dict,
-        min_version: int,
-        max_version: int,
-        version_to_metadata: Dict[int, Any],
-        version_to_actions: Dict[int, Any],
-        version_to_timestamp: Dict[int, int]
+            self,
+            log_dir: str,
+            delta_protocol: dict,
+            min_version: int,
+            max_version: int,
+            version_to_metadata: Dict[int, Any],
+            version_to_actions: Dict[int, Any],
+            version_to_timestamp: Dict[int, int]
     ):
         min_version_file_name = str(min_version).zfill(20) + ".json"
         min_version_path = os.path.join(log_dir, min_version_file_name)
@@ -396,13 +398,13 @@ class DeltaSharingReader:
         return pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
 
     def _copy(
-        self,
-        *,
-        predicateHints: Optional[Sequence[str]],
-        jsonPredicateHints: Optional[str],
-        limit: Optional[int],
-        version: Optional[int],
-        timestamp: Optional[str]
+            self,
+            *,
+            predicateHints: Optional[Sequence[str]],
+            jsonPredicateHints: Optional[str],
+            limit: Optional[int],
+            version: Optional[int],
+            timestamp: Optional[str]
     ) -> "DeltaSharingReader":
         return DeltaSharingReader(
             table=self._table,
@@ -415,10 +417,11 @@ class DeltaSharingReader:
 
     @staticmethod
     def _to_pandas(
-        action: FileAction,
-        converters: Dict[str, Callable[[str], Any]],
-        for_cdf: bool,
-        limit: Optional[int]
+            action: FileAction,
+            converters: Dict[str, Callable[[str], Any]],
+            for_cdf: bool,
+            limit: Optional[int],
+            session: Optional[requests.Session]
     ) -> pd.DataFrame:
         url = urlparse(action.url)
         if "storage.googleapis.com" in (url.netloc.lower()):
@@ -426,11 +429,19 @@ class DeltaSharingReader:
             import delta_sharing._yarl_patch  # noqa: F401
 
         protocol = url.scheme
-        proxy = getproxies()
-        if len(proxy) != 0:
-            filesystem = fsspec.filesystem(protocol, client_kwargs={"trust_env":True})
+
+        if session is not None:
+            proxies = session.proxies
+            client_kwargs = {}
+            if proxies:
+                client_kwargs = {'proxies': proxies}
+            filesystem = fsspec.filesystem(protocol, **client_kwargs)
         else:
-            filesystem = fsspec.filesystem(protocol)
+            proxy = getproxies()
+            if len(proxy) != 0:
+                filesystem = fsspec.filesystem(protocol, client_kwargs={"trust_env":True})
+            else:
+                filesystem = fsspec.filesystem(protocol)
 
         pa_dataset = dataset(source=action.url, format="parquet", filesystem=filesystem)
         pa_table = pa_dataset.head(limit) if limit is not None else pa_dataset.to_table()
