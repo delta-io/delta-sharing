@@ -389,10 +389,11 @@ class DeltaSharingReader:
         if len(response.actions) == 0:
             return get_empty_table(self._add_special_cdf_schema(schema_json))
 
+        session = self._rest_client.get_session()
         converters = to_converters(schema_json)
         pdfs = []
         for action in response.actions:
-            pdf = DeltaSharingReader._to_pandas(action, converters, True, None)
+            pdf = DeltaSharingReader._to_pandas(action, converters, True, None, session=session)
             pdfs.append(pdf)
 
         return pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
