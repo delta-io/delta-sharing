@@ -16,6 +16,7 @@
 
 package io.delta.sharing.client
 
+import java.io.File
 import java.net.{URI, URLDecoder, URLEncoder}
 import java.util.concurrent.TimeUnit
 
@@ -23,13 +24,15 @@ import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.http.{HttpClientConnection, HttpHost, HttpRequest, HttpResponse}
-import org.apache.http.auth.{AuthScope, UsernamePasswordCredentials}
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.utils.URIBuilder
 import org.apache.http.conn.routing.HttpRoute
-import org.apache.http.impl.client.{BasicCredentialsProvider, HttpClientBuilder, RequestWrapper}
+import org.apache.http.conn.ssl.NoopHostnameVerifier
+import org.apache.http.conn.ssl.TrustSelfSignedStrategy
+import org.apache.http.impl.client.{CloseableHttpClient, HttpClientBuilder, RequestWrapper}
 import org.apache.http.impl.conn.{DefaultRoutePlanner, DefaultSchemePortResolver}
 import org.apache.http.protocol.{HttpContext, HttpRequestExecutor}
+import org.apache.http.ssl.SSLContextBuilder
 import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.{PreSignedUrlCache, PreSignedUrlFetcher}
 import org.apache.spark.internal.Logging
@@ -44,18 +47,20 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
 
   lazy private val numRetries = ConfUtils.numRetries(getConf)
   lazy private val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(getConf)
-  lazy private val timeoutInSeconds = ConfUtils.timeoutInSeconds(getConf)
+  lazy private val timeoutInMillis = ConfUtils.getTimeoutInMillis(getConf)
   lazy private val httpClient = createHttpClient()
 
-  private[sharing] def createHttpClient() = {
+  private[sharing] def createHttpClient(): CloseableHttpClient = {
     val proxyConfigOpt = ConfUtils.getProxyConfig(getConf)
     val maxConnections = ConfUtils.maxConnections(getConf)
-    val config = RequestConfig.custom()
-      .setConnectTimeout(timeoutInSeconds * 1000)
-      .setConnectionRequestTimeout(timeoutInSeconds * 1000)
-      .setSocketTimeout(timeoutInSeconds * 1000).build()
+    val customHeadersOpt = ConfUtils.getCustomHeaders(getConf)
 
-    logDebug(s"Creating delta sharing httpClient with timeoutInSeconds: $timeoutInSeconds.")
+    val config = RequestConfig.custom()
+      .setConnectTimeout(timeoutInMillis)
+      .setConnectionRequestTimeout(timeoutInMillis)
+      .setSocketTimeout(timeoutInMillis).build()
+
+    logDebug(s"Creating delta sharing httpClient with timeoutInMillis: $timeoutInMillis.")
     val clientBuilder = HttpClientBuilder.create()
       .setMaxConnTotal(maxConnections)
       .setMaxConnPerRoute(maxConnections)
@@ -66,9 +71,14 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
 
     // Set proxy if provided.
     proxyConfigOpt.foreach { proxyConfig =>
-
       val proxy = new HttpHost(proxyConfig.host, proxyConfig.port)
       clientBuilder.setProxy(proxy)
+
+      if (proxyConfig.authToken.nonEmpty) {
+        clientBuilder.addInterceptorFirst((request: HttpRequest, _: HttpContext) => {
+          request.addHeader("Proxy-Authorization", s"Bearer ${proxyConfig.authToken}")
+        })
+      }
 
       val neverUseHttps = ConfUtils.getNeverUseHttps(getConf)
       if (neverUseHttps) {
@@ -94,6 +104,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
         }
         clientBuilder.setRequestExecutor(httpRequestDowngradeExecutor)
       }
+
       if (proxyConfig.noProxyHosts.nonEmpty || neverUseHttps) {
         val routePlanner = new DefaultRoutePlanner(DefaultSchemePortResolver.INSTANCE) {
           override def determineRoute(target: HttpHost,
@@ -110,6 +121,28 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
         }
         clientBuilder.setRoutePlanner(routePlanner)
       }
+
+      if (proxyConfig.sslTrustAll) {
+        clientBuilder.setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+        clientBuilder.setSSLContext(
+          new SSLContextBuilder()
+            .loadTrustMaterial(null, new TrustSelfSignedStrategy)
+            .build()
+        )
+      } else if (proxyConfig.caCertPath.nonEmpty) {
+        clientBuilder.setSSLContext(
+          new SSLContextBuilder()
+            .loadTrustMaterial(new File(proxyConfig.caCertPath.getOrElse("")), null)
+            .build()
+        )
+      }
+
+      customHeadersOpt.foreach { headers =>
+        ConfUtils.validateCustomHeaders(headers)
+        clientBuilder.addInterceptorFirst((request: HttpRequest, _: HttpContext) => {
+          headers.foreach { case (key, value) => request.addHeader(key, value) }
+        })
+      }
     }
     clientBuilder.build()
   }
@@ -122,7 +155,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
 
   override def getScheme: String = SCHEME
 
-  override def getUri(): URI = URI.create(s"$SCHEME:///")
+  override def getUri: URI = URI.create(s"$SCHEME:///")
 
   // open a file path with the format below:
   // ```
@@ -204,7 +237,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
 
 private[sharing] object DeltaSharingFileSystem {
 
-  val SCHEME = "delta-sharing"
+  private val SCHEME = "delta-sharing"
 
   case class DeltaSharingPath(tablePath: String, fileId: String, fileSize: Long) {
 

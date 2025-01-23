@@ -16,8 +16,8 @@
 
 package io.delta.sharing.client.util
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import java.util.concurrent.TimeUnit
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.sql.internal.SQLConf
@@ -81,6 +81,10 @@ object ConfUtils {
   val PROXY_PORT = "spark.delta.sharing.network.proxyPort"
   val NO_PROXY_HOSTS = "spark.delta.sharing.network.noProxyHosts"
 
+  val CUSTOM_HEADERS = "spark.delta.sharing.network.customHeaders"
+  val PROXY_AUTH_TOKEN = "spark.delta.sharing.network.proxyAuthToken"
+  val CA_CERT_PATH = "spark.delta.sharing.network.caCertPath"
+
   val OAUTH_RETRIES_CONF = "spark.delta.sharing.oauth.tokenExchangeMaxRetries"
   val OAUTH_RETRIES_DEFAULT = 5
 
@@ -98,6 +102,10 @@ object ConfUtils {
   def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
     val proxyHost = conf.get(PROXY_HOST, null)
     val proxyPortAsString = conf.get(PROXY_PORT, null)
+    val noProxyList = conf.getTrimmedStrings(NO_PROXY_HOSTS).toSeq
+    val authToken = Option(conf.get(PROXY_AUTH_TOKEN, null))
+    val caCertPath = Option(conf.get(CA_CERT_PATH, null))
+    val sslTrustAll = conf.getBoolean(SSL_TRUST_ALL_CONF, SSL_TRUST_ALL_DEFAULT.toBoolean)
 
     if (proxyHost == null && proxyPortAsString == null) {
       return None
@@ -105,11 +113,44 @@ object ConfUtils {
 
     validateNonEmpty(proxyHost, PROXY_HOST)
     validateNonEmpty(proxyPortAsString, PROXY_PORT)
+    validateNonEmpty(sslTrustAll.toString, SSL_TRUST_ALL_CONF)
+
     val proxyPort = proxyPortAsString.toInt
     validatePortNumber(proxyPort, PROXY_PORT)
 
-    val noProxyList = conf.getTrimmedStrings(NO_PROXY_HOSTS).toSeq
-    Some(ProxyConfig(proxyHost, proxyPort, noProxyHosts = noProxyList))
+    Some(ProxyConfig(
+      host = proxyHost,
+      port = proxyPort,
+      noProxyHosts = noProxyList,
+      authToken = authToken,
+      caCertPath = caCertPath,
+      sslTrustAll = sslTrustAll
+    ))
+  }
+
+  def getCustomHeaders(conf: Configuration): Option[Map[String, String]] = {
+    val headersString = conf.get(CUSTOM_HEADERS, null)
+    if (headersString != null && headersString.nonEmpty) {
+      val mapper = new ObjectMapper()
+      val headers = mapper.readValue(headersString, classOf[Map[String, String]])
+      Some(headers)
+    } else {
+      None
+    }
+  }
+
+  def validateCustomHeaders(headers: Map[String, String]): Unit = {
+    headers.foreach { case (key, value) =>
+      require(key != null && key.nonEmpty, "Custom header name must not be null or empty")
+      require(value != null, s"Custom header value for '$key' must not be null")
+    }
+  }
+
+  def getTimeoutInMillis(conf: Configuration): Int = {
+    val timeoutStr = conf.get(TIMEOUT_CONF, TIMEOUT_DEFAULT)
+    val timeoutMillis = JavaUtils.timeStringAs(timeoutStr, TimeUnit.MILLISECONDS)
+    validateNonNeg(timeoutMillis, TIMEOUT_CONF)
+    timeoutMillis.toInt
   }
 
   def getNeverUseHttps(conf: Configuration): Boolean = {
@@ -325,7 +366,10 @@ object ConfUtils {
   }
 
   case class ProxyConfig(host: String,
-                         port: Int,
-                         noProxyHosts: Seq[String] = Seq.empty
+                        port: Int,
+                        noProxyHosts: Seq[String] = Seq.empty,
+                        authToken: Option[String] = None,
+                        caCertPath: Option[String] = None,
+                        sslTrustAll: Boolean = false
                         )
 }
