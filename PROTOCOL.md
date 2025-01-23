@@ -2077,7 +2077,7 @@ delta-table-version: 123
 ### Read Change Data Feed from a Table
 This is the API for clients to read change data feed from a table.
 
-The API supports a start parameter and and an end parameter. The start/end parameter can either be a version or a timestamp. The start parameter must be provided. If the end parameter is not provided, the API will use the latest table version for it. The parameter range is inclusive in the query.
+The API supports a start parameter and an end parameter. The start/end parameter can either be a version or a timestamp. The start parameter must be provided. If the end parameter is not provided, the API will use the latest table version for it. The parameter range is inclusive in the query.
 
 You can specify a version as a Long or a timestamp as a string in the [Timestamp Format](#timestamp-format).
 
