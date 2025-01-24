@@ -51,6 +51,7 @@ import io.delta.sharing.client.model.{
 }
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
+import io.delta.sharing.spark.util.SchemaUtils
 
 /**
  * Used to query the current state of the transaction logs of a remote shared Delta table.
@@ -227,52 +228,24 @@ class RemoteSnapshot(
   }
 
   private def checkSchemaNotChange(newMetadata: Metadata): Unit = {
-    val newSchema = DataType.fromJson(newMetadata.schemaString).asInstanceOf[StructType]
-    val currentSchema = DataType.fromJson(metadata.schemaString).asInstanceOf[StructType]
-
-    val newSchemaFields = newSchema.fields.map(field => {
-      field.name -> field.dataType
-    }).toMap
-
-    val currentSchemaFields = currentSchema.fields.map(field => {
-      field.name -> field.dataType
-    }).toMap
-
     val schemaChangedException = new SparkException(
       s"""The schema or partition columns of your Delta table has changed since your
          |DataFrame was created. Please redefine your DataFrame""".stripMargin)
 
-    // Verify partition columns are the same
-    if (metadata.partitionColumns != newMetadata.partitionColumns) {
-      throw schemaChangedException
-    }
+    if (ConfUtils.structuralSchemaMatchingEnabled(spark.sessionState.conf)) {
+      val newSchema = DataType.fromJson(newMetadata.schemaString).asInstanceOf[StructType]
+      val currentSchema = DataType.fromJson(metadata.schemaString).asInstanceOf[StructType]
 
-    val newSchemaFieldNames = newSchemaFields.keySet
-    val currentSchemaFieldNames = currentSchemaFields.keySet
-
-    // Ensure that all the current schema field names are a subset of new schema field names
-    if (!currentSchemaFieldNames.subsetOf(newSchemaFieldNames)) {
-      throw schemaChangedException
-    }
-
-    // Ensure the shared fields are the structually the same
-    currentSchemaFieldNames.intersect(newSchemaFieldNames).foreach(fieldName => {
-      val newSchemaDatatype = newSchemaFields.getOrElse(
-        fieldName,
-        throw new SparkException(
-          s"$fieldName as a field should exist in new metadata"
-        )
-      )
-      val currentSchemaDatatype = currentSchemaFields.getOrElse(
-        fieldName,
-        throw new SparkException(
-          s"$fieldName as a field should exist in current metadata"
-        )
-      )
-      if (!DataType.equalsStructurally(newSchemaDatatype, currentSchemaDatatype)) {
+      if (
+        metadata.partitionColumns != newMetadata.partitionColumns ||
+          !SchemaUtils.isReadCompatible(currentSchema, newSchema)
+      ) {
         throw schemaChangedException
       }
-    })
+    } else if (newMetadata.schemaString != metadata.schemaString ||
+      newMetadata.partitionColumns != metadata.partitionColumns) {
+      throw schemaChangedException
+    }
   }
 
   def filesForScan(

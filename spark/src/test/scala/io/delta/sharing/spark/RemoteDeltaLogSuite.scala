@@ -576,6 +576,10 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
   }
 
   test("RemoteDeltaLog should error when the new metadata is a subset of current metadata") {
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.useStructuralSchemaMatch",
+      "true"
+    )
     testMismatch(expectError = true) { schema =>
       // initial schema has extra field to schema so the new metadata is a subset
       StructType(
@@ -592,6 +596,10 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
   test(
     "RemoteDeltaLog should not error when new metadata includes extra columns not in new metadata"
   ) {
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.useStructuralSchemaMatch",
+      "true"
+    )
     testMismatch(expectError = false) { schema =>
       // initial schema only has one field so that the new metadata includes extra fields
       StructType(
@@ -601,6 +609,10 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
   }
 
   test("RemoteDeltaLog errors when new metadata data type does not match") {
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.useStructuralSchemaMatch",
+      "true"
+    )
     testMismatch(expectError = true) { schema =>
       // initial schema only has one field so that the new metadata includes extra fields
       StructType(
