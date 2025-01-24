@@ -50,6 +50,9 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
   private[sharing] def createHttpClient() = {
     val proxyConfigOpt = ConfUtils.getProxyConfig(getConf)
     val maxConnections = ConfUtils.maxConnections(getConf)
+    val timeoutInSeconds = ConfUtils.getTimeoutInSeconds(getConf)
+    val customHeadersOpt = ConfUtils.getCustomHeaders(getConf)
+
     val config = RequestConfig.custom()
       .setConnectTimeout(timeoutInSeconds * 1000)
       .setConnectionRequestTimeout(timeoutInSeconds * 1000)
@@ -66,9 +69,14 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
 
     // Set proxy if provided.
     proxyConfigOpt.foreach { proxyConfig =>
-
       val proxy = new HttpHost(proxyConfig.host, proxyConfig.port)
       clientBuilder.setProxy(proxy)
+
+      if (proxyConfig.authToken.nonEmpty) {
+        clientBuilder.addInterceptorFirst((request: HttpRequest, context: HttpContext) => {
+          request.addHeader("Proxy-Authorization", s"Bearer ${proxyConfig.authToken}")
+        })
+      }
 
       val neverUseHttps = ConfUtils.getNeverUseHttps(getConf)
       if (neverUseHttps) {
@@ -94,6 +102,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
         }
         clientBuilder.setRequestExecutor(httpRequestDowngradeExecutor)
       }
+
       if (proxyConfig.noProxyHosts.nonEmpty || neverUseHttps) {
         val routePlanner = new DefaultRoutePlanner(DefaultSchemePortResolver.INSTANCE) {
           override def determineRoute(target: HttpHost,
@@ -110,7 +119,22 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
         }
         clientBuilder.setRoutePlanner(routePlanner)
       }
+
+      if (proxyConfig.sslTrustAll) {
+        clientBuilder.setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+        clientBuilder.setSSLContext(new SSLContextBuilder().loadTrustMaterial(null, new TrustSelfSignedStrategy).build())
+      } else if (proxyConfig.caCertPath.nonEmpty) {
+        clientBuilder.setSSLContext(new SSLContextBuilder().loadTrustMaterial(new File(proxyConfig.caCertPath), null).build())
+      }
     }
+
+    customHeadersOpt.foreach { headers =>
+      ConfUtils.validateCustomHeaders(headers)
+      clientBuilder.addInterceptorFirst((request: HttpRequest, _: HttpContext) => {
+        headers.foreach { case (key, value) => request.addHeader(key, value) }
+      })
+    }
+
     clientBuilder.build()
   }
 

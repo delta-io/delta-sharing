@@ -81,6 +81,11 @@ object ConfUtils {
   val PROXY_PORT = "spark.delta.sharing.network.proxyPort"
   val NO_PROXY_HOSTS = "spark.delta.sharing.network.noProxyHosts"
 
+  val CUSTOM_HEADERS = "spark.delta.sharing.network.customHeaders"
+  val PROXY_AUTH_TOKEN = "spark.delta.sharing.network.proxyAuthToken"
+  val SSL_TRUST_ALL = "spark.delta.sharing.network.sslTrustAll"
+  val CA_CERT_PATH = "spark.delta.sharing.network.caCertPath"
+  
   val OAUTH_RETRIES_CONF = "spark.delta.sharing.oauth.tokenExchangeMaxRetries"
   val OAUTH_RETRIES_DEFAULT = 5
 
@@ -109,7 +114,43 @@ object ConfUtils {
     validatePortNumber(proxyPort, PROXY_PORT)
 
     val noProxyList = conf.getTrimmedStrings(NO_PROXY_HOSTS).toSeq
-    Some(ProxyConfig(proxyHost, proxyPort, noProxyHosts = noProxyList))
+    val authToken = conf.get(PROXY_AUTH_TOKEN, null)
+    val caCertPath = conf.get(CA_CERT_PATH, null)
+    val sslTrustAll = conf.getBoolean(SSL_TRUST_ALL_CONF, false)
+
+    Some(ProxyConfig(
+      host = proxyHost,
+      port = proxyPort,
+      noProxyHosts = noProxyList,
+      authToken = authToken,
+      caCertPath = caCertPath,
+      sslTrustAll = sslTrustAll
+    ))
+  }
+
+  def getCustomHeaders(conf: Configuration): Option[Map[String, String]] = {
+    val headersString = conf.get(CUSTOM_HEADERS, null)
+    if (headersString != null && headersString.nonEmpty) {
+      val mapper = new ObjectMapper()
+      val headers = mapper.readValue(headersString, classOf[Map[String, String]])
+      Some(headers)
+    } else {
+      None
+    }
+  }
+
+  def validateCustomHeaders(headers: Map[String, String]): Unit = {
+    headers.foreach { case (key, value) =>
+      require(key != null && key.nonEmpty, "Custom header name must not be null or empty")
+      require(value != null, s"Custom header value for '$key' must not be null")
+    }
+  }
+
+  def getTimeoutInMillis(conf: Configuration): Int = {
+    val timeoutStr = conf.get(TIMEOUT_CONF, TIMEOUT_DEFAULT)
+    val timeoutMillis = JavaUtils.timeStringAs(timeoutStr, TimeUnit.MILLISECONDS)
+    validateNonNeg(timeoutMillis, TIMEOUT_CONF)
+    timeoutMillis.toInt
   }
 
   def getNeverUseHttps(conf: Configuration): Boolean = {
@@ -325,7 +366,10 @@ object ConfUtils {
   }
 
   case class ProxyConfig(host: String,
-                         port: Int,
-                         noProxyHosts: Seq[String] = Seq.empty
+                        port: Int,
+                        noProxyHosts: Seq[String] = Seq.empty,
+                        authToken: Option[String] = None,
+                        caCertPath: Option[String] = None,
+                        sslTrustAll: Boolean = false
                         )
 }
