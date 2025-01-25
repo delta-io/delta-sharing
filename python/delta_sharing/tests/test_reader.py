@@ -14,11 +14,9 @@
 # limitations under the License.
 #
 import pytest
-
+import pandas as pd
 from datetime import date
 from typing import Optional, Sequence
-
-import pandas as pd
 
 from delta_sharing.protocol import AddFile, AddCdcFile, CdfOptions, Metadata, RemoveFile, Table
 from delta_sharing.reader import DeltaSharingReader
@@ -38,6 +36,9 @@ def test_to_pandas_non_partitioned(tmp_path):
     pdf2.to_parquet(tmp_path / "pdf2.parquet")
 
     class RestClientMock:
+        def __init__(self, session=None):
+            self._session = session
+
         def list_files_in_table(
             self,
             table: Table,
@@ -91,6 +92,9 @@ def test_to_pandas_non_partitioned(tmp_path):
         def autoresolve_query_format(self, table: Table):
             return "parquet"
 
+        def get_session(self):
+            return self._session
+
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.to_pandas()
     expected = pd.concat([pdf1, pdf2]).reset_index(drop=True)
@@ -123,6 +127,9 @@ def test_to_pandas_partitioned(tmp_path):
     pdf2.to_parquet(tmp_path / "pdf2.parquet")
 
     class RestClientMock:
+        def __init__(self, session=None):
+            self._session = session
+
         def list_files_in_table(
             self,
             table: Table,
@@ -170,6 +177,9 @@ def test_to_pandas_partitioned(tmp_path):
         def autoresolve_query_format(self, table: Table):
             return "parquet"
 
+        def get_session(self):
+            return self._session
+
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.to_pandas()
 
@@ -190,6 +200,9 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
     pdf2.to_parquet(tmp_path / "pdf2.parquet")
 
     class RestClientMock:
+        def __init__(self, session=None):
+            self._session = session
+
         def list_files_in_table(
             self,
             table: Table,
@@ -238,6 +251,9 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
         def autoresolve_query_format(self, table: Table):
             return "parquet"
 
+        def get_session(self):
+            return self._session
+
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.to_pandas()
 
@@ -253,6 +269,9 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_to_pandas_empty(rest_client: DataSharingRestClient):
     class RestClientMock:
+        def __init__(self, session=None):
+            self._session = session
+
         def list_files_in_table(
             self,
             table: Table,
@@ -301,6 +320,9 @@ def test_to_pandas_empty(rest_client: DataSharingRestClient):
 
         def autoresolve_query_format(self, table: Table):
             return "parquet"
+
+        def get_session(self):
+            return self._session
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock()  # type: ignore
@@ -356,6 +378,9 @@ def test_table_changes_to_pandas_non_partitioned(tmp_path):
     pdf4[DeltaSharingReader._commit_timestamp_col_name()] = timestamp4
 
     class RestClientMock:
+        def __init__(self, session=None):
+            self._session = session
+
         def list_table_changes(
             self, table: Table, cdfOptions: CdfOptions
         ) -> ListTableChangesResponse:
@@ -414,6 +439,9 @@ def test_table_changes_to_pandas_non_partitioned(tmp_path):
         def autoresolve_query_format(self, table: Table):
             return "parquet"
 
+        def get_session(self):
+            return self._session
+
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.table_changes_to_pandas(CdfOptions())
 
@@ -442,6 +470,9 @@ def test_table_changes_to_pandas_partitioned(tmp_path):
     pdf2[DeltaSharingReader._commit_timestamp_col_name()] = timestamp
 
     class RestClientMock:
+        def __init__(self, session=None):
+            self._session = session
+
         def list_table_changes(
             self,
             table: Table,
@@ -482,6 +513,9 @@ def test_table_changes_to_pandas_partitioned(tmp_path):
                 lines=None
             )
 
+        def get_session(self):
+            return self._session
+
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.table_changes_to_pandas(CdfOptions())
 
@@ -491,6 +525,9 @@ def test_table_changes_to_pandas_partitioned(tmp_path):
 
 def test_table_changes_empty(tmp_path):
     class RestClientMock:
+        def __init__(self, session=None):
+            self._session = session
+
         def list_table_changes(
             self, table: Table, cdfOptions: CdfOptions
         ) -> ListTableChangesResponse:
@@ -510,6 +547,9 @@ def test_table_changes_empty(tmp_path):
                 actions=[],
                 lines=None
             )
+
+        def get_session(self):
+            return self._session
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.table_changes_to_pandas(CdfOptions())
@@ -565,6 +605,9 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
     pdf4[DeltaSharingReader._commit_timestamp_col_name()] = timestamp4
 
     class RestClientMock:
+        def __init__(self, session=None):
+            self._session = session
+
         def list_table_changes(
             self, table: Table, cdfOptions: CdfOptions
         ) -> ListTableChangesResponse:
@@ -575,7 +618,7 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                 '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
                 '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
                 '],"type":"struct"}'
-            ).replace('"',r'\"')
+            ).replace('"', r'\"')
             lines = [
                 f'''{{
                     "protocol": {{
@@ -674,6 +717,9 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
 
         def remove_delta_format_header(self):
             return
+
+        def get_session(self):
+            return self._session
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"),
