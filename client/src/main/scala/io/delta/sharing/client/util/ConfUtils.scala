@@ -103,21 +103,23 @@ object ConfUtils {
     val proxyHost = conf.get(PROXY_HOST, null)
     val proxyPortAsString = conf.get(PROXY_PORT, null)
 
-    if (proxyHost != null && proxyPortAsString != null) {
-      val proxyPort = proxyPortAsString.toInt
-      validatePortNumber(proxyPort, PROXY_PORT)
-
-      Some(ProxyConfig(
-        host = proxyHost,
-        port = proxyPort,
-        noProxyHosts = conf.getTrimmedStrings(NO_PROXY_HOSTS).toSeq,
-        authToken = Option(conf.get(PROXY_AUTH_TOKEN, null)),
-        caCertPath = Option(conf.get(CA_CERT_PATH, null)),
-        sslTrustAll = conf.getBoolean(SSL_TRUST_ALL_CONF, SSL_TRUST_ALL_DEFAULT.toBoolean)
-      ))
-    } else {
-      None
+    if (proxyHost == null && proxyPortAsString == null) {
+      return None
     }
+
+    validateNonEmpty(proxyHost, PROXY_HOST)
+    validateNonEmpty(proxyPortAsString, PROXY_PORT)
+    val proxyPort = proxyPortAsString.toInt
+    validatePortNumber(proxyPort, PROXY_PORT)
+
+    Some(ProxyConfig(
+      host = proxyHost,
+      port = proxyPort,
+      noProxyHosts = conf.getTrimmedStrings(NO_PROXY_HOSTS).toSeq,
+      authToken = Option(conf.get(PROXY_AUTH_TOKEN, null)),
+      caCertPath = Option(conf.get(CA_CERT_PATH, null)),
+      sslTrustAll = conf.getBoolean(SSL_TRUST_ALL_CONF, SSL_TRUST_ALL_DEFAULT.toBoolean)
+    ))
   }
 
 
