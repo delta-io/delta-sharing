@@ -132,7 +132,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
       } else if (proxyConfig.caCertPath.nonEmpty) {
         clientBuilder.setSSLContext(
           new SSLContextBuilder()
-            .loadTrustMaterial(new File(proxyConfig.caCertPath.getOrElse("")), null)
+            .loadTrustMaterial(new File(proxyConfig.caCertPath), null)
             .build()
         )
       }
