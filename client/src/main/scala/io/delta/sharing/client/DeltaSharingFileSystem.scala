@@ -23,10 +23,10 @@ import java.util.concurrent.TimeUnit
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
-import org.apache.http.{HttpClientConnection, HttpHost, HttpRequest, HttpResponse}
+import org.apache.http.{HttpClientConnection, HttpHost, HttpRequest, HttpRequestInterceptor, HttpResponse}
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.utils.URIBuilder
-import org.apache.http.conn.routing.HttpRoute
+import org.apache.http.conn.routing.{HttpRoute, HttpRoutePlanner}
 import org.apache.http.conn.ssl.NoopHostnameVerifier
 import org.apache.http.conn.ssl.TrustSelfSignedStrategy
 import org.apache.http.impl.client.{CloseableHttpClient, HttpClientBuilder, RequestWrapper}
@@ -39,6 +39,7 @@ import org.apache.spark.internal.Logging
 
 import io.delta.sharing.client.model.FileAction
 import io.delta.sharing.client.util.ConfUtils
+import io.delta.sharing.client.util.ConfUtils.ProxyConfig
 
 /** Read-only file system for delta paths. */
 private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
@@ -47,104 +48,128 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
 
   lazy private val numRetries = ConfUtils.numRetries(getConf)
   lazy private val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(getConf)
-  lazy private val timeoutInMillis = ConfUtils.getTimeoutInMillis(getConf)
   lazy private val httpClient = createHttpClient()
 
   private[sharing] def createHttpClient(): CloseableHttpClient = {
-    val proxyConfigOpt = ConfUtils.getProxyConfig(getConf)
-    val maxConnections = ConfUtils.maxConnections(getConf)
-    val customHeadersOpt = ConfUtils.getCustomHeaders(getConf)
+    val conf = getConf
+    val timeoutInMillis = ConfUtils.getTimeoutInMillis(conf)
+    val proxyConfigOpt = ConfUtils.getProxyConfig(conf)
+    val maxConnections = ConfUtils.maxConnections(conf)
+    val customHeadersOpt = ConfUtils.getCustomHeaders(conf)
+    val neverUseHttps = ConfUtils.getNeverUseHttps(conf)
 
-    val config = RequestConfig.custom()
+    val requestConfig = RequestConfig.custom()
       .setConnectTimeout(timeoutInMillis)
       .setConnectionRequestTimeout(timeoutInMillis)
-      .setSocketTimeout(timeoutInMillis).build()
+      .setSocketTimeout(timeoutInMillis)
+      .build()
 
-    logDebug(s"Creating delta sharing httpClient with timeoutInMillis: $timeoutInMillis.")
+    logDebug(s"Creating HTTP client with timeoutInMillis: $timeoutInMillis")
+
     val clientBuilder = HttpClientBuilder.create()
       .setMaxConnTotal(maxConnections)
       .setMaxConnPerRoute(maxConnections)
-      .setDefaultRequestConfig(config)
-      // Disable the default retry behavior because we have our own retry logic.
-      // See `RetryUtils.runWithExponentialBackoff`.
+      .setDefaultRequestConfig(requestConfig)
       .disableAutomaticRetries()
 
-    // Set proxy if provided.
     proxyConfigOpt.foreach { proxyConfig =>
-      val proxy = new HttpHost(proxyConfig.host, proxyConfig.port)
-      clientBuilder.setProxy(proxy)
+      configureProxy(clientBuilder, proxyConfig, neverUseHttps)
+    }
 
-      if (proxyConfig.authToken.nonEmpty) {
-        clientBuilder.addInterceptorFirst((request: HttpRequest, _: HttpContext) => {
-          request.addHeader("Proxy-Authorization", s"Bearer ${proxyConfig.authToken}")
-        })
-      }
+    customHeadersOpt.foreach { headers =>
+      addCustomHeaders(clientBuilder, headers)
+    }
 
-      val neverUseHttps = ConfUtils.getNeverUseHttps(getConf)
-      if (neverUseHttps) {
-        val httpRequestDowngradeExecutor = new HttpRequestExecutor {
-          override def execute(
-                                request: HttpRequest,
-                                connection: HttpClientConnection,
-                                context: HttpContext): HttpResponse = {
-            try {
-              val modifiedUri: URI = {
-                new URIBuilder(request.getRequestLine.getUri).setScheme("http").build()
-              }
-              val wrappedRequest = new RequestWrapper(request)
-              wrappedRequest.setURI(modifiedUri)
+    clientBuilder.build()
+  }
 
-              return super.execute(wrappedRequest, connection, context)
-            } catch {
-              case e: Exception =>
-                logInfo("Failed to downgrade the request to http", e)
-            }
-            super.execute(request, connection, context)
-          }
+  private def configureProxy(clientBuilder: HttpClientBuilder, proxyConfig: ProxyConfig,
+                             neverUseHttps: Boolean): Unit = {
+
+    val proxy = new HttpHost(proxyConfig.host, proxyConfig.port)
+    clientBuilder.setProxy(proxy)
+
+    proxyConfig.authToken.foreach { token =>
+      clientBuilder.addInterceptorFirst(new HttpRequestInterceptor {
+        override def process(request: HttpRequest, context: HttpContext): Unit = {
+          request.addHeader("Proxy-Authorization", s"Bearer $token")
         }
-        clientBuilder.setRequestExecutor(httpRequestDowngradeExecutor)
-      }
+      })
+    }
 
-      if (proxyConfig.noProxyHosts.nonEmpty || neverUseHttps) {
-        val routePlanner = new DefaultRoutePlanner(DefaultSchemePortResolver.INSTANCE) {
-          override def determineRoute(target: HttpHost,
-                                      request: HttpRequest,
-                                      context: HttpContext): HttpRoute = {
-            if (proxyConfig.noProxyHosts.contains(target.getHostName)) {
-              // Direct route (no proxy)
-              new HttpRoute(target)
-            } else {
-              // Route via proxy
-              new HttpRoute(target, proxy)
-            }
-          }
-        }
-        clientBuilder.setRoutePlanner(routePlanner)
-      }
+    configureSSL(clientBuilder, proxyConfig)
 
-      if (proxyConfig.sslTrustAll) {
-        clientBuilder.setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+    if (neverUseHttps) {
+      clientBuilder.setRequestExecutor(createHttpRequestDowngradeExecutor())
+    }
+
+    if (proxyConfig.noProxyHosts.nonEmpty || neverUseHttps) {
+      clientBuilder.setRoutePlanner(createRoutePlanner(proxy, proxyConfig.noProxyHosts))
+    }
+  }
+
+  private def configureSSL(clientBuilder: HttpClientBuilder, proxyConfig: ProxyConfig): Unit = {
+    if (proxyConfig.sslTrustAll) {
+      clientBuilder.setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+      clientBuilder.setSSLContext(
+        new SSLContextBuilder()
+          .loadTrustMaterial(null, new TrustSelfSignedStrategy)
+          .build()
+      )
+    } else {
+      proxyConfig.caCertPath.foreach { path =>
         clientBuilder.setSSLContext(
           new SSLContextBuilder()
-            .loadTrustMaterial(null, new TrustSelfSignedStrategy)
+            .loadTrustMaterial(new File(path), null)
             .build()
         )
-      } else if (proxyConfig.caCertPath.nonEmpty) {
-        clientBuilder.setSSLContext(
-          new SSLContextBuilder()
-            .loadTrustMaterial(new File(proxyConfig.caCertPath), null)
-            .build()
-        )
-      }
-
-      customHeadersOpt.foreach { headers =>
-        ConfUtils.validateCustomHeaders(headers)
-        clientBuilder.addInterceptorFirst((request: HttpRequest, _: HttpContext) => {
-          headers.foreach { case (key, value) => request.addHeader(key, value) }
-        })
       }
     }
-    clientBuilder.build()
+  }
+
+  private def createHttpRequestDowngradeExecutor(): HttpRequestExecutor = {
+    new HttpRequestExecutor() {
+      override def execute(request: HttpRequest, conn: HttpClientConnection,
+                           context: HttpContext): HttpResponse = {
+        try {
+          val modifiedUri = new URIBuilder(request.getRequestLine.getUri)
+            .setScheme("http")
+            .build()
+          val wrappedRequest = new RequestWrapper(request)
+          wrappedRequest.setURI(modifiedUri)
+          super.execute(wrappedRequest, conn, context)
+        } catch {
+          case e: Exception =>
+            logInfo("Failed to downgrade the request to HTTP", e)
+            super.execute(request, conn, context)
+        }
+      }
+    }
+  }
+
+  private def createRoutePlanner(proxy: HttpHost, noProxyHosts: Seq[String]): HttpRoutePlanner = {
+    new DefaultRoutePlanner(DefaultSchemePortResolver.INSTANCE) {
+      override def determineRoute(target: HttpHost, request: HttpRequest,
+                                  context: HttpContext): HttpRoute = {
+        if (noProxyHosts.contains(target.getHostName)) {
+          // Direct route (no proxy)
+          new HttpRoute(target)
+        } else {
+          // Route via proxy
+          new HttpRoute(target, proxy)
+        }
+      }
+    }
+  }
+
+  private def addCustomHeaders(clientBuilder: HttpClientBuilder,
+                               headers: Map[String, String]): Unit = {
+    ConfUtils.validateCustomHeaders(headers)
+    clientBuilder.addInterceptorFirst(new HttpRequestInterceptor {
+      override def process(request: HttpRequest, context: HttpContext): Unit = {
+        headers.foreach { case (key, value) => request.addHeader(key, value) }
+      }
+    })
   }
 
   private lazy val refreshThresholdMs = getConf.getLong(
