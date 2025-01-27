@@ -28,7 +28,8 @@ import scala.collection.mutable.ArrayBuffer
 import com.linecorp.armeria.server.Server
 import io.delta.standalone.internal.DeltaSharedTable.{RESPONSE_FORMAT_DELTA, RESPONSE_FORMAT_PARQUET}
 import org.apache.commons.io.IOUtils
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.funsuite.AnyFunSuite
 import scalapb.json4s.JsonFormat
 
 import io.delta.sharing.server.DeltaSharingService.DELTA_SHARING_INCLUDE_END_STREAM_ACTION
@@ -39,7 +40,7 @@ import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol._
 
 // scalastyle:off maxLineLength
-class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
+class DeltaSharingServiceSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   def shouldRunIntegrationTest: Boolean = {
     sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) &&

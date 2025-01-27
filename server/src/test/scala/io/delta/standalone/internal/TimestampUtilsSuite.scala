@@ -18,11 +18,11 @@
 
 package io.delta.standalone.internal
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import io.delta.sharing.server.common.TimestampUtils
 
-class TimestampUtilsSuite extends FunSuite {
+class TimestampUtilsSuite extends AnyFunSuite {
   test("basic test") {
     // Only ISO 8601 is supported.
     TimestampUtils.parse("2023-06-10T00:00:00.000Z")
