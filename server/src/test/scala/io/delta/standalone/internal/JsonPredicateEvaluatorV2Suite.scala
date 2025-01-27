@@ -18,11 +18,11 @@
 
 package io.delta.standalone.internal
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import io.delta.sharing.server.common.{AndOp, BaseOp, ColumnOp, EqualOp, EvalContext, GreaterThanOp, GreaterThanOrEqualOp, IsNullOp, LessThanOp, LessThanOrEqualOp, LiteralOp, NotOp, OrOp}
 
-class JsonPredicateEvaluatorV2Suite extends FunSuite {
+class JsonPredicateEvaluatorV2Suite extends AnyFunSuite {
 
   // A wrapper around op evaluation in the specified context (data file).
   //
