@@ -165,10 +165,10 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   libraryDependencies ++= Seq(
     // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a
     // breaking change making us not able to use `delta-standalone`.
-    "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7",
-    "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7.3",
-    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.6.7.1",
-    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.6.7",
+    "com.fasterxml.jackson.core" % "jackson-core" % "2.15.2",
+    "com.fasterxml.jackson.core" % "jackson-databind" % "2.15.2",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.15.2",
+    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.15.2",
     "org.json4s" %% "json4s-jackson" % "3.5.3" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")
