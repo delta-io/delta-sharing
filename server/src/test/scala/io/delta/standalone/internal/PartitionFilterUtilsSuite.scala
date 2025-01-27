@@ -18,9 +18,9 @@ package io.delta.standalone.internal
 
 import io.delta.standalone.internal.actions.AddFile
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType}
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class PartitionFilterUtilsSuite extends FunSuite {
+class PartitionFilterUtilsSuite extends AnyFunSuite {
 
   import PartitionFilterUtils._
 
