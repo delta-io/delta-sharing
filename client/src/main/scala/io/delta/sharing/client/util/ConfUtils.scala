@@ -95,6 +95,9 @@ object ConfUtils {
   val NEVER_USE_HTTPS = "spark.delta.sharing.network.never.use.https"
   val NEVER_USE_HTTPS_DEFAULT = "false"
 
+  val STRUCTURAL_SCHEMA_MATCH_CONF = "spark.delta.sharing.client.useStructuralSchemaMatch"
+  val STRUCTURAL_SCHEMA_MATCH_DEFAULT = "false"
+
   def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
     val proxyHost = conf.get(PROXY_HOST, null)
     val proxyPortAsString = conf.get(PROXY_PORT, null)
@@ -285,6 +288,9 @@ object ConfUtils {
     validatePositive(maxDur, OAUTH_EXPIRATION_THRESHOLD_CONF)
     maxDur
   }
+
+  def structuralSchemaMatchingEnabled(conf: SQLConf): Boolean =
+    conf.getConfString(STRUCTURAL_SCHEMA_MATCH_CONF, STRUCTURAL_SCHEMA_MATCH_DEFAULT).toBoolean
 
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {
     val timeInSeconds = JavaUtils.timeStringAs(timeStr, TimeUnit.SECONDS)
