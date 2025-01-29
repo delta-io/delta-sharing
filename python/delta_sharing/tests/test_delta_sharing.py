@@ -30,6 +30,7 @@ from delta_sharing.delta_sharing import (
     load_table_changes_as_spark,
     load_table_changes_as_pandas,
     _parse_url,
+    query_cloud_sharing_token,
 )
 from delta_sharing.protocol import Format, Metadata, Protocol, Schema, Share, Table
 from delta_sharing.rest_client import (
@@ -770,6 +771,31 @@ def test_load_as_pandas_success_client_delta_kernel_enabled_with_normal_table(
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None, None, True)
     expected['eventTime'] = expected['eventTime'].astype('datetime64[us, UTC]')
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,limit,version,expected",
+    [
+        pytest.param(
+            "share8.default.dv_and_cm_table",
+            0,
+            None,
+            "EXPECTED_CLOUD_TOKEN",
+            id="cloud token sharing",
+        )
+    ],
+)
+def test_cloud_token_sharing(
+    profile_path: str,
+    fragments: str,
+    limit: Optional[int],
+    version: Optional[int],
+    expected: str
+):
+    cloud_token = query_cloud_sharing_token(f"{profile_path}#{fragments}")
+    print("cloud token returned is: " + str(cloud_token))
+    assert cloud_token == expected
 
 
 # We will test predicates with the table share8.default.cdf_table_with_partition
