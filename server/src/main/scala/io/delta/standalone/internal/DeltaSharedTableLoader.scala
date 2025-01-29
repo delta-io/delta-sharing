@@ -200,6 +200,8 @@ class DeltaSharedTable(
       includeEndStreamAction: Boolean
   ): (Long, Seq[model.SingleAction]) = withClassLoader {
     // TODO Support `limitHint`
+    // scalastyle:off println
+    Console.println(s"----[linzhou]----TableLoader, limit:$limitHint")
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
         ErrorStrings.multipleParametersSetErrorMsg(Seq("version", "timestamp", "startingVersion"))
