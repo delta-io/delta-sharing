@@ -113,13 +113,19 @@ class ConfUtilsSuite extends SparkFunSuite {
     val conf = newConf(Map(
       PROXY_HOST -> "1.2.3.4",
       PROXY_PORT -> "8080",
-      NO_PROXY_HOSTS -> "localhost,127.0.0.1"
+      NO_PROXY_HOSTS -> "localhost,127.0.0.1",
+      PROXY_AUTH_TOKEN -> "testAuthToken",
+      CA_CERT_PATH -> "/path/to/ca_cert.pem",
+      SSL_TRUST_ALL_CONF -> "true"
     ))
     val proxyConfig = getProxyConfig(conf)
     assert(proxyConfig.isDefined)
     assert(proxyConfig.get.host == "1.2.3.4")
     assert(proxyConfig.get.port == 8080)
     assert(proxyConfig.get.noProxyHosts == Seq("localhost", "127.0.0.1"))
+    assert(proxyConfig.get.authToken.contains("testAuthToken"))
+    assert(proxyConfig.get.caCertPath.contains("/path/to/ca_cert.pem"))
+    assert(proxyConfig.get.sslTrustAll)
   }
 
   test("getProxyConfig with only host and port") {
@@ -132,6 +138,9 @@ class ConfUtilsSuite extends SparkFunSuite {
     assert(proxyConfig.get.host == "1.2.3.4")
     assert(proxyConfig.get.port == 8080)
     assert(proxyConfig.get.noProxyHosts.isEmpty)
+    assert(proxyConfig.get.authToken.isEmpty)
+    assert(proxyConfig.get.caCertPath.isEmpty)
+    assert(!proxyConfig.get.sslTrustAll)
   }
 
   test("getProxyConfig with no proxy settings") {

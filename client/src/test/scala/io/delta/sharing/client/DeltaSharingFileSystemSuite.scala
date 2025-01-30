@@ -92,11 +92,13 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
     proxyServer.initialize()
 
     try {
-
       // Create a ProxyConfig with the host and port of the local proxy server.
       val conf = new Configuration
       conf.set(ConfUtils.PROXY_HOST, proxyServer.getHost())
       conf.set(ConfUtils.PROXY_PORT, proxyServer.getPort().toString)
+      conf.set(ConfUtils.PROXY_AUTH_TOKEN, "testAuthToken")
+      conf.set(ConfUtils.CA_CERT_PATH, "/path/to/ca_cert.pem")
+      conf.set(ConfUtils.SSL_TRUST_ALL_CONF, "true")
 
       // Configure the httpClient to use the ProxyConfig.
       val fs = new DeltaSharingFileSystem() {
