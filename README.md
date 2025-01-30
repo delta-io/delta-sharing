@@ -44,15 +44,18 @@ If this doesn’t work because of an issue downloading delta-kernel-rust-sharing
 - Check python3 version >= 3.8
 - Upgrade your pip3 to the latest version
 - Check the linux glibc version >= 2.31
+- [Install Rust](https://www.rust-lang.org/tools/install)
 
-If you cannot upgrade glibc or your OS is not supported by the delta-kernel-rust-sharing-wrapper pypi install  you will need to install the package manually.
-See https://pypi.org/project/delta-kernel-rust-sharing-wrapper/0.2.0/#files for supported OS.
+If you cannot upgrade glibc or PyPI does not have a pre-built wheel for delta-kernel-rust-sharing-wrapper for your environment, pip will have to build the package from source, which requires Rust to be installed.
+See https://pypi.org/project/delta-kernel-rust-sharing-wrapper/0.2.1/#files for environments that have a pre-built wheel.
 
-To install the delta-kernel-rust-sharing-wrapper package manually:
+You can also use an older version of the delta-sharing package which did not bake delta-kernel-rust-sharing-wrapper into the installation with the following:
 ```
-# you need to use the older version of the delta-sharing package which did not bake delta-kernel-rust-sharing-wrapper into the installation
 pip3 install delta-sharing==1.1.0 
+```
 
+You can also install the delta-kernel-rust-sharing-wrapper package manually:
+```
 cd [delta-sharing-root]/python/delta-kernel-rust-sharing-wrapper
 python3 -m venv .venv
 source .venv/bin/activate
