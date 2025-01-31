@@ -198,16 +198,119 @@ class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
         return None
 
 
+class AzureManagedIdentityClient:
+    def __init__(self):
+        None
+
+    def managed_identity_token(self) -> OAuthClientCredentials:
+        # Azure IMDS endpoint to get the access token.
+        # This interface allows any client application running on the Azure VM
+        # to acquire an access token via HTTP REST calls.
+        # For more details, see:
+        # https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
+        url = "http://169.254.169.254/metadata/identity/oauth2/token"
+
+        resource = "https://management.azure.com/"
+        # Headers required to access Azure Instance Metadata Service
+        headers = {"Metadata": "true"}
+
+        # Parameters to specify the resource and API version
+        params = {
+            "api-version": "2019-08-01",
+            "resource": resource
+        }
+
+        # Make the GET request to fetch the token
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+
+        # Check if the request was successful
+        if response.status_code == 200:
+            # Return the access token
+            return self.parse_oauth_token_response(response.text)
+
+        else:
+            # Handle errors
+            raise Exception(f"Failed to obtain token: {response.status_code} - {response.text}")
+
+    def parse_oauth_token_response(self, response: str) -> OAuthClientCredentials:
+        if not response:
+            raise RuntimeError("Empty response from azure managed identity endpoint")
+        # Parsing the response according to azure managed identity spec
+        # https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
+        json_node = json.loads(response)
+        if 'access_token' not in json_node or not isinstance(json_node['access_token'], str):
+            raise RuntimeError("Missing 'access_token' field in OAuth token response")
+        if 'expires_in' not in json_node:
+            raise RuntimeError("Missing 'expires_in' field in OAuth token response")
+        try:
+            expires_in = int(json_node['expires_in'])  # Convert to int if it's a string
+        except ValueError:
+            raise RuntimeError(
+                "'expires_in' field must be an integer or a string convertible to integer"
+            )
+        return OAuthClientCredentials(
+            json_node['access_token'],
+            expires_in,
+            int(datetime.now().timestamp())
+        )
+
+
+class AzureManagedIdentityAuthProvider(AuthCredentialProvider):
+    def __init__(self,
+                 managed_identity_client: AzureManagedIdentityClient,
+                 auth_config: AuthConfig = AuthConfig()):
+        self.auth_config = auth_config
+        self.managed_identity_client = managed_identity_client
+        self.current_token: Optional[OAuthClientCredentials] = None
+        self.lock = threading.RLock()
+
+    def add_auth_header(self,session: requests.Session) -> None:
+        token = self.maybe_refresh_token()
+
+        with self.lock:
+            session.headers.update(
+                {
+                    "Authorization": f"Bearer {token.access_token}",
+                }
+            )
+
+    def maybe_refresh_token(self) -> OAuthClientCredentials:
+        with self.lock:
+            if self.current_token and not self.needs_refresh(self.current_token):
+                return self.current_token
+            new_token = self.managed_identity_client.managed_identity_token()
+            self.current_token = new_token
+            return new_token
+
+    def needs_refresh(self, token: OAuthClientCredentials) -> bool:
+        now = int(time.time())
+        expiration_time = token.creation_timestamp + token.expires_in
+        return expiration_time - now < self.auth_config.token_renewal_threshold_in_seconds
+
+    def is_expired(self) -> bool:
+        return False
+
+    def get_expiration_time(self) -> Optional[str]:
+        return None
+
+
 class AuthCredentialProviderFactory:
     __oauth_auth_provider_cache : Dict[
         DeltaSharingProfile,
         OAuthClientCredentialsAuthProvider] = {}
+
+    __managed_identity_provider_cache : Dict[
+        DeltaSharingProfile,
+        AzureManagedIdentityAuthProvider] = {}
 
     @staticmethod
     def create_auth_credential_provider(profile: DeltaSharingProfile):
         if profile.share_credentials_version == 2:
             if profile.type == "oauth_client_credentials":
                 return AuthCredentialProviderFactory.__oauth_client_credentials(profile)
+            elif profile.type == "experimental_managed_identity":
+                return AuthCredentialProviderFactory.__experimental_managed_identity(profile)
             elif profile.type == "basic":
                 return AuthCredentialProviderFactory.__auth_basic(profile)
         elif (profile.share_credentials_version == 1 and
@@ -251,3 +354,13 @@ class AuthCredentialProviderFactory:
     @staticmethod
     def __auth_basic(profile):
         return BasicAuthProvider(profile.endpoint, profile.username, profile.password)
+
+    @staticmethod
+    def __experimental_managed_identity(profile):
+        if profile in AuthCredentialProviderFactory.__managed_identity_provider_cache:
+            return AuthCredentialProviderFactory.__managed_identity_provider_cache[profile]
+
+        managed_identity_client = AzureManagedIdentityClient()
+        provider = AzureManagedIdentityAuthProvider(managed_identity_client=managed_identity_client)
+        AuthCredentialProviderFactory.__managed_identity_provider_cache[profile] = provider
+        return provider
