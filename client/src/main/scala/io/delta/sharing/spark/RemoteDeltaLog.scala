@@ -51,6 +51,7 @@ import io.delta.sharing.client.model.{
 }
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
+import io.delta.sharing.spark.util.SchemaUtils
 
 /**
  * Used to query the current state of the transaction logs of a remote shared Delta table.
@@ -229,11 +230,23 @@ class RemoteSnapshot(
   }
 
   private def checkSchemaNotChange(newMetadata: Metadata): Unit = {
-    if (newMetadata.schemaString != metadata.schemaString ||
+    val schemaChangedException = new SparkException(
+      s"""The schema or partition columns of your Delta table has changed since your
+         |DataFrame was created. Please redefine your DataFrame""".stripMargin)
+
+    if (ConfUtils.structuralSchemaMatchingEnabled(spark.sessionState.conf)) {
+      val newSchema = DataType.fromJson(newMetadata.schemaString).asInstanceOf[StructType]
+      val currentSchema = DataType.fromJson(metadata.schemaString).asInstanceOf[StructType]
+
+      if (
+        metadata.partitionColumns != newMetadata.partitionColumns ||
+          !SchemaUtils.isReadCompatible(currentSchema, newSchema)
+      ) {
+        throw schemaChangedException
+      }
+    } else if (newMetadata.schemaString != metadata.schemaString ||
       newMetadata.partitionColumns != metadata.partitionColumns) {
-      throw new SparkException(
-        s"""The schema or partition columns of your Delta table has changed since your
-           |DataFrame was created. Please redefine your DataFrame""")
+      throw schemaChangedException
     }
   }
 

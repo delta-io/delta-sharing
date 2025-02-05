@@ -1,13 +1,13 @@
-name: Build wheels for 4 os for delta-kernel-rust-sharing-wrapper 
+name: Build delta-kernel-rust-sharing-wrapper wheels for 4 OS and 2 architectures
 
 on:
   push:
     paths:
-      - python/delta-sharing-kernel/**
+      - python/delta-kernel-rust-sharing-wrapper/**
       - .github/workflows/**
   pull_request:
     paths:
-      - python/delta-sharing-kernel/**
+      - python/delta-kernel-rust-sharing-wrapper/**
       - .github/workflows/**
 
 jobs:
@@ -15,18 +15,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, ubuntu-20.04, macos-latest, windows-latest]
         python-version: [3.8]
         arch: [x86_64, arm64]
-        include:
-          - os: macos-latest
-            arch: x86_64
-          - os: macos-latest
-            arch: arm64
+        exclude:
           - os: ubuntu-latest
-            arch: x86_64
+            arch: arm64
+          - os: ubuntu-20.04
+            arch: arm64
           - os: windows-latest
-            arch: x86_64
+            arch: arm64
 
     steps:
       - uses: actions/checkout@v2
@@ -69,8 +67,25 @@ jobs:
           maturin build --release
         shell: bash
 
+      - name: Build wheel (x86_64 Linux Ubuntu 20.04)
+        if: matrix.os == 'ubuntu-20.04'
+        run: |
+          cd python/delta-kernel-rust-sharing-wrapper
+          maturin build --release
+        shell: bash
+
       - name: Upload wheels
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheel-${{ matrix.os }}-${{ matrix.arch }}
           path: python/delta-kernel-rust-sharing-wrapper/target/wheels/*.whl
+
+  merge:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Merge Artifacts
+        uses: actions/upload-artifact/merge@v4
+        with:
+          name: all-wheels
+          pattern: wheel-*
