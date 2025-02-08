@@ -26,7 +26,7 @@ import javax.annotation.Nullable
 import scala.collection.JavaConverters._
 import scala.util.Try
 
-import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
+import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpResponseWriter, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
 import com.linecorp.armeria.common.auth.OAuth2Token
 import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
@@ -204,7 +204,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       case e: AccessDeniedException => throw e
       case e: KernelException => throw e
       case e: TableNotFoundException => throw e
-      case e: Throwable => throw new DeltaInternalException(e)
+//      case e: Throwable => throw new DeltaInternalException(e)
     }
   }
 
@@ -547,13 +547,62 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       }
       logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table " +
         s"and sign ${queryResult.actions.length - 2} urls for table $share/$schema/$table")
-      streamingOutput(
-        Some(queryResult.version),
-        queryResult.responseFormat,
-        queryResult.actions,
-        includeEndStreamAction = includeEndStreamAction
-      )
+
+      import java.util.concurrent.Executors
+      import concurrent.{ExecutionContext, Await, Future}
+      import concurrent.duration._
+
+      // zhoulin
+      // scalastyle:off println
+      // single threaded execution context
+
+      println(s"----[zhoulin]-------Started for $share/$schema/$table-------")
+      startTime = System.currentTimeMillis()
+
+      if (true) {
+        val executor = Executors.newSingleThreadExecutor()
+        val responseWriter = streamingOutput(
+          Some(queryResult.version),
+          queryResult.responseFormat, queryResult.actions, Some(executor)
+        )
+        if (true) {
+          println(s"----[zhoulin]----before sleep ($elapsedTime)ms.")
+          Thread.sleep(3000)
+          println(s"----[zhoulin]----after  sleep ($elapsedTime)ms.")
+//          executor.shutdownNow()
+          responseWriter.close()
+        }
+        responseWriter
+      } else {
+        implicit val context = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
+
+        val executor = ServiceRequestContext.current().blockingTaskExecutor()
+        val f = Future {
+          streamingOutput(
+            Some(queryResult.version),
+            queryResult.responseFormat,
+            queryResult.actions,
+            Some(executor),
+            includeEndStreamAction = includeEndStreamAction
+          )
+        }
+
+        f.onComplete { a =>
+          println(s"----[zhoulin]----The future completes ($elapsedTime)ms:$a")
+        }
+        // scalastyle:off awaitresult
+        // scalastyle:off awaitready
+        val a = Await.ready(f, 10.seconds)
+        println(s"----[zhoulin]----($elapsedTime)ms, a:$a")
+        val b = Await.result(f, 10.seconds)
+        println(s"----[zhoulin]----($elapsedTime)ms, b:$b")
+        b
+      }
     }
+  }
+
+  private def elapsedTime: Long = {
+    System.currentTimeMillis() - startTime
   }
 
   // scalastyle:off argcount
@@ -611,11 +660,14 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     )
   }
 
+  private var startTime = System.currentTimeMillis()
+
   private def streamingOutput(
       version: Option[Long],
       responseFormat: String,
       actions: Seq[Object],
-      includeEndStreamAction: Boolean = false): HttpResponse = {
+      executorOpt: Option[java.util.concurrent.ExecutorService] = None,
+      includeEndStreamAction: Boolean = false): HttpResponseWriter = {
     var capabilities = Seq[String](s"${DELTA_SHARING_RESPONSE_FORMAT}=$responseFormat")
     if (includeEndStreamAction) {
       capabilities = capabilities :+ s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
@@ -641,9 +693,17 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         val out = new ByteArrayOutputStream
         JsonUtils.mapper.writeValue(out, o)
         out.write('\n')
+        Console.println(s"----[zhoulin]----server object,($elapsedTime)ms, [${out.toString}].")
+        if (out.toString.contains("https://delta-exchange-test")) {
+          Console.println(s"----[zhoulin]----trying to sleep.")
+          Thread.sleep(5000)
+          Console.println(s"----[zhoulin]----Done sleep.")
+//          executorOpt.get.shutdownNow()
+//          throw new IllegalArgumentException("lin zhou exception.")
+        }
         HttpData.wrap(out.toByteArray)
       },
-      ServiceRequestContext.current().blockingTaskExecutor())
+      executorOpt.getOrElse(ServiceRequestContext.current().blockingTaskExecutor()))
   }
 }
 
