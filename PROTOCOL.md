@@ -2082,7 +2082,7 @@ The API supports a start parameter and an end parameter. The start/end parameter
 You can specify a version as a Long or a timestamp as a string in the [Timestamp Format](#timestamp-format).
 
 The change data feed represents row-level changes between versions of a Delta table. It records change data for UPDATE, DELETE, and MERGE operations. If you leverage the connectors provided by this library to read change data feed, it results in three metadata columns that identify the type of change event, in addition to the data columns:
-- _change_type (type: String): There are four values: insert, update_preimage, update_postimage, delete. preimage is the value before the udpate, postimage is the value after the update.
+- _change_type (type: String): There are four values: insert, update_preimage, update_postimage, delete. preimage is the value before the update, postimage is the value after the update.
 - _commit_version (type: Long): The table version containing the change.
 - _commit_timestamp (type: Long): The unix timestamp associated when the commit of the change was created, in milliseconds. 
 
@@ -2172,7 +2172,7 @@ The response contains multiple lines:
   - Historical [Metadata](#metadata) will be returned if includeHistoricalMetadata is set to true.
   - The ordering of the lines doesn't matter.
 
-When `responseformat=delta`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-delta).
+When `responseformat=delta`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Delta](#api-response-format-in-delta).
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Protocol](#protocol-in-delta-format) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
 - The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [Files](#file-in-delta-format) of the change data feed.
@@ -2460,11 +2460,11 @@ responses to be compatible with legacy servers.
 ### responseFormat
 Indicates the format to expect in the [API Response Format in Parquet](#api-response-format-in-parquet), two values are supported.
 
-- parquet: Represents the format of the delta sharing protocol that has been used in `delta-sharing-spark` 1.0 
+- **parquet**: Represents the format of the delta sharing protocol that has been used in `delta-sharing-spark` 1.0 
 and less, also the default format if `responseFormat` is missing from the header. All the existing delta
 sharing connectors are able to process data in this format. 
 - **delta**: format can be used to read a shared delta table with minReaderVersion > 1, which contains 
-readerFeatures such as Deletion Vector or Column Mapping. `delta-sharing-spark` libraries 
+readerFeatures such as Deletion Vectors or Column Mapping. `delta-sharing-spark` libraries 
 that are able to process `responseformat=delta` will be released soon.
 
 ### readerFeatures
