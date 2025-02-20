@@ -51,7 +51,7 @@ See https://pypi.org/project/delta-kernel-rust-sharing-wrapper/0.2.1/#files for 
 
 You can also use an older version of the delta-sharing package which did not bake delta-kernel-rust-sharing-wrapper into the installation with the following:
 ```
-pip3 install delta-sharing==1.1.0 
+pip3 install delta-sharing==1.0.5
 ```
 
 You can also install the delta-kernel-rust-sharing-wrapper package manually:
