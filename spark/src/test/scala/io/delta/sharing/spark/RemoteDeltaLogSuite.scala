@@ -21,14 +21,14 @@ import java.nio.file.Files
 
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
-import org.apache.spark.SparkFunSuite
+import org.apache.spark.{SparkException, SparkFunSuite}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference => SqlAttributeReference, EqualTo => SqlEqualTo, Literal => SqlLiteral}
 import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{FloatType, IntegerType, LongType, StringType, StructField, StructType}
+import org.apache.spark.sql.types.{DataType, FloatType, IntegerType, LongType, StringType, StructField, StructType}
 
-import io.delta.sharing.client.model.Table
+import io.delta.sharing.client.model.{DeltaTableMetadata, Table}
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
@@ -526,5 +526,103 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     checkGetMetadataCalledOnce(None, true)
     client.clear()
     checkGetMetadataCalledOnce(Some(1L), false)
+  }
+
+  def testMismatch(expectError: Boolean)(
+    getInitialSchema: StructType => StructType
+  ): Unit = {
+    val client = new TestDeltaSharingClient()
+    client.clear()
+    val table = Table("fe", "fi", "fo")
+    val metadata = client.getMetadata(table, versionAsOf = None, timestampAsOf = None)
+    val schema =
+      DataType
+        .fromJson(metadata.metadata.schemaString)
+        .asInstanceOf[StructType]
+    val initialSchema = getInitialSchema(schema)
+    val snapshot = new RemoteSnapshot(
+      tablePath = new Path("test"),
+      client = client,
+      table = table,
+      initDeltaTableMetadata = Some(
+        metadata.copy(
+          metadata = metadata.metadata.copy(
+            schemaString = initialSchema.json
+          )
+        )
+      )
+    )
+    val fileIndex = {
+      val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
+      RemoteDeltaSnapshotFileIndex(params, Some(2L))
+    }
+    if (expectError) {
+      val e = intercept[SparkException] {
+        snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex)
+      }
+      assert(
+        e.getMessage.contains(
+          s"""The schema or partition columns of your Delta table has changed since your
+              |DataFrame was created. Please redefine your DataFrame""".stripMargin
+        )
+      )
+    } else {
+      snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex)
+    }
+  }
+
+  test("RemoteDeltaLog should error when the new metadata is a subset of current metadata") {
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.useStructuralSchemaMatch",
+      "true"
+    )
+    testMismatch(expectError = true) { schema =>
+      // initial schema has extra field to schema so the new metadata is a subset
+      StructType(
+        schema.fields ++ Seq(
+          StructField(
+            name = "extra_field",
+            dataType = StringType
+          )
+        )
+      )
+    }
+  }
+
+  test(
+    "RemoteDeltaLog should not error when new metadata includes extra columns not in new metadata"
+  ) {
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.useStructuralSchemaMatch",
+      "true"
+    )
+    testMismatch(expectError = false) { schema =>
+      // initial schema only has one field so that the new metadata includes extra fields
+      StructType(
+        Seq(schema.fields.head)
+      )
+    }
+  }
+
+  test("RemoteDeltaLog errors when new metadata data type does not match") {
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.useStructuralSchemaMatch",
+      "true"
+    )
+    testMismatch(expectError = true) { schema =>
+      // initial schema only has one field so that the new metadata includes extra fields
+      StructType(
+        schema.fields.zipWithIndex.map {
+          case (field, i) =>
+            if (i == 0) {
+              field.copy(
+                dataType = FloatType
+              )
+            } else {
+              field
+            }
+        }
+      )
+    }
   }
 }
