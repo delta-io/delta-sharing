@@ -29,7 +29,9 @@ import io.delta.sharing.spark.MissingEndStreamActionException
 class RetryUtilsSuite extends SparkFunSuite {
   test("shouldRetry") {
     assert(shouldRetry(new UnexpectedHttpStatus("error", 429)))
-    assert(shouldRetry(new UnexpectedHttpStatus("error", 500)))
+    assert(shouldRetry(new UnexpectedHttpStatus("error", 503)))
+    assert(!shouldRetry(new UnexpectedHttpStatus("error", 500)))
+    assert(!shouldRetry(new UnexpectedHttpStatus("error", 504)))
     assert(!shouldRetry(new UnexpectedHttpStatus("error", 404)))
     assert(!shouldRetry(new InterruptedException))
     assert(!shouldRetry(new InterruptedIOException))

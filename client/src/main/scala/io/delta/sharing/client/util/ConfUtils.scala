@@ -25,7 +25,7 @@ import org.apache.spark.sql.internal.SQLConf
 object ConfUtils {
 
   val NUM_RETRIES_CONF = "spark.delta.sharing.network.numRetries"
-  val NUM_RETRIES_DEFAULT = 10
+  val NUM_RETRIES_DEFAULT = 3
 
   val MAX_RETRY_DURATION_CONF = "spark.delta.sharing.network.maxRetryDuration"
   val MAX_RETRY_DURATION_DEFAULT_MILLIS = 10L * 60L* 1000L /* 10 mins */

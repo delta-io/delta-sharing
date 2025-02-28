@@ -67,7 +67,7 @@ private[sharing] object RetryUtils extends Logging {
       case e: UnexpectedHttpStatus =>
         if (e.statusCode == 429) { // Too Many Requests
           true
-        } else if (e.statusCode >= 500 && e.statusCode < 600) { // Internal Error
+        } else if (e.statusCode == 503) { // Service Unavailable
           true
         } else {
           false

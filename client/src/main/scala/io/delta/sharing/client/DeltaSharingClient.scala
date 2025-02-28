@@ -178,7 +178,7 @@ private[sharing] case class ListAllTablesResponse(
 class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
-    numRetries: Int = 10,
+    numRetries: Int = 3,
     maxRetryDuration: Long = Long.MaxValue,
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
