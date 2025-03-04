@@ -14,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
       - name: Cache Scala, SBT
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             ~/.sbt
@@ -52,7 +52,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
       - name: Cache Scala, SBT
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             ~/.sbt
