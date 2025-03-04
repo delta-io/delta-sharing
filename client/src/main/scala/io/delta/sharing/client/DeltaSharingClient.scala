@@ -469,6 +469,7 @@ class DeltaSharingRestClient(
       startingVersion: Long,
       endingVersion: Option[Long]
   ): DeltaTableFiles = {
+    val start = System.currentTimeMillis()
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
@@ -502,6 +503,8 @@ class DeltaSharingRestClient(
         target = target, data = request, setIncludeEndStreamAction = endStreamActionEnabled
       )
       val (filteredLines, _) = maybeExtractEndStreamAction(response.lines)
+      logInfo(s"Took ${System.currentTimeMillis() - start} ms to query ${filteredLines.size} " +
+        s"files for [$startingVersion, $endingVersion]," + getDsQueryIdForLogging)
       (response.version, response.respondedFormat, filteredLines)
     }
 
@@ -629,7 +632,6 @@ class DeltaSharingRestClient(
       }
     }
 
-    // TODO: remove logging once changes are rolled out
     logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
       s"of ${allLines.size} files," + getDsQueryIdForLogging)
     (version, respondedFormat, allLines.toSeq, refreshToken)
@@ -647,7 +649,6 @@ class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
-      // TODO: remove logging once changes are rolled out
       logInfo(
         s"Making paginated queryTableChanges requests for table " +
           s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq, " +
@@ -760,7 +761,6 @@ class DeltaSharingRestClient(
       }
     }
 
-    // TODO: remove logging once changes are rolled out
     logInfo(
       s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
       s"of ${allLines.size} files," + getDsQueryIdForLogging
