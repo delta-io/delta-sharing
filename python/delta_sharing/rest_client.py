@@ -270,10 +270,13 @@ class DataSharingRestClient:
 
     @retry_with_exponential_backoff
     def query_table_metadata(self, table: Table) -> QueryTableMetadataResponse:
+        self.set_sharing_capabilities_header()
         with self._get_internal(
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
             return_headers=True
         ) as values:
+            # removing the client-reader-features that were set to avoid diverging standard codepath
+            self.remove_sharing_capabilities_header()
             headers = values[0]
             # it's a bug in the server if it doesn't return delta-table-version in the header
             if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
