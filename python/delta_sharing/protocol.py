@@ -183,8 +183,8 @@ class Protocol:
             return Protocol(
                 min_reader_version=int(delta_protocol["minReaderVersion"]),
                 min_writer_version=int(delta_protocol["minWriterVersion"]),
-                reader_features=delta_protocol["readerFeatures"],
-                writer_features=delta_protocol["writerFeatures"],
+                reader_features=delta_protocol.get("readerFeatures", None),
+                writer_features=delta_protocol.get("writerFeatures", None),
             )
         else:
             return Protocol(min_reader_version=int(json["minReaderVersion"]))
@@ -234,7 +234,7 @@ class Metadata:
                 version=json.get("version", None),
                 size=json.get("size", None),
                 num_files=json.get("numFiles", None),
-                created_time=delta_metadata["createdTime"]
+                created_time=delta_metadata.get("createdTime", None)
             )
         else:
             configuration = json.get("configuration", {})
