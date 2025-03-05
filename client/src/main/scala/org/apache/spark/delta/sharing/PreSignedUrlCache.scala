@@ -103,7 +103,7 @@ class CachedTableManager(
         cache.remove(tablePath, cachedTable)
       } else if (cachedTable.expiration - System.currentTimeMillis() < refreshThresholdMs) {
         logInfo(s"Updating pre signed urls for $tablePath (expiration time: " +
-          s"${new java.util.Date(cachedTable.expiration)})")
+          s"${new java.util.Date(cachedTable.expiration)}), token:${cachedTable.refreshToken}")
         try {
           val refreshRes = cachedTable.refresher(cachedTable.refreshToken)
           val newTable = new CachedTable(
@@ -121,6 +121,7 @@ class CachedTableManager(
           // Failing to replace the table is fine because if it did happen, we would retry after
           // `refreshCheckIntervalMs` milliseconds.
           cache.replace(tablePath, cachedTable, newTable)
+          logInfo(s"Updated pre signed urls for $tablePath with size ${refreshRes.idToUrl.size}")
         } catch {
           case NonFatal(e) =>
             logError(s"Failed to refresh pre signed urls for table $tablePath", e)
@@ -207,7 +208,7 @@ class CachedTableManager(
     )
     var oldTable = cache.putIfAbsent(customTablePath, cachedTable)
     if (oldTable == null) {
-      // We insert a new entry to the cache
+      logInfo(s"Registered a new entry in cache for table $customTablePath.")
       return
     }
     // There is an existing entry so we try to merge it with the new one
@@ -226,6 +227,7 @@ class CachedTableManager(
       )
       if (cache.replace(customTablePath, oldTable, mergedTable)) {
         // Put the merged one to the cache
+        logInfo(s"Registered to an existing entry in cache for table $customTablePath.")
         return
       }
       // Failed to put the merged one
@@ -235,6 +237,7 @@ class CachedTableManager(
         oldTable = cache.putIfAbsent(customTablePath, cachedTable)
         if (oldTable == null) {
           // We insert a new entry to the cache
+          logInfo(s"Registered a new entry in cache for table $customTablePath on 2nd try.")
           return
         }
         // There was a new inserted one between `cache.get` and `cache.putIfAbsent`. Trying to
