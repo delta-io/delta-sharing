@@ -143,7 +143,7 @@ class DataSharingRestClient:
     USER_AGENT: ClassVar[str] = _client_user_agent()
     DELTA_RESPONSE_FORMAT = "responseformat=delta"
     DELTA_AND_PARQUET_RESPONSE_FORMAT = "responseformat=delta,parquet"
-    DELTA_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping"
+    DELTA_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping,timestampntz"
     CAPABILITIES_HEADER = "delta-sharing-capabilities"
     DELTA_TABLE_VERSION_HEADER = "delta-table-version"
     DELTA_FORMAT = "delta"

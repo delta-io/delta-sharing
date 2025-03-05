@@ -96,6 +96,7 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_wasb", share="share_azure", schema="default"),
         Table(name="table_abfs", share="share_azure", schema="default"),
         Table(name="table_gcs", share="share_gcp", schema="default"),
+        Table(name="timestampntz_table", share="share8", schema="default"),
         Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
         Table(name="cdf_table_with_partition", share="share8", schema="default"),
         Table(name="cdf_table_with_vacuum", share="share8", schema="default"),
@@ -113,7 +114,7 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_with_cm_name", share="share8", schema="default"),
         Table(name="table_with_cm_id", share="share8", schema="default"),
         Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default"),
-        Table(name="dv_and_cm_table", share="share8", schema="default")
+        Table(name="dv_and_cm_table", share="share8", schema="default"),
     ]
 
 
@@ -736,6 +737,33 @@ def test_load_as_pandas_success_empty_dv_and_cm(
     expected: pd.DataFrame
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,expected",
+    [
+        pytest.param(
+            "share8.default.timestampntz_table",
+            pd.DataFrame(
+                {
+                    "time": [
+                        pd.Timestamp("2021-07-01T08:43:28.000"),
+                    ],
+                }
+            ),
+            id="test read timestampntz",
+        )
+    ],
+)
+def test_load_as_pandas_success_timestampntz(
+    profile_path: str,
+    fragments: str,
+    expected: pd.DataFrame
+):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}")
+    expected['time'] = expected['time'].astype('datetime64[us]')
     pd.testing.assert_frame_equal(pdf, expected)
 
 
