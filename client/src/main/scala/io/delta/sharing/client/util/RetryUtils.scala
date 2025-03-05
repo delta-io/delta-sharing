@@ -31,9 +31,10 @@ private[sharing] object RetryUtils extends Logging {
 
   def runWithExponentialBackoff[T](
       numRetries: Int,
-      maxDurationMillis: Long = Long.MaxValue)(func: => T): T = {
+      maxDurationMillis: Long = Long.MaxValue,
+      retrySleepInterval: Long = 1000)(func: => T): T = {
     var times = 0
-    var sleepMs = 100
+    var sleepMs = retrySleepInterval
     val startTime = System.currentTimeMillis()
     while (true) {
       times += 1
@@ -67,7 +68,7 @@ private[sharing] object RetryUtils extends Logging {
       case e: UnexpectedHttpStatus =>
         if (e.statusCode == 429) { // Too Many Requests
           true
-        } else if (e.statusCode == 503) { // Service Unavailable
+        } else if (e.statusCode >= 500 && e.statusCode < 600) { // Internal Error
           true
         } else {
           false

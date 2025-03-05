@@ -29,9 +29,7 @@ import io.delta.sharing.spark.MissingEndStreamActionException
 class RetryUtilsSuite extends SparkFunSuite {
   test("shouldRetry") {
     assert(shouldRetry(new UnexpectedHttpStatus("error", 429)))
-    assert(shouldRetry(new UnexpectedHttpStatus("error", 503)))
-    assert(!shouldRetry(new UnexpectedHttpStatus("error", 500)))
-    assert(!shouldRetry(new UnexpectedHttpStatus("error", 504)))
+    assert(shouldRetry(new UnexpectedHttpStatus("error", 500)))
     assert(!shouldRetry(new UnexpectedHttpStatus("error", 404)))
     assert(!shouldRetry(new InterruptedException))
     assert(!shouldRetry(new InterruptedIOException))
@@ -46,13 +44,13 @@ class RetryUtilsSuite extends SparkFunSuite {
     RetryUtils.sleeper = (sleepMs: Long) => sleeps += sleepMs
     // Retry case
     intercept[UnexpectedHttpStatus] {
-      runWithExponentialBackoff(10) {
+      runWithExponentialBackoff(5) {
         throw new UnexpectedHttpStatus("error", 429)
       }
     }
-    // Run 11 times should sleep 10 times
-    assert(sleeps.length == 10)
-    assert(sleeps == Seq(100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200))
+    // Run 6 times should sleep 5 times
+    assert(sleeps.length == 5)
+    assert(sleeps == Seq(1000, 2000, 4000, 8000, 16000))
     // No retry case
     sleeps.clear()
     intercept[RuntimeException] {
@@ -77,7 +75,7 @@ class RetryUtilsSuite extends SparkFunSuite {
     }
     // Should hit max duration after 2 retries.
     assert(sleeps.length == 3)
-    assert(sleeps == Seq(100, 200, 400))
+    assert(sleeps == Seq(1000, 2000, 4000))
     RetryUtils.sleeper = (sleepMs: Long) => Thread.sleep(sleepMs)
   }
 }
