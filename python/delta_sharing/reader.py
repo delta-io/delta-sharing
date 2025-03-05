@@ -24,6 +24,7 @@ import fsspec
 import os
 import pandas as pd
 import pyarrow as pa
+import requests
 import tempfile
 from pyarrow.dataset import dataset
 
@@ -172,16 +173,17 @@ class DeltaSharingReader:
 
         converters = to_converters(schema_json)
 
+        session = self._rest_client.get_session()
         if self._limit is None:
             pdfs = [
                 DeltaSharingReader._to_pandas(
-                    file, converters, False, None) for file in response.add_files
+                    file, converters, False, None, session=session) for file in response.add_files
             ]
         else:
             left = self._limit
             pdfs = []
             for file in response.add_files:
-                pdf = DeltaSharingReader._to_pandas(file, converters, False, left)
+                pdf = DeltaSharingReader._to_pandas(file, converters, False, left, session=session)
                 pdfs.append(pdf)
                 left -= len(pdf)
                 assert (
@@ -387,10 +389,11 @@ class DeltaSharingReader:
         if len(response.actions) == 0:
             return get_empty_table(self._add_special_cdf_schema(schema_json))
 
+        session = self._rest_client.get_session()
         converters = to_converters(schema_json)
         pdfs = []
         for action in response.actions:
-            pdf = DeltaSharingReader._to_pandas(action, converters, True, None)
+            pdf = DeltaSharingReader._to_pandas(action, converters, True, None, session=session)
             pdfs.append(pdf)
 
         return pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
@@ -418,7 +421,8 @@ class DeltaSharingReader:
         action: FileAction,
         converters: Dict[str, Callable[[str], Any]],
         for_cdf: bool,
-        limit: Optional[int]
+        limit: Optional[int],
+        session: Optional[requests.Session]
     ) -> pd.DataFrame:
         url = urlparse(action.url)
         if "storage.googleapis.com" in (url.netloc.lower()):
@@ -426,11 +430,19 @@ class DeltaSharingReader:
             import delta_sharing._yarl_patch  # noqa: F401
 
         protocol = url.scheme
-        proxy = getproxies()
-        if len(proxy) != 0:
-            filesystem = fsspec.filesystem(protocol, client_kwargs={"trust_env":True})
+
+        if session is not None:
+            proxies = session.proxies
+            client_kwargs = {}
+            if proxies:
+                client_kwargs = {'proxies': proxies}
+            filesystem = fsspec.filesystem(protocol, **client_kwargs)
         else:
-            filesystem = fsspec.filesystem(protocol)
+            proxy = getproxies()
+            if len(proxy) != 0:
+                filesystem = fsspec.filesystem(protocol, client_kwargs={"trust_env":True})
+            else:
+                filesystem = fsspec.filesystem(protocol)
 
         pa_dataset = dataset(source=action.url, format="parquet", filesystem=filesystem)
         pa_table = pa_dataset.head(limit) if limit is not None else pa_dataset.to_table()

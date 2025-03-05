@@ -13,9 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from itertools import chain
-from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
-from pathlib import Path
+from typing import Optional, Tuple
 
 import pandas as pd
 
@@ -26,11 +24,10 @@ try:
 except ImportError:
     pass
 
-from delta_sharing.protocol import DeltaSharingProfile, Schema, Share, Table
+from delta_sharing.sharing_client import SharingClient
+from delta_sharing.protocol import DeltaSharingProfile, Table
 from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import DataSharingRestClient
-
-from requests.exceptions import HTTPError
 
 
 def _parse_url(url: str) -> Tuple[str, str, str, str]:
@@ -105,6 +102,7 @@ def load_as_pandas(
     timestamp: Optional[str] = None,
     jsonPredicateHints: Optional[str] = None,
     use_delta_format: Optional[bool] = None,
+    sharing_client: Optional[SharingClient] = None,
 ) -> pd.DataFrame:
     """
     Load the shared table using the given url as a pandas DataFrame.
@@ -120,9 +118,10 @@ def load_as_pandas(
     """
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
+    rest_client = (sharing_client and sharing_client.rest_client) or DataSharingRestClient(profile)
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
-        rest_client=DataSharingRestClient(profile),
+        rest_client=rest_client,
         jsonPredicateHints=jsonPredicateHints,
         limit=limit,
         version=version,
@@ -216,7 +215,8 @@ def load_table_changes_as_pandas(
     ending_version: Optional[int] = None,
     starting_timestamp: Optional[str] = None,
     ending_timestamp: Optional[str] = None,
-    use_delta_format: Optional[bool] = None
+    use_delta_format: Optional[bool] = None,
+    sharing_client: Optional[SharingClient] = None,
 ) -> pd.DataFrame:
     """
     Load the table changes of shared table as a pandas DataFrame using the given url.
@@ -233,9 +233,10 @@ def load_table_changes_as_pandas(
     """
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
+    rest_client = (sharing_client and sharing_client.rest_client) or DataSharingRestClient(profile)
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
-        rest_client=DataSharingRestClient(profile),
+        rest_client=rest_client,
         use_delta_format=use_delta_format
     ).table_changes_to_pandas(CdfOptions(
         starting_version=starting_version,
@@ -246,89 +247,3 @@ def load_table_changes_as_pandas(
         # handle them properly when replaying the delta log
         include_historical_metadata=use_delta_format
     ))
-
-
-class SharingClient:
-    """
-    A Delta Sharing client to query shares/schemas/tables from a Delta Sharing Server.
-    """
-
-    def __init__(self, profile: Union[str, BinaryIO, TextIO, Path, DeltaSharingProfile]):
-        if not isinstance(profile, DeltaSharingProfile):
-            profile = DeltaSharingProfile.read_from_file(profile)
-        self._profile = profile
-        self._rest_client = DataSharingRestClient(profile)
-
-    def __list_all_tables_in_share(self, share: Share) -> Sequence[Table]:
-        tables: List[Table] = []
-        page_token: Optional[str] = None
-        while True:
-            response = self._rest_client.list_all_tables(share=share, page_token=page_token)
-            tables.extend(response.tables)
-            page_token = response.next_page_token
-            if page_token is None or page_token == "":
-                return tables
-
-    def list_shares(self) -> Sequence[Share]:
-        """
-        List shares that can be accessed by you in a Delta Sharing Server.
-
-        :return: the shares that can be accessed.
-        """
-        shares: List[Share] = []
-        page_token: Optional[str] = None
-        while True:
-            response = self._rest_client.list_shares(page_token=page_token)
-            shares.extend(response.shares)
-            page_token = response.next_page_token
-            if page_token is None or page_token == "":
-                return shares
-
-    def list_schemas(self, share: Share) -> Sequence[Schema]:
-        """
-        List schemas in a share that can be accessed by you in a Delta Sharing Server.
-
-        :param share: the share to list.
-        :return: the schemas in a share.
-        """
-        schemas: List[Schema] = []
-        page_token: Optional[str] = None
-        while True:
-            response = self._rest_client.list_schemas(share=share, page_token=page_token)
-            schemas.extend(response.schemas)
-            page_token = response.next_page_token
-            if page_token is None or page_token == "":
-                return schemas
-
-    def list_tables(self, schema: Schema) -> Sequence[Table]:
-        """
-        List tables in a schema that can be accessed by you in a Delta Sharing Server.
-
-        :param schema: the schema to list.
-        :return: the tables in a schema.
-        """
-        tables: List[Table] = []
-        page_token: Optional[str] = None
-        while True:
-            response = self._rest_client.list_tables(schema=schema, page_token=page_token)
-            tables.extend(response.tables)
-            page_token = response.next_page_token
-            if page_token is None or page_token == "":
-                return tables
-
-    def list_all_tables(self) -> Sequence[Table]:
-        """
-        List all tables that can be accessed by you in a Delta Sharing Server.
-
-        :return: all tables that can be accessed.
-        """
-        shares = self.list_shares()
-        try:
-            return list(chain(*(self.__list_all_tables_in_share(share) for share in shares)))
-        except HTTPError as e:
-            if e.response.status_code == 404:
-                # The server doesn't support all-tables API. Fallback to the old APIs instead.
-                schemas = chain(*(self.list_schemas(share) for share in shares))
-                return list(chain(*(self.list_tables(schema) for schema in schemas)))
-            else:
-                raise e

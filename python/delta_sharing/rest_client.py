@@ -149,11 +149,16 @@ class DataSharingRestClient:
     DELTA_FORMAT = "delta"
     PARQUET_FORMAT = "parquet"
 
-    def __init__(self, profile: DeltaSharingProfile, num_retries=10):
+    def __init__(
+        self,
+        profile: DeltaSharingProfile,
+        num_retries=10,
+        session: Optional[requests.Session] = None
+    ):
         self._profile = profile
         self._num_retries = num_retries
         self._sleeper = lambda sleep_ms: time.sleep(sleep_ms / 1000)
-        self.__auth_session(profile)
+        self.__auth_session(profile, session)
 
         self._session.headers.update(
             {
@@ -161,12 +166,16 @@ class DataSharingRestClient:
             }
         )
 
-    def __auth_session(self, profile):
-        self._session = requests.Session()
+    def __auth_session(self, profile, session: Optional[requests.Session] = None):
+        self._session = session or requests.Session()
         self._auth_credential_provider = (
-            AuthCredentialProviderFactory.create_auth_credential_provider(profile))
+            AuthCredentialProviderFactory.create_auth_credential_provider(profile)
+        )
         if urlparse(profile.endpoint).hostname == "localhost":
             self._session.verify = False
+
+    def get_session(self) -> requests.Session:
+        return self._session
 
     def set_sharing_capabilities_header(self):
         delta_sharing_capabilities = (
