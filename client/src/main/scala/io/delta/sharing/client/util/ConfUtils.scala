@@ -25,10 +25,13 @@ import org.apache.spark.sql.internal.SQLConf
 object ConfUtils {
 
   val NUM_RETRIES_CONF = "spark.delta.sharing.network.numRetries"
-  val NUM_RETRIES_DEFAULT = 10
+  val NUM_RETRIES_DEFAULT = 3
 
   val MAX_RETRY_DURATION_CONF = "spark.delta.sharing.network.maxRetryDuration"
   val MAX_RETRY_DURATION_DEFAULT_MILLIS = 10L * 60L* 1000L /* 10 mins */
+
+  val RETRY_SLEEP_INTERVAL_CONF = "spark.delta.sharing.network.retrySleepInterval"
+  val RETRY_SLEEP_INTERVAL_DEFAULT_MILLIS = 1000L /* 1 second */
 
   val ASYNC_QUERY_POLL_INTERVAL_CONF = "spark.delta.sharing.network.asyncQueryRetryInterval"
   val ASYNC_QUERY_POLL_INTERVAL_DEFAULT_MILLIS = 10L * 1000L /* 10 seconds */
@@ -142,6 +145,21 @@ object ConfUtils {
       conf.getConfString(MAX_RETRY_DURATION_CONF, MAX_RETRY_DURATION_DEFAULT_MILLIS.toString).toLong
     validateNonNeg(maxDur, MAX_RETRY_DURATION_CONF)
     maxDur
+  }
+
+  def retrySleepIntervalMillis(conf: Configuration): Long = {
+    val interval = conf.getLong(RETRY_SLEEP_INTERVAL_CONF, RETRY_SLEEP_INTERVAL_DEFAULT_MILLIS)
+    validateNonNeg(interval, RETRY_SLEEP_INTERVAL_CONF)
+    interval
+  }
+
+  def retrySleepIntervalMillis(conf: SQLConf): Long = {
+    val interval =
+      conf.getConfString(
+        RETRY_SLEEP_INTERVAL_CONF,
+        RETRY_SLEEP_INTERVAL_DEFAULT_MILLIS.toString).toLong
+    validateNonNeg(interval, RETRY_SLEEP_INTERVAL_CONF)
+    interval
   }
 
   def asyncQueryPollIntervalMillis(conf: Configuration): Long = {
