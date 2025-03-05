@@ -17,6 +17,7 @@ from datetime import date, datetime
 from typing import Optional, Sequence
 
 import pandas as pd
+from pyarrow import ExtensionType
 import pytest
 
 from delta_sharing.delta_sharing import (
@@ -265,12 +266,16 @@ def test_get_table_metadata(
 ):
     actual = get_table_metadata(f"{profile_path}#{fragments}")
     assert expected == actual
+    actual_using_parquet = get_table_metadata(f"{profile_path}#{fragments}", use_delta_format=False)
+    assert expected == actual_using_parquet
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_get_table_protocol(profile_path: str):
     actual = get_table_protocol(f"{profile_path}#share1.default.table1")
     assert Protocol(min_reader_version=1) == actual
+    actual_using_parquet = get_table_protocol(f"{profile_path}#share1.default.table1", use_delta_format=False)
+    assert Protocol(min_reader_version=1) == actual_using_parquet
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)

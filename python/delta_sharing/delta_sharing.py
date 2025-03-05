@@ -72,7 +72,16 @@ def get_table_version(
     return response.delta_table_version
 
 
-def get_table_protocol(url: str) -> Protocol:
+def __get_table_metadata(rest_client: DataSharingRestClient, table: Table, use_delta_format: bool):
+    if use_delta_format:
+        rest_client.set_sharing_capabilities_header()
+        response = rest_client.query_table_metadata(table)
+        rest_client.remove_sharing_capabilities_header()
+    else:
+        response = rest_client.query_table_metadata(table)
+    return response
+
+def get_table_protocol(url: str, use_delta_format: bool = True) -> Protocol:
     """
     Get the shared table protocol using the given url.
 
@@ -81,11 +90,11 @@ def get_table_protocol(url: str) -> Protocol:
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
     rest_client = DataSharingRestClient(profile)
-    response = rest_client.query_table_metadata(Table(name=table, share=share, schema=schema))
-    return response.protocol
+    full_metadata = __get_table_metadata(rest_client, Table(name=table, share=share, schema=schema), use_delta_format)
+    return full_metadata.protocol
 
 
-def get_table_metadata(url: str) -> Metadata:
+def get_table_metadata(url: str, use_delta_format: bool = True) -> Metadata:
     """
     Get the shared table metadata using the given url.
 
@@ -94,8 +103,8 @@ def get_table_metadata(url: str) -> Metadata:
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
     rest_client = DataSharingRestClient(profile)
-    response = rest_client.query_table_metadata(Table(name=table, share=share, schema=schema))
-    return response.metadata
+    full_metadata = __get_table_metadata(rest_client, Table(name=table, share=share, schema=schema), use_delta_format)
+    return full_metadata.metadata
 
 
 def load_as_pandas(
