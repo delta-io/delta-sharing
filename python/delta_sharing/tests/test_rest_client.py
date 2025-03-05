@@ -308,16 +308,16 @@ def test_query_table_metadata_with_dv_cm_partitioned_delta(
         schema_string=(
             '{"type":"struct","fields":['
             '{"name":"id","type":"long","nullable":false,"metadata":{'
-                '"delta.columnMapping.id":1,'
-                '"delta.columnMapping.physicalName":"col-62f51670-2c22-4bad-a172-c453ddf09673"'
+            '"delta.columnMapping.id":1,'
+            '"delta.columnMapping.physicalName":"col-62f51670-2c22-4bad-a172-c453ddf09673"'
             '}},'
             '{"name":"rand","type":"integer","nullable":false,"metadata":{'
-                '"delta.columnMapping.id":2,'
-                '"delta.columnMapping.physicalName":"col-c985ad35-5524-4e86-89b0-47d6b9012fce"'
+            '"delta.columnMapping.id":2,'
+            '"delta.columnMapping.physicalName":"col-c985ad35-5524-4e86-89b0-47d6b9012fce"'
             '}},'
             '{"name":"partition_col","type":"integer","nullable":false,"metadata":{'
-                '"delta.columnMapping.id":3,'
-                '"delta.columnMapping.physicalName":"col-0bd4d7ce-c925-4748-9259-c03586b29b63"'
+            '"delta.columnMapping.id":3,'
+            '"delta.columnMapping.physicalName":"col-0bd4d7ce-c925-4748-9259-c03586b29b63"'
             '}}'
             "]}"
         ),

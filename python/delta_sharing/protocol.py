@@ -16,7 +16,7 @@
 from dataclasses import dataclass, field
 from json import loads
 from pathlib import Path
-from typing import ClassVar, Dict, IO, Optional, Sequence, Union
+from typing import ClassVar, Dict, IO, List, Optional, Sequence, Union
 
 import fsspec
 
@@ -163,8 +163,8 @@ class Protocol:
 
     min_reader_version: int
     min_writer_version: Optional[int] = None
-    reader_features: Optional[list[str]] = None
-    writer_features: Optional[list[str]] = None
+    reader_features: Optional[List[str]] = None
+    writer_features: Optional[List[str]] = None
 
     def __post_init__(self):
         if self.min_reader_version > Protocol.CURRENT:

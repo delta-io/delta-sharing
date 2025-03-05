@@ -523,6 +523,7 @@ def test_metadata():
         partition_columns=[],
     )
 
+
 @pytest.mark.parametrize(
     "json,expected",
     [
