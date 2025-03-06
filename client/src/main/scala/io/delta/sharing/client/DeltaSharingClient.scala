@@ -166,8 +166,9 @@ private[sharing] case class ListAllTablesResponse(
 class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
-    numRetries: Int = 10,
+    numRetries: Int = 3,
     maxRetryDuration: Long = Long.MaxValue,
+    retrySleepInterval: Long = 1000,
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
     responseFormat: String = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
@@ -1094,9 +1095,9 @@ class DeltaSharingRestClient(
       fetchAsOneString: Boolean = false,
       setIncludeEndStreamAction: Boolean = false
   ): (Option[Long], Map[String, String], Seq[String]) = {
-    // Reset queryId before calling RetryUtils, and before prepareHeaders.
-    queryId = Some(UUID.randomUUID().toString().split('-').head)
-    RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
+    // Reset dsQueryId before calling RetryUtils, and before prepareHeaders.
+    dsQueryId = Some(UUID.randomUUID().toString().split('-').head)
+    RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration, retrySleepInterval) {
       val profile = profileProvider.getProfile
       val response = client.execute(
         getHttpHost(profile.endpoint),
@@ -1313,6 +1314,7 @@ object DeltaSharingRestClient extends Logging {
     val sslTrustAll = ConfUtils.sslTrustAll(sqlConf)
     val numRetries = ConfUtils.numRetries(sqlConf)
     val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(sqlConf)
+    val retrySleepIntervalMillis = ConfUtils.retrySleepIntervalMillis(sqlConf)
     val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
     val queryTablePaginationEnabled = ConfUtils.queryTablePaginationEnabled(sqlConf)
     val maxFilesPerReq = ConfUtils.maxFilesPerQueryRequest(sqlConf)
@@ -1333,6 +1335,7 @@ object DeltaSharingRestClient extends Logging {
         classOf[Int],
         classOf[Int],
         classOf[Long],
+        classOf[Long],
         classOf[Boolean],
         classOf[Boolean],
         classOf[String],
@@ -1350,6 +1353,7 @@ object DeltaSharingRestClient extends Logging {
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
         java.lang.Long.valueOf(maxRetryDurationMillis),
+        java.lang.Long.valueOf(retrySleepIntervalMillis),
         java.lang.Boolean.valueOf(sslTrustAll),
         java.lang.Boolean.valueOf(forStreaming),
         responseFormat,
