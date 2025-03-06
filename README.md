@@ -102,6 +102,16 @@ delta_sharing.load_as_pandas(table_url)
 # Load a table as a Pandas DataFrame explicitly using Delta Format
 delta_sharing.load_as_pandas(table_url, use_delta_format = True)
 
+# Load a table as a Pandas DataFrame explicitly using jsonPredicateHints
+hintOnHireDate = '''{
+  "op": "equal",
+  "children": [
+    {"op": "column", "name":"hireDate", "valueType":"date"},
+    {"op":"literal","value":"2021-04-29","valueType":"date"}
+  ]
+}'''
+delta_sharing.load_as_pandas(table_url, jsonPredicateHints = hintOnHireDate)
+
 # If the code is running with PySpark, you can use `load_as_spark` to load the table as a Spark DataFrame.
 delta_sharing.load_as_spark(table_url)
 ```
