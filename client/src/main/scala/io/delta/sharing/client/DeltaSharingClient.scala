@@ -178,8 +178,9 @@ private[sharing] case class ListAllTablesResponse(
 class DeltaSharingRestClient(
     profileProvider: DeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
-    numRetries: Int = 10,
+    numRetries: Int = 3,
     maxRetryDuration: Long = Long.MaxValue,
+    retrySleepInterval: Long = 1000,
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
     responseFormat: String = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
@@ -469,6 +470,7 @@ class DeltaSharingRestClient(
       startingVersion: Long,
       endingVersion: Option[Long]
   ): DeltaTableFiles = {
+    val start = System.currentTimeMillis()
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
@@ -502,6 +504,8 @@ class DeltaSharingRestClient(
         target = target, data = request, setIncludeEndStreamAction = endStreamActionEnabled
       )
       val (filteredLines, _) = maybeExtractEndStreamAction(response.lines)
+      logInfo(s"Took ${System.currentTimeMillis() - start} ms to query ${filteredLines.size} " +
+        s"files for [$startingVersion, $endingVersion]," + getDsQueryIdForLogging)
       (response.version, response.respondedFormat, filteredLines)
     }
 
@@ -629,7 +633,6 @@ class DeltaSharingRestClient(
       }
     }
 
-    // TODO: remove logging once changes are rolled out
     logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
       s"of ${allLines.size} files," + getDsQueryIdForLogging)
     (version, respondedFormat, allLines.toSeq, refreshToken)
@@ -647,7 +650,6 @@ class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
-      // TODO: remove logging once changes are rolled out
       logInfo(
         s"Making paginated queryTableChanges requests for table " +
           s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq, " +
@@ -760,7 +762,6 @@ class DeltaSharingRestClient(
       }
     }
 
-    // TODO: remove logging once changes are rolled out
     logInfo(
       s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
       s"of ${allLines.size} files," + getDsQueryIdForLogging
@@ -1129,7 +1130,7 @@ class DeltaSharingRestClient(
   ): (Option[Long], Map[String, String], Seq[String]) = {
     // Reset dsQueryId before calling RetryUtils, and before prepareHeaders.
     dsQueryId = Some(UUID.randomUUID().toString().split('-').head)
-    RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
+    RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration, retrySleepInterval) {
       val profile = profileProvider.getProfile
       val response = client.execute(
         getHttpHost(profile.endpoint),
@@ -1362,6 +1363,7 @@ object DeltaSharingRestClient extends Logging {
     val sslTrustAll = ConfUtils.sslTrustAll(sqlConf)
     val numRetries = ConfUtils.numRetries(sqlConf)
     val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(sqlConf)
+    val retrySleepIntervalMillis = ConfUtils.retrySleepIntervalMillis(sqlConf)
     val timeoutInSeconds = ConfUtils.timeoutInSeconds(sqlConf)
     val queryTablePaginationEnabled = ConfUtils.queryTablePaginationEnabled(sqlConf)
     val maxFilesPerReq = ConfUtils.maxFilesPerQueryRequest(sqlConf)
@@ -1382,6 +1384,7 @@ object DeltaSharingRestClient extends Logging {
         classOf[Int],
         classOf[Int],
         classOf[Long],
+        classOf[Long],
         classOf[Boolean],
         classOf[Boolean],
         classOf[String],
@@ -1399,6 +1402,7 @@ object DeltaSharingRestClient extends Logging {
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
         java.lang.Long.valueOf(maxRetryDurationMillis),
+        java.lang.Long.valueOf(retrySleepIntervalMillis),
         java.lang.Boolean.valueOf(sslTrustAll),
         java.lang.Boolean.valueOf(forStreaming),
         responseFormat,
