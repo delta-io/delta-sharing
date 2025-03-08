@@ -41,6 +41,7 @@ class TestDeltaSharingClient(
     timeoutInSeconds: Int = 120,
     numRetries: Int = 10,
     maxRetryDuration: Long = Long.MaxValue,
+    retrySleepInterval: Long = 1000,
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
     responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET,
