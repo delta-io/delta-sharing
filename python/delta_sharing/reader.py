@@ -288,7 +288,7 @@ class DeltaSharingReader:
                 last_checkpoint_file.close()
 
     def __table_changes_to_pandas_kernel(self, cdfOptions: CdfOptions) -> pd.DataFrame:
-        self._rest_client.set_delta_format_header()
+        self._rest_client.set_delta_format_header(for_cdf=True)
         response = self._rest_client.list_table_changes(self._table, cdfOptions)
         lines = response.lines
 
