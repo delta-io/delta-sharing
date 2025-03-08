@@ -96,6 +96,7 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_wasb", share="share_azure", schema="default"),
         Table(name="table_abfs", share="share_azure", schema="default"),
         Table(name="table_gcs", share="share_gcp", schema="default"),
+        Table(name="timestampntz_cdf_table", share="share8", schema="default"),
         Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
         Table(name="cdf_table_with_partition", share="share8", schema="default"),
         Table(name="cdf_table_with_vacuum", share="share8", schema="default"),
@@ -113,7 +114,7 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_with_cm_name", share="share8", schema="default"),
         Table(name="table_with_cm_id", share="share8", schema="default"),
         Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default"),
-        Table(name="dv_and_cm_table", share="share8", schema="default")
+        Table(name="dv_and_cm_table", share="share8", schema="default"),
     ]
 
 
@@ -748,6 +749,36 @@ def test_load_as_pandas_success_empty_dv_and_cm(
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
+    "fragments,expected",
+    [
+        pytest.param(
+            "share8.default.timestampntz_cdf_table",
+            pd.DataFrame(
+                {
+                    "id": [2, 3],
+                    "time": [
+                        pd.Timestamp("2024-12-10T13:17:40.123456"),
+                        pd.Timestamp("1000-01-01T00:00:00.000000"),
+                    ],
+                }
+            ),
+            id="test read timestampntz",
+        )
+    ],
+)
+def test_load_as_pandas_success_timestampntz(
+    profile_path: str,
+    fragments: str,
+    expected: pd.DataFrame
+):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}")
+    expected['time'] = expected['time'].astype('datetime64[us]')
+    expected['id'] = expected['id'].astype('int32')
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
     "fragments,limit,version,expected",
     [
         pytest.param(
@@ -1375,6 +1406,66 @@ def test_load_table_changes_partition_kernel(
         except Exception as e:
             assert isinstance(e, HTTPError)
             assert error in str(e)
+
+
+# TODO: Enable once timestampntz + CDF support is enabled for both
+@pytest.mark.skipif(
+    True,
+    reason="timestampNtz + CDF not supported in OSS server or delta-kernel-rs yet"
+)
+@pytest.mark.parametrize(
+    "fragments,expected",
+    [
+        pytest.param(
+            "share8.default.timestampntz_cdf_table",
+            pd.DataFrame(
+                {
+                    "id": [2, 1, 2, 2, 3, 1],
+                    "time": [
+                        pd.Timestamp("2024-12-10T13:17:40.000000"),
+                        pd.Timestamp("2021-07-01T08:43:28.000000"),
+                        pd.Timestamp("2024-12-10T13:17:40.123456"),
+                        pd.Timestamp("2024-12-10T13:17:40.000000"),
+                        pd.Timestamp("1000-01-01T00:00:00.000000"),
+                        pd.Timestamp("2021-07-01T08:43:28.000000"),
+                    ],
+                    "_change_type": [
+                        "delete",
+                        "delete",
+                        "insert",
+                        "insert",
+                        "insert",
+                        "insert",
+                    ],
+                    "_commit_version": [3, 4, 3, 2, 2, 1],
+                    "_commit_timestamp": [
+                        1741140666000,
+                        1741144375000,
+                        1741140666000,
+                        1741140657000,
+                        1741140657000,
+                        1741140565000,
+                    ]
+                }
+            ),
+            id="test read timestampntz",
+        )
+    ],
+)
+def test_load_table_changes_as_pandas_timestampntz(
+    profile_path: str,
+    fragments: str,
+    expected: pd.DataFrame
+):
+    pdf = load_table_changes_as_pandas(
+        f"{profile_path}#{fragments}",
+        starting_version=0,
+        use_delta_format=True
+    )
+    expected['time'] = expected['time'].astype('datetime64[us]')
+    expected['id'] = expected['id'].astype('int32')
+    pdf['_commit_timestamp'] = pdf['_commit_timestamp'].astype('int') // 1000
+    pd.testing.assert_frame_equal(pdf, expected)
 
 
 def test_parse_url():
