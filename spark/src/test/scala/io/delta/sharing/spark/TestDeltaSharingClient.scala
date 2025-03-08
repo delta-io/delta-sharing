@@ -39,8 +39,9 @@ import io.delta.sharing.spark.TestDeltaSharingClient.TESTING_TIMESTAMP
 class TestDeltaSharingClient(
     profileProvider: DeltaSharingProfileProvider = new TestDeltaSharingProfileProvider,
     timeoutInSeconds: Int = 120,
-    numRetries: Int = 10,
+    numRetries: Int = 3,
     maxRetryDuration: Long = Long.MaxValue,
+    retrySleepInterval: Long = 1000,
     sslTrustAll: Boolean = false,
     forStreaming: Boolean = false,
     responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET,
