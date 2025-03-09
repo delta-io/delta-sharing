@@ -175,10 +175,54 @@ def test_query_table_metadata_non_partitioned(rest_client: DataSharingRestClient
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_metadata_non_partitioned_delta(rest_client: DataSharingRestClient):
+    rest_client.set_sharing_capabilities_header()
+    response = rest_client.query_table_metadata(
+        Table(name="table1", share="share1", schema="default")
+    )
+    rest_client.remove_sharing_capabilities_header()
+    assert response.delta_table_version > 1
+    assert response.protocol == Protocol(min_reader_version=1)
+    assert response.metadata == Metadata(
+        id="ed96aa41-1d81-4b7f-8fb5-846878b4b0cf",
+        format=Format(provider="parquet", options={}),
+        schema_string=(
+            '{"type":"struct","fields":['
+            '{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},'
+            '{"name":"date","type":"date","nullable":true,"metadata":{}}'
+            "]}"
+        ),
+        partition_columns=[],
+    )
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_table_metadata_partitioned(rest_client: DataSharingRestClient):
     response = rest_client.query_table_metadata(
         Table(name="table2", share="share2", schema="default")
     )
+    assert response.delta_table_version > 1
+    assert response.protocol == Protocol(min_reader_version=1)
+    assert response.metadata == Metadata(
+        id="f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+        format=Format(provider="parquet", options={}),
+        schema_string=(
+            '{"type":"struct","fields":['
+            '{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},'
+            '{"name":"date","type":"date","nullable":true,"metadata":{}}'
+            "]}"
+        ),
+        partition_columns=["date"],
+    )
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_metadata_partitioned_delta(rest_client: DataSharingRestClient):
+    rest_client.set_sharing_capabilities_header()
+    response = rest_client.query_table_metadata(
+        Table(name="table2", share="share2", schema="default")
+    )
+    rest_client.remove_sharing_capabilities_header()
     assert response.delta_table_version > 1
     assert response.protocol == Protocol(min_reader_version=1)
     assert response.metadata == Metadata(
@@ -214,6 +258,77 @@ def test_query_table_metadata_partitioned_different_schemas(
             "]}"
         ),
         partition_columns=["date"],
+    )
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_metadata_partitioned_different_schemas_delta(
+    rest_client: DataSharingRestClient,
+):
+    rest_client.set_sharing_capabilities_header()
+    response = rest_client.query_table_metadata(
+        Table(name="table3", share="share1", schema="default")
+    )
+    rest_client.remove_sharing_capabilities_header()
+    assert response.delta_table_version > 1
+    assert response.protocol == Protocol(min_reader_version=1)
+    assert response.metadata == Metadata(
+        id="7ba6d727-a578-4234-a138-953f790b427c",
+        format=Format(provider="parquet", options={}),
+        schema_string=(
+            '{"type":"struct","fields":['
+            '{"name":"eventTime","type":"timestamp","nullable":true,"metadata":{}},'
+            '{"name":"date","type":"date","nullable":true,"metadata":{}},'
+            '{"name":"type","type":"string","nullable":true,"metadata":{}}'
+            "]}"
+        ),
+        partition_columns=["date"],
+    )
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_query_table_metadata_with_dv_cm_partitioned_delta(
+    rest_client: DataSharingRestClient,
+):
+    rest_client.set_sharing_capabilities_header()
+    response = rest_client.query_table_metadata(
+        Table(name="dv_and_cm_table", share="share8", schema="default")
+    )
+    rest_client.remove_sharing_capabilities_header()
+    assert response.delta_table_version > 1
+    assert response.protocol == Protocol(
+        min_reader_version=3,
+        min_writer_version=7,
+        reader_features=['deletionVectors', 'columnMapping'],
+        writer_features=['deletionVectors', 'invariants', 'columnMapping', 'changeDataFeed'],
+    )
+    assert response.metadata == Metadata(
+        id="88033a32-ec3c-4592-a606-9b58e2dc245d",
+        format=Format(provider="parquet", options={}),
+        schema_string=(
+            '{"type":"struct","fields":['
+            '{"name":"id","type":"long","nullable":false,"metadata":{'
+            '"delta.columnMapping.id":1,'
+            '"delta.columnMapping.physicalName":"col-62f51670-2c22-4bad-a172-c453ddf09673"'
+            '}},'
+            '{"name":"rand","type":"integer","nullable":false,"metadata":{'
+            '"delta.columnMapping.id":2,'
+            '"delta.columnMapping.physicalName":"col-c985ad35-5524-4e86-89b0-47d6b9012fce"'
+            '}},'
+            '{"name":"partition_col","type":"integer","nullable":false,"metadata":{'
+            '"delta.columnMapping.id":3,'
+            '"delta.columnMapping.physicalName":"col-0bd4d7ce-c925-4748-9259-c03586b29b63"'
+            '}}'
+            "]}"
+        ),
+        partition_columns=["partition_col"],
+        configuration={
+            'delta.columnMapping.maxColumnId': '3',
+            'delta.columnMapping.mode': 'name',
+            'delta.enableChangeDataFeed': 'true',
+            'delta.enableDeletionVectors': 'true',
+        },
+        created_time=1721350003845,
     )
 
 
