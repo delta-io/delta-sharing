@@ -23,7 +23,7 @@ import fsspec
 
 @dataclass(frozen=True)
 class DeltaSharingProfile:
-    CURRENT: ClassVar[int] = 2
+    CURRENT: ClassVar[int] = 3
 
     share_credentials_version: int
     endpoint: str
