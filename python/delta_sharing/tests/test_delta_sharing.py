@@ -772,7 +772,7 @@ def test_load_as_pandas_success_timestampntz(
     expected: pd.DataFrame
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}")
-    expected['time'] = expected['time'].astype('datetime64[us]')
+    expected['time'] = expected['time'].values.astype('datetime64[us]')
     expected['id'] = expected['id'].astype('int32')
     pd.testing.assert_frame_equal(pdf, expected)
 
@@ -1462,7 +1462,7 @@ def test_load_table_changes_as_pandas_timestampntz(
         starting_version=0,
         use_delta_format=True
     )
-    expected['time'] = expected['time'].astype('datetime64[us]')
+    expected['time'] = expected['time'].values.astype('datetime64[us]')
     expected['id'] = expected['id'].astype('int32')
     pdf['_commit_timestamp'] = pdf['_commit_timestamp'].astype('int') // 1000
     pd.testing.assert_frame_equal(pdf, expected)
