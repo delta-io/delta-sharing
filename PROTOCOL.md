@@ -1417,7 +1417,7 @@ Note: This method is migrating from HEAD to GET, and with a `/version` suffix. P
 
 Example:
 
-`GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/version`
+`GET {prefix}/shares/share_name/schemas/schema_name/tables/table_name/version`
 
 ```
 HTTP/2 200 
@@ -1671,7 +1671,7 @@ The response contains two lines:
 
 Example (See [API Response Format in Parquet](#api-response-format-in-parquet) for more details about the format):
 
-`GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/metadata`
+`GET {prefix}/shares/share_name/schemas/schema_name/tables/table_name/metadata`
 
 ```
 HTTP/2 200 
@@ -1802,10 +1802,9 @@ When `responseformat=parquet`, a sequence of JSON strings delimited by newline. 
 The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
-- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [data change files](#data-change-files), [Metadata](#metadata), or [files](#file).  
-  - The lines are [data change files](#data-change-files) with possible historical [Metadata](#metadata) (when startingVersion is set).
-  - The lines are [files](#file) in the table (otherwise).
-  - The ordering of the lines doesn't matter.
+- The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [data change files](#data-change-files), [Metadata](#metadata), or [files](#file), the ordering of the lines doesn't matter.
+  - When querying a table snapshot (latest snapshot, or time travel on a version, i.e. query without staringVersion/endingVersion defined), the lines are [files](#file) in the delta sharing table, [check the example](#example-for-snapshot-query). 
+  - When startingVersion is set in the query (usually for queries supporting [delta sharing spark structured streaming](https://www.databricks.com/blog/using-structured-streaming-delta-sharing-unity-catalog)): the lines are [data change files](#data-change-files) with possible historical [Metadata](#metadata), [check the example](#example-for-query-with-startingversion).
 
 When `responseformat=delta`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Delta](#api-response-format-in-delta).
 
@@ -2011,9 +2010,10 @@ The request body should be a JSON string containing the following optional field
 
 When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
-Example (See [API Response Format in Parquet](#api-response-format-in-parquet) for more details about the format):
+#### Example for snapshot query
+See [API Response Format in Parquet](#api-response-format-in-parquet) for more details about the format.
 
-`POST {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/query`
+`POST {prefix}/shares/share_name/schemas/schema_name/tables/table_name/query`
 
 ```json
 {
@@ -2052,7 +2052,7 @@ delta-table-version: 123
 }
 {
   "file": {
-    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e",
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?...",
     "id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640",
     "partitionValues": {
       "date": "2021-04-28"
@@ -2063,13 +2063,102 @@ delta-table-version: 123
 }
 {
   "file": {
-    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=899&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=0f7acecba5df7652457164533a58004936586186c56425d9d53c52db574f6b62",
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?...",
     "id": "591723a8-6a27-4240-a90e-57426f4736d2",
     "partitionValues": {
       "date": "2021-04-28"
     },
     "size": 573,
     "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}"
+  }
+}
+```
+
+#### Example for query with startingVersion
+
+`POST {prefix}/shares/share_name/schemas/schema_name/tables/table_name/query`
+
+```json
+{
+  "startingVersion": 1
+}
+```
+
+```
+HTTP/2 200 
+content-type: application/x-ndjson; charset=utf-8
+delta-table-version: 1
+```
+
+```json
+{
+  "protocol": {
+    "minReaderVersion": 1
+  }
+}
+"metaData": {
+  "id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+  "format": {
+    "provider": "parquet"
+  },
+  "schemaString": "{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}",
+  "partitionColumns": [
+    "date"
+  ],
+  "configuration": {
+    "enableChangeDataFeed": "true"
+  }
+}
+{
+  "add": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?...",
+    "id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640",
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "size":573,
+    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}",
+    "timestamp": 1652140000000,
+    "version": 0
+  }
+}
+{
+  "add": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?...",
+    "id": "591723a8-6a27-4240-a90e-57426f4736d2",
+    "size": 573,
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "timestamp": 1652140800000,
+    "version": 1,
+    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}",
+    "expirationTimestamp": 1652144400000
+  }
+}
+{
+  "remove": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?...",
+    "id": "591723a8-6a27-4240-a90e-57426f4736d2",
+    "size": 573,
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "timestamp": 1652140800000,
+    "version": 1,
+    "expirationTimestamp": 1652144400000
+  }
+}
+{
+  "remove": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?...",
+    "id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640",
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "size": 573,
+    "timestamp": 1652142000000,
+    "version": 2
   }
 }
 ```
@@ -2340,7 +2429,7 @@ When `responseformat=delta`, a sequence of JSON strings delimited by newline. Ea
 
 Example (See [API Response Format in Parquet](#api-response-format-in-parquet) for more details about the format):
 
-`GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/changes?startingVersion=0&endingVersion=2`
+`GET {prefix}/shares/share_name/schemas/schema_name/tables/table_name/changes?startingVersion=0&endingVersion=2`
 
 
 ```
@@ -2371,7 +2460,7 @@ content-type: application/x-ndjson; charset=utf-8
 }
 {
   "add": {
-    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e",
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?...",
     "id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640",
     "partitionValues": {
       "date": "2021-04-28"
@@ -2384,7 +2473,7 @@ content-type: application/x-ndjson; charset=utf-8
 }
 {
   "cdf": {
-    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/_change_data/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=899&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=0f7acecba5df7652457164533a58004936586186c56425d9d53c52db574f6b62",
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/_change_data/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?...",
     "id": "591723a8-6a27-4240-a90e-57426f4736d2",
     "partitionValues": {
       "date": "2021-04-28"
@@ -2396,7 +2485,7 @@ content-type: application/x-ndjson; charset=utf-8
 }
 {
   "remove": {
-    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010516Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=97b6762cfd8e4d7e94b9d707eff3faf266974f6e7030095c1d4a66350cfd892e",
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?...",
     "id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640",
     "partitionValues": {
       "date": "2021-04-28"
@@ -2563,7 +2652,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 ```json
 {
   "file": {
-    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?...",
     "id": "591723a8-6a27-4240-a90e-57426f4736d2",
     "size": 573,
     "partitionValues": {
@@ -2594,7 +2683,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 ```json
 {
   "add": {
-    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?...",
     "id": "591723a8-6a27-4240-a90e-57426f4736d2",
     "size": 573,
     "partitionValues": {
@@ -2624,7 +2713,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 ```json
 {
   "cdf": {
-    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/_change_data/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/_change_data/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?...",
     "id": "591723a8-6a27-4240-a90e-57426f4736d2",
     "size": 573,
     "partitionValues": {
@@ -2653,7 +2742,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 ```json
 {
   "remove": {
-    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210501T010655Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=AKIAISZRDL4Q4Q7AIONA%2F20210501%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=dd5d3ba1a179dc7e239d257feed046dccc95000d1aa0479ea6ff36d10d90ec94",
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table_cdf/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?...",
     "id": "591723a8-6a27-4240-a90e-57426f4736d2",
     "size": 573,
     "partitionValues": {
