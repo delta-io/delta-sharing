@@ -1417,7 +1417,7 @@ Note: This method is migrating from HEAD to GET, and with a `/version` suffix. P
 
 Example:
 
-`GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/version`
+`GET {prefix}/shares/share_name/schemas/schema_name/tables/table_name/version`
 
 ```
 HTTP/2 200 
@@ -1671,7 +1671,7 @@ The response contains two lines:
 
 Example (See [API Response Format in Parquet](#api-response-format-in-parquet) for more details about the format):
 
-`GET {prefix}/shares/vaccine_share/schemas/acme_vaccine_data/tables/vaccine_patients/metadata`
+`GET {prefix}/shares/share_name/schemas/schema_name/tables/table_name/metadata`
 
 ```
 HTTP/2 200 
@@ -1803,8 +1803,8 @@ The response contains multiple lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
 - The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [data change files](#data-change-files), [Metadata](#metadata), or [files](#file), the ordering of the lines doesn't matter.
-  - When querying a table snapshot (latest snapshot without any query parameters, or time travel on a version), the lines are [files](#file) in the delta sharing table, [check the example](#example-for-snapshot-query). 
-  - When startingVersion is set in the query (usually for queries supporting delta sharing spark structured streaming): the lines are [data change files](#data-change-files) with possible historical [Metadata](#metadata), [check the example](#example-for-query-with-startingversion).
+  - When querying a table snapshot (latest snapshot, or time travel on a version, i.e. query without staringVersion/endingVersion defined), the lines are [files](#file) in the delta sharing table, [check the example](#example-for-snapshot-query). 
+  - When startingVersion is set in the query (usually for queries supporting [delta sharing spark structured streaming](https://www.databricks.com/blog/using-structured-streaming-delta-sharing-unity-catalog)): the lines are [data change files](#data-change-files) with possible historical [Metadata](#metadata), [check the example](#example-for-query-with-startingversion).
 
 When `responseformat=delta`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Delta](#api-response-format-in-delta).
 
@@ -2013,7 +2013,7 @@ When `predicateHints` and `limitHint` are both present, the server should apply 
 #### Example for snapshot query
 See [API Response Format in Parquet](#api-response-format-in-parquet) for more details about the format.
 
-`POST {prefix}/shares/share_name/schemas/schema_name/tables/table2/query`
+`POST {prefix}/shares/share_name/schemas/schema_name/tables/table_name/query`
 
 ```json
 {
@@ -2076,7 +2076,7 @@ delta-table-version: 123
 
 #### Example for query with startingVersion
 
-`POST {prefix}/shares/share_name/schemas/schema_name/tables/table_cdf/query`
+`POST {prefix}/shares/share_name/schemas/schema_name/tables/table_name/query`
 
 ```json
 {
@@ -2429,7 +2429,7 @@ When `responseformat=delta`, a sequence of JSON strings delimited by newline. Ea
 
 Example (See [API Response Format in Parquet](#api-response-format-in-parquet) for more details about the format):
 
-`GET {prefix}/shares/share_name/schemas/schema_name/tables/table_cdf/changes?startingVersion=0&endingVersion=2`
+`GET {prefix}/shares/share_name/schemas/schema_name/tables/table_name/changes?startingVersion=0&endingVersion=2`
 
 
 ```
