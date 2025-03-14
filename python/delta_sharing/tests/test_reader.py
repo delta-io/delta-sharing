@@ -669,7 +669,7 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
             ]
             return ListTableChangesResponse(protocol=None, metadata=None, actions=None, lines=lines)
 
-        def set_delta_format_header(self):
+        def set_delta_format_header(self, for_cdf=False):
             return
 
         def remove_delta_format_header(self):
