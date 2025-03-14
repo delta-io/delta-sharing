@@ -198,7 +198,15 @@ class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
         return None
 
 
-class AzureManagedIdentityClient:
+class OidcManagedIdentityClient:
+    def managed_identity_token(self) -> OAuthClientCredentials:
+        None
+
+    def parse_oauth_token_response(self, response: str) -> OAuthClientCredentials:
+        None
+
+
+class AzureManagedIdentityClient(OidcManagedIdentityClient):
     def __init__(self):
         None
 
@@ -256,9 +264,66 @@ class AzureManagedIdentityClient:
         )
 
 
-class AzureManagedIdentityAuthProvider(AuthCredentialProvider):
+class OAuthClientCredentials:
+    def __init__(self, access_token: str, expires_in: int, creation_timestamp: int):
+        self.access_token = access_token
+        self.expires_in = expires_in
+        self.creation_timestamp = creation_timestamp
+
+class GCPManagedIdentityOIDCClient(OidcManagedIdentityClient):
+    def __init__(self, audience: str):
+        if not audience:
+            raise ValueError("Audience must be specified for OIDC token request.")
+        self.audience = audience
+
+    def managed_identity_token(self) -> OAuthClientCredentials:
+        """
+        Fetches an OIDC token from the GCP metadata server for the specified audience
+        and returns it as an OAuthClientCredentials object.
+        """
+        url = f"http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience={self.audience}&format=full"
+        headers = {"Metadata-Flavor": "Google"}
+
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+
+        token = response.text  # JWT OIDC Token
+        return self.parse_oidc_token(token)
+
+    def parse_oidc_token(self, token: str) -> OAuthClientCredentials:
+        """
+        Decodes the OIDC token and extracts useful claims such as expiration time.
+        Returns an OAuthClientCredentials object.
+        """
+        if not token:
+            raise RuntimeError("Empty OIDC token received from GCP managed identity endpoint.")
+
+        # JWT tokens are base64 encoded and consist of three parts: header, payload, and signature
+        try:
+            payload_encoded = token.split(".")[1]  # Extract payload (second part of JWT)
+            payload_decoded = json.loads(base64.urlsafe_b64decode(payload_encoded + "==").decode("utf-8"))
+        except Exception as e:
+            raise RuntimeError(f"Failed to decode OIDC token payload: {str(e)}")
+
+        if 'exp' not in payload_decoded:
+            raise RuntimeError("Missing 'exp' field in OIDC token payload.")
+
+        # Calculate expiration time
+        expiration_time = int(payload_decoded['exp'])
+        current_timestamp = int(datetime.datetime.utcnow().timestamp())
+        expires_in = expiration_time - current_timestamp  # Time left in seconds
+
+        return OAuthClientCredentials(
+            access_token=token,
+            expires_in=expires_in,
+            creation_timestamp=current_timestamp
+        )
+
+
+
+class ManagedIdentityAuthProvider(AuthCredentialProvider):
     def __init__(self,
-                 managed_identity_client: AzureManagedIdentityClient,
+                 managed_identity_client: OidcManagedIdentityClient,
                  auth_config: AuthConfig = AuthConfig()):
         self.auth_config = auth_config
         self.managed_identity_client = managed_identity_client
@@ -360,7 +425,11 @@ class AuthCredentialProviderFactory:
         if profile in AuthCredentialProviderFactory.__managed_identity_provider_cache:
             return AuthCredentialProviderFactory.__managed_identity_provider_cache[profile]
 
-        managed_identity_client = AzureManagedIdentityClient()
-        provider = AzureManagedIdentityAuthProvider(managed_identity_client=managed_identity_client)
+        if profile.cloud_provider == "azure"
+            managed_identity_client = AzureManagedIdentityClient()
+        elif profile.cloud_provider == "gcp"
+            managed_identity_client = GCPManagedIdentityOIDCClient(audience="my-audience")
+
+        provider = ManagedIdentityAuthProvider(managed_identity_client=managed_identity_client)
         AuthCredentialProviderFactory.__managed_identity_provider_cache[profile] = provider
         return provider
