@@ -428,7 +428,7 @@ class AuthCredentialProviderFactory:
         if profile.cloud_provider == "azure"
             managed_identity_client = AzureManagedIdentityClient()
         elif profile.cloud_provider == "gcp"
-            managed_identity_client = GCPManagedIdentityOIDCClient(audience="my-audience")
+            managed_identity_client = GCPManagedIdentityOIDCClient(audience=profile.audience)
 
         provider = ManagedIdentityAuthProvider(managed_identity_client=managed_identity_client)
         AuthCredentialProviderFactory.__managed_identity_provider_cache[profile] = provider

@@ -36,10 +36,11 @@ class DeltaSharingProfile:
     username: Optional[str] = None
     password: Optional[str] = None
     scope: Optional[str] = None
+    audience: Optional[str] = None
 
     # this is only applicable to the experimental_managed_identity auth mode
     # for the experimental_managed_identity specifies in which cloud the compute is running
-    cloud_provider: Option[str] = None
+    cloud_provider: Optional[str] = None
 
     def __post_init__(self):
         if self.share_credentials_version > DeltaSharingProfile.CURRENT:
@@ -108,7 +109,8 @@ class DeltaSharingProfile:
                     share_credentials_version=share_credentials_version,
                     type=type,
                     endpoint=endpoint,
-                    cloud_provider=json.get("cloud_provider")
+                    cloud_provider=json.get("cloud_provider"),
+                    audience=json.get("audience")
                 )
             elif type == "basic":
                 return DeltaSharingProfile(
