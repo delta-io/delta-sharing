@@ -310,7 +310,7 @@ class GCPManagedIdentityOIDCClient(OidcManagedIdentityClient):
 
         # Calculate expiration time
         expiration_time = int(payload_decoded['exp'])
-        current_timestamp = int(datetime.datetime.utcnow().timestamp())
+        current_timestamp = int(datetime.now().timestamp())
         expires_in = expiration_time - current_timestamp  # Time left in seconds
 
         return OAuthClientCredentials(
@@ -367,7 +367,7 @@ class AuthCredentialProviderFactory:
 
     __managed_identity_provider_cache : Dict[
         DeltaSharingProfile,
-        AzureManagedIdentityAuthProvider] = {}
+        ManagedIdentityAuthProvider] = {}
 
     @staticmethod
     def create_auth_credential_provider(profile: DeltaSharingProfile):
@@ -425,9 +425,9 @@ class AuthCredentialProviderFactory:
         if profile in AuthCredentialProviderFactory.__managed_identity_provider_cache:
             return AuthCredentialProviderFactory.__managed_identity_provider_cache[profile]
 
-        if profile.cloud_provider == "azure"
+        if profile.cloud_provider == "azure":
             managed_identity_client = AzureManagedIdentityClient()
-        elif profile.cloud_provider == "gcp"
+        elif profile.cloud_provider == "gcp":
             managed_identity_client = GCPManagedIdentityOIDCClient(audience=profile.audience)
 
         provider = ManagedIdentityAuthProvider(managed_identity_client=managed_identity_client)
