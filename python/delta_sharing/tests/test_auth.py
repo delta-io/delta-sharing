@@ -20,7 +20,8 @@ from delta_sharing._internal_auth import (OAuthClient,
                                           BasicAuthProvider,
                                           AuthCredentialProviderFactory,
                                           OAuthClientCredentialsAuthProvider,
-                                          OAuthClientCredentials)
+                                          OAuthClientCredentials, AzureManagedIdentityAuthProvider,
+                                          AzureManagedIdentityClient)
 from requests import Session
 import requests
 from delta_sharing._internal_auth import BearerTokenAuthProvider
@@ -292,3 +293,88 @@ def test_oauth_auth_provider_with_different_profiles():
     provider2 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_oauth2)
 
     assert provider1 != provider2
+
+
+def test_azure_managed_identity_auth_provider_initialization():
+    mock_client = MagicMock(spec=AzureManagedIdentityClient)
+    provider = AzureManagedIdentityAuthProvider(managed_identity_client=mock_client)
+    assert provider.current_token is None
+
+
+def test_azure_managed_identity_auth_provider_add_auth_header():
+    mock_client = MagicMock(spec=AzureManagedIdentityClient)
+    provider = AzureManagedIdentityAuthProvider(managed_identity_client=mock_client)
+    mock_session = MagicMock(spec=Session)
+    mock_session.headers = MagicMock()
+
+    token = OAuthClientCredentials("access-token", 3600, int(datetime.now().timestamp()))
+    provider.current_token = token
+
+    provider.add_auth_header(mock_session)
+
+    mock_session.headers.update.assert_called_once_with(
+        {"Authorization": f"Bearer {token.access_token}"}
+    )
+
+
+def test_azure_managed_identity_auth_provider_refresh_token():
+    mock_client = MagicMock(spec=AzureManagedIdentityClient)
+    provider = AzureManagedIdentityAuthProvider(managed_identity_client=mock_client)
+    mock_session = MagicMock(spec=Session)
+    mock_session.headers = MagicMock()
+
+    expired_token = OAuthClientCredentials(
+        "expired-token", 1, int(datetime.now().timestamp()) - 3600)
+    new_token = OAuthClientCredentials(
+        "new-token", 3600, int(datetime.now().timestamp()))
+    provider.current_token = expired_token
+
+    mock_client.managed_identity_token.return_value = new_token
+
+    provider.add_auth_header(mock_session)
+
+    mock_session.headers.update.assert_called_once_with(
+        {"Authorization": f"Bearer {new_token.access_token}"}
+    )
+    mock_client.managed_identity_token.assert_called_once()
+
+
+def test_azure_managed_identity_auth_provider_needs_refresh():
+    mock_client = MagicMock(spec=AzureManagedIdentityClient)
+    provider = AzureManagedIdentityAuthProvider(managed_identity_client=mock_client)
+
+    expired_token = OAuthClientCredentials(
+        "expired-token", 1, int(datetime.now().timestamp()) - 3600)
+    assert provider.needs_refresh(expired_token)
+
+    token_expiring_soon = OAuthClientCredentials(
+        "expiring-soon-token", 600 - 5, int(datetime.now().timestamp()))
+    assert provider.needs_refresh(token_expiring_soon)
+
+    valid_token = OAuthClientCredentials(
+        "valid-token", 600 + 10, int(datetime.now().timestamp()))
+    assert not provider.needs_refresh(valid_token)
+
+
+def test_azure_managed_identity_auth_provider_is_expired():
+    mock_client = MagicMock(spec=AzureManagedIdentityClient)
+    provider = AzureManagedIdentityAuthProvider(managed_identity_client=mock_client)
+    assert not provider.is_expired()
+
+
+def test_azure_managed_identity_auth_provider_get_expiration_time():
+    mock_client = MagicMock(spec=AzureManagedIdentityClient)
+    provider = AzureManagedIdentityAuthProvider(managed_identity_client=mock_client)
+    assert provider.get_expiration_time() is None
+
+
+def test_factory_creation_managed_identity():
+    profile_managed_identity = DeltaSharingProfile(
+        share_credentials_version=2,
+        type="experimental_managed_identity",
+        endpoint="https://localhost/delta-sharing/"
+    )
+    provider = AuthCredentialProviderFactory.create_auth_credential_provider(
+        profile_managed_identity
+    )
+    assert isinstance(provider, AzureManagedIdentityAuthProvider)

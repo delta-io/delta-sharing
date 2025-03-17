@@ -198,16 +198,184 @@ class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
         return None
 
 
+class OidcManagedIdentityClient:
+    def managed_identity_token(self) -> OAuthClientCredentials:
+        None
+
+    def parse_oauth_token_response(self, response: str) -> OAuthClientCredentials:
+        None
+
+
+class AzureManagedIdentityClient(OidcManagedIdentityClient):
+    def __init__(self):
+        None
+
+    def managed_identity_token(self) -> OAuthClientCredentials:
+        # Azure IMDS endpoint to get the access token.
+        # This interface allows any client application running on the Azure VM
+        # to acquire an access token via HTTP REST calls.
+        # For more details, see:
+        # https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
+        url = "http://169.254.169.254/metadata/identity/oauth2/token"
+
+        resource = "https://management.azure.com/"
+        # Headers required to access Azure Instance Metadata Service
+        headers = {"Metadata": "true"}
+
+        # Parameters to specify the resource and API version
+        params = {
+            "api-version": "2019-08-01",
+            "resource": resource
+        }
+
+        # Make the GET request to fetch the token
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+
+        # Check if the request was successful
+        if response.status_code == 200:
+            # Return the access token
+            return self.parse_oauth_token_response(response.text)
+
+        else:
+            # Handle errors
+            raise Exception(f"Failed to obtain token: {response.status_code} - {response.text}")
+
+    def parse_oauth_token_response(self, response: str) -> OAuthClientCredentials:
+        if not response:
+            raise RuntimeError("Empty response from azure managed identity endpoint")
+        # Parsing the response according to azure managed identity spec
+        # https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
+        json_node = json.loads(response)
+        if 'access_token' not in json_node or not isinstance(json_node['access_token'], str):
+            raise RuntimeError("Missing 'access_token' field in OAuth token response")
+        if 'expires_in' not in json_node:
+            raise RuntimeError("Missing 'expires_in' field in OAuth token response")
+        try:
+            expires_in = int(json_node['expires_in'])  # Convert to int if it's a string
+        except ValueError:
+            raise RuntimeError(
+                "'expires_in' field must be an integer or a string convertible to integer"
+            )
+        return OAuthClientCredentials(
+            json_node['access_token'],
+            expires_in,
+            int(datetime.now().timestamp())
+        )
+
+
+class OAuthClientCredentials:
+    def __init__(self, access_token: str, expires_in: int, creation_timestamp: int):
+        self.access_token = access_token
+        self.expires_in = expires_in
+        self.creation_timestamp = creation_timestamp
+
+class GCPManagedIdentityOIDCClient(OidcManagedIdentityClient):
+    def __init__(self, audience: str):
+        if not audience:
+            raise ValueError("Audience must be specified for OIDC token request.")
+        self.audience = audience
+
+    def managed_identity_token(self) -> OAuthClientCredentials:
+        """
+        Fetches an OIDC token from the GCP metadata server for the specified audience
+        and returns it as an OAuthClientCredentials object.
+        """
+        url = f"http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience={self.audience}&format=full"
+        headers = {"Metadata-Flavor": "Google"}
+
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+
+        token = response.text  # JWT OIDC Token
+        return self.parse_oidc_token(token)
+
+    def parse_oidc_token(self, token: str) -> OAuthClientCredentials:
+        """
+        Decodes the OIDC token and extracts useful claims such as expiration time.
+        Returns an OAuthClientCredentials object.
+        """
+        if not token:
+            raise RuntimeError("Empty OIDC token received from GCP managed identity endpoint.")
+
+        # JWT tokens are base64 encoded and consist of three parts: header, payload, and signature
+        try:
+            payload_encoded = token.split(".")[1]  # Extract payload (second part of JWT)
+            payload_decoded = json.loads(base64.urlsafe_b64decode(payload_encoded + "==").decode("utf-8"))
+        except Exception as e:
+            raise RuntimeError(f"Failed to decode OIDC token payload: {str(e)}")
+
+        if 'exp' not in payload_decoded:
+            raise RuntimeError("Missing 'exp' field in OIDC token payload.")
+
+        # Calculate expiration time
+        expiration_time = int(payload_decoded['exp'])
+        current_timestamp = int(datetime.now().timestamp())
+        expires_in = expiration_time - current_timestamp  # Time left in seconds
+
+        return OAuthClientCredentials(
+            access_token=token,
+            expires_in=expires_in,
+            creation_timestamp=current_timestamp
+        )
+
+
+
+class ManagedIdentityAuthProvider(AuthCredentialProvider):
+    def __init__(self,
+                 managed_identity_client: OidcManagedIdentityClient,
+                 auth_config: AuthConfig = AuthConfig()):
+        self.auth_config = auth_config
+        self.managed_identity_client = managed_identity_client
+        self.current_token: Optional[OAuthClientCredentials] = None
+        self.lock = threading.RLock()
+
+    def add_auth_header(self,session: requests.Session) -> None:
+        token = self.maybe_refresh_token()
+
+        with self.lock:
+            session.headers.update(
+                {
+                    "Authorization": f"Bearer {token.access_token}",
+                }
+            )
+
+    def maybe_refresh_token(self) -> OAuthClientCredentials:
+        with self.lock:
+            if self.current_token and not self.needs_refresh(self.current_token):
+                return self.current_token
+            new_token = self.managed_identity_client.managed_identity_token()
+            self.current_token = new_token
+            return new_token
+
+    def needs_refresh(self, token: OAuthClientCredentials) -> bool:
+        now = int(time.time())
+        expiration_time = token.creation_timestamp + token.expires_in
+        return expiration_time - now < self.auth_config.token_renewal_threshold_in_seconds
+
+    def is_expired(self) -> bool:
+        return False
+
+    def get_expiration_time(self) -> Optional[str]:
+        return None
+
+
 class AuthCredentialProviderFactory:
     __oauth_auth_provider_cache : Dict[
         DeltaSharingProfile,
         OAuthClientCredentialsAuthProvider] = {}
+
+    __managed_identity_provider_cache : Dict[
+        DeltaSharingProfile,
+        ManagedIdentityAuthProvider] = {}
 
     @staticmethod
     def create_auth_credential_provider(profile: DeltaSharingProfile):
         if profile.share_credentials_version == 2:
             if profile.type == "oauth_client_credentials":
                 return AuthCredentialProviderFactory.__oauth_client_credentials(profile)
+            elif profile.type == "experimental_managed_identity":
+                return AuthCredentialProviderFactory.__experimental_managed_identity(profile)
             elif profile.type == "basic":
                 return AuthCredentialProviderFactory.__auth_basic(profile)
         elif (profile.share_credentials_version == 1 and
@@ -251,3 +419,17 @@ class AuthCredentialProviderFactory:
     @staticmethod
     def __auth_basic(profile):
         return BasicAuthProvider(profile.endpoint, profile.username, profile.password)
+
+    @staticmethod
+    def __experimental_managed_identity(profile):
+        if profile in AuthCredentialProviderFactory.__managed_identity_provider_cache:
+            return AuthCredentialProviderFactory.__managed_identity_provider_cache[profile]
+
+        if profile.cloud_provider == "azure":
+            managed_identity_client = AzureManagedIdentityClient()
+        elif profile.cloud_provider == "gcp":
+            managed_identity_client = GCPManagedIdentityOIDCClient(audience=profile.audience)
+
+        provider = ManagedIdentityAuthProvider(managed_identity_client=managed_identity_client)
+        AuthCredentialProviderFactory.__managed_identity_provider_cache[profile] = provider
+        return provider
