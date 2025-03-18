@@ -113,7 +113,7 @@ def test_list_shares(rest_client: DataSharingRestClient):
         Share(name="share7"),
         Share(name="share_azure"),
         Share(name="share_gcp"),
-        Share(name="share8")
+        Share(name="share8"),
     ]
 
 
@@ -132,7 +132,7 @@ def test_list_tables(rest_client: DataSharingRestClient):
     assert response.tables == [
         Table(name="table1", share="share1", schema="default"),
         Table(name="table3", share="share1", schema="default"),
-        Table(name="table7", share="share1", schema="default")
+        Table(name="table7", share="share1", schema="default"),
     ]
 
     response = rest_client.list_tables(Schema(name="default", share="share2"))
@@ -299,8 +299,8 @@ def test_query_table_metadata_with_dv_cm_partitioned_delta(
     assert response.protocol == Protocol(
         min_reader_version=3,
         min_writer_version=7,
-        reader_features=['deletionVectors', 'columnMapping'],
-        writer_features=['deletionVectors', 'invariants', 'columnMapping', 'changeDataFeed'],
+        reader_features=["deletionVectors", "columnMapping"],
+        writer_features=["deletionVectors", "invariants", "columnMapping", "changeDataFeed"],
     )
     assert response.metadata == Metadata(
         id="88033a32-ec3c-4592-a606-9b58e2dc245d",
@@ -310,23 +310,23 @@ def test_query_table_metadata_with_dv_cm_partitioned_delta(
             '{"name":"id","type":"long","nullable":false,"metadata":{'
             '"delta.columnMapping.id":1,'
             '"delta.columnMapping.physicalName":"col-62f51670-2c22-4bad-a172-c453ddf09673"'
-            '}},'
+            "}},"
             '{"name":"rand","type":"integer","nullable":false,"metadata":{'
             '"delta.columnMapping.id":2,'
             '"delta.columnMapping.physicalName":"col-c985ad35-5524-4e86-89b0-47d6b9012fce"'
-            '}},'
+            "}},"
             '{"name":"partition_col","type":"integer","nullable":false,"metadata":{'
             '"delta.columnMapping.id":3,'
             '"delta.columnMapping.physicalName":"col-0bd4d7ce-c925-4748-9259-c03586b29b63"'
-            '}}'
+            "}}"
             "]}"
         ),
         partition_columns=["partition_col"],
         configuration={
-            'delta.columnMapping.maxColumnId': '3',
-            'delta.columnMapping.mode': 'name',
-            'delta.enableChangeDataFeed': 'true',
-            'delta.enableDeletionVectors': 'true',
+            "delta.columnMapping.maxColumnId": "3",
+            "delta.columnMapping.mode": "name",
+            "delta.enableChangeDataFeed": "true",
+            "delta.enableDeletionVectors": "true",
         },
         created_time=1721350003845,
     )
@@ -338,8 +338,9 @@ def test_autoresolve_query_format(
 ):
     tables = [
         ("table3", "share1", "parquet"),
-        ('deletion_vectors_with_dvs_dv_property_on', "share8", "delta"),
-        ('table_with_cm_name', "share8", "delta")]
+        ("deletion_vectors_with_dvs_dv_property_on", "share8", "delta"),
+        ("table_with_cm_name", "share8", "delta"),
+    ]
 
     for table in tables:
         table_name = table[0]
@@ -365,7 +366,7 @@ def test_query_existed_table_version(rest_client: DataSharingRestClient):
 def test_query_table_version_with_timestamp(rest_client: DataSharingRestClient):
     response = rest_client.query_table_version(
         Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
-        starting_timestamp="2020-01-01T00:00:00-08:00"
+        starting_timestamp="2020-01-01T00:00:00-08:00",
     )
     assert isinstance(response.delta_table_version, int)
     assert response.delta_table_version == 0
@@ -376,7 +377,7 @@ def test_query_table_version_with_timestamp_exception(rest_client: DataSharingRe
     try:
         rest_client.query_table_version(
             Table(name="table1", share="share1", schema="default"),
-            starting_timestamp="2020-01-1T00:00:00-08:00"
+            starting_timestamp="2020-01-1T00:00:00-08:00",
         )
     except Exception as e:
         assert isinstance(e, HTTPError)
@@ -543,7 +544,7 @@ def test_list_files_in_table_partitioned_different_schemas(
                 r'"maxValues":{"eventTime":"2021-04-28T23:36:47.599Z","type":"foo"},'
                 r'"nullCount":{"eventTime":0,"type":0}}'
             ),
-        )
+        ),
     ]
 
 
@@ -552,8 +553,7 @@ def test_list_files_in_table_version(
     rest_client: DataSharingRestClient,
 ):
     response = rest_client.list_files_in_table(
-        Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
-        version=1
+        Table(name="cdf_table_cdf_enabled", share="share8", schema="default"), version=1
     )
     assert response.delta_table_version == 1
     assert response.protocol == Protocol(min_reader_version=1)
@@ -583,7 +583,7 @@ def test_list_files_in_table_version(
                 r'"nullCount":{"name":0,"age":0,"birthday":0}}'
             ),
             version=1,
-            timestamp=None
+            timestamp=None,
         ),
         AddFile(
             url=response.add_files[1].url,
@@ -597,7 +597,7 @@ def test_list_files_in_table_version(
                 r'"nullCount":{"name":0,"age":0,"birthday":0}}'
             ),
             version=1,
-            timestamp=None
+            timestamp=None,
         ),
         AddFile(
             url=response.add_files[2].url,
@@ -611,8 +611,8 @@ def test_list_files_in_table_version(
                 r'"nullCount":{"name":0,"age":0,"birthday":0}}'
             ),
             version=1,
-            timestamp=None
-        )
+            timestamp=None,
+        ),
     ]
 
 
@@ -626,7 +626,7 @@ def test_list_files_with_json_predicates(
     def test_hints(hints, expected_dates):
         response = rest_client.list_files_in_table(
             Table(name="cdf_table_with_partition", share="share8", schema="default"),
-            jsonPredicateHints=hints
+            jsonPredicateHints=hints,
         )
         assert response.protocol == Protocol(min_reader_version=1)
         assert response.metadata == Metadata(
@@ -640,7 +640,7 @@ def test_list_files_with_json_predicates(
                 "]}"
             ),
             configuration={"enableChangeDataFeed": "true"},
-            partition_columns=["birthday"]
+            partition_columns=["birthday"],
         )
 
         # validate that we get back all expected files.
@@ -664,7 +664,7 @@ def test_list_files_with_json_predicates(
         '{"op":"equal","children":['
         '{"op":"column","name":"birthday","valueType":"date"},'
         '{"op":"literal","value":"2020-01-01","valueType":"date"}]}'
-        ']}'
+        "]}"
     )
     test_hints(hints1, ["2020-01-01"])
 
@@ -677,7 +677,7 @@ def test_list_files_with_json_predicates(
         '{"op":"greaterThan","children":['
         '{"op":"column","name":"birthday","valueType":"date"},'
         '{"op":"literal","value":"2020-01-01","valueType":"date"}]}'
-        ']}'
+        "]}"
     )
     test_hints(hints2, ["2020-02-02"])
 
@@ -691,8 +691,7 @@ def test_list_files_in_table_version_exception(
 ):
     try:
         rest_client.list_files_in_table(
-            Table(name="table1", share="share1", schema="default"),
-            version=1
+            Table(name="table1", share="share1", schema="default"), version=1
         )
     except Exception as e:
         assert isinstance(e, HTTPError)
@@ -700,13 +699,10 @@ def test_list_files_in_table_version_exception(
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_list_files_in_table_timestamp(
-    rest_client: DataSharingRestClient
-):
+def test_list_files_in_table_timestamp(rest_client: DataSharingRestClient):
     try:
         rest_client.list_files_in_table(
-            Table(name="table1", share="share1", schema="default"),
-            timestamp="random_str"
+            Table(name="table1", share="share1", schema="default"), timestamp="random_str"
         )
     except Exception as e:
         assert isinstance(e, HTTPError)
@@ -756,8 +752,7 @@ def test_list_table_changes(
     # The following table query will return all types of actions.
     cdf_table = Table(name="cdf_table_with_partition", share="share8", schema="default")
     response = rest_client.list_table_changes(
-        cdf_table,
-        CdfOptions(starting_version=1, ending_version=3)
+        cdf_table, CdfOptions(starting_version=1, ending_version=3)
     )
 
     assert response.protocol == Protocol(min_reader_version=1)
@@ -773,13 +768,13 @@ def test_list_table_changes(
         ),
         configuration={"enableChangeDataFeed": "true"},
         partition_columns=["birthday"],
-        version=3
+        version=3,
     )
     assert response.actions == [
         AddFile(
             url=response.actions[0].url,
-            id='a04d61f17541fac1f9b5df5b8d26fff8',
-            partition_values={'birthday': '2020-01-01'},
+            id="a04d61f17541fac1f9b5df5b8d26fff8",
+            partition_values={"birthday": "2020-01-01"},
             size=791,
             timestamp=1651614980000,
             version=1,
@@ -792,8 +787,8 @@ def test_list_table_changes(
         ),
         AddFile(
             url=response.actions[1].url,
-            id='f206a7168597c4db5956b2b11ed5cbb2',
-            partition_values={'birthday': '2020-01-01'},
+            id="f206a7168597c4db5956b2b11ed5cbb2",
+            partition_values={"birthday": "2020-01-01"},
             size=791,
             timestamp=1651614980000,
             version=1,
@@ -806,8 +801,8 @@ def test_list_table_changes(
         ),
         AddFile(
             url=response.actions[2].url,
-            id='9410d65d7571842eb7fb6b1ac01af372',
-            partition_values={'birthday': '2020-03-03'},
+            id="9410d65d7571842eb7fb6b1ac01af372",
+            partition_values={"birthday": "2020-03-03"},
             size=791,
             timestamp=1651614980000,
             version=1,
@@ -836,11 +831,11 @@ def test_list_table_changes(
         ),
         RemoveFile(
             url=response.actions[5].url,
-            id='9410d65d7571842eb7fb6b1ac01af372',
-            partition_values={'birthday': '2020-03-03'},
+            id="9410d65d7571842eb7fb6b1ac01af372",
+            partition_values={"birthday": "2020-03-03"},
             size=791,
             timestamp=1651614994000,
-            version=3
+            version=3,
         ),
     ]
 
@@ -854,10 +849,7 @@ def test_list_table_changes_with_more_metadata(
     # include spark structured streaming. So the query will still work: old connector is compatible
     # with new server.
     cdf_table = Table(name="streaming_notnull_to_null", share="share8", schema="default")
-    response = rest_client.list_table_changes(
-        cdf_table,
-        CdfOptions(starting_version=0)
-    )
+    response = rest_client.list_table_changes(cdf_table, CdfOptions(starting_version=0))
 
     assert response.protocol == Protocol(min_reader_version=1)
     assert len(response.actions) == 2
@@ -889,22 +881,19 @@ def test_list_table_changes_with_more_metadata(
                 r'"maxValues":{"name":"2"},'
                 r'"nullCount":{"name":1}}'
             ),
-        )
+        ),
     ]
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_list_table_changes_with_timestamp(
-    rest_client: DataSharingRestClient
-):
+def test_list_table_changes_with_timestamp(rest_client: DataSharingRestClient):
     cdf_table = Table(name="cdf_table_with_partition", share="share8", schema="default")
 
     # Use a really old start time, and look for an appropriate error.
     # This will ensure that the timestamps are parsed correctly.
     try:
         rest_client.list_table_changes(
-            cdf_table,
-            CdfOptions(starting_timestamp="2000-05-03T00:00:00-08:00")
+            cdf_table, CdfOptions(starting_timestamp="2000-05-03T00:00:00-08:00")
         )
         assert False
     except Exception as e:
@@ -914,8 +903,7 @@ def test_list_table_changes_with_timestamp(
     # Use an end time far away, and look for an appropriate error.
     try:
         rest_client.list_table_changes(
-            cdf_table,
-            CdfOptions(starting_version=0, ending_timestamp="2100-05-03T00:00:00Z")
+            cdf_table, CdfOptions(starting_version=0, ending_timestamp="2100-05-03T00:00:00Z")
         )
         assert False
     except Exception as e:
