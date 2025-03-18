@@ -51,10 +51,7 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
     return (profile, share, schema, table)
 
 
-def get_table_version(
-    url: str,
-    starting_timestamp: Optional[str] = None
-) -> int:
+def get_table_version(url: str, starting_timestamp: Optional[str] = None) -> int:
     """
     Get the shared table version using the given url.
 
@@ -66,8 +63,7 @@ def get_table_version(
     profile = DeltaSharingProfile.read_from_file(profile_json)
     rest_client = DataSharingRestClient(profile)
     response = rest_client.query_table_version(
-        Table(name=table, share=share, schema=schema),
-        starting_timestamp
+        Table(name=table, share=share, schema=schema), starting_timestamp
     )
     return response.delta_table_version
 
@@ -139,14 +135,12 @@ def load_as_pandas(
         limit=limit,
         version=version,
         timestamp=timestamp,
-        use_delta_format=use_delta_format
+        use_delta_format=use_delta_format,
     ).to_pandas()
 
 
 def load_as_spark(
-    url: str,
-    version: Optional[int] = None,
-    timestamp: Optional[str] = None
+    url: str, version: Optional[int] = None, timestamp: Optional[str] = None
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed,
@@ -182,7 +176,7 @@ def load_table_changes_as_spark(
     starting_version: Optional[int] = None,
     ending_version: Optional[int] = None,
     starting_timestamp: Optional[str] = None,
-    ending_timestamp: Optional[str] = None
+    ending_timestamp: Optional[str] = None,
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the table changes of a shared table as a Spark DataFrame using the given url.
@@ -203,7 +197,8 @@ def load_table_changes_as_spark(
         from pyspark.sql import SparkSession
     except ImportError:
         raise ImportError(
-            "Unable to import pyspark. `load_table_changes_as_spark` requires PySpark.")
+            "Unable to import pyspark. `load_table_changes_as_spark` requires PySpark."
+        )
 
     spark = SparkSession.getActiveSession()
     assert spark is not None, (
@@ -228,7 +223,7 @@ def load_table_changes_as_pandas(
     ending_version: Optional[int] = None,
     starting_timestamp: Optional[str] = None,
     ending_timestamp: Optional[str] = None,
-    use_delta_format: Optional[bool] = None
+    use_delta_format: Optional[bool] = None,
 ) -> pd.DataFrame:
     """
     Load the table changes of shared table as a pandas DataFrame using the given url.
@@ -248,16 +243,18 @@ def load_table_changes_as_pandas(
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
-        use_delta_format=use_delta_format
-    ).table_changes_to_pandas(CdfOptions(
-        starting_version=starting_version,
-        ending_version=ending_version,
-        starting_timestamp=starting_timestamp,
-        ending_timestamp=ending_timestamp,
-        # when using delta format, we need to get metadata changes and
-        # handle them properly when replaying the delta log
-        include_historical_metadata=use_delta_format
-    ))
+        use_delta_format=use_delta_format,
+    ).table_changes_to_pandas(
+        CdfOptions(
+            starting_version=starting_version,
+            ending_version=ending_version,
+            starting_timestamp=starting_timestamp,
+            ending_timestamp=ending_timestamp,
+            # when using delta format, we need to get metadata changes and
+            # handle them properly when replaying the delta log
+            include_historical_metadata=use_delta_format,
+        )
+    )
 
 
 class SharingClient:

@@ -85,7 +85,7 @@ def test_to_pandas_non_partitioned(tmp_path):
                 protocol=None,
                 metadata=metadata,
                 add_files=add_files,
-                lines=[]
+                lines=[],
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -99,7 +99,7 @@ def test_to_pandas_non_partitioned(tmp_path):
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"),
         RestClientMock(),
-        jsonPredicateHints="dummy_hints"
+        jsonPredicateHints="dummy_hints",
     )
     pdf = reader.to_pandas()
     expected = pd.concat([pdf1]).reset_index(drop=True)
@@ -108,7 +108,7 @@ def test_to_pandas_non_partitioned(tmp_path):
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"),
         RestClientMock(),
-        predicateHints="dummy_hints"
+        predicateHints="dummy_hints",
     )
     pdf = reader.to_pandas()
     expected = pd.concat([pdf2]).reset_index(drop=True)
@@ -164,7 +164,7 @@ def test_to_pandas_partitioned(tmp_path):
                 protocol=None,
                 metadata=metadata,
                 add_files=add_files,
-                lines=[]
+                lines=[],
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -232,7 +232,7 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
                 protocol=None,
                 metadata=metadata,
                 add_files=add_files,
-                lines=[]
+                lines=[],
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -296,7 +296,7 @@ def test_to_pandas_empty(rest_client: DataSharingRestClient):
                 protocol=None,
                 metadata=metadata,
                 add_files=add_files,
-                lines=[]
+                lines=[],
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -405,10 +405,7 @@ def test_table_changes_to_pandas_non_partitioned(tmp_path):
                 ),
             ]
             return ListTableChangesResponse(
-                protocol=None,
-                metadata=metadata,
-                actions=actions,
-                lines=None
+                protocol=None, metadata=metadata, actions=actions, lines=None
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -476,10 +473,7 @@ def test_table_changes_to_pandas_partitioned(tmp_path):
                 ),
             ]
             return ListTableChangesResponse(
-                protocol=None,
-                metadata=metadata,
-                actions=actions,
-                lines=None
+                protocol=None, metadata=metadata, actions=actions, lines=None
             )
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
@@ -505,10 +499,7 @@ def test_table_changes_empty(tmp_path):
                 )
             )
             return ListTableChangesResponse(
-                protocol=None,
-                metadata=metadata,
-                actions=[],
-                lines=None
+                protocol=None, metadata=metadata, actions=[], lines=None
             )
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
@@ -575,9 +566,9 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                 '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
                 '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
                 '],"type":"struct"}'
-            ).replace('"',r'\"')
+            ).replace('"', r"\"")
             lines = [
-                f'''{{
+                f"""{{
                     "protocol": {{
                         "deltaProtocol": {{
                             "minReaderVersion": 3,
@@ -587,8 +578,8 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                                 ["deletionVectors", "changeDataFeed"]
                         }}
                     }}
-                }}''',
-                f'''{{
+                }}""",
+                f"""{{
                     "metaData":{{
                         "version":0,
                         "deltaMetadata":{{
@@ -604,8 +595,8 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                             }}
                         }}
                     }}
-                }}''',
-                f'''{{
+                }}""",
+                f"""{{
                     "file":{{
                         "id":"pdf1",
                         "version":{version1},
@@ -620,8 +611,8 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                             }}
                         }}
                     }}
-                }}''',
-                f'''{{
+                }}""",
+                f"""{{
                     "file":{{
                         "id":"pdf2",
                         "version":{version2},
@@ -635,8 +626,8 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                             }}
                         }}
                     }}
-                }}''',
-                f'''{{
+                }}""",
+                f"""{{
                     "file":{{
                         "id":"pdf3",
                         "version":{version3},
@@ -650,8 +641,8 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                             }}
                         }}
                     }}
-                }}''',
-                f'''{{
+                }}""",
+                f"""{{
                     "file":{{
                         "id":"pdf4",
                         "version":{version4},
@@ -665,7 +656,7 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                             }}
                         }}
                     }}
-                }}'''
+                }}""",
             ]
             return ListTableChangesResponse(protocol=None, metadata=None, actions=None, lines=lines)
 
@@ -676,12 +667,10 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
             return
 
     reader = DeltaSharingReader(
-        Table("table_name", "share_name", "schema_name"),
-        RestClientMock(),
-        use_delta_format=True
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), use_delta_format=True
     )
     pdf = reader.table_changes_to_pandas(CdfOptions())
-    pdf['_commit_timestamp'] = pdf['_commit_timestamp'].astype('int') // 1000
+    pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
 
     expected = pd.concat([pdf1, pdf2, pdf3, pdf4]).reset_index(drop=True)
 

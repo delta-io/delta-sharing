@@ -97,7 +97,7 @@ class DeltaSharingProfile:
                     type=type,
                     endpoint=endpoint,
                     bearer_token=json["bearerToken"],
-                    expiration_time=json.get("expirationTime")
+                    expiration_time=json.get("expirationTime"),
                 )
             elif type == "basic":
                 return DeltaSharingProfile(
@@ -109,8 +109,8 @@ class DeltaSharingProfile:
                 )
             else:
                 raise ValueError(
-                    f"The current release does not supports {type} type. "
-                    "Please check type.")
+                    f"The current release does not supports {type} type. " "Please check type."
+                )
         else:
             raise ValueError(
                 "'shareCredentialsVersion' in the profile is "
@@ -153,8 +153,7 @@ class Table:
     def from_json(json) -> "Table":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        return Table(name=json["name"], share=json["share"],
-                     schema=json["schema"])
+        return Table(name=json["name"], share=json["share"], schema=json["schema"])
 
 
 @dataclass(frozen=True)
@@ -234,7 +233,7 @@ class Metadata:
                 version=json.get("version", None),
                 size=json.get("size", None),
                 num_files=json.get("numFiles", None),
-                created_time=delta_metadata.get("createdTime", None)
+                created_time=delta_metadata.get("createdTime", None),
             )
         else:
             configuration = json.get("configuration", {})
@@ -248,7 +247,7 @@ class Metadata:
                 partition_columns=json["partitionColumns"],
                 version=json.get("version", None),
                 size=json.get("size", None),
-                num_files=json.get("numFiles", None)
+                num_files=json.get("numFiles", None),
             )
 
 

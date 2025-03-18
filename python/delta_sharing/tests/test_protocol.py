@@ -108,11 +108,9 @@ def test_share_profile_bearer(tmp_path):
         }
         """
     profile = DeltaSharingProfile.from_json(json)
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          "token",
-                                          None,
-                                          "bearer_token")
+    assert profile == DeltaSharingProfile(
+        2, "https://localhost/delta-sharing", "token", None, "bearer_token"
+    )
 
     json = """
         {
@@ -125,50 +123,38 @@ def test_share_profile_bearer(tmp_path):
         }
         """
     profile = DeltaSharingProfile.from_json(json)
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          "token",
-                                          "2021-11-12T00:12:29.0Z",
-                                          "bearer_token")
+    assert profile == DeltaSharingProfile(
+        2, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z", "bearer_token"
+    )
 
     profile = DeltaSharingProfile.read_from_file(io.StringIO(json))
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          "token",
-                                          "2021-11-12T00:12:29.0Z",
-                                          "bearer_token")
+    assert profile == DeltaSharingProfile(
+        2, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z", "bearer_token"
+    )
 
     profile_path = tmp_path / "test_profile_bearer.json"
     with open(profile_path, "w") as f:
         f.write(json)
 
     profile = DeltaSharingProfile.read_from_file(str(profile_path))
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          "token",
-                                          "2021-11-12T00:12:29.0Z",
-                                          "bearer_token")
+    assert profile == DeltaSharingProfile(
+        2, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z", "bearer_token"
+    )
 
     profile = DeltaSharingProfile.read_from_file(profile_path.as_uri())
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          "token",
-                                          "2021-11-12T00:12:29.0Z",
-                                          "bearer_token")
+    assert profile == DeltaSharingProfile(
+        2, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z", "bearer_token"
+    )
 
     profile = DeltaSharingProfile.read_from_file(profile_path)
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          "token",
-                                          "2021-11-12T00:12:29.0Z",
-                                          "bearer_token")
+    assert profile == DeltaSharingProfile(
+        2, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z", "bearer_token"
+    )
 
     profile = DeltaSharingProfile.read_from_file(io.FileIO(profile_path))
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          "token",
-                                          "2021-11-12T00:12:29.0Z",
-                                          "bearer_token")
+    assert profile == DeltaSharingProfile(
+        2, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z", "bearer_token"
+    )
 
     json = """
         {
@@ -198,68 +184,80 @@ def oauth_client_credentials(tmp_path):
         }
         """
     profile = DeltaSharingProfile.from_json(json)
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          None,
-                                          None,
-                                          "oauth_client_credentials",
-                                          "tokenEndpoint",
-                                          "clientId",
-                                          "clientSecret")
+    assert profile == DeltaSharingProfile(
+        2,
+        "https://localhost/delta-sharing",
+        None,
+        None,
+        "oauth_client_credentials",
+        "tokenEndpoint",
+        "clientId",
+        "clientSecret",
+    )
 
     profile = DeltaSharingProfile.read_from_file(io.StringIO(json))
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          None,
-                                          None,
-                                          "oauth_client_credentials",
-                                          "tokenEndpoint",
-                                          "clientId",
-                                          "clientSecret")
+    assert profile == DeltaSharingProfile(
+        2,
+        "https://localhost/delta-sharing",
+        None,
+        None,
+        "oauth_client_credentials",
+        "tokenEndpoint",
+        "clientId",
+        "clientSecret",
+    )
 
     profile_path = tmp_path / "test_profile_oauth2.json"
     with open(profile_path, "w") as f:
         f.write(json)
 
     profile = DeltaSharingProfile.read_from_file(str(profile_path))
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          None,
-                                          None,
-                                          "oauth_client_credentials",
-                                          "tokenEndpoint",
-                                          "clientId",
-                                          "clientSecret")
+    assert profile == DeltaSharingProfile(
+        2,
+        "https://localhost/delta-sharing",
+        None,
+        None,
+        "oauth_client_credentials",
+        "tokenEndpoint",
+        "clientId",
+        "clientSecret",
+    )
 
     profile = DeltaSharingProfile.read_from_file(profile_path.as_uri())
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          None,
-                                          None,
-                                          "oauth_client_credentials",
-                                          "tokenEndpoint",
-                                          "clientId",
-                                          "clientSecret")
+    assert profile == DeltaSharingProfile(
+        2,
+        "https://localhost/delta-sharing",
+        None,
+        None,
+        "oauth_client_credentials",
+        "tokenEndpoint",
+        "clientId",
+        "clientSecret",
+    )
 
     profile = DeltaSharingProfile.read_from_file(profile_path)
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          None,
-                                          None,
-                                          "oauth_client_credentials",
-                                          "tokenEndpoint",
-                                          "clientId",
-                                          "clientSecret")
+    assert profile == DeltaSharingProfile(
+        2,
+        "https://localhost/delta-sharing",
+        None,
+        None,
+        "oauth_client_credentials",
+        "tokenEndpoint",
+        "clientId",
+        "clientSecret",
+    )
 
     profile = DeltaSharingProfile.read_from_file(io.FileIO(profile_path))
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          None,
-                                          None,
-                                          "oauth_client_credentials",
-                                          "tokenEndpoint",
-                                          "clientId",
-                                          "clientSecret")
+    assert profile == DeltaSharingProfile(
+        2,
+        "https://localhost/delta-sharing",
+        None,
+        None,
+        "oauth_client_credentials",
+        "tokenEndpoint",
+        "clientId",
+        "clientSecret",
+    )
 
     json = """
         {
@@ -288,80 +286,92 @@ def test_share_profile_basic(tmp_path):
         }
         """
     profile = DeltaSharingProfile.from_json(json)
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          None,
-                                          None,
-                                          "basic",
-                                          None,
-                                          None,
-                                          None,
-                                          "username",
-                                          "password")
+    assert profile == DeltaSharingProfile(
+        2,
+        "https://localhost/delta-sharing",
+        None,
+        None,
+        "basic",
+        None,
+        None,
+        None,
+        "username",
+        "password",
+    )
 
     profile = DeltaSharingProfile.read_from_file(io.StringIO(json))
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          None,
-                                          None,
-                                          "basic",
-                                          None,
-                                          None,
-                                          None,
-                                          "username",
-                                          "password")
+    assert profile == DeltaSharingProfile(
+        2,
+        "https://localhost/delta-sharing",
+        None,
+        None,
+        "basic",
+        None,
+        None,
+        None,
+        "username",
+        "password",
+    )
 
     profile_path = tmp_path / "test_profile_basic.json"
     with open(profile_path, "w") as f:
         f.write(json)
 
     profile = DeltaSharingProfile.read_from_file(str(profile_path))
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          None,
-                                          None,
-                                          "basic",
-                                          None,
-                                          None,
-                                          None,
-                                          "username",
-                                          "password")
+    assert profile == DeltaSharingProfile(
+        2,
+        "https://localhost/delta-sharing",
+        None,
+        None,
+        "basic",
+        None,
+        None,
+        None,
+        "username",
+        "password",
+    )
 
     profile = DeltaSharingProfile.read_from_file(profile_path.as_uri())
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          None,
-                                          None,
-                                          "basic",
-                                          None,
-                                          None,
-                                          None,
-                                          "username",
-                                          "password")
+    assert profile == DeltaSharingProfile(
+        2,
+        "https://localhost/delta-sharing",
+        None,
+        None,
+        "basic",
+        None,
+        None,
+        None,
+        "username",
+        "password",
+    )
 
     profile = DeltaSharingProfile.read_from_file(profile_path)
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          None,
-                                          None,
-                                          "basic",
-                                          None,
-                                          None,
-                                          None,
-                                          "username",
-                                          "password")
+    assert profile == DeltaSharingProfile(
+        2,
+        "https://localhost/delta-sharing",
+        None,
+        None,
+        "basic",
+        None,
+        None,
+        None,
+        "username",
+        "password",
+    )
 
     profile = DeltaSharingProfile.read_from_file(io.FileIO(profile_path))
-    assert profile == DeltaSharingProfile(2,
-                                          "https://localhost/delta-sharing",
-                                          None,
-                                          None,
-                                          "basic",
-                                          None,
-                                          None,
-                                          None,
-                                          "username",
-                                          "password")
+    assert profile == DeltaSharingProfile(
+        2,
+        "https://localhost/delta-sharing",
+        None,
+        None,
+        "basic",
+        None,
+        None,
+        None,
+        "username",
+        "password",
+    )
 
     json = """
         {
@@ -441,7 +451,7 @@ def test_protocol_delta():
         }
         """
     protocol = Protocol.from_json(json)
-    assert protocol == Protocol(3, 7, ['columnMapping'], ['columnMapping', 'deletionVectors'])
+    assert protocol == Protocol(3, 7, ["columnMapping"], ["columnMapping", "deletionVectors"])
     json = """
         {
             "deltaProtocol": {
@@ -547,7 +557,7 @@ def test_metadata():
                 schema_string=str.replace(schema_string, r"\"", '"'),
                 configuration={},
                 partition_columns=[],
-            )
+            ),
         ),
         pytest.param(
             f"""
@@ -575,8 +585,8 @@ def test_metadata():
                 format=Format(),
                 schema_string=schema_string.replace(r"\"", '"'),
                 configuration={"enableChangeDataFeed": "true"},
-                partition_columns=['col'],
-            )
+                partition_columns=["col"],
+            ),
         ),
         pytest.param(
             f"""
@@ -604,9 +614,9 @@ def test_metadata():
                 schema_string=(schema_string).replace(r"\"", '"'),
                 partition_columns=[],
                 created_time=1000,
-            )
+            ),
         ),
-    ]
+    ],
 )
 def test_metadata_delta(json: str, expected: Metadata):
     assert Metadata.from_json(json) == expected
