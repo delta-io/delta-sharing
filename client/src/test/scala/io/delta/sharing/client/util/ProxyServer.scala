@@ -2,10 +2,10 @@ package io.delta.sharing.client.util
 
 import java.net.URI
 import java.util.Collections
-import javax.servlet.http.{HttpServletRequest, HttpServletResponse}
 
 import scala.util.Try
 
+import jakarta.servlet.http.{HttpServletRequest, HttpServletResponse}
 import org.sparkproject.jetty.client.HttpClient
 import org.sparkproject.jetty.http.HttpMethod
 import org.sparkproject.jetty.server.{Request, Server}

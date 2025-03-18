@@ -16,8 +16,7 @@
 
 package io.delta.sharing.client
 
-import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
-
+import jakarta.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 import org.apache.hadoop.conf.Configuration
 import org.apache.http.client.methods.{HttpGet, HttpPost}
 import org.apache.http.client.utils.URIBuilder
@@ -73,7 +72,7 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
     val handler = new ServletHandler()
     server.setHandler(handler)
     handler.addServletWithMapping(new ServletHolder(new HttpServlet {
-      override def doGet(req: HttpServletRequest, resp: HttpServletResponse): Unit = {
+      override def service(req: HttpServletRequest, resp: HttpServletResponse): Unit = {
         resp.setContentType("text/plain")
         resp.setStatus(HttpServletResponse.SC_OK)
 
@@ -130,7 +129,7 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
     val handler = new ServletHandler()
     server.setHandler(handler)
     handler.addServletWithMapping(new ServletHolder(new HttpServlet {
-      override def doGet(req: HttpServletRequest, resp: HttpServletResponse): Unit = {
+      override def service(req: HttpServletRequest, resp: HttpServletResponse): Unit = {
         resp.setContentType("text/plain")
         resp.setStatus(HttpServletResponse.SC_OK)
 
@@ -186,7 +185,7 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
     val handler = new ServletHandler()
     server.setHandler(handler)
     handler.addServletWithMapping(new ServletHolder(new HttpServlet {
-      override def doGet(req: HttpServletRequest, resp: HttpServletResponse): Unit = {
+      override def service(req: HttpServletRequest, resp: HttpServletResponse): Unit = {
         resp.setContentType("text/plain")
         resp.setStatus(HttpServletResponse.SC_OK)
 
@@ -241,7 +240,7 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
     val handler = new ServletHandler()
     server.setHandler(handler)
     handler.addServletWithMapping(new ServletHolder(new HttpServlet {
-      override def doGet(req: HttpServletRequest, resp: HttpServletResponse): Unit = {
+      override def service(req: HttpServletRequest, resp: HttpServletResponse): Unit = {
         resp.setContentType("text/plain")
         resp.setStatus(HttpServletResponse.SC_OK)
 
