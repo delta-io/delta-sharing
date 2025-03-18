@@ -59,7 +59,7 @@ jobs:
             ~/.sbt
             ~/.ivy2
             ~/.cache/coursier
-          key: build-and-test-scala
+          key: build-and-test-scala-2.13
       - name: Run tests for ${{ matrix.package }}
         run: |
           ./build/sbt ++2.13.11 ${{ matrix.package }}/test
