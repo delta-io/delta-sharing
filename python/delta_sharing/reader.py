@@ -72,7 +72,7 @@ class DeltaSharingReader:
             jsonPredicateHints=self._jsonPredicateHints,
             limit=self._limit,
             version=self._version,
-            timestamp=self._timestamp
+            timestamp=self._timestamp,
         )
 
     def jsonPredicateHints(self, jsonPredicateHints: Optional[str]) -> "DeltaSharingReader":
@@ -81,7 +81,7 @@ class DeltaSharingReader:
             jsonPredicateHints=jsonPredicateHints,
             limit=self._limit,
             version=self._version,
-            timestamp=self._timestamp
+            timestamp=self._timestamp,
         )
 
     def limit(self, limit: Optional[int]) -> "DeltaSharingReader":
@@ -90,7 +90,7 @@ class DeltaSharingReader:
             jsonPredicateHints=self._jsonPredicateHints,
             limit=limit,
             version=self._version,
-            timestamp=self._timestamp
+            timestamp=self._timestamp,
         )
 
     def __to_pandas_kernel(self):
@@ -110,7 +110,7 @@ class DeltaSharingReader:
             jsonPredicateHints=self._jsonPredicateHints,
             limitHint=self._limit,
             version=self._version,
-            timestamp=self._timestamp
+            timestamp=self._timestamp,
         )
 
         lines = response.lines
@@ -126,7 +126,7 @@ class DeltaSharingReader:
         scan = delta_kernel_rust_sharing_wrapper.ScanBuilder(snapshot).build()
 
         # The table is empty so use the schema to return an empty table with correct col names
-        if (num_files == 0):
+        if num_files == 0:
             schema = scan.execute(interface).schema
             return pd.DataFrame(columns=schema.names)
 
@@ -152,7 +152,7 @@ class DeltaSharingReader:
             response_format = response_format = DataSharingRestClient.DELTA_FORMAT
 
         # If the response format is delta, use delta kernel rust
-        if (response_format == DataSharingRestClient.DELTA_FORMAT):
+        if response_format == DataSharingRestClient.DELTA_FORMAT:
             return self.__to_pandas_kernel()
 
         # Otherwise use the standard approach
@@ -162,7 +162,7 @@ class DeltaSharingReader:
             jsonPredicateHints=self._jsonPredicateHints,
             limitHint=self._limit,
             version=self._version,
-            timestamp=self._timestamp
+            timestamp=self._timestamp,
         )
 
         schema_json = loads(response.metadata.schema_string)
@@ -174,8 +174,8 @@ class DeltaSharingReader:
 
         if self._limit is None:
             pdfs = [
-                DeltaSharingReader._to_pandas(
-                    file, converters, False, None) for file in response.add_files
+                DeltaSharingReader._to_pandas(file, converters, False, None)
+                for file in response.add_files
             ]
         else:
             left = self._limit
@@ -208,13 +208,13 @@ class DeltaSharingReader:
         table_path = "file:///" + delta_log_dir_name
 
         # Create a new directory named '_delta_log' within the temporary directory
-        log_dir = os.path.join(delta_log_dir_name, '_delta_log')
+        log_dir = os.path.join(delta_log_dir_name, "_delta_log")
         os.makedirs(log_dir)
 
         # Create a new .json file within the '_delta_log' directory
         json_file_name = "0".zfill(20) + ".json"
         json_file_path = os.path.join(log_dir, json_file_name)
-        json_file = open(json_file_path, 'w+')
+        json_file = open(json_file_path, "w+")
 
         # Write the protocol action to the log file
         protocol_json = loads(lines.pop(0))
@@ -246,11 +246,11 @@ class DeltaSharingReader:
         max_version: int,
         version_to_metadata: Dict[int, Any],
         version_to_actions: Dict[int, Any],
-        version_to_timestamp: Dict[int, int]
+        version_to_timestamp: Dict[int, int],
     ):
         min_version_file_name = str(min_version).zfill(20) + ".json"
         min_version_path = os.path.join(log_dir, min_version_file_name)
-        with open(min_version_path, 'w+') as min_version_file:
+        with open(min_version_path, "w+") as min_version_file:
             dump(delta_protocol, min_version_file)
             min_version_file.write("\n")
 
@@ -258,7 +258,7 @@ class DeltaSharingReader:
         for version in range(min_version, max_version + 1):
             log_file_name = str(version).zfill(20) + ".json"
             log_file_path = os.path.join(log_dir, log_file_name)
-            with open(log_file_path, 'a+') as log_file:
+            with open(log_file_path, "a+") as log_file:
                 if version in version_to_metadata:
                     dump(version_to_metadata[version], log_file)
                     log_file.write("\n")
@@ -275,15 +275,16 @@ class DeltaSharingReader:
             # Fake checkpoint so kernel reads logs from the start version
             checkpoint_version = min_version - 1
             checkpoint_file_name = str(checkpoint_version).zfill(20) + ".checkpoint.parquet"
-            with open(os.path.join(log_dir, checkpoint_file_name), 'w+b') as checkpoint_file:
+            with open(os.path.join(log_dir, checkpoint_file_name), "w+b") as checkpoint_file:
                 checkpoint_file.write(get_fake_checkpoint_byte_array())
                 checkpoint_file.close()
 
             # Ensure _last_checkpoint points to the fake checkpoint
-            last_checkpoint_content = \
+            last_checkpoint_content = (
                 f'{{"version":{min_version - 1},"size":{len(get_fake_checkpoint_byte_array())}}}'
-            last_checkpoint_path = os.path.join(log_dir, '_last_checkpoint')
-            with open(last_checkpoint_path, 'w+') as last_checkpoint_file:
+            )
+            last_checkpoint_path = os.path.join(log_dir, "_last_checkpoint")
+            with open(last_checkpoint_path, "w+") as last_checkpoint_file:
                 last_checkpoint_file.write(last_checkpoint_content)
                 last_checkpoint_file.close()
 
@@ -324,9 +325,7 @@ class DeltaSharingReader:
                 max_version = max(max_version, version)
                 version_to_metadata[version] = delta_metadata
             else:
-                raise Exception(
-                    f"Invalid JSON object:\n{line}\nIs neither metadata nor file."
-                )
+                raise Exception(f"Invalid JSON object:\n{line}\nIs neither metadata nor file.")
 
         num_versions_with_action = len(version_to_actions)
         print(
@@ -343,7 +342,7 @@ class DeltaSharingReader:
             table_path = "file:///" + delta_log_dir_name
 
             # Create a new directory named '_delta_log' within the temporary directory
-            log_dir = os.path.join(delta_log_dir_name, '_delta_log')
+            log_dir = os.path.join(delta_log_dir_name, "_delta_log")
             os.makedirs(log_dir)
             self.__write_temp_delta_log_cdf(
                 log_dir,
@@ -402,7 +401,7 @@ class DeltaSharingReader:
         jsonPredicateHints: Optional[str],
         limit: Optional[int],
         version: Optional[int],
-        timestamp: Optional[str]
+        timestamp: Optional[str],
     ) -> "DeltaSharingReader":
         return DeltaSharingReader(
             table=self._table,
@@ -410,7 +409,7 @@ class DeltaSharingReader:
             predicateHints=predicateHints,
             limit=limit,
             version=version,
-            timestamp=timestamp
+            timestamp=timestamp,
         )
 
     @staticmethod
@@ -418,7 +417,7 @@ class DeltaSharingReader:
         action: FileAction,
         converters: Dict[str, Callable[[str], Any]],
         for_cdf: bool,
-        limit: Optional[int]
+        limit: Optional[int],
     ) -> pd.DataFrame:
         url = urlparse(action.url)
         if "storage.googleapis.com" in (url.netloc.lower()):
@@ -428,7 +427,7 @@ class DeltaSharingReader:
         protocol = url.scheme
         proxy = getproxies()
         if len(proxy) != 0:
-            filesystem = fsspec.filesystem(protocol, client_kwargs={"trust_env":True})
+            filesystem = fsspec.filesystem(protocol, client_kwargs={"trust_env": True})
         else:
             filesystem = fsspec.filesystem(protocol)
 
@@ -486,7 +485,7 @@ class DeltaSharingReader:
     @staticmethod
     def _add_special_cdf_schema(schema_json: dict) -> dict:
         fields = schema_json["fields"]
-        fields.append({"name" : DeltaSharingReader._change_type_col_name(), "type" : "string"})
-        fields.append({"name" : DeltaSharingReader._commit_version_col_name(), "type" : "long"})
-        fields.append({"name" : DeltaSharingReader._commit_timestamp_col_name(), "type" : "long"})
+        fields.append({"name": DeltaSharingReader._change_type_col_name(), "type": "string"})
+        fields.append({"name": DeltaSharingReader._commit_version_col_name(), "type": "long"})
+        fields.append({"name": DeltaSharingReader._commit_timestamp_col_name(), "type": "long"})
         return schema_json
