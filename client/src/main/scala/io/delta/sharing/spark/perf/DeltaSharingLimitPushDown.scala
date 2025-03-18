@@ -24,7 +24,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.catalog.CatalogTable
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.IntegerLiteral
-import org.apache.spark.sql.catalyst.plans.logical.{LocalLimit, LogicalPlan}
+import org.apache.spark.sql.catalyst.plans.logical.{LocalLimit, LogicalPlan, Project}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.sources.BaseRelation
@@ -45,17 +45,21 @@ object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
       p transform {
         case localLimit @ LocalLimit(
         literalExpr @ IntegerLiteral(limit),
-        l @ LogicalRelationWithTable(
+        pr @ Project(_,
+        l @ LogicalRelation(
         r @ HadoopFsRelation(remoteIndex: RemoteDeltaSnapshotFileIndex, _, _, _, _, _),
-        _)
+        _, _, _))
         ) =>
           if (remoteIndex.limitHint.isEmpty) {
             val spark = SparkSession.active
-            LocalLimit(literalExpr,
-              LogicalRelationShim.copyWithNewRelation(
-                l,
-                r.copy(
-                  location = remoteIndex.copy(limitHint = Some(limit)))(spark))
+            LocalLimit(
+              literalExpr,
+              pr.copy(
+                child = LogicalRelationShim.copyWithNewRelation(
+                  l,
+                  r.copy(location = remoteIndex.copy(limitHint = Some(limit)))(spark)
+                )
+              )
             )
           } else {
             localLimit
