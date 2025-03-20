@@ -20,6 +20,10 @@ import java.lang.ref.WeakReference
 import java.text.SimpleDateFormat
 import java.util.{TimeZone, UUID}
 
+import scala.reflect.runtime.universe.termNames
+import scala.reflect.runtime.universe.typeOf
+import scala.reflect.runtime.universe.typeTag
+
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkException
 import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
@@ -123,7 +127,24 @@ private[sharing] object RemoteDeltaLog {
   private lazy val _addFileEncoder: ExpressionEncoder[AddFile] = ExpressionEncoder[AddFile]()
 
   implicit def addFileEncoder: Encoder[AddFile] = {
-    _addFileEncoder.copy()
+    // Make a copy for the encoder because some states are not shareable
+    val paramsForPrimaryConstructor = _addFileEncoder.productIterator.toArray
+    val constructor = typeOf[ExpressionEncoder[AddFile]]
+      .decl(termNames.CONSTRUCTOR)
+      // Getting all the constructors
+      .alternatives
+      .map(_.asMethod)
+      // Picking the primary constructor
+      .find(_.isPrimaryConstructor)
+      // A class must always have a primary constructor, so this is safe
+      .get
+    val constructorMirror = typeTag[ExpressionEncoder[AddFile]].mirror
+      .reflectClass(typeOf[ExpressionEncoder[AddFile]].typeSymbol.asClass)
+      .reflectConstructor(constructor)
+
+    constructorMirror
+      .apply(paramsForPrimaryConstructor: _*)
+      .asInstanceOf[ExpressionEncoder[AddFile]]
   }
 
   // Get a unique string composed of a formatted timestamp and an uuid.
