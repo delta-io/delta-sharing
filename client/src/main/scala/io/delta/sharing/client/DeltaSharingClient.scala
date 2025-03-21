@@ -55,6 +55,10 @@ trait DeltaSharingClient {
     s" for query($dsQueryId)."
   }
 
+  protected def getFullTableName(table: Table): String = {
+    s"${table.share}.${table.schema}.${table.name}"
+  }
+
   def listAllTables(): Seq[Table]
 
   def getTableVersion(table: Table, startingTimestamp: Option[String] = None): Long
@@ -346,7 +350,7 @@ class DeltaSharingRestClient(
     checkRespondedFormat(
       response.respondedFormat,
       rpc = "getMetadata",
-      table = s"${table.share}.${table.schema}.${table.name}"
+      table = getFullTableName(table)
     )
     if (response.lines.size != 2) {
       throw new IllegalStateException(s"received more than two lines:${response.lines.size}," +
@@ -431,7 +435,7 @@ class DeltaSharingRestClient(
     checkRespondedFormat(
       respondedFormat,
       rpc = s"getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf)",
-      table = s"${table.share}.${table.schema}.${table.name}"
+      table = getFullTableName(table)
     )
 
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
@@ -493,11 +497,15 @@ class DeltaSharingRestClient(
 
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       logInfo(
-        s"Making paginated queryTable from version $startingVersion requests for table " +
-        s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq, " +
+        s"Making paginated queryTable from $startingVersion to $endingVersion for table " +
+          getFullTableName(table) + s" with maxFiles=$maxFilesPerReq, " +
           getDsQueryIdForLogging
       )
       val (version, respondedFormat, lines, _) = getFilesByPage(table, target, request)
+      logInfo(s"Took ${System.currentTimeMillis() - start} ms to query ${lines.size} files for " +
+        "table " + getFullTableName(table) + s" with [$startingVersion, $endingVersion]," +
+        getDsQueryIdForLogging
+      )
       (version, respondedFormat, lines)
     } else {
       val response = getNDJsonPost(
@@ -505,14 +513,16 @@ class DeltaSharingRestClient(
       )
       val (filteredLines, _) = maybeExtractEndStreamAction(response.lines)
       logInfo(s"Took ${System.currentTimeMillis() - start} ms to query ${filteredLines.size} " +
-        s"files for [$startingVersion, $endingVersion]," + getDsQueryIdForLogging)
+        s"files for table " + getFullTableName(table) +
+        s" with [$startingVersion, $endingVersion]," + getDsQueryIdForLogging
+      )
       (response.version, response.respondedFormat, filteredLines)
     }
 
     checkRespondedFormat(
       respondedFormat,
       rpc = s"getFiles(startingVersion:$startingVersion, endingVersion:$endingVersion)",
-      table = s"${table.share}.${table.schema}.${table.name}"
+      table = getFullTableName(table)
     )
 
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
@@ -634,7 +644,7 @@ class DeltaSharingRestClient(
     }
 
     logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
-      s"of ${allLines.size} files," + getDsQueryIdForLogging)
+      s"of ${allLines.size} files for table " + getFullTableName(table) + getDsQueryIdForLogging)
     (version, respondedFormat, allLines.toSeq, refreshToken)
   }
 
@@ -642,6 +652,7 @@ class DeltaSharingRestClient(
       table: Table,
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean): DeltaTableFiles = {
+    val start = System.currentTimeMillis()
     val encodedShare = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchema = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTable = URLEncoder.encode(table.name, "UTF-8")
@@ -652,7 +663,7 @@ class DeltaSharingRestClient(
     val (version, respondedFormat, lines) = if (queryTablePaginationEnabled) {
       logInfo(
         s"Making paginated queryTableChanges requests for table " +
-          s"${table.share}.${table.schema}.${table.name} with maxFiles=$maxFilesPerReq, " +
+          getFullTableName(table) + s" with maxFiles=$maxFilesPerReq," +
           getDsQueryIdForLogging
       )
       getCDFFilesByPage(target)
@@ -661,13 +672,17 @@ class DeltaSharingRestClient(
         target, requireVersion = false, setIncludeEndStreamAction = endStreamActionEnabled
       )
       val (filteredLines, _) = maybeExtractEndStreamAction(response.lines)
+      logInfo(s"Took ${System.currentTimeMillis() - start} ms to query ${filteredLines.size} " +
+        "files for table " + getFullTableName(table) + s" with CDF($cdfOptions)," +
+        getDsQueryIdForLogging
+      )
       (response.version, response.respondedFormat, filteredLines)
     }
 
     checkRespondedFormat(
       respondedFormat,
       rpc = s"getCDFFiles(cdfOptions:$cdfOptions)",
-      table = s"${table.share}.${table.schema}.${table.name}."
+      table = getFullTableName(table)
     )
 
     // To ensure that it works with delta sharing server that doesn't support the requested format.
