@@ -1531,6 +1531,11 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
 
 **{version}** is a long value which represents the current table version.
 
+Optional: `delta-sharing-capabilities: includeSemanticMetadata={includeSemanticMetadata}`, see
+[Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details.
+
+**{includeSemanticMetadata}** is whether or not the server included semantic metadata in the response.
+
 </td>
 </tr>
 <tr>
