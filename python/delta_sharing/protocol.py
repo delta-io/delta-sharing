@@ -16,7 +16,7 @@
 from dataclasses import dataclass, field
 from json import loads
 from pathlib import Path
-from typing import ClassVar, Dict, IO, Optional, Sequence, Union
+from typing import ClassVar, Dict, IO, List, Optional, Sequence, Union
 
 import fsspec
 
@@ -97,7 +97,7 @@ class DeltaSharingProfile:
                     type=type,
                     endpoint=endpoint,
                     bearer_token=json["bearerToken"],
-                    expiration_time=json.get("expirationTime")
+                    expiration_time=json.get("expirationTime"),
                 )
             elif type == "basic":
                 return DeltaSharingProfile(
@@ -109,8 +109,8 @@ class DeltaSharingProfile:
                 )
             else:
                 raise ValueError(
-                    f"The current release does not supports {type} type. "
-                    "Please check type.")
+                    f"The current release does not supports {type} type. " "Please check type."
+                )
         else:
             raise ValueError(
                 "'shareCredentialsVersion' in the profile is "
@@ -153,15 +153,17 @@ class Table:
     def from_json(json) -> "Table":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        return Table(name=json["name"], share=json["share"],
-                     schema=json["schema"])
+        return Table(name=json["name"], share=json["share"], schema=json["schema"])
 
 
 @dataclass(frozen=True)
 class Protocol:
-    CURRENT: ClassVar[int] = 1
+    CURRENT: ClassVar[int] = 3
 
     min_reader_version: int
+    min_writer_version: Optional[int] = None
+    reader_features: Optional[List[str]] = None
+    writer_features: Optional[List[str]] = None
 
     def __post_init__(self):
         if self.min_reader_version > Protocol.CURRENT:
@@ -175,7 +177,16 @@ class Protocol:
     def from_json(json) -> "Protocol":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        return Protocol(min_reader_version=int(json["minReaderVersion"]))
+        if "deltaProtocol" in json:
+            delta_protocol = json["deltaProtocol"]
+            return Protocol(
+                min_reader_version=int(delta_protocol["minReaderVersion"]),
+                min_writer_version=int(delta_protocol["minWriterVersion"]),
+                reader_features=delta_protocol.get("readerFeatures", None),
+                writer_features=delta_protocol.get("writerFeatures", None),
+            )
+        else:
+            return Protocol(min_reader_version=int(json["minReaderVersion"]))
 
 
 @dataclass(frozen=True)
@@ -202,27 +213,42 @@ class Metadata:
     version: Optional[int] = None
     size: Optional[int] = None
     num_files: Optional[int] = None
+    created_time: Optional[int] = None
 
     @staticmethod
     def from_json(json) -> "Metadata":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        if "configuration" in json:
-            configuration = json["configuration"]
+        if "deltaMetadata" in json:
+            delta_metadata = json["deltaMetadata"]
+            configuration = delta_metadata.get("configuration", {})
+            return Metadata(
+                id=delta_metadata["id"],
+                name=delta_metadata.get("name", None),
+                description=delta_metadata.get("description", None),
+                format=Format.from_json(delta_metadata["format"]),
+                schema_string=delta_metadata["schemaString"],
+                configuration=configuration,
+                partition_columns=delta_metadata["partitionColumns"],
+                version=json.get("version", None),
+                size=json.get("size", None),
+                num_files=json.get("numFiles", None),
+                created_time=delta_metadata.get("createdTime", None),
+            )
         else:
-            configuration = {}
-        return Metadata(
-            id=json["id"],
-            name=json.get("name", None),
-            description=json.get("description", None),
-            format=Format.from_json(json["format"]),
-            schema_string=json["schemaString"],
-            configuration=configuration,
-            partition_columns=json["partitionColumns"],
-            version=json.get("version", None),
-            size=json.get("size", None),
-            num_files=json.get("numFiles", None)
-        )
+            configuration = json.get("configuration", {})
+            return Metadata(
+                id=json["id"],
+                name=json.get("name", None),
+                description=json.get("description", None),
+                format=Format.from_json(json["format"]),
+                schema_string=json["schemaString"],
+                configuration=configuration,
+                partition_columns=json["partitionColumns"],
+                version=json.get("version", None),
+                size=json.get("size", None),
+                num_files=json.get("numFiles", None),
+            )
 
 
 @dataclass(frozen=True)
@@ -312,3 +338,4 @@ class CdfOptions:
     ending_version: Optional[int] = None
     starting_timestamp: Optional[str] = None
     ending_timestamp: Optional[str] = None
+    include_historical_metadata: Optional[bool] = None

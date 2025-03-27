@@ -56,7 +56,7 @@ def test_list_shares(sharing_client: SharingClient):
         Share(name="share7"),
         Share(name="share_azure"),
         Share(name="share_gcp"),
-        Share(name="share8")
+        Share(name="share8"),
     ]
 
 
@@ -75,7 +75,7 @@ def test_list_tables(sharing_client: SharingClient):
     assert tables == [
         Table(name="table1", share="share1", schema="default"),
         Table(name="table3", share="share1", schema="default"),
-        Table(name="table7", share="share1", schema="default")
+        Table(name="table7", share="share1", schema="default"),
     ]
 
     tables = sharing_client.list_tables(Schema(name="default", share="share2"))
@@ -96,6 +96,7 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_wasb", share="share_azure", schema="default"),
         Table(name="table_abfs", share="share_azure", schema="default"),
         Table(name="table_gcs", share="share_gcp", schema="default"),
+        Table(name="timestampntz_cdf_table", share="share8", schema="default"),
         Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
         Table(name="cdf_table_with_partition", share="share8", schema="default"),
         Table(name="cdf_table_with_vacuum", share="share8", schema="default"),
@@ -113,7 +114,7 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_with_cm_name", share="share8", schema="default"),
         Table(name="table_with_cm_id", share="share8", schema="default"),
         Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default"),
-        Table(name="dv_and_cm_table", share="share8", schema="default")
+        Table(name="dv_and_cm_table", share="share8", schema="default"),
     ]
 
 
@@ -193,7 +194,7 @@ def test_get_table_version(
     fragments: str,
     starting_timestamp: Optional[str],
     error: Optional[str],
-    expected_version: int
+    expected_version: int,
 ):
     if error is None:
         actual_version = get_table_version(f"{profile_path}#{fragments}", starting_timestamp)
@@ -258,19 +259,21 @@ def test_get_table_version(
         ),
     ],
 )
-def test_get_table_metadata(
-    profile_path: str,
-    fragments: str,
-    expected: Metadata
-):
+def test_get_table_metadata(profile_path: str, fragments: str, expected: Metadata):
     actual = get_table_metadata(f"{profile_path}#{fragments}")
     assert expected == actual
+    actual_using_parquet = get_table_metadata(f"{profile_path}#{fragments}", use_delta_format=False)
+    assert expected == actual_using_parquet
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_get_table_protocol(profile_path: str):
     actual = get_table_protocol(f"{profile_path}#share1.default.table1")
     assert Protocol(min_reader_version=1) == actual
+    actual_using_parquet = get_table_protocol(
+        f"{profile_path}#share1.default.table1", use_delta_format=False
+    )
+    assert Protocol(min_reader_version=1) == actual_using_parquet
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -318,8 +321,16 @@ def test_get_table_protocol(profile_path: str):
                         pd.Timestamp("2021-04-28 23:35:53.156"),
                         pd.Timestamp("2021-04-28 23:36:47.599"),
                     ],
-                    "date": [date(2021, 4, 28), date(2021, 4, 28), date(2021, 4, 28),],
-                    "type": ["bar", None, "foo",],
+                    "date": [
+                        date(2021, 4, 28),
+                        date(2021, 4, 28),
+                        date(2021, 4, 28),
+                    ],
+                    "type": [
+                        "bar",
+                        None,
+                        "foo",
+                    ],
                 }
             ),
             id="partitioned and different schemas",
@@ -375,7 +386,7 @@ def test_get_table_protocol(profile_path: str):
                     "eventTime": [
                         pd.Timestamp("2021-04-28 23:36:51.945"),
                         pd.Timestamp("2021-04-28 23:35:53.156"),
-                        pd.Timestamp("2021-04-28 23:36:47.599")
+                        pd.Timestamp("2021-04-28 23:36:47.599"),
                     ],
                     "date": [date(2021, 4, 28), date(2021, 4, 28), date(2021, 4, 28)],
                     "type": ["bar", None, "foo"],
@@ -392,7 +403,7 @@ def test_get_table_protocol(profile_path: str):
                     "eventTime": [
                         pd.Timestamp("2021-04-28 23:36:51.945"),
                         pd.Timestamp("2021-04-28 23:35:53.156"),
-                        pd.Timestamp("2021-04-28 23:36:47.599")
+                        pd.Timestamp("2021-04-28 23:36:47.599"),
                     ],
                     "date": [date(2021, 4, 28), date(2021, 4, 28), date(2021, 4, 28)],
                     "type": ["bar", None, "foo"],
@@ -492,7 +503,7 @@ def test_load_as_pandas_success(
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
-    expected: pd.DataFrame
+    expected: pd.DataFrame,
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
     pd.testing.assert_frame_equal(pdf, expected)
@@ -546,7 +557,7 @@ def test_load_as_pandas_success(
                         pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
                         pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
                         pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
-                        pd.Timestamp("2023-05-31T18:58:33.633+00:00")
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
                     ],
                     "rand": [
                         0.7918174793484931,
@@ -554,7 +565,7 @@ def test_load_as_pandas_success(
                         0.27796520310701633,
                         0.15263801464228832,
                         0.1981143710215575,
-                        0.3069439236599195
+                        0.3069439236599195,
                     ],
                 }
             ),
@@ -571,13 +582,9 @@ def test_load_as_pandas_success(
                     "timestamp": [
                         pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
                         pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
-                        pd.Timestamp("2023-05-31T18:58:33.633+00:00")
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
                     ],
-                    "rand": [
-                        0.7918174793484931,
-                        0.9281049271981882,
-                        0.27796520310701633
-                    ],
+                    "rand": [0.7918174793484931, 0.9281049271981882, 0.27796520310701633],
                 }
             ),
             id="dv",
@@ -592,12 +599,9 @@ def test_load_as_pandas_success(
                     "value": ["3", "4"],
                     "timestamp": [
                         pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
-                        pd.Timestamp("2023-05-31T18:58:33.633+00:00")
+                        pd.Timestamp("2023-05-31T18:58:33.633+00:00"),
                     ],
-                    "rand": [
-                        0.7918174793484931,
-                        0.9281049271981882
-                    ],
+                    "rand": [0.7918174793484931, 0.9281049271981882],
                 }
             ),
             id="dv",
@@ -609,10 +613,10 @@ def test_load_as_pandas_success_dv(
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
-    expected: pd.DataFrame
+    expected: pd.DataFrame,
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
-    expected['timestamp'] = expected['timestamp'].astype('datetime64[us, UTC]')
+    expected["timestamp"] = expected["timestamp"].astype("datetime64[us, UTC]")
     pd.testing.assert_frame_equal(pdf, expected)
 
 
@@ -630,7 +634,7 @@ def test_load_as_pandas_success_dv(
                     "eventTime": [
                         pd.Timestamp("2024-06-25T00:00:00.000+00:00"),
                         pd.Timestamp("2024-06-25T01:00:00.000+00:00"),
-                        pd.Timestamp("2024-06-25T00:00:00.000+00:00")
+                        pd.Timestamp("2024-06-25T00:00:00.000+00:00"),
                     ],
                 }
             ),
@@ -645,7 +649,7 @@ def test_load_as_pandas_success_dv(
                     "date": [date(2024, 6, 25), date(2024, 6, 25)],
                     "eventTime": [
                         pd.Timestamp("2024-06-25T00:00:00.000+00:00"),
-                        pd.Timestamp("2024-06-25T01:00:00.000+00:00")
+                        pd.Timestamp("2024-06-25T01:00:00.000+00:00"),
                     ],
                 }
             ),
@@ -658,9 +662,7 @@ def test_load_as_pandas_success_dv(
             pd.DataFrame(
                 {
                     "date": [date(2024, 6, 25)],
-                    "eventTime": [
-                        pd.Timestamp("2024-06-25T00:00:00.000+00:00")
-                    ],
+                    "eventTime": [pd.Timestamp("2024-06-25T00:00:00.000+00:00")],
                 }
             ),
             id="column map name",
@@ -672,10 +674,10 @@ def test_load_as_pandas_success_cm(
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
-    expected: pd.DataFrame
+    expected: pd.DataFrame,
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
-    expected['eventTime'] = expected['eventTime'].astype('datetime64[us, UTC]')
+    expected["eventTime"] = expected["eventTime"].astype("datetime64[us, UTC]")
     pd.testing.assert_frame_equal(pdf, expected)
 
 
@@ -691,7 +693,7 @@ def test_load_as_pandas_success_cm(
                 {
                     "id": [0, 2, 3, 4, 5],
                     "rand": [74, 45, 37, 69, 58],
-                    "partition_col": [3, 3, 3, 3, 3]
+                    "partition_col": [3, 3, 3, 3, 3],
                 }
             ),
             id="deletion vector and column map name",
@@ -703,11 +705,11 @@ def test_load_as_pandas_success_dv_and_cm(
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
-    expected: pd.DataFrame
+    expected: pd.DataFrame,
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
-    expected['rand'] = expected['rand'].astype('int32')
-    expected['partition_col'] = expected['partition_col'].astype('int32')
+    expected["rand"] = expected["rand"].astype("int32")
+    expected["partition_col"] = expected["partition_col"].astype("int32")
     pd.testing.assert_frame_equal(pdf, expected)
 
     # Test client specifying explicit delta format
@@ -733,9 +735,37 @@ def test_load_as_pandas_success_empty_dv_and_cm(
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
-    expected: pd.DataFrame
+    expected: pd.DataFrame,
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,expected",
+    [
+        pytest.param(
+            "share8.default.timestampntz_cdf_table",
+            pd.DataFrame(
+                {
+                    "id": [2, 3],
+                    "time": [
+                        pd.Timestamp("2024-12-10T13:17:40.123456"),
+                        pd.Timestamp("1000-01-01T00:00:00.000000"),
+                    ],
+                }
+            ),
+            id="test read timestampntz",
+        )
+    ],
+)
+def test_load_as_pandas_success_timestampntz(
+    profile_path: str, fragments: str, expected: pd.DataFrame
+):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}")
+    expected["time"] = expected["time"].values.astype("datetime64[us]")
+    expected["id"] = expected["id"].astype("int32")
     pd.testing.assert_frame_equal(pdf, expected)
 
 
@@ -765,10 +795,10 @@ def test_load_as_pandas_success_client_delta_kernel_enabled_with_normal_table(
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
-    expected: pd.DataFrame
+    expected: pd.DataFrame,
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None, None, True)
-    expected['eventTime'] = expected['eventTime'].astype('datetime64[us, UTC]')
+    expected["eventTime"] = expected["eventTime"].astype("datetime64[us, UTC]")
     pd.testing.assert_frame_equal(pdf, expected)
 
 
@@ -864,10 +894,7 @@ def test_load_as_pandas_success_client_delta_kernel_enabled_with_normal_table(
     ],
 )
 def test_load_as_pandas_with_json_predicates(
-    profile_path: str,
-    fragments: str,
-    jsonPredicateHints: Optional[str],
-    expected: pd.DataFrame
+    profile_path: str, fragments: str, jsonPredicateHints: Optional[str], expected: pd.DataFrame
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", None, None, None, jsonPredicateHints)
     pd.testing.assert_frame_equal(pdf, expected)
@@ -912,7 +939,7 @@ def test_load_as_pandas_exception(
     fragments: str,
     version: Optional[int],
     timestamp: Optional[str],
-    error: Optional[str]
+    error: Optional[str],
 ):
     try:
         load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp)
@@ -930,7 +957,7 @@ def test_load_as_pandas_exception(
             "share8.default.table_with_cm_id",
             None,
             None,
-            "Kernel error: Generic delta kernel error: Don't support id column mapping yet",
+            "Kernel error: Unsupported: Column mapping ID mode not supported",
             id="column mapping id not supported",
         ),
     ],
@@ -940,7 +967,7 @@ def test_load_as_pandas_exception_kernel(
     fragments: str,
     version: Optional[int],
     timestamp: Optional[str],
-    error: Optional[str]
+    error: Optional[str],
 ):
     try:
         load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp)
@@ -967,7 +994,7 @@ def test_load_as_pandas_exception_client_delta_kernel_disabled_with_delta_table(
     fragments: str,
     version: Optional[int],
     timestamp: Optional[str],
-    error: Optional[str]
+    error: Optional[str],
 ):
     try:
         load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp, None, False)
@@ -1079,7 +1106,7 @@ def test_load_table_changes(
     starting_timestamp: Optional[str],
     ending_timestamp: Optional[str],
     error: Optional[str],
-    expected: pd.DataFrame
+    expected: pd.DataFrame,
 ):
     if error is None:
         pdf = load_table_changes_as_pandas(
@@ -1087,7 +1114,7 @@ def test_load_table_changes(
             starting_version,
             ending_version,
             starting_timestamp,
-            ending_timestamp
+            ending_timestamp,
         )
         pd.testing.assert_frame_equal(pdf, expected)
     else:
@@ -1097,12 +1124,332 @@ def test_load_table_changes(
                 starting_version,
                 ending_version,
                 starting_timestamp,
-                ending_timestamp
+                ending_timestamp,
             )
             assert False
         except Exception as e:
             assert isinstance(e, HTTPError)
             assert error in str(e)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,starting_version,ending_version,starting_timestamp,ending_timestamp,error,expected",
+    [
+        pytest.param(
+            "share8.default.cdf_table_cdf_enabled",
+            0,
+            3,
+            None,
+            None,
+            None,
+            pd.DataFrame(
+                {
+                    "name": ["1", "2", "3", "3", "2", "2"],
+                    "age": pd.Series([1, 2, 3, 3, 2, 2], dtype="int32"),
+                    "birthday": [
+                        date(2020, 1, 1),
+                        date(2020, 1, 1),
+                        date(2020, 1, 1),
+                        date(2020, 1, 1),
+                        date(2020, 1, 1),
+                        date(2020, 2, 2),
+                    ],
+                    "_change_type": [
+                        "insert",
+                        "insert",
+                        "insert",
+                        "delete",
+                        "update_preimage",
+                        "update_postimage",
+                    ],
+                    "_commit_version": [1, 1, 1, 2, 3, 3],
+                    "_commit_timestamp": [
+                        1651272635000,
+                        1651272635000,
+                        1651272635000,
+                        1651272655000,
+                        1651272660000,
+                        1651272660000,
+                    ],
+                }
+            ),
+            id="cdf_table_cdf_enabled table changes:[0, 3]",
+        ),
+        pytest.param(
+            "share8.default.cdf_table_cdf_enabled",
+            5,
+            None,
+            None,
+            None,
+            None,
+            pd.DataFrame(
+                columns=[
+                    "name",
+                    "age",
+                    "birthday",
+                    "_change_type",
+                    "_commit_version",
+                    "_commit_timestamp",
+                ]
+            ),
+            id="cdf_table_cdf_enabled table changes:[5, ]",
+        ),
+        pytest.param(
+            "share8.default.cdf_table_cdf_enabled",
+            None,
+            None,
+            "2000-01-01T00:00:00Z",
+            None,
+            "Please use a timestamp greater",
+            pd.DataFrame({"not_used": []}),
+            id="cdf_table_cdf_enabled table changes with starting_timestamp",
+        ),
+        pytest.param(
+            "share8.default.cdf_table_cdf_enabled",
+            0,
+            None,
+            None,
+            "2100-01-01T00:00:00Z",
+            "Please use a timestamp less",
+            pd.DataFrame({"not_used": []}),
+            id="cdf_table_cdf_enabled table changes with ending_timestamp",
+        ),
+        pytest.param(
+            "share1.default.table1",
+            0,
+            1,
+            None,
+            None,
+            "cdf is not enabled on table share1.default.table1",
+            pd.DataFrame({"not_used": []}),
+            id="table1 table changes not supported",
+        ),
+    ],
+)
+def test_load_table_changes_kernel(
+    profile_path: str,
+    fragments: str,
+    starting_version: Optional[int],
+    ending_version: Optional[int],
+    starting_timestamp: Optional[str],
+    ending_timestamp: Optional[str],
+    error: Optional[str],
+    expected: pd.DataFrame,
+):
+    if error is None:
+        pdf = load_table_changes_as_pandas(
+            f"{profile_path}#{fragments}",
+            starting_version,
+            ending_version,
+            starting_timestamp,
+            ending_timestamp,
+            use_delta_format=True,
+        )
+        if len(pdf) > 0:
+            pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
+        pd.testing.assert_frame_equal(pdf, expected)
+    else:
+        try:
+            load_table_changes_as_pandas(
+                f"{profile_path}#{fragments}",
+                starting_version,
+                ending_version,
+                starting_timestamp,
+                ending_timestamp,
+            )
+            assert False
+        except Exception as e:
+            assert isinstance(e, HTTPError)
+            assert error in str(e)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,starting_version,ending_version,starting_timestamp,ending_timestamp,error,expected",
+    [
+        pytest.param(
+            "share8.default.cdf_table_with_partition",
+            1,
+            3,
+            None,
+            None,
+            None,
+            pd.DataFrame(
+                {
+                    "name": ["1", "2", "3", "2", "2", "3"],
+                    "age": pd.Series([1, 2, 3, 2, 2, 3], dtype="int32"),
+                    "birthday": [
+                        date(2020, 1, 1),
+                        date(2020, 1, 1),
+                        date(2020, 3, 3),
+                        date(2020, 1, 1),
+                        date(2020, 2, 2),
+                        date(2020, 3, 3),
+                    ],
+                    "_change_type": [
+                        "insert",
+                        "insert",
+                        "insert",
+                        "update_preimage",
+                        "update_postimage",
+                        "delete",
+                    ],
+                    "_commit_version": [1, 1, 1, 2, 2, 3],
+                    "_commit_timestamp": [
+                        1651614980000,
+                        1651614980000,
+                        1651614980000,
+                        1651614986000,
+                        1651614986000,
+                        1651614994000,
+                    ],
+                }
+            ),
+            id="cdf_table_with_partition table changes:[0, 3]",
+        ),
+        pytest.param(
+            "share8.default.cdf_table_cdf_enabled",
+            5,
+            None,
+            None,
+            None,
+            None,
+            pd.DataFrame(
+                columns=[
+                    "name",
+                    "age",
+                    "birthday",
+                    "_change_type",
+                    "_commit_version",
+                    "_commit_timestamp",
+                ]
+            ),
+            id="cdf_table_with_partition table changes:[5, ]",
+        ),
+        pytest.param(
+            "share8.default.cdf_table_with_partition",
+            None,
+            None,
+            "2022-05-03T21:56:25Z",
+            "2022-05-03T21:56:30Z",
+            None,
+            pd.DataFrame(
+                {
+                    "name": ["2", "2"],
+                    "age": pd.Series([2, 2], dtype="int32"),
+                    "birthday": [
+                        date(2020, 1, 1),
+                        date(2020, 2, 2),
+                    ],
+                    "_change_type": [
+                        "update_preimage",
+                        "update_postimage",
+                    ],
+                    "_commit_version": [2, 2],
+                    "_commit_timestamp": [
+                        1651614986000,
+                        1651614986000,
+                    ],
+                }
+            ),
+            id=(
+                "cdf_table_with_partition table changes with"
+                "starting_timestamp and ending_timestamp"
+            ),
+        ),
+    ],
+)
+def test_load_table_changes_partition_kernel(
+    profile_path: str,
+    fragments: str,
+    starting_version: Optional[int],
+    ending_version: Optional[int],
+    starting_timestamp: Optional[str],
+    ending_timestamp: Optional[str],
+    error: Optional[str],
+    expected: pd.DataFrame,
+):
+    if error is None:
+        pdf = load_table_changes_as_pandas(
+            f"{profile_path}#{fragments}",
+            starting_version,
+            ending_version,
+            starting_timestamp,
+            ending_timestamp,
+            use_delta_format=True,
+        )
+        if len(pdf) > 0:
+            pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
+        pd.testing.assert_frame_equal(pdf, expected)
+    else:
+        try:
+            load_table_changes_as_pandas(
+                f"{profile_path}#{fragments}",
+                starting_version,
+                ending_version,
+                starting_timestamp,
+                ending_timestamp,
+            )
+            assert False
+        except Exception as e:
+            assert isinstance(e, HTTPError)
+            assert error in str(e)
+
+
+# TODO: Enable once timestampntz + CDF support is enabled for both
+@pytest.mark.skipif(
+    True, reason="timestampNtz + CDF not supported in OSS server or delta-kernel-rs yet"
+)
+@pytest.mark.parametrize(
+    "fragments,expected",
+    [
+        pytest.param(
+            "share8.default.timestampntz_cdf_table",
+            pd.DataFrame(
+                {
+                    "id": [2, 1, 2, 2, 3, 1],
+                    "time": [
+                        pd.Timestamp("2024-12-10T13:17:40.000000"),
+                        pd.Timestamp("2021-07-01T08:43:28.000000"),
+                        pd.Timestamp("2024-12-10T13:17:40.123456"),
+                        pd.Timestamp("2024-12-10T13:17:40.000000"),
+                        pd.Timestamp("1000-01-01T00:00:00.000000"),
+                        pd.Timestamp("2021-07-01T08:43:28.000000"),
+                    ],
+                    "_change_type": [
+                        "delete",
+                        "delete",
+                        "insert",
+                        "insert",
+                        "insert",
+                        "insert",
+                    ],
+                    "_commit_version": [3, 4, 3, 2, 2, 1],
+                    "_commit_timestamp": [
+                        1741140666000,
+                        1741144375000,
+                        1741140666000,
+                        1741140657000,
+                        1741140657000,
+                        1741140565000,
+                    ],
+                }
+            ),
+            id="test read timestampntz",
+        )
+    ],
+)
+def test_load_table_changes_as_pandas_timestampntz(
+    profile_path: str, fragments: str, expected: pd.DataFrame
+):
+    pdf = load_table_changes_as_pandas(
+        f"{profile_path}#{fragments}", starting_version=0, use_delta_format=True
+    )
+    expected["time"] = expected["time"].values.astype("datetime64[us]")
+    expected["id"] = expected["id"].astype("int32")
+    pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
+    pd.testing.assert_frame_equal(pdf, expected)
 
 
 def test_parse_url():
@@ -1200,12 +1547,14 @@ def test_load_as_spark(
 ):
     try:
         from pyspark.sql import SparkSession
-        spark = SparkSession.builder \
-            .appName("delta-sharing-test") \
-            .master("local[*]") \
-            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:1.0.0-SNAPSHOT") \
-            .config("spark.delta.sharing.network.sslTrustAll", "true") \
+
+        spark = (
+            SparkSession.builder.appName("delta-sharing-test")
+            .master("local[*]")
+            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:1.0.0-SNAPSHOT")
+            .config("spark.delta.sharing.network.sslTrustAll", "true")
             .getOrCreate()
+        )
 
         if error is None:
             expected_df = spark.createDataFrame(expected_data, expected_schema_str)
@@ -1227,8 +1576,8 @@ def test_load_as_spark(
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
-    "fragments,starting_version,ending_version,starting_timestamp,ending_timestamp,error," +
-    "expected_data,expected_schema_str",
+    "fragments,starting_version,ending_version,starting_timestamp,ending_timestamp,error,"
+    + "expected_data,expected_schema_str",
     [
         pytest.param(
             "share8.default.cdf_table_cdf_enabled",
@@ -1245,8 +1594,8 @@ def test_load_as_spark(
                 ("2", 2, date(2020, 2, 2), 3, 1651272660000, "update_postimage"),
                 ("3", 3, date(2020, 1, 1), 2, 1651272655000, "delete"),
             ],
-            "name: string, age: int, birthday:date, _commit_version: long, _commit_timestamp" +
-            ": long, _change_type: string",
+            "name: string, age: int, birthday:date, _commit_version: long, _commit_timestamp"
+            + ": long, _change_type: string",
             id="cdf_table_cdf_enabled table changes",
         ),
         pytest.param(
@@ -1279,8 +1628,8 @@ def test_load_as_spark(
             None,
             "cdf is not enabled on table share1.default.table1",
             [],
-            "name: string, age: int, birthday:date, _commit_version: long, _commit_timestamp" +
-            ": long, _change_type: string",
+            "name: string, age: int, birthday:date, _commit_version: long, _commit_timestamp"
+            + ": long, _change_type: string",
             id="table1 table changes not enabled",
         ),
     ],
@@ -1294,16 +1643,18 @@ def test_load_table_changes_as_spark(
     ending_timestamp: Optional[str],
     error: Optional[str],
     expected_data: list,
-    expected_schema_str: str
+    expected_schema_str: str,
 ):
     try:
         from pyspark.sql import SparkSession
-        spark = SparkSession.builder \
-            .appName("delta-sharing-test") \
-            .master("local[*]") \
-            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:1.0.0-SNAPSHOT") \
-            .config("spark.delta.sharing.network.sslTrustAll", "true") \
+
+        spark = (
+            SparkSession.builder.appName("delta-sharing-test")
+            .master("local[*]")
+            .config("spark.jars.packages", "io.delta:delta-sharing-spark_2.12:1.0.0-SNAPSHOT")
+            .config("spark.delta.sharing.network.sslTrustAll", "true")
             .getOrCreate()
+        )
 
         if error is None:
             expected_df = spark.createDataFrame(expected_data, expected_schema_str)
@@ -1313,7 +1664,7 @@ def test_load_table_changes_as_spark(
                 starting_version=starting_version,
                 ending_version=ending_version,
                 starting_timestamp=starting_timestamp,
-                ending_timestamp=ending_timestamp
+                ending_timestamp=ending_timestamp,
             )
             assert expected_df.schema == actual_df.schema
             assert expected_df.collect() == actual_df.collect()
@@ -1324,7 +1675,7 @@ def test_load_table_changes_as_spark(
                     starting_version=starting_version,
                     ending_version=ending_version,
                     starting_timestamp=starting_timestamp,
-                    ending_timestamp=ending_timestamp
+                    ending_timestamp=ending_timestamp,
                 )
             except Exception as e:
                 assert isinstance(e, HTTPError)
@@ -1332,7 +1683,7 @@ def test_load_table_changes_as_spark(
 
     except ImportError:
         with pytest.raises(
-            ImportError, match="Unable to import pyspark. `load_table_changes_as_spark` requires" +
-            " PySpark."
+            ImportError,
+            match="Unable to import pyspark. `load_table_changes_as_spark` requires" + " PySpark.",
         ):
             load_table_changes_as_spark("not-used")

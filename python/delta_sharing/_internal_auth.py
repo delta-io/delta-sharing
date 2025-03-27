@@ -35,12 +35,16 @@ from delta_sharing.protocol import (
 
 
 class AuthConfig:
-    def __init__(self, token_exchange_max_retries=5,
-                 token_exchange_max_retry_duration_in_seconds=60,
-                 token_renewal_threshold_in_seconds=600):
+    def __init__(
+        self,
+        token_exchange_max_retries=5,
+        token_exchange_max_retry_duration_in_seconds=60,
+        token_renewal_threshold_in_seconds=600,
+    ):
         self.token_exchange_max_retries = token_exchange_max_retries
         self.token_exchange_max_retry_duration_in_seconds = (
-            token_exchange_max_retry_duration_in_seconds)
+            token_exchange_max_retry_duration_in_seconds
+        )
         self.token_renewal_threshold_in_seconds = token_renewal_threshold_in_seconds
 
 
@@ -90,7 +94,10 @@ class BasicAuthProvider(AuthCredentialProvider):
 
     def add_auth_header(self, session: requests.Session) -> None:
         session.auth = (self.username, self.password)
-        session.post(self.endpoint, data={"grant_type": "client_credentials"},)
+        session.post(
+            self.endpoint,
+            data={"grant_type": "client_credentials"},
+        )
 
     def is_expired(self) -> bool:
         return False
@@ -107,11 +114,9 @@ class OAuthClientCredentials:
 
 
 class OAuthClient:
-    def __init__(self,
-                 token_endpoint: str,
-                 client_id: str,
-                 client_secret: str,
-                 scope: Optional[str] = None):
+    def __init__(
+        self, token_endpoint: str, client_id: str, client_secret: str, scope: Optional[str] = None
+    ):
         self.token_endpoint = token_endpoint
         self.client_id = client_id
         self.client_secret = client_secret
@@ -119,11 +124,12 @@ class OAuthClient:
 
     def client_credentials(self) -> OAuthClientCredentials:
         credentials = base64.b64encode(
-            f"{self.client_id}:{self.client_secret}".encode('utf-8')).decode('utf-8')
+            f"{self.client_id}:{self.client_secret}".encode("utf-8")
+        ).decode("utf-8")
         headers = {
-            'accept': 'application/json',
-            'authorization': f'Basic {credentials}',
-            'content-type': 'application/x-www-form-urlencoded'
+            "accept": "application/json",
+            "authorization": f"Basic {credentials}",
+            "content-type": "application/x-www-form-urlencoded",
         }
         body = f"grant_type=client_credentials{f'&scope={self.scope}' if self.scope else ''}"
         response = requests.post(self.token_endpoint, headers=headers, data=body)
@@ -133,15 +139,33 @@ class OAuthClient:
     def parse_oauth_token_response(self, response: str) -> OAuthClientCredentials:
         if not response:
             raise RuntimeError("Empty response from OAuth token endpoint")
+        # Parsing the response per oauth spec
+        # https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
         json_node = json.loads(response)
-        if 'access_token' not in json_node or not isinstance(json_node['access_token'], str):
+        if "access_token" not in json_node or not isinstance(json_node["access_token"], str):
             raise RuntimeError("Missing 'access_token' field in OAuth token response")
-        if 'expires_in' not in json_node or not isinstance(json_node['expires_in'], int):
+        if "expires_in" not in json_node:
             raise RuntimeError("Missing 'expires_in' field in OAuth token response")
+        try:
+            # OAuth spec requires 'expires_in' to be an integer, e.g., 3600.
+            # See https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
+            # But some token endpoints return `expires_in` as a string e.g., "3600".
+            # This ensures that we support both integer and string values for 'expires_in' field.
+            # Example request resulting in 'expires_in' as a string:
+            # curl -X POST \
+            #   https://login.windows.net/$TENANT_ID/oauth2/token \
+            #   -H "Content-Type: application/x-www-form-urlencoded" \
+            #   -d "grant_type=client_credentials" \
+            #   -d "client_id=$CLIENT_ID" \
+            #   -d "client_secret=$CLIENT_SECRET" \
+            #   -d "scope=https://graph.microsoft.com/.default"
+            expires_in = int(json_node["expires_in"])  # Convert to int if it's a string
+        except ValueError:
+            raise RuntimeError(
+                "'expires_in' field must be an integer or a string convertible to integer"
+            )
         return OAuthClientCredentials(
-            json_node['access_token'],
-            json_node['expires_in'],
-            int(datetime.now().timestamp())
+            json_node["access_token"], expires_in, int(datetime.now().timestamp())
         )
 
 
@@ -152,7 +176,7 @@ class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
         self.current_token: Optional[OAuthClientCredentials] = None
         self.lock = threading.RLock()
 
-    def add_auth_header(self,session: requests.Session) -> None:
+    def add_auth_header(self, session: requests.Session) -> None:
         token = self.maybe_refresh_token()
         with self.lock:
             session.headers.update(
@@ -179,9 +203,7 @@ class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
 
 
 class AuthCredentialProviderFactory:
-    __oauth_auth_provider_cache : Dict[
-        DeltaSharingProfile,
-        OAuthClientCredentialsAuthProvider] = {}
+    __oauth_auth_provider_cache: Dict[DeltaSharingProfile, OAuthClientCredentialsAuthProvider] = {}
 
     @staticmethod
     def create_auth_credential_provider(profile: DeltaSharingProfile):
@@ -190,14 +212,17 @@ class AuthCredentialProviderFactory:
                 return AuthCredentialProviderFactory.__oauth_client_credentials(profile)
             elif profile.type == "basic":
                 return AuthCredentialProviderFactory.__auth_basic(profile)
-        elif (profile.share_credentials_version == 1 and
-              (profile.type is None or profile.type == "bearer_token")):
+        elif profile.share_credentials_version == 1 and (
+            profile.type is None or profile.type == "bearer_token"
+        ):
             return AuthCredentialProviderFactory.__auth_bearer_token(profile)
 
         # any other scenario is unsupported
-        raise RuntimeError(f"unsupported profile.type: {profile.type}"
-                           f" profile.share_credentials_version"
-                           f" {profile.share_credentials_version}")
+        raise RuntimeError(
+            f"unsupported profile.type: {profile.type}"
+            f" profile.share_credentials_version"
+            f" {profile.share_credentials_version}"
+        )
 
     @staticmethod
     def __oauth_client_credentials(profile):
@@ -215,11 +240,10 @@ class AuthCredentialProviderFactory:
             token_endpoint=profile.token_endpoint,
             client_id=profile.client_id,
             client_secret=profile.client_secret,
-            scope=profile.scope
+            scope=profile.scope,
         )
         provider = OAuthClientCredentialsAuthProvider(
-            oauth_client=oauth_client,
-            auth_config=AuthConfig()
+            oauth_client=oauth_client, auth_config=AuthConfig()
         )
         AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile] = provider
         return provider

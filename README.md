@@ -44,15 +44,18 @@ If this doesn’t work because of an issue downloading delta-kernel-rust-sharing
 - Check python3 version >= 3.8
 - Upgrade your pip3 to the latest version
 - Check the linux glibc version >= 2.31
+- [Install Rust](https://www.rust-lang.org/tools/install)
 
-If you cannot upgrade glibc or your OS is not supported by the delta-kernel-rust-sharing-wrapper pypi install  you will need to install the package manually.
-See https://pypi.org/project/delta-kernel-rust-sharing-wrapper/0.1.0/#files for supported OS.
+If you cannot upgrade glibc or PyPI does not have a pre-built wheel for delta-kernel-rust-sharing-wrapper for your environment, pip will have to build the package from source, which requires Rust to be installed.
+See https://pypi.org/project/delta-kernel-rust-sharing-wrapper/0.2.1/#files for environments that have a pre-built wheel.
 
-To install the delta-kernel-rust-sharing-wrapper package manually:
+You can also use an older version of the delta-sharing package which did not bake delta-kernel-rust-sharing-wrapper into the installation with the following:
 ```
-# you need to use the older version of the delta-sharing package which did not bake delta-kernel-rust-sharing-wrapper into the installation
-pip3 install delta-sharing==1.1.0 
+pip3 install delta-sharing==1.0.5
+```
 
+You can also install the delta-kernel-rust-sharing-wrapper package manually:
+```
 cd [delta-sharing-root]/python/delta-kernel-rust-sharing-wrapper
 python3 -m venv .venv
 source .venv/bin/activate
@@ -107,6 +110,9 @@ If the table supports history sharing(`tableConfig.cdfEnabled=true` in the OSS D
 ```python
 # Load table changes from version 0 to version 5, as a Pandas DataFrame.
 delta_sharing.load_table_changes_as_pandas(table_url, starting_version=0, ending_version=5)
+
+# Load table changes from version 0 to version 5 as a Pandas DataFrame, explicitly using Delta Format.
+delta_sharing.load_table_changes_as_pandas(table_url, starting_version=0, ending_version=5, use_delta_format=True)
 
 # If the code is running with PySpark, you can load table changes as Spark DataFrame.
 delta_sharing.load_table_changes_as_spark(table_url, starting_version=0, ending_version=5)

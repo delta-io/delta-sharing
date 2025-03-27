@@ -51,10 +51,7 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
     return (profile, share, schema, table)
 
 
-def get_table_version(
-    url: str,
-    starting_timestamp: Optional[str] = None
-) -> int:
+def get_table_version(url: str, starting_timestamp: Optional[str] = None) -> int:
     """
     Get the shared table version using the given url.
 
@@ -66,36 +63,47 @@ def get_table_version(
     profile = DeltaSharingProfile.read_from_file(profile_json)
     rest_client = DataSharingRestClient(profile)
     response = rest_client.query_table_version(
-        Table(name=table, share=share, schema=schema),
-        starting_timestamp
+        Table(name=table, share=share, schema=schema), starting_timestamp
     )
     return response.delta_table_version
 
 
-def get_table_protocol(url: str) -> Protocol:
+def __get_table_metadata(rest_client: DataSharingRestClient, table: Table, use_delta_format: bool):
+    if use_delta_format:
+        rest_client.set_sharing_capabilities_header()
+        response = rest_client.query_table_metadata(table)
+        rest_client.remove_sharing_capabilities_header()
+    else:
+        response = rest_client.query_table_metadata(table)
+    return response
+
+
+def get_table_protocol(url: str, use_delta_format: bool = True) -> Protocol:
     """
     Get the shared table protocol using the given url.
 
     :param url: a url under the format "<profile>#<share>.<schema>.<table>"
     """
-    profile_json, share, schema, table = _parse_url(url)
+    profile_json, share, schema, table_name = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
     rest_client = DataSharingRestClient(profile)
-    response = rest_client.query_table_metadata(Table(name=table, share=share, schema=schema))
-    return response.protocol
+    table = Table(name=table_name, share=share, schema=schema)
+    full_metadata = __get_table_metadata(rest_client, table, use_delta_format)
+    return full_metadata.protocol
 
 
-def get_table_metadata(url: str) -> Metadata:
+def get_table_metadata(url: str, use_delta_format: bool = True) -> Metadata:
     """
     Get the shared table metadata using the given url.
 
     :param url: a url under the format "<profile>#<share>.<schema>.<table>"
     """
-    profile_json, share, schema, table = _parse_url(url)
+    profile_json, share, schema, table_name = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
     rest_client = DataSharingRestClient(profile)
-    response = rest_client.query_table_metadata(Table(name=table, share=share, schema=schema))
-    return response.metadata
+    table = Table(name=table_name, share=share, schema=schema)
+    full_metadata = __get_table_metadata(rest_client, table, use_delta_format)
+    return full_metadata.metadata
 
 
 def load_as_pandas(
@@ -127,14 +135,12 @@ def load_as_pandas(
         limit=limit,
         version=version,
         timestamp=timestamp,
-        use_delta_format=use_delta_format
+        use_delta_format=use_delta_format,
     ).to_pandas()
 
 
 def load_as_spark(
-    url: str,
-    version: Optional[int] = None,
-    timestamp: Optional[str] = None
+    url: str, version: Optional[int] = None, timestamp: Optional[str] = None
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed,
@@ -170,7 +176,7 @@ def load_table_changes_as_spark(
     starting_version: Optional[int] = None,
     ending_version: Optional[int] = None,
     starting_timestamp: Optional[str] = None,
-    ending_timestamp: Optional[str] = None
+    ending_timestamp: Optional[str] = None,
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the table changes of a shared table as a Spark DataFrame using the given url.
@@ -191,7 +197,8 @@ def load_table_changes_as_spark(
         from pyspark.sql import SparkSession
     except ImportError:
         raise ImportError(
-            "Unable to import pyspark. `load_table_changes_as_spark` requires PySpark.")
+            "Unable to import pyspark. `load_table_changes_as_spark` requires PySpark."
+        )
 
     spark = SparkSession.getActiveSession()
     assert spark is not None, (
@@ -215,7 +222,8 @@ def load_table_changes_as_pandas(
     starting_version: Optional[int] = None,
     ending_version: Optional[int] = None,
     starting_timestamp: Optional[str] = None,
-    ending_timestamp: Optional[str] = None
+    ending_timestamp: Optional[str] = None,
+    use_delta_format: Optional[bool] = None,
 ) -> pd.DataFrame:
     """
     Load the table changes of shared table as a pandas DataFrame using the given url.
@@ -235,12 +243,18 @@ def load_table_changes_as_pandas(
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
-    ).table_changes_to_pandas(CdfOptions(
-        starting_version=starting_version,
-        ending_version=ending_version,
-        starting_timestamp=starting_timestamp,
-        ending_timestamp=ending_timestamp,
-    ))
+        use_delta_format=use_delta_format,
+    ).table_changes_to_pandas(
+        CdfOptions(
+            starting_version=starting_version,
+            ending_version=ending_version,
+            starting_timestamp=starting_timestamp,
+            ending_timestamp=ending_timestamp,
+            # when using delta format, we need to get metadata changes and
+            # handle them properly when replaying the delta log
+            include_historical_metadata=use_delta_format,
+        )
+    )
 
 
 class SharingClient:
