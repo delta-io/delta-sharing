@@ -42,6 +42,11 @@
   - [JSON predicates for Filtering](#json-predicates-for-filtering)
   - [Delta Sharing Streaming Specs](#delta-sharing-streaming-specs)
 - [Profile File Format](#profile-file-format)
+  - [Profile Version 1](#profile-version-1)
+  - [Profile Version 2](#profile-version-2)
+    - [Basic](#basic)
+    - [Bearer Token](#bearer-token)
+    - [OAuth Client Credentials](#oauth-client-credentials)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -3288,7 +3293,11 @@ assuming the process time of the delta sharing server grows linearly with `maxVe
 
 # Profile File Format
 
-A profile file is a JSON file that contains the information for a recipient to access shared data on a Delta Sharing server. There are a few fields in this file as listed below.
+A profile file is a JSON file that contains the information for a recipient to access shared data on a Delta Sharing server. 
+
+## Profile Version 1:
+
+Supported in all versions of Delta Sharing.
 
 Field Name | Descrption
 -|-
@@ -3305,5 +3314,81 @@ Example:
   "endpoint": "https://sharing.delta.io/delta-sharing/",
   "bearerToken": "<token>",
   "expirationTime": "2021-11-12T00:12:29.0Z"
+}
+```
+
+## Profile Version 2:
+
+Supported in Delta Sharing 1.2.0 and above
+
+The available schema types are described below:
+
+### Basic
+
+Field Name | Descrption
+-|-
+shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client.
+type | Should be set to "basic".
+endpoint | The url of the sharing server.
+username | The username to access the server.
+password | The password to access the server.
+
+Example:
+
+```json
+{
+    "shareCredentialsVersion": 2,
+    "type": "basic",
+    "endpoint": "https://sharing.delta.io/delta-sharing/",
+    "username": "username",
+    "password": "password"
+}
+```
+
+### Bearer Token
+   
+Field Name | Descrption
+-|-
+shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client.
+type | Should be set to "bearer_token".
+endpoint | The url of the sharing server.
+bearerToken | The [bearer token](https://tools.ietf.org/html/rfc6750) to access the server.
+expirationTime | The expiration time of the bearer token in [ISO 8601 format](https://www.w3.org/TR/NOTE-datetime). This field is optional and if it is not provided, the bearer token can be seen as never expire.
+
+Example:
+
+```json
+{
+  "shareCredentialsVersion": 2,
+  "type": "bearer_token",
+  "endpoint": "https://sharing.delta.io/delta-sharing/",
+  "bearerToken": "<token>",
+  "expirationTime": "2021-11-12T00:12:29.0Z"
+}
+```
+
+### OAuth Client Credentials
+
+Allows OAuth client credential grants. The access token is managed internally and refreshed when it is about to expire.
+
+Field Name | Descrption
+-|-
+shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client.
+type | Should be set to "oauth_client_credentials".
+endpoint | The url of the sharing server.
+tokenEndpoint | The url of the identity provider that issues the token.
+clientId | Unique identity of client, registered in identity provider.
+clientSecret | Secret used to authenticate.
+
+Example:
+
+```json
+{
+    "shareCredentialsVersion": 2,
+    "type": "oauth_client_credentials",
+    "endpoint": "https://sharing.delta.io/delta-sharing/",
+    "tokenEndpoint": "tokenEndpoint",
+    "clientId": "clientId",
+    "clientSecret": "clientSecret"
 }
 ```
