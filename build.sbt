@@ -19,14 +19,17 @@ import sbt.ExclusionRule
 ThisBuild / parallelExecution := false
 
 val sparkVersion = "3.3.2"
-val scala212 = "2.12.10"
-val scala213 = "2.13.11"
+val scala212 = "2.12.20"
+val scala213 = "2.13.15"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
   fork := true,
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
-  scalacOptions += "-target:jvm-1.8",
+  scalacOptions ++= Seq(
+    "-target:jvm-1.8",
+    if (scalaVersion.value.startsWith("2.12")) "-Ywarn-unused-import" else "-Ywarn-unused:imports",
+  ),
   // Configurations to speed up tests and reduce memory footprint
   Test / javaOptions ++= Seq(
     "-Dspark.ui.enabled=false",
