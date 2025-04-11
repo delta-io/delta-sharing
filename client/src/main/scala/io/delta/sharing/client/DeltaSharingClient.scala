@@ -357,6 +357,12 @@ class DeltaSharingRestClient(
         getDsQueryIdForLogging)
     }
 
+    logInfo(
+      s"getMetadata for table ${table}, version ${response.version} " +
+        s"with response format ${response.respondedFormat} " +
+        s"with metadata ${response.lines(1)}" + getDsQueryIdForLogging
+    )
+
     if (response.respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(
         response.version,
@@ -421,7 +427,7 @@ class DeltaSharingRestClient(
       refreshToken = refreshToken,
       idempotency_key = idempotency_key
     )
-
+    val startTime = System.currentTimeMillis()
     val updatedRequest = if (queryTablePaginationEnabled) {
         request.copy(
           maxFiles = Some(maxFilesPerReq))
@@ -436,6 +442,16 @@ class DeltaSharingRestClient(
       respondedFormat,
       rpc = s"getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf)",
       table = getFullTableName(table)
+    )
+
+    logInfo(
+      s"getFiles for table $table, predicate $predicates, limit $limit, " +
+      s"versionAsOf $versionAsOf, timestampAsOf $timestampAsOf, " +
+      s"jsonPredicateHints $jsonPredicateHints, refreshToken $refreshToken, " +
+      s"idempotency_key $idempotency_key\n" +
+      s"Response: version $version, respondedFormat $respondedFormat, lines ${lines.size}, " +
+      s"refreshTokenOpt $refreshTokenOpt, " +
+      s"time cost ${(System.currentTimeMillis() - startTime) / 1000.0}s."
     )
 
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {

@@ -148,6 +148,8 @@ class CachedTableManager(
     }
     cachedTable.lastAccess = System.currentTimeMillis()
     val url = cachedTable.idToUrl.getOrElse(fileId, {
+      logInfo(s"${cachedTable.idToUrl.size} urls in cache " +
+        s"with expiration ${new java.util.Date(cachedTable.expiration)}")
       throw new IllegalStateException(s"cannot find url for id $fileId in table $tablePath")
     })
     (url, cachedTable.expiration)
@@ -185,6 +187,11 @@ class CachedTableManager(
     val (resolvedIdToUrl, resolvedExpiration, resolvedRefreshToken) =
       if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
         val refreshRes = customRefresher(refreshToken)
+        logInfo(s"Refreshed urls during cache register with old expiration " +
+          s"${new java.util.Date(expirationTimestamp)}, " +
+          s"new expiration ${new java.util.Date(refreshRes.expirationTimestamp.get)}, " +
+          s"lines ${refreshRes.idToUrl.size}")
+
         if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
           (refreshRes.idToUrl, refreshRes.expirationTimestamp.get, refreshRes.refreshToken)
         } else {
