@@ -112,7 +112,7 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
 
 Note: the `items` field may be an empty array or missing when no results are found. The client must handle both cases.
 
-Note: the `name` field format should be checked in the sharing service. `name` must not exceed 255 characters and must not contain restricted characters spaces, forward slashes ``/``, or ASCII control characters ``\x00-\x1F`` or ``\x7F``). 
+Note: the format of the `name` field should be checked in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
 Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and stay immutable through the share's lifecycle. The format recommendation of `id` is UUID.
 
@@ -307,7 +307,7 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.
 
 Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and stay immutable through the share's lifecycle. The format recommendation of `id` is UUID.
 
-Note: the `name` field format should be checked in the sharing service. `name` must not exceed 255 characters and must not contain restricted characters spaces, forward slashes ``/``, or ASCII control characters ``\x00-\x1F`` or ``\x7F``). 
+Note: the format of the `name` field should be checked in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
 </td>
 </tr>
@@ -527,7 +527,7 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
 
 Note: the `items` field may be an empty array or missing when no results are found. The client must handle both cases.
 
-Note: the `share` field format should be checked in the sharing service. `name` must not exceed 255 characters and must not contain restricted characters spaces, forward slashes ``/``, or ASCII control characters ``\x00-\x1F`` or ``\x7F``). 
+Note: the format of the `name` and `share` fields should be checked in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
 </td>
@@ -757,7 +757,7 @@ Note: the `items` field may be an empty array or missing when no results are fou
 
 Note: the `id` field is optional. If `id` is populated for a table, its value should be unique within the share and stay immutable through the table's lifecycle. The format recommendation of `id` is UUID.
 
-Note: the `share` field format should be checked in the sharing service. `name` must not exceed 255 characters and must not contain restricted characters spaces, forward slashes ``/``, or ASCII control characters ``\x00-\x1F`` or ``\x7F``). 
+Note: the format of the `name`, `schema`, and `share` fields should be checked in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
 Note: the `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
 
@@ -998,7 +998,7 @@ Note: the `items` field may be an empty array or missing when no results are fou
 
 Note: the `id` field is optional. If `id` is populated for a table, its value should be unique within the share and stay immutable through the table's lifecycle. The format recommendation of `id` is UUID.
 
-Note: the `share` field format should be checked in the sharing service. `name` must not exceed 255 characters and must not contain restricted characters spaces, forward slashes ``/``, or ASCII control characters ``\x00-\x1F`` or ``\x7F``). 
+Note: the format of the `name`, `schema`, and `share` fields should be checked in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
 Note: the `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
 
@@ -3318,15 +3318,15 @@ Example:
 }
 ```
 
-# Share Name Constraints
+# Names
 
-To ensure compatibility and avoid issues across different sharing servers, a share name must not be empty, must be at most 255 characters and must not contain restricted characters spaces, forward slashes ``/``, or ASCII control characters ``\x00-\x1F`` or ``\x7F``).
+Share, schema, and table objects are identifiable by names. To ensure compatibility and avoid issues across different sharing servers, the following limitations apply for object names:
 
-Examples of invalid share names:
-- `invalid/share`
-- ``
-- ` `
-- `with space`
-- ` starting_space`
-- `ending_space `
-- `DEL\u007Fcharacters`
+- Object names cannot exceed 255 characters.
+- The following special characters are not allowed for all object names:
+  - Space (` `)
+  - Forward slash (`/`)
+  - All ASCII control characters (`00-1F` hex)
+  - The DELETE character (`7f` hex)
+- Table and Schema object names additionally do not allow special character Period (`.`)
+- Object names are case-insensitive
