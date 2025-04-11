@@ -55,7 +55,6 @@ import io.delta.sharing.client.model.{
 }
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
-import io.delta.sharing.spark.util.QueryUtils
 import io.delta.sharing.spark.util.SchemaUtils
 
 /**
@@ -109,12 +108,7 @@ private[sharing] class RemoteDeltaLog(
       )
     }
 
-    val params = new RemoteDeltaFileIndexParams(
-      spark,
-      snapshotToUse,
-      client.getProfileProvider,
-      None
-    )
+    val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
     val fileIndex = new RemoteDeltaSnapshotFileIndex(params, None)
     if (ConfUtils.limitPushdownEnabled(spark.sessionState.conf)) {
       DeltaSharingLimitPushDown.setup(spark)
@@ -279,8 +273,7 @@ class RemoteSnapshot(
       filters: Seq[Expression],
       limitHint: Option[Long],
       jsonPredicateHints: Option[String],
-      fileIndex: RemoteDeltaSnapshotFileIndex,
-      queryParamsHashId: Option[String]): Seq[AddFile] = {
+      fileIndex: RemoteDeltaSnapshotFileIndex): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
@@ -297,10 +290,6 @@ class RemoteSnapshot(
     if (predicates.nonEmpty) {
       logDebug(s"Sending predicates $predicates to the server")
     }
-
-    val tablePathWithParams = QueryUtils.getTablePathWithIdSuffix(
-      fileIndex.params.path.toString, queryParamsHashId.getOrElse("")
-    )
 
     val remoteFiles = {
       val implicits = spark.implicits
@@ -322,7 +311,7 @@ class RemoteSnapshot(
       }.toMap
       CachedTableManager.INSTANCE
         .register(
-          tablePathWithParams,
+          fileIndex.params.path.toString,
           idToUrl,
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
