@@ -358,9 +358,8 @@ class DeltaSharingRestClient(
     }
 
     logInfo(
-      s"getMetadata for table ${table}, version ${response.version} " +
-        s"with response format ${response.respondedFormat} " +
-        s"with metadata ${response.lines(1)}" + getDsQueryIdForLogging
+      s"Fetched metadata for table ${getFullTableName(table)}, version ${response.version} " +
+        s"with response format ${response.respondedFormat}" + getDsQueryIdForLogging
     )
 
     if (response.respondedFormat == RESPONSE_FORMAT_DELTA) {
@@ -445,7 +444,7 @@ class DeltaSharingRestClient(
     )
 
     logInfo(
-      s"getFiles for table $table, predicate $predicates, limit $limit, " +
+      s"Fetched files for table ${getFullTableName(table)}, predicate $predicates, limit $limit, " +
       s"versionAsOf $versionAsOf, timestampAsOf $timestampAsOf, " +
       s"jsonPredicateHints $jsonPredicateHints, refreshToken $refreshToken, " +
       s"idempotency_key $idempotency_key\n" +
@@ -659,8 +658,6 @@ class DeltaSharingRestClient(
       }
     }
 
-    logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
-      s"of ${allLines.size} files for table " + getFullTableName(table) + getDsQueryIdForLogging)
     (version, respondedFormat, allLines.toSeq, refreshToken)
   }
 
