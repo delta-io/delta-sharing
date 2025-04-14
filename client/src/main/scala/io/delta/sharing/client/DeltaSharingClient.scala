@@ -577,7 +577,6 @@ class DeltaSharingRestClient(
       targetUrl: String,
       request: QueryTableRequest): (Long, String, Seq[String], Option[String]) = {
     val allLines = ArrayBuffer[String]()
-    val start = System.currentTimeMillis()
     var numPages = 1
 
     val (version, respondedFormat, lines, queryIdOpt) = if (enableAsyncQuery) {
