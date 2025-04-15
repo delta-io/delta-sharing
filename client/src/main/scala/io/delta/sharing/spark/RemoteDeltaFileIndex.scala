@@ -31,8 +31,14 @@ import io.delta.sharing.filters.{AndOp, BaseOp, OpConverter}
 import io.delta.sharing.spark.util.QueryUtils
 
 /*
-* queryParamsHashId is used to distinguish different queries with the same table path.
-*/
+ * The `queryParamsHashId` is used to distinguish queries that share the same table path.
+ * For streaming and CDF queries, all file actions are retrieved and cached from the server,
+ * so `queryParamsHashId` only includes the start and end versions.
+ * For normal queries, different Parquet files are retrieved and cached based on filters,
+ * resulting in unique `queryParamsHashId` values for each `FileIndex.listFiles` call.
+ * Therefore, `queryParamsHashId` here is `Some()` for streaming and CDF queries, and `None` for normal queries.
+ * For normal queries, the `queryParamsHashId` is constructed during `listFiles` calls.
+ */
 private[sharing] case class RemoteDeltaFileIndexParams(
     spark: SparkSession,
     snapshotAtAnalysis: RemoteSnapshot,
@@ -52,6 +58,12 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
 
   override def rootPaths: Seq[Path] = params.path :: Nil
 
+  /*
+   * Builds a Delta Sharing path for a file action. The result includes both the table path and file
+   * ID, which are used to retrieve the file URL from the pre-signed URL cache. Adding `queryParamHashId`
+   * to the path distinguishes different queries sharing the same table path, ensuring unique entries
+   * in the pre-signed URL cache for different query shapes.
+   */
   protected def toDeltaSharingPath(f: FileAction, queryParamsHashId: Option[String]): Path = {
     val tablePathWithParams = QueryUtils.getTablePathWithIdSuffix(
       params.profileProvider.getCustomTablePath(params.path.toString),
@@ -166,14 +178,14 @@ private[sharing] case class RemoteDeltaSnapshotFileIndex(
     override val params: RemoteDeltaFileIndexParams,
     limitHint: Option[Long]) extends RemoteDeltaFileIndexBase(params) {
 
-  // All the files for a table are returned
+  // Retrieves and caches all files for the latest version of the table from the server.
   override def inputFiles: Array[String] = {
     params.snapshotAtAnalysis.filesForScan(Nil, None, None, this, None)
       .map(f => toDeltaSharingPath(f, None).toString)
       .toArray
   }
 
-  // Only return files that match the partition filters and limit.
+  // Retrieves and caches files that match the partition filters and limit.
   override def listFiles(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {

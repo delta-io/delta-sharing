@@ -298,6 +298,8 @@ class RemoteSnapshot(
       logDebug(s"Sending predicates $predicates to the server")
     }
 
+    // Ensure different query shapes against the same table have distinct entries
+    // in the pre-signed URL cache.
     val tablePathWithParams = QueryUtils.getTablePathWithIdSuffix(
       fileIndex.params.path.toString, queryParamsHashId.getOrElse("")
     )
