@@ -798,9 +798,14 @@ case class DeltaSharingSource(
       add.id -> add.url
     }.toMap
 
+    // For streaming queries, we return a DataFrame.
+    // The FileIndex here is a one-time use object to help read Parquet contents.
     val params = new RemoteDeltaFileIndexParams(
       spark, initSnapshot, deltaLog.client.getProfileProvider, Some(queryParamsHashId))
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
+
+    // Ensure different query shapes against the same table have distinct entries
+    // in the pre-signed URL cache.
     val tablePathWithParams = QueryUtils.getTablePathWithIdSuffix(
       params.path.toString, params.queryParamsHashId.get
     )

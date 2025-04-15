@@ -41,7 +41,7 @@ object QueryUtils {
     Hashing.sha256().hashString(cdfOptions.toString, UTF_8).toString
   }
 
-  // Get a query hash id based on the query parameters for CDF streaming queries
+  // Get a query hash id based on the query parameters for streaming queries
   def getQueryParamsHashId(
      startVersion: Long,
      startIndex: Long,
