@@ -450,7 +450,7 @@ class DeltaSharingRestClient(
       s"idempotency_key $idempotency_key\n" +
       s"Response: version $version, respondedFormat $respondedFormat, lines ${lines.size}, " +
       s"refreshTokenOpt $refreshTokenOpt, " +
-      s"time cost ${(System.currentTimeMillis() - startTime) / 1000.0}s."
+      s"time cost ${(System.currentTimeMillis() - startTime) / 1000.0}s." + getDsQueryIdForLogging
     )
 
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
