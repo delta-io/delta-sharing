@@ -357,6 +357,11 @@ class DeltaSharingRestClient(
         getDsQueryIdForLogging)
     }
 
+    logInfo(
+      s"Fetched metadata for table ${getFullTableName(table)}, version ${response.version} " +
+        s"with response format ${response.respondedFormat}" + getDsQueryIdForLogging
+    )
+
     if (response.respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(
         response.version,
@@ -421,7 +426,7 @@ class DeltaSharingRestClient(
       refreshToken = refreshToken,
       idempotency_key = idempotency_key
     )
-
+    val startTime = System.currentTimeMillis()
     val updatedRequest = if (queryTablePaginationEnabled) {
         request.copy(
           maxFiles = Some(maxFilesPerReq))
@@ -436,6 +441,16 @@ class DeltaSharingRestClient(
       respondedFormat,
       rpc = s"getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf)",
       table = getFullTableName(table)
+    )
+
+    logInfo(
+      s"Fetched files for table ${getFullTableName(table)}, predicate $predicates, limit $limit, " +
+      s"versionAsOf $versionAsOf, timestampAsOf $timestampAsOf, " +
+      s"jsonPredicateHints $jsonPredicateHints, refreshToken $refreshToken, " +
+      s"idempotency_key $idempotency_key\n" +
+      s"Response: version $version, respondedFormat $respondedFormat, lines ${lines.size}, " +
+      s"refreshTokenOpt $refreshTokenOpt, " +
+      s"time cost ${(System.currentTimeMillis() - startTime) / 1000.0}s." + getDsQueryIdForLogging
     )
 
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
@@ -562,7 +577,6 @@ class DeltaSharingRestClient(
       targetUrl: String,
       request: QueryTableRequest): (Long, String, Seq[String], Option[String]) = {
     val allLines = ArrayBuffer[String]()
-    val start = System.currentTimeMillis()
     var numPages = 1
 
     val (version, respondedFormat, lines, queryIdOpt) = if (enableAsyncQuery) {
@@ -643,8 +657,6 @@ class DeltaSharingRestClient(
       }
     }
 
-    logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
-      s"of ${allLines.size} files for table " + getFullTableName(table) + getDsQueryIdForLogging)
     (version, respondedFormat, allLines.toSeq, refreshToken)
   }
 
