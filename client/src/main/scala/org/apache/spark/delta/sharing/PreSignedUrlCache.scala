@@ -203,8 +203,8 @@ class CachedTableManager(
       if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
         val refreshRes = customRefresher(refreshToken)
         logInfo(s"Refreshed urls during cache register with old expiration " +
-          s"${new java.util.Date(expirationTimestamp)}, " +
-          s"new expiration ${new java.util.Date(refreshRes.expirationTimestamp.get)}, " +
+          s"${new java.util.Date(expirationTimestamp)}, new expiration " +
+          s"${refreshRes.expirationTimestamp.map(new java.util.Date(_)).getOrElse("None")}, " +
           s"lines ${refreshRes.idToUrl.size}")
 
         if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
