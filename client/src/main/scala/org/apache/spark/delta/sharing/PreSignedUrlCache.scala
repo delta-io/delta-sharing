@@ -106,6 +106,21 @@ class CachedTableManager(
           s"${new java.util.Date(cachedTable.expiration)}), token:${cachedTable.refreshToken}")
         try {
           val refreshRes = cachedTable.refresher(cachedTable.refreshToken)
+          // If the refresher returns a different list of fileId, we will log a warning.
+          if(refreshRes.idToUrl.size != cachedTable.idToUrl.size) {
+            logWarning(s"freshen urls size ${refreshRes.idToUrl.size} is not equal to " +
+              s"cached urls size ${cachedTable.idToUrl.size}")
+          }
+          val onlyInRefresh = refreshRes.idToUrl.keySet.diff(cachedTable.idToUrl.keySet)
+          val onlyInCached = cachedTable.idToUrl.keySet.diff(refreshRes.idToUrl.keySet)
+          if (onlyInRefresh.nonEmpty || onlyInCached.nonEmpty) {
+            if (onlyInRefresh.nonEmpty) {
+              logWarning(s"Keys only in refreshRes.idToUrl: ${onlyInRefresh.mkString(", ")}")
+            }
+            if (onlyInCached.nonEmpty) {
+              logWarning(s"Keys only in cachedTable.idToUrl: ${onlyInCached.mkString(", ")}")
+            }
+          }
           val newTable = new CachedTable(
             if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
               refreshRes.expirationTimestamp.get
@@ -148,6 +163,8 @@ class CachedTableManager(
     }
     cachedTable.lastAccess = System.currentTimeMillis()
     val url = cachedTable.idToUrl.getOrElse(fileId, {
+      logInfo(s"${cachedTable.idToUrl.size} urls in cache " +
+        s"with expiration ${new java.util.Date(cachedTable.expiration)}")
       throw new IllegalStateException(s"cannot find url for id $fileId in table $tablePath")
     })
     (url, cachedTable.expiration)
@@ -185,6 +202,11 @@ class CachedTableManager(
     val (resolvedIdToUrl, resolvedExpiration, resolvedRefreshToken) =
       if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
         val refreshRes = customRefresher(refreshToken)
+        logInfo(s"Refreshed urls during cache register with old expiration " +
+          s"${new java.util.Date(expirationTimestamp)}, new expiration " +
+          s"${refreshRes.expirationTimestamp.map(new java.util.Date(_)).getOrElse("None")}, " +
+          s"lines ${refreshRes.idToUrl.size}")
+
         if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
           (refreshRes.idToUrl, refreshRes.expirationTimestamp.get, refreshRes.refreshToken)
         } else {
