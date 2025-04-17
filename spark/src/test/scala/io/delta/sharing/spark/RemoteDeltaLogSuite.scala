@@ -22,19 +22,24 @@ import java.nio.file.Files
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
 import org.apache.spark.{SparkException, SparkFunSuite}
+import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference => SqlAttributeReference, EqualTo => SqlEqualTo, Literal => SqlLiteral}
 import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{DataType, FloatType, IntegerType, LongType, StringType, StructField, StructType}
 
-import io.delta.sharing.client.model.{DeltaTableMetadata, Table}
+import io.delta.sharing.client.model.Table
+import io.delta.sharing.spark.util.QueryUtils
+
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
   test("RemoteSnapshot getFiles with limit and jsonPredicateHints") {
     val spark = SparkSession.active
     spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "true")
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
 
     // sanity check for dummy client
     val client = new TestDeltaSharingClient()
@@ -49,14 +54,32 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     client.clear()
 
     // check snapshot
+    val limit = 2L
+    val jsonPredicate = "jsonPredicate1"
     val snapshot = new RemoteSnapshot(new Path("test"), client, Table("fe", "fi", "fo"))
-    val fileIndex = {
-      val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
-      RemoteDeltaSnapshotFileIndex(params, Some(2L))
-    }
-    snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex)
-    assert(TestDeltaSharingClient.limits === Seq(2L))
+    val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
+    val fileIndex = RemoteDeltaSnapshotFileIndex(params, Some(limit))
+    val queryParamsHashId = QueryUtils.getQueryParamsHashId(
+      "",
+      "",
+      jsonPredicate,
+      limit.toString,
+      0L
+    )
+    val actions = snapshot.filesForScan(
+      Nil, Some(limit), Some(jsonPredicate), fileIndex, Some(queryParamsHashId))
+    assert(TestDeltaSharingClient.limits === Seq(limit))
     assert(TestDeltaSharingClient.jsonPredicateHints === Seq("jsonPredicate1"))
+    actions.map { action =>
+      val tablePath = QueryUtils.getTablePathWithIdSuffix(
+        params.profileProvider.getCustomTablePath(params.path.toString),
+        queryParamsHashId
+      )
+      val (url, expiration) = CachedTableManager.INSTANCE.getPreSignedUrl(tablePath, action.id)
+      assert(!url.isEmpty)
+      assert(expiration > 0)
+    }
+
     client.clear()
 
     // check RemoteDeltaSnapshotFileIndex
@@ -562,7 +585,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     }
     if (expectError) {
       val e = intercept[SparkException] {
-        snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex)
+        snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex, None)
       }
       assert(
         e.getMessage.contains(
@@ -571,7 +594,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
         )
       )
     } else {
-      snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex)
+      snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex, None)
     }
   }
 

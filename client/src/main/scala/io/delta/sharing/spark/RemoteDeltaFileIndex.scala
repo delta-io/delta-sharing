@@ -36,14 +36,15 @@ import io.delta.sharing.spark.util.QueryUtils
  * so `queryParamsHashId` only includes the start and end versions.
  * For normal queries, different Parquet files are retrieved and cached based on filters,
  * resulting in unique `queryParamsHashId` values for each `FileIndex.listFiles` call.
- * Therefore, `queryParamsHashId` here is `Some()` for streaming and CDF queries, and `None` for normal queries.
- * For normal queries, the `queryParamsHashId` is constructed during `listFiles` calls.
+ * Therefore, `queryParamsHashId` here is `Some()` for streaming and CDF queries, and `None`
+ * for normal queries. For normal queries, the `queryParamsHashId` is constructed during
+ * `listFiles` calls.
  */
 private[sharing] case class RemoteDeltaFileIndexParams(
     spark: SparkSession,
     snapshotAtAnalysis: RemoteSnapshot,
     profileProvider: DeltaSharingProfileProvider,
-    queryParamsHashId: Option[String]) {
+    queryParamsHashId: Option[String] = None) {
   def path: Path = snapshotAtAnalysis.getTablePath
 }
 
@@ -58,17 +59,20 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
 
   override def rootPaths: Seq[Path] = params.path :: Nil
 
-  /*
-   * Builds a Delta Sharing path for a file action. The result includes both the table path and file
-   * ID, which are used to retrieve the file URL from the pre-signed URL cache. Adding `queryParamHashId`
-   * to the path distinguishes different queries sharing the same table path, ensuring unique entries
-   * in the pre-signed URL cache for different query shapes.
-   */
+  // Builds a Delta Sharing path for a file action. The result includes both the table path and
+  // file ID, which are used to retrieve the file URL from the pre-signed URL cache.
   protected def toDeltaSharingPath(f: FileAction, queryParamsHashId: Option[String]): Path = {
-    val tablePathWithParams = QueryUtils.getTablePathWithIdSuffix(
-      params.profileProvider.getCustomTablePath(params.path.toString),
-      queryParamsHashId.getOrElse("")
-    )
+    val tablePathWithParams =
+      if (ConfUtils.sparkParquetIOCacheEnabled(params.spark.sessionState.conf)) {
+        // Adding `queryParamHashId` to the path ensures unique entries in the pre-signed URL cache
+        // for different query shapes, distinguishing queries sharing the same table path.
+        QueryUtils.getTablePathWithIdSuffix(
+          params.profileProvider.getCustomTablePath(params.path.toString),
+          queryParamsHashId.getOrElse("")
+        )
+      } else {
+        params.profileProvider.getCustomTablePath(params.path.toString)
+      }
     DeltaSharingFileSystem.encode(tablePathWithParams, f)
   }
 
@@ -191,8 +195,6 @@ private[sharing] case class RemoteDeltaSnapshotFileIndex(
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     val jsonPredicateHints = convertToJsonPredicate(partitionFilters, dataFilters)
     val queryParamsHashId = QueryUtils.getQueryParamsHashId(
-      // Using .sql instead of toString because it doesn't include class pointer, which
-      // keeps the string the same for the same filters.
       partitionFilters.map(_.sql).mkString(";"),
       dataFilters.map(_.sql).mkString(";"),
       jsonPredicateHints.getOrElse(""),
