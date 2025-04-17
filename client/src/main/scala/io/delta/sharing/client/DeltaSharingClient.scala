@@ -329,6 +329,11 @@ class DeltaSharingRestClient(
       table = s"${table.share}.${table.schema}.${table.name}"
     )
 
+    logInfo(
+      s"Fetched metadata for table ${table.share}.${table.schema}.${table.name}" +
+        s", version ${version} with response format ${respondedFormat}" + getDsQueryIdForLogging
+    )
+
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(version, lines = lines, respondedFormat = respondedFormat)
     }
@@ -359,6 +364,7 @@ class DeltaSharingRestClient(
       timestampAsOf: Option[String],
       jsonPredicateHints: Option[String],
       refreshToken: Option[String]): DeltaTableFiles = {
+    val startTime = System.currentTimeMillis()
     // Retrieve refresh token when querying the latest snapshot.
     val includeRefreshToken = versionAsOf.isEmpty && timestampAsOf.isEmpty
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
@@ -402,6 +408,16 @@ class DeltaSharingRestClient(
       respondedFormat,
       rpc = s"getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf)",
       table = s"${table.share}.${table.schema}.${table.name}"
+    )
+
+    logInfo(
+      s"Fetched files for table ${table.share}.${table.schema}.${table.name}, " +
+        s"predicate $predicates, limit $limit, versionAsOf $versionAsOf, " +
+        s"timestampAsOf $timestampAsOf, jsonPredicateHints $jsonPredicateHints, " +
+        s"refreshToken $refreshToken, idempotency_key $idempotency_key\n" +
+        s"Response: version $version, respondedFormat $respondedFormat, lines ${lines.size}, " +
+        s"refreshTokenOpt $refreshTokenOpt, " +
+        s"time cost ${(System.currentTimeMillis() - startTime) / 1000.0}s." + getDsQueryIdForLogging
     )
 
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
@@ -520,7 +536,6 @@ class DeltaSharingRestClient(
       targetUrl: String,
       request: QueryTableRequest): (Long, String, Seq[String], Option[String]) = {
     val allLines = ArrayBuffer[String]()
-    val start = System.currentTimeMillis()
     var numPages = 1
 
     val (version, respondedFormat, lines, queryIdOpt) = if (enableAsyncQuery) {
@@ -598,9 +613,6 @@ class DeltaSharingRestClient(
       }
     }
 
-    // TODO: remove logging once changes are rolled out
-    logInfo(s"Took ${System.currentTimeMillis() - start} ms to query $numPages pages " +
-      s"of ${allLines.size} files," + getDsQueryIdForLogging)
     (version, respondedFormat, allLines.toSeq, refreshToken)
   }
 
