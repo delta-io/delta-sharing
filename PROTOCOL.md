@@ -269,12 +269,46 @@ Example:
 
 This is the API to get the metadata of a share.
 
-HTTP Request | Value
--- | --
-Method | `GET`
-Header | `Authorization: Bearer {token}`
-URL | `{prefix}/shares/{share}`
-URL Parameters | **{share}**: The share name to query. It's case-insensitive.
+<table>
+<tr>
+<th>HTTP Request</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Method</td>
+<td>
+
+`GET`
+
+</td>
+</tr>
+<tr>
+<td>Headers</td>
+<td>
+
+`Authorization: Bearer {token}`
+
+Optional: `delta-sharing-capabilities: includeSemanticMetadata=true`, see
+[Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details.
+
+</td>
+</tr>
+<tr>
+<td>URL</td>
+<td>
+
+`{prefix}/shares/{share}`
+
+</td>
+</tr>
+<tr>
+<td>URL Parameters</td>
+<td>
+
+**{share}**: The share name to query. It's case-insensitive.
+</td>
+</tr>
+</table>
 
 <details open>
 <summary><b>200: The share's metadata was successfully returned.</b></summary>
@@ -290,6 +324,9 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.
 
 `Content-Type: application/json; charset=utf-8`
 
+Optional: `delta-sharing-capabilities: includeSemanticMetadata=true`, see
+[Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details
+
 </td>
 </tr>
 <tr>
@@ -300,12 +337,13 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.
 {
   "share": {
     "name": "string",
-    "id": "string"
+    "id": "string",
+    "comment": "string"
   }
 }
 ```
 
-Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and stay immutable through the share's lifecycle. The format recommendation of `id` is UUID.
+Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and stay immutable through the share's lifecycle. The format recommendation of `id` is UUID. `comment` is only populated when `includeSemanticMetadata` is set to true in the request and response header.
 
 Note: check the format of the `name` field in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
@@ -1457,8 +1495,10 @@ This is the API for clients to query the table schema and other metadata.
 
 `Authorization: Bearer {token}`
 
-Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`, see 
+Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors;includeSemanticMetadata={includeSemanticMetadata}`, see 
 [Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details. 
+
+**{includeSemanticMetadata}** is whether or not the server included semantic metadata in the response. 
 
 </td>
 </tr>
@@ -1501,6 +1541,11 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
 
 **{version}** is a long value which represents the current table version.
 
+Optional: `delta-sharing-capabilities: includeSemanticMetadata={includeSemanticMetadata}`, see
+[Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details.
+
+**{includeSemanticMetadata}** is whether or not the server included semantic metadata in the response.
+
 </td>
 </tr>
 <tr>
@@ -1511,14 +1556,20 @@ A sequence of JSON strings delimited by newline.
 
 When `responseformat=parquet`, each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-parquet).
 
-The response contains two lines:
+The response can contain three lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Protocol](#protocol) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line) containing the table [Metadata](#metadata) object.
+- The third line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the table [SemanticMetadata](#semanticmetadata) object
+
+The third line is only included if the `includeSemanticMetadata` is set to true in the request and response header.
 
 When `responseformat=delta`, each line is a Json object defined in [API Response Format in Delta](#api-response-format-in-delta).
-The response contains two lines:
+The response can contain three lines:
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Protocol](#protocol-in-delta-format) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
+- The third line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the table [SemanticMetadata](#semanticmetadata) object
+
+The third line is only included if the `includeSemanticMetadata` is set to true in the request and response header.
 
 </td>
 </tr>
@@ -1687,6 +1738,7 @@ Example (See [API Response Format in Parquet](#api-response-format-in-parquet) f
 HTTP/2 200 
 content-type: application/x-ndjson; charset=utf-8
 delta-table-version: 123
+delta-sharing-capabilities: includeSemanticMetadata=true
 ```
 
 ```json
@@ -1704,6 +1756,35 @@ delta-table-version: 123
     "schemaString": "{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}",
     "partitionColumns": [
       "date"
+    ]
+  }
+}
+{
+  "semanticMetadata": {
+    "comment": "This is a table",
+    "columns": [
+      {
+        "name": "eventTime",
+        "comment": "The time of the event"
+      },
+      {
+        "name": "date",
+        "comment": "The date of the event"
+      }
+    ],
+    "table_constraints": [
+      {
+        "primary_key_constraint": {
+          "name": "pk",
+          "child_columns": ["eventTime"]
+        }
+      }
+    ],
+    "tags": [
+      {
+        "key": "tag1",
+        "value": "value1"
+      }
     ]
   }
 }
@@ -2519,7 +2600,7 @@ Each capability is in the format of "key=value1,value2", values are separated by
 Example: "responseformat=delta;readerfeatures=deletionvectors,columnmapping". All keys and values should
 be case-insensitive when processed by the server.
 
-This header can be used in the request for [Query Table Metadata](#query-table-metadata), 
+This header can be used in the request for [Get Share](#get-share), [Query Table Metadata](#query-table-metadata), 
 [Query Table](#read-data-from-a-table), and [Query Table Changes](#read-change-data-feed-from-a-table).
 
 **Compatibility**
@@ -2570,6 +2651,12 @@ that are able to process `responseformat=delta` will be released soon.
 readerfeatures is only useful when `responseformat=delta`, it includes values from [delta reader
 features](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#table-features). It's set by the
 caller of `DeltaSharingClient` to indicate its ability to process delta readerFeatures.
+
+### includeSemanticMetadata
+If `includeSemanticMetadata=true` is specified by the client, the server should include the new 
+semantic metadata in the response. Otherwise, it should not be included. If `includeSemanticMetadata=true`
+header is specified in the server response, the client should expect semantic metadata to be included in 
+the response and parse accordingly. It is expected for clients to ignore unrecognized fields when parsing the response.
 
 ## API Response Format in Parquet
 
@@ -2640,6 +2727,72 @@ Example (for illustration purposes; each JSON object must be a single line in th
     },
     "size": 123456,
     "numFiles": 5
+  }
+}
+```
+
+### SemanticMetadata
+Field Name | Data Type | Description | Optional/Required
+-|-|-|-
+comment | String | User-provided free-form text description<br><br>Max length: `65536` | Optional
+columns | Array\<[ColumnMetadata](#ColumnMetadata)> | Table column metadata. Should be a subset of the columns in schemaString<br><br>Max length: `32768` | Optional
+table_constraints | Array\<[TableConstraint](#TableConstraint)> | Constraints of the table. We currently only support primary key sharing<br><br>Max length: `1` | Optional
+tags | Array\<[TagKeyValue](#TagKeyValue)> | Tags assigned to the table<br><br>Max length: `50` | Optional
+
+#### ColumnMetadata
+Field Name | Data Type | Description | Optional/Required
+-|-|-|-
+name | String | Name of column<br><br>Max length: `255`<br>Regex: `[a-zA-Z0-9_@-]+` | Required
+comment | String | User-provided free-form text description<br><br>Max length: `65536` | Optional
+tags | Array\<[TagKeyValue](#TagKeyValue)> | Tags assigned to the column<br><br>Max length: `50` | Optional
+
+#### TagKeyValue
+Field Name | Data Type | Description | Optional/Required
+-|-|-|-
+key | String | Name of the tag<br><br>Max length: 255<br>Reserved characters: `. , - = / :` | Required
+value | String | Value of the tag associated with the key<br><br>Max length: `100` | Optional
+
+#### TableConstraint
+Field Name | Data Type | Description | Optional/Required
+-|-|-|-
+primary_key_constraint | [PrimaryKeyConstraint](#PrimaryKeyConstraint) | Primary key constraint for the table. There should only be 1 primary key | Required
+
+#### PrimaryKeyConstraint
+Field Name | Data Type | Description | Optional/Required
+-|-|-|-
+name | String | Name of the constraint<br><br>Max length: `255`<br>Regex: `[a-zA-Z0-9_@-]+` | Required
+child_columns | Array\<String> | Columns of the constraint. Columns cannot be nullable<br><br>Max name length: `255`<br>Regex: `[a-zA-Z0-9_@-]+`<br>Max array length: `32768` | Required
+
+Example (for illustration purposes; each JSON object must be a single line in the response):
+
+```json
+{
+  "semanticMetadata": {
+    "comment": "This is a table",
+    "columns": [
+      {
+        "name": "eventTime",
+        "comment": "The time of the event"
+      },
+      {
+        "name": "date",
+        "comment": "The date of the event"
+      }
+    ],
+    "table_constraints": [
+      {
+        "primary_key_constraint": {
+          "name": "pk",
+          "child_columns": ["eventTime"]
+        }
+      }
+    ],
+    "tags": [
+      {
+        "key": "tag1",
+        "value": "value1"
+      }
+    ]
   }
 }
 ```
