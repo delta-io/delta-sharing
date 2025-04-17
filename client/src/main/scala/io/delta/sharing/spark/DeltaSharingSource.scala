@@ -804,11 +804,16 @@ case class DeltaSharingSource(
       spark, initSnapshot, deltaLog.client.getProfileProvider, Some(queryParamsHashId))
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
 
-    // Ensure different query shapes against the same table have distinct entries
-    // in the pre-signed URL cache.
-    val tablePathWithParams = QueryUtils.getTablePathWithIdSuffix(
-      params.path.toString, params.queryParamsHashId.get
-    )
+    val tablePathWithParams = if (ConfUtils.sparkParquetIOCacheEnabled(spark.sessionState.conf)) {
+      // Ensure different query shapes against the same table have distinct entries
+      // in the pre-signed URL cache.
+      QueryUtils.getTablePathWithIdSuffix(
+        params.path.toString, params.queryParamsHashId.get
+      )
+    } else {
+      params.path.toString
+    }
+
     CachedTableManager.INSTANCE.register(
       tablePathWithParams,
       idToUrl,
