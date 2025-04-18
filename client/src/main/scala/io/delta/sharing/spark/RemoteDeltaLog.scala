@@ -279,7 +279,7 @@ class RemoteSnapshot(
       limitHint: Option[Long],
       jsonPredicateHints: Option[String],
       fileIndex: RemoteDeltaSnapshotFileIndex,
-      queryParamsHashId: Option[String]): Seq[AddFile] = {
+      queryParamsHashId: String): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
@@ -297,15 +297,16 @@ class RemoteSnapshot(
       logDebug(s"Sending predicates $predicates to the server")
     }
 
-    val tablePathWithParams = if (ConfUtils.sparkParquetIOCacheEnabled(spark.sessionState.conf)) {
-      // Ensure different query shapes against the same table have distinct entries
-      // in the pre-signed URL cache.
-      QueryUtils.getTablePathWithIdSuffix(
-        fileIndex.params.path.toString, queryParamsHashId.getOrElse("")
-      )
-    } else {
-      fileIndex.params.path.toString
-    }
+    val tablePathWithParams =
+      if (ConfUtils.sparkParquetIOCacheEnabled(spark.sessionState.conf)) {
+        // Ensure different query shapes against the same table have distinct entries
+        // in the pre-signed URL cache.
+        QueryUtils.getTablePathWithIdSuffix(
+          fileIndex.params.path.toString, queryParamsHashId
+        )
+      } else {
+        fileIndex.params.path.toString
+      }
 
     val remoteFiles = {
       val implicits = spark.implicits

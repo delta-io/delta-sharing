@@ -70,7 +70,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
       RemoteDeltaSnapshotFileIndex(params, Some(2L))
     }
-    snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex, None)
+    snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex, "")
     assert(TestDeltaSharingClient.limits === Seq(2L))
     assert(TestDeltaSharingClient.jsonPredicateHints === Seq("jsonPredicate1"))
     client.clear()
@@ -123,7 +123,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       0L
     )
     val actions = snapshot.filesForScan(
-      Nil, Some(limit), Some(jsonPredicate), fileIndex, Some(queryParamsHashId))
+      Nil, Some(limit), Some(jsonPredicate), fileIndex, queryParamsHashId)
     assert(TestDeltaSharingClient.limits === Seq(limit))
     assert(TestDeltaSharingClient.jsonPredicateHints === Seq("jsonPredicate1"))
     assert(actions.size == limit)
@@ -298,6 +298,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
         |  {"op":"column","name":"id","valueType":"int"},
         |  {"op":"literal","value":"21","valueType":"int"}]
         |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+
+    // Check delta sharing path for listFiles
     val queryParamsHashId = QueryUtils.getQueryParamsHashId(
       partitionFilters.map(_.sql).mkString(";"),
       "",
@@ -309,7 +311,6 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       fileIndex.params.profileProvider.getCustomTablePath(fileIndex.params.path.toString),
       queryParamsHashId
     )
-
     val listFilesResult = fileIndex.listFiles(partitionFilters, Seq.empty)
     assert(listFilesResult.size == 1)
     assert(listFilesResult(0).files.size == limit.get)
@@ -317,12 +318,24 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(listFilesResult(0).files(1).getPath.toString == s"delta-sharing:/${tablePath}/f2/0")
     assert(listFilesResult(0).files(2).getPath.toString == s"delta-sharing:/${tablePath}/f3/0")
 
+    // Check delta sharing path for inputFiles
+    val queryParamsHashId2 = QueryUtils.getQueryParamsHashId(
+      "",
+      "",
+      "",
+      "",
+      version.get
+    )
+    val tablePath2 = QueryUtils.getTablePathWithIdSuffix(
+      fileIndex.params.profileProvider.getCustomTablePath(fileIndex.params.path.toString),
+      queryParamsHashId2
+    )
     val inputFileList = fileIndex.inputFiles.toList
     assert(inputFileList.size == 4)
-    assert(inputFileList(0) == "delta-sharing:/prefix.test_/f1/0")
-    assert(inputFileList(1) == "delta-sharing:/prefix.test_/f2/0")
-    assert(inputFileList(2) == "delta-sharing:/prefix.test_/f3/0")
-    assert(inputFileList(3) == "delta-sharing:/prefix.test_/f4/0")
+    assert(inputFileList(0) == s"delta-sharing:/${tablePath2}/f1/0")
+    assert(inputFileList(1) == s"delta-sharing:/${tablePath2}/f2/0")
+    assert(inputFileList(2) == s"delta-sharing:/${tablePath2}/f3/0")
+    assert(inputFileList(3) == s"delta-sharing:/${tablePath2}/f4/0")
   }
 
   test("table path with queryParams of cdf query") {
@@ -878,7 +891,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     }
     if (expectError) {
       val e = intercept[SparkException] {
-        snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex, None)
+        snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex, "")
       }
       assert(
         e.getMessage.contains(
@@ -887,7 +900,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
         )
       )
     } else {
-      snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex, None)
+      snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex, "")
     }
   }
 
