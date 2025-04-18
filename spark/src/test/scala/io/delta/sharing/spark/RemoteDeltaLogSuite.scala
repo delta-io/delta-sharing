@@ -24,22 +24,33 @@ import org.apache.hadoop.fs.Path
 import org.apache.spark.{SparkException, SparkFunSuite}
 import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.expressions.{AttributeReference => SqlAttributeReference, EqualTo => SqlEqualTo, Literal => SqlLiteral}
+import org.apache.spark.sql.catalyst.expressions.{AttributeReference => SqlAttributeReference, EqualTo => SqlEqualTo, GreaterThan => SqlGreaterThan, Literal => SqlLiteral}
 import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{DataType, FloatType, IntegerType, LongType, StringType, StructField, StructType}
 
-import io.delta.sharing.client.model.Table
+import io.delta.sharing.client.DeltaSharingFileSystem
+import io.delta.sharing.client.model.{DeltaTableMetadata, Table}
 import io.delta.sharing.spark.util.QueryUtils
 
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
+  override def afterEach(): Unit = {
+    try {
+      val client = new TestDeltaSharingClient()
+      client.clear()
+
+      val spark = SparkSession.active
+      spark.sessionState.conf.setConfString(
+        "spark.delta.sharing.client.sparkParquetIOCache.enabled", "false")
+    } finally {
+      super.afterEach()
+    }
+  }
 
   test("RemoteSnapshot getFiles with limit and jsonPredicateHints") {
     val spark = SparkSession.active
     spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "true")
-    spark.sessionState.conf.setConfString(
-      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
 
     // sanity check for dummy client
     val client = new TestDeltaSharingClient()
@@ -54,7 +65,52 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     client.clear()
 
     // check snapshot
-    val limit = 2L
+    val snapshot = new RemoteSnapshot(new Path("test"), client, Table("fe", "fi", "fo"))
+    val fileIndex = {
+      val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
+      RemoteDeltaSnapshotFileIndex(params, Some(2L))
+    }
+    snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex, None)
+    assert(TestDeltaSharingClient.limits === Seq(2L))
+    assert(TestDeltaSharingClient.jsonPredicateHints === Seq("jsonPredicate1"))
+    client.clear()
+
+    // check RemoteDeltaSnapshotFileIndex
+
+    // We will send a simple equal op as a SQL expression tree.
+    val sqlEq = SqlEqualTo(
+      SqlAttributeReference("id", IntegerType)(),
+      SqlLiteral(23, IntegerType)
+    )
+    // The client should get json for jsonPredicateHints.
+    val expectedJson =
+      """{"op":"equal",
+        |"children":[
+        |  {"op":"column","name":"id","valueType":"int"},
+        |  {"op":"literal","value":"23","valueType":"int"}]
+        |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+
+    fileIndex.listFiles(Seq(sqlEq), Seq.empty)
+    assert(TestDeltaSharingClient.limits === Seq(2L))
+    assert(TestDeltaSharingClient.jsonPredicateHints.size === 1)
+    val receivedJson = TestDeltaSharingClient.jsonPredicateHints(0)
+    assert(receivedJson == expectedJson)
+
+    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "false")
+    client.clear()
+    fileIndex.listFiles(Seq(sqlEq), Seq.empty)
+    assert(TestDeltaSharingClient.jsonPredicateHints.size === 0)
+  }
+
+  test("read file urls from pre-signed url cache with queryParamsHashId") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "true")
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    val client = new TestDeltaSharingClient()
+
+    // check snapshot
+    val limit = 4L
     val jsonPredicate = "jsonPredicate1"
     val snapshot = new RemoteSnapshot(new Path("test"), client, Table("fe", "fi", "fo"))
     val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
@@ -70,7 +126,10 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       Nil, Some(limit), Some(jsonPredicate), fileIndex, Some(queryParamsHashId))
     assert(TestDeltaSharingClient.limits === Seq(limit))
     assert(TestDeltaSharingClient.jsonPredicateHints === Seq("jsonPredicate1"))
+    assert(actions.size == limit)
+
     actions.map { action =>
+      // Make sure we can read file urls for each file action.
       val tablePath = QueryUtils.getTablePathWithIdSuffix(
         params.profileProvider.getCustomTablePath(params.path.toString),
         queryParamsHashId
@@ -79,34 +138,268 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       assert(!url.isEmpty)
       assert(expiration > 0)
     }
+  }
 
-    client.clear()
+  test("distinct queries against the same table have different cache entries") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "true")
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    val client = new TestDeltaSharingClient()
+    val limit = 4L
+    val snapshot = new RemoteSnapshot(new Path("test"), client, Table("fe", "fi", "fo"))
+    val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
+    val fileIndex = RemoteDeltaSnapshotFileIndex(params, Some(limit))
+    val cacheSizeBegin = CachedTableManager.INSTANCE.size
 
-    // check RemoteDeltaSnapshotFileIndex
+    // Send query 1 without predicates.
+    val partitionDirectories1 = fileIndex.listFiles(Seq.empty, Seq.empty)
+    assert(TestDeltaSharingClient.limits === Seq(limit))
+    // For every file returned in listFiles, we should be able to get the pre-signed url.
+    val fileIds1: Seq[String] = partitionDirectories1.flatMap { partitionDirectory =>
+      assert(partitionDirectory.files.size == limit)
+      partitionDirectory.files.map { file =>
+        val path = DeltaSharingFileSystem.decode(file.getPath)
+        val (url, expiration) =
+          CachedTableManager.INSTANCE.getPreSignedUrl(path.tablePath, path.fileId)
+        assert(!url.isEmpty)
+        assert(expiration > 0)
+        path.fileId
+      }
+    }
+    client.clear
 
-    // We will send a simple equal op as a SQL expression tree.
-    val sqlEq = SqlEqualTo(
+    // Send query 2 with predicates.
+    val sqlEq = SqlGreaterThan(
       SqlAttributeReference("id", IntegerType)(),
-      SqlLiteral(23, IntegerType)
+      SqlLiteral(20, IntegerType)
     )
     // The client should get json for jsonPredicateHints.
     val expectedJson =
-      """{"op":"equal",
+      """{"op":"greaterThan",
          |"children":[
          |  {"op":"column","name":"id","valueType":"int"},
-         |  {"op":"literal","value":"23","valueType":"int"}]
+         |  {"op":"literal","value":"20","valueType":"int"}]
          |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
 
-    fileIndex.listFiles(Seq(sqlEq), Seq.empty)
-    assert(TestDeltaSharingClient.limits === Seq(2L))
+    val partitionDirectories2 = fileIndex.listFiles(Seq(sqlEq), Seq.empty)
+    assert(TestDeltaSharingClient.limits === Seq(limit))
     assert(TestDeltaSharingClient.jsonPredicateHints.size === 1)
     val receivedJson = TestDeltaSharingClient.jsonPredicateHints(0)
     assert(receivedJson == expectedJson)
+    // For every file returned in listFiles, we should be able to get the pre-signed url.
+    val fileIds2: Seq[String] = partitionDirectories2.flatMap { partitionDirectory =>
+      partitionDirectory.files.map { file =>
+        val path = DeltaSharingFileSystem.decode(file.getPath)
+        val (url, expiration) =
+          CachedTableManager.INSTANCE.getPreSignedUrl(path.tablePath, path.fileId)
+        assert(!url.isEmpty)
+        assert(expiration > 0)
+        path.fileId
+      }
+    }
+    // Different cacheEntry for different predicates.
+    assert(fileIds1 != fileIds2)
+    assert(CachedTableManager.INSTANCE.size == cacheSizeBegin +2)
+  }
 
-    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "false")
-    client.clear()
-    fileIndex.listFiles(Seq(sqlEq), Seq.empty)
-    assert(TestDeltaSharingClient.jsonPredicateHints.size === 0)
+  test("identical queries against the same table share same cache entries") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "true")
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    val client = new TestDeltaSharingClient()
+    val limit = 4L
+    val snapshot = new RemoteSnapshot(new Path("test"), client, Table("fe", "fi", "fo"))
+    val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
+    val fileIndex = RemoteDeltaSnapshotFileIndex(params, Some(limit))
+    val sqlEq = SqlGreaterThan(
+      SqlAttributeReference("id", IntegerType)(),
+      SqlLiteral(21, IntegerType)
+    )
+    val expectedJson =
+      """{"op":"greaterThan",
+        |"children":[
+        |  {"op":"column","name":"id","valueType":"int"},
+        |  {"op":"literal","value":"21","valueType":"int"}]
+        |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    val cacheSizeBegin = CachedTableManager.INSTANCE.size
+
+    // Send query 1 with predicates.
+    val partitionDirectories1 = fileIndex.listFiles(Seq(sqlEq), Seq.empty)
+    assert(TestDeltaSharingClient.limits === Seq(limit))
+    assert(TestDeltaSharingClient.jsonPredicateHints.size === 1)
+    val receivedJson = TestDeltaSharingClient.jsonPredicateHints(0)
+    assert(receivedJson == expectedJson)
+    // For every file returned in listFiles, we should be able to get the pre-signed url.
+    val fileIds1: Seq[String] = partitionDirectories1.flatMap { partitionDirectory =>
+      partitionDirectory.files.map { file =>
+        val path = DeltaSharingFileSystem.decode(file.getPath)
+        val (url, expiration) =
+          CachedTableManager.INSTANCE.getPreSignedUrl(path.tablePath, path.fileId)
+        assert(!url.isEmpty)
+        assert(expiration > 0)
+        path.fileId
+      }
+    }
+    client.clear
+
+    // Send query 2 with same predicates.
+    val partitionDirectories2 = fileIndex.listFiles(Seq(sqlEq), Seq.empty)
+    assert(TestDeltaSharingClient.limits === Seq(limit))
+    assert(TestDeltaSharingClient.jsonPredicateHints.size === 1)
+    val receivedJson2 = TestDeltaSharingClient.jsonPredicateHints(0)
+    assert(receivedJson2 == expectedJson)
+    // For every file returned in listFiles, we should be able to get the pre-signed url.
+    val fileIds2: Seq[String] = partitionDirectories2.flatMap { partitionDirectory =>
+      partitionDirectory.files.map { file =>
+        val path = DeltaSharingFileSystem.decode(file.getPath)
+        val (url, expiration) =
+          CachedTableManager.INSTANCE.getPreSignedUrl(path.tablePath, path.fileId)
+        assert(!url.isEmpty)
+        assert(expiration > 0)
+        path.fileId
+      }
+    }
+
+    // Same cacheEntry for same predicates.
+    assert(fileIds1 == fileIds2)
+    assert(CachedTableManager.INSTANCE.size == cacheSizeBegin +1)
+    client.clear
+  }
+
+  test("table path with queryParams of snapshot query") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "true")
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    val client = new TestDeltaSharingClient()
+    val version = Some(1L)
+    val limit = Some(3L)
+    val snapshot = new RemoteSnapshot(
+      new Path("test"),
+      client,
+      Table("fe", "fi", "fo"),
+      versionAsOf = version
+    )
+    val fileIndex = {
+      val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
+      RemoteDeltaSnapshotFileIndex(params, limit)
+    }
+    val partitionFilters = Seq(
+      SqlGreaterThan(
+        SqlAttributeReference("id", IntegerType)(),
+        SqlLiteral(21, IntegerType)
+      )
+    )
+    val jsonPredicateHints =
+      """{"op":"greaterThan",
+        |"children":[
+        |  {"op":"column","name":"id","valueType":"int"},
+        |  {"op":"literal","value":"21","valueType":"int"}]
+        |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    val queryParamsHashId = QueryUtils.getQueryParamsHashId(
+      partitionFilters.map(_.sql).mkString(";"),
+      "",
+      jsonPredicateHints,
+      limit.map(_.toString).get,
+      version.get
+    )
+    val tablePath = QueryUtils.getTablePathWithIdSuffix(
+      fileIndex.params.profileProvider.getCustomTablePath(fileIndex.params.path.toString),
+      queryParamsHashId
+    )
+
+    val listFilesResult = fileIndex.listFiles(partitionFilters, Seq.empty)
+    assert(listFilesResult.size == 1)
+    assert(listFilesResult(0).files.size == limit.get)
+    assert(listFilesResult(0).files(0).getPath.toString == s"delta-sharing:/${tablePath}/f1/0")
+    assert(listFilesResult(0).files(1).getPath.toString == s"delta-sharing:/${tablePath}/f2/0")
+    assert(listFilesResult(0).files(2).getPath.toString == s"delta-sharing:/${tablePath}/f3/0")
+
+    val inputFileList = fileIndex.inputFiles.toList
+    assert(inputFileList.size == 4)
+    assert(inputFileList(0) == "delta-sharing:/prefix.test_/f1/0")
+    assert(inputFileList(1) == "delta-sharing:/prefix.test_/f2/0")
+    assert(inputFileList(2) == "delta-sharing:/prefix.test_/f3/0")
+    assert(inputFileList(3) == "delta-sharing:/prefix.test_/f4/0")
+  }
+
+  test("table path with queryParams of cdf query") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    val path = new Path("test")
+    val table = Table("fe", "fi", "fo")
+    val client = new TestDeltaSharingClient()
+    val snapshot = new RemoteSnapshot(path, client, table)
+    // CDF queries cache all file actions for a table from a start version to an end version.
+    // No need to count filters into queryParamsHashId.
+    val queryParamsHashId = QueryUtils.getQueryParamsHashId(
+      Map("startingVersion" -> "0", "endingVersion" -> "100")
+    )
+    val params = RemoteDeltaFileIndexParams(
+      spark, snapshot, client.getProfileProvider, Some(queryParamsHashId))
+    val tablePath = QueryUtils.getTablePathWithIdSuffix(
+      params.profileProvider.getCustomTablePath(params.path.toString),
+      queryParamsHashId
+    )
+    val deltaTableFiles = client.getCDFFiles(table, Map.empty, false)
+
+    // Test CDFAddFileIndex
+    val addFilesIndex = new RemoteDeltaCDFAddFileIndex(params, deltaTableFiles.addFiles)
+    val addListFilesResult = addFilesIndex.listFiles(Seq.empty, Seq.empty)
+
+    assert(addListFilesResult.size == 1)
+    assert(addListFilesResult(0).files.size == 1)
+    assert(addListFilesResult(0).files(0).getPath.toString ==
+      s"delta-sharing:/${tablePath}/cdf_add1/100")
+
+    val addInputFileList = addFilesIndex.inputFiles.toList
+    assert(addInputFileList.size == 1)
+    assert(addInputFileList(0) == s"delta-sharing:/${tablePath}/cdf_add1/100")
+
+    // Test CDCFileIndex
+    val cdcIndex = new RemoteDeltaCDCFileIndex(params, deltaTableFiles.cdfFiles)
+    val cdcListFilesResult = cdcIndex.listFiles(Seq.empty, Seq.empty)
+    assert(cdcListFilesResult.size == 2)
+    // The partition dirs can be returned in any order.
+    val (cdcP1, cdcP2) = if (cdcListFilesResult(0).files.size == 1) {
+      (cdcListFilesResult(0), cdcListFilesResult(1))
+    } else {
+      (cdcListFilesResult(1), cdcListFilesResult(0))
+    }
+    assert(cdcP1.files.size == 1)
+    assert(cdcP1.files(0).getPath.toString == s"delta-sharing:/${tablePath}/cdf_cdc1/200")
+    assert(cdcP2.files.size == 2)
+    assert(cdcP2.files(0).getPath.toString == s"delta-sharing:/${tablePath}/cdf_cdc2/300")
+    assert(cdcP2.files(1).getPath.toString == s"delta-sharing:/${tablePath}/cdf_cdc3/310")
+
+    val cdcInputFileList = cdcIndex.inputFiles.toList
+    assert(cdcInputFileList.size == 3)
+    assert(cdcInputFileList(0) == s"delta-sharing:/${tablePath}/cdf_cdc1/200")
+    assert(cdcInputFileList(1) == s"delta-sharing:/${tablePath}/cdf_cdc2/300")
+    assert(cdcInputFileList(2) == s"delta-sharing:/${tablePath}/cdf_cdc3/310")
+
+    // Test CDFRemoveFileIndex
+    val removeFilesIndex = new RemoteDeltaCDFRemoveFileIndex(params, deltaTableFiles.removeFiles)
+    val removeListFilesResult = removeFilesIndex.listFiles(Seq.empty, Seq.empty)
+    assert(removeListFilesResult.size == 2)
+    val p1 = removeListFilesResult(0)
+    assert(p1.files.size == 1)
+    val p2 = removeListFilesResult(1)
+    assert(p2.files.size == 1)
+    // The partition dirs can be returned in any order.
+    assert(
+      (p1.files(0).getPath.toString == s"delta-sharing:/${tablePath}/cdf_rem1/400" &&
+        p2.files(0).getPath.toString == s"delta-sharing:/${tablePath}/cdf_rem2/420") ||
+        (p2.files(0).getPath.toString == s"delta-sharing:/${tablePath}/cdf_rem1/400" &&
+          p1.files(0).getPath.toString == s"delta-sharing:/${tablePath}/cdf_rem2/420")
+    )
+    val removeInputFileList = removeFilesIndex.inputFiles.toList
+    assert(removeInputFileList.size == 2)
+    assert(removeInputFileList(0) == s"delta-sharing:/${tablePath}/cdf_rem1/400")
+    assert(removeInputFileList(1) == s"delta-sharing:/${tablePath}/cdf_rem2/420")
   }
 
   test("jsonPredicateV2Hints test") {

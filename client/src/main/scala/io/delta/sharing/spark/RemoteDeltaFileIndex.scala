@@ -73,6 +73,7 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
       } else {
         params.profileProvider.getCustomTablePath(params.path.toString)
       }
+
     DeltaSharingFileSystem.encode(tablePathWithParams, f)
   }
 
