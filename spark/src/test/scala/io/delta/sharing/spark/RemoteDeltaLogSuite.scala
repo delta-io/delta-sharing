@@ -85,10 +85,10 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     // The client should get json for jsonPredicateHints.
     val expectedJson =
       """{"op":"equal",
-        |"children":[
-        |  {"op":"column","name":"id","valueType":"int"},
-        |  {"op":"literal","value":"23","valueType":"int"}]
-        |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+         |"children":[
+         |  {"op":"column","name":"id","valueType":"int"},
+         |  {"op":"literal","value":"23","valueType":"int"}]
+         |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
 
     fileIndex.listFiles(Seq(sqlEq), Seq.empty)
     assert(TestDeltaSharingClient.limits === Seq(2L))
@@ -349,7 +349,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     // CDF queries cache all file actions for a table from a start version to an end version.
     // No need to count filters into queryParamsHashId.
     val queryParamsHashId = QueryUtils.getQueryParamsHashId(
-      Map("startingVersion" -> "0", "endingVersion" -> "100")
+      Map(DeltaSharingOptions.CDF_START_VERSION -> "0",
+        DeltaSharingOptions.CDF_END_VERSION -> "100")
     )
     val params = RemoteDeltaFileIndexParams(
       spark, snapshot, client.getProfileProvider, Some(queryParamsHashId))
