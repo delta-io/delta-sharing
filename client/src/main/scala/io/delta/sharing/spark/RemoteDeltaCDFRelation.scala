@@ -23,7 +23,6 @@ import scala.collection.mutable.ListBuffer
 import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, Row, SparkSession, SQLContext}
-import org.apache.spark.sql.execution.LogicalRDD
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan}
@@ -31,6 +30,8 @@ import org.apache.spark.sql.types.StructType
 
 import io.delta.sharing.client.DeltaSharingClient
 import io.delta.sharing.client.model.{AddCDCFile, AddFileForCDF, RemoveFile, Table => DeltaSharingTable}
+import io.delta.sharing.client.util.ConfUtils
+import io.delta.sharing.spark.util.QueryUtils
 
 case class RemoteDeltaCDFRelation(
     spark: SparkSession,
@@ -49,7 +50,12 @@ case class RemoteDeltaCDFRelation(
     val deltaTabelFiles = client.getCDFFiles(table, cdfOptions, false)
 
     DeltaSharingCDFReader.changesToDF(
-      new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider),
+      new RemoteDeltaFileIndexParams(
+        spark,
+        snapshotToUse,
+        client.getProfileProvider,
+        Some(QueryUtils.getQueryParamsHashId(cdfOptions))
+      ),
       requiredColumns,
       deltaTabelFiles.addFiles,
       deltaTabelFiles.cdfFiles,
@@ -102,8 +108,19 @@ object DeltaSharingCDFReader {
     refs.append(new WeakReference(fileIndex3))
     dfs.append(scanIndex(fileIndex3, schema, isStreaming))
 
+    val tablePathWithParams =
+      if (ConfUtils.sparkParquetIOCacheEnabled(params.spark.sessionState.conf)) {
+        // Ensure different query shapes against the same table have distinct entries
+        // in the pre-signed URL cache.
+        QueryUtils.getTablePathWithIdSuffix(
+          params.path.toString, params.queryParamsHashId.get
+        )
+      } else {
+        params.path.toString
+      }
+
     CachedTableManager.INSTANCE.register(
-      params.path.toString,
+      tablePathWithParams,
       getIdToUrl(addFiles, cdfFiles, removeFiles),
       refs.toSeq,
       params.profileProvider,

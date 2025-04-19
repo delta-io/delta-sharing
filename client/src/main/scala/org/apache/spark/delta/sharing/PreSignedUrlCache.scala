@@ -73,6 +73,11 @@ class CachedTableManager(
     thread
   }
 
+  // Returning how many entries are in the cache.
+  def size(): Int = {
+    cache.size
+  }
+
   def isValidUrlExpirationTime(expiration: Option[Long]): Boolean = {
     // refreshThresholdMs is the buffer time for the refresh RPC.
     // It could also help the client from keeping refreshing endlessly.

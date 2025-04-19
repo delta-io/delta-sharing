@@ -55,6 +55,7 @@ import io.delta.sharing.client.model.{
 }
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
+import io.delta.sharing.spark.util.QueryUtils
 import io.delta.sharing.spark.util.SchemaUtils
 
 /**
@@ -108,7 +109,11 @@ private[sharing] class RemoteDeltaLog(
       )
     }
 
-    val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
+    val params = new RemoteDeltaFileIndexParams(
+      spark,
+      snapshotToUse,
+      client.getProfileProvider
+    )
     val fileIndex = new RemoteDeltaSnapshotFileIndex(params, None)
     if (ConfUtils.limitPushdownEnabled(spark.sessionState.conf)) {
       DeltaSharingLimitPushDown.setup(spark)
@@ -273,7 +278,8 @@ class RemoteSnapshot(
       filters: Seq[Expression],
       limitHint: Option[Long],
       jsonPredicateHints: Option[String],
-      fileIndex: RemoteDeltaSnapshotFileIndex): Seq[AddFile] = {
+      fileIndex: RemoteDeltaSnapshotFileIndex,
+      queryParamsHashId: String): Seq[AddFile] = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
@@ -290,6 +296,17 @@ class RemoteSnapshot(
     if (predicates.nonEmpty) {
       logDebug(s"Sending predicates $predicates to the server")
     }
+
+    val tablePathWithParams =
+      if (ConfUtils.sparkParquetIOCacheEnabled(spark.sessionState.conf)) {
+        // Ensure different query shapes against the same table have distinct entries
+        // in the pre-signed URL cache.
+        QueryUtils.getTablePathWithIdSuffix(
+          fileIndex.params.path.toString, queryParamsHashId
+        )
+      } else {
+        fileIndex.params.path.toString
+      }
 
     val remoteFiles = {
       val implicits = spark.implicits
@@ -311,7 +328,7 @@ class RemoteSnapshot(
       }.toMap
       CachedTableManager.INSTANCE
         .register(
-          fileIndex.params.path.toString,
+          tablePathWithParams,
           idToUrl,
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
