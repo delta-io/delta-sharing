@@ -41,10 +41,10 @@ import io.delta.sharing.spark.util.QueryUtils
  * The `queryParamsHashId` is used to distinguish queries that share the same table path.
  * For streaming and CDF queries, all file actions are retrieved and cached from the server,
  * so `queryParamsHashId` only includes the start and end versions.
- * For normal queries, different Parquet files are retrieved and cached based on filters,
+ * For snapshot queries, different Parquet files are retrieved and cached based on filters,
  * resulting in unique `queryParamsHashId` values for each `FileIndex.listFiles` call.
  * Therefore, `queryParamsHashId` here is `Some()` for streaming and CDF queries, and `None`
- * for normal queries. For normal queries, the `queryParamsHashId` is constructed during
+ * for snapshot queries. For snapshot queries, the `queryParamsHashId` is constructed during
  * `listFiles` calls.
  */
 private[sharing] case class RemoteDeltaFileIndexParams(
@@ -193,10 +193,6 @@ private[sharing] case class RemoteDeltaSnapshotFileIndex(
   // Retrieves and caches all files for a version of the table.
   override def inputFiles: Array[String] = {
     val queryParamsHashId = QueryUtils.getQueryParamsHashId(
-      partitionFiltersString = "",
-      dataFiltersString = "",
-      jsonPredicateHints = "",
-      limitHint = "",
       version = params.snapshotAtAnalysis.version
     )
     params.snapshotAtAnalysis.filesForScan(Nil, None, None, this, queryParamsHashId)

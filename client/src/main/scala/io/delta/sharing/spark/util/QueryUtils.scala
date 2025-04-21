@@ -24,14 +24,12 @@ import io.delta.sharing.spark.DeltaSharingSourceOffset
 
 object QueryUtils {
 
-  // Get a query hash id based on the query parameters for regular queries
-  // limitHint is Option(), so it can be None
-  // version is always present.
+  // Get a query hash id based on the query parameters for snapshot queries
   def getQueryParamsHashId(
-      partitionFiltersString: String,
-      dataFiltersString: String,
-      jsonPredicateHints: String,
-      limitHint: String,
+      partitionFiltersString: String = "",
+      dataFiltersString: String = "",
+      jsonPredicateHints: String = "",
+      limitHint: String = "",
       version: Long): String = {
     val fullQueryString = s"${partitionFiltersString}_${dataFiltersString}_" +
       s"${jsonPredicateHints}_${limitHint}_${version}"
