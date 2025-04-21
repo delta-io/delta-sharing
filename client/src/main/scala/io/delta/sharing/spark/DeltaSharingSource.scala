@@ -33,7 +33,7 @@ import org.apache.spark.sql.types.StructType
 
 import io.delta.sharing.client.model.{AddCDCFile, AddFile, AddFileForCDF, DeltaTableFiles, FileAction, RemoveFile}
 import io.delta.sharing.client.util.ConfUtils
-import io.delta.sharing.spark.util.{QueryUtils, SchemaUtils}
+import io.delta.sharing.spark.util.SchemaUtils
 
 /**
  * A case class to help with `Dataset` operations regarding Offset indexing, representing a
@@ -764,17 +764,15 @@ case class DeltaSharingSource(
     // version.
     val filteredActions = fileActions.filter{ indexedFile => indexedFile.getFileAction != null }
 
-    val queryParamsHashId = QueryUtils.getQueryParamsHashId(startVersion, startIndex, endOffset)
     if (options.readChangeFeed) {
       return createCDFDataFrame(
         filteredActions,
         lastQueryTimestamp,
-        urlExpirationTimestamp,
-        queryParamsHashId
+        urlExpirationTimestamp
       )
     }
 
-    createDataFrame(filteredActions, lastQueryTimestamp, urlExpirationTimestamp, queryParamsHashId)
+    createDataFrame(filteredActions, lastQueryTimestamp, urlExpirationTimestamp)
   }
 
   /**
@@ -798,24 +796,12 @@ case class DeltaSharingSource(
       add.id -> add.url
     }.toMap
 
-    // For streaming queries, we return a DataFrame.
-    // The FileIndex here is a one-time use object to help read Parquet contents.
     val params = new RemoteDeltaFileIndexParams(
       spark, initSnapshot, deltaLog.client.getProfileProvider, Some(queryParamsHashId))
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
 
-    val tablePathWithParams = if (ConfUtils.sparkParquetIOCacheEnabled(spark.sessionState.conf)) {
-      // Ensure different query shapes against the same table have distinct entries
-      // in the pre-signed URL cache.
-      QueryUtils.getTablePathWithIdSuffix(
-        params.path.toString, params.queryParamsHashId.get
-      )
-    } else {
-      params.path.toString
-    }
-
     CachedTableManager.INSTANCE.register(
-      tablePathWithParams,
+      params.path.toString,
       idToUrl,
       Seq(new WeakReference(fileIndex)),
       params.profileProvider,
@@ -848,8 +834,7 @@ case class DeltaSharingSource(
   private def createCDFDataFrame(
       indexedFiles: Seq[IndexedFile],
       lastQueryTimestamp: Long,
-      urlExpirationTimestamp: Option[Long],
-      queryParamsHashId: String): DataFrame = {
+      urlExpirationTimestamp: Option[Long]): DataFrame = {
     val addFiles = ArrayBuffer[AddFileForCDF]()
     val cdfFiles = ArrayBuffer[AddCDCFile]()
     val removeFiles = ArrayBuffer[RemoveFile]()
@@ -866,8 +851,7 @@ case class DeltaSharingSource(
       new RemoteDeltaFileIndexParams(
         spark,
         initSnapshot,
-        deltaLog.client.getProfileProvider,
-        Some(queryParamsHashId)
+        deltaLog.client.getProfileProvider
       ),
       schema.fields.map(f => f.name),
       addFiles.toSeq,
