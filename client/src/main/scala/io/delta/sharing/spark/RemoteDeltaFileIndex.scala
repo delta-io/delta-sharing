@@ -25,7 +25,14 @@ import org.apache.spark.sql.execution.datasources.{FileIndex, PartitionDirectory
 import org.apache.spark.sql.types.{DataType, StructType}
 
 import io.delta.sharing.client.{DeltaSharingFileSystem, DeltaSharingProfileProvider}
-import io.delta.sharing.client.model.{AddCDCFile, AddFile, AddFileForCDF, CDFColumnInfo, FileAction, RemoveFile}
+import io.delta.sharing.client.model.{
+  AddCDCFile,
+  AddFile,
+  AddFileForCDF,
+  CDFColumnInfo,
+  FileAction,
+  RemoveFile
+}
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils}
 import io.delta.sharing.filters.{AndOp, BaseOp, OpConverter}
 import io.delta.sharing.spark.util.QueryUtils
