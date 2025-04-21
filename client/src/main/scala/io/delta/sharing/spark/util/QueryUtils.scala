@@ -24,9 +24,7 @@ import io.delta.sharing.spark.DeltaSharingSourceOffset
 
 object QueryUtils {
 
-  // Get a query hash id based on the query parameters for regular queries
-  // limitHint is Option(), so it can be None
-  // version is always present.
+  // Get a query hash id based on the query parameters for snapshot queries
   def getQueryParamsHashId(
       partitionFiltersString: String,
       dataFiltersString: String,
@@ -41,15 +39,6 @@ object QueryUtils {
   // Get a query hash id based on the query parameters for CDF queries
   def getQueryParamsHashId(cdfOptions: Map[String, String]): String = {
     Hashing.sha256().hashString(cdfOptions.toString, UTF_8).toString
-  }
-
-  // Get a query hash id based on the query parameters for streaming queries
-  def getQueryParamsHashId(
-     startVersion: Long,
-     startIndex: Long,
-     endOffset: DeltaSharingSourceOffset): String = {
-    val fullQueryString = s"${startVersion}_${startIndex}_${endOffset.toString}"
-    Hashing.sha256().hashString(fullQueryString, UTF_8).toString
   }
 
   // Add id as a suffix to table path, to uniquely identify a query
