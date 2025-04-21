@@ -18,6 +18,7 @@ package io.delta.sharing.spark
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
+import java.util.UUID
 
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
@@ -414,6 +415,54 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(removeInputFileList.size == 2)
     assert(removeInputFileList(0) == s"delta-sharing:/${tablePath}/cdf_rem1/400")
     assert(removeInputFileList(1) == s"delta-sharing:/${tablePath}/cdf_rem2/420")
+  }
+
+  test("table path with queryParams of streaming query") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    val path = new Path("test")
+    val table = Table("fe", "fi", "fo")
+    val client = new TestDeltaSharingClient()
+    val snapshot = new RemoteSnapshot(path, client, table)
+    // Streaming queries cache all AddFiles from a start version to an end version.
+    val startVersion = 1L
+    val queryParamsHashId = QueryUtils.getQueryParamsHashId(
+      startVersion = startVersion,
+      startIndex = 0L,
+      endOffset = DeltaSharingSourceOffset(
+        sourceVersion = startVersion,
+        tableId = UUID.randomUUID().toString,
+        tableVersion = 2L,
+        index = 100L,
+        isStartingVersion = true
+      )
+    )
+    val params = RemoteDeltaFileIndexParams(
+      spark, snapshot, client.getProfileProvider, Some(queryParamsHashId))
+    val tablePath = QueryUtils.getTablePathWithIdSuffix(
+      params.profileProvider.getCustomTablePath(params.path.toString),
+      queryParamsHashId
+    )
+    val deltaTableFiles = client.getFiles(table, Nil, None, Some(startVersion), None, None, None)
+
+    // Test BatchFileIndex list files
+    val batchFilesIndex = new RemoteDeltaBatchFileIndex(params, deltaTableFiles.files)
+    val listFilesResult = batchFilesIndex.listFiles(Seq.empty, Seq.empty)
+    assert(listFilesResult.size == 1)
+    assert(listFilesResult(0).files.size == 4)
+    assert(listFilesResult(0).files(0).getPath.toString == s"delta-sharing:/${tablePath}/f1/0")
+    assert(listFilesResult(0).files(1).getPath.toString == s"delta-sharing:/${tablePath}/f2/0")
+    assert(listFilesResult(0).files(2).getPath.toString == s"delta-sharing:/${tablePath}/f3/0")
+    assert(listFilesResult(0).files(3).getPath.toString == s"delta-sharing:/${tablePath}/f4/0")
+
+    // Test BatchFileIndex input files
+    val inputFileList = batchFilesIndex.inputFiles.toList
+    assert(inputFileList.size == 4)
+    assert(inputFileList(0) == s"delta-sharing:/${tablePath}/f1/0")
+    assert(inputFileList(1) == s"delta-sharing:/${tablePath}/f2/0")
+    assert(inputFileList(2) == s"delta-sharing:/${tablePath}/f3/0")
+    assert(inputFileList(3) == s"delta-sharing:/${tablePath}/f4/0")
   }
 
   test("jsonPredicateV2Hints test") {

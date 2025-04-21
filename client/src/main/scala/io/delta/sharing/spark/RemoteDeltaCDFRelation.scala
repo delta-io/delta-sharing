@@ -23,6 +23,7 @@ import scala.collection.mutable.ListBuffer
 import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, Row, SparkSession, SQLContext}
+import org.apache.spark.sql.execution.LogicalRDD
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan}

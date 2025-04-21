@@ -109,11 +109,7 @@ private[sharing] class RemoteDeltaLog(
       )
     }
 
-    val params = new RemoteDeltaFileIndexParams(
-      spark,
-      snapshotToUse,
-      client.getProfileProvider
-    )
+    val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
     val fileIndex = new RemoteDeltaSnapshotFileIndex(params, None)
     if (ConfUtils.limitPushdownEnabled(spark.sessionState.conf)) {
       DeltaSharingLimitPushDown.setup(spark)
