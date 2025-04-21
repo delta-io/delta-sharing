@@ -320,13 +320,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(listFilesResult(0).files(2).getPath.toString == s"delta-sharing:/${tablePath}/f3/0")
 
     // Check delta sharing path for inputFiles
-    val queryParamsHashId2 = QueryUtils.getQueryParamsHashId(
-      "",
-      "",
-      "",
-      "",
-      version.get
-    )
+    val queryParamsHashId2 = QueryUtils.getQueryParamsHashId(version = version.get)
     val tablePath2 = QueryUtils.getTablePathWithIdSuffix(
       fileIndex.params.profileProvider.getCustomTablePath(fileIndex.params.path.toString),
       queryParamsHashId2
