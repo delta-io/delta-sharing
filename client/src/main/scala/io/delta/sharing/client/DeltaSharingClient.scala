@@ -1009,13 +1009,13 @@ class DeltaSharingRestClient(
     val includeEndStreamActionHeader = getRespondedIncludeEndStreamActionHeader(capabilitiesMap)
     includeEndStreamActionHeader match {
       case Some(true) =>
-        val lastLineAction = JsonUtils.fromJson[SingleAction](lines.last)
+        val lastLine = lines.last
+        val lastLineAction = JsonUtils.fromJson[SingleAction](lastLine)
         if (lastLineAction.endStreamAction == null) {
-          throw new MissingEndStreamActionException(s"Client sets " +
-            s"${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
-            s"header, server responded with the header set to true(${capabilities}, " +
-            s"and ${lines.size} lines, and last line parsed as " +
-            s"${lastLineAction.unwrap.getClass()}," + getDsQueryIdForLogging)
+          throw new MissingEndStreamActionException("Client sets " +
+            s"${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true " + getDsQueryIdForLogging +
+            s", server responded with the header set to true(${capabilities}) " +
+            s"and ${lines.size} lines, and last line as [${lastLine}].")
         }
         logInfo(
           s"Successfully verified endStreamAction in the response" + getDsQueryIdForLogging
