@@ -567,7 +567,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 }
 
-class DeltaSharingWithCacheSuite extends DeltaSharingSuite {
+class DeltaSharingWithParquetIOCacheEnabledSuite extends DeltaSharingSuite {
   override def beforeAll(): Unit = {
     super.beforeAll()
     spark.conf.set("spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
