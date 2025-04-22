@@ -423,7 +423,6 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val startVersion = 1L
     val queryParamsHashId = QueryUtils.getQueryParamsHashId(
       startVersion = startVersion,
-      startIndex = 0L,
       endOffset = DeltaSharingSourceOffset(
         sourceVersion = startVersion,
         tableId = UUID.randomUUID().toString,

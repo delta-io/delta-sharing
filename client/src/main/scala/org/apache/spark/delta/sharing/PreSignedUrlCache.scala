@@ -74,6 +74,7 @@ class CachedTableManager(
   }
 
   // Returning how many entries are in the cache.
+  // This method is mainly for testing purpose.
   def size(): Int = {
     cache.size
   }
