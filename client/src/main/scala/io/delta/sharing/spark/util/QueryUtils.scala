@@ -44,9 +44,8 @@ object QueryUtils {
   // Get a query hash id based on the query parameters for streaming queries
   def getQueryParamsHashId(
      startVersion: Long,
-     startIndex: Long,
      endOffset: DeltaSharingSourceOffset): String = {
-    val fullQueryString = s"${startVersion}_${startIndex}_${endOffset.toString}"
+    val fullQueryString = s"${startVersion}_${endOffset.toString}"
     Hashing.sha256().hashString(fullQueryString, UTF_8).toString
   }
 

@@ -766,7 +766,7 @@ case class DeltaSharingSource(
 
     // For streaming queries, build the query parameters hash using the start/end version.
     // All the files between start and end version are cached for a tablePath.
-    val queryParamsHashId = QueryUtils.getQueryParamsHashId(startVersion, startIndex, endOffset)
+    val queryParamsHashId = QueryUtils.getQueryParamsHashId(startVersion, endOffset)
 
     if (options.readChangeFeed) {
       // Streaming CDF
