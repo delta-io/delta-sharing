@@ -1192,7 +1192,12 @@ class DeltaSharingRestClient(
               val error = s"Request to delta sharing server failed$getDsQueryIdForLogging " +
                 s"due to ${e}."
               logError(error)
-              lineBuffer += error
+              if (lineBuffer.isEmpty) {
+                val lastIndex = lineBuffer.length - 1
+                lineBuffer(lastIndex) = (error + lineBuffer(lastIndex)).replace(' ', '_')
+              } else {
+                lineBuffer += error.replace(' ', '_')
+              }
               lineBuffer.toList
           } finally {
             input.close()
