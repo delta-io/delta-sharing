@@ -25,6 +25,7 @@ import java.time.format.DateTimeFormatter.{ISO_DATE, ISO_DATE_TIME}
 import java.util.UUID
 
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import scala.util.control.NonFatal
 
 import org.apache.commons.io.IOUtils
 import org.apache.commons.io.input.BoundedInputStream
@@ -970,46 +971,8 @@ class DeltaSharingRestClient(
     )
   }
 
-  private def checkEndStreamAction(
-      capabilities: Option[String],
-      capabilitiesMap: Map[String, String],
-      lines: Seq[String]): Unit = {
-    val includeEndStreamActionHeader = getRespondedIncludeEndStreamActionHeader(capabilitiesMap)
-    includeEndStreamActionHeader match {
-      case Some(true) =>
-        val lastLine = lines.last
-        val lastLineAction = JsonUtils.fromJson[SingleAction](lastLine)
-        if (lastLineAction.endStreamAction == null) {
-          throw new MissingEndStreamActionException("Client sets " +
-            s"${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true " + getDsQueryIdForLogging +
-            s", server responded with the header set to true(${capabilities}) " +
-            s"and ${lines.size} lines, and last line as [${lastLine}].")
-        }
-        logInfo(
-          s"Successfully verified endStreamAction in the response" + getDsQueryIdForLogging
-        )
-      case Some(false) =>
-        logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
-          s"header, but the server responded with the header set to false(" +
-          s"${capabilities})," + getDsQueryIdForLogging
-        )
-      case None =>
-        logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the" +
-          s" header, but server didn't respond with the header(${capabilities})," +
-          getDsQueryIdForLogging
-        )
-    }
-  }
-
   private def getRespondedFormat(capabilitiesMap: Map[String, String]): String = {
     capabilitiesMap.get(RESPONSE_FORMAT).getOrElse(RESPONSE_FORMAT_PARQUET)
-  }
-
-  // includeEndStreamActionHeader indicates whether the last line is required to be an
-  // EndStreamAction, parsed from the response header.
-  private def getRespondedIncludeEndStreamActionHeader(
-      capabilitiesMap: Map[String, String]): Option[Boolean] = {
-    capabilitiesMap.get(DELTA_SHARING_INCLUDE_END_STREAM_ACTION).map(_.toBoolean)
   }
 
   private def parseDeltaSharingCapabilities(capabilities: Option[String]): Map[String, String] = {
@@ -1162,7 +1125,7 @@ class DeltaSharingRestClient(
         ).map(_.getValue)
         val capabilitiesMap = parseDeltaSharingCapabilities(capabilities)
         if (setIncludeEndStreamAction) {
-          checkEndStreamAction(capabilities, capabilitiesMap, lines)
+          checkEndStreamAction(capabilities, capabilitiesMap, lines, getDsQueryIdForLogging)
         }
         (
           Option(
@@ -1295,6 +1258,55 @@ object DeltaSharingRestClient extends Logging {
       schema = tableSplits(1),
       table = tableSplits(2)
     )
+  }
+
+  private def tryParseEndStreamAction(line: String): EndStreamAction = {
+    try {
+      JsonUtils.fromJson[SingleAction](line).endStreamAction
+    } catch {
+      case NonFatal(_) =>
+        logError(s"Failed to parse last line in response as EndStreamAction:$line")
+        null
+    }
+  }
+
+  // includeEndStreamActionHeader indicates whether the last line is required to be an
+  // EndStreamAction, parsed from the response header.
+  private def getRespondedIncludeEndStreamActionHeader(
+      capabilitiesMap: Map[String, String]): Option[Boolean] = {
+    capabilitiesMap.get(DELTA_SHARING_INCLUDE_END_STREAM_ACTION).map(_.toBoolean)
+  }
+
+  def checkEndStreamAction(
+      capabilities: Option[String],
+      capabilitiesMap: Map[String, String],
+      lines: Seq[String],
+      queryIdForLogging: String): Unit = {
+    val includeEndStreamActionHeader = getRespondedIncludeEndStreamActionHeader(capabilitiesMap)
+    includeEndStreamActionHeader match {
+      case Some(true) =>
+        val lastLine = lines.lastOption.getOrElse("Empty_Seq_in_checkEndStreamAction")
+        val lastEndStreamAction = tryParseEndStreamAction(lastLine)
+        if (lastEndStreamAction == null) {
+          throw new MissingEndStreamActionException("Client sets " +
+            s"${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true " + queryIdForLogging +
+            s", server responded with the header set to true(${capabilities}) " +
+            s"and ${lines.size} lines, and last line as [${lastLine}].")
+        }
+        logInfo(
+          s"Successfully verified endStreamAction in the response" + queryIdForLogging
+        )
+      case Some(false) =>
+        logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
+          s"header, but the server responded with the header set to false(" +
+          s"${capabilities})," + queryIdForLogging
+        )
+      case None =>
+        logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the" +
+          s" header, but server didn't respond with the header(${capabilities}), " +
+          queryIdForLogging
+        )
+    }
   }
 
   def apply(
