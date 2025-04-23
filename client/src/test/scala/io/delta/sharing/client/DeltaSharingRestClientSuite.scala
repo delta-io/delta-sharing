@@ -1238,7 +1238,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     size = 123,
     stats = """{"numRecords":1,"minValues":{"age":"1"},"maxValues":{"age":"3"},"nullCount":{"age":0}}"""
   ).wrap)
-  val fakedEnsTreamActionStr = JsonUtils.toJson(EndStreamAction(
+  val fakeEndStreamActionStr = JsonUtils.toJson(EndStreamAction(
     refreshToken = "random-refresh",
     nextPageToken = "random-next",
     minUrlExpirationTimestamp = 0
@@ -1250,7 +1250,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     checkEndStreamAction(
       Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
       Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
-      Seq(fakeAddFileStr, fakedEnsTreamActionStr),
+      Seq(fakeAddFileStr, fakeEndStreamActionStr),
       "random-query-id"
     )
 
