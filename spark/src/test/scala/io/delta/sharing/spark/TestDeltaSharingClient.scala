@@ -41,7 +41,7 @@ class TestDeltaSharingClient(
     tokenExchangeMaxRetries: Int = 5,
     tokenExchangeMaxRetryDurationInSeconds: Int = 60,
     tokenRenewalThresholdInSeconds: Int = 600,
-    proxyConfigOpt: Option[ProxyConfig] = None,
+    proxyConfigOpt: Option[ProxyConfig] = None
   ) extends DeltaSharingClient {
 
   import DeltaSharingOptions.RESPONSE_FORMAT_PARQUET
