@@ -17,24 +17,17 @@
 package io.delta.sharing.client
 
 import java.sql.Timestamp
+import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 
 import org.apache.http.HttpHeaders
 import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
+import org.apache.http.util.EntityUtils
+import org.sparkproject.jetty.server.Server
+import org.sparkproject.jetty.servlet.{ServletHandler, ServletHolder}
 
-import io.delta.sharing.client.model.{
-  AddCDCFile,
-  AddFile,
-  AddFileForCDF,
-  DeltaTableFiles,
-  EndStreamAction,
-  Format,
-  Metadata,
-  Protocol,
-  RemoveFile,
-  Table
-}
-import io.delta.sharing.client.util.JsonUtils
-import io.delta.sharing.client.util.UnexpectedHttpStatus
+import io.delta.sharing.client.model.{AddCDCFile, AddFile, AddFileForCDF, DeltaTableFiles, EndStreamAction, Format, Metadata, Protocol, RemoveFile, Table}
+import io.delta.sharing.client.util.{JsonUtils, ProxyServer, UnexpectedHttpStatus}
+import io.delta.sharing.client.util.ConfUtils.ProxyConfig
 import io.delta.sharing.spark.MissingEndStreamActionException
 
 // scalastyle:off maxLineLength
@@ -1329,5 +1322,162 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       )
     }
     checkErrorMessage(e, s"and 0 lines, and last line as [Empty_Seq_in_checkEndStreamAction].")
+  }
+
+  integrationTest("traffic goes through a proxy when a proxy configured") {
+    // Create a local HTTP server.
+    val server = new Server(0)
+    val handler = new ServletHandler()
+    server.setHandler(handler)
+    handler.addServletWithMapping(new ServletHolder(new HttpServlet {
+      override def doGet(req: HttpServletRequest, resp: HttpServletResponse): Unit = {
+        resp.setContentType("text/plain")
+        resp.setStatus(HttpServletResponse.SC_OK)
+
+        // scalastyle:off println
+        resp.getWriter.println("Hello, World!")
+        // scalastyle:on println
+      }
+    }), "/*")
+    server.start()
+    do {
+      Thread.sleep(100)
+    } while (!server.isStarted())
+
+    // Create a local HTTP proxy server.
+    val proxyServer = new ProxyServer(0)
+    proxyServer.initialize()
+
+    try {
+      val dsClient = new DeltaSharingRestClient(
+        testProfileProvider,
+        sslTrustAll = true,
+        proxyConfigOpt = Some(
+          ProxyConfig(
+            host = proxyServer.getHost(),
+            port = proxyServer.getPort(),
+            noProxyHosts = Seq(server.getURI.getHost)
+          )
+        )
+      )
+
+      // Send a request to the local server through the httpClient.
+      val response = dsClient.client.execute(new HttpGet(server.getURI.toString))
+
+      // Assert that the request is successful.
+      assert(response.getStatusLine.getStatusCode == HttpServletResponse.SC_OK)
+      val content = EntityUtils.toString(response.getEntity)
+      assert(content.trim == "Hello, World!")
+
+      // Assert that the request is passed through proxy.
+      assert(proxyServer.getCapturedRequests().size == 1)
+    } finally {
+      server.stop()
+      proxyServer.stop()
+    }
+  }
+
+  integrationTest("traffic skips the proxy when a noProxyHosts configured") {
+    // Create a local HTTP server.
+    val server = new Server(0)
+    val handler = new ServletHandler()
+    server.setHandler(handler)
+    handler.addServletWithMapping(new ServletHolder(new HttpServlet {
+      override def doGet(req: HttpServletRequest, resp: HttpServletResponse): Unit = {
+        resp.setContentType("text/plain")
+        resp.setStatus(HttpServletResponse.SC_OK)
+
+        // scalastyle:off println
+        resp.getWriter.println("Hello, World!")
+        // scalastyle:on println
+      }
+    }), "/*")
+    server.start()
+    do {
+      Thread.sleep(100)
+    } while (!server.isStarted())
+
+    // Create a local HTTP proxy server.
+    val proxyServer = new ProxyServer(0)
+    proxyServer.initialize()
+    try {
+      val dsClient = new DeltaSharingRestClient(
+        testProfileProvider,
+        sslTrustAll = true,
+        proxyConfigOpt = Some(
+          ProxyConfig(
+            host = proxyServer.getHost(),
+            port = proxyServer.getPort(),
+            noProxyHosts = Seq(server.getURI.getHost)
+          )
+        )
+      )
+
+      // Send a request to the local server through the httpClient.
+      val response = dsClient.client.execute(new HttpGet(server.getURI.toString))
+
+      // Assert that the request is successful.
+      assert(response.getStatusLine.getStatusCode == HttpServletResponse.SC_OK)
+      val content = EntityUtils.toString(response.getEntity)
+      assert(content.trim == "Hello, World!")
+
+      // Assert that the request is not passed through proxy.
+      assert(proxyServer.getCapturedRequests().isEmpty)
+    } finally {
+      server.stop()
+      proxyServer.stop()
+    }
+  }
+
+  integrationTest("traffic goes through the proxy when noProxyHosts does not include destination") {
+    // Create a local HTTP server.
+    val server = new Server(0)
+    val handler = new ServletHandler()
+    server.setHandler(handler)
+    handler.addServletWithMapping(new ServletHolder(new HttpServlet {
+      override def doGet(req: HttpServletRequest, resp: HttpServletResponse): Unit = {
+        resp.setContentType("text/plain")
+        resp.setStatus(HttpServletResponse.SC_OK)
+
+        // scalastyle:off println
+        resp.getWriter.println("Hello, World!")
+        // scalastyle:on println
+      }
+    }), "/*")
+    server.start()
+    do {
+      Thread.sleep(100)
+    } while (!server.isStarted())
+
+    // Create a local HTTP proxy server.
+    val proxyServer = new ProxyServer(0)
+    proxyServer.initialize()
+    try {
+      val dsClient = new DeltaSharingRestClient(
+        testProfileProvider,
+        sslTrustAll = true,
+        proxyConfigOpt = Some(
+          ProxyConfig(
+            host = proxyServer.getHost(),
+            port = proxyServer.getPort(),
+            noProxyHosts = Seq(server.getURI.getHost)
+          )
+        )
+      )
+
+      // Send a request to the local server through the httpClient.
+      val response = dsClient.client.execute(new HttpGet(server.getURI.toString))
+
+      // Assert that the request is successful.
+      assert(response.getStatusLine.getStatusCode == HttpServletResponse.SC_OK)
+      val content = EntityUtils.toString(response.getEntity)
+      assert(content.trim == "Hello, World!")
+
+      // Assert that the request is not passed through proxy.
+      assert(proxyServer.getCapturedRequests().size == 1)
+    } finally {
+      server.stop()
+      proxyServer.stop()
+    }
   }
 }

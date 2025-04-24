@@ -84,6 +84,10 @@ object ConfUtils {
   val PROXY_PORT = "spark.delta.sharing.network.proxyPort"
   val NO_PROXY_HOSTS = "spark.delta.sharing.network.noProxyHosts"
 
+  val CLIENT_PROXY_HOST = "spark.delta.sharing.client.network.proxyHost"
+  val CLIENT_PROXY_PORT = "spark.delta.sharing.client.network.proxyPort"
+  val CLIENT_NO_PROXY_HOSTS = "spark.delta.sharing.client.network.noProxyHosts"
+
   val OAUTH_RETRIES_CONF = "spark.delta.sharing.oauth.tokenExchangeMaxRetries"
   val OAUTH_RETRIES_DEFAULT = 5
 
@@ -115,6 +119,23 @@ object ConfUtils {
     validatePortNumber(proxyPort, PROXY_PORT)
 
     val noProxyList = conf.getTrimmedStrings(NO_PROXY_HOSTS).toSeq
+    Some(ProxyConfig(proxyHost, proxyPort, noProxyHosts = noProxyList))
+  }
+
+  def getClientProxyConfig(conf: SQLConf): Option[ProxyConfig] = {
+    val proxyHost = conf.getConfString(CLIENT_PROXY_HOST, null)
+    val proxyPortAsString = conf.getConfString(CLIENT_PROXY_PORT, null)
+
+    if (proxyHost == null && proxyPortAsString == null) {
+      return None
+    }
+
+    validateNonEmpty(proxyHost, CLIENT_PROXY_HOST)
+    validateNonEmpty(proxyPortAsString, CLIENT_PROXY_PORT)
+    val proxyPort = proxyPortAsString.toInt
+    validatePortNumber(proxyPort, CLIENT_PROXY_PORT)
+
+    val noProxyList = conf.getConfString(CLIENT_NO_PROXY_HOSTS).split(",").map(_.trim).toSeq
     Some(ProxyConfig(proxyHost, proxyPort, noProxyHosts = noProxyList))
   }
 
