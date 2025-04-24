@@ -1454,7 +1454,8 @@ object DeltaSharingRestClient extends Logging {
         classOf[Long],
         classOf[Int],
         classOf[Int],
-        classOf[Int]
+        classOf[Int],
+        classOf[Option[ProxyConfig]]
     ).newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
