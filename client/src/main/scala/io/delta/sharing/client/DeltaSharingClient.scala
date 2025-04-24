@@ -1189,11 +1189,14 @@ class DeltaSharingRestClient(
             }
           } catch {
             case e: org.apache.http.ConnectionClosedException =>
-              val error = s"Request to delta sharing server failed$getDsQueryIdForLogging " +
-                s"due to ${e}."
+              logError(s"Request to delta sharing server failed$getDsQueryIdForLogging " +
+                s"due to ${e}.")
               // takeRight(3) is safe even if the lineBuffer is empty or has fewer than 3 lines.
               val linesToLog = lineBuffer.takeRight(3).mkString("\n")
-              logError(error + " Last 3 lines:" + linesToLog)
+              logError("Last 3 lines:" + linesToLog)
+
+              val error = s"Request to delta sharing server failed$getDsQueryIdForLogging " +
+                s"due to ${e.getMessage}."
               if (lineBuffer.nonEmpty) {
                 val lastIndex = lineBuffer.length - 1
                 lineBuffer(lastIndex) = (error + lineBuffer(lastIndex)).replace(' ', '_')
