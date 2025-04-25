@@ -16,12 +16,9 @@
 
 package io.delta.sharing.spark
 
-import java.sql.Timestamp
-
 import org.apache.http.HttpHeaders
 import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
 
-import io.delta.sharing.spark.MissingEndStreamActionException
 import io.delta.sharing.spark.model.{
   AddCDCFile,
   AddFile,
