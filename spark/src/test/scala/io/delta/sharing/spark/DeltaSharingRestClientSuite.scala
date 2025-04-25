@@ -16,8 +16,6 @@
 
 package io.delta.sharing.spark
 
-import java.sql.Timestamp
-
 import org.apache.http.HttpHeaders
 import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
 
@@ -26,12 +24,14 @@ import io.delta.sharing.spark.model.{
   AddFile,
   AddFileForCDF,
   DeltaTableFiles,
+  EndStreamAction,
   Format,
   Metadata,
   Protocol,
   RemoveFile,
   Table
 }
+import io.delta.sharing.spark.util.JsonUtils
 import io.delta.sharing.spark.util.UnexpectedHttpStatus
 
 // scalastyle:off maxLineLength
@@ -873,5 +873,104 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     } finally {
       client.close()
     }
+  }
+
+  val fakeAddFileStr = JsonUtils.toJson(AddFile(
+    url = "https://unused-url",
+    expirationTimestamp = 12345,
+    id = "random-id",
+    partitionValues = Map.empty,
+    size = 123,
+    stats = """{"numRecords":1,"minValues":{"age":"1"},"maxValues":{"age":"3"},"nullCount":{"age":0}}"""
+  ).wrap)
+  val fakeEndStreamActionStr = JsonUtils.toJson(EndStreamAction(
+    refreshToken = "random-refresh"
+  ).wrap)
+
+  test("checkEndStreamAction succeeded") {
+    // DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true
+    // Succeeded because the responded header is true, and EndStreamAction exists
+    checkEndStreamAction(
+      Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+      Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+      Seq(fakeAddFileStr, fakeEndStreamActionStr),
+      "random-query-id"
+    )
+
+    // DELTA_SHARING_INCLUDE_END_STREAM_ACTION=false
+    // Succeeded even though the last line is not EndStreamAction
+    checkEndStreamAction(
+      Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=false"),
+      Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "false"),
+      Seq(fakeAddFileStr),
+      "random-query-id"
+    )
+    // Succeeded even though the lines are empty.
+    checkEndStreamAction(
+      Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=false"),
+      Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "false"),
+      Seq.empty,
+      "random-query-id"
+    )
+    // Succeeded even though the last line cannot be parsed.
+    checkEndStreamAction(
+      Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=false"),
+      Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "false"),
+      Seq("random-string-server-error"),
+      "random-query-id"
+    )
+
+    // DELTA_SHARING_INCLUDE_END_STREAM_ACTION not in header
+    // Succeeded even though the last line is not EndStreamAction
+    checkEndStreamAction(None, Map.empty, Seq(fakeAddFileStr), "random-query-id")
+    // Succeeded even though the lines are empty.
+    checkEndStreamAction(None, Map.empty, Seq.empty, "random-query-id")
+    // Succeeded even though the last line cannot be parsed.
+    checkEndStreamAction(None, Map.empty, Seq("random-string-server-error"), "random-query-id")
+  }
+
+  test("checkEndStreamAction failed") {
+    def checkErrorMessage(
+        e: MissingEndStreamActionException,
+        additionalErrorMsg: String): Unit = {
+      val commonErrorMsg = "Client sets includeendstreamaction=true random-query-id, " +
+        "server responded with the header set to true(Some(includeendstreamaction=true)) and"
+      assert(e.getMessage.contains(commonErrorMsg))
+
+      assert(e.getMessage.contains(additionalErrorMsg))
+    }
+
+    // Failed because the last line is not EndStreamAction.
+    var e = intercept[MissingEndStreamActionException] {
+      checkEndStreamAction(
+        Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+        Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+        Seq(fakeAddFileStr),
+        "random-query-id"
+      )
+    }
+    checkErrorMessage(e, s"and 1 lines, and last line as [$fakeAddFileStr].")
+
+    // Failed because the last line cannot be parsed.
+    e = intercept[MissingEndStreamActionException] {
+      checkEndStreamAction(
+        Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+        Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+        Seq("random-string-server-error"),
+        "random-query-id"
+      )
+    }
+    checkErrorMessage(e, s"and 1 lines, and last line as [random-string-server-error].")
+
+    // Failed because the responded lines are empty.
+    e = intercept[MissingEndStreamActionException] {
+      checkEndStreamAction(
+        Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+        Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+        Seq.empty,
+        "random-query-id"
+      )
+    }
+    checkErrorMessage(e, s"and 0 lines, and last line as [Empty_Seq_in_checkEndStreamAction].")
   }
 }
