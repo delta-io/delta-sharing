@@ -887,9 +887,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     stats = """{"numRecords":1,"minValues":{"age":"1"},"maxValues":{"age":"3"},"nullCount":{"age":0}}"""
   ).wrap)
   val fakeEndStreamActionStr = JsonUtils.toJson(EndStreamAction(
-    refreshToken = "random-refresh",
-    nextPageToken = "random-next",
-    minUrlExpirationTimestamp = 0
+    refreshToken = "random-refresh"
   ).wrap)
 
   test("checkEndStreamAction succeeded") {
