@@ -171,6 +171,10 @@ case class DeltaSharingSource(
     TableRefreshResult(Map.empty[String, String], None, None)
   }
 
+  // Ensure different query shapes against the same table have distinct entries
+  // in the pre-signed URL cache.
+  private var queryParamsHashId: String = _
+
   private lazy val getTableInfoForLogging: String =
     s" for table(id:$tableId, name:${deltaLog.table.toString}, source:$sourceId)"
 
@@ -436,6 +440,7 @@ case class DeltaSharingSource(
         jsonPredicateHints = None,
         refreshToken = None
       )
+      queryParamsHashId = QueryUtils.getQueryParamsHashId(Nil, None, None, fromVersion)
       latestRefreshFunc = _ => {
         val queryTimestamp = System.currentTimeMillis()
         val files = deltaLog.client.getFiles(
@@ -500,6 +505,7 @@ case class DeltaSharingSource(
       val tableFiles = deltaLog.client.getFiles(
         deltaLog.table, fromVersion, Some(endingVersionForQuery)
       )
+      queryParamsHashId = QueryUtils.getQueryParamsHashId(fromVersion, endingVersionForQuery)
       latestRefreshFunc = _ => {
         val queryTimestamp = System.currentTimeMillis()
         val addFiles = deltaLog.client.getFiles(
@@ -570,22 +576,21 @@ case class DeltaSharingSource(
     logInfo(s"Fetching CDF files with fromVersion($fromVersion), fromIndex($fromIndex), " +
       s"endingVersionForQuery($endingVersionForQuery)," + getTableInfoForLogging)
     resetGlobalTimestamp()
+    val cdfOptions = Map(
+      DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
+      DeltaSharingOptions.CDF_END_VERSION -> endingVersionForQuery.toString
+    )
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table,
-      Map(
-        DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
-        DeltaSharingOptions.CDF_END_VERSION -> endingVersionForQuery.toString
-      ),
+      cdfOptions,
       true
     )
+    queryParamsHashId = QueryUtils.getQueryParamsHashId(cdfOptions)
     latestRefreshFunc = _ => {
       val queryTimestamp = System.currentTimeMillis()
       val d = deltaLog.client.getCDFFiles(
         deltaLog.table,
-        Map(
-          DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
-          DeltaSharingOptions.CDF_END_VERSION -> endingVersionForQuery.toString
-        ),
+        cdfOptions,
         true
       )
 
@@ -764,21 +769,15 @@ case class DeltaSharingSource(
     // version.
     val filteredActions = fileActions.filter{ indexedFile => indexedFile.getFileAction != null }
 
-    // For streaming queries, build the query parameters hash using the start/end version.
-    // All the files between start and end version are cached for a tablePath.
-    val queryParamsHashId = QueryUtils.getQueryParamsHashId(startVersion, endOffset)
-
     if (options.readChangeFeed) {
-      // Streaming CDF
       return createCDFDataFrame(
         filteredActions,
         lastQueryTimestamp,
-        urlExpirationTimestamp,
-        queryParamsHashId
+        urlExpirationTimestamp
       )
     }
 
-    createDataFrame(filteredActions, lastQueryTimestamp, urlExpirationTimestamp, queryParamsHashId)
+    createDataFrame(filteredActions, lastQueryTimestamp, urlExpirationTimestamp)
   }
 
   /**
@@ -789,8 +788,7 @@ case class DeltaSharingSource(
   private def createDataFrame(
       indexedFiles: Seq[IndexedFile],
       lastQueryTimestamp: Long,
-      urlExpirationTimestamp: Option[Long],
-      queryParamsHashId: String): DataFrame = {
+      urlExpirationTimestamp: Option[Long]): DataFrame = {
     val addFilesList = indexedFiles.map { indexedFile =>
       // add won't be null at this step as addFile is the only interested file when
       // options.readChangeFeed is false, which is when this function is called.
@@ -853,8 +851,7 @@ case class DeltaSharingSource(
   private def createCDFDataFrame(
       indexedFiles: Seq[IndexedFile],
       lastQueryTimestamp: Long,
-      urlExpirationTimestamp: Option[Long],
-      queryParamsHashId: String): DataFrame = {
+      urlExpirationTimestamp: Option[Long]): DataFrame = {
     val addFiles = ArrayBuffer[AddFileForCDF]()
     val cdfFiles = ArrayBuffer[AddCDCFile]()
     val removeFiles = ArrayBuffer[RemoveFile]()

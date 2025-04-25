@@ -18,7 +18,6 @@ package io.delta.sharing.spark
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
-import java.util.UUID
 
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
@@ -28,10 +27,10 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference => SqlAttributeReference, EqualTo => SqlEqualTo, GreaterThan => SqlGreaterThan, Literal => SqlLiteral}
 import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{DataType, FloatType, IntegerType, LongType, StringType, StructField, StructType}
+import org.apache.spark.sql.types._
 
 import io.delta.sharing.client.DeltaSharingFileSystem
-import io.delta.sharing.client.model.{DeltaTableMetadata, Table}
+import io.delta.sharing.client.model.Table
 import io.delta.sharing.spark.util.QueryUtils
 
 
@@ -71,7 +70,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
       RemoteDeltaSnapshotFileIndex(params, Some(2L))
     }
-    snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex, "")
+    snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex)
     assert(TestDeltaSharingClient.limits === Seq(2L))
     assert(TestDeltaSharingClient.jsonPredicateHints === Seq("jsonPredicate1"))
     client.clear()
@@ -116,15 +115,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val snapshot = new RemoteSnapshot(new Path("test"), client, Table("fe", "fi", "fo"))
     val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
     val fileIndex = RemoteDeltaSnapshotFileIndex(params, Some(limit))
-    val queryParamsHashId = QueryUtils.getQueryParamsHashId(
-      "",
-      "",
-      jsonPredicate,
-      limit.toString,
-      0L
-    )
-    val actions = snapshot.filesForScan(
-      Nil, Some(limit), Some(jsonPredicate), fileIndex, queryParamsHashId)
+    val (actions, queryParamsHashId) = snapshot.filesForScan(
+      Nil, Some(limit), Some(jsonPredicate), fileIndex)
     assert(TestDeltaSharingClient.limits === Seq(limit))
     assert(TestDeltaSharingClient.jsonPredicateHints === Seq("jsonPredicate1"))
     assert(actions.size == limit)
@@ -269,7 +261,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     client.clear
   }
 
-  test("table path with queryParams of snapshot query") {
+  test("listing files from RemoteDeltaFileIndexParams") {
     val spark = SparkSession.active
     spark.sessionState.conf.setConfString("spark.delta.sharing.jsonPredicateHints.enabled", "true")
     spark.sessionState.conf.setConfString(
@@ -302,10 +294,9 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
     // Check delta sharing path for listFiles
     val queryParamsHashId = QueryUtils.getQueryParamsHashId(
-      partitionFilters.map(_.sql).mkString(";"),
-      "",
-      jsonPredicateHints,
-      limit.map(_.toString).get,
+      Seq.empty,
+      limit,
+      Some(jsonPredicateHints),
       version.get
     )
     val tablePath = QueryUtils.getTablePathWithIdSuffix(
@@ -320,7 +311,11 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(listFilesResult(0).files(2).getPath.toString == s"delta-sharing:/${tablePath}/f3/0")
 
     // Check delta sharing path for inputFiles
-    val queryParamsHashId2 = QueryUtils.getQueryParamsHashId(version = version.get)
+    val queryParamsHashId2 = QueryUtils.getQueryParamsHashId(
+      Nil,
+      None,
+      None,
+      version.get)
     val tablePath2 = QueryUtils.getTablePathWithIdSuffix(
       fileIndex.params.profileProvider.getCustomTablePath(fileIndex.params.path.toString),
       queryParamsHashId2
@@ -333,7 +328,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(inputFileList(3) == s"delta-sharing:/${tablePath2}/f4/0")
   }
 
-  test("table path with queryParams of cdf query") {
+  test("listing files from cdf file index") {
     val spark = SparkSession.active
     spark.sessionState.conf.setConfString(
       "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
@@ -411,7 +406,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(removeInputFileList(1) == s"delta-sharing:/${tablePath}/cdf_rem2/420")
   }
 
-  test("table path with queryParams of streaming query") {
+  test("listing files from RemoteDeltaBatchFileIndex") {
     val spark = SparkSession.active
     spark.sessionState.conf.setConfString(
       "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
@@ -421,16 +416,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val snapshot = new RemoteSnapshot(path, client, table)
     // Streaming queries cache all AddFiles from a start version to an end version.
     val startVersion = 1L
-    val queryParamsHashId = QueryUtils.getQueryParamsHashId(
-      startVersion = startVersion,
-      endOffset = DeltaSharingSourceOffset(
-        sourceVersion = startVersion,
-        tableId = UUID.randomUUID().toString,
-        tableVersion = 2L,
-        index = 100L,
-        isStartingVersion = true
-      )
-    )
+    val queryParamsHashId = QueryUtils.getQueryParamsHashId(startVersion, startVersion + 1L)
     val params = RemoteDeltaFileIndexParams(
       spark, snapshot, client.getProfileProvider, Some(queryParamsHashId))
     val tablePath = QueryUtils.getTablePathWithIdSuffix(
@@ -934,7 +920,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     }
     if (expectError) {
       val e = intercept[SparkException] {
-        snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex, "")
+        snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex)
       }
       assert(
         e.getMessage.contains(
@@ -943,7 +929,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
         )
       )
     } else {
-      snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex, "")
+      snapshot.filesForScan(Nil, Some(2L), Some("jsonPredicate1"), fileIndex)
     }
   }
 

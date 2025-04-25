@@ -20,19 +20,18 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import com.google.common.hash.Hashing
 
-import io.delta.sharing.spark.DeltaSharingSourceOffset
-
 object QueryUtils {
 
   // Get a query hash id based on the query parameters for snapshot queries
   def getQueryParamsHashId(
-      partitionFiltersString: String = "",
-      dataFiltersString: String = "",
-      jsonPredicateHints: String = "",
-      limitHint: String = "",
+      predicates: Seq[String],
+      limitHint: Option[Long],
+      jsonPredicateHints: Option[String],
       version: Long): String = {
-    val fullQueryString = s"${partitionFiltersString}_${dataFiltersString}_" +
-      s"${jsonPredicateHints}_${limitHint}_${version}"
+    val predicateStr = predicates.mkString(",")
+    val limitStr = limitHint.map(_.toString).getOrElse("none")
+    val jsonHintsStr = jsonPredicateHints.getOrElse("none")
+    val fullQueryString = s"${predicateStr}_${jsonHintsStr}_${limitStr}_${version}"
     Hashing.sha256().hashString(fullQueryString, UTF_8).toString
   }
 
@@ -44,8 +43,8 @@ object QueryUtils {
   // Get a query hash id based on the query parameters for streaming queries
   def getQueryParamsHashId(
      startVersion: Long,
-     endOffset: DeltaSharingSourceOffset): String = {
-    val fullQueryString = s"${startVersion}_${endOffset.toString}"
+     endVersion: Long): String = {
+    val fullQueryString = s"${startVersion}_${endVersion}"
     Hashing.sha256().hashString(fullQueryString, UTF_8).toString
   }
 

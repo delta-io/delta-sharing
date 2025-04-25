@@ -192,10 +192,10 @@ private[sharing] case class RemoteDeltaSnapshotFileIndex(
 
   // Retrieves and caches all files for a version of the table.
   override def inputFiles: Array[String] = {
-    val queryParamsHashId = QueryUtils.getQueryParamsHashId(
-      version = params.snapshotAtAnalysis.version
-    )
-    params.snapshotAtAnalysis.filesForScan(Nil, None, None, this, queryParamsHashId)
+    val (files, queryParamsHashId) =
+      params.snapshotAtAnalysis.filesForScan(Nil, None, None, this)
+
+    files
       .map(f => toDeltaSharingPath(f, queryParamsHashId).toString)
       .toArray
   }
@@ -205,24 +205,14 @@ private[sharing] case class RemoteDeltaSnapshotFileIndex(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     val jsonPredicateHints = convertToJsonPredicate(partitionFilters, dataFilters)
-    val queryParamsHashId = QueryUtils.getQueryParamsHashId(
-      partitionFilters.map(_.sql).mkString(";"),
-      dataFilters.map(_.sql).mkString(";"),
-      jsonPredicateHints.getOrElse(""),
-      limitHint.map(_.toString).getOrElse(""),
-      params.snapshotAtAnalysis.version
-    )
-
-    makePartitionDirectories(
+    val (files, queryParamsHashId) =
       params.snapshotAtAnalysis.filesForScan(
         partitionFilters ++ dataFilters,
         limitHint,
         jsonPredicateHints,
-        this,
-        queryParamsHashId
-      ),
-      queryParamsHashId
-    )
+        this
+      )
+    makePartitionDirectories(files, queryParamsHashId)
   }
 }
 
