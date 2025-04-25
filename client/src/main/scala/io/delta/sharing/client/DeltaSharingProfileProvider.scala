@@ -26,10 +26,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
-import org.apache.spark.delta.sharing.TableRefreshResult
+import org.apache.spark.delta.sharing.{QuerySpecificCachedTable, TableRefreshResult}
 
-import io.delta.sharing.client.DeltaSharingProfile.{validateNotNullAndEmpty, BEARER_TOKEN,
-  OAUTH_CLIENT_CREDENTIALS}
+import io.delta.sharing.client.DeltaSharingProfile.{validateNotNullAndEmpty, BEARER_TOKEN, OAUTH_CLIENT_CREDENTIALS}
 import io.delta.sharing.client.util.JsonUtils
 
 @JsonDeserialize(using = classOf[DeltaSharingProfileDeserializer])
@@ -174,6 +173,13 @@ trait DeltaSharingProfileProvider {
       refresher: Option[String] => TableRefreshResult): Option[String] => TableRefreshResult = {
     refresher
   }
+
+  // Returns an optional query identifier, which can be used to associate query-specific
+  // refreshers with a table. This is useful for managing refreshers in scenarios where
+  // multiple queries interact with the same table.
+  def getQueryId(): Option[String] = { None }
+
+  def getRefresherWrapper(): Option[QuerySpecificCachedTable.RefresherWrapper] = { None }
 }
 
 /**
