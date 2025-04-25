@@ -21,6 +21,7 @@ import java.sql.Timestamp
 import org.apache.http.HttpHeaders
 import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
 
+import io.delta.sharing.spark.MissingEndStreamActionException
 import io.delta.sharing.spark.model.{
   AddCDCFile,
   AddFile,
@@ -35,7 +36,6 @@ import io.delta.sharing.spark.model.{
 }
 import io.delta.sharing.spark.util.JsonUtils
 import io.delta.sharing.spark.util.UnexpectedHttpStatus
-import io.delta.sharing.spark.MissingEndStreamActionException
 
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
