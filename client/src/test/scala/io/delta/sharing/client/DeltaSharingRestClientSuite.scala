@@ -1351,7 +1351,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     try {
       val dsClient = new DeltaSharingRestClient(
         testProfileProvider,
-        sslTrustAll = true,
+        sslTrustAll = false,
         proxyConfigOpt = Some(
           ProxyConfig(
             host = proxyServer.getHost(),
@@ -1403,7 +1403,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     try {
       val dsClient = new DeltaSharingRestClient(
         testProfileProvider,
-        sslTrustAll = true,
+        sslTrustAll = false,
         proxyConfigOpt = Some(
           ProxyConfig(
             host = proxyServer.getHost(),
@@ -1455,7 +1455,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     try {
       val dsClient = new DeltaSharingRestClient(
         testProfileProvider,
-        sslTrustAll = true,
+        sslTrustAll = false,
         proxyConfigOpt = Some(
           ProxyConfig(
             host = proxyServer.getHost(),
@@ -1479,5 +1479,22 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       server.stop()
       proxyServer.stop()
     }
+  }
+
+  integrationTest("sslTrustAll cannot be true if proxy configured") {
+    val e = intercept[IllegalStateException] {
+      new DeltaSharingRestClient(
+        testProfileProvider,
+        sslTrustAll = true,
+        proxyConfigOpt = Some(
+          ProxyConfig(
+            host = "localhost",
+            port = 8080,
+            noProxyHosts = Seq()
+          )
+        )
+      ).client
+    }
+    assert(e.getMessage.contains("Proxy configuration is not supported when sslTrustAll is enabled."))
   }
 }

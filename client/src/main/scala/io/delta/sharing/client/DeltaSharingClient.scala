@@ -233,6 +233,10 @@ class DeltaSharingRestClient(
       .setConnectionRequestTimeout(timeoutInSeconds * 1000)
       .setSocketTimeout(timeoutInSeconds * 1000).build()
     proxyConfigOpt.foreach { proxyConfig =>
+      if (sslTrustAll) {
+        throw new IllegalStateException(
+          "Proxy configuration is not supported when sslTrustAll is enabled.")
+      }
       val proxy = new HttpHost(proxyConfig.host, proxyConfig.port)
       clientBuilder.setProxy(proxy)
 
