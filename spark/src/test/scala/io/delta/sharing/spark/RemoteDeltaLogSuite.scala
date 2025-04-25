@@ -28,10 +28,10 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference => SqlAttributeReference, EqualTo => SqlEqualTo, GreaterThan => SqlGreaterThan, Literal => SqlLiteral}
 import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{DataType, FloatType, IntegerType, LongType, StringType, StructField, StructType}
+import org.apache.spark.sql.types._
 
 import io.delta.sharing.client.DeltaSharingFileSystem
-import io.delta.sharing.client.model.{DeltaTableMetadata, Table}
+import io.delta.sharing.client.model.Table
 import io.delta.sharing.spark.util.QueryUtils
 
 

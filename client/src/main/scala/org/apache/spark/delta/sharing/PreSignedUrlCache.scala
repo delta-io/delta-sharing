@@ -24,9 +24,11 @@ import scala.util.control.NonFatal
 import org.apache.spark.SparkEnv
 import org.apache.spark.internal.Logging
 import org.apache.spark.rpc.{RpcCallContext, RpcEndpoint, RpcEndpointRef, RpcEnv}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.util.{RpcUtils, ThreadUtils}
 
 import io.delta.sharing.client.DeltaSharingProfileProvider
+import io.delta.sharing.client.util.ConfUtils
 
 case class TableRefreshResult(
     idToUrl: Map[String, String],
@@ -77,6 +79,8 @@ class CachedTable(
 /**
  * Represents a cached table entry with a unique refresher for each query. This design ensures that
  * even if two queries are identical in structure, their refreshers can maintain independent states.
+ * The refreshFunction is responsible for refreshing the pre-signed URLs for the table, while the
+ * RefresherWrapper allows additional customization or state management during the refresh process.
  * This is necessary because the server may require specific states in the refresher function to
  * refresh the pre-signed URLs. The refresh results can be shared across the same query for the same
  * table.
@@ -86,22 +90,32 @@ class CachedTable(
  * Query 2: SELECT * FROM table WHERE col1 = 'value2'
  * Both queries can share the same cache entry for the table, but their refreshers maintain
  * independent states to handle server-specific requirements for refreshing pre-signed URLs.
- * When Query 2 ends, and Query 1 keeps running, we need to maintain Query 1's refresher to
- * ensure it continues to refresh the pre-signed URLs as needed.
+ * When Query 2 ends, and Query 1 keeps running, we need to maintain Query 1's refresher state
+ * to ensure it continues to refresh the pre-signed URLs as needed.
  *
- * @param queryRefreshers A mapping of query identifiers to their associated FileIndex references
- *                        and refresh functions.
+ * @param refreshFunction A function to refresh the pre-signed URLs for the table.
+ * @param queryStates A mapping of query identifiers to their associated weak references
+ *                        and refresher wrappers.
  */
 class QuerySpecificCachedTable(
     expiration: Long,
     idToUrl: Map[String, String],
     lastAccess: Long,
     refreshToken: Option[String],
-    val queryRefreshers: Map[
+    val refreshFunction: Option[String] => TableRefreshResult,
+    val queryStates: Map[
       String,
-      (Seq[WeakReference[AnyRef]], Option[String] => TableRefreshResult)
+      (Seq[WeakReference[AnyRef]], QuerySpecificCachedTable.RefresherWrapper)
     ]
 ) extends BaseCachedTable(expiration, idToUrl, lastAccess, refreshToken)
+
+object QuerySpecificCachedTable {
+  // A type alias for a function that wraps a refresher function.
+  // The wrapper takes an optional refresh token and a refresher function,
+  // and returns a `TableRefreshResult`.
+  type RefresherWrapper =
+    (Option[String], Option[String] => TableRefreshResult) => TableRefreshResult
+}
 
 class CachedTableManager(
     val preSignedUrlExpirationMs: Long,
@@ -198,10 +212,12 @@ class CachedTableManager(
   /** Refreshes a `CachedTable` if necessary. */
   private def handleCachedTableRefresh(tablePath: String, cachedTable: CachedTable): Unit = {
     if (cachedTable.refs.forall(_.get == null)) {
+      // If all the references are gone, we will remove the table from the cache.
       logInfo(s"Removing table $tablePath from the pre signed url cache as there are" +
         " no references pointed to it")
       cache.remove(tablePath, cachedTable)
     } else if (cachedTable.expiration - System.currentTimeMillis() < refreshThresholdMs) {
+      // If the pre signed urls are going to expire, we will refresh them.
       logInfo(s"Updating pre signed urls for $tablePath (expiration time: " +
         s"${new java.util.Date(cachedTable.expiration)}), token:${cachedTable.refreshToken}")
       try {
@@ -244,17 +260,24 @@ class CachedTableManager(
   private def handleQuerySpecificTableRefresh(
     tablePath: String,
     querySpecificCachedTable: QuerySpecificCachedTable): Unit = {
-    val validRefreshers = querySpecificCachedTable.queryRefreshers.filter {
+    val validStates = querySpecificCachedTable.queryStates.filter {
       case (_, (refs, _)) => refs.exists(_.get != null)
     }
 
-    if (validRefreshers.isEmpty) {
+    if (validStates.isEmpty) {
+      // If all the references are gone, we will remove the table from the cache.
       logInfo(s"Removing table $tablePath as no valid query mappings remain.")
       cache.remove(tablePath, querySpecificCachedTable)
-    } else {
-      val (_, (_, refresher)) = validRefreshers.head
+    } else if (
+      querySpecificCachedTable.expiration - System.currentTimeMillis() < refreshThresholdMs
+    ) {
+      // If the pre-signed URLs are going to expire, we will refresh them.
+      val (_, (_, refresherWrapper)) = validStates.head
       try {
-        val refreshRes = refresher(querySpecificCachedTable.refreshToken)
+        val refreshRes = refresherWrapper(
+          querySpecificCachedTable.refreshToken,
+          querySpecificCachedTable.refreshFunction
+        )
         logDifferencesBetweenUrls(refreshRes.idToUrl, querySpecificCachedTable.idToUrl)
 
         val newQuerySpecificCachedTable = new QuerySpecificCachedTable(
@@ -267,7 +290,8 @@ class CachedTableManager(
           idToUrl = refreshRes.idToUrl,
           lastAccess = querySpecificCachedTable.lastAccess,
           refreshToken = refreshRes.refreshToken,
-          queryRefreshers = validRefreshers
+          refreshFunction = querySpecificCachedTable.refreshFunction,
+          queryStates = validStates
         )
         cache.replace(tablePath, querySpecificCachedTable, newQuerySpecificCachedTable)
         logInfo(s"Updated pre-signed URLs for $tablePath with size ${refreshRes.idToUrl.size}.")
@@ -299,9 +323,12 @@ class CachedTableManager(
 
   /**
    * Registers a query-specific cached table in the cache. This method ensures that each query
-   * can maintain its own refresher function and state, even if multiple queries share the same
-   * table. If the table is not already in the cache, a new entry is created. If the table is
+   * maintains its own refresher state, even if multiple queries share the same table.
+   * If the table is not already in the cache, a new entry is created. If the table is
    * already in the cache, the existing entry is updated with the new query-specific refresher.
+   *
+   * This design allows independent state management for each query while enabling shared
+   * caching of file URLs across identical queries.
    *
    * @param tablePath The path of the table to be cached.
    * @param idToUrl A mapping of file IDs to their corresponding pre-signed URLs.
@@ -309,7 +336,7 @@ class CachedTableManager(
    * @param refresher A function to refresh the pre-signed URLs for the table.
    * @param expirationTimestamp The expiration timestamp of the pre-signed URLs.
    * @param refreshToken An optional token used to refresh the pre-signed URLs.
-   * @param queryId The identifier for the query associated with this cached table.
+   * @param profileProvider A provider for query-specific profile and refresher details.
    */
   private def registerQuerySpecificCachedTable(
     tablePath: String,
@@ -318,8 +345,31 @@ class CachedTableManager(
     refresher: Option[String] => TableRefreshResult,
     expirationTimestamp: Long,
     refreshToken: Option[String],
-    queryId: String
+    profileProvider: DeltaSharingProfileProvider
   ): Unit = {
+    val queryId = profileProvider.getQueryId()
+      .getOrElse(throw new IllegalStateException("Query ID is not defined."))
+    val refresherWrapper = profileProvider.getRefresherWrapper().getOrElse(
+      throw new IllegalStateException("refresherWrapper is not defined.")
+    )
+
+    // If the pre signed urls are going to expire, we will refresh them.
+    val (resolvedIdToUrl, resolvedExpiration, resolvedRefreshToken) =
+      if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
+        val refreshRes = refresherWrapper(refreshToken, refresher)
+        if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
+          (refreshRes.idToUrl, refreshRes.expirationTimestamp.get, refreshRes.refreshToken)
+        } else {
+          (
+            refreshRes.idToUrl,
+            System.currentTimeMillis() + preSignedUrlExpirationMs,
+            refreshRes.refreshToken
+          )
+        }
+      } else {
+        (idToUrl, expirationTimestamp, refreshToken)
+      }
+
     val cachedTable = cache.get(tablePath)
     if (refs.size != 1) {
       logWarning(s"Multiple references sharing the same QuerySpecificCachedTable: ${refs.size}")
@@ -327,11 +377,12 @@ class CachedTableManager(
     if (cachedTable == null) {
       // If the table is not in cache, we will create a new entry
       val newCachedTable = new QuerySpecificCachedTable(
-        expiration = expirationTimestamp,
-        idToUrl = idToUrl,
+        expiration = resolvedExpiration,
+        idToUrl = resolvedIdToUrl,
         lastAccess = System.currentTimeMillis(),
-        refreshToken = refreshToken,
-        queryRefreshers = Map(queryId -> (refs, refresher))
+        refreshToken = resolvedRefreshToken,
+        refreshFunction = refresher,
+        queryStates = Map(queryId -> (refs, refresherWrapper))
       )
       cache.put(tablePath, newCachedTable)
       logInfo(
@@ -349,20 +400,21 @@ class CachedTableManager(
             s"expected type is QuerySpecificCachedTable."
           )
       }
-      // Retain the old references and refreshers. The cache entry will only be removed when all
-      // references are null. All refreshers are preserved as they may hold state required by the
-      // server to refresh URLs.
-      val newQueryRefreshers = querySpecificCachedTable.queryRefreshers +
-        (queryId -> (refs, refresher))
+      // Retain the old references and refresh wrappers. The cache entry will only be removed
+      // when all references are null. All refresh wrappers are preserved as they may hold state
+      // required by the server to refresh URLs.
+      val newQueryStates = querySpecificCachedTable.queryStates +
+        (queryId -> (refs, refresherWrapper))
 
       // Update all attributes as the new version is always more up to date and file URLs can
       // be shared across identical queries.
       val updatedCachedTable = new QuerySpecificCachedTable(
-        expiration = expirationTimestamp,
-        idToUrl = idToUrl,
+        expiration = resolvedExpiration,
+        idToUrl = resolvedIdToUrl,
         lastAccess = System.currentTimeMillis(),
-        refreshToken = refreshToken,
-        queryRefreshers = newQueryRefreshers
+        refreshToken = resolvedRefreshToken,
+        refreshFunction = refresher,
+        queryStates = newQueryStates
       )
       cache.put(tablePath, updatedCachedTable)
       logInfo(
@@ -388,8 +440,6 @@ class CachedTableManager(
    *                            timestamp of the idToUrl.
    * @param refreshToken an optional refresh token that can be used by the refresher to retrieve
    *                     the same set of files with refreshed urls.
-   * @param queryId an optional identifier for the query, used to determine whether to use a
-   *                query-specific refresher for the table.
    */
   def register(
       tablePath: String,
@@ -398,11 +448,30 @@ class CachedTableManager(
       profileProvider: DeltaSharingProfileProvider,
       refresher: Option[String] => TableRefreshResult,
       expirationTimestamp: Long = System.currentTimeMillis() + preSignedUrlExpirationMs,
-      refreshToken: Option[String],
-      queryId: Option[String] = None
+      refreshToken: Option[String]
     ): Unit = {
     val customTablePath = profileProvider.getCustomTablePath(tablePath)
     val customRefresher = profileProvider.getCustomRefresher(refresher)
+
+    val parquetIOCacheEnabled = try {
+      ConfUtils.sparkParquetIOCacheEnabled(SparkSession.active.sessionState.conf)
+    } catch {
+      case _: Exception =>
+        // This is a safeguard in case SparkSession is not available
+        logWarning("Failed to get sparkParquetIOCacheEnabled, using default value.")
+        false
+    }
+
+    if (parquetIOCacheEnabled && profileProvider.getQueryId().isDefined) {
+      return registerQuerySpecificCachedTable(
+        tablePath = customTablePath,
+        idToUrl = idToUrl,
+        refs = refs,
+        refresher = customRefresher,
+        expirationTimestamp = expirationTimestamp,
+        refreshToken = refreshToken,
+        profileProvider)
+    }
 
     val (resolvedIdToUrl, resolvedExpiration, resolvedRefreshToken) =
       if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
@@ -419,17 +488,6 @@ class CachedTableManager(
       } else {
         (idToUrl, expirationTimestamp, refreshToken)
       }
-
-    if (queryId.isDefined) {
-      return registerQuerySpecificCachedTable(
-        tablePath = customTablePath,
-        idToUrl = resolvedIdToUrl,
-        refs = refs,
-        refresher = customRefresher,
-        expirationTimestamp = resolvedExpiration,
-        refreshToken = resolvedRefreshToken,
-        queryId = queryId.get)
-    }
 
     val cachedTable = new CachedTable(
       expiration = resolvedExpiration,
