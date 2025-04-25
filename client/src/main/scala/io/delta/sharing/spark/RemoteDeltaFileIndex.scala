@@ -204,12 +204,11 @@ private[sharing] case class RemoteDeltaSnapshotFileIndex(
   override def listFiles(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
-    val jsonPredicateHints = convertToJsonPredicate(partitionFilters, dataFilters)
     val (files, queryParamsHashId) =
       params.snapshotAtAnalysis.filesForScan(
         partitionFilters ++ dataFilters,
         limitHint,
-        jsonPredicateHints,
+        convertToJsonPredicate(partitionFilters, dataFilters),
         this
       )
     makePartitionDirectories(files, queryParamsHashId)

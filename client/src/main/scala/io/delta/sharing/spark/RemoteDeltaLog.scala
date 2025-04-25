@@ -258,7 +258,7 @@ class RemoteSnapshot(
       limitHint: Option[Long],
       jsonPredicateHints: Option[String],
       fileIndex: RemoteDeltaSnapshotFileIndex
-      ): (Seq[AddFile], String) = {
+    ): (Seq[AddFile], String) = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>

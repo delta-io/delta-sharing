@@ -770,11 +770,7 @@ case class DeltaSharingSource(
     val filteredActions = fileActions.filter{ indexedFile => indexedFile.getFileAction != null }
 
     if (options.readChangeFeed) {
-      return createCDFDataFrame(
-        filteredActions,
-        lastQueryTimestamp,
-        urlExpirationTimestamp
-      )
+      return createCDFDataFrame(filteredActions, lastQueryTimestamp, urlExpirationTimestamp)
     }
 
     createDataFrame(filteredActions, lastQueryTimestamp, urlExpirationTimestamp)
