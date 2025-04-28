@@ -20,9 +20,7 @@ import java.lang.ref.WeakReference
 import java.text.SimpleDateFormat
 import java.util.{TimeZone, UUID}
 
-import scala.reflect.runtime.universe.termNames
-import scala.reflect.runtime.universe.typeOf
-import scala.reflect.runtime.universe.typeTag
+import scala.reflect.runtime.universe.{termNames, typeOf, typeTag}
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkException
@@ -55,7 +53,7 @@ import io.delta.sharing.client.model.{
 }
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
-import io.delta.sharing.spark.util.SchemaUtils
+import io.delta.sharing.spark.util.{QueryUtils, SchemaUtils}
 
 /**
  * Used to query the current state of the transaction logs of a remote shared Delta table.
@@ -273,7 +271,8 @@ class RemoteSnapshot(
       filters: Seq[Expression],
       limitHint: Option[Long],
       jsonPredicateHints: Option[String],
-      fileIndex: RemoteDeltaSnapshotFileIndex): Seq[AddFile] = {
+      fileIndex: RemoteDeltaSnapshotFileIndex
+    ): (Seq[AddFile], String) = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
@@ -291,12 +290,25 @@ class RemoteSnapshot(
       logDebug(s"Sending predicates $predicates to the server")
     }
 
-    val remoteFiles = {
+    val (remoteFiles, queryParamsHashId) = {
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(
         table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints, None
       )
+      // Ensure different query shapes against the same table have distinct entries
+      // in the pre-signed URL cache.
+      val queryParamsHashId = QueryUtils.getQueryParamsHashId(
+        predicates, limitHint, jsonPredicateHints, tableFiles.version
+      )
+      val tablePathWithParams =
+        if (ConfUtils.sparkParquetIOCacheEnabled(spark.sessionState.conf)) {
+          QueryUtils.getTablePathWithIdSuffix(
+            fileIndex.params.path.toString, queryParamsHashId
+          )
+        } else {
+          fileIndex.params.path.toString
+        }
       var minUrlExpirationTimestamp: Option[Long] = None
       val idToUrl = tableFiles.files.map { file =>
         if (file.expirationTimestamp != null) {
@@ -311,7 +323,7 @@ class RemoteSnapshot(
       }.toMap
       CachedTableManager.INSTANCE
         .register(
-          fileIndex.params.path.toString,
+          tablePathWithParams,
           idToUrl,
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
@@ -342,13 +354,13 @@ class RemoteSnapshot(
         )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
-      tableFiles.files.toDS()
+      (tableFiles.files.toDS(), queryParamsHashId)
     }
 
     val columnFilter = DeltaSharingScanUtils.toColumn(
       rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true))
     )
-    remoteFiles.filter(columnFilter).as[AddFile].collect()
+    (remoteFiles.filter(columnFilter).as[AddFile].collect(), queryParamsHashId)
   }
 }
 

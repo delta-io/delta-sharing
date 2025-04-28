@@ -35,11 +35,23 @@ import io.delta.sharing.client.model.{
 }
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils}
 import io.delta.sharing.filters.{AndOp, BaseOp, OpConverter}
+import io.delta.sharing.spark.util.QueryUtils
 
+/*
+ * The `queryParamsHashId` is used to distinguish queries that share the same table path.
+ * For streaming and CDF queries, all file actions are retrieved and cached from the server,
+ * so `queryParamsHashId` only includes the start and end versions.
+ * For snapshot queries, different Parquet files are retrieved and cached based on filters,
+ * resulting in unique `queryParamsHashId` values for each `FileIndex.listFiles` call.
+ * Therefore, `queryParamsHashId` here is `Some()` for streaming and CDF queries, and `None`
+ * for snapshot queries. For snapshot queries, the `queryParamsHashId` is constructed during
+ * `listFiles` calls.
+ */
 private[sharing] case class RemoteDeltaFileIndexParams(
-    val spark: SparkSession,
-    val snapshotAtAnalysis: RemoteSnapshot,
-    val profileProvider: DeltaSharingProfileProvider) {
+    spark: SparkSession,
+    snapshotAtAnalysis: RemoteSnapshot,
+    profileProvider: DeltaSharingProfileProvider,
+    queryParamsHashId: Option[String] = None) {
   def path: Path = snapshotAtAnalysis.getTablePath
 }
 
@@ -54,13 +66,28 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
 
   override def rootPaths: Seq[Path] = params.path :: Nil
 
-  protected def toDeltaSharingPath(f: FileAction): Path = {
-    DeltaSharingFileSystem.encode(
-      params.profileProvider.getCustomTablePath(params.path.toString), f)
+  // Builds a Delta Sharing path for a file action. The result includes both the table path and
+  // file ID, which are used to retrieve the file URL from the pre-signed URL cache.
+  protected def toDeltaSharingPath(f: FileAction, queryParamsHashId: String): Path = {
+    val tablePathWithParams =
+      if (ConfUtils.sparkParquetIOCacheEnabled(params.spark.sessionState.conf)) {
+        // Adding `queryParamHashId` to the path ensures unique entries in the pre-signed URL cache
+        // for different query shapes, distinguishing queries sharing the same table path.
+        QueryUtils.getTablePathWithIdSuffix(
+          params.profileProvider.getCustomTablePath(params.path.toString),
+          queryParamsHashId
+        )
+      } else {
+        params.profileProvider.getCustomTablePath(params.path.toString)
+      }
+
+    DeltaSharingFileSystem.encode(tablePathWithParams, f)
   }
 
   // A helper function to create partition directories from the specified actions.
-  protected def makePartitionDirectories(actions: Seq[FileAction]): Seq[PartitionDirectory] = {
+  protected def makePartitionDirectories(
+    actions: Seq[FileAction],
+    queryParamsHashId: String): Seq[PartitionDirectory] = {
     val timeZone = params.spark.sessionState.conf.sessionLocalTimeZone
     // The getPartitionValuesInDF function is idempotent, and calling it multiple times does not
     // change its output.
@@ -77,7 +104,7 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
             /* blockReplication */ 0,
             /* blockSize */ 1,
             /* modificationTime */ 0,
-            toDeltaSharingPath(f))
+            toDeltaSharingPath(f, queryParamsHashId))
         }.toArray
 
         try {
@@ -163,21 +190,28 @@ private[sharing] case class RemoteDeltaSnapshotFileIndex(
     override val params: RemoteDeltaFileIndexParams,
     limitHint: Option[Long]) extends RemoteDeltaFileIndexBase(params) {
 
+  // Retrieves and caches all files for a version of the table.
   override def inputFiles: Array[String] = {
-    params.snapshotAtAnalysis.filesForScan(Nil, None, None, this)
-      .map(f => toDeltaSharingPath(f).toString)
+    val (files, queryParamsHashId) =
+      params.snapshotAtAnalysis.filesForScan(Nil, None, None, this)
+
+    files
+      .map(f => toDeltaSharingPath(f, queryParamsHashId).toString)
       .toArray
   }
 
+  // Retrieves and caches files that match the partition filters and limit.
   override def listFiles(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
-    makePartitionDirectories(params.snapshotAtAnalysis.filesForScan(
-      partitionFilters ++ dataFilters,
-      limitHint,
-      convertToJsonPredicate(partitionFilters, dataFilters),
-      this
-    ))
+    val (files, queryParamsHashId) =
+      params.snapshotAtAnalysis.filesForScan(
+        partitionFilters ++ dataFilters,
+        limitHint,
+        convertToJsonPredicate(partitionFilters, dataFilters),
+        this
+      )
+    makePartitionDirectories(files, queryParamsHashId)
   }
 }
 
@@ -193,7 +227,7 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
   }
 
   override def inputFiles: Array[String] = {
-    actions.map(f => toDeltaSharingPath(f).toString).toArray
+    actions.map(f => toDeltaSharingPath(f, params.queryParamsHashId.getOrElse("")).toString).toArray
   }
 }
 
@@ -219,7 +253,10 @@ private[sharing] case class RemoteDeltaCDFAddFileIndex(
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits
     import implicits._
-    makePartitionDirectories(updatedFiles.toDS().filter(columnFilter).as[AddFileForCDF].collect())
+    makePartitionDirectories(
+      updatedFiles.toDS().filter(columnFilter).as[AddFileForCDF].collect(),
+      params.queryParamsHashId.getOrElse("")
+    )
   }
 }
 
@@ -244,7 +281,10 @@ private[sharing] case class RemoteDeltaCDCFileIndex(
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits
     import implicits._
-    makePartitionDirectories(updatedFiles.toDS().filter(columnFilter).as[AddCDCFile].collect())
+    makePartitionDirectories(
+      updatedFiles.toDS().filter(columnFilter).as[AddCDCFile].collect(),
+      params.queryParamsHashId.getOrElse("")
+    )
   }
 }
 
@@ -268,7 +308,10 @@ private[sharing] case class RemoteDeltaCDFRemoveFileIndex(
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits
     import implicits._
-    makePartitionDirectories(updatedFiles.toDS().filter(columnFilter).as[RemoveFile].collect())
+    makePartitionDirectories(
+      updatedFiles.toDS().filter(columnFilter).as[RemoveFile].collect(),
+      params.queryParamsHashId.getOrElse("")
+    )
   }
 }
 
@@ -282,7 +325,8 @@ private[sharing] case class RemoteDeltaBatchFileIndex(
   }
 
   override def inputFiles: Array[String] = {
-    addFiles.map(a => toDeltaSharingPath(a).toString).toArray
+    addFiles.map(a =>
+      toDeltaSharingPath(a, params.queryParamsHashId.getOrElse("")).toString).toArray
   }
 
   override def listFiles(
@@ -291,6 +335,9 @@ private[sharing] case class RemoteDeltaBatchFileIndex(
     val columnFilter = getColumnFilter(partitionFilters)
     val implicits = params.spark.implicits
     import implicits._
-    makePartitionDirectories(addFiles.toDS().filter(columnFilter).as[AddFile].collect())
+    makePartitionDirectories(
+      addFiles.toDS().filter(columnFilter).as[AddFile].collect(),
+      params.queryParamsHashId.getOrElse("")
+    )
   }
 }
