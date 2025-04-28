@@ -135,7 +135,7 @@ object ConfUtils {
     val proxyPort = proxyPortAsString.toInt
     validatePortNumber(proxyPort, CLIENT_PROXY_PORT)
 
-    val noProxyList = conf.getConfString(CLIENT_NO_PROXY_HOSTS).split(",").map(_.trim).toSeq
+    val noProxyList = conf.getConfString(CLIENT_NO_PROXY_HOSTS, "").split(",").map(_.trim).toSeq
     Some(ProxyConfig(proxyHost, proxyPort, noProxyHosts = noProxyList))
   }
 
