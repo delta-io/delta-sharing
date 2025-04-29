@@ -39,10 +39,12 @@ case class TableRefreshResult(
 /**
  * Base class representing a cached table with common properties.
  *
- * @param expiration The expiration timestamp of the pre-signed URLs.
- * @param idToUrl A mapping of file IDs to their corresponding pre-signed URLs.
- * @param lastAccess The timestamp of the last access to the table.
- * @param refreshToken An optional token used to refresh the pre-signed URLs.
+ * @param expiration the expiration time of the pre signed urls
+ * @param idToUrl the file id to pre sign url map
+ * @param lastAccess When the table was accessed last time. We will remove old tables that are not
+ *                   accessed after `expireAfterAccessMs` milliseconds.
+ * @param refreshToken the optional refresh token that can be used by the refresher to retrieve
+ *                     the same set of files with refreshed urls.
  */
 abstract class BaseCachedTable(
     val expiration: Long,
@@ -62,10 +64,10 @@ abstract class BaseCachedTable(
  * This ensures that both queries benefit from the updated URLs without duplicating the refresh
  * logic or state.
  *
- * @param refs The references that we track. When all references in the table are gone, we will
+ * @param refs the references that we track. When all of references in the table are gone, we will
  *             remove the cached table from our cache.
- * @param refresher The function to generate a new file ID to pre-signed URL map, with the new
- *                  expiration timestamp of the URLs and the new refresh token.
+ * @param refresher the function to generate a new file id to pre sign url map, with the new
+ *                  expiration timestamp of the urls and the new refresh token.
  */
 class CachedTable(
     expiration: Long,
@@ -476,6 +478,11 @@ class CachedTableManager(
     val (resolvedIdToUrl, resolvedExpiration, resolvedRefreshToken) =
       if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
         val refreshRes = customRefresher(refreshToken)
+        logInfo(s"Refreshed urls during cache register with old expiration " +
+          s"${new java.util.Date(expirationTimestamp)}, new expiration " +
+          s"${refreshRes.expirationTimestamp.map(new java.util.Date(_)).getOrElse("None")}, " +
+          s"lines ${refreshRes.idToUrl.size}")
+
         if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
           (refreshRes.idToUrl, refreshRes.expirationTimestamp.get, refreshRes.refreshToken)
         } else {

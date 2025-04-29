@@ -27,8 +27,6 @@ import org.scalatest.time.SpanSugar._
 import io.delta.sharing.client.{DeltaSharingProfile, DeltaSharingProfileProvider}
 
 private class TestDeltaSharingProfileProvider extends DeltaSharingProfileProvider {
-  var wrapperCount = 0
-
   override def getProfile: DeltaSharingProfile = null
 
   override def getCustomTablePath(tablePath: String): String = "prefix." + tablePath

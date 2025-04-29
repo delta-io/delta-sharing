@@ -179,6 +179,8 @@ trait DeltaSharingProfileProvider {
   // multiple queries interact with the same table.
   def getQueryId(): Option[String] = { None }
 
+  // Returns an optional refresher wrapper containing the server states required to execute
+  // a refresh function.
   def getRefresherWrapper(): Option[QuerySpecificCachedTable.RefresherWrapper] = { None }
 }
 
