@@ -155,6 +155,8 @@ private[sharing] object RemoteDeltaLog {
       schema = parsedPath.schema,
       share = parsedPath.share
     )
+    // Use a clean path and add a query parameter suffix later,
+    // or append a timestamp UUID suffix to ensure the uniqueness of the table path.
     val updatedPath = new Path(
       if (ConfUtils.sparkParquetIOCacheEnabled(SparkSession.active.sessionState.conf)) path
       else path + getFormattedTimestampWithUUID
