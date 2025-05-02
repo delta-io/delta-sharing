@@ -18,9 +18,7 @@ package io.delta.sharing.spark
 
 // scalastyle:off import.ordering.noEmptyLine
 import org.apache.spark.sql.connector.read.streaming.{Offset => OffsetV2}
-import org.apache.spark.sql.execution.streaming.{Offset, SerializedOffset}
-import org.json4s._
-import org.json4s.jackson.JsonMethods.parse
+import org.apache.spark.sql.execution.streaming.Offset
 
 import io.delta.sharing.client.util.JsonUtils
 
@@ -86,8 +84,8 @@ object DeltaSharingSourceOffset {
     offset match {
       case o: DeltaSharingSourceOffset => o
       case s =>
-        validateSourceVersion(s.json)
         val o = JsonUtils.fromJson[DeltaSharingSourceOffset](s.json)
+        validateSourceVersion(o)
         if (o.tableId != tableId) {
           throw DeltaSharingErrors.nonExistentDeltaSharingTable(o.tableId)
         }
@@ -95,28 +93,9 @@ object DeltaSharingSourceOffset {
     }
   }
 
-  private def validateSourceVersion(json: String): Unit = {
-    val parsedJson = parse(json)
-    val versionOpt = jsonOption(parsedJson \ "sourceVersion").map {
-      case i: JInt => i.num.longValue
-      case other => throw DeltaSharingErrors.invalidSourceVersion(other.toString)
-    }
-    if (versionOpt.isEmpty) {
-      throw DeltaSharingErrors.cannotFindSourceVersionException(json)
-    }
-
-    val maxVersion = VERSION_1
-
-    if (versionOpt.get > maxVersion) {
-      throw DeltaSharingErrors.unsupportedTableReaderVersion(maxVersion, versionOpt.get)
-    }
-  }
-
-  /** Return an option that translates JNothing to None */
-  private def jsonOption(json: JValue): Option[JValue] = {
-    json match {
-      case JNothing => None
-      case value: JValue => Some(value)
+  private def validateSourceVersion(offset: DeltaSharingSourceOffset) = {
+    if (offset.sourceVersion > VERSION_1) {
+      throw DeltaSharingErrors.unsupportedTableReaderVersion(VERSION_1, offset.sourceVersion)
     }
   }
 
