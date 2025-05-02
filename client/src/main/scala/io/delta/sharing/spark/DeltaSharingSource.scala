@@ -807,7 +807,7 @@ case class DeltaSharingSource(
         // Ensure different query shapes against the same table have distinct entries
         // in the pre-signed URL cache.
         QueryUtils.getTablePathWithIdSuffix(
-          params.path.toString, params.queryParamsHashId.get
+          params.path.toString, queryParamsHashId
         )
       } else {
         params.path.toString

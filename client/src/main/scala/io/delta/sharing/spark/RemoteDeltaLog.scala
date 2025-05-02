@@ -29,28 +29,14 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DeltaSharingScanUtils, Encoder, SparkSession}
 import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
-import org.apache.spark.sql.catalyst.expressions.{
-  And,
-  Attribute,
-  Cast,
-  Expression,
-  Literal,
-  SubqueryExpression
-}
+import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, Literal, SubqueryExpression}
 import org.apache.spark.sql.execution.datasources.{FileFormat, HadoopFsRelation}
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingRestClient}
-import io.delta.sharing.client.model.{
-  AddFile,
-  CDFColumnInfo,
-  DeltaTableMetadata,
-  Metadata,
-  Protocol,
-  Table => DeltaSharingTable
-}
+import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, DeltaTableMetadata, Metadata, Protocol, Table => DeltaSharingTable}
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 import io.delta.sharing.spark.util.{QueryUtils, SchemaUtils}
@@ -169,9 +155,15 @@ private[sharing] object RemoteDeltaLog {
       schema = parsedPath.schema,
       share = parsedPath.share
     )
+    // Use a clean path and add a query parameter suffix later,
+    // or append a timestamp UUID suffix to ensure the uniqueness of the table path.
+    val updatedPath = new Path(
+      if (ConfUtils.sparkParquetIOCacheEnabled(SparkSession.active.sessionState.conf)) path
+      else path + getFormattedTimestampWithUUID
+    )
     new RemoteDeltaLog(
       deltaSharingTable,
-      new Path(path + getFormattedTimestampWithUUID),
+      updatedPath,
       client,
       initDeltaTableMetadata
     )

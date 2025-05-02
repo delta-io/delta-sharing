@@ -987,4 +987,33 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       )
     }
   }
+
+  test("RemoteDeltaLog path") {
+    // Create a dummy table path
+    val testProfileFile = Files.createTempFile("delta-test", ".share").toFile
+    FileUtils.writeStringToFile(testProfileFile,
+      s"""{
+         |  "shareCredentialsVersion": 1,
+         |  "endpoint": "http://localhost:12345/delta-sharing",
+         |  "bearerToken": "xxxxx"
+         |}""".stripMargin, UTF_8)
+    val tablePath = s"${testProfileFile.getCanonicalPath}#share.schema.table"
+
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    // Same as the table path
+    val deltaLog1 = RemoteDeltaLog(tablePath)
+    assert(deltaLog1.path.toString == tablePath)
+    val snapshot1 = deltaLog1.snapshot()
+    assert(snapshot1.getTablePath.toString == tablePath)
+
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "false")
+    // Append timestamp suffix
+    // <profile>#share.schema.table_yyyyMMdd_HHmmss_uuid
+    val deltaLog2 = RemoteDeltaLog(tablePath)
+    assert(deltaLog2.path.toString.split("#")(1).split("_").length == 4)
+    val snapshot2 = deltaLog2.snapshot()
+    assert(snapshot2.getTablePath.toString.split("#")(1).split("_").length == 4)
+  }
 }
