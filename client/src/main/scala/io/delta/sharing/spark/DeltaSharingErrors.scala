@@ -40,8 +40,8 @@ object DeltaSharingErrors {
   }
 
   def unsupportedTableReaderVersion(supportedVersion: Long, tableVersion: Long): Throwable = {
-    new IllegalStateException(s"The table reader version ${tableVersion} is larger than " +
-      s"supported reader version $supportedVersion. Please upgrade to a new release."
+    new IllegalStateException(s"The table reader version ${tableVersion} is not equal to " +
+      s"supported reader version $supportedVersion."
     )
   }
 
