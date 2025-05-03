@@ -18,14 +18,10 @@ package io.delta.sharing.spark
 
 import java.util.UUID
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import org.apache.spark.sql.QueryTest
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles
 import org.apache.spark.sql.execution.streaming.SerializedOffset
-import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{StringType, StructField, StructType, TimestampType}
-import org.scalatest.time.SpanSugar._
 
 class DeltaSharingSourceOffsetSuite extends QueryTest
   with SharedSparkSession with DeltaSharingIntegrationTest {
@@ -48,7 +44,7 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
     val e = intercept[IllegalStateException] {
       DeltaSharingSourceOffset(UUID.randomUUID().toString, SerializedOffset(json))
     }
-    assert(e.getMessage.contains("Please upgrade to a new release"))
+    assert(e.getMessage.contains("is not equal to supported reader version"))
   }
 
   test("DeltaSharingSourceOffset sourceVersion - invalid value") {
@@ -61,10 +57,10 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
         |  "isStartingVersion": true
         |}
       """.stripMargin
-    val e = intercept[IllegalStateException] {
+    val e = intercept[InvalidFormatException] {
       DeltaSharingSourceOffset(UUID.randomUUID().toString, SerializedOffset(json))
     }
-    for (msg <- Seq("foo", "invalid")) {
+    for (msg <- Seq("foo", "not a valid")) {
       assert(e.getMessage.contains(msg))
     }
   }
@@ -81,7 +77,7 @@ class DeltaSharingSourceOffsetSuite extends QueryTest
     val e = intercept[IllegalStateException] {
       DeltaSharingSourceOffset(UUID.randomUUID().toString, SerializedOffset(json))
     }
-    for (msg <- Seq("Cannot find", "sourceVersion")) {
+    for (msg <- Seq("The table reader version", "is not equal to")) {
       assert(e.getMessage.contains(msg))
     }
   }
