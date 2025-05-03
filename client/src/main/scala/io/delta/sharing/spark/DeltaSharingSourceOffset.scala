@@ -94,7 +94,8 @@ object DeltaSharingSourceOffset {
   }
 
   private def validateSourceVersion(offset: DeltaSharingSourceOffset) = {
-    if (offset.sourceVersion > VERSION_1) {
+    // Only version 1 is supported for now.
+    if (offset.sourceVersion != VERSION_1) {
       throw DeltaSharingErrors.unsupportedTableReaderVersion(VERSION_1, offset.sourceVersion)
     }
   }
