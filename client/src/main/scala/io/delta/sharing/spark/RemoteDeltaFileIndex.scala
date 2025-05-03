@@ -18,7 +18,7 @@ package io.delta.sharing.spark
 
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{Column, SparkSession}
+import org.apache.spark.sql.{Column, DeltaSharingScanUtils, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{And, Cast, Expression, GenericInternalRow, Literal}
 import org.apache.spark.sql.execution.datasources.{FileIndex, PartitionDirectory}
@@ -127,7 +127,9 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
       params.spark.sessionState.conf.resolver,
       partitionFilters,
       params.spark.sessionState.conf.sessionLocalTimeZone)
-    new Column(rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true)))
+    DeltaSharingScanUtils.toColumn(
+      rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true))
+    )
   }
 
   // Converts the specified SQL expressions to a json predicate.
