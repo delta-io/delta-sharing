@@ -16,23 +16,9 @@
 
 package io.delta.sharing.spark
 
-import io.delta.sharing.client.{
-  DeltaSharingClient,
-  DeltaSharingProfile,
-  DeltaSharingProfileProvider
-}
-import io.delta.sharing.client.model.{
-  AddCDCFile,
-  AddFile,
-  AddFileForCDF,
-  DeltaTableFiles,
-  DeltaTableMetadata,
-  Metadata,
-  Protocol,
-  RemoveFile,
-  SingleAction,
-  Table
-}
+import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingProfile, DeltaSharingProfileProvider}
+import io.delta.sharing.client.model.{AddCDCFile, AddFile, AddFileForCDF, DeltaTableFiles, DeltaTableMetadata, Metadata, Protocol, RemoveFile, SingleAction, Table}
+import io.delta.sharing.client.util.ConfUtils.ProxyConfig
 import io.delta.sharing.client.util.JsonUtils
 import io.delta.sharing.spark.TestDeltaSharingClient.TESTING_TIMESTAMP
 
@@ -54,7 +40,8 @@ class TestDeltaSharingClient(
     asyncQueryMaxDuration: Long = Long.MaxValue,
     tokenExchangeMaxRetries: Int = 5,
     tokenExchangeMaxRetryDurationInSeconds: Int = 60,
-    tokenRenewalThresholdInSeconds: Int = 600
+    tokenRenewalThresholdInSeconds: Int = 600,
+    proxyConfigOpt: Option[ProxyConfig] = None
   ) extends DeltaSharingClient {
 
   import DeltaSharingOptions.RESPONSE_FORMAT_PARQUET

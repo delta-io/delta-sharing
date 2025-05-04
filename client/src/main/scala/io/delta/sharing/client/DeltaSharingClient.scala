@@ -28,19 +28,23 @@ import org.apache.commons.io.IOUtils
 import org.apache.commons.io.input.BoundedInputStream
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.util.VersionInfo
-import org.apache.http.{HttpHeaders, HttpHost, HttpStatus}
+import org.apache.http.{HttpHeaders, HttpHost, HttpRequest, HttpStatus}
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.{HttpGet, HttpPost, HttpRequestBase}
 import org.apache.http.client.protocol.HttpClientContext
+import org.apache.http.conn.routing.HttpRoute
 import org.apache.http.conn.ssl.{SSLConnectionSocketFactory, SSLContextBuilder, TrustSelfSignedStrategy}
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{HttpClientBuilder, HttpClients}
+import org.apache.http.impl.conn.{DefaultRoutePlanner, DefaultSchemePortResolver}
+import org.apache.http.protocol.HttpContext
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
 
 import io.delta.sharing.client.auth.{AuthConfig, AuthCredentialProviderFactory}
 import io.delta.sharing.client.model._
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
+import io.delta.sharing.client.util.ConfUtils.ProxyConfig
 import io.delta.sharing.spark.MissingEndStreamActionException
 
 /** An interface to fetch Delta metadata from remote server. */
@@ -198,7 +202,8 @@ class DeltaSharingRestClient(
     asyncQueryMaxDuration: Long = 600000L,
     tokenExchangeMaxRetries: Int = 5,
     tokenExchangeMaxRetryDurationInSeconds: Int = 60,
-    tokenRenewalThresholdInSeconds: Int = 600
+    tokenRenewalThresholdInSeconds: Int = 600,
+    proxyConfigOpt: Option[ProxyConfig] = None
   ) extends DeltaSharingClient with Logging {
 
   logInfo(s"DeltaSharingRestClient with endStreamActionEnabled: $endStreamActionEnabled, " +
@@ -211,7 +216,7 @@ class DeltaSharingRestClient(
   // Convert the responseFormat to a Seq to be used later.
   private val responseFormatSet = responseFormat.split(",").toSet
 
-  private lazy val client = {
+  private[sharing] lazy val client = {
     val clientBuilder: HttpClientBuilder = if (sslTrustAll) {
       val sslBuilder = new SSLContextBuilder()
         .loadTrustMaterial(null, new TrustSelfSignedStrategy())
@@ -227,6 +232,31 @@ class DeltaSharingRestClient(
       .setConnectTimeout(timeoutInSeconds * 1000)
       .setConnectionRequestTimeout(timeoutInSeconds * 1000)
       .setSocketTimeout(timeoutInSeconds * 1000).build()
+    proxyConfigOpt.foreach { proxyConfig =>
+      if (sslTrustAll) {
+        throw new IllegalStateException(
+          "Proxy configuration is not supported when sslTrustAll is enabled.")
+      }
+      val proxy = new HttpHost(proxyConfig.host, proxyConfig.port)
+      clientBuilder.setProxy(proxy)
+
+      if (proxyConfig.noProxyHosts.nonEmpty) {
+        val routePlanner = new DefaultRoutePlanner(DefaultSchemePortResolver.INSTANCE) {
+          override def determineRoute(target: HttpHost,
+                                      request: HttpRequest,
+                                      context: HttpContext): HttpRoute = {
+            if (proxyConfig.noProxyHosts.contains(target.getHostName)) {
+              // Direct route (no proxy)
+              new HttpRoute(target)
+            } else {
+              // Route via proxy
+              new HttpRoute(target, proxy)
+            }
+          }
+        }
+        clientBuilder.setRoutePlanner(routePlanner)
+      }
+    }
     val client = clientBuilder
       // Disable the default retry behavior because we have our own retry logic.
       // See `RetryUtils.runWithExponentialBackoff`.
@@ -1404,6 +1434,7 @@ object DeltaSharingRestClient extends Logging {
     val endStreamActionEnabled = ConfUtils.includeEndStreamAction(sqlConf)
     val asyncQueryMaxDurationMillis = ConfUtils.asyncQueryTimeout(sqlConf)
     val asyncQueryPollDurationMillis = ConfUtils.asyncQueryPollIntervalMillis(sqlConf)
+    val proxyConfig = ConfUtils.getClientProxyConfig(sqlConf)
 
     val tokenExchangeMaxRetries = ConfUtils.tokenExchangeMaxRetries(sqlConf)
     val tokenExchangeMaxRetryDurationInSeconds =
@@ -1430,7 +1461,8 @@ object DeltaSharingRestClient extends Logging {
         classOf[Long],
         classOf[Int],
         classOf[Int],
-        classOf[Int]
+        classOf[Int],
+        classOf[Option[ProxyConfig]]
     ).newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
@@ -1448,7 +1480,8 @@ object DeltaSharingRestClient extends Logging {
         java.lang.Long.valueOf(asyncQueryMaxDurationMillis),
         java.lang.Integer.valueOf(tokenExchangeMaxRetries),
         java.lang.Integer.valueOf(tokenExchangeMaxRetryDurationInSeconds),
-        java.lang.Integer.valueOf(tokenRenewalThresholdInSeconds)
+        java.lang.Integer.valueOf(tokenRenewalThresholdInSeconds),
+        proxyConfig
       ).asInstanceOf[DeltaSharingClient]
   }
 }
