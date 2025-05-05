@@ -41,7 +41,7 @@ import org.apache.spark.sql.SparkSession
 import io.delta.sharing.client.auth.{AuthConfig, AuthCredentialProviderFactory}
 import io.delta.sharing.client.model._
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
-import io.delta.sharing.spark.MissingEndStreamActionException
+import io.delta.sharing.spark.{DeltaSharingServerException, MissingEndStreamActionException}
 
 /** An interface to fetch Delta metadata from remote server. */
 trait DeltaSharingClient {
@@ -1363,6 +1363,10 @@ object DeltaSharingRestClient extends Logging {
         logInfo(
           s"Successfully verified endStreamAction in the response" + queryIdForLogging
         )
+        if(lastEndStreamAction.errorMessage != null) {
+          throw new DeltaSharingServerException("Request failed during streaming response " +
+          s"with error message ${lastEndStreamAction.errorMessage}")
+        }
       case Some(false) =>
         logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
           s"header, but the server responded with the header set to false(" +
