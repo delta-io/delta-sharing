@@ -55,7 +55,7 @@ abstract class BaseCachedTable(
 
 /**
  * Represents a cached table entry with a single refresher function.
- * All the queries can share the same refresher to update file URLs.
+ * All the queries sent to the same table can share the same refresher to update file URLs.
  *
  * Example:
  * If two queries share the same cached table entry, they will both rely on the same `refresher`
@@ -89,7 +89,7 @@ class CachedTable(
  *
  * Example:
  * Query 1: SELECT * FROM table WHERE col1 = 'value1'
- * Query 2: SELECT * FROM table WHERE col1 = 'value2'
+ * Query 2: SELECT * FROM table WHERE col1 = 'value1'
  * Both queries can share the same cache entry for the table, but their refreshers maintain
  * independent states to handle server-specific requirements for refreshing pre-signed URLs.
  * When Query 2 ends, and Query 1 keeps running, we need to maintain Query 1's refresher state
@@ -184,6 +184,8 @@ class CachedTableManager(
           case table: QuerySpecificCachedTable =>
             handleQuerySpecificTableRefresh(tablePath, table)
           case _ =>
+            // We should never have a table that is not CachedTable or QuerySpecificCachedTable
+            // Also, refresh happens in a background thread, throw an exception doesn't help.
             logWarning(s"Unknown table type for $tablePath, type ${cachedTable.getClass}.")
         }
       }
@@ -276,6 +278,7 @@ class CachedTableManager(
       // If the pre-signed URLs are going to expire, we will refresh them.
       val (_, (_, refresherWrapper)) = validStates.head
       try {
+        // Run the refresh function with the wrapper to get the new pre-signed URLs
         val refreshRes = refresherWrapper(
           querySpecificCachedTable.refreshToken,
           querySpecificCachedTable.refreshFunction
@@ -318,6 +321,8 @@ class CachedTableManager(
     }
     cachedTable.lastAccess = System.currentTimeMillis()
     val url = cachedTable.idToUrl.getOrElse(fileId, {
+      logInfo(s"${cachedTable.idToUrl.size} urls in cache " +
+        s"with expiration ${new java.util.Date(cachedTable.expiration)}")
       throw new IllegalStateException(s"cannot find url for id $fileId in table $tablePath")
     })
     (url, cachedTable.expiration)
@@ -349,9 +354,9 @@ class CachedTableManager(
     refreshToken: Option[String],
     profileProvider: DeltaSharingProfileProvider
   ): Unit = {
-    val queryId = profileProvider.getQueryId()
+    val queryId = profileProvider.getCustomQueryId()
       .getOrElse(throw new IllegalStateException("Query ID is not defined."))
-    val refresherWrapper = profileProvider.getRefresherWrapper().getOrElse(
+    val refresherWrapper = profileProvider.getCustomRefresherWrapper().getOrElse(
       throw new IllegalStateException("refresherWrapper is not defined.")
     )
 
@@ -464,7 +469,7 @@ class CachedTableManager(
         false
     }
 
-    if (parquetIOCacheEnabled && profileProvider.getQueryId().isDefined) {
+    if (parquetIOCacheEnabled && profileProvider.getCustomQueryId().isDefined) {
       return registerQuerySpecificCachedTable(
         tablePath = customTablePath,
         idToUrl = idToUrl,

@@ -177,11 +177,11 @@ trait DeltaSharingProfileProvider {
   // Returns an optional query identifier, which can be used to associate query-specific
   // refreshers with a table. This is useful for managing refreshers in scenarios where
   // multiple queries interact with the same table.
-  def getQueryId(): Option[String] = { None }
+  def getCustomQueryId(): Option[String] = { None }
 
   // Returns an optional refresher wrapper containing the server states required to execute
   // a refresh function.
-  def getRefresherWrapper(): Option[QuerySpecificCachedTable.RefresherWrapper] = { None }
+  def getCustomRefresherWrapper(): Option[QuerySpecificCachedTable.RefresherWrapper] = { None }
 }
 
 /**

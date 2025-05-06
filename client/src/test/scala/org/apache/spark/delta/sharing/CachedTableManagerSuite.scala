@@ -36,9 +36,9 @@ private class TestQuerySpecificProfileProviderWithQueryState(
     queryId: String,
     refresherWrapper: QuerySpecificCachedTable.RefresherWrapper)
   extends DeltaSharingProfileProvider {
-  override def getQueryId(): Option[String] = Some(queryId)
+  override def getCustomQueryId(): Option[String] = Some(queryId)
 
-  override def getRefresherWrapper(): Option[QuerySpecificCachedTable.RefresherWrapper] =
+  override def getCustomRefresherWrapper(): Option[QuerySpecificCachedTable.RefresherWrapper] =
     Some(refresherWrapper)
 
   override def getProfile(): DeltaSharingProfile = null
