@@ -729,6 +729,10 @@ private[spark] object DeltaSharingRestClient extends Logging {
         logInfo(
           s"Successfully verified endStreamAction in the response" + queryIdForLogging
         )
+        if(lastEndStreamAction.errorMessage != null) {
+          throw new DeltaSharingServerException("Request failed during streaming response " +
+            s"with error message ${lastEndStreamAction.errorMessage}")
+        }
       case Some(false) =>
         logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
           s"header, but the server responded with the header set to false(" +
