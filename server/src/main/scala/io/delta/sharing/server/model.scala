@@ -154,7 +154,8 @@ case class RemoveFile(
 case class EndStreamAction(
     refreshToken: String,
     nextPageToken: String,
-    minUrlExpirationTimestamp: java.lang.Long
+    minUrlExpirationTimestamp: java.lang.Long,
+    errorMessage: String = null
   ) extends Action {
   override def wrap: SingleAction = SingleAction(endStreamAction = this)
 }
