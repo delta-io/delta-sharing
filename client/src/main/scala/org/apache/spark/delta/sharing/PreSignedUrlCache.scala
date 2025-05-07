@@ -460,7 +460,6 @@ class CachedTableManager(
       refreshToken: Option[String]
     ): Unit = {
     val customTablePath = profileProvider.getCustomTablePath(tablePath)
-    val customRefresher = profileProvider.getCustomRefresher(refresher)
 
     val parquetIOCacheEnabled = try {
       ConfUtils.sparkParquetIOCacheEnabled(SparkSession.active.sessionState.conf)
@@ -476,12 +475,13 @@ class CachedTableManager(
         tablePath = customTablePath,
         idToUrl = idToUrl,
         refs = refs,
-        refresher = customRefresher,
+        refresher = refresher,
         expirationTimestamp = expirationTimestamp,
         refreshToken = refreshToken,
         profileProvider)
     }
 
+    val customRefresher = profileProvider.getCustomRefresher(refresher)
     val (resolvedIdToUrl, resolvedExpiration, resolvedRefreshToken) =
       if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
         val refreshRes = customRefresher(refreshToken)
