@@ -182,7 +182,7 @@ class CachedTableManager(
           case table: CachedTable =>
             handleCachedTableRefresh(tablePath, table)
           case table: QuerySpecificCachedTable =>
-            handleQuerySpecificTableRefresh(tablePath, table)
+            handleQuerySpecificCachedTableRefresh(tablePath, table)
           case _ =>
             // We should never have a table that is not CachedTable or QuerySpecificCachedTable
             // Also, refresh happens in a background thread, throw an exception doesn't help.
@@ -261,7 +261,7 @@ class CachedTableManager(
   }
 
   /** Refreshes a `QuerySpecificCachedTable` if necessary. */
-  private def handleQuerySpecificTableRefresh(
+  private def handleQuerySpecificCachedTableRefresh(
     tablePath: String,
     querySpecificCachedTable: QuerySpecificCachedTable): Unit = {
     // Filter out query states where at least one reference is still valid (not garbage collected).
@@ -382,55 +382,55 @@ class CachedTableManager(
         (idToUrl, expirationTimestamp, refreshToken)
       }
 
-    val cachedTable = cache.get(tablePath)
-    if (cachedTable == null) {
-      // If the table is not in cache, we will create a new entry
-      val newCachedTable = new QuerySpecificCachedTable(
-        expiration = resolvedExpiration,
-        idToUrl = resolvedIdToUrl,
-        lastAccess = System.currentTimeMillis(),
-        refreshToken = resolvedRefreshToken,
-        refresher = refresher,
-        queryStates = Map(queryId -> (refs, refresherWrapper))
-      )
-      cache.put(tablePath, newCachedTable)
-      logInfo(
-        s"Registered a new QuerySpecificCachedTable in cache for table $tablePath, " +
-        s"queryId ${queryId}."
-      )
-    } else {
-      // If the table is already in cache, we will update the existing entry
-      val querySpecificCachedTable = cachedTable match {
-        case cached: QuerySpecificCachedTable => cached
-        case _ =>
-          // This is a safeguard that should never occur.
-          throw new IllegalStateException(
-            s"Cache entry type mismatch: existing type is ${cachedTable.getClass}, " +
-            s"expected type is QuerySpecificCachedTable."
-          )
-      }
-      // Retain the old references and refresh wrappers. The cache entry will only be removed
-      // when all references are null. All refresh wrappers are preserved as they may hold state
-      // required by the server to refresh URLs.
-      val newQueryStates = querySpecificCachedTable.queryStates +
-        (queryId -> (refs, refresherWrapper))
+    // Use compute to gaurantee atomicity of the operation
+    cache.compute(tablePath, (_, existingTable) => {
+      if (existingTable == null) {
+        // If the table is not in cache, we will create a new entry
+        logInfo(
+          s"Registered a new QuerySpecificCachedTable in cache for table $tablePath, " +
+          s"queryId ${queryId}."
+        )
+        new QuerySpecificCachedTable(
+          expiration = resolvedExpiration,
+          idToUrl = resolvedIdToUrl,
+          lastAccess = System.currentTimeMillis(),
+          refreshToken = resolvedRefreshToken,
+          refresher = refresher,
+          queryStates = Map(queryId -> (refs, refresherWrapper))
+        )
+      } else {
+        // If the table is already in cache, we will update the existing entry
+        val querySpecificCachedTable = existingTable match {
+          case cached: QuerySpecificCachedTable => cached
+          case _ =>
+            // This is a safeguard that should never occur.
+            throw new IllegalStateException(
+              s"Cache entry type mismatch: existing type is ${existingTable.getClass}, " +
+              s"expected type is QuerySpecificCachedTable."
+            )
+        }
+        // Retain the old references and refresh wrappers. The cache entry will only be removed
+        // when all references are null. All refresh wrappers are preserved as they may hold state
+        // required by the server to refresh URLs.
+        val newQueryStates = querySpecificCachedTable.queryStates +
+          (queryId -> (refs, refresherWrapper))
 
-      // Update all attributes as the new version is always more up to date and file URLs can
-      // be shared across identical queries.
-      val updatedCachedTable = new QuerySpecificCachedTable(
-        expiration = resolvedExpiration,
-        idToUrl = resolvedIdToUrl,
-        lastAccess = System.currentTimeMillis(),
-        refreshToken = resolvedRefreshToken,
-        refresher = refresher,
-        queryStates = newQueryStates
-      )
-      cache.put(tablePath, updatedCachedTable)
-      logInfo(
-        s"Registered to an existing QuerySpecificCachedTable in cache for table $tablePath, " +
-        s"queryId ${queryId}, newQueryStates size: ${newQueryStates.size}."
-      )
-    }
+        logInfo(
+          s"Registered to an existing QuerySpecificCachedTable in cache for table $tablePath, " +
+          s"queryId ${queryId}, newQueryStates size: ${newQueryStates.size}."
+        )
+        // Update all attributes as the new version is always more up to date and file URLs can
+        // be shared across identical queries.
+        new QuerySpecificCachedTable(
+          expiration = resolvedExpiration,
+          idToUrl = resolvedIdToUrl,
+          lastAccess = System.currentTimeMillis(),
+          refreshToken = resolvedRefreshToken,
+          refresher = refresher,
+          queryStates = newQueryStates
+        )
+      }
+    })
   }
 
   /**
