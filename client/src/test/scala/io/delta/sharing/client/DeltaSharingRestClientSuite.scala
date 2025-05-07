@@ -35,7 +35,7 @@ import io.delta.sharing.client.model.{
 }
 import io.delta.sharing.client.util.JsonUtils
 import io.delta.sharing.client.util.UnexpectedHttpStatus
-import io.delta.sharing.spark.MissingEndStreamActionException
+import io.delta.sharing.spark.{DeltaSharingServerException, MissingEndStreamActionException}
 
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
@@ -1243,6 +1243,12 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     nextPageToken = "random-next",
     minUrlExpirationTimestamp = 0
   ).wrap)
+  val fakeEndStreamActionErrorStr = JsonUtils.toJson(EndStreamAction(
+    refreshToken = null,
+    nextPageToken = null,
+    minUrlExpirationTimestamp = null,
+    errorMessage = "BAD REQUEST: Error Occurred During Streaming"
+  ).wrap)
 
   test("checkEndStreamAction succeeded") {
     // DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true
@@ -1329,5 +1335,38 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       )
     }
     checkErrorMessage(e, s"and 0 lines, and last line as [Empty_Seq_in_checkEndStreamAction].")
+  }
+
+  test("checkEndStreamAction with error message throws streaming error") {
+    def checkErrorMessage(
+      e: DeltaSharingServerException,
+      additionalErrorMsg: String): Unit = {
+      val commonErrorMsg = "Request failed during streaming response with error message"
+      assert(e.getMessage.contains(commonErrorMsg))
+
+      assert(e.getMessage.contains(additionalErrorMsg))
+    }
+
+    // checkEndStreamAction throws error if the last line is EndStreamAction with error message
+    var e = intercept[DeltaSharingServerException] {
+      checkEndStreamAction(
+        Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+        Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+        Seq(fakeAddFileStr, fakeEndStreamActionErrorStr),
+        "random-query-id"
+      )
+    }
+    checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
+
+    // checkEndStreamAction throws error if the only line is EndStreamAction with error message
+    e = intercept[DeltaSharingServerException] {
+      checkEndStreamAction(
+        Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+        Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+        Seq(fakeEndStreamActionErrorStr),
+        "random-query-id"
+      )
+    }
+    checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
   }
 }
