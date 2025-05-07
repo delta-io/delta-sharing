@@ -19,14 +19,17 @@ import sbt.ExclusionRule
 ThisBuild / parallelExecution := false
 
 val sparkVersion = "3.3.2"
-val scala212 = "2.12.10"
-val scala213 = "2.13.11"
+val scala212 = "2.12.20"
+val scala213 = "2.13.15"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
   fork := true,
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
-  scalacOptions += "-target:jvm-1.8",
+  scalacOptions ++= Seq(
+    "-target:jvm-1.8",
+    if (scalaVersion.value.startsWith("2.12")) "-Ywarn-unused-import" else "-Ywarn-unused:imports",
+  ),
   // Configurations to speed up tests and reduce memory footprint
   Test / javaOptions ++= Seq(
     "-Dspark.ui.enabled=false",
@@ -108,15 +111,15 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   libraryDependencies ++= Seq(
     // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a
     // breaking change making us not able to use `delta-standalone`.
-    "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7",
-    "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7.3",
-    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.6.7.1",
-    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.6.7",
+    "com.fasterxml.jackson.core" % "jackson-core" % "2.15.2",
+    "com.fasterxml.jackson.core" % "jackson-databind" % "2.15.2",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.15.2",
+    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.15.2",
     "org.json4s" %% "json4s-jackson" % "3.5.3" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")
     ),
-    "com.linecorp.armeria" %% "armeria-scalapb" % "1.6.0" excludeAll(
+    "com.linecorp.armeria" %% "armeria-scalapb" % "1.9.2" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("org.json4s")
@@ -188,7 +191,9 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
     "org.slf4j" % "slf4j-simple" % "1.6.1",
     "net.sourceforge.argparse4j" % "argparse4j" % "0.9.0",
 
-    "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+    "org.scalatest" %% "scalatest" % "3.2.19" % "test",
+    "dev.zio" %% "zio-test" % "2.0.19" % "test",
+    "dev.zio" %% "zio-test-sbt" % "2.0.19" % "test"
   ),
   Compile / PB.targets := Seq(
     scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
