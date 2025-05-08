@@ -121,7 +121,7 @@ class DeltaSharingSourceSuite extends QueryTest
       "ignoreDeletes" -> "true",
       "startingVersion" -> "latest"
     ))
-    if (ConfUtils.sparkParquetIOCacheEnabled(SparkSession.active.sessionState.conf)) {
+    if (ConfUtils.sparkParquetIOCacheEnabled(SparkSession.active.sparkContext.getConf)) {
       // <profile>#share8.default.cdf_table_cdf_enabled
       assert(source.deltaLog.path.toString.split("#")(1) == "share8.default.cdf_table_cdf_enabled")
     }
@@ -585,8 +585,10 @@ class DeltaSharingSourceSuite extends QueryTest
 }
 
 class DeltaSharingSourceWithParquetIOCacheEnabledSuite extends DeltaSharingSourceSuite {
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    spark.conf.set("spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+  import org.apache.spark.SparkConf
+
+  override protected def sparkConf: SparkConf = {
+    super.sparkConf
+      .set("spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
   }
 }

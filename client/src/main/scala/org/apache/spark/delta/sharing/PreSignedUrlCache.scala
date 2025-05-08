@@ -462,7 +462,7 @@ class CachedTableManager(
     val customTablePath = profileProvider.getCustomTablePath(tablePath)
 
     val parquetIOCacheEnabled = try {
-      ConfUtils.sparkParquetIOCacheEnabled(SparkSession.active.sessionState.conf)
+      ConfUtils.sparkParquetIOCacheEnabled(SparkSession.active.sparkContext.getConf)
     } catch {
       case _: Exception =>
         // This is a safeguard in case SparkSession is not available
@@ -478,7 +478,11 @@ class CachedTableManager(
         refresher = refresher,
         expirationTimestamp = expirationTimestamp,
         refreshToken = refreshToken,
-        profileProvider)
+        profileProvider = profileProvider
+      )
+    } else if (parquetIOCacheEnabled) {
+      logWarning(s"Query ID is missing for table $customTablePath. " +
+      s"Query-specific caching is disabled, which may lead to refresh issues.")
     }
 
     val customRefresher = profileProvider.getCustomRefresher(refresher)

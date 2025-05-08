@@ -24,6 +24,8 @@ import org.apache.spark.sql.internal.SQLConf
 
 object ConfUtils {
 
+  import org.apache.spark.SparkConf
+
   val NUM_RETRIES_CONF = "spark.delta.sharing.network.numRetries"
   val NUM_RETRIES_DEFAULT = 3
 
@@ -318,8 +320,9 @@ object ConfUtils {
       SPARK_PARQUET_IO_CACHE_CONF, SPARK_PARQUET_IO_CACHE_DEFAULT.toBoolean)
   }
 
-  def sparkParquetIOCacheEnabled(conf: SQLConf): Boolean = {
-    conf.getConfString(
+  // SparkConf is driver level configuration
+  def sparkParquetIOCacheEnabled(conf: SparkConf): Boolean = {
+    conf.get(
       SPARK_PARQUET_IO_CACHE_CONF, SPARK_PARQUET_IO_CACHE_DEFAULT).toBoolean
   }
 

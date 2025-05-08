@@ -158,7 +158,7 @@ private[sharing] object RemoteDeltaLog {
     // Use a clean path and add a query parameter suffix later,
     // or append a timestamp UUID suffix to ensure the uniqueness of the table path.
     val updatedPath = new Path(
-      if (ConfUtils.sparkParquetIOCacheEnabled(SparkSession.active.sessionState.conf)) path
+      if (ConfUtils.sparkParquetIOCacheEnabled(SparkSession.active.sparkContext.getConf)) path
       else path + getFormattedTimestampWithUUID
     )
     new RemoteDeltaLog(
@@ -294,7 +294,7 @@ class RemoteSnapshot(
         predicates, limitHint, jsonPredicateHints, tableFiles.version
       )
       val tablePathWithParams =
-        if (ConfUtils.sparkParquetIOCacheEnabled(spark.sessionState.conf)) {
+        if (ConfUtils.sparkParquetIOCacheEnabled(spark.sparkContext.getConf)) {
           QueryUtils.getTablePathWithIdSuffix(
             fileIndex.params.path.toString, queryParamsHashId
           )

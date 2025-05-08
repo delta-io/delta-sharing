@@ -70,7 +70,7 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
   // file ID, which are used to retrieve the file URL from the pre-signed URL cache.
   protected def toDeltaSharingPath(f: FileAction, queryParamsHashId: String): Path = {
     val tablePathWithParams =
-      if (ConfUtils.sparkParquetIOCacheEnabled(params.spark.sessionState.conf)) {
+      if (ConfUtils.sparkParquetIOCacheEnabled(params.spark.sparkContext.getConf)) {
         // Adding `queryParamHashId` to the path ensures unique entries in the pre-signed URL cache
         // for different query shapes, distinguishing queries sharing the same table path.
         QueryUtils.getTablePathWithIdSuffix(
