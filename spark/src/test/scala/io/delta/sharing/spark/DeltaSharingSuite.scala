@@ -22,6 +22,7 @@ import scala.util.Random
 
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.spark.SparkConf
 import org.apache.spark.sql.{QueryTest, Row}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.test.SharedSparkSession
@@ -568,8 +569,6 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
 }
 
 class DeltaSharingWithParquetIOCacheEnabledSuite extends DeltaSharingSuite {
-  import org.apache.spark.SparkConf
-
   override protected def sparkConf: SparkConf = {
     super.sparkConf
       .set("spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")

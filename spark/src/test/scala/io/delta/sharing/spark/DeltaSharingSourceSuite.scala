@@ -19,18 +19,12 @@ package io.delta.sharing.spark
 import scala.collection.JavaConverters._
 
 import org.apache.commons.io.FileUtils
+import org.apache.spark.SparkConf
 import org.apache.spark.sql.{AnalysisException, QueryTest, Row, SparkSession}
 import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{
-  DateType,
-  IntegerType,
-  StringType,
-  StructField,
-  StructType,
-  TimestampType
-}
+import org.apache.spark.sql.types.{DateType, IntegerType, StringType, StructField, StructType, TimestampType}
 
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.TestUtils._
@@ -585,8 +579,6 @@ class DeltaSharingSourceSuite extends QueryTest
 }
 
 class DeltaSharingSourceWithParquetIOCacheEnabledSuite extends DeltaSharingSourceSuite {
-  import org.apache.spark.SparkConf
-
   override protected def sparkConf: SparkConf = {
     super.sparkConf
       .set("spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")

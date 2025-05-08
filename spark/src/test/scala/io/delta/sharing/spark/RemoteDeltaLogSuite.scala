@@ -21,7 +21,7 @@ import java.nio.file.Files
 
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
-import org.apache.spark.{SparkException, SparkFunSuite}
+import org.apache.spark.{SparkConf, SparkException, SparkFunSuite}
 import org.apache.spark.delta.sharing.CachedTableManager
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference => SqlAttributeReference, EqualTo => SqlEqualTo, GreaterThan => SqlGreaterThan, Literal => SqlLiteral}
@@ -663,8 +663,6 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 }
 
 class RemoteDeltaLogWithParquetIOCacheEnabledSuite extends SparkFunSuite with SharedSparkSession {
-  import org.apache.spark.SparkConf
-
   // Spark configuration is set during Spark session initialization and remains immutable afterward.
   override def sparkConf: SparkConf = {
     super.sparkConf

@@ -19,7 +19,7 @@ package org.apache.spark.delta.sharing
 import java.lang.ref.WeakReference
 import java.util.concurrent.TimeUnit
 
-import org.apache.spark.SparkFunSuite
+import org.apache.spark.{SparkConf, SparkFunSuite}
 import org.apache.spark.sql.test.SharedSparkSession
 import org.scalatest.time.SpanSugar._
 
@@ -299,8 +299,6 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
 class CachedTableManagerWithParquetIOCacheEnabledSuite
   extends SparkFunSuite
   with SharedSparkSession {
-  import org.apache.spark.SparkConf
-
   // Spark configuration is set during Spark session initialization and remains immutable afterward.
   override def sparkConf: SparkConf = {
     super.sparkConf
