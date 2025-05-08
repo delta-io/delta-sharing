@@ -195,7 +195,7 @@ class CachedTableManager(
           case table: CachedTable =>
             handleCachedTableRefresh(tablePath, table)
           case table: QuerySpecificCachedTable =>
-            handleQuerySpecificCachedTableRefresh(tablePath, table)
+            handleQuerySpecificCachedTableRefresh(tablePath)
           case _ =>
             // We should never have a table that is not CachedTable or QuerySpecificCachedTable
             // Also, refresh happens in a background thread, throw an exception doesn't help.
