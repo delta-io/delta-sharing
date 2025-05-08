@@ -19,12 +19,11 @@ package io.delta.sharing.client.util
 import java.util.concurrent.TimeUnit
 
 import org.apache.hadoop.conf.Configuration
+import org.apache.spark.SparkConf
 import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.sql.internal.SQLConf
 
 object ConfUtils {
-
-  import org.apache.spark.SparkConf
 
   val NUM_RETRIES_CONF = "spark.delta.sharing.network.numRetries"
   val NUM_RETRIES_DEFAULT = 3
