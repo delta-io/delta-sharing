@@ -673,4 +673,194 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
     val (retrievedUrl, _) = manager.getPreSignedUrl(tablePath, fileId)
     assert(retrievedUrl === refreshedUrl)
   }
+
+  test("QuerySpecificCachedTable - multi-threaded register with 10 queries") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    val manager = createManager()
+    val tablePath = "test_table"
+    val fileId = "file1"
+    val initialUrl = "https://test.com/file1"
+    val refreshedUrl = "https://test.com/file1-refreshed"
+
+    val refresherWrapper: QuerySpecificCachedTable.RefresherWrapper =
+      (token, refresher) => {
+        refresher(token)
+      }
+
+    // Single shared refresh function
+    val refresher: Option[String] => TableRefreshResult = _ => {
+      val newExpiration = System.currentTimeMillis() + refreshThresholdMs + 100
+      TableRefreshResult(
+        Map(fileId -> refreshedUrl),
+        Some(newExpiration),
+        None)
+    }
+
+    val refs = (0 to 9).map { i =>
+      new WeakReference[AnyRef](new Object())
+    }
+    val threads = (0 to 9).map { i =>
+      val queryId = s"query$i"
+      val profileProvider = createProfileProvider(queryId, refresherWrapper)
+      new Thread(new Runnable {
+        override def run(): Unit = {
+          manager.register(
+            tablePath,
+            Map(fileId -> initialUrl),
+            Seq(refs(i)),
+            profileProvider,
+            refresher,
+            System.currentTimeMillis() + refreshThresholdMs + 100,
+            None
+          )
+        }
+      })
+    }
+
+    threads.foreach(_.start())
+    threads.foreach(_.join())
+
+    // Verify the cache size and URL
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 10)
+    val (retrievedUrl1, _) = manager.getPreSignedUrl(tablePath, fileId)
+    assert(retrievedUrl1 === initialUrl)
+
+    // We only refresh cache entry when urls are going to expire
+    refs.take(5).foreach(_.clear())
+    manager.refresh()
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 10) // still 10
+    val (retrievedUrl2, _) = manager.getPreSignedUrl(tablePath, fileId)
+    assert(retrievedUrl2 === initialUrl)
+
+    // Sleep to let the URLs expire
+    Thread.sleep(200)
+    manager.refresh()
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 5) // reduced to 5
+    val (retrievedUrl3, _) = manager.getPreSignedUrl(tablePath, fileId)
+    assert(retrievedUrl3 === refreshedUrl)
+
+    // Clear all references
+    refs.foreach(_.clear())
+    manager.refresh()
+    assert(manager.size == 0)
+  }
+
+  test("QuerySpecificCachedTable - race condition between register and refresh") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    val manager = new CachedTableManager(
+      0, // force always refresh
+      refreshCheckIntervalMs,
+      refreshThresholdMs,
+      expireAfterAccessMs
+    )
+    val tablePath = "test_table"
+    val fileId = "file1"
+    val initialUrl = "https://test.com/file1"
+    val refreshedUrl = "https://test.com/file1-refreshed"
+
+    val refresherWrapper: QuerySpecificCachedTable.RefresherWrapper =
+      (token, refresher) => refresher(token)
+
+    // Always return expired timestamp to force refresh
+    val refresher: Option[String] => TableRefreshResult = _ =>
+      TableRefreshResult(
+        Map(fileId -> refreshedUrl),
+        Some(System.currentTimeMillis()), // Force refresh
+        None)
+
+    // Create two sets of references for two phases of testing
+    val refs1 = (0 to 9).map(_ => new WeakReference[AnyRef](new Object()))
+    val refs2 = (0 to 9).map(_ => new WeakReference[AnyRef](new Object()))
+
+    // Phase 1: Initial concurrent registration and refresh
+    val registerThreads1 = (0 to 9).map { i =>
+      val queryId = s"query$i"
+      val profileProvider = createProfileProvider(queryId, refresherWrapper)
+
+      new Thread(new Runnable {
+        override def run(): Unit = {
+          manager.register(
+            tablePath,
+            Map(fileId -> initialUrl),
+            Seq(refs1(i)),
+            profileProvider,
+            refresher,
+            System.currentTimeMillis(), // Force refresh
+            None
+          )
+        }
+      })
+    }
+
+    val refreshThread1 = new Thread(new Runnable {
+      override def run(): Unit = {
+        (0 to 40).foreach { _ => manager.refresh() }
+      }
+    })
+
+    // Start phase 1
+    registerThreads1.foreach(_.start())
+    refreshThread1.start()
+    registerThreads1.foreach(_.join())
+    refreshThread1.join()
+
+    // Verify phase 1 state
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 10)
+    val (retrievedUrl1, _) = manager.getPreSignedUrl(tablePath, fileId)
+    assert(retrievedUrl1 === refreshedUrl)
+
+    // Phase 2: Clear some references and add new ones
+    refs1.take(5).foreach(_.clear())
+
+    val registerThreads2 = (0 to 9).map { i =>
+      val queryId = s"query${i + 10}" // Different query IDs
+      val profileProvider = createProfileProvider(queryId, refresherWrapper)
+
+      new Thread(new Runnable {
+        override def run(): Unit = {
+          manager.register(
+            tablePath,
+            Map(fileId -> initialUrl),
+            Seq(refs2(i)),
+            profileProvider,
+            refresher,
+            System.currentTimeMillis(), // Force refresh
+            None
+          )
+        }
+      })
+    }
+
+    val refreshThread2 = new Thread(new Runnable {
+      override def run(): Unit = {
+        (0 to 40).foreach { _ => manager.refresh() }
+      }
+    })
+
+    // Start phase 2
+    registerThreads2.foreach(_.start())
+    refreshThread2.start()
+    registerThreads2.foreach(_.join())
+    refreshThread2.join()
+
+    // Verify phase 2 state
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 15) // 5 from phase 1 + 10 from phase 2
+    val (retrievedUrl2, _) = manager.getPreSignedUrl(tablePath, fileId)
+    assert(retrievedUrl2 === refreshedUrl)
+
+    // Phase 3: Clear all references
+    refs1.foreach(_.clear())
+    refs2.foreach(_.clear())
+    manager.refresh()
+    assert(manager.size == 0)
+  }
 }
