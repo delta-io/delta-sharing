@@ -325,11 +325,27 @@ class CachedTableManager(
                 logInfo(s"Removing table $tablePath as the pre-signed URL has expired.")
                 null
               } else {
-                querySpecificCachedTable
+                // Update query states
+                new QuerySpecificCachedTable(
+                  querySpecificCachedTable.expiration,
+                  querySpecificCachedTable.idToUrl,
+                  querySpecificCachedTable.lastAccess,
+                  querySpecificCachedTable.refreshToken,
+                  querySpecificCachedTable.refresher,
+                  validStates
+                )
               }
           }
         } else {
-          querySpecificCachedTable
+          // Update query states
+          new QuerySpecificCachedTable(
+            querySpecificCachedTable.expiration,
+            querySpecificCachedTable.idToUrl,
+            querySpecificCachedTable.lastAccess,
+            querySpecificCachedTable.refreshToken,
+            querySpecificCachedTable.refresher,
+            validStates
+          )
         }
 
       case _ =>

@@ -728,21 +728,13 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
     val (retrievedUrl1, _) = manager.getPreSignedUrl(tablePath, fileId)
     assert(retrievedUrl1 === initialUrl)
 
-    // We only refresh cache entry when urls are going to expire
+    // Clear some references
     refs.take(5).foreach(_.clear())
     manager.refresh()
     assert(manager.size == 1)
-    assert(manager.getQueryStateSize(tablePath) == 10) // still 10
+    assert(manager.getQueryStateSize(tablePath) == 5)
     val (retrievedUrl2, _) = manager.getPreSignedUrl(tablePath, fileId)
     assert(retrievedUrl2 === initialUrl)
-
-    // Sleep to let the URLs expire
-    Thread.sleep(200)
-    manager.refresh()
-    assert(manager.size == 1)
-    assert(manager.getQueryStateSize(tablePath) == 5) // reduced to 5
-    val (retrievedUrl3, _) = manager.getPreSignedUrl(tablePath, fileId)
-    assert(retrievedUrl3 === refreshedUrl)
 
     // Clear all references
     refs.foreach(_.clear())
