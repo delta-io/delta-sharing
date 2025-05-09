@@ -24,7 +24,14 @@ import org.apache.spark.sql.{AnalysisException, QueryTest, Row, SparkSession}
 import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles
 import org.apache.spark.sql.streaming.{DataStreamReader, StreamingQueryException, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{DateType, IntegerType, StringType, StructField, StructType, TimestampType}
+import org.apache.spark.sql.types.{
+  DateType,
+  IntegerType,
+  StringType,
+  StructField,
+  StructType,
+  TimestampType
+}
 
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.TestUtils._
