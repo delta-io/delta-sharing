@@ -133,8 +133,15 @@ class DeltaSharingReader:
             schema = scan.execute(interface).schema
             return pd.DataFrame(columns=schema.names)
 
-        table = pa.Table.from_batches(scan.execute(interface))
-        result = table.to_pandas()
+        batches = scan.execute(interface)
+        pdfs = [batch.to_pandas() for batch in batches]
+        
+        result = pd.concat(
+            pdfs,
+            axis=0,
+            ignore_index=True,
+            copy=False,
+        )
 
         # Apply residual limit that was not handled from server pushdown
         result = result.head(self._limit)
