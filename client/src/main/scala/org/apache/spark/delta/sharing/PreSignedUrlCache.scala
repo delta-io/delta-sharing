@@ -144,6 +144,19 @@ class CachedTableManager(
     cache.size
   }
 
+  // Returns the number of query states in the cache for a given table path.
+  // This method is mainly for testing purpose.
+  def getQueryStateSize(tablePath: String): Int = {
+    val cachedTable = cache.get(tablePath)
+    if (cachedTable == null) {
+      throw new IllegalStateException(s"table $tablePath was removed")
+    }
+    cachedTable match {
+      case table: QuerySpecificCachedTable => table.queryStates.size
+      case _ => 0
+    }
+  }
+
   def isValidUrlExpirationTime(expiration: Option[Long]): Boolean = {
     // refreshThresholdMs is the buffer time for the refresh RPC.
     // It could also help the client from keeping refreshing endlessly.
@@ -182,7 +195,7 @@ class CachedTableManager(
           case table: CachedTable =>
             handleCachedTableRefresh(tablePath, table)
           case table: QuerySpecificCachedTable =>
-            handleQuerySpecificCachedTableRefresh(tablePath, table)
+            handleQuerySpecificCachedTableRefresh(tablePath)
           case _ =>
             // We should never have a table that is not CachedTable or QuerySpecificCachedTable
             // Also, refresh happens in a background thread, throw an exception doesn't help.
@@ -261,56 +274,84 @@ class CachedTableManager(
   }
 
   /** Refreshes a `QuerySpecificCachedTable` if necessary. */
-  private def handleQuerySpecificCachedTableRefresh(
-    tablePath: String,
-    querySpecificCachedTable: QuerySpecificCachedTable): Unit = {
-    // Filter out query states where at least one reference is still valid (not garbage collected).
-    val validStates = querySpecificCachedTable.queryStates.filter {
-      case (_, (refs, _)) => refs.exists(_.get != null)
-    }
+  private def handleQuerySpecificCachedTableRefresh(tablePath: String): Unit = {
+    // Use `computeIfPresent` to ensure atomicity of the operation and prevent interference
+    // with concurrent register threads.
+    cache.computeIfPresent(tablePath, (_, cachedTable) => cachedTable match {
+      case querySpecificCachedTable: QuerySpecificCachedTable =>
+        // Filter out query states where at least one reference is still valid (not garbage
+        // collected).
+        val validStates = querySpecificCachedTable.queryStates.filter {
+          case (_, (refs, _)) => refs.exists(_.get != null)
+        }
 
-    if (validStates.isEmpty) {
-      // If all the references are gone, we will remove the table from the cache.
-      logInfo(s"Removing table $tablePath as no valid query mappings remain.")
-      cache.remove(tablePath, querySpecificCachedTable)
-    } else if (
-      querySpecificCachedTable.expiration - System.currentTimeMillis() < refreshThresholdMs
-    ) {
-      // If the pre-signed URLs are going to expire, we will refresh them.
-      val (_, (_, refresherWrapper)) = validStates.head
-      try {
-        // Run the refresh function with the wrapper to get the new pre-signed URLs
-        val refreshRes = refresherWrapper(
-          querySpecificCachedTable.refreshToken,
-          querySpecificCachedTable.refresher
-        )
-        logDifferencesBetweenUrls(refreshRes.idToUrl, querySpecificCachedTable.idToUrl)
-
-        val newQuerySpecificCachedTable = new QuerySpecificCachedTable(
-          expiration =
-            if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
-              refreshRes.expirationTimestamp.get
-            } else {
-              preSignedUrlExpirationMs + System.currentTimeMillis()
-            },
-          idToUrl = refreshRes.idToUrl,
-          lastAccess = querySpecificCachedTable.lastAccess,
-          refreshToken = refreshRes.refreshToken,
-          refresher = querySpecificCachedTable.refresher,
-          queryStates = validStates
-        )
-        cache.replace(tablePath, querySpecificCachedTable, newQuerySpecificCachedTable)
-        logInfo(s"Updated pre-signed URLs for $tablePath with size ${refreshRes.idToUrl.size}, " +
-          s"validStates: ${validStates.size}.")
-      } catch {
-        case NonFatal(e) =>
-          logError(s"Failed to refresh pre-signed URLs for table $tablePath", e)
-          if (querySpecificCachedTable.expiration < System.currentTimeMillis()) {
-            logInfo(s"Removing table $tablePath as the pre-signed URL has expired.")
-            cache.remove(tablePath, querySpecificCachedTable)
+        if (validStates.isEmpty) {
+          // If all the references are gone, we will remove the table from the cache.
+          logInfo(s"Removing table $tablePath as no valid query mappings remain.")
+          null
+        } else if (
+          querySpecificCachedTable.expiration - System.currentTimeMillis() < refreshThresholdMs
+        ) {
+          // If the pre signed urls are going to expire, we will refresh them.
+          try {
+            val (_, (_, refresherWrapper)) = validStates.head
+            // Run the refresh function with the wrapper to get the new pre-signed URLs
+            val refreshRes = refresherWrapper(
+              querySpecificCachedTable.refreshToken,
+              querySpecificCachedTable.refresher
+            )
+            logDifferencesBetweenUrls(refreshRes.idToUrl, querySpecificCachedTable.idToUrl)
+            logInfo(
+              s"Updated pre-signed URLs for $tablePath with size ${refreshRes.idToUrl.size}, " +
+                s"validStates: ${validStates.size}."
+            )
+            new QuerySpecificCachedTable(
+              expiration =
+                if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
+                  refreshRes.expirationTimestamp.get
+                } else {
+                  preSignedUrlExpirationMs + System.currentTimeMillis()
+                },
+              idToUrl = refreshRes.idToUrl,
+              lastAccess = querySpecificCachedTable.lastAccess,
+              refreshToken = refreshRes.refreshToken,
+              refresher = querySpecificCachedTable.refresher,
+              queryStates = validStates
+            )
+          } catch {
+            case NonFatal(e) =>
+              logError(s"Failed to refresh pre-signed URLs for table $tablePath", e)
+              if (querySpecificCachedTable.expiration < System.currentTimeMillis()) {
+                logInfo(s"Removing table $tablePath as the pre-signed URL has expired.")
+                null
+              } else {
+                // Update query states
+                new QuerySpecificCachedTable(
+                  querySpecificCachedTable.expiration,
+                  querySpecificCachedTable.idToUrl,
+                  querySpecificCachedTable.lastAccess,
+                  querySpecificCachedTable.refreshToken,
+                  querySpecificCachedTable.refresher,
+                  validStates
+                )
+              }
           }
-      }
-    }
+        } else {
+          // Update query states
+          new QuerySpecificCachedTable(
+            querySpecificCachedTable.expiration,
+            querySpecificCachedTable.idToUrl,
+            querySpecificCachedTable.lastAccess,
+            querySpecificCachedTable.refreshToken,
+            querySpecificCachedTable.refresher,
+            validStates
+          )
+        }
+
+      case _ =>
+        logWarning(s"Unexpected table type for $tablePath. Expected QuerySpecificCachedTable.")
+        cachedTable
+    })
   }
 
   /** Returns `PreSignedUrl` from the cache. */
