@@ -32,6 +32,15 @@ import org.scalatest.BeforeAndAfterAll
 trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
 
   def shouldRunIntegrationTest: Boolean = {
+    import scala.io.Source
+    import java.net.URL
+
+
+    val ipService = "https://api.ipify.org"
+    val ip = Source.fromURL(new URL(ipService)).mkString
+    // scalastyle:off println
+    println(s"My public IP is: $ip")
+
     sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) &&
       sys.env.get("AZURE_TEST_ACCOUNT_KEY").exists(_.length > 0) &&
       sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
