@@ -134,14 +134,12 @@ class DeltaSharingReader:
             return pd.DataFrame(columns=schema.names)
 
         batches = scan.execute(interface)
-        pdfs = [batch.to_pandas() for batch in batches]
-        
-        result = pd.concat(
-            pdfs,
-            axis=0,
-            ignore_index=True,
-            copy=False,
-        )
+        if self._convert_in_batches:
+            pdfs = [batch.to_pandas(self_destruct=True) for batch in batches]
+            print(f"Received {len(pdfs)} batches of data.")
+            result = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+        else:
+            result = pa.Table.from_batches(batches).to_pandas(self_destruct=True)
 
         # Apply residual limit that was not handled from server pushdown
         result = result.head(self._limit)
@@ -375,12 +373,15 @@ class DeltaSharingReader:
                 table, interface, min_version, max_version
             ).build()
 
+            scan_result = scan.execute(interface)
             if num_versions_with_action == 0:
-                schema = scan.execute(interface).schema
+                schema = scan_result.schema
                 result = pd.DataFrame(columns=schema.names)
+            elif self._convert_in_batches:
+                pdfs = [batch.to_pandas(self_destruct=True) for batch in scan_result]
+                result = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
             else:
-                table = pa.Table.from_batches(scan.execute(interface))
-                result = table.to_pandas()
+                result = pa.Table.from_batches(scan_result).to_pandas(self_destruct=True)
         finally:
             # Delete the temp folder explicitly and remove the delta format from header
             temp_dir.cleanup()
@@ -466,6 +467,7 @@ class DeltaSharingReader:
                 if limit is not None and rows_read >= limit:
                     break
 
+            print(f"Received {len(pdfs)} batches of data.")
             pdf = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
             if limit is not None:
                 pdf = pdf.head(limit)
