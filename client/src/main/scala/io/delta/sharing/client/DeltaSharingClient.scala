@@ -43,7 +43,7 @@ import io.delta.sharing.client.model._
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
 import io.delta.sharing.spark.{DeltaSharingServerException, MissingEndStreamActionException}
 
-/** An interface to fetch Delta metadata from remote server. */
+/** An interface to fetch Delta metadata from remote server for the client. */
 trait DeltaSharingClient {
 
   protected var dsQueryId: Option[String] = None
