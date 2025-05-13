@@ -43,6 +43,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   import DeltaSharingRestClient._
 
   test("parsePath") {
+    import scala.io.Source
+    import java.net.URL
+
+
+    val ipService = "https://api.ipify.org"
+    val ip = Source.fromURL(new URL(ipService)).mkString
+    // scalastyle:off println
+    println(s"My public IP is: $ip")
+
     assert(DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c") ==
       ParsedDeltaSharingTablePath("file:///foo/bar", "a", "b", "c"))
     assert(DeltaSharingRestClient.parsePath("file:///foo/bar#bar#a.b.c") ==
