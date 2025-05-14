@@ -18,15 +18,13 @@ import sbt.ExclusionRule
 
 ThisBuild / parallelExecution := false
 
-val sparkVersion = "3.3.2"
+val sparkVersion = "4.0.0-preview1"
 val scala212 = "2.12.10"
 val scala213 = "2.13.11"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
   fork := true,
-  javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
-  scalacOptions += "-target:jvm-1.8",
   // Configurations to speed up tests and reduce memory footprint
   Test / javaOptions ++= Seq(
     "-Dspark.ui.enabled=false",
@@ -40,12 +38,35 @@ lazy val commonSettings = Seq(
   )
 )
 
+lazy val java17Settings = Seq(
+  javacOptions ++= Seq("--release", "17"),
+  Test / javaOptions ++= Seq(
+    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+    "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+    "--add-opens=java.base/java.io=ALL-UNNAMED",
+    "--add-opens=java.base/java.net=ALL-UNNAMED",
+    "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    "--add-opens=java.base/java.util=ALL-UNNAMED",
+    "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
+    "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+    "--add-opens=java.base/sun.nio.cs=ALL-UNNAMED",
+    "--add-opens=java.base/sun.security.action=ALL-UNNAMED",
+    "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
+  ),
+  scalacOptions ++= Seq(
+    "-target:17",
+    "-release:17"
+  )
+)
+
 lazy val root = (project in file(".")).aggregate(client, spark, server)
 
 lazy val client = (project in file("client")) settings(
   name := "delta-sharing-client",
-  crossScalaVersions := Seq(scala212, scala213),
+  scalaVersion := scala213,
+  crossScalaVersions := Seq(scala213),
   commonSettings,
+  java17Settings,
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
@@ -72,8 +93,10 @@ lazy val client = (project in file("client")) settings(
 
 lazy val spark = (project in file("spark")) dependsOn(client) settings(
   name := "delta-sharing-spark",
-  crossScalaVersions := Seq(scala212, scala213),
+  scalaVersion := scala213,
+  crossScalaVersions := Seq(scala213),
   commonSettings,
+  java17Settings,
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
@@ -98,24 +121,22 @@ lazy val spark = (project in file("spark")) dependsOn(client) settings(
 
 lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) settings(
   name := "delta-sharing-server",
-  scalaVersion := scala212,
+  scalaVersion := scala213,
+  crossScalaVersions := Seq(scala213),
   commonSettings,
+  java17Settings,
   scalaStyleSettings,
   releaseSettings,
   dockerUsername := Some("deltaio"),
   dockerBuildxPlatforms := Seq("linux/arm64", "linux/amd64"),
   scriptClasspath ++= Seq("../conf"),
   libraryDependencies ++= Seq(
-    // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a
-    // breaking change making us not able to use `delta-standalone`.
-    "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7",
-    "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7.3",
-    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.6.7.1",
-    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.6.7",
-    "org.json4s" %% "json4s-jackson" % "3.5.3" excludeAll(
-      ExclusionRule("com.fasterxml.jackson.core"),
-      ExclusionRule("com.fasterxml.jackson.module")
-    ),
+    // Update Jackson versions for Scala 2.13 compatibility
+    "com.fasterxml.jackson.core" % "jackson-core" % "2.15.2",
+    "com.fasterxml.jackson.core" % "jackson-databind" % "2.15.2",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.15.2",
+    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.15.2",
+    "org.json4s" %% "json4s-jackson" % "4.0.6",
     "com.linecorp.armeria" %% "armeria-scalapb" % "1.6.0" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
