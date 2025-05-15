@@ -1,7 +1,7 @@
 name: Build and Test
 on: [push, pull_request, workflow_dispatch]
 jobs:
-  build-and-test:
+  build-and-test-server:
     runs-on: ubuntu-24.04
     env:
       SPARK_LOCAL_IP: localhost
@@ -25,7 +25,33 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: '8'
-      - run: ./build/sbt test
+      - run: ./build/sbt server/test
+
+  build-and-test-client:
+    runs-on: ubuntu-24.04
+    env:
+      SPARK_LOCAL_IP: localhost
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AZURE_TEST_ACCOUNT_KEY: ${{ secrets.AZURE_TEST_ACCOUNT_KEY }}
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/google_service_account_key.json
+      GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Cache Scala, SBT
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.sbt
+            ~/.ivy2
+            ~/.cache/coursier
+          key: build-and-test-scala
+      - name: Install Java 17
+        uses: actions/setup-java@v1
+        with:
+          java-version: '17'
+      - run: ./build/sbt client/test spark/test
 
   python:
     runs-on: ubuntu-24.04
