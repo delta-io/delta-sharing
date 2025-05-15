@@ -16,11 +16,8 @@
 
 package io.delta.sharing.spark
 
-import java.util.Locale
-
 // scalastyle:off import.ordering.noEmptyLine
 import org.apache.spark.SparkFunSuite
-import org.apache.spark.sql.QueryTest
 
 
 class DeltaSharingOptionsSuite extends SparkFunSuite {
@@ -140,17 +137,17 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
   }
 
   test("timestamp format exceptions") {
-    var errorMessage = intercept[IllegalArgumentException] {
+    var errorMessage = intercept[Exception] {
       new DeltaSharingOptions(Map("timestampAsOf" -> "202"))
     }.getMessage
-    assert(errorMessage.contains("The provided timestamp (202) cannot be converted to a valid " +
-      "timestamp."))
+    assert(errorMessage.contains("The value '202' of the type \"STRING\" cannot be cast to " +
+      "\"TIMESTAMP\" because it is malformed"))
 
-    errorMessage = intercept[IllegalArgumentException] {
+    errorMessage = intercept[Exception] {
       new DeltaSharingOptions(Map("timestampAsOf" -> "a"))
     }.getMessage
-    assert(errorMessage.contains("The provided timestamp (a) cannot be converted to a valid " +
-      "timestamp."))
+    assert(errorMessage.contains("The value 'a' of the type \"STRING\" cannot be cast to " +
+      "\"TIMESTAMP\" because it is malformed."))
   }
 
   test("exceptions") {
