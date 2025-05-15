@@ -208,6 +208,9 @@ class RemoteSnapshot(
   //   - The table does not contain this information in its metadata.
   // We perform a full scan in that case.
   lazy val sizeInBytes: Long = {
+    val implicits = spark.implicits
+    import implicits._
+
     if (metadata.size != null) {
       metadata.size
     } else {
@@ -280,8 +283,8 @@ class RemoteSnapshot(
     }
 
     val (remoteFiles, queryParamsHashId) = {
-      val spark = SparkSession.active
-      import spark.implicits._
+      val implicits = spark.implicits
+      import implicits._
       val tableFiles = client.getFiles(
         table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints, None
       )
