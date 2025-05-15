@@ -137,17 +137,17 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
   }
 
   test("timestamp format exceptions") {
-    var errorMessage = intercept[Exception] {
+    var errorMessage = intercept[IllegalArgumentException] {
       new DeltaSharingOptions(Map("timestampAsOf" -> "202"))
     }.getMessage
-    assert(errorMessage.contains("The value '202' of the type \"STRING\" cannot be cast to " +
-      "\"TIMESTAMP\" because it is malformed"))
+    assert(errorMessage.contains("The provided timestamp (202) cannot be converted to a valid " +
+      "timestamp."))
 
-    errorMessage = intercept[Exception] {
+    errorMessage = intercept[IllegalArgumentException] {
       new DeltaSharingOptions(Map("timestampAsOf" -> "a"))
     }.getMessage
-    assert(errorMessage.contains("The value 'a' of the type \"STRING\" cannot be cast to " +
-      "\"TIMESTAMP\" because it is malformed."))
+    assert(errorMessage.contains("The provided timestamp (a) cannot be converted to a valid " +
+      "timestamp."))
   }
 
   test("exceptions") {
