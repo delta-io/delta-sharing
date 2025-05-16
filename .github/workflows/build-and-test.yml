@@ -20,7 +20,7 @@ jobs:
             ~/.sbt
             ~/.ivy2
             ~/.cache/coursier
-          key: build-and-test-scala
+          key: build-and-test-server
       - name: Install Java 8
         uses: actions/setup-java@v3
         with:
@@ -47,7 +47,7 @@ jobs:
             ~/.sbt
             ~/.ivy2
             ~/.cache/coursier
-          key: build-and-test-scala
+          key: build-and-test-client
       - name: Install Java 17
         uses: actions/setup-java@v3
         with:
