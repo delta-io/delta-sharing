@@ -16,15 +16,13 @@
 
 package io.delta.sharing.spark
 
-import javax.servlet.http.{HttpServletRequest, HttpServletResponse}
-
 import scala.util.Try
 
+import jakarta.servlet.http.{HttpServletRequest, HttpServletResponse}
 import org.sparkproject.jetty.client.HttpClient
 import org.sparkproject.jetty.http.HttpMethod
 import org.sparkproject.jetty.server.{Request, Server}
 import org.sparkproject.jetty.server.handler.AbstractHandler
-import org.sparkproject.jetty.util.ssl.SslContextFactory
 
 
 /**
@@ -34,8 +32,7 @@ import org.sparkproject.jetty.util.ssl.SslContextFactory
  */
 class TestStorageProxyServer {
   private val server = new Server(0)
-  val sslContextFactory = new SslContextFactory.Client()
-  private val httpClient = new HttpClient(sslContextFactory)
+  private val httpClient = new HttpClient()
   server.setHandler(new ProxyHandler)
 
   def initialize(): Unit = {
