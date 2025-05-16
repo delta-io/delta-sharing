@@ -18,15 +18,13 @@ import sbt.ExclusionRule
 
 ThisBuild / parallelExecution := false
 
-val sparkVersion = "3.3.2"
+val sparkVersion = "4.0.0-preview1"
 val scala212 = "2.12.10"
-val scala213 = "2.13.11"
+val scala213 = "2.13.13"
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
   fork := true,
-  javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
-  scalacOptions += "-target:jvm-1.8",
   // Configurations to speed up tests and reduce memory footprint
   Test / javaOptions ++= Seq(
     "-Dspark.ui.enabled=false",
@@ -40,12 +38,37 @@ lazy val commonSettings = Seq(
   )
 )
 
+lazy val java8Settings = Seq(
+  javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
+  scalacOptions += "-target:jvm-1.8",
+)
+
+lazy val java17Settings = Seq(
+  javacOptions ++= Seq("--release", "17"),
+  Test / javaOptions ++= Seq(
+    // Copied from SparkBuild.scala to support Java 17 for unit tests (see apache/spark#34153)
+    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+    "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+    "--add-opens=java.base/java.io=ALL-UNNAMED",
+    "--add-opens=java.base/java.net=ALL-UNNAMED",
+    "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    "--add-opens=java.base/java.util=ALL-UNNAMED",
+    "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
+    "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+    "--add-opens=java.base/sun.nio.cs=ALL-UNNAMED",
+    "--add-opens=java.base/sun.security.action=ALL-UNNAMED",
+    "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
+  ),
+)
+
 lazy val root = (project in file(".")).aggregate(client, spark, server)
 
 lazy val client = (project in file("client")) settings(
   name := "delta-sharing-client",
-  crossScalaVersions := Seq(scala212, scala213),
+  scalaVersion := scala213,
+  crossScalaVersions := Seq(scala213),
   commonSettings,
+  java17Settings,
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
@@ -72,8 +95,10 @@ lazy val client = (project in file("client")) settings(
 
 lazy val spark = (project in file("spark")) dependsOn(client) settings(
   name := "delta-sharing-spark",
-  crossScalaVersions := Seq(scala212, scala213),
+  scalaVersion := scala213,
+  crossScalaVersions := Seq(scala213),
   commonSettings,
+  java17Settings,
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
@@ -100,6 +125,7 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   name := "delta-sharing-server",
   scalaVersion := scala212,
   commonSettings,
+  java8Settings,
   scalaStyleSettings,
   releaseSettings,
   dockerUsername := Some("deltaio"),
@@ -188,7 +214,9 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
     "org.slf4j" % "slf4j-simple" % "1.6.1",
     "net.sourceforge.argparse4j" % "argparse4j" % "0.9.0",
 
-    "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+    "org.scalatest" %% "scalatest" % "3.0.5" % "test",
+    "org.bouncycastle" % "bcprov-jdk15on" % "1.70" % "test",
+    "org.bouncycastle" % "bcpkix-jdk15on" % "1.70" % "test"
   ),
   Compile / PB.targets := Seq(
     scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
