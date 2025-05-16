@@ -434,8 +434,8 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
         .option("startingVersion", 0).load(tablePath)
       checkAnswer(df, Nil)
     }
-    assert (ex.getMessage.contains("404 Not Found"))
-    assert (ex.getMessage.contains("c000.snappy.parquet"))
+    assert (ex.getCause.getMessage.contains("404 Not Found"))
+    assert (ex.getCause.getMessage.contains("c000.snappy.parquet"))
   }
 
   integrationTest("table_changes_exception: cdf_table_missing_log") {
