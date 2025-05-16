@@ -214,7 +214,9 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
     "org.slf4j" % "slf4j-simple" % "1.6.1",
     "net.sourceforge.argparse4j" % "argparse4j" % "0.9.0",
 
-    "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+    "org.scalatest" %% "scalatest" % "3.0.5" % "test",
+    "org.bouncycastle" % "bcprov-jdk15on" % "1.70" % "test",
+    "org.bouncycastle" % "bcpkix-jdk15on" % "1.70" % "test"
   ),
   Compile / PB.targets := Seq(
     scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
