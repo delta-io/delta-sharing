@@ -28,12 +28,6 @@ object DeltaSharingScanUtils {
     Dataset.ofRows(spark, plan)
   }
 
-  // A wrapper to expose sqlContext.internalCreateDataFrame
-  def internalCreateDataFrame(spark: SparkSession, schema: StructType): DataFrame = {
-    spark.sqlContext.internalCreateDataFrame(
-      spark.sparkContext.emptyRDD[InternalRow], schema, isStreaming = true)
-  }
-
   // A wrapper to expose Column.apply(expr: Expression) function.
   // This is needed because the Column object is in private[sql] scope.
   def toColumn(expr: Expression): Column = {
