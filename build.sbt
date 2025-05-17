@@ -18,6 +18,8 @@ import sbt.ExclusionRule
 
 ThisBuild / parallelExecution := false
 
+val sparkStagingRepo =
+  "org.apache.spark" at "https://repository.apache.org/content/repositories/orgapachespark-1484/"
 val sparkVersion = "4.0.0"
 val scala212 = "2.12.10"
 val scala213 = "2.13.13"
@@ -71,10 +73,7 @@ lazy val client = (project in file("client")) settings(
   java17Settings,
   scalaStyleSettings,
   releaseSettings,
-  resolvers ++=
-    Seq(
-      "spark staging repo" at "https://repository.apache.org/content/repositories/orgapachespark-1484/"
-    ),
+  resolvers ++= Seq(sparkStagingRepo),
   libraryDependencies ++= Seq(
     "org.apache.httpcomponents" % "httpclient" % "4.5.14",
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
@@ -105,6 +104,7 @@ lazy val spark = (project in file("spark")) dependsOn(client) settings(
   java17Settings,
   scalaStyleSettings,
   releaseSettings,
+  resolvers ++= Seq(sparkStagingRepo),
   libraryDependencies ++= Seq(
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
     "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
