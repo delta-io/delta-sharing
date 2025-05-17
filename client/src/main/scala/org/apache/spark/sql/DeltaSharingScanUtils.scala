@@ -22,21 +22,16 @@ import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.types.StructType
 
 object DeltaSharingScanUtils {
-  // A wrapper to expose Dataset.ofRows function.
-  // This is needed because Dataset object is in private[sql] scope.
+  // Create a DataFrame from a LogicalRelation using public APIs
   def ofRows(spark: SparkSession, plan: LogicalRelation): DataFrame = {
-    Dataset.ofRows(spark, plan)
+    // In Spark 4.0.0, we need to use the relation's data to create the DataFrame
+    val rdd = plan.relation.asInstanceOf[org.apache.spark.sql.sources.TableScan].buildScan()
+    spark.createDataFrame(rdd, plan.relation.schema)
   }
 
-  // A wrapper to expose sqlContext.internalCreateDataFrame
-  def internalCreateDataFrame(spark: SparkSession, schema: StructType): DataFrame = {
-    spark.sqlContext.internalCreateDataFrame(
-      spark.sparkContext.emptyRDD[InternalRow], schema, isStreaming = true)
-  }
-
-  // A wrapper to expose Column.apply(expr: Expression) function.
-  // This is needed because the Column object is in private[sql] scope.
+  // Create a Column from an Expression using public APIs
   def toColumn(expr: Expression): Column = {
-    Column(expr)
+    // In Spark 4.0.0, we need to use the internal Column constructor
+    new Column(expr.asInstanceOf[org.apache.spark.sql.internal.ColumnNode])
   }
 }
