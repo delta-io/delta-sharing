@@ -16,10 +16,8 @@
 
 package org.apache.spark.sql
 
-import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.execution.datasources.LogicalRelation
-import org.apache.spark.sql.types.StructType
 
 object DeltaSharingScanUtils {
   // A wrapper to expose Dataset.ofRows function.
