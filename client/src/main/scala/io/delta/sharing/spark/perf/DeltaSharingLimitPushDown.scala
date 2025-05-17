@@ -45,7 +45,7 @@ object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
         pr @ Project(_,
         l @ LogicalRelation(
         r @ HadoopFsRelation(remoteIndex: RemoteDeltaSnapshotFileIndex, _, _, _, _, _),
-        _, _, _, _))
+        _, _, _))
         ) =>
           if (remoteIndex.limitHint.isEmpty) {
             val spark = SparkSession.active

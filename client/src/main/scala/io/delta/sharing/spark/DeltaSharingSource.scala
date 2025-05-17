@@ -24,7 +24,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, Row, SparkSession}
+import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, SparkSession}
 import org.apache.spark.sql.connector.read.streaming
 import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl}
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
@@ -1070,7 +1070,7 @@ case class DeltaSharingSource(
         // This happens only if we recover from a failure and `MicroBatchExecution` tries to call
         // us with the previous offsets. The returned DataFrame will be dropped immediately, so we
         // can return any DataFrame.
-        return spark.createDataFrame(spark.sparkContext.emptyRDD[Row], schema)
+        return DeltaSharingScanUtils.internalCreateDataFrame(spark, schema)
       }
       (startOffset.tableVersion, startOffset.index, startOffset.isStartingVersion,
         Some(startOffset.sourceVersion))
