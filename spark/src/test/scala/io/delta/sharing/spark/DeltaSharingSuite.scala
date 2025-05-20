@@ -572,6 +572,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       classOf[TestDeltaSharingClient].getName)
     spark.sessionState.conf.setConfString("spark.delta.sharing.profile.provider.class",
       "io.delta.sharing.client.DeltaSharingFileProfileProvider")
+    TestDeltaSharingClient.clear
 
     val tablePath = testProfileFile.getCanonicalPath + "#share1.default.table1"
     spark.read

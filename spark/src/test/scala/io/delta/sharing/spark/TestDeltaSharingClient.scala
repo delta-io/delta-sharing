@@ -197,9 +197,7 @@ class TestDeltaSharingClient(
   override def getProfileProvider: DeltaSharingProfileProvider = profileProvider
 
   def clear(): Unit = {
-    TestDeltaSharingClient.limits = Nil
-    TestDeltaSharingClient.jsonPredicateHints = Nil
-    TestDeltaSharingClient.numMetadataCalled = 0
+    TestDeltaSharingClient.clear()
   }
 }
 
@@ -216,4 +214,10 @@ object TestDeltaSharingClient {
   var numMetadataCalled = 0
 
   val TESTING_TIMESTAMP = "2022-01-01 00:00:00.0"
+
+  def clear(): Unit = {
+    TestDeltaSharingClient.limits = Nil
+    TestDeltaSharingClient.jsonPredicateHints = Nil
+    TestDeltaSharingClient.numMetadataCalled = 0
+  }
 }
