@@ -22,7 +22,7 @@ import scala.util.Random
 
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql.{QueryTest, Row}
+import org.apache.spark.sql.{QueryTest, Row, SparkSession}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{DateType, StringType, StructField, StructType, TimestampType}
@@ -564,6 +564,22 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       }
       proxyServer.stop()
     }
+  }
+
+  test("spark read limit") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString("spark.delta.sharing.client.class",
+      classOf[TestDeltaSharingClient].getName)
+    spark.sessionState.conf.setConfString("spark.delta.sharing.profile.provider.class",
+      "io.delta.sharing.client.DeltaSharingFileProfileProvider")
+
+    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.table1"
+    spark.read
+      .format("deltaSharing")
+      .load(tablePath)
+      .limit(1)
+      .collect()
+    assert(TestDeltaSharingClient.limits === Seq(1L))
   }
 }
 
