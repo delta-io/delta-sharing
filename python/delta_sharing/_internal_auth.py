@@ -115,12 +115,13 @@ class OAuthClientCredentials:
 
 class OAuthClient:
     def __init__(
-        self, token_endpoint: str, client_id: str, client_secret: str, scope: Optional[str] = None
+        self, token_endpoint: str, client_id: str, client_secret: str, scope: Optional[str] = None, audience: Optional[str] = None
     ):
         self.token_endpoint = token_endpoint
         self.client_id = client_id
         self.client_secret = client_secret
         self.scope = scope
+        self.audience = audience
 
     def client_credentials(self) -> OAuthClientCredentials:
         credentials = base64.b64encode(
@@ -131,7 +132,7 @@ class OAuthClient:
             "authorization": f"Basic {credentials}",
             "content-type": "application/x-www-form-urlencoded",
         }
-        body = f"grant_type=client_credentials{f'&scope={self.scope}' if self.scope else ''}"
+        body = f"grant_type=client_credentials{f'&scope={self.scope}' if self.scope else ''}{f'&audience={self.audience}' if self.audience else ''}"
         response = requests.post(self.token_endpoint, headers=headers, data=body)
         response.raise_for_status()
         return self.parse_oauth_token_response(response.text)
@@ -241,6 +242,7 @@ class AuthCredentialProviderFactory:
             client_id=profile.client_id,
             client_secret=profile.client_secret,
             scope=profile.scope,
+            audience=profile.audience,
         )
         provider = OAuthClientCredentialsAuthProvider(
             oauth_client=oauth_client, auth_config=AuthConfig()
