@@ -137,7 +137,9 @@ class OAuthClient:
             "authorization": f"Basic {credentials}",
             "content-type": "application/x-www-form-urlencoded",
         }
-        body = f"grant_type=client_credentials{f'&scope={self.scope}' if self.scope else ''}{f'&audience={self.audience}' if self.audience else ''}"
+        scope_chunk = f'&scope={self.scope}' if self.scope else ''
+        audience_chunk = f'&audience={self.audience}' if self.audience else ''
+        body = f"grant_type=client_credentials{scope_chunk}{audience_chunk}"
         response = requests.post(self.token_endpoint, headers=headers, data=body)
         response.raise_for_status()
         return self.parse_oauth_token_response(response.text)
