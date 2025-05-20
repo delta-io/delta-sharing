@@ -39,42 +39,60 @@ object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
 
   def apply(p: LogicalPlan): LogicalPlan = {
     if (ConfUtils.limitPushdownEnabled(p.conf)) {
-      p transform {
-        // In Spark 4.0.0,
-        // - select * from table limit 1, the plan is: localLimit -> project -> LogicalRelation.
-        // - spark.read.load(path).limit(1), the plan is: localLimit -> LogicalRelationWithTable.
-        case localLimit @ LocalLimit(
-              literalExpr @ IntegerLiteral(limit),
-              child @ (
-                pr @ Project(
-                  _,
-                  l @ LogicalRelation(
-                    r @ HadoopFsRelation(
-                      remoteIndex: RemoteDeltaSnapshotFileIndex, _, _, _, _, _
-                    ),
-                    _, _, _, _
-                  )
-                ) |
-                l @ LogicalRelationWithTable(
-                  r @ HadoopFsRelation(
+      p.transform {
+        case localLimit @ LocalLimit(literalExpr @ IntegerLiteral(limit), child) =>
+          // In Spark 4.0.0, there are two distinct limit pushdown plans:
+          // - SQL queries (e.g., `SELECT * FROM table LIMIT 1`) follow:
+          //    LocalLimit -> Project -> LogicalRelation.
+          // - Spark queries (e.g., `spark.read.load(path).limit(1)`) follow:
+          //    LocalLimit -> LogicalRelationWithTable.
+          child match {
+            case pr @ Project(
+                _,
+                logicalRel @ LogicalRelation(
+                  hadoopFsRel @ HadoopFsRelation(
                     remoteIndex: RemoteDeltaSnapshotFileIndex, _, _, _, _, _
                   ),
-                  _
+                  _, _, _, _
                 )
-              )
-            ) =>
-          if (remoteIndex.limitHint.isEmpty) {
-            val spark = SparkSession.active
-            val updatedRelation = LogicalRelationShim.copyWithNewRelation(
-              l,
-              r.copy(location = remoteIndex.copy(limitHint = Some(limit)))(spark)
-            )
-            child match {
-              case _: Project => LocalLimit(literalExpr, pr.copy(child = updatedRelation))
-              case _          => LocalLimit(literalExpr, updatedRelation)
-            }
-          } else {
-            localLimit
+              ) =>
+              if (remoteIndex.limitHint.isEmpty) {
+                val spark = SparkSession.active
+                LocalLimit(
+                  literalExpr,
+                  pr.copy(
+                    child = LogicalRelationShim.copyWithNewRelation(
+                      logicalRel,
+                      hadoopFsRel.copy(
+                        location = remoteIndex.copy(limitHint = Some(limit))
+                      )(spark)
+                    )
+                  )
+                )
+              } else {
+                localLimit
+              }
+
+            case logicalRelWithTable @ LogicalRelationWithTable(
+                hadoopFsRel @ HadoopFsRelation(
+                  remoteIndex: RemoteDeltaSnapshotFileIndex, _, _, _, _, _
+                ),
+                _
+              ) =>
+              if (remoteIndex.limitHint.isEmpty) {
+                val spark = SparkSession.active
+                LocalLimit(
+                  literalExpr,
+                  LogicalRelationShim.copyWithNewRelation(
+                    logicalRelWithTable,
+                    hadoopFsRel.copy(
+                      location = remoteIndex.copy(limitHint = Some(limit))
+                    )(spark)
+                  )
+                )
+              } else {
+                localLimit
+              }
           }
       }
     } else {

@@ -577,6 +577,12 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     spark.read
       .format("deltaSharing")
       .load(tablePath)
+      .collect()
+    assert(TestDeltaSharingClient.limits === Seq.empty)
+
+    spark.read
+      .format("deltaSharing")
+      .load(tablePath)
       .limit(1)
       .collect()
     assert(TestDeltaSharingClient.limits === Seq(1L))
