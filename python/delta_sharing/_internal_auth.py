@@ -115,7 +115,12 @@ class OAuthClientCredentials:
 
 class OAuthClient:
     def __init__(
-        self, token_endpoint: str, client_id: str, client_secret: str, scope: Optional[str] = None, audience: Optional[str] = None
+        self,
+        token_endpoint: str,
+        client_id: str,
+        client_secret: str,
+        scope: Optional[str] = None,
+        audience: Optional[str] = None,
     ):
         self.token_endpoint = token_endpoint
         self.client_id = client_id
