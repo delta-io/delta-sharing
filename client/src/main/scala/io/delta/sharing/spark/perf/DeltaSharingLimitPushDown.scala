@@ -16,15 +16,12 @@
 
 package io.delta.sharing.spark.perf
 
-import scala.reflect.runtime.universe.termNames
-import scala.reflect.runtime.universe.typeOf
-import scala.reflect.runtime.universe.typeTag
+import scala.reflect.runtime.universe.{termNames, typeOf, typeTag}
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.catalog.CatalogTable
-import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.IntegerLiteral
-import org.apache.spark.sql.catalyst.plans.logical.{LocalLimit, LogicalPlan}
+import org.apache.spark.sql.catalyst.plans.logical.{LocalLimit, LogicalPlan, Project}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.sources.BaseRelation
@@ -43,6 +40,33 @@ object DeltaSharingLimitPushDown extends Rule[LogicalPlan] {
   def apply(p: LogicalPlan): LogicalPlan = {
     if (ConfUtils.limitPushdownEnabled(p.conf)) {
       p transform {
+        // In Spark 4.0.0, there are two distinct limit pushdown plans:
+        // - SQL queries (e.g., `SELECT * FROM table LIMIT 1`) follow:
+        //    LocalLimit -> Project -> LogicalRelation.
+        // - Spark queries (e.g., `spark.read.load(path).limit(1)`) follow:
+        //    LocalLimit -> LogicalRelationWithTable.
+        case localLimit @ LocalLimit(
+        literalExpr @ IntegerLiteral(limit),
+        pr @ Project(_,
+        l @ LogicalRelation(
+        r @ HadoopFsRelation(remoteIndex: RemoteDeltaSnapshotFileIndex, _, _, _, _, _),
+        _, _, _, _))
+        ) =>
+          if (remoteIndex.limitHint.isEmpty) {
+            val spark = SparkSession.active
+            LocalLimit(
+              literalExpr,
+              pr.copy(
+                child = LogicalRelationShim.copyWithNewRelation(
+                  l,
+                  r.copy(location = remoteIndex.copy(limitHint = Some(limit)))(spark)
+                )
+              )
+            )
+          } else {
+            localLimit
+          }
+
         case localLimit @ LocalLimit(
         literalExpr @ IntegerLiteral(limit),
         l @ LogicalRelationWithTable(

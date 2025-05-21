@@ -16,8 +16,7 @@
 
 package io.delta.sharing.client
 
-import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
-
+import jakarta.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 import org.apache.hadoop.conf.Configuration
 import org.apache.http.client.methods.{HttpGet, HttpPost}
 import org.apache.http.client.utils.URIBuilder
