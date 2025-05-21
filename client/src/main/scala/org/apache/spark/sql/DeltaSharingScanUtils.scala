@@ -16,22 +16,16 @@
 
 package org.apache.spark.sql
 
-import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.classic.ClassicConversions._
+import org.apache.spark.sql.classic.Dataset
 import org.apache.spark.sql.execution.datasources.LogicalRelation
-import org.apache.spark.sql.types.StructType
 
 object DeltaSharingScanUtils {
   // A wrapper to expose Dataset.ofRows function.
   // This is needed because Dataset object is in private[sql] scope.
   def ofRows(spark: SparkSession, plan: LogicalRelation): DataFrame = {
     Dataset.ofRows(spark, plan)
-  }
-
-  // A wrapper to expose sqlContext.internalCreateDataFrame
-  def internalCreateDataFrame(spark: SparkSession, schema: StructType): DataFrame = {
-    spark.sqlContext.internalCreateDataFrame(
-      spark.sparkContext.emptyRDD[InternalRow], schema, isStreaming = true)
   }
 
   // A wrapper to expose Column.apply(expr: Expression) function.
