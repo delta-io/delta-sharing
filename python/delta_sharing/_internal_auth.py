@@ -198,8 +198,8 @@ class PrivateKeyOAuthClient(OAuthClient):
         self.key_id = key_id
         self.private_key = private_key
         self.issuer = issuer
-        self.resource = resource
         self.scope = scope
+        self.resource = resource
         if algorithm is None:
             algorithm = "RS256"
         self.algorithm = algorithm
@@ -210,12 +210,14 @@ class PrivateKeyOAuthClient(OAuthClient):
         jwt_claims = {
             "aud": self.issuer,
             "iss": self.client_id,
-            "scope": self.scope,
-            "resource": self.resource,  # In OAuth 2 spec audience is called resource
             "iat": timestamp,
             "exp": timestamp + 120,
             "jti": str(uuid.uuid4()),
         }
+        if self.scope:
+            jwt_claims["scope"] = self.scope
+        if self.resource:
+            jwt_claims["resource"] = self.resource  # In OAuth 2 spec audience is called resource
         signed_jwt = self._signed_jwt(jwt_header, jwt_claims)
         body = {
             "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",

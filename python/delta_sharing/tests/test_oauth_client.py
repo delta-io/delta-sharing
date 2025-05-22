@@ -111,7 +111,10 @@ def test_oauth_client_should_handle_401_unauthorized_response(mock_server):
             "pk-test-access-token",
         ),
         (
-            '{"access_token": "pk-test-access-token", "expires_in": "3600", "token_type": "bearer"}',
+            (
+                '{"access_token": "pk-test-access-token", "expires_in": "3600", '
+                '"token_type": "bearer"}'
+            ),
             3600,
             "pk-test-access-token",
         ),
@@ -152,8 +155,6 @@ def test_private_key_oauth_client_should_parse_token_response_correctly(
         assert claims_arg.get("scope") == "scope"
 
 
-# @mock.patch("_internal_auth.PrivateKeyOAuthClient._signed_jwt", return_value="signed-jwt-dummy-val")
-# @mock.patch("PrivateKeyOAuthClient._signed_jwt", return_value="signed-jwt-dummy-val")
 def test_private_key_oauth_client_should_handle_401_unauthorized_response(mock_server):
 
     with patch.object(PrivateKeyOAuthClient, "_signed_jwt") as _signed_jwt_mock:
