@@ -126,9 +126,7 @@ class OAuthClient(ABC):
         # Parsing the response per oauth spec
         # https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
         json_node = json.loads(response)
-        if "access_token" not in json_node or not isinstance(
-            json_node["access_token"], str
-        ):
+        if "access_token" not in json_node or not isinstance(json_node["access_token"], str):
             raise RuntimeError("Missing 'access_token' field in OAuth token response")
         if "expires_in" not in json_node:
             raise RuntimeError("Missing 'expires_in' field in OAuth token response")
@@ -242,9 +240,7 @@ class PrivateKeyOAuthClient(OAuthClient):
 
 
 class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
-    def __init__(
-        self, oauth_client: OAuthClient, auth_config: AuthConfig = AuthConfig()
-    ):
+    def __init__(self, oauth_client: OAuthClient, auth_config: AuthConfig = AuthConfig()):
         self.auth_config = auth_config
         self.oauth_client = oauth_client
         self.current_token: Optional[OAuthClientCredentials] = None
@@ -270,18 +266,14 @@ class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
     def needs_refresh(self, token: OAuthClientCredentials) -> bool:
         now = int(time.time())
         expiration_time = token.creation_timestamp + token.expires_in
-        return (
-            expiration_time - now < self.auth_config.token_renewal_threshold_in_seconds
-        )
+        return expiration_time - now < self.auth_config.token_renewal_threshold_in_seconds
 
     def get_expiration_time(self) -> Optional[str]:
         return None
 
 
 class AuthCredentialProviderFactory:
-    __oauth_auth_provider_cache: Dict[
-        DeltaSharingProfile, OAuthClientCredentialsAuthProvider
-    ] = {}
+    __oauth_auth_provider_cache: Dict[DeltaSharingProfile, OAuthClientCredentialsAuthProvider] = {}
 
     @staticmethod
     def create_auth_credential_provider(profile: DeltaSharingProfile):
