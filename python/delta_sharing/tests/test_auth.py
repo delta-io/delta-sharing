@@ -74,6 +74,7 @@ def test_oauth_client_credentials_auth_provider_exchange_token():
     profile.client_id = "client-id"
     profile.client_secret = "client-secret"
     profile.scope = None
+    profile.audience = None
 
     provider = OAuthClientCredentialsAuthProvider(oauth_client)
     mock_session = MagicMock(spec=Session)
@@ -97,6 +98,7 @@ def test_oauth_client_credentials_auth_provider_reuse_token():
     profile.client_id = "client-id"
     profile.client_secret = "client-secret"
     profile.scope = None
+    profile.audience = None
 
     provider = OAuthClientCredentialsAuthProvider(oauth_client)
     mock_session = MagicMock(spec=Session)
@@ -120,6 +122,7 @@ def test_oauth_client_credentials_auth_provider_refresh_token():
     profile.client_id = "client-id"
     profile.client_secret = "client-secret"
     profile.scope = None
+    profile.audience = None
 
     provider = OAuthClientCredentialsAuthProvider(oauth_client)
     mock_session = MagicMock(spec=Session)
@@ -147,6 +150,7 @@ def test_oauth_client_credentials_auth_provider_needs_refresh():
     profile.client_id = "client-id"
     profile.client_secret = "client-secret"
     profile.scope = None
+    profile.audience = None
 
     provider = OAuthClientCredentialsAuthProvider(oauth_client)
 
@@ -171,6 +175,7 @@ def test_oauth_client_credentials_auth_provider_is_expired():
     profile.client_id = "client-id"
     profile.client_secret = "client-secret"
     profile.scope = None
+    profile.audience = None
 
     provider = OAuthClientCredentialsAuthProvider(oauth_client)
     assert not provider.is_expired()
@@ -183,6 +188,7 @@ def test_oauth_client_credentials_auth_provider_get_expiration_time():
     profile.client_id = "client-id"
     profile.client_secret = "client-secret"
     profile.scope = None
+    profile.audience = None
 
     provider = OAuthClientCredentialsAuthProvider(oauth_client)
     assert provider.get_expiration_time() is None
