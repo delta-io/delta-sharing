@@ -3393,7 +3393,7 @@ Example:
 
 Share, Schema, and Table objects are identifiable by names. To ensure compatibility and avoid issues across different sharing servers, the following limitations apply for object names:
 
-- Object names cannot exceed 255 characters.
+- Object names cannot exceed 255 characters
 - The following special characters are not allowed for all object names:
   - Space (` `)
   - Forward slash (`/`)
