@@ -15,14 +15,22 @@
     - [Query Table Metadata](#query-table-metadata)
     - [Read Data from a Table](#read-data-from-a-table)
       - [Request Body](#request-body)
+      - [Example for snapshot query](#example-for-snapshot-query)
+      - [Example for query with startingVersion](#example-for-query-with-startingversion)
     - [Read Change Data Feed from a Table](#read-change-data-feed-from-a-table)
+    - [Timestamp Format](#timestamp-format)
   - [Delta Sharing Capabilities Header](#delta-sharing-capabilities-header)
+    - [responseFormat](#responseformat)
+    - [readerFeatures](#readerfeatures)
   - [API Response Format in Parquet](#api-response-format-in-parquet)
     - [JSON Wrapper Object In Each Line](#json-wrapper-object-in-each-line)
     - [Protocol](#protocol)
     - [Metadata](#metadata)
     - [File](#file)
     - [Data Change Files](#data-change-files)
+      - [Add File](#add-file)
+      - [CDF File](#cdf-file)
+      - [Remove File](#remove-file)
     - [Format](#format)
     - [Schema Object](#schema-object)
       - [Struct Type](#struct-type)
@@ -34,7 +42,7 @@
     - [Partition Value Serialization](#partition-value-serialization)
     - [Per-file Statistics](#per-file-statistics)
   - [API Response Format in Delta](#api-response-format-in-delta)
-    - [JSON Wrapper Object In Each Line In Delta](#json-wrapper-object-in-each-line-in-delta)
+    - [JSON Wrapper Object In Each Line in Delta](#json-wrapper-object-in-each-line-in-delta)
     - [Protocol in Delta Format](#protocol-in-delta-format)
     - [Metadata in Delta Format](#metadata-in-delta-format)
     - [File in Delta Format](#file-in-delta-format)
@@ -42,6 +50,11 @@
   - [JSON predicates for Filtering](#json-predicates-for-filtering)
   - [Delta Sharing Streaming Specs](#delta-sharing-streaming-specs)
 - [Profile File Format](#profile-file-format)
+  - [Profile Version 1](#profile-version-1)
+  - [Profile Version 2](#profile-version-2)
+    - [Bearer Token](#bearer-token)
+    - [OAuth Client Credentials](#oauth-client-credentials)
+- [Names](#names)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -3298,7 +3311,11 @@ assuming the process time of the delta sharing server grows linearly with `maxVe
 
 # Profile File Format
 
-A profile file is a JSON file that contains the information for a recipient to access shared data on a Delta Sharing server. There are a few fields in this file as listed below.
+A profile file is a JSON file that contains the information for a recipient to access shared data on a Delta Sharing server. 
+
+## Profile Version 1
+
+Supported in all versions of Delta Sharing.
 
 Field Name | Descrption
 -|-
@@ -3318,11 +3335,65 @@ Example:
 }
 ```
 
+## Profile Version 2
+
+Supported in Delta Sharing 1.2.0 and above
+
+The available schema types are described below:
+
+### Bearer Token
+   
+Field Name | Descrption
+-|-
+shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client.
+type | Should be set to "bearer_token".
+endpoint | The url of the sharing server.
+bearerToken | The [bearer token](https://tools.ietf.org/html/rfc6750) to access the server.
+expirationTime | The expiration time of the bearer token in [ISO 8601 format](https://www.w3.org/TR/NOTE-datetime). This field is optional and if it is not provided, the bearer token can be seen as never expire.
+
+Example:
+
+```json
+{
+  "shareCredentialsVersion": 2,
+  "type": "bearer_token",
+  "endpoint": "https://sharing.delta.io/delta-sharing/",
+  "bearerToken": "<token>",
+  "expirationTime": "2021-11-12T00:12:29.0Z"
+}
+```
+
+### OAuth Client Credentials
+
+Allows OAuth client credential grants. The access token is managed internally and refreshed when it is about to expire.
+
+Field Name | Descrption
+-|-
+shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client.
+type | Should be set to "oauth_client_credentials".
+endpoint | The url of the sharing server.
+tokenEndpoint | The url of the identity provider that issues the token.
+clientId | Unique identity of client, registered in identity provider.
+clientSecret | Secret used to authenticate.
+
+Example:
+
+```json
+{
+    "shareCredentialsVersion": 2,
+    "type": "oauth_client_credentials",
+    "endpoint": "https://sharing.delta.io/delta-sharing/",
+    "tokenEndpoint": "tokenEndpoint",
+    "clientId": "clientId",
+    "clientSecret": "clientSecret"
+}
+```
+                             
 # Names
 
 Share, Schema, and Table objects are identifiable by names. To ensure compatibility and avoid issues across different sharing servers, the following limitations apply for object names:
 
-- Object names cannot exceed 255 characters.
+- Object names cannot exceed 255 characters
 - The following special characters are not allowed for all object names:
   - Space (` `)
   - Forward slash (`/`)
