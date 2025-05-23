@@ -20,6 +20,8 @@ import org.apache.spark.sql.types.StructType
 
 class MissingEndStreamActionException(message: String) extends IllegalStateException(message)
 
+class DeltaSharingServerException(message: String) extends RuntimeException(message)
+
 object DeltaSharingErrors {
   def nonExistentDeltaSharingTable(tableId: String): Throwable = {
     new IllegalStateException(s"Delta sharing table ${tableId} doesn't exist. " +
@@ -40,8 +42,8 @@ object DeltaSharingErrors {
   }
 
   def unsupportedTableReaderVersion(supportedVersion: Long, tableVersion: Long): Throwable = {
-    new IllegalStateException(s"The table reader version ${tableVersion} is larger than " +
-      s"supported reader version $supportedVersion. Please upgrade to a new release."
+    new IllegalStateException(s"The table reader version ${tableVersion} is not equal to " +
+      s"supported reader version $supportedVersion."
     )
   }
 

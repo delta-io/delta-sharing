@@ -122,7 +122,14 @@ class TestDeltaSharingClient(
         AddFile("f3.parquet", "f3", Map.empty, 0, version = 1, timestamp = 1600000000L),
         AddFile("f4.parquet", "f4", Map.empty, 0, version = 1, timestamp = 1600000000L)
       ).take(limit.getOrElse(4L).toInt)
-    } else {
+    } else if (jsonPredicateHints.exists(_.contains("greaterThan"))) {
+      Seq(
+        AddFile("f1.parquet", "f1", Map.empty, 0),
+        AddFile("f2.parquet", "f2", Map.empty, 0),
+        AddFile("f3.parquet", "f3", Map.empty, 0)
+      ).take(limit.getOrElse(3L).toInt)
+    }
+    else {
       Seq(
         AddFile("f1.parquet", "f1", Map.empty, 0),
         AddFile("f2.parquet", "f2", Map.empty, 0),
@@ -190,9 +197,7 @@ class TestDeltaSharingClient(
   override def getProfileProvider: DeltaSharingProfileProvider = profileProvider
 
   def clear(): Unit = {
-    TestDeltaSharingClient.limits = Nil
-    TestDeltaSharingClient.jsonPredicateHints = Nil
-    TestDeltaSharingClient.numMetadataCalled = 0
+    TestDeltaSharingClient.clear()
   }
 }
 
@@ -209,4 +214,10 @@ object TestDeltaSharingClient {
   var numMetadataCalled = 0
 
   val TESTING_TIMESTAMP = "2022-01-01 00:00:00.0"
+
+  def clear(): Unit = {
+    TestDeltaSharingClient.limits = Nil
+    TestDeltaSharingClient.jsonPredicateHints = Nil
+    TestDeltaSharingClient.numMetadataCalled = 0
+  }
 }

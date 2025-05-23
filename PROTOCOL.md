@@ -116,6 +116,8 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
 
 Note: the `items` field may be an empty array or missing when no results are found. The client must handle both cases.
 
+Note: check the format of the `name` field in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
+
 Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and stay immutable through the share's lifecycle. The format recommendation of `id` is UUID.
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
@@ -308,6 +310,8 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.
 ```
 
 Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and stay immutable through the share's lifecycle. The format recommendation of `id` is UUID.
+
+Note: check the format of the `name` field in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
 </td>
 </tr>
@@ -526,6 +530,8 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
 ```
 
 Note: the `items` field may be an empty array or missing when no results are found. The client must handle both cases.
+
+Note: check the format of the `name` and `share` fields in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
 </td>
@@ -754,6 +760,8 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
 Note: the `items` field may be an empty array or missing when no results are found. The client must handle both cases.
 
 Note: the `id` field is optional. If `id` is populated for a table, its value should be unique within the share and stay immutable through the table's lifecycle. The format recommendation of `id` is UUID.
+
+Note: check the format of the `name`, `schema`, and `share` fields in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
 Note: the `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
 
@@ -993,6 +1001,8 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
 Note: the `items` field may be an empty array or missing when no results are found. The client must handle both cases.
 
 Note: the `id` field is optional. If `id` is populated for a table, its value should be unique within the share and stay immutable through the table's lifecycle. The format recommendation of `id` is UUID.
+
+Note: check the format of the `name`, `schema`, and `share` fields in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
 Note: the `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
 
@@ -2265,7 +2275,7 @@ The response contains multiple lines:
   - Historical [Metadata](#metadata) will be returned if includeHistoricalMetadata is set to true.
   - The ordering of the lines doesn't matter.
 
-When `responseformat=delta`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Parquet](#api-response-format-in-delta).
+When `responseformat=delta`, a sequence of JSON strings delimited by newline. Each line is a JSON object defined in [API Response Format in Delta](#api-response-format-in-delta).
 - The first line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Protocol](#protocol-in-delta-format) object.
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
 - The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [Files](#file-in-delta-format) of the change data feed.
@@ -3369,3 +3379,16 @@ Example:
     "clientSecret": "clientSecret"
 }
 ```
+                             
+# Names
+
+Share, Schema, and Table objects are identifiable by names. To ensure compatibility and avoid issues across different sharing servers, the following limitations apply for object names:
+
+- Object names cannot exceed 255 characters.
+- The following special characters are not allowed for all object names:
+  - Space (` `)
+  - Forward slash (`/`)
+  - All ASCII control characters (`00-1F` hex)
+  - The DELETE character (`7f` hex)
+- Table and Schema object names additionally do not allow special character Period (`.`)
+- Object names are case-insensitive
