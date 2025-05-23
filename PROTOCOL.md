@@ -15,14 +15,22 @@
     - [Query Table Metadata](#query-table-metadata)
     - [Read Data from a Table](#read-data-from-a-table)
       - [Request Body](#request-body)
+      - [Example for snapshot query](#example-for-snapshot-query)
+      - [Example for query with startingVersion](#example-for-query-with-startingversion)
     - [Read Change Data Feed from a Table](#read-change-data-feed-from-a-table)
+    - [Timestamp Format](#timestamp-format)
   - [Delta Sharing Capabilities Header](#delta-sharing-capabilities-header)
+    - [responseFormat](#responseformat)
+    - [readerFeatures](#readerfeatures)
   - [API Response Format in Parquet](#api-response-format-in-parquet)
     - [JSON Wrapper Object In Each Line](#json-wrapper-object-in-each-line)
     - [Protocol](#protocol)
     - [Metadata](#metadata)
     - [File](#file)
     - [Data Change Files](#data-change-files)
+      - [Add File](#add-file)
+      - [CDF File](#cdf-file)
+      - [Remove File](#remove-file)
     - [Format](#format)
     - [Schema Object](#schema-object)
       - [Struct Type](#struct-type)
@@ -34,7 +42,7 @@
     - [Partition Value Serialization](#partition-value-serialization)
     - [Per-file Statistics](#per-file-statistics)
   - [API Response Format in Delta](#api-response-format-in-delta)
-    - [JSON Wrapper Object In Each Line In Delta](#json-wrapper-object-in-each-line-in-delta)
+    - [JSON Wrapper Object In Each Line in Delta](#json-wrapper-object-in-each-line-in-delta)
     - [Protocol in Delta Format](#protocol-in-delta-format)
     - [Metadata in Delta Format](#metadata-in-delta-format)
     - [File in Delta Format](#file-in-delta-format)
@@ -46,6 +54,7 @@
   - [Profile Version 2](#profile-version-2)
     - [Bearer Token](#bearer-token)
     - [OAuth Client Credentials](#oauth-client-credentials)
+- [Names](#names)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -3304,7 +3313,7 @@ assuming the process time of the delta sharing server grows linearly with `maxVe
 
 A profile file is a JSON file that contains the information for a recipient to access shared data on a Delta Sharing server. 
 
-## Profile Version 1:
+## Profile Version 1
 
 Supported in all versions of Delta Sharing.
 
@@ -3326,7 +3335,7 @@ Example:
 }
 ```
 
-## Profile Version 2:
+## Profile Version 2
 
 Supported in Delta Sharing 1.2.0 and above
 
