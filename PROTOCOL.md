@@ -44,7 +44,6 @@
 - [Profile File Format](#profile-file-format)
   - [Profile Version 1](#profile-version-1)
   - [Profile Version 2](#profile-version-2)
-    - [Basic](#basic)
     - [Bearer Token](#bearer-token)
     - [OAuth Client Credentials](#oauth-client-credentials)
 
@@ -3322,28 +3321,6 @@ Example:
 Supported in Delta Sharing 1.2.0 and above
 
 The available schema types are described below:
-
-### Basic
-
-Field Name | Descrption
--|-
-shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client.
-type | Should be set to "basic".
-endpoint | The url of the sharing server.
-username | The username to access the server.
-password | The password to access the server.
-
-Example:
-
-```json
-{
-    "shareCredentialsVersion": 2,
-    "type": "basic",
-    "endpoint": "https://sharing.delta.io/delta-sharing/",
-    "username": "username",
-    "password": "password"
-}
-```
 
 ### Bearer Token
    
