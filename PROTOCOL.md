@@ -2512,7 +2512,7 @@ Accepted timestamp format by a delta sharing server: in the ISO8601 format, in t
 
 ## Delta Sharing Capabilities Header
 This section explains the details of delta sharing capabilities header, which was introduced to help 
-delta sharing catch up with features in [delta protocol](https://github.com/delta-io/delta/blob/master/PROTOCOL.md).
+delta sharing protocol involve, such as with new feature support or catch up with delta features in [delta protocol](https://github.com/delta-io/delta/blob/master/PROTOCOL.md).
 
 The key of the header is **delta-sharing-capabilities**, the value is semicolon separated capabilities. 
 Each capability is in the format of "key=value1,value2", values are separated by commas.
@@ -2521,6 +2521,16 @@ be case-insensitive when processed by the server.
 
 This header can be used in the request for [Query Table Metadata](#query-table-metadata), 
 [Query Table](#read-data-from-a-table), and [Query Table Changes](#read-change-data-feed-from-a-table).
+
+### responseFormat
+Indicates the format to expect in the [API Response Format in Parquet](#api-response-format-in-parquet), two values are supported.
+
+- parquet: Represents the format of the delta sharing protocol that has been used in `delta-sharing-spark` 1.0 
+and less, also the default format if `responseFormat` is missing from the header. All the existing delta
+sharing connectors are able to process data in this format. 
+- **delta**: format can be used to read a shared delta table with minReaderVersion > 1, which contains 
+readerFeatures such as Deletion Vector or Column Mapping. `delta-sharing-spark` libraries 
+that are able to process `responseformat=delta` will be released soon.
 
 **Compatibility**
 
@@ -2541,9 +2551,9 @@ This header can be used in the request for [Query Table Metadata](#query-table-m
 </td>
 <td>The header is processed properly by the server.
 
-If there's only one responseFormat specified, the server must respect and return in the requested format.  
+If there's only one responseFormat specified, the server must respect and return in the requested format.
 
-If there's a list of responseFormat specified, such as `responseFormat=delta,parquet`. The server 
+If there's a list of responseFormat specified, such as `responseFormat=delta,parquet`. The server
 may choose to respond in parquet format if the table does not have any advanced features. The server
 must respond in delta format if the table has advanced features which are not compatible with the parquet format.
 </td>
@@ -2551,28 +2561,82 @@ must respond in delta format if the table has advanced features which are not co
 </table>
 
 - If the client requests `delta` format and the response is in `parquet` format, the delta sharing
-client will NOT throw an error. Ideally, the caller of the client's method should handle such 
-responses to be compatible with legacy servers.
-- If the client doesn't specify any header, or requests `parquet` format and the response is in 
-`delta` format, the delta sharing client must throw an error.
-
-### responseFormat
-Indicates the format to expect in the [API Response Format in Parquet](#api-response-format-in-parquet), two values are supported.
-
-- parquet: Represents the format of the delta sharing protocol that has been used in `delta-sharing-spark` 1.0 
-and less, also the default format if `responseFormat` is missing from the header. All the existing delta
-sharing connectors are able to process data in this format. 
-- **delta**: format can be used to read a shared delta table with minReaderVersion > 1, which contains 
-readerFeatures such as Deletion Vector or Column Mapping. `delta-sharing-spark` libraries 
-that are able to process `responseformat=delta` will be released soon.
+  client will NOT throw an error. Ideally, the caller of the client's method should handle such
+  responses to be compatible with legacy servers.
+- If the client doesn't specify any header, or requests `parquet` format and the response is in
+  `delta` format, the delta sharing client must throw an error.
 
 ### readerFeatures
 readerfeatures is only useful when `responseformat=delta`, it includes values from [delta reader
 features](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#table-features). It's set by the
 caller of `DeltaSharingClient` to indicate its ability to process delta readerFeatures.
 
-## API Response Format in Parquet
+### includeEndStreamAction
+The key is `includeEndStreamAction` and the value is `true` of `false`, i.e. `includeEndStreamAction=true`.
 
+This header can be used in the request for [Query Table Metadata](#query-table-metadata),
+[Query Table](#read-data-from-a-table), and [Query Table Changes](#read-change-data-feed-from-a-table).
+
+
+**Compatibility**
+
+<table>
+<tr>
+<th>Client/Server</th>
+<th>Server that doesn't recognize the header</th>
+<th>Server that recognizes the header</th>
+</tr>
+<tr>
+<th>Client that doesn't specify the header</th>
+<td colspan="2"> No changes in both request and response header, and the server will only return `EndStreamAction` at the  
+end of the response when needed*, the client shouldn't fail the request if not seeing the action in the response. </td>
+</tr>
+<tr>
+<th>Client that specifies the header</th>
+<td>The header is set by the client, but is ignored by the server, and the server will only return `EndStreamAction` 
+at the end of the response when needed*.
+</td>
+<td>
+Client sets `includeEndStreamAction=true` in the request header.
+
+The server can:
+1) decide not to include `EndStreamAction` in the respnose, thus it has to set `includeEndStreamAction=false` or not set it in the response header. 
+2) decide to include `EndStreamAction` in the response, and it has to set `includeEndStreamAction=true` in the response header. 
+   Then the client must check the existence of `EndStreamAction` as the end of the response. The client must throw an exception when it is missing.
+</td>
+</tr>
+</table>
+
+## API Response Actions In Common
+This section talks about the common actions in the response.  
+
+### EndStreamAction
+
+Field Name | Data Type | Description                                                                                                   | Optional/Required
+-|--------|---------------------------------------------------------------------------------------------------------------|-
+refreshToken | String | Used in snapshot queries, to refresh the pre-signed urls correctly.                                           | Optional
+nextPageToken | String | Used in paginated queries, to fetch the next page correctly.                                                  | Optional
+minUrlExpirationTimestamp | Long | The minimum unix timestamp corresponding to the expiration of the url, across all urls in the response.       | Optional
+errorMessage | String | Used for the server to return the error message when the server encounters an error when serving the request. | Optional
+
+**When errorMessage is set, the client must fail the query.**
+
+Example (for illustration purposes; each JSON object must be a single line in the response):
+
+```json
+{
+  "refreshToken": "Server-Encoded-Refresh-Token",
+  "minUrlExpirationTimestamp": 1652140800000
+}
+```
+
+```json
+{
+  "errorMessage": "There is an server error."
+}
+```
+
+## API Response Actions in Parquet Format
 This section discusses the API Response Format in Parquet returned by the server.
 
 ### JSON Wrapper Object In Each Line
@@ -3044,7 +3108,7 @@ nullCount | The number of `null` values for this column
 minValues | A value smaller than all values present in the file for this column
 maxValues | A value larger than all values present in the file for this column
 
-## API Response Format in Delta
+## API Response Actions in Delta Format
 This section discusses the API Response Format in Delta returned by the server. When a table is shared
 as delta format, the actions in the response could be put in a delta log in the local storage on the
 recipient side for the delta library to read data out of it directly. This way of sharing makes the
