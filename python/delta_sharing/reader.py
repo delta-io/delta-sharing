@@ -23,7 +23,6 @@ import delta_kernel_rust_sharing_wrapper
 import fsspec
 import os
 import pandas as pd
-import pyarrow as pa
 import tempfile
 from pyarrow.dataset import dataset
 
@@ -130,8 +129,10 @@ class DeltaSharingReader:
             schema = scan.execute(interface).schema
             return pd.DataFrame(columns=schema.names)
 
-        table = pa.Table.from_batches(scan.execute(interface))
-        result = table.to_pandas()
+        batches = scan.execute(interface)
+        pdfs = [batch.to_pandas(self_destruct=True) for batch in batches]
+
+        result = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
 
         # Apply residual limit that was not handled from server pushdown
         result = result.head(self._limit)
@@ -365,8 +366,8 @@ class DeltaSharingReader:
                 schema = scan.execute(interface).schema
                 result = pd.DataFrame(columns=schema.names)
             else:
-                table = pa.Table.from_batches(scan.execute(interface))
-                result = table.to_pandas()
+                pdfs = [batch.to_pandas(self_destruct=True) for batch in scan.execute(interface)]
+                result = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
         finally:
             # Delete the temp folder explicitly and remove the delta format from header
             temp_dir.cleanup()
