@@ -2572,7 +2572,7 @@ features](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#table-featur
 caller of `DeltaSharingClient` to indicate its ability to process delta readerFeatures.
 
 ### includeEndStreamAction
-The key is `includeEndStreamAction` and the value is `true` of `false`, i.e. `includeEndStreamAction=true`.
+The key is `includeEndStreamAction` and the value is `true` or `false`, i.e. `includeEndStreamAction=true`.
 
 This header can be used in the request for [Query Table Metadata](#query-table-metadata),
 [Query Table](#read-data-from-a-table), and [Query Table Changes](#read-change-data-feed-from-a-table).
@@ -2592,7 +2592,7 @@ This header can be used in the request for [Query Table Metadata](#query-table-m
 end of the response when needed*, the client shouldn't fail the request if not seeing the action in the response. </td>
 </tr>
 <tr>
-<th>Client that specifies the header</th>
+<th>Client that sets includeEndStreamAction=true</th>
 <td>The header is set by the client, but is ignored by the server, and the server will only return `EndStreamAction` 
 at the end of the response when needed*.
 </td>
@@ -2600,24 +2600,29 @@ at the end of the response when needed*.
 Client sets `includeEndStreamAction=true` in the request header.
 
 The server can:
-1) decide not to include `EndStreamAction` in the respnose, thus it has to set `includeEndStreamAction=false` or not set it in the response header. 
+1) decide not to include `EndStreamAction` in the response, thus it has to set `includeEndStreamAction=false` or not set it in the response header. 
 2) decide to include `EndStreamAction` in the response, and it has to set `includeEndStreamAction=true` in the response header. 
    Then the client must check the existence of `EndStreamAction` as the end of the response. The client must throw an exception when it is missing.
 </td>
 </tr>
 </table>
 
+*: Here are the cases where the server may send back EndStreamAction at the end: 
+1) For snapshot queries, the server may send back an EndStreamAction containing the refreshToken, used to refresh the presigned url, see more details [here](https://github.com/delta-io/delta-sharing/issues/383).
+2) For paginated requests, the server may send back and EndStreamAction containing the nextPageToken
+
+
 ## API Response Actions In Common
 This section talks about the common actions in the response.  
 
 ### EndStreamAction
 
-Field Name | Data Type | Description                                                                                                   | Optional/Required
--|--------|---------------------------------------------------------------------------------------------------------------|-
-refreshToken | String | Used in snapshot queries, to refresh the pre-signed urls correctly.                                           | Optional
-nextPageToken | String | Used in paginated queries, to fetch the next page correctly.                                                  | Optional
-minUrlExpirationTimestamp | Long | The minimum unix timestamp corresponding to the expiration of the url, across all urls in the response.       | Optional
-errorMessage | String | Used for the server to return the error message when the server encounters an error when serving the request. | Optional
+Field Name | Data Type | Description                                                                                                                                                                                                                                              | Optional/Required
+-|--------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-
+refreshToken | String | Used in snapshot queries, to refresh the pre-signed urls correctly.                                                                                                                                                                                      | Optional
+nextPageToken | String | Used in paginated queries, to fetch the next page correctly.                                                                                                                                                                                             | Optional
+minUrlExpirationTimestamp | Long | The minimum unix timestamp corresponding to the expiration of the url, across all urls in the response.                                                                                                                                                  | Optional
+errorMessage | String | Used by the server to return an error message when an error occurs while handling the request—particularly for failures that happen during HTTP streaming after a 200 status code has already been sent. | Optional
 
 **When errorMessage is set, the client must fail the query.**
 
