@@ -2512,7 +2512,7 @@ Accepted timestamp format by a delta sharing server: in the ISO8601 format, in t
 
 ## Delta Sharing Capabilities Header
 This section explains the details of delta sharing capabilities header, which was introduced to help 
-delta sharing protocol involve, such as with new feature support or catch up with delta features in [delta protocol](https://github.com/delta-io/delta/blob/master/PROTOCOL.md).
+delta sharing protocol evolve, such as with new feature support or catch up with delta features in [delta protocol](https://github.com/delta-io/delta/blob/master/PROTOCOL.md).
 
 The key of the header is **delta-sharing-capabilities**, the value is semicolon separated capabilities. 
 Each capability is in the format of "key=value1,value2", values are separated by commas.
