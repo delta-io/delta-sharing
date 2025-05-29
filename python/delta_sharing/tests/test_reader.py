@@ -327,16 +327,48 @@ def test_to_pandas_large_table_batch_convert(tmp_path):
             return "parquet"
 
     expected = pd.concat([pdf1, pdf2]).reset_index(drop=True)
+    expected_100k = pdf1.head(100000)
+    expected_300k = pd.concat([pdf1, pdf2.head(100000)]).reset_index(drop=True)
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.to_pandas()
     pd.testing.assert_frame_equal(pdf, expected)
 
     reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), limit=100000
+    )
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected_100k)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), limit=300000
+    )
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected_300k)
+
+    reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
     )
     pdf = reader.to_pandas()
     pd.testing.assert_frame_equal(pdf, expected)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"),
+        RestClientMock(),
+        limit=100000,
+        convert_in_batches=True,
+    )
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected_100k)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"),
+        RestClientMock(),
+        limit=300000,
+        convert_in_batches=True,
+    )
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected_300k)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)

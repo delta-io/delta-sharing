@@ -129,7 +129,8 @@ def load_as_pandas(
       metadata will be used to determine whether to use delta or parquet format.
     :param convert_in_batches: Whether to convert the parquet files to pandas one batch at a time
       rather than one file at a time. This may reduce memory consumption at the cost of taking
-      longer and downloading more data.
+      longer or downloading more data, with parquet format queries being more likely to see
+      improvements.
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
@@ -248,7 +249,8 @@ def load_table_changes_as_pandas(
       format.
     :param convert_in_batches: Whether to convert the parquet files to pandas one batch at a time
       rather than one file at a time. This may reduce memory consumption at the cost of taking
-      longer and downloading more data.
+      longer or downloading more data, with parquet format queries being more likely to see
+      improvements.
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
