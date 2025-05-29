@@ -179,7 +179,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "table_with_cm_id", schema = "default", share = "share8"),
         Table(name = "deletion_vectors_with_dvs_dv_property_on", schema = "default", share = "share8"),
         Table(name = "dv_and_cm_table", schema = "default", share = "share8"),
-        Table(name = "timestampntz_cdf_table", schema = "default", share = "share8")
+        Table(name = "timestampntz_cdf_table", schema = "default", share = "share8"),
+        Table(name = "12k_rows", schema = "default", share = "share8")
       )
       assert(expected == client.listAllTables().toSet)
     } finally {
