@@ -100,7 +100,10 @@ delta_sharing.load_as_pandas(table_url, limit=10)
 delta_sharing.load_as_pandas(table_url)
 
 # Load a table as a Pandas DataFrame explicitly using Delta Format
-delta_sharing.load_as_pandas(table_url, use_delta_format = True)
+delta_sharing.load_as_pandas(table_url, use_delta_format=True)
+
+# Load a table as a Pandas DataFrame, using batch conversion to potentially reduce memory usage.
+delta_sharing.load_as_pandas(table_url, convert_in_batches=True)
 
 # Load a table as a Pandas DataFrame explicitly using jsonPredicateHints
 hintOnHireDate = '''{
@@ -123,6 +126,9 @@ delta_sharing.load_table_changes_as_pandas(table_url, starting_version=0, ending
 
 # Load table changes from version 0 to version 5 as a Pandas DataFrame, explicitly using Delta Format.
 delta_sharing.load_table_changes_as_pandas(table_url, starting_version=0, ending_version=5, use_delta_format=True)
+
+# Load table changes from version 0 to version 5, as a Pandas DataFrame, with batch conversion for potentially lower memory usage.
+delta_sharing.load_table_changes_as_pandas(table_url, starting_version=0, ending_version=5, convert_in_batches=True)
 
 # If the code is running with PySpark, you can load table changes as Spark DataFrame.
 delta_sharing.load_table_changes_as_spark(table_url, starting_version=0, ending_version=5)
