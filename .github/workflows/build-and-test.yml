@@ -55,7 +55,7 @@ jobs:
           java-version: '17'
       - run: ./build/sbt client/test spark/test
 
-  build-and-test-client-scala-2.12:
+  build-and-test-client-scala-2_12:
     runs-on: ubuntu-24.04
     env:
       SPARK_LOCAL_IP: localhost
