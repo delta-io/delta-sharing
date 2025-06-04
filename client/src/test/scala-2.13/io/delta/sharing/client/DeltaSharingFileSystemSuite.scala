@@ -1,5 +1,3 @@
-package io.delta.sharing.client
-
 /*
  * Copyright (2021) The Delta Lake Project Authors.
  *
@@ -15,6 +13,8 @@ package io.delta.sharing.client
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+package io.delta.sharing.client
 
 import jakarta.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 import org.apache.hadoop.conf.Configuration
