@@ -111,6 +111,15 @@ lazy val client = (project in file("client")) settings(
       case v if v.startsWith("2.13") => Seq(base / "scala-2.13")
       case _ => Seq.empty
     }
+  },
+  Test / unmanagedSourceDirectories ++= {
+    val sv = scalaVersion.value
+    val base = (Test / sourceDirectory).value
+    sv match {
+      case v if v.startsWith("2.12") => Seq(base / "scala-2.12")
+      case v if v.startsWith("2.13") => Seq(base / "scala-2.13")
+      case _ => Seq.empty
+    }
   }
 )
 
