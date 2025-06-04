@@ -79,7 +79,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
-          java-version: '8'
+          java-version: '17'
       - run: ./build/sbt ++2.12.10 client/test
 
   python:
