@@ -20,8 +20,9 @@ ThisBuild / parallelExecution := false
 
 val previousSparkVersion = "3.5.3"
 val latestSparkVersion = "4.0.0"
-val scala212 = "2.12.10"
+val scala212 = "2.12.18"
 val scala213 = "2.13.13"
+val scalaTestVersion = "3.2.15"
 
 def sparkVersionFor(scalaVer: String): String = scalaVer match {
   case v if v.startsWith("2.12") => previousSparkVersion
@@ -87,7 +88,7 @@ lazy val client = (project in file("client")) settings(
       "org.apache.spark" %% "spark-catalyst" % sparkVer % "test" classifier "tests",
       "org.apache.spark" %% "spark-core" % sparkVer % "test" classifier "tests",
       "org.apache.spark" %% "spark-sql" % sparkVer % "test" classifier "tests",
-      "org.scalatest" %% "scalatest" % "3.2.3" % "test",
+      "org.scalatest" %% "scalatest" % scalaTestVersion % "test",
       "org.scalatestplus" %% "mockito-4-11" % "3.2.18.0" % "test"
     )
   },
@@ -136,7 +137,7 @@ lazy val spark = (project in file("spark")) dependsOn(client) settings(
     "org.apache.spark" %% "spark-catalyst" % latestSparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-core" % latestSparkVersion % "test" classifier "tests",
     "org.apache.spark" %% "spark-sql" % latestSparkVersion % "test" classifier "tests",
-    "org.scalatest" %% "scalatest" % "3.2.3" % "test"
+    "org.scalatest" %% "scalatest" % scalaTestVersion % "test"
   ),
   Compile / sourceGenerators += Def.task {
     val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "spark" / "package.scala"
