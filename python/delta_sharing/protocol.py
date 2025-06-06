@@ -37,6 +37,11 @@ class DeltaSharingProfile:
     password: Optional[str] = None
     scope: Optional[str] = None
 
+    token_url: Optional[str] = None
+    auth_url: Optional[str] = None
+    scope: Optional[str] = None
+    redirect_uri: Optional[str] = None
+
     def __post_init__(self):
         if self.share_credentials_version > DeltaSharingProfile.CURRENT:
             raise ValueError(
@@ -107,6 +112,17 @@ class DeltaSharingProfile:
                     username=json["username"],
                     password=json["password"],
                 )
+            elif type == "oauth_authorization_code":
+                return DeltaSharingProfile(
+                    share_credentials_version=share_credentials_version,
+                    type=type,
+                    endpoint=endpoint,
+                    client_id=json["clientId"],
+                    redirect_uri=json["redirectUri"],
+                    token_url=json["tokenEndpoint"],
+                    auth_url=json["authorizeEndpoint"],
+                    scope=json.get("scope"),
+            )
             else:
                 raise ValueError(
                     f"The current release does not supports {type} type. " "Please check type."
