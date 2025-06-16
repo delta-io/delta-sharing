@@ -50,13 +50,14 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
   private[sharing] def createHttpClient() = {
     val proxyConfigOpt = ConfUtils.getProxyConfig(getConf)
     val maxConnections = ConfUtils.maxConnections(getConf)
+    val neverUseHttps = ConfUtils.getNeverUseHttps(getConf)
     val config = RequestConfig.custom()
       .setConnectTimeout(timeoutInSeconds * 1000)
       .setConnectionRequestTimeout(timeoutInSeconds * 1000)
       .setSocketTimeout(timeoutInSeconds * 1000).build()
 
     logDebug(s"Creating delta sharing httpClient with timeoutInSeconds: $timeoutInSeconds.")
-    val clientBuilder = HttpClientBuilder.create()
+    val clientBuilder = DeltaSharingFileSystemHttpClientBuilder.create()
       .setMaxConnTotal(maxConnections)
       .setMaxConnPerRoute(maxConnections)
       .setDefaultRequestConfig(config)
@@ -64,52 +65,15 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
       // See `RetryUtils.runWithExponentialBackoff`.
       .disableAutomaticRetries()
 
+    if (neverUseHttps) {
+      clientBuilder.setDisableHttps()
+    }
+
     // Set proxy if provided.
     proxyConfigOpt.foreach { proxyConfig =>
-
       val proxy = new HttpHost(proxyConfig.host, proxyConfig.port)
       clientBuilder.setProxy(proxy)
-
-      val neverUseHttps = ConfUtils.getNeverUseHttps(getConf)
-      if (neverUseHttps) {
-        val httpRequestDowngradeExecutor = new HttpRequestExecutor {
-          override def execute(
-                                request: HttpRequest,
-                                connection: HttpClientConnection,
-                                context: HttpContext): HttpResponse = {
-            try {
-              val modifiedUri: URI = {
-                new URIBuilder(request.getRequestLine.getUri).setScheme("http").build()
-              }
-              val wrappedRequest = new RequestWrapper(request)
-              wrappedRequest.setURI(modifiedUri)
-
-              return super.execute(wrappedRequest, connection, context)
-            } catch {
-              case e: Exception =>
-                logInfo("Failed to downgrade the request to http", e)
-            }
-            super.execute(request, connection, context)
-          }
-        }
-        clientBuilder.setRequestExecutor(httpRequestDowngradeExecutor)
-      }
-      if (proxyConfig.noProxyHosts.nonEmpty || neverUseHttps) {
-        val routePlanner = new DefaultRoutePlanner(DefaultSchemePortResolver.INSTANCE) {
-          override def determineRoute(target: HttpHost,
-                                      request: HttpRequest,
-                                      context: HttpContext): HttpRoute = {
-            if (proxyConfig.noProxyHosts.contains(target.getHostName)) {
-              // Direct route (no proxy)
-              new HttpRoute(target)
-            } else {
-              // Route via proxy
-              new HttpRoute(target, proxy)
-            }
-          }
-        }
-        clientBuilder.setRoutePlanner(routePlanner)
-      }
+      clientBuilder.setNoProxyHosts(proxyConfig.noProxyHosts)
     }
     clientBuilder.build()
   }
