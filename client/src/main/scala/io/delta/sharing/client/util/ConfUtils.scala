@@ -48,6 +48,9 @@ object ConfUtils {
   val TIMEOUT_CONF = "spark.delta.sharing.network.timeout"
   val TIMEOUT_DEFAULT = "320s"
 
+  // Note: There is a separate pool for proxy and non-proxy connections.
+  //       Thus, if you use both spark.delta.sharing.network.proxyHost and spark.delta.sharing.network.noProxyHosts,
+  //       the max number of connections will be 2 * spark.delta.sharing.network.maxConnections.
   val MAX_CONNECTION_CONF = "spark.delta.sharing.network.maxConnections"
   val MAX_CONNECTION_DEFAULT = 64
 
