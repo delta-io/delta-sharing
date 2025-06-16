@@ -360,7 +360,7 @@ class DeltaSharingFileSystemSuite extends SparkFunSuite {
     }
   }
 
-  test("https traffic is downgraded to http when noProxyHosts is configured by skipping the proxy") {
+  test("https traffic is downgraded to http when noProxyHosts skips the proxy") {
     val server = new Server(0)
     val handler = new ServletHandler()
     server.setHandler(handler)
