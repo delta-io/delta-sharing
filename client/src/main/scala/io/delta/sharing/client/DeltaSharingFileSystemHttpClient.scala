@@ -33,11 +33,11 @@ private[sharing] case class DeltaSharingFileSystemHttpClient(
   noProxyHosts: Seq[String],
   disableHttps: Boolean) extends CloseableHttpClient {
 
-  private def hasNoProxyHostsMatch(host: String): Boolean = {
+  private[sharing] def hasNoProxyHostsMatch(host: String): Boolean = {
     noProxyHosts.exists(record => {
       // Wildcard DNS records support
       if (record.startsWith("*.")) {
-        host.endsWith(record.drop(2))
+        host.endsWith(record.drop(1))
       } else {
         host == record
       }
