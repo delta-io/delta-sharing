@@ -26,15 +26,12 @@ import scala.util.Try
 
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.conf.Configuration
-import org.apache.log4j.Logger
 import org.apache.spark.SparkFunSuite
 import org.scalatest.BeforeAndAfterAll
 
 import io.delta.sharing.client.{DeltaSharingFileProfileProvider, DeltaSharingProfileProvider}
 
 trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
-  private val log = Logger.getLogger(getClass)
-
   def shouldRunIntegrationTest: Boolean = {
     val requiredEnvVars = Seq(
       "AWS_ACCESS_KEY_ID",
@@ -47,7 +44,7 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
     }
 
     if (missingVars.nonEmpty) {
-      log.info(s"Skipping integration tests. Missing environment variables: " +
+      logInfo(s"Skipping integration tests. Missing environment variables: " +
         s"${missingVars.mkString(", ")}")
       false
     } else {
