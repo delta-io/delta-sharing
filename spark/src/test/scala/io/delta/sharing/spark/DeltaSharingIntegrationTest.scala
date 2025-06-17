@@ -26,17 +26,33 @@ import scala.util.Try
 
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.conf.Configuration
+import org.apache.log4j.Logger
 import org.apache.spark.SparkFunSuite
 import org.scalatest.BeforeAndAfterAll
 
 import io.delta.sharing.client.{DeltaSharingFileProfileProvider, DeltaSharingProfileProvider}
 
 trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
+  private val log = Logger.getLogger(getClass)
 
   def shouldRunIntegrationTest: Boolean = {
-    sys.env.get("AWS_ACCESS_KEY_ID").exists(_.length > 0) &&
-      sys.env.get("AZURE_TEST_ACCOUNT_KEY").exists(_.length > 0) &&
-      sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
+    val requiredEnvVars = Seq(
+      "AWS_ACCESS_KEY_ID",
+      "AZURE_TEST_ACCOUNT_KEY",
+      "GOOGLE_APPLICATION_CREDENTIALS"
+    )
+
+    val missingVars = requiredEnvVars.filterNot { key =>
+      sys.env.get(key).exists(_.nonEmpty)
+    }
+
+    if (missingVars.nonEmpty) {
+      log.info(s"Skipping integration tests. Missing environment variables: " +
+        s"${missingVars.mkString(", ")}")
+      false
+    } else {
+      true
+    }
   }
 
   @volatile private var process: Process = _
