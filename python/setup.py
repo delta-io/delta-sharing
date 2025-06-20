@@ -50,6 +50,7 @@ setup(
         'aiohttp',
         'dataclasses;python_version<"3.8"',
         'yarl>=1.6.0',
+        'jwcrypto>=1.5.6',
     ],
     extras_require={
         's3': ['s3fs'],
