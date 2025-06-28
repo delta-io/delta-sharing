@@ -292,35 +292,21 @@ class DeltaSharingReader:
 
         converters = to_converters(schema_json)
 
-        if self._limit is None:
-            pdfs = [
-                DeltaSharingReader._to_polars(
-                    file, converters, False, None, self._convert_in_batches
-                )
-                for file in response.add_files
-            ]
-        else:
-            left = self._limit
-            pdfs = []
-            for file in response.add_files:
-                pdf = DeltaSharingReader._to_polars(
-                    file, converters, False, left, self._convert_in_batches
-                )
-                pdfs.append(pdf)
-                left -= len(pdf)
-                assert (
-                    left >= 0
-                ), f"'_to_polars' returned too many rows. Required: {left}, returned: {len(pdf)}"
-                if left == 0:
-                    break
+        pdfs = [
+            DeltaSharingReader._to_polars(file, converters, False)
+            for file in response.add_files
+        ]
 
         merged = pl.concat(pdfs, how='diagonal_relaxed')
 
+        if self._limit:
+            merged = merged.head(self._limit)
+
         col_map = {}
-        for col in merged.columns:
+        for col in merged.collect_schema().names():
             col_map[col.lower()] = col
 
-        return merged[[col_map[field["name"].lower()] for field in schema_json["fields"]]]
+        return merged.select([col_map[field["name"].lower()] for field in schema_json["fields"]]).collect()
 
     def __write_temp_delta_log_snapshot(self, temp_dir: str, lines: List[str]) -> str:
         delta_log_dir_name = temp_dir
@@ -621,43 +607,16 @@ class DeltaSharingReader:
         action: FileAction,
         converters: Dict[str, Callable[[str], Any]],
         for_cdf: bool,
-        limit: Optional[int],
-        convert_in_batches: bool
-    ) -> pl.DataFrame:
+    ) -> pl.LazyFrame:
         url = urlparse(action.url)
         if "storage.googleapis.com" in (url.netloc.lower()):
             # Apply the yarl patch for GCS pre-signed urls
             import delta_sharing._yarl_patch  # noqa: F401
 
-        protocol = url.scheme
-        proxy = getproxies()
-        if len(proxy) != 0:
-            filesystem = fsspec.filesystem(protocol, client_kwargs={"trust_env": True})
-        else:
-            filesystem = fsspec.filesystem(protocol)
-
-
-        if convert_in_batches:
-            pa_file = ParquetFile(action.url, filesystem=filesystem)
-            pdfs = []
-            rows_read = 0
-            for batch in pa_file.iter_batches():
-                rows_read += len(batch)
-                pdfs.append(pl.from_arrow(batch))
-                if limit is not None and rows_read >= limit:
-                    break
-
-            print(f"Received {len(pdfs)} batches of data.")
-            pdf = pl.concat(pdfs, how='vertical')
-            if limit is not None:
-                pdf = pdf.head(limit)
-        else:
-            pa_dataset = dataset(source=action.url, format="parquet", filesystem=filesystem)
-            pa_table = pa_dataset.head(limit) if limit is not None else pa_dataset.to_table()
-            pdf = pl.from_arrow(pa_table)
+        pdf = pl.scan_parquet(source=action.url)
 
         lowered_cols = set()
-        for col in pdf.columns:
+        for col in pdf.collect_schema().names():
             lowered_cols.add(col.lower())
 
         for col, converter in converters.items():

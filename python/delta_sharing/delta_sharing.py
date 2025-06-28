@@ -155,7 +155,7 @@ def load_as_polars(
     timestamp: Optional[str] = None,
     jsonPredicateHints: Optional[str] = None,
     use_delta_format: Optional[bool] = None,
-    convert_in_batches: bool = False,
+    convert_in_batches = False,
 ) -> pl.DataFrame:
     profile_json, share, schema, table = _parse_url(url)
     profile = DeltaSharingProfile.read_from_file(profile_json)
@@ -167,7 +167,6 @@ def load_as_polars(
         version=version,
         timestamp=timestamp,
         use_delta_format=use_delta_format,
-        convert_in_batches=convert_in_batches,
     ).to_polars()
 
 
