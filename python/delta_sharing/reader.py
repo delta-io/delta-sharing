@@ -23,6 +23,7 @@ import delta_kernel_rust_sharing_wrapper
 import fsspec
 import os
 import pandas as pd
+import polars as pl
 import pyarrow as pa
 import tempfile
 from pyarrow.dataset import dataset
@@ -150,6 +151,52 @@ class DeltaSharingReader:
 
         return result
 
+    def __to_polars_kernel(self):
+        self._rest_client.set_delta_format_header()
+        response = self._rest_client.list_files_in_table(
+            self._table,
+            predicateHints=self._predicateHints,
+            jsonPredicateHints=self._jsonPredicateHints,
+            limitHint=self._limit,
+            version=self._version,
+            timestamp=self._timestamp,
+        )
+
+        lines = response.lines
+        # Create a temporary directory using the tempfile module
+        temp_dir = tempfile.TemporaryDirectory()
+        table_path = self.__write_temp_delta_log_snapshot(temp_dir.name, lines)
+        num_files = len(lines)
+
+        # Invoke delta-kernel-rust to return the pandas dataframe
+        interface = delta_kernel_rust_sharing_wrapper.PythonInterface(table_path)
+        table = delta_kernel_rust_sharing_wrapper.Table(table_path)
+        snapshot = table.snapshot(interface)
+        scan = delta_kernel_rust_sharing_wrapper.ScanBuilder(snapshot).build()
+
+        # The table is empty so use the schema to return an empty table with correct col names
+        if num_files == 0:
+            schema = scan.execute(interface).schema
+            return pl.DataFrame(schema=schema.names)
+
+        batches = scan.execute(interface)
+        if self._convert_in_batches:
+            pdfs = [pl.from_arrow(batch) for batch in batches]
+            print(f"Received {len(pdfs)} batches of data.")
+            result = pl.concat(pdfs, how='vertical')
+        else:
+            result = pl.from_arrow(pa.Table.from_batches(batches))
+
+        # Apply residual limit that was not handled from server pushdown
+        if self._limit:
+            result = result.head(self._limit)
+
+        # Delete the temp folder explicitly and remove the delta format from header
+        temp_dir.cleanup()
+        self._rest_client.remove_delta_format_header()
+
+        return result
+
     def to_pandas(self) -> pd.DataFrame:
         response_format = ""
         # If client does not specify which format to use, autoresolve it.
@@ -208,6 +255,66 @@ class DeltaSharingReader:
             ignore_index=True,
             copy=False,
         )
+
+        col_map = {}
+        for col in merged.columns:
+            col_map[col.lower()] = col
+
+        return merged[[col_map[field["name"].lower()] for field in schema_json["fields"]]]
+
+    def to_polars(self) -> pl.DataFrame:
+        response_format = ""
+        # If client does not specify which format to use, autoresolve it.
+        # Otherwise use the specified format.
+        if self._use_delta_format is None:
+            response_format = self._rest_client.autoresolve_query_format(self._table)
+        elif self._use_delta_format:
+            response_format = response_format = DataSharingRestClient.DELTA_FORMAT
+
+        # If the response format is delta, use delta kernel rust
+        if response_format == DataSharingRestClient.DELTA_FORMAT:
+            return self.__to_polars_kernel()
+
+        # Otherwise use the standard approach
+        response = self._rest_client.list_files_in_table(
+            self._table,
+            predicateHints=self._predicateHints,
+            jsonPredicateHints=self._jsonPredicateHints,
+            limitHint=self._limit,
+            version=self._version,
+            timestamp=self._timestamp,
+        )
+
+        schema_json = loads(response.metadata.schema_string)
+
+        if len(response.add_files) == 0 or self._limit == 0:
+            return pl.from_pandas(get_empty_table(schema_json))
+
+        converters = to_converters(schema_json)
+
+        if self._limit is None:
+            pdfs = [
+                DeltaSharingReader._to_polars(
+                    file, converters, False, None, self._convert_in_batches
+                )
+                for file in response.add_files
+            ]
+        else:
+            left = self._limit
+            pdfs = []
+            for file in response.add_files:
+                pdf = DeltaSharingReader._to_polars(
+                    file, converters, False, left, self._convert_in_batches
+                )
+                pdfs.append(pdf)
+                left -= len(pdf)
+                assert (
+                    left >= 0
+                ), f"'_to_polars' returned too many rows. Required: {left}, returned: {len(pdf)}"
+                if left == 0:
+                    break
+
+        merged = pl.concat(pdfs, how='diagonal_relaxed')
 
         col_map = {}
         for col in merged.columns:
@@ -509,6 +616,79 @@ class DeltaSharingReader:
                 pdf[DeltaSharingReader._commit_timestamp_col_name()] = action.timestamp
         return pdf
 
+    @staticmethod
+    def _to_polars(
+        action: FileAction,
+        converters: Dict[str, Callable[[str], Any]],
+        for_cdf: bool,
+        limit: Optional[int],
+        convert_in_batches: bool
+    ) -> pl.DataFrame:
+        url = urlparse(action.url)
+        if "storage.googleapis.com" in (url.netloc.lower()):
+            # Apply the yarl patch for GCS pre-signed urls
+            import delta_sharing._yarl_patch  # noqa: F401
+
+        protocol = url.scheme
+        proxy = getproxies()
+        if len(proxy) != 0:
+            filesystem = fsspec.filesystem(protocol, client_kwargs={"trust_env": True})
+        else:
+            filesystem = fsspec.filesystem(protocol)
+
+
+        if convert_in_batches:
+            pa_file = ParquetFile(action.url, filesystem=filesystem)
+            pdfs = []
+            rows_read = 0
+            for batch in pa_file.iter_batches():
+                rows_read += len(batch)
+                pdfs.append(pl.from_arrow(batch))
+                if limit is not None and rows_read >= limit:
+                    break
+
+            print(f"Received {len(pdfs)} batches of data.")
+            pdf = pl.concat(pdfs, how='vertical')
+            if limit is not None:
+                pdf = pdf.head(limit)
+        else:
+            pa_dataset = dataset(source=action.url, format="parquet", filesystem=filesystem)
+            pa_table = pa_dataset.head(limit) if limit is not None else pa_dataset.to_table()
+            pdf = pl.from_arrow(pa_table)
+
+        lowered_cols = set()
+        for col in pdf.columns:
+            lowered_cols.add(col.lower())
+
+        for col, converter in converters.items():
+            lowered = col.lower()
+            if lowered not in lowered_cols:
+                if col in action.partition_values:
+                    if converter is not None:
+                        pdf = pdf.with_columns(converter(action.partition_values[col]))
+                    else:
+                        raise ValueError("Cannot partition on binary or complex columns")
+                else:
+                    pdf = pdf.with_columns(pl.lit(None).alias(col))
+
+        if for_cdf:
+            columns = []
+            # Add the change type col name to non cdc actions.
+            if not isinstance(action, AddCdcFile):
+                columns.append(pl.lit(action.get_change_type_col_value()).alias(DeltaSharingReader._change_type_col_name()))
+
+            # If available, add timestamp and version columns from the action.
+            # All rows of the dataframe will get the same value.
+            if action.version is not None:
+                assert DeltaSharingReader._commit_version_col_name() not in pdf.columns
+                columns.append(pl.lit(action.version).alias(DeltaSharingReader._commit_version_col_name()))
+
+            if action.timestamp is not None:
+                assert DeltaSharingReader._commit_timestamp_col_name() not in pdf.columns
+                columns.append(pl.lit(action.timestamp).alias(DeltaSharingReader._commit_timestamp_col_name()))
+
+            pdf = pdf.with_columns(columns)
+        return pdf
     # The names of special delta columns for cdf.
 
     @staticmethod
