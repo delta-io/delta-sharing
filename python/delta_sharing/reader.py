@@ -179,13 +179,7 @@ class DeltaSharingReader:
             schema = scan.execute(interface).schema
             return pl.DataFrame(schema=schema.names)
 
-        batches = scan.execute(interface)
-        if self._convert_in_batches:
-            pdfs = [pl.from_arrow(batch) for batch in batches]
-            print(f"Received {len(pdfs)} batches of data.")
-            result = pl.concat(pdfs, how='vertical')
-        else:
-            result = pl.from_arrow(pa.Table.from_batches(batches))
+        result = scan.execute_polars(interface)
 
         # Apply residual limit that was not handled from server pushdown
         if self._limit:
