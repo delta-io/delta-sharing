@@ -96,6 +96,7 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_wasb", share="share_azure", schema="default"),
         Table(name="table_abfs", share="share_azure", schema="default"),
         Table(name="table_gcs", share="share_gcp", schema="default"),
+        Table(name="12k_rows", share="share8", schema="default"),
         Table(name="timestampntz_cdf_table", share="share8", schema="default"),
         Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
         Table(name="cdf_table_with_partition", share="share8", schema="default"),
@@ -1687,3 +1688,110 @@ def test_load_table_changes_as_spark(
             match="Unable to import pyspark. `load_table_changes_as_spark` requires" + " PySpark.",
         ):
             load_table_changes_as_spark("not-used")
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments",
+    [pytest.param("share8.default.12k_rows")],
+)
+def test_load_as_pandas_delta_batch_convert(
+    profile_path: str,
+    fragments: str,
+):
+    ids = list(range(12000))
+    expected = pd.DataFrame(
+        {
+            "id": ids,
+            "name": [f"str_{n}" for n in ids],
+            "time": [pd.Timestamp(n * 10**5, unit="s", tz="UTC") for n in ids],
+            "val": [n**0.5 for n in ids],
+        }
+    )
+    expected["time"] = expected["time"].astype("datetime64[us, UTC]")
+
+    pdf = (
+        load_as_pandas(
+            f"{profile_path}#{fragments}", use_delta_format=True, convert_in_batches=True
+        )
+        .sort_values(by="id")
+        .reset_index(drop=True)
+    )
+    pd.testing.assert_frame_equal(pdf, expected)
+    pdf = load_as_pandas(
+        f"{profile_path}#{fragments}", use_delta_format=True, convert_in_batches=True, limit=500
+    )
+    assert len(pdf) == 500
+    pdf = load_as_pandas(
+        f"{profile_path}#{fragments}", use_delta_format=True, convert_in_batches=True, limit=3000
+    )
+    assert len(pdf) == 3000
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments",
+    [pytest.param("share8.default.12k_rows")],
+)
+def test_load_table_changes_as_pandas_delta_batch_convert(
+    profile_path: str,
+    fragments: str,
+):
+    rows_to_insert = list(range(100, 1600, 100))  # adds up to 12000
+
+    version_to_timestamp = {
+        1: pd.Timestamp("2025-05-29T02:51:51.000+00:00"),
+        2: pd.Timestamp("2025-05-29T02:51:53.000+00:00"),
+        3: pd.Timestamp("2025-05-29T02:51:54.000+00:00"),
+        4: pd.Timestamp("2025-05-29T02:51:56.000+00:00"),
+        5: pd.Timestamp("2025-05-29T02:51:57.000+00:00"),
+        6: pd.Timestamp("2025-05-29T02:51:58.000+00:00"),
+        7: pd.Timestamp("2025-05-29T02:52:00.000+00:00"),
+        8: pd.Timestamp("2025-05-29T02:52:01.000+00:00"),
+        9: pd.Timestamp("2025-05-29T02:52:03.000+00:00"),
+        10: pd.Timestamp("2025-05-29T02:52:04.000+00:00"),
+        11: pd.Timestamp("2025-05-29T02:52:05.000+00:00"),
+        12: pd.Timestamp("2025-05-29T02:52:07.000+00:00"),
+        13: pd.Timestamp("2025-05-29T02:52:09.000+00:00"),
+        14: pd.Timestamp("2025-05-29T02:52:11.000+00:00"),
+        15: pd.Timestamp("2025-05-29T02:52:12.000+00:00"),
+    }
+
+    rows_inserted = 0
+    version = 1
+    expected_pdfs = []
+    for row_count in rows_to_insert:
+        ids = list(range(rows_inserted, rows_inserted + row_count))
+        pdf_added = pd.DataFrame(
+            {
+                "id": ids,
+                "name": [f"str_{n}" for n in ids],
+                "time": [pd.Timestamp(n * 10**5, unit="s", tz="UTC") for n in ids],
+                "val": [n**0.5 for n in ids],
+                "_change_type": "insert",
+                "_commit_version": version,
+                "_commit_timestamp": version_to_timestamp[version],
+            }
+        )
+        expected_pdfs.append(pdf_added)
+        rows_inserted += row_count
+        version += 1
+
+    expected = (
+        pd.concat(expected_pdfs, axis=0)
+        .sort_values(by=["_commit_timestamp", "id"])
+        .reset_index(drop=True)
+    )
+    expected["_commit_timestamp"] = expected["_commit_timestamp"].astype("datetime64[us, UTC]")
+    expected["time"] = expected["time"].astype("datetime64[us, UTC]")
+    pdf = (
+        load_table_changes_as_pandas(
+            f"{profile_path}#{fragments}",
+            starting_version=0,
+            use_delta_format=True,
+            convert_in_batches=True,
+        )
+        .sort_values(by=["_commit_timestamp", "id"])
+        .reset_index(drop=True)
+    )
+    pd.testing.assert_frame_equal(pdf, expected)
