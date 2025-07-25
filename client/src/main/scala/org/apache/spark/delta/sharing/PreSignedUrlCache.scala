@@ -372,6 +372,50 @@ class CachedTableManager(
   }
 
   /**
+   * Adds new query states to an existing QuerySpecificCachedTable entry in the cache.
+   *
+   * This method is used when a new query (with its own queryId and refresher wrapper)
+   * wants to share the same cached table entry as other queries, but only needs to add
+   * its own state (references and refresher wrapper) without modifying the rest of the
+   * table's cache entry. If the table is not a QuerySpecificCachedTable, or does not exist,
+   * this method is a no-op.
+   *
+   * The method is atomic and thread-safe, using computeIfPresent to avoid race conditions
+   * with concurrent register or refresh operations.
+   *
+   * @param tablePath The path of the table whose query states should be updated.
+   * @param refs A sequence of weak references for the new query, used to track its usage.
+   * @param profileProvider The profile provider, which supplies the queryId and refresher wrapper
+   *                       for the new query state.
+   */
+  def registerQueryStatesInQuerySpecificCachedTable(
+    tablePath: String,
+    refs: Seq[WeakReference[AnyRef]],
+    profileProvider: DeltaSharingProfileProvider
+  ): Unit = {
+    val queryId = profileProvider.getCustomQueryId()
+      .getOrElse(throw new IllegalStateException("Query ID is not defined."))
+    val refresherWrapper = profileProvider.getCustomRefresherWrapper().getOrElse(
+      throw new IllegalStateException("refresherWrapper is not defined.")
+    )
+    val customTablePath = profileProvider.getCustomTablePath(tablePath)
+
+    cache.computeIfPresent(customTablePath, (_, existingTable) => existingTable match {
+      case q: QuerySpecificCachedTable =>
+        val newQueryStates = q.queryStates + (queryId -> (refs, refresherWrapper))
+        new QuerySpecificCachedTable(
+          q.expiration,
+          q.idToUrl,
+          q.lastAccess,
+          q.refreshToken,
+          q.refresher,
+          newQueryStates
+        )
+      case _ => existingTable
+    })
+  }
+
+  /**
    * Registers a query-specific cached table in the cache. This method ensures that each query
    * maintains its own refresher state, even if multiple queries share the same table.
    * If the table is not already in the cache, a new entry is created. If the table is
