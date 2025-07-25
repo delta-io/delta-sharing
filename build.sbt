@@ -18,9 +18,17 @@ import sbt.ExclusionRule
 
 ThisBuild / parallelExecution := false
 
-val sparkVersion = "4.0.0"
-val scala212 = "2.12.10"
+val previousSparkVersion = "3.5.3"
+val latestSparkVersion = "4.0.0"
+val scala212 = "2.12.18"
 val scala213 = "2.13.13"
+val scalaTestVersion = "3.2.15"
+
+def sparkVersionFor(scalaVer: String): String = scalaVer match {
+  case v if v.startsWith("2.12") => previousSparkVersion
+  case v if v.startsWith("2.13") => latestSparkVersion
+  case _ => sys.error(s"Unsupported Scala version: $scalaVer")
+}
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
@@ -66,20 +74,24 @@ lazy val root = (project in file(".")).aggregate(client, spark, server)
 lazy val client = (project in file("client")) settings(
   name := "delta-sharing-client",
   scalaVersion := scala213,
-  crossScalaVersions := Seq(scala213),
+  crossScalaVersions := Seq(scala212, scala213),
   commonSettings,
   java17Settings,
   scalaStyleSettings,
   releaseSettings,
-  libraryDependencies ++= Seq(
-    "org.apache.httpcomponents" % "httpclient" % "4.5.14",
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-    "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
-    "org.scalatest" %% "scalatest" % "3.2.3" % "test",
-    "org.scalatestplus" %% "mockito-4-11" % "3.2.18.0" % "test"
-  ),
+  libraryDependencies ++= {
+    val sv = scalaVersion.value
+    val sparkVer = sparkVersionFor(sv)
+    Seq(
+      "org.apache.httpcomponents" % "httpclient" % "4.5.14",
+      "org.apache.spark" %% "spark-sql" % sparkVer % "provided",
+      "org.apache.spark" %% "spark-catalyst" % sparkVer % "test" classifier "tests",
+      "org.apache.spark" %% "spark-core" % sparkVer % "test" classifier "tests",
+      "org.apache.spark" %% "spark-sql" % sparkVer % "test" classifier "tests",
+      "org.scalatest" %% "scalatest" % scalaTestVersion % "test",
+      "org.scalatestplus" %% "mockito-4-11" % "3.2.18.0" % "test"
+    )
+  },
   Compile / sourceGenerators += Def.task {
     val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "client" / "package.scala"
     IO.write(file,
@@ -90,6 +102,25 @@ lazy val client = (project in file("client")) settings(
          |}
          |""".stripMargin)
     Seq(file)
+  },
+  // Use scala-2.12 and scala-2.13 folders for version-specific overrides
+  Compile / unmanagedSourceDirectories ++= {
+    val sv = scalaVersion.value
+    val base = (Compile / sourceDirectory).value
+    sv match {
+      case v if v.startsWith("2.12") => Seq(base / "scala-2.12")
+      case v if v.startsWith("2.13") => Seq(base / "scala-2.13")
+      case _ => Seq.empty
+    }
+  },
+  Test / unmanagedSourceDirectories ++= {
+    val sv = scalaVersion.value
+    val base = (Test / sourceDirectory).value
+    sv match {
+      case v if v.startsWith("2.12") => Seq(base / "scala-2.12")
+      case v if v.startsWith("2.13") => Seq(base / "scala-2.13")
+      case _ => Seq.empty
+    }
   }
 )
 
@@ -102,11 +133,11 @@ lazy val spark = (project in file("spark")) dependsOn(client) settings(
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-    "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
-    "org.scalatest" %% "scalatest" % "3.2.3" % "test"
+    "org.apache.spark" %% "spark-sql" % latestSparkVersion % "provided",
+    "org.apache.spark" %% "spark-catalyst" % latestSparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-core" % latestSparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-sql" % latestSparkVersion % "test" classifier "tests",
+    "org.scalatest" %% "scalatest" % scalaTestVersion % "test"
   ),
   Compile / sourceGenerators += Def.task {
     val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "spark" / "package.scala"
