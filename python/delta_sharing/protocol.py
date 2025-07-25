@@ -36,6 +36,11 @@ class DeltaSharingProfile:
     username: Optional[str] = None
     password: Optional[str] = None
     scope: Optional[str] = None
+    issuer: Optional[str] = None
+    audience: Optional[str] = None
+    private_key: Optional[str] = None
+    key_id: Optional[str] = None
+    algorithm: Optional[str] = None
 
     def __post_init__(self):
         if self.share_credentials_version > DeltaSharingProfile.CURRENT:
@@ -78,7 +83,24 @@ class DeltaSharingProfile:
             )
         elif share_credentials_version == 2:
             type = json["type"]
-            if type == "oauth_client_credentials":
+            if type == "oauth_client_private_key":
+                token_endpoint = json["tokenEndpoint"]
+                if token_endpoint is not None and token_endpoint.endswith("/"):
+                    token_endpoint = token_endpoint[:-1]
+                return DeltaSharingProfile(
+                    share_credentials_version=share_credentials_version,
+                    type=type,
+                    endpoint=endpoint,
+                    token_endpoint=token_endpoint,
+                    issuer=json["issuer"],
+                    client_id=json["clientId"],
+                    private_key=json["privateKey"],
+                    key_id=json["keyId"],
+                    audience=json["audience"],
+                    scope=json.get("scope"),
+                    algorithm=json.get("algorithm"),
+                )
+            elif type == "oauth_client_credentials":
                 token_endpoint = json["tokenEndpoint"]
                 if token_endpoint is not None and token_endpoint.endswith("/"):
                     token_endpoint = token_endpoint[:-1]
