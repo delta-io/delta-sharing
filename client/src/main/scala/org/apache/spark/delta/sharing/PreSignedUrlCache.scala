@@ -398,7 +398,9 @@ class CachedTableManager(
     val refresherWrapper = profileProvider.getCustomRefresherWrapper().getOrElse(
       throw new IllegalStateException("refresherWrapper is not defined.")
     )
-    cache.computeIfPresent(tablePath, (_, existingTable) => existingTable match {
+    val customTablePath = profileProvider.getCustomTablePath(tablePath)
+
+    cache.computeIfPresent(customTablePath, (_, existingTable) => existingTable match {
       case q: QuerySpecificCachedTable =>
         val newQueryStates = q.queryStates + (queryId -> (refs, refresherWrapper))
         new QuerySpecificCachedTable(
