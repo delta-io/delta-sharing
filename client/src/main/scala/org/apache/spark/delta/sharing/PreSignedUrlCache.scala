@@ -98,6 +98,8 @@ class CachedTable(
  *
  * @param queryStates A mapping of query identifiers to their associated weak references
  *                        and refresher wrappers.
+ * @param keepUrlsAfterRefsGone If true, URLs will be kept in cache even when all references
+ *                              are gone, and will only be cleaned up based on access expiry time.
  */
 class QuerySpecificCachedTable(
     expiration: Long,
@@ -108,7 +110,8 @@ class QuerySpecificCachedTable(
     val queryStates: Map[
       String,
       (Seq[WeakReference[AnyRef]], QuerySpecificCachedTable.RefresherWrapper)
-    ]
+    ],
+    val keepUrlsAfterRefsGone: Boolean = false
 ) extends BaseCachedTable(expiration, idToUrl, lastAccess, refreshToken, refresher)
 
 object QuerySpecificCachedTable {
@@ -286,13 +289,37 @@ class CachedTableManager(
         }
 
         if (validStates.isEmpty) {
-          // If all the references are gone, we will remove the table from the cache.
-          logInfo(s"Removing table $tablePath as no valid query mappings remain.")
-          null
+          // If all the references are gone, check if we should keep the URLs
+          if (!querySpecificCachedTable.keepUrlsAfterRefsGone) {
+            // If we're not keeping URLs after refs are gone, remove the table
+            logInfo(s"Removing table $tablePath as no valid query mappings remain.")
+            null
+          } else if (
+            querySpecificCachedTable.expiration - System.currentTimeMillis() < refreshThresholdMs) {
+            // If we're keeping URLs, but they're about to expire, and we can't refresh them,
+            // remove the table since we can't refresh without valid states
+            logInfo(s"Removing table $tablePath as URLs are about to expire and no valid query " +
+              "mappings remain to refresh them.")
+            null
+          } else {
+            // Keep the URLs since they're still valid for a while
+            logInfo(s"Keeping URLs for $tablePath after all references are gone, URLs are still " +
+              "valid.")
+            new QuerySpecificCachedTable(
+              querySpecificCachedTable.expiration,
+              querySpecificCachedTable.idToUrl,
+              querySpecificCachedTable.lastAccess,
+              querySpecificCachedTable.refreshToken,
+              querySpecificCachedTable.refresher,
+              validStates,
+              querySpecificCachedTable.keepUrlsAfterRefsGone
+            )
+          }
         } else if (
           querySpecificCachedTable.expiration - System.currentTimeMillis() < refreshThresholdMs
         ) {
           // If the pre signed urls are going to expire, we will refresh them.
+          // At this point, we know we have valid states since we handled empty states above.
           try {
             val (_, (_, refresherWrapper)) = validStates.head
             // Run the refresh function with the wrapper to get the new pre-signed URLs
@@ -316,7 +343,8 @@ class CachedTableManager(
               lastAccess = querySpecificCachedTable.lastAccess,
               refreshToken = refreshRes.refreshToken,
               refresher = querySpecificCachedTable.refresher,
-              queryStates = validStates
+              queryStates = validStates,
+              keepUrlsAfterRefsGone = querySpecificCachedTable.keepUrlsAfterRefsGone
             )
           } catch {
             case NonFatal(e) =>
@@ -332,7 +360,8 @@ class CachedTableManager(
                   querySpecificCachedTable.lastAccess,
                   querySpecificCachedTable.refreshToken,
                   querySpecificCachedTable.refresher,
-                  validStates
+                  validStates,
+                  querySpecificCachedTable.keepUrlsAfterRefsGone
                 )
               }
           }
@@ -344,7 +373,8 @@ class CachedTableManager(
             querySpecificCachedTable.lastAccess,
             querySpecificCachedTable.refreshToken,
             querySpecificCachedTable.refresher,
-            validStates
+            validStates,
+            querySpecificCachedTable.keepUrlsAfterRefsGone
           )
         }
 
@@ -409,7 +439,8 @@ class CachedTableManager(
           q.lastAccess,
           q.refreshToken,
           q.refresher,
-          newQueryStates
+          newQueryStates,
+          keepUrlsAfterRefsGone = true
         )
       case _ => existingTable
     })
@@ -431,6 +462,8 @@ class CachedTableManager(
    * @param expirationTimestamp The expiration timestamp of the pre-signed URLs.
    * @param refreshToken An optional token used to refresh the pre-signed URLs.
    * @param profileProvider A provider for query-specific profile and refresher details.
+   * @param keepUrlsAfterRefsGone If true, URLs will be kept in cache even when all references
+   *                              are gone.
    */
   private def registerQuerySpecificCachedTable(
     tablePath: String,
@@ -439,7 +472,8 @@ class CachedTableManager(
     refresher: Option[String] => TableRefreshResult,
     expirationTimestamp: Long,
     refreshToken: Option[String],
-    profileProvider: DeltaSharingProfileProvider
+    profileProvider: DeltaSharingProfileProvider,
+    keepUrlsAfterRefsGone: Boolean = false
   ): Unit = {
     val queryId = profileProvider.getCustomQueryId()
       .getOrElse(throw new IllegalStateException("Query ID is not defined."))
@@ -481,7 +515,8 @@ class CachedTableManager(
           lastAccess = System.currentTimeMillis(),
           refreshToken = resolvedRefreshToken,
           refresher = refresher,
-          queryStates = Map(queryId -> (refs, refresherWrapper))
+          queryStates = Map(queryId -> (refs, refresherWrapper)),
+          keepUrlsAfterRefsGone = keepUrlsAfterRefsGone
         )
       } else {
         // If the table is already in cache, we will update the existing entry
@@ -512,7 +547,8 @@ class CachedTableManager(
           lastAccess = System.currentTimeMillis(),
           refreshToken = resolvedRefreshToken,
           refresher = refresher,
-          queryStates = newQueryStates
+          queryStates = newQueryStates,
+          keepUrlsAfterRefsGone = keepUrlsAfterRefsGone
         )
       }
     })
@@ -534,6 +570,9 @@ class CachedTableManager(
    *                            timestamp of the idToUrl.
    * @param refreshToken an optional refresh token that can be used by the refresher to retrieve
    *                     the same set of files with refreshed urls.
+   * @param keepUrlsAfterRefsGone If true, for QuerySpecificCachedTable, URLs will be kept in cache
+   *                              even when all references are gone, and will only be cleaned up
+   *                              based on access expiry time.
    */
   def register(
       tablePath: String,
@@ -542,7 +581,8 @@ class CachedTableManager(
       profileProvider: DeltaSharingProfileProvider,
       refresher: Option[String] => TableRefreshResult,
       expirationTimestamp: Long = System.currentTimeMillis() + preSignedUrlExpirationMs,
-      refreshToken: Option[String]
+      refreshToken: Option[String],
+      keepUrlsAfterRefsGone: Boolean = false
     ): Unit = {
     val customTablePath = profileProvider.getCustomTablePath(tablePath)
 
@@ -563,7 +603,8 @@ class CachedTableManager(
         refresher = refresher,
         expirationTimestamp = expirationTimestamp,
         refreshToken = refreshToken,
-        profileProvider)
+        profileProvider,
+        keepUrlsAfterRefsGone = keepUrlsAfterRefsGone)
     }
 
     val customRefresher = profileProvider.getCustomRefresher(refresher)

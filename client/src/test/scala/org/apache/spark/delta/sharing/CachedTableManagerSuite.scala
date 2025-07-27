@@ -912,4 +912,112 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
     val (retrievedUrl2, _) = manager.getPreSignedUrl(tablePath, fileId)
     assert(retrievedUrl2 === url2)
   }
+
+  test("QuerySpecificCachedTable - keepUrlsAfterRefsGone functionality") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    val manager = createManager()
+    val tablePath = "test_table"
+    val fileId = "file1"
+    val initialUrl = "https://test.com/file1"
+    val refreshedUrl = "https://test.com/file1-refreshed"
+
+    val refresherWrapper: QuerySpecificCachedTable.RefresherWrapper =
+      (token, refresher) => refresher(token)
+
+    val refresher: Option[String] => TableRefreshResult = _ =>
+      TableRefreshResult(
+        Map(fileId -> refreshedUrl),
+        Some(System.currentTimeMillis() + preSignedUrlExpirationMs),
+        None
+      )
+
+    val profileProvider = createProfileProvider("query1", refresherWrapper)
+    val ref = new WeakReference[AnyRef](new Object())
+
+    // Register with keepUrlsAfterRefsGone = true
+    manager.register(
+      tablePath,
+      Map(fileId -> initialUrl),
+      Seq(ref),
+      profileProvider,
+      refresher,
+      System.currentTimeMillis() + refreshThresholdMs + 100,
+      None,
+      keepUrlsAfterRefsGone = true
+    )
+
+    // Verify initial state
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 1)
+    val (retrievedUrl1, _) = manager.getPreSignedUrl(tablePath, fileId)
+    assert(retrievedUrl1 === initialUrl)
+
+    // Clear the reference
+    ref.clear()
+
+    // Trigger refresh - should keep the URLs even though all refs are gone
+    manager.refresh()
+
+    // Verify URLs are still accessible
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 0) // No valid query states
+    val (retrievedUrl2, _) = manager.getPreSignedUrl(tablePath, fileId)
+    assert(retrievedUrl2 === initialUrl) // Should still have the original URL
+  }
+
+  test("QuerySpecificCachedTable - keepUrlsAfterRefsGone true but URLs about to expire") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    val manager = createManager()
+    val tablePath = "test_table"
+    val fileId = "file1"
+    val initialUrl = "https://test.com/file1"
+
+    val refresherWrapper: QuerySpecificCachedTable.RefresherWrapper =
+      (token, refresher) => refresher(token)
+
+    val refresher: Option[String] => TableRefreshResult = _ =>
+      TableRefreshResult(
+        Map(fileId -> initialUrl),
+        Some(System.currentTimeMillis() + preSignedUrlExpirationMs),
+        None
+      )
+
+    val profileProvider = createProfileProvider("query1", refresherWrapper)
+    val ref = new WeakReference[AnyRef](new Object())
+
+    // Register with keepUrlsAfterRefsGone = true but URLs about to expire
+    manager.register(
+      tablePath,
+      Map(fileId -> initialUrl),
+      Seq(ref),
+      profileProvider,
+      refresher,
+      System.currentTimeMillis() + refreshThresholdMs + 100,
+      None,
+      keepUrlsAfterRefsGone = true
+    )
+
+    // Verify initial state
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 1)
+
+    // Clear the reference
+    ref.clear()
+    Thread.sleep(150)
+
+    // Trigger refresh - should remove the table since URLs are about to expire and no valid states
+    manager.refresh()
+
+    // Verify table was removed
+    assert(manager.size == 0)
+
+    // Verify URLs are no longer accessible
+    intercept[IllegalStateException] {
+      manager.getPreSignedUrl(tablePath, fileId)
+    }
+  }
 }
