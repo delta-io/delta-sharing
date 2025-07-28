@@ -99,7 +99,7 @@ class CachedTable(
  * @param queryStates A mapping of query identifiers to their associated weak references
  *                        and refresher wrappers.
  * @param keepUrlsAfterRefsGone If true, URLs will be kept in cache even when all references
- *                              are gone, and will only be cleaned up based on access expiry time.
+ *                              are gone, and will only be cleaned up based on cache expiry time.
  */
 class QuerySpecificCachedTable(
     expiration: Long,
