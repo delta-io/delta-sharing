@@ -572,7 +572,7 @@ class CachedTableManager(
    *                     the same set of files with refreshed urls.
    * @param keepUrlsAfterRefsGone If true, for QuerySpecificCachedTable, URLs will be kept in cache
    *                              even when all references are gone, and will only be cleaned up
-   *                              based on access expiry time.
+   *                              based on cache expiry time.
    */
   def register(
       tablePath: String,
