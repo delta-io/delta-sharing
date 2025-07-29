@@ -539,11 +539,8 @@ class CachedTableManager(
             s"File ID mismatch detected for table $tablePath. " +
             s"Old file count: ${existingIds.size}, new file count: ${newIds.size}. " +
             s"Missing file IDs: ${missingIds.mkString(", ")}. " +
+            s"There is a chance that the current query fails with file id not found error." +
             s"Query ID: $queryId."
-          )
-          throw new IllegalStateException(
-            s"File IDs returned from server for table $tablePath do not match existing " +
-              s"cached file IDs."
           )
         }
 
