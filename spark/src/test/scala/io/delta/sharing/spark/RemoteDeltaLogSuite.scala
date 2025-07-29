@@ -216,6 +216,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
         |  {"op":"column","name":"id","valueType":"int"},
         |  {"op":"literal","value":"21","valueType":"int"}]
         |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+    CachedTableManager.INSTANCE.refresh() // Clean up expired entries
     val cacheSizeBegin = CachedTableManager.INSTANCE.size
 
     // Send query 1 with predicates.

@@ -566,7 +566,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     }
   }
 
-  test("spark read limit") {
+  integrationTest("spark read limit") {
     val spark = SparkSession.active
     spark.sessionState.conf.setConfString("spark.delta.sharing.client.class",
       classOf[TestDeltaSharingClient].getName)
