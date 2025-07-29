@@ -1020,4 +1020,107 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
       manager.getPreSignedUrl(tablePath, fileId)
     }
   }
+
+  test("QuerySpecificCachedTable - validation that new idToUrl is superset of existing") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    val manager = createManager()
+    val tablePath = "test_table"
+    val fileId1 = "file1"
+    val fileId2 = "file2"
+    val fileId3 = "file3"
+    val initialUrl1 = "https://test.com/file1"
+    val initialUrl2 = "https://test.com/file2"
+    val initialUrl3 = "https://test.com/file3"
+
+    val refresherWrapper: QuerySpecificCachedTable.RefresherWrapper =
+      (token, refresher) => refresher(token)
+
+    // First registration with two files
+    val refresher1: Option[String] => TableRefreshResult = _ =>
+      TableRefreshResult(
+        Map(fileId1 -> initialUrl1, fileId2 -> initialUrl2),
+        Some(System.currentTimeMillis() + preSignedUrlExpirationMs),
+        None
+      )
+
+    val profileProvider1 = createProfileProvider("query1", refresherWrapper)
+    val ref1 = new WeakReference[AnyRef](new Object())
+
+    manager.register(
+      tablePath,
+      Map(fileId1 -> initialUrl1, fileId2 -> initialUrl2),
+      Seq(ref1),
+      profileProvider1,
+      refresher1,
+      System.currentTimeMillis() + refreshThresholdMs + 100,
+      None
+    )
+
+    // Verify initial state
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 1)
+
+    // Second registration with only one file (missing fileId2) - should throw exception
+    val refresher2: Option[String] => TableRefreshResult = _ =>
+      TableRefreshResult(
+        Map(fileId1 -> initialUrl1), // Missing fileId2
+        Some(System.currentTimeMillis() + preSignedUrlExpirationMs),
+        None
+      )
+
+    val profileProvider2 = createProfileProvider("query2", refresherWrapper)
+    val ref2 = new WeakReference[AnyRef](new Object())
+
+    val exception = intercept[IllegalStateException] {
+      manager.register(
+        tablePath,
+        Map(fileId1 -> initialUrl1), // Missing fileId2
+        Seq(ref2),
+        profileProvider2,
+        refresher2,
+        System.currentTimeMillis() + refreshThresholdMs + 100,
+        None
+      )
+    }
+
+    // Verify the exception message contains the expected content
+    assert(exception.getMessage.contains("File IDs returned from server"))
+    assert(exception.getMessage.contains("do not match existing cached file IDs"))
+
+    // Third registration with all files plus a new one - should succeed
+    val refresher3: Option[String] => TableRefreshResult = _ =>
+      TableRefreshResult(
+        Map(fileId1 -> initialUrl1, fileId2 -> initialUrl2, fileId3 -> initialUrl3),
+        Some(System.currentTimeMillis() + preSignedUrlExpirationMs),
+        None
+      )
+
+    val profileProvider3 = createProfileProvider("query3", refresherWrapper)
+    val ref3 = new WeakReference[AnyRef](new Object())
+
+    // This should succeed as it's a superset
+    manager.register(
+      tablePath,
+      Map(fileId1 -> initialUrl1, fileId2 -> initialUrl2, fileId3 -> initialUrl3),
+      Seq(ref3),
+      profileProvider3,
+      refresher3,
+      System.currentTimeMillis() + refreshThresholdMs + 100,
+      None
+    )
+
+    // Verify all three query states are present
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 2)
+
+    // Verify all files are accessible
+    val (retrievedUrl1, _) = manager.getPreSignedUrl(tablePath, fileId1)
+    val (retrievedUrl2, _) = manager.getPreSignedUrl(tablePath, fileId2)
+    val (retrievedUrl3, _) = manager.getPreSignedUrl(tablePath, fileId3)
+    assert(retrievedUrl1 === initialUrl1)
+    assert(retrievedUrl2 === initialUrl2)
+    assert(retrievedUrl3 === initialUrl3)
+  }
 }
