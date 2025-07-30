@@ -529,6 +529,21 @@ class CachedTableManager(
               s"expected type is QuerySpecificCachedTable."
             )
         }
+
+        // Validate that the new resolvedIdToUrl is a superset of the existing idToUrl
+        val existingIds = querySpecificCachedTable.idToUrl.keySet
+        val newIds = resolvedIdToUrl.keySet
+        val missingIds = existingIds -- newIds
+        if (missingIds.nonEmpty) {
+          logError(
+            s"File ID mismatch detected for table $tablePath. " +
+            s"Old file count: ${existingIds.size}, new file count: ${newIds.size}. " +
+            s"Missing file IDs: ${missingIds.mkString(", ")}. " +
+            s"There is a chance that the current query fails with file id not found error." +
+            s"Query ID: $queryId."
+          )
+        }
+
         // Retain the old references and refresh wrappers. The cache entry will only be removed
         // when all references are null. All refresh wrappers are preserved as they may hold state
         // required by the server to refresh URLs.
