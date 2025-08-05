@@ -555,7 +555,9 @@ class CachedTableManager(
         val mergedQueryStates = existingQueryState match {
           case Some((existingRefs, existingWrapper)) =>
             // Merge refs, avoiding duplicates
-            val mergedRefs = (existingRefs ++ refs).groupBy(_.get).values.map(_.head).toSeq
+            val mergedRefs = refs.filterNot { ref =>
+              existingRefs.exists(_.get eq ref.get)
+            } ++ existingRefs
             querySpecificCachedTable.queryStates + (queryId -> (mergedRefs, refresherWrapper))
           case None =>
             // New query state
