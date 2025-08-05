@@ -285,11 +285,11 @@ lazy val releaseSettings = Seq(
 
   publishTo := {
     val testPublish = sys.props.get("test.publish").contains("true")
-    if (isSnapshot.value) {
-      Some("snapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots")
-    } else if (testPublish) {
+    if (testPublish) {
       // For testing: publish to snapshots with a test suffix
       Some("test-snapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots")
+    } else if (isSnapshot.value) {
+      Some("snapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots")
     } else {
       Some("Central Repository" at "https://central.sonatype.com/api/v1/publisher/deployments/upload")
     }
