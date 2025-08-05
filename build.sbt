@@ -284,17 +284,23 @@ lazy val releaseSettings = Seq(
   Test / publishArtifact := false,
 
   publishTo := {
-    val nexus = "https://oss.sonatype.org/"
+    val testPublish = sys.props.get("test.publish").contains("true")
     if (isSnapshot.value) {
-      Some("snapshots" at nexus + "content/repositories/snapshots")
+      Some("snapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots")
+    } else if (testPublish) {
+      // For testing: publish to snapshots with a test suffix
+      Some("test-snapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots")
     } else {
-      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+      Some("Central Repository" at "https://central.sonatype.com/api/v1/publisher/deployments/upload")
     }
   },
 
   releasePublishArtifactsAction := PgpKeys.publishSigned.value,
 
   releaseCrossBuild := true,
+
+  sonatypeCredentialHost := "central.sonatype.com",
+  sonatypeRepository := "https://central.sonatype.com/api/v1/publisher",
 
   licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
 
@@ -361,7 +367,7 @@ lazy val releaseSettings = Seq(
 // Looks like some of release settings should be set for the root project as well.
 publishArtifact := false  // Don't release the root project
 publish := {}
-publishTo := Some("snapshots" at "https://oss.sonatype.org/content/repositories/snapshots")
+publishTo := Some("snapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots")
 releaseCrossBuild := false
 // crossScalaVersions must be set to Nil on the root project
 crossScalaVersions := Nil
