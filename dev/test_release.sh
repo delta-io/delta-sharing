@@ -17,8 +17,8 @@ read BASE_VERSION
 TEST_VERSION="${BASE_VERSION}-TEST-SNAPSHOT"
 echo "Publishing test version: $TEST_VERSION"
 
-# Set test version and publish to snapshots
-build/sbt "set version := \"$TEST_VERSION\"" -Dtest.publish=true publishSigned
+# Set test version and publish to snapshots (without signing for testing)
+build/sbt "set version := \"$TEST_VERSION\"" -Dtest.publish=true publish
 
 echo "=== Published test artifacts to snapshots repository ==="
 echo "Test version: $TEST_VERSION"
