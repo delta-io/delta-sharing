@@ -1098,7 +1098,7 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
 
     // Third registration with same queryId as first - should merge refs
     val ref1Additional = new WeakReference[AnyRef](new Object())
-    
+
     manager.register(
       tablePath,
       Map(fileId1 -> initialUrl1), // Different URL, should be overridden by merge
