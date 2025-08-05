@@ -540,13 +540,14 @@ class CachedTableManager(
         val newIds = resolvedIdToUrl.keySet
         val addedIds = newIds -- existingIds
         val updatedIds = newIds.intersect(existingIds)
+        val preservedIds = existingIds -- newIds
 
-        if (addedIds.nonEmpty || updatedIds.nonEmpty) {
+        if (addedIds.nonEmpty || updatedIds.nonEmpty || preservedIds.nonEmpty) {
           logInfo(
             s"Merging URLs for table $tablePath. " +
             s"Total URLs: ${mergedIdToUrl.size} (existing: ${existingIds.size}, " +
-            s"new: ${newIds.size}, added: ${addedIds.size}, updated: ${updatedIds.size}). " +
-            s"Query ID: $queryId."
+            s"new: ${newIds.size}, added: ${addedIds.size}, updated: ${updatedIds.size}, " +
+            s"preserved: ${preservedIds.size}). Query ID: $queryId."
           )
         }
 
@@ -571,7 +572,13 @@ class CachedTableManager(
         )
 
         new QuerySpecificCachedTable(
-          expiration = resolvedExpiration,
+          expiration = if (preservedIds.nonEmpty) {
+            // Old entry has URLs not in new entry, use min expiration
+            resolvedExpiration min querySpecificCachedTable.expiration
+          } else {
+            // All old URLs are being replaced, use new expiration
+            resolvedExpiration
+          },
           idToUrl = mergedIdToUrl,
           lastAccess = System.currentTimeMillis(),
           refreshToken = resolvedRefreshToken,
