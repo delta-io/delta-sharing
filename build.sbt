@@ -284,14 +284,11 @@ lazy val releaseSettings = Seq(
   Test / publishArtifact := false,
 
   publishTo := {
-    val testPublish = sys.props.get("test.publish").contains("true")
-    if (testPublish) {
-      // For testing: publish to snapshots with a test suffix
-      Some("test-snapshots" at "https://ossrh-staging-api.central.sonatype.com/content/repositories/snapshots")
-    } else if (isSnapshot.value) {
-      Some("snapshots" at "https://ossrh-staging-api.central.sonatype.com/content/repositories/snapshots")
+    val ossrhBase = "https://ossrh-staging-api.central.sonatype.com/"
+    if (isSnapshot.value) {
+      Some("snapshots" at ossrhBase + "content/repositories/snapshots")
     } else {
-      Some("releases"  at "https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2")
+      Some("releases" at ossrhBase + "service/local/staging/deploy/maven2")
     }
   },
 

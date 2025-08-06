@@ -12,14 +12,22 @@ git clean -fdx
 # Clean existing artifacts
 build/sbt clean
 
-printf "Please type the test version (will be suffixed with -TEST-SNAPSHOT): "
-read BASE_VERSION
-TEST_VERSION="${BASE_VERSION}-TEST-SNAPSHOT"
-echo "Publishing test version: $TEST_VERSION"
+# Read current version from version.sbt
+CURRENT_VERSION=$(grep "version in ThisBuild" version.sbt | sed 's/.*:= "\(.*\)"/\1/')
+echo "Using version from version.sbt: $CURRENT_VERSION"
 
-# Set test version and publish to snapshots (without signing for testing)
-build/sbt "set version := \"$TEST_VERSION\"" -Dtest.publish=true publish
+# Ensure it's a snapshot version
+if [[ ! "$CURRENT_VERSION" =~ -SNAPSHOT$ ]]; then
+  echo "Warning: version.sbt does not contain a SNAPSHOT version!"
+  echo "Current version: $CURRENT_VERSION"
+  exit 1
+fi
+
+echo "Publishing snapshot version: $CURRENT_VERSION"
+
+# Publish snapshots using version from version.sbt
+build/sbt publish
 
 echo "=== Published test artifacts to snapshots repository ==="
-echo "Test version: $TEST_VERSION"
+echo "Published version: $CURRENT_VERSION"
 echo "Repository: snapshots (safe for testing)" 
