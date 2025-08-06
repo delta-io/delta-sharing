@@ -16,13 +16,6 @@ build/sbt clean
 CURRENT_VERSION=$(grep "version in ThisBuild" version.sbt | sed 's/.*:= "\(.*\)"/\1/')
 echo "Using version from version.sbt: $CURRENT_VERSION"
 
-# Ensure it's a snapshot version
-if [[ ! "$CURRENT_VERSION" =~ -SNAPSHOT$ ]]; then
-  echo "Warning: version.sbt does not contain a SNAPSHOT version!"
-  echo "Current version: $CURRENT_VERSION"
-  exit 1
-fi
-
 echo "Publishing snapshot version: $CURRENT_VERSION"
 
 # Publish snapshots using version from version.sbt
