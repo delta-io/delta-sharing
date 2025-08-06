@@ -1020,4 +1020,113 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
       manager.getPreSignedUrl(tablePath, fileId)
     }
   }
+
+  test("QuerySpecificCachedTable - merge URLs and query states") {
+    val spark = SparkSession.active
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+    val manager = createManager()
+    val tablePath = "test_table"
+    val fileId1 = "file1"
+    val fileId2 = "file2"
+    val fileId3 = "file3"
+    val initialUrl1 = "https://test.com/file1"
+    val initialUrl2 = "https://test.com/file2"
+    val initialUrl3 = "https://test.com/file3"
+    val updatedUrl1 = "https://test.com/file1-updated"
+
+    val refresherWrapper: QuerySpecificCachedTable.RefresherWrapper =
+      (token, refresher) => refresher(token)
+
+    // First registration with two files
+    val refresher1: Option[String] => TableRefreshResult = _ =>
+      TableRefreshResult(
+        Map(fileId1 -> initialUrl1, fileId2 -> initialUrl2),
+        Some(System.currentTimeMillis() + preSignedUrlExpirationMs),
+        None
+      )
+
+    val profileProvider1 = createProfileProvider("query1", refresherWrapper)
+    val ref1 = new WeakReference[AnyRef](new Object())
+
+    manager.register(
+      tablePath,
+      Map(fileId1 -> initialUrl1, fileId2 -> initialUrl2),
+      Seq(ref1),
+      profileProvider1,
+      refresher1,
+      System.currentTimeMillis() + refreshThresholdMs + 100,
+      None
+    )
+
+    // Verify initial state
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 1)
+
+    // Second registration with updated URL for file1 and new file3
+    val refresher2: Option[String] => TableRefreshResult = _ =>
+      TableRefreshResult(
+        Map(fileId1 -> updatedUrl1, fileId3 -> initialUrl3),
+        Some(System.currentTimeMillis() + preSignedUrlExpirationMs),
+        None
+      )
+
+    val profileProvider2 = createProfileProvider("query2", refresherWrapper)
+    val ref2 = new WeakReference[AnyRef](new Object())
+
+    manager.register(
+      tablePath,
+      Map(fileId1 -> updatedUrl1, fileId3 -> initialUrl3),
+      Seq(ref2),
+      profileProvider2,
+      refresher2,
+      System.currentTimeMillis() + refreshThresholdMs + 100,
+      None
+    )
+
+    // Verify URLs were merged
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 2)
+
+    // Verify merged URLs: file1 should be updated, file2 should remain, file3 should be added
+    val (retrievedUrl1, _) = manager.getPreSignedUrl(tablePath, fileId1)
+    val (retrievedUrl2, _) = manager.getPreSignedUrl(tablePath, fileId2)
+    val (retrievedUrl3, _) = manager.getPreSignedUrl(tablePath, fileId3)
+    assert(retrievedUrl1 === updatedUrl1) // Updated URL
+    assert(retrievedUrl2 === initialUrl2) // Preserved URL
+    assert(retrievedUrl3 === initialUrl3) // New URL
+
+    // Third registration with same queryId as first - should merge refs
+    val ref1Additional = new WeakReference[AnyRef](new Object())
+
+    manager.register(
+      tablePath,
+      Map(fileId1 -> initialUrl1), // Different URL, should be overridden by merge
+      Seq(ref1Additional),
+      profileProvider1, // Same queryId as first registration
+      refresher1,
+      System.currentTimeMillis() + refreshThresholdMs + 100,
+      None
+    )
+
+    // Query states should still be 2 (same queryId, so refs merged)
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 2)
+
+    // URL for file1 should be the one from the latest registration
+    val (retrievedUrl1Final, _) = manager.getPreSignedUrl(tablePath, fileId1)
+    assert(retrievedUrl1Final === initialUrl1) // Latest registration wins
+
+    ref1.clear()
+    Thread.sleep(150)
+    manager.refresh()
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 2) // ref1Additional is still in the cache
+
+    ref1Additional.clear()
+    Thread.sleep(150)
+    manager.refresh()
+    assert(manager.size == 1)
+    assert(manager.getQueryStateSize(tablePath) == 1)
+  }
 }

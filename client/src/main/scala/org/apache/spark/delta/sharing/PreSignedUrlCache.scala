@@ -530,39 +530,60 @@ class CachedTableManager(
             )
         }
 
-        // Validate that the new resolvedIdToUrl is a superset of the existing idToUrl
+        // Merge idToUrl maps - new URLs take precedence for same file IDs.
+        // This merging is needed by streaming queries due to complex interactions
+        // in DataSharingSource.
+        val mergedIdToUrl = querySpecificCachedTable.idToUrl ++ resolvedIdToUrl
+
+        // Log information about the merge
         val existingIds = querySpecificCachedTable.idToUrl.keySet
         val newIds = resolvedIdToUrl.keySet
-        val missingIds = existingIds -- newIds
-        if (missingIds.nonEmpty) {
-          logError(
-            s"File ID mismatch detected for table $tablePath. " +
-            s"Old file count: ${existingIds.size}, new file count: ${newIds.size}. " +
-            s"Missing file IDs: ${missingIds.mkString(", ")}. " +
-            s"There is a chance that the current query fails with file id not found error." +
-            s"Query ID: $queryId."
+        val addedIds = newIds -- existingIds
+        val updatedIds = newIds.intersect(existingIds)
+        val preservedIds = existingIds -- newIds
+
+        if (addedIds.nonEmpty || updatedIds.nonEmpty || preservedIds.nonEmpty) {
+          logInfo(
+            s"Merging URLs for table $tablePath. " +
+            s"Total URLs: ${mergedIdToUrl.size} (existing: ${existingIds.size}, " +
+            s"new: ${newIds.size}, added: ${addedIds.size}, updated: ${updatedIds.size}, " +
+            s"preserved: ${preservedIds.size}). Query ID: $queryId."
           )
         }
 
-        // Retain the old references and refresh wrappers. The cache entry will only be removed
-        // when all references are null. All refresh wrappers are preserved as they may hold state
-        // required by the server to refresh URLs.
-        val newQueryStates = querySpecificCachedTable.queryStates +
-          (queryId -> (refs, refresherWrapper))
+        // Merge query states - if queryId already exists, merge the refs
+        val existingQueryState = querySpecificCachedTable.queryStates.get(queryId)
+        val mergedQueryStates = existingQueryState match {
+          case Some((existingRefs, existingWrapper)) =>
+            // Merge refs, avoiding duplicates
+            val mergedRefs = refs.filterNot { ref =>
+              existingRefs.exists(_.get eq ref.get)
+            } ++ existingRefs
+            querySpecificCachedTable.queryStates + (queryId -> (mergedRefs, refresherWrapper))
+          case None =>
+            // New query state
+            querySpecificCachedTable.queryStates + (queryId -> (refs, refresherWrapper))
+        }
 
         logInfo(
           s"Registered to an existing QuerySpecificCachedTable in cache for table $tablePath, " +
-          s"queryId ${queryId}, newQueryStates size: ${newQueryStates.size}."
+          s"queryId ${queryId}, total queryStates: ${mergedQueryStates.size}, " +
+          s"refs size after merge: ${mergedQueryStates(queryId)._1.size}."
         )
-        // Update all attributes as the new version is always more up to date and file URLs can
-        // be shared across identical queries.
+
         new QuerySpecificCachedTable(
-          expiration = resolvedExpiration,
-          idToUrl = resolvedIdToUrl,
+          expiration = if (preservedIds.nonEmpty) {
+            // Old entry has URLs not in new entry, use min expiration
+            resolvedExpiration min querySpecificCachedTable.expiration
+          } else {
+            // All old URLs are being replaced, use new expiration
+            resolvedExpiration
+          },
+          idToUrl = mergedIdToUrl,
           lastAccess = System.currentTimeMillis(),
           refreshToken = resolvedRefreshToken,
           refresher = refresher,
-          queryStates = newQueryStates,
+          queryStates = mergedQueryStates,
           keepUrlsAfterRefsGone = keepUrlsAfterRefsGone
         )
       }
