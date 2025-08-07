@@ -24,7 +24,7 @@ resolvers += Resolver.url(
 
 addSbtPlugin("com.github.gseitz" % "sbt-release" % "1.0.13")
 
-addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "2.3")
+addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "3.11.3")
 
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "1.0.0")
 
