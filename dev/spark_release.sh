@@ -14,11 +14,37 @@ build/sbt clean
 
 printf "Please type the release version: "
 read VERSION
-echo $VERSION
+echo "Release version: $VERSION"
 
-build/sbt "release skip-tests"
+echo "Running release process for version: $VERSION"
 
-# Switch to the release commit
-git checkout v$VERSION
+# Run SBT release process (includes version management, tagging, and publishing)
+if build/sbt "release skip-tests"; then
+  echo "=== Successfully published release artifacts ==="
+  echo "Published version: $VERSION"
 
-echo "=== Generated all release artifacts ==="
+  # Create additional git tag with v prefix (in case sbt release uses different format)
+  git tag v$VERSION
+  echo "Created git tag: v$VERSION"
+
+  # Transfer deployment to Central Publisher Portal
+  echo "Transferring deployment to Central Publisher Portal..."
+  NAMESPACE="io.delta"
+  OSSRH_BASE="https://ossrh-staging-api.central.sonatype.com"
+
+  # Make POST request to upload to Portal
+  # This must be done from the same IP that was used for publishing
+  # You need these environment variables to be set:
+  # export SONATYPE_USERNAME=your-username
+  # export SONATYPE_PASSWORD=your-password
+  curl -X POST \
+    -H "Authorization: Bearer $(echo -n "$SONATYPE_USERNAME:$SONATYPE_PASSWORD" | base64)" \
+    "$OSSRH_BASE/manual/upload/defaultRepository/$NAMESPACE" \
+    && echo "✓ Successfully transferred to Central Publisher Portal" \
+    || echo "✗ Failed to transfer to Central Publisher Portal"
+else
+  echo "✗ Release process failed, skipping transfer to Central Publisher Portal"
+  exit 1
+fi
+
+echo "=== Release process completed ==="
