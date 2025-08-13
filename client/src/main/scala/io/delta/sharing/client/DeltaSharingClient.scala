@@ -1307,8 +1307,10 @@ object DeltaSharingRestClient extends Logging {
           s"Successfully verified endStreamAction in the response" + queryIdForLogging
         )
         if(lastEndStreamAction.errorMessage != null) {
-          throw new DeltaSharingServerException("Request failed during streaming response " +
-          s"with error message ${lastEndStreamAction.errorMessage}")
+          val errorCodeOpt = Option(lastEndStreamAction.httpStatusErrorCode).map(_.intValue)
+          throw new DeltaSharingServerException(
+            s"Server Exception[${errorCodeOpt.getOrElse("")}]: " +
+              s"${lastEndStreamAction.errorMessage}", errorCodeOpt)
         }
       case Some(false) =>
         logWarning(s"Client sets ${DELTA_SHARING_INCLUDE_END_STREAM_ACTION}=true in the " +
