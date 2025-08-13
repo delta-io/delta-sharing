@@ -129,7 +129,8 @@ private[sharing] case class EndStreamAction(
     refreshToken: String,
     nextPageToken: String,
     minUrlExpirationTimestamp: java.lang.Long,
-    errorMessage: String = null)
+    errorMessage: String = null,
+    httpStatusErrorCode: java.lang.Integer = null)
   extends Action {
   override def wrap: SingleAction = SingleAction(endStreamAction = this)
 }
