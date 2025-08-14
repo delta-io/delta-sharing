@@ -20,7 +20,16 @@ import org.apache.spark.sql.types.StructType
 
 class MissingEndStreamActionException(message: String) extends IllegalStateException(message)
 
-class DeltaSharingServerException(message: String) extends RuntimeException(message)
+// Common base exception class that also encapsulates the associated errorCode
+abstract class DeltaSharingExceptionWithErrorCode(message: String, val statusCodeOpt: Option[Int])
+  extends IllegalStateException(message)
+
+object DeltaSharingExceptionWithErrorCode {
+  def unapply(e: DeltaSharingExceptionWithErrorCode): Option[Option[Int]] = Some(e.statusCodeOpt)
+}
+
+class DeltaSharingServerException(message: String, statusCodeOpt: Option[Int])
+  extends DeltaSharingExceptionWithErrorCode(message, statusCodeOpt)
 
 
 object DeltaSharingErrors {

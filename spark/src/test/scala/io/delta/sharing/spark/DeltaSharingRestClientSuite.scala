@@ -890,6 +890,11 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     refreshToken = null,
     errorMessage = "BAD REQUEST: Error Occurred During Streaming"
   ).wrap)
+  val fakeEndStreamActionStrWithErrorMsgAndCode = JsonUtils.toJson(EndStreamAction(
+    refreshToken = null,
+    errorMessage = "BAD REQUEST: Error Occurred During Streaming",
+    httpStatusErrorCode = 400
+  ).wrap)
 
   test("checkEndStreamAction succeeded") {
     // DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true
@@ -981,9 +986,12 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   test("checkEndStreamAction with error message throws streaming error") {
     def checkErrorMessage(
       e: DeltaSharingServerException,
-      additionalErrorMsg: String): Unit = {
-      val commonErrorMsg = "Request failed during streaming response with error message"
+      additionalErrorMsg: String,
+      errorCodeOpt: Option[Int] = None): Unit = {
+      val commonErrorMsg = s"Server Exception[${errorCodeOpt.getOrElse("")}]"
       assert(e.getMessage.contains(commonErrorMsg))
+      // null/non-existent httpStatusErrorCode in endStreamAction json string defaults to e.statusCodeOpt=None
+      assert(e.statusCodeOpt == errorCodeOpt)
       assert(e.getMessage.contains(additionalErrorMsg))
     }
 
@@ -997,6 +1005,17 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       )
     }
     checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
+
+    // checkEndStreamAction throws error if the last line is EndStreamAction with error message
+    e = intercept[DeltaSharingServerException] {
+      checkEndStreamAction(
+        Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+        Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+        Seq(fakeAddFileStr, fakeEndStreamActionStrWithErrorMsgAndCode),
+        "random-query-id"
+      )
+    }
+    checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming", Some(400))
 
     // checkEndStreamAction throws error if the only line is EndStreamAction with error message
     e = intercept[DeltaSharingServerException] {

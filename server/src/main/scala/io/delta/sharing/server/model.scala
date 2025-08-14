@@ -133,7 +133,9 @@ case class RemoveFile(
 
 case class EndStreamAction(
     refreshToken: String,
-    errorMessage: String = null) extends Action {
+    errorMessage: String = null,
+    httpStatusErrorCode: java.lang.Integer = null)
+  extends Action {
   override def wrap: SingleAction = SingleAction(endStreamAction = this)
 }
 
