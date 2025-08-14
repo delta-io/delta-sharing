@@ -116,7 +116,8 @@ private[sharing] case class Protocol(minReaderVersion: Int) extends Action {
 
 private[sharing] case class EndStreamAction(
     refreshToken: String,
-    errorMessage: String = null)
+    errorMessage: String = null,
+    httpStatusErrorCode: java.lang.Integer = null)
   extends Action {
   override def wrap: SingleAction = SingleAction(endStreamAction = this)
 }

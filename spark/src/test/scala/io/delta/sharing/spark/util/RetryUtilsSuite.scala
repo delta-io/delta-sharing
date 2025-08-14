@@ -22,7 +22,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.SparkFunSuite
 
-import io.delta.sharing.spark.MissingEndStreamActionException
+import io.delta.sharing.spark.{DeltaSharingServerException, MissingEndStreamActionException}
 
 class RetryUtilsSuite extends SparkFunSuite {
   import RetryUtils._
@@ -37,6 +37,10 @@ class RetryUtilsSuite extends SparkFunSuite {
     assert(shouldRetry(new java.net.SocketTimeoutException))
     assert(!shouldRetry(new RuntimeException))
     assert(shouldRetry(new MissingEndStreamActionException("missing")))
+    assert(!shouldRetry(new DeltaSharingServerException("error", Some(403))))
+    assert(shouldRetry(new DeltaSharingServerException("error", Some(429))))
+    assert(!shouldRetry(new DeltaSharingServerException("error", None)))
+    assert(shouldRetry(new DeltaSharingServerException("error", Some(503))))
   }
 
   test("runWithExponentialBackoff") {
