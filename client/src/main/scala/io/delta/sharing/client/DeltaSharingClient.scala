@@ -1103,7 +1103,10 @@ class DeltaSharingRestClient(
         setIncludeEndStreamAction
       )
     ) ++ customeHeaders
-    headers.foreach(header => httpRequest.setHeader(header._1, header._2))
+    headers.foreach { header =>
+      logInfo(s"----[linzhou]----header:[${header._1}][${header._2}]")
+      httpRequest.setHeader(header._1, header._2)
+    }
     authCredentialProvider.addAuthHeader(httpRequest)
 
     httpRequest
