@@ -354,6 +354,9 @@ class DeltaSharingRestClient(
       table = getFullTableName(table)
     )
     if (response.lines.size != 2) {
+      response.lines.foreach { line =>
+        logInfo(s"----[linzhou]----[$line]")
+      }
       throw new IllegalStateException(s"received more than two lines:${response.lines.size}," +
         getDsQueryIdForLogging)
     }
@@ -453,6 +456,9 @@ class DeltaSharingRestClient(
       s"refreshTokenOpt $refreshTokenOpt, " +
       s"time cost ${(System.currentTimeMillis() - startTime) / 1000.0}s." + getDsQueryIdForLogging
     )
+    lines.foreach { line =>
+      logInfo(s"----[linzhou]----[$line]")
+    }
 
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(
