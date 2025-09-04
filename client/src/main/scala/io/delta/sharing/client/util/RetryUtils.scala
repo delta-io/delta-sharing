@@ -20,7 +20,7 @@ import java.io.{InterruptedIOException, IOException}
 
 import org.apache.spark.internal.Logging
 
-import io.delta.sharing.spark.MissingEndStreamActionException
+import io.delta.sharing.spark.{DeltaSharingExceptionWithErrorCode, MissingEndStreamActionException}
 
 
 private[sharing] object RetryUtils extends Logging {
@@ -64,10 +64,10 @@ private[sharing] object RetryUtils extends Logging {
 
   def shouldRetry(t: Throwable): Boolean = {
     t match {
-      case e: UnexpectedHttpStatus =>
-        if (e.statusCode == 429) { // Too Many Requests
+      case DeltaSharingExceptionWithErrorCode(Some(statusCode)) =>
+        if (statusCode == 429) { // Too Many Requests
           true
-        } else if (e.statusCode >= 500 && e.statusCode < 600) { // Internal Error
+        } else if (statusCode >= 500 && statusCode < 600) { // Internal Error
           true
         } else {
           false
@@ -86,4 +86,4 @@ private[sharing] object RetryUtils extends Logging {
 }
 
 private[sharing] class UnexpectedHttpStatus(message: String, val statusCode: Int)
-  extends IllegalStateException(message)
+    extends DeltaSharingExceptionWithErrorCode(message, Some(statusCode))
