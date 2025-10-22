@@ -50,7 +50,6 @@ class TestDeltaSharingClient(
     maxFilesPerReq: Int = 10000,
     endStreamActionEnabled: Boolean = false,
     enableAsyncQuery: Boolean = false,
-    enablePreviewRead: Boolean = false,
     asyncQueryPollIntervalMillis: Long = 1000L,
     asyncQueryMaxDuration: Long = Long.MaxValue,
     tokenExchangeMaxRetries: Int = 5,
