@@ -42,6 +42,9 @@ object ConfUtils {
   val USE_ASYNC_QUERY_CONF = "spark.delta.sharing.network.useAsyncQuery"
   val USE_ASYNC_QUERY_DEFAULT = "false"
 
+  val ENABLE_PREVIEW_READ_CONF = "spark.delta.sharing.network.enablePreviewRead"
+  val ENABLE_PREVIEW_READ_DEFAULT = "true"
+
   val INCLUDE_END_STREAM_ACTION_CONF = "spark.delta.sharing.query.includeEndStreamAction"
   val INCLUDE_END_STREAM_ACTION_DEFAULT = "false"
 
@@ -213,6 +216,14 @@ object ConfUtils {
 
   def includeEndStreamAction(conf: SQLConf): Boolean = {
     conf.getConfString(INCLUDE_END_STREAM_ACTION_CONF, INCLUDE_END_STREAM_ACTION_DEFAULT).toBoolean
+  }
+
+  def enablePreviewRead(conf: Configuration): Boolean = {
+    conf.getBoolean(ENABLE_PREVIEW_READ_CONF, ENABLE_PREVIEW_READ_DEFAULT.toBoolean)
+  }
+
+  def enablePreviewRead(conf: SQLConf): Boolean = {
+    conf.getConfString(ENABLE_PREVIEW_READ_CONF, ENABLE_PREVIEW_READ_DEFAULT).toBoolean
   }
 
   def timeoutInSeconds(conf: Configuration): Int = {
