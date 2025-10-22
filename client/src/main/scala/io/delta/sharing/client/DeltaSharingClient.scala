@@ -16,13 +16,12 @@
 
 package io.delta.sharing.client
 
-import java.io.{BufferedReader, InputStreamReader, IOException}
+import java.io.{BufferedReader, InputStreamReader}
 import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
-import scala.util.Using
 import scala.util.control.NonFatal
 
 import org.apache.commons.io.IOUtils
@@ -172,16 +171,6 @@ private[sharing] case class GetQueryTableInfoRequest(
   }
 }
 
-private[sharing] case class UrlValidationResult(
-    vUrl: ValidationURL,
-    validationSuccess: Boolean,
-    errMsg: Option[String]
-)
-
-private[sharing] case class UrlValidationReportRequest(
-    results: Seq[UrlValidationResult]
-)
-
 private[sharing] case class ListSharesResponse(
     items: Seq[Share],
     nextPageToken: Option[String]) extends PaginationResponse
@@ -205,7 +194,6 @@ class DeltaSharingRestClient(
     maxFilesPerReq: Int = 100000,
     endStreamActionEnabled: Boolean = false,
     enableAsyncQuery: Boolean = false,
-    enablePreviewRead: Boolean = false,
     asyncQueryPollIntervalMillis: Long = 10000L,
     asyncQueryMaxDuration: Long = 600000L,
     tokenExchangeMaxRetries: Int = 5,
@@ -213,9 +201,8 @@ class DeltaSharingRestClient(
     tokenRenewalThresholdInSeconds: Int = 600
   ) extends DeltaSharingClient with Logging {
 
-  logInfo(s"Hello Abhijit")
   logInfo(s"DeltaSharingRestClient with endStreamActionEnabled: $endStreamActionEnabled, " +
-    s"enableAsyncQuery:$enableAsyncQuery, enablePreviewRead:$enablePreviewRead")
+    s"enableAsyncQuery:$enableAsyncQuery")
 
   import DeltaSharingRestClient._
 
@@ -247,24 +234,6 @@ class DeltaSharingRestClient(
       .setDefaultRequestConfig(config)
       .build()
     created = true
-    client
-  }
-
-  @volatile private var createdPreviewReadHttpClient = false
-  private lazy val previewReadHttpClient = {
-    val config = RequestConfig.custom()
-      .setConnectTimeout(timeoutInSeconds * 1000)
-      .setConnectionRequestTimeout(timeoutInSeconds * 1000)
-      .setSocketTimeout(timeoutInSeconds * 1000).build()
-    logDebug(s"Creating previewReadHttpClient with timeoutInSeconds: $timeoutInSeconds.")
-    val clientBuilder = HttpClientBuilder.create()
-    val client = clientBuilder
-      // Disable the default retry behavior because we have our own retry logic.
-      // See `RetryUtils.runWithExponentialBackoff`.
-      .disableAutomaticRetries()
-      .setDefaultRequestConfig(config)
-      .build()
-    createdPreviewReadHttpClient = true
     client
   }
 
@@ -390,7 +359,7 @@ class DeltaSharingRestClient(
     }
 
     logInfo(
-      s"Abh Fetched metadata for table ${getFullTableName(table)}, version ${response.version} " +
+      s"Fetched metadata for table ${getFullTableName(table)}, version ${response.version} " +
         s"with response format ${response.respondedFormat}" + getDsQueryIdForLogging
     )
 
@@ -476,7 +445,7 @@ class DeltaSharingRestClient(
     )
 
     logInfo(
-      s"FETCHED files for table ${getFullTableName(table)}, predicate $predicates, limit $limit, " +
+      s"Fetched files for table ${getFullTableName(table)}, predicate $predicates, limit $limit, " +
       s"versionAsOf $versionAsOf, timestampAsOf $timestampAsOf, " +
       s"jsonPredicateHints $jsonPredicateHints, refreshToken $refreshToken, " +
       s"idempotency_key $idempotency_key\n" +
@@ -558,7 +527,7 @@ class DeltaSharingRestClient(
       val response = getNDJsonPost(
         target = target, data = request, setIncludeEndStreamAction = endStreamActionEnabled
       )
-      val (filteredLines, endStreamActionOpt) = maybeExtractEndStreamAction(response.lines)
+      val (filteredLines, _) = maybeExtractEndStreamAction(response.lines)
       logInfo(s"Took ${System.currentTimeMillis() - start} ms to query ${filteredLines.size} " +
         s"files for table " + getFullTableName(table) +
         s" with [$startingVersion, $endingVersion]," + getDsQueryIdForLogging
@@ -689,60 +658,7 @@ class DeltaSharingRestClient(
       }
     }
 
-    handleValidationAction(endStreamAction)
-
     (version, respondedFormat, allLines.toSeq, refreshToken)
-  }
-
-  private def handleValidationAction(endStreamAction: Option[EndStreamAction]): Unit = {
-    endStreamAction.map(a => {
-      val vUrls = a.validationUrls
-      if (vUrls != null) {
-        vUrls.foreach(vUrl => {
-          try {
-            logInfo("Validating url: " + vUrl)
-            validateAndReport(vUrl)
-          } catch {
-            case t: Throwable =>
-              logInfo("Error while validating url " + vUrl + ": " + t.toString)
-          }
-        })
-      }
-    })
-  }
-
-  private def validateAndReport(vUrl: ValidationURL): Unit = {
-    val request = new HttpGet(vUrl.url)
-    logInfo("validateAndReport: url=" + vUrl)
-    val results = ArrayBuffer[UrlValidationResult]()
-    Using.resource(previewReadHttpClient.execute(request)) { response =>
-      val status = response.getStatusLine()
-      val statusCode = status.getStatusCode
-      logInfo("validateAndReport: status=" + statusCode + ", url=" + vUrl)
-      val result = if (statusCode != HttpStatus.SC_PARTIAL_CONTENT &&
-        statusCode != HttpStatus.SC_OK) {
-        UrlValidationResult(
-          vUrl = vUrl,
-          validationSuccess = false,
-          errMsg = Some("Validation Error: HTTP Get request failed with status: $status")
-        )
-      } else {
-        UrlValidationResult(
-          vUrl = vUrl,
-          validationSuccess = true,
-          errMsg = None
-        )
-      }
-      results.append(result)
-    }
-
-    val validationReportRequest = UrlValidationReportRequest(results = results.toSeq)
-    val json = JsonUtils.toJson(validationReportRequest)
-    val httpPost = new HttpPost(getTargetUrl("/validateURL"))
-    httpPost.setHeader("Content-type", "application/json")
-    httpPost.setEntity(new StringEntity(json, UTF_8))
-    val response = getResponse(httpPost, setIncludeEndStreamAction = false)
-    logInfo("validateAndReport: validationReportRequest response=" + response)
   }
 
   override def getCDFFiles(
@@ -1323,10 +1239,6 @@ class DeltaSharingRestClient(
       capabilities = capabilities :+ s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
     }
 
-    if (enablePreviewRead) {
-      capabilities = capabilities :+ s"$DELTA_SHARING_CAPABILITIES_PREVIEW_READ=true"
-    }
-
     val cap = capabilities.mkString(DELTA_SHARING_CAPABILITIES_DELIMITER)
     cap
   }
@@ -1334,9 +1246,6 @@ class DeltaSharingRestClient(
   def close(): Unit = {
     if (created) {
       try client.close() finally created = false
-    }
-    if (createdPreviewReadHttpClient) {
-      try previewReadHttpClient.close() finally createdPreviewReadHttpClient = false
     }
   }
 
@@ -1353,7 +1262,6 @@ object DeltaSharingRestClient extends Logging {
   val READER_FEATURES = "readerfeatures"
   val DELTA_SHARING_CAPABILITIES_ASYNC_READ = "asyncquery"
   val DELTA_SHARING_INCLUDE_END_STREAM_ACTION = "includeendstreamaction"
-  val DELTA_SHARING_CAPABILITIES_PREVIEW_READ = "previewread"
   val RESPONSE_FORMAT_DELTA = "delta"
   val RESPONSE_FORMAT_PARQUET = "parquet"
   val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
@@ -1500,7 +1408,6 @@ object DeltaSharingRestClient extends Logging {
     val maxFilesPerReq = ConfUtils.maxFilesPerQueryRequest(sqlConf)
     val useAsyncQuery = ConfUtils.useAsyncQuery(sqlConf)
     val endStreamActionEnabled = ConfUtils.includeEndStreamAction(sqlConf)
-    val enablePreviewRead = ConfUtils.enablePreviewRead(sqlConf)
     val asyncQueryMaxDurationMillis = ConfUtils.asyncQueryTimeout(sqlConf)
     val asyncQueryPollDurationMillis = ConfUtils.asyncQueryPollIntervalMillis(sqlConf)
 
@@ -1525,7 +1432,6 @@ object DeltaSharingRestClient extends Logging {
         classOf[Int],
         classOf[Boolean],
         classOf[Boolean],
-        classOf[Boolean],
         classOf[Long],
         classOf[Long],
         classOf[Int],
@@ -1544,7 +1450,6 @@ object DeltaSharingRestClient extends Logging {
         java.lang.Integer.valueOf(maxFilesPerReq),
         java.lang.Boolean.valueOf(endStreamActionEnabled),
         java.lang.Boolean.valueOf(useAsyncQuery),
-        java.lang.Boolean.valueOf(enablePreviewRead),
         java.lang.Long.valueOf(asyncQueryPollDurationMillis),
         java.lang.Long.valueOf(asyncQueryMaxDurationMillis),
         java.lang.Integer.valueOf(tokenExchangeMaxRetries),
