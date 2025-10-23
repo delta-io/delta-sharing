@@ -36,6 +36,7 @@ class DeltaSharingProfile:
     username: Optional[str] = None
     password: Optional[str] = None
     scope: Optional[str] = None
+    audience: Optional[str] = None
 
     def __post_init__(self):
         if self.share_credentials_version > DeltaSharingProfile.CURRENT:
@@ -90,6 +91,7 @@ class DeltaSharingProfile:
                     client_id=json["clientId"],
                     client_secret=json["clientSecret"],
                     scope=json.get("scope"),
+                    audience=json.get("audience"),
                 )
             elif type == "bearer_token":
                 return DeltaSharingProfile(
