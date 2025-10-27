@@ -17,7 +17,7 @@
 from unittest.mock import MagicMock
 from datetime import datetime, timedelta
 from delta_sharing._internal_auth import (
-    OAuthClient,
+    ClientSecretOAuthClient,
     BasicAuthProvider,
     AuthCredentialProviderFactory,
     OAuthClientCredentialsAuthProvider,
@@ -68,7 +68,7 @@ def test_bearer_token_auth_provider_get_expiration_time():
 
 
 def test_oauth_client_credentials_auth_provider_exchange_token():
-    oauth_client = MagicMock(spec=OAuthClient)
+    oauth_client = MagicMock(spec=ClientSecretOAuthClient)
     profile = MagicMock()
     profile.token_endpoint = "http://example.com/token"
     profile.client_id = "client-id"
@@ -91,7 +91,7 @@ def test_oauth_client_credentials_auth_provider_exchange_token():
 
 
 def test_oauth_client_credentials_auth_provider_reuse_token():
-    oauth_client = MagicMock(spec=OAuthClient)
+    oauth_client = MagicMock(spec=ClientSecretOAuthClient)
     profile = MagicMock()
     profile.token_endpoint = "http://example.com/token"
     profile.client_id = "client-id"
@@ -114,7 +114,7 @@ def test_oauth_client_credentials_auth_provider_reuse_token():
 
 
 def test_oauth_client_credentials_auth_provider_refresh_token():
-    oauth_client = MagicMock(spec=OAuthClient)
+    oauth_client = MagicMock(spec=ClientSecretOAuthClient)
     profile = MagicMock()
     profile.token_endpoint = "http://example.com/token"
     profile.client_id = "client-id"
@@ -141,7 +141,7 @@ def test_oauth_client_credentials_auth_provider_refresh_token():
 
 
 def test_oauth_client_credentials_auth_provider_needs_refresh():
-    oauth_client = MagicMock(spec=OAuthClient)
+    oauth_client = MagicMock(spec=ClientSecretOAuthClient)
     profile = MagicMock()
     profile.token_endpoint = "http://example.com/token"
     profile.client_id = "client-id"
@@ -165,7 +165,7 @@ def test_oauth_client_credentials_auth_provider_needs_refresh():
 
 
 def test_oauth_client_credentials_auth_provider_is_expired():
-    oauth_client = MagicMock(spec=OAuthClient)
+    oauth_client = MagicMock(spec=ClientSecretOAuthClient)
     profile = MagicMock()
     profile.token_endpoint = "http://example.com/token"
     profile.client_id = "client-id"
@@ -177,7 +177,7 @@ def test_oauth_client_credentials_auth_provider_is_expired():
 
 
 def test_oauth_client_credentials_auth_provider_get_expiration_time():
-    oauth_client = MagicMock(spec=OAuthClient)
+    oauth_client = MagicMock(spec=ClientSecretOAuthClient)
     profile = MagicMock()
     profile.token_endpoint = "http://example.com/token"
     profile.client_id = "client-id"
@@ -246,6 +246,24 @@ def test_factory_creation():
     provider = AuthCredentialProviderFactory.create_auth_credential_provider(profile_oauth)
     assert isinstance(provider, OAuthClientCredentialsAuthProvider)
 
+    profile_pk = DeltaSharingProfile(
+        share_credentials_version=2,
+        type="oauth_jwt_bearer_private_key_jwt",
+        endpoint="https://localhost/delta-sharing/",
+        token_endpoint="https://localhost/token",
+        client_id="clientId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
+        issuer="issuer",
+        scope="scope",
+        audience="audience",
+    )
+    provider = AuthCredentialProviderFactory.create_auth_credential_provider(profile_pk)
+    assert isinstance(provider, OAuthClientCredentialsAuthProvider)
+
 
 def test_oauth_auth_provider_reused():
     profile_oauth1 = DeltaSharingProfile(
@@ -296,4 +314,80 @@ def test_oauth_auth_provider_with_different_profiles():
 
     provider2 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_oauth2)
 
+    assert provider1 != provider2
+
+
+def test_oauth_private_key_auth_provider_reused():
+    profile_pk1 = DeltaSharingProfile(
+        share_credentials_version=2,
+        type="oauth_jwt_bearer_private_key_jwt",
+        endpoint="https://localhost/delta-sharing/",
+        token_endpoint="https://localhost/token",
+        client_id="clientId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
+        issuer="issuer",
+        scope="scope",
+        audience="audience",
+    )
+    provider1 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_pk1)
+    assert isinstance(provider1, OAuthClientCredentialsAuthProvider)
+
+    profile_pk2 = DeltaSharingProfile(
+        share_credentials_version=2,
+        type="oauth_jwt_bearer_private_key_jwt",
+        endpoint="https://localhost/delta-sharing/",
+        token_endpoint="https://localhost/token",
+        client_id="clientId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
+        issuer="issuer",
+        scope="scope",
+        audience="audience",
+    )
+    provider2 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_pk2)
+    assert provider1 == provider2
+
+
+def test_oauth_private_key_auth_provider_with_different_profiles():
+    profile_pk1 = DeltaSharingProfile(
+        share_credentials_version=2,
+        type="oauth_jwt_bearer_private_key_jwt",
+        endpoint="https://localhost/delta-sharing/",
+        token_endpoint="https://localhost/1/token",
+        client_id="clientId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
+        issuer="issuer",
+        scope="scope",
+        audience="audience",
+    )
+    provider1 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_pk1)
+    assert isinstance(provider1, OAuthClientCredentialsAuthProvider)
+
+    profile_pk2 = DeltaSharingProfile(
+        share_credentials_version=2,
+        type="oauth_jwt_bearer_private_key_jwt",
+        endpoint="https://localhost/delta-sharing/",
+        token_endpoint="https://localhost/2/token",
+        client_id="clientId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
+        issuer="issuer",
+        scope="scope",
+        audience="audience",
+    )
+    provider2 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_pk2)
     assert provider1 != provider2

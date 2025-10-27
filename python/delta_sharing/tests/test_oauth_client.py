@@ -18,7 +18,7 @@ import requests
 from requests.models import Response
 from unittest.mock import patch
 from datetime import datetime
-from delta_sharing._internal_auth import OAuthClient
+from delta_sharing._internal_auth import ClientSecretOAuthClient, PrivateKeyOAuthClient
 
 
 class MockServer:
@@ -70,8 +70,10 @@ def test_oauth_client_should_parse_token_response_correctly(
 
     with patch("requests.post") as mock_post:
         mock_post.side_effect = lambda *args, **kwargs: mock_server.get_response()
-        oauth_client = OAuthClient(
-            token_endpoint=mock_server.url, client_id="client-id", client_secret="client-secret"
+        oauth_client = ClientSecretOAuthClient(
+            token_endpoint=mock_server.url,
+            client_id="client-id",
+            client_secret="client-secret",
         )
 
         start = datetime.now().timestamp()
@@ -89,10 +91,89 @@ def test_oauth_client_should_handle_401_unauthorized_response(mock_server):
 
     with patch("requests.post") as mock_post:
         mock_post.side_effect = lambda *args, **kwargs: mock_server.get_response()
-        oauth_client = OAuthClient(
-            token_endpoint=mock_server.url, client_id="client-id", client_secret="client-secret"
+        oauth_client = ClientSecretOAuthClient(
+            token_endpoint=mock_server.url,
+            client_id="client-id",
+            client_secret="client-secret",
         )
         try:
             oauth_client.client_credentials()
         except requests.HTTPError as e:
             assert e.response.status_code == 401
+
+
+@pytest.mark.parametrize(
+    "response_data, expected_expires_in, expected_access_token",
+    [
+        (
+            '{"access_token": "pk-test-access-token", "expires_in": 3600, "token_type": "bearer"}',
+            3600,
+            "pk-test-access-token",
+        ),
+        (
+            (
+                '{"access_token": "pk-test-access-token", "expires_in": "3600", '
+                '"token_type": "bearer"}'
+            ),
+            3600,
+            "pk-test-access-token",
+        ),
+    ],
+)
+def test_private_key_oauth_client_should_parse_token_response_correctly(
+    mock_server, response_data, expected_expires_in, expected_access_token
+):
+    with patch.object(PrivateKeyOAuthClient, "_signed_jwt") as _signed_jwt_mock:
+        _signed_jwt_mock.return_value = "mocked _signed_jwt"
+
+        mock_server.add_response(200, response_data)
+
+        with patch("requests.post") as mock_post:
+            mock_post.side_effect = lambda *args, **kwargs: mock_server.get_response()
+            oauth_client = PrivateKeyOAuthClient(
+                token_endpoint=mock_server.url,
+                client_id="client-id",
+                key_id="key-id",
+                private_key="dummy",
+                issuer="issuer",
+                resource="resource",
+                scope="scope",
+                algorithm="RS256",
+            )
+            token = oauth_client.client_credentials()
+
+            assert token.access_token == expected_access_token
+            assert token.expires_in == expected_expires_in
+
+        _signed_jwt_mock.assert_called_once()
+        header_arg, claims_arg = _signed_jwt_mock.call_args[0]
+        assert header_arg["kid"] == "key-id"
+        assert header_arg["alg"] == "RS256"
+        assert claims_arg["iss"] == "client-id"
+        assert claims_arg["resource"] == "resource"
+        assert claims_arg["aud"] == "issuer"
+        assert claims_arg.get("scope") == "scope"
+
+
+def test_private_key_oauth_client_should_handle_401_unauthorized_response(mock_server):
+
+    with patch.object(PrivateKeyOAuthClient, "_signed_jwt") as _signed_jwt_mock:
+        _signed_jwt_mock.return_value = "mocked _signed_jwt"
+
+        mock_server.add_response(401, "Unauthorized")
+
+        with patch("requests.post") as mock_post:
+            mock_post.side_effect = lambda *args, **kwargs: mock_server.get_response()
+            oauth_client = PrivateKeyOAuthClient(
+                token_endpoint=mock_server.url,
+                client_id="client-id",
+                key_id="key-id",
+                private_key="dummy",
+                issuer="issuer",
+                scope="scope",
+            )
+            try:
+                oauth_client.client_credentials()
+            except requests.HTTPError as e:
+                assert e.response.status_code == 401
+        _signed_jwt_mock.assert_called_once()

@@ -7,6 +7,7 @@ types-requests
 aiohttp
 yarl>=1.6.0
 maturin
+jwcrypto>=1.5.6
 
 # Linter
 mypy==0.981
