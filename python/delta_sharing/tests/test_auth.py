@@ -248,12 +248,15 @@ def test_factory_creation():
 
     profile_pk = DeltaSharingProfile(
         share_credentials_version=2,
-        type="oauth_client_private_key",
+        type="oauth_jwt_bearer_private_key_jwt",
         endpoint="https://localhost/delta-sharing/",
         token_endpoint="https://localhost/token",
         client_id="clientId",
-        private_key="privateKey",
-        key_id="keyId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
         issuer="issuer",
         scope="scope",
         audience="audience",
@@ -317,12 +320,15 @@ def test_oauth_auth_provider_with_different_profiles():
 def test_oauth_private_key_auth_provider_reused():
     profile_pk1 = DeltaSharingProfile(
         share_credentials_version=2,
-        type="oauth_client_private_key",
+        type="oauth_jwt_bearer_private_key_jwt",
         endpoint="https://localhost/delta-sharing/",
         token_endpoint="https://localhost/token",
         client_id="clientId",
-        private_key="privateKey",
-        key_id="keyId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
         issuer="issuer",
         scope="scope",
         audience="audience",
@@ -332,12 +338,15 @@ def test_oauth_private_key_auth_provider_reused():
 
     profile_pk2 = DeltaSharingProfile(
         share_credentials_version=2,
-        type="oauth_client_private_key",
+        type="oauth_jwt_bearer_private_key_jwt",
         endpoint="https://localhost/delta-sharing/",
         token_endpoint="https://localhost/token",
         client_id="clientId",
-        private_key="privateKey",
-        key_id="keyId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
         issuer="issuer",
         scope="scope",
         audience="audience",
@@ -349,12 +358,15 @@ def test_oauth_private_key_auth_provider_reused():
 def test_oauth_private_key_auth_provider_with_different_profiles():
     profile_pk1 = DeltaSharingProfile(
         share_credentials_version=2,
-        type="oauth_client_private_key",
+        type="oauth_jwt_bearer_private_key_jwt",
         endpoint="https://localhost/delta-sharing/",
         token_endpoint="https://localhost/1/token",
         client_id="clientId",
-        private_key="privateKey",
-        key_id="keyId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
         issuer="issuer",
         scope="scope",
         audience="audience",
@@ -364,12 +376,15 @@ def test_oauth_private_key_auth_provider_with_different_profiles():
 
     profile_pk2 = DeltaSharingProfile(
         share_credentials_version=2,
-        type="oauth_client_private_key",
+        type="oauth_jwt_bearer_private_key_jwt",
         endpoint="https://localhost/delta-sharing/",
         token_endpoint="https://localhost/2/token",
         client_id="clientId",
-        private_key="privateKey",
-        key_id="keyId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
         issuer="issuer",
         scope="scope",
         audience="audience",

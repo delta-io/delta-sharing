@@ -282,8 +282,8 @@ class AuthCredentialProviderFactory:
         if profile.share_credentials_version == 2:
             if profile.type == "oauth_client_credentials":
                 return AuthCredentialProviderFactory.__oauth_client_credentials(profile)
-            elif profile.type == "oauth_client_private_key":
-                return AuthCredentialProviderFactory.__oauth_client_private_key(profile)
+            elif profile.type == "oauth_jwt_bearer_private_key_jwt":
+                return AuthCredentialProviderFactory.__oauth_jwt_bearer_private_key_jwt(profile)
             elif profile.type == "basic":
                 return AuthCredentialProviderFactory.__auth_basic(profile)
         elif profile.share_credentials_version == 1 and (
@@ -323,7 +323,7 @@ class AuthCredentialProviderFactory:
         return provider
 
     @staticmethod
-    def __oauth_client_private_key(profile):
+    def __oauth_jwt_bearer_private_key_jwt(profile):
         # Once a clientId/privateKey/keyId is exchanged for an accessToken,
         # the accessToken can be reused until it expires.
         # Resource-claim in JWT-grant is optional, value is set in config.share.audience
@@ -335,15 +335,21 @@ class AuthCredentialProviderFactory:
         if profile in AuthCredentialProviderFactory.__oauth_auth_provider_cache:
             return AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile]
 
+        # Extract private key configuration from nested structure
+        private_key_config = profile.private_key or {}
+        private_key_file = private_key_config.get("privateKeyFile")
+        key_id = private_key_config.get("keyId")
+        algorithm = private_key_config.get("algorithm")
+
         oauth_client = PrivateKeyOAuthClient(
             token_endpoint=profile.token_endpoint,
             client_id=profile.client_id,
-            key_id=profile.key_id,
-            private_key=profile.private_key,
+            key_id=key_id,
+            private_key=private_key_file,
             issuer=profile.issuer,
             resource=profile.audience,
             scope=profile.scope,
-            algorithm=profile.algorithm,
+            algorithm=algorithm,
         )
         provider = OAuthClientCredentialsAuthProvider(
             oauth_client=oauth_client, auth_config=AuthConfig()

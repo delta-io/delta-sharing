@@ -16,9 +16,15 @@
 from dataclasses import dataclass, field
 from json import loads
 from pathlib import Path
-from typing import ClassVar, Dict, IO, List, Optional, Sequence, Union
+from typing import ClassVar, Dict, IO, List, Optional, Sequence, Union, TypedDict
 
 import fsspec
+
+
+class PrivateKeyConfig(TypedDict, total=False):
+    privateKeyFile: Optional[str]
+    keyId: Optional[str]
+    algorithm: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -38,9 +44,7 @@ class DeltaSharingProfile:
     scope: Optional[str] = None
     issuer: Optional[str] = None
     audience: Optional[str] = None
-    private_key: Optional[str] = None
-    key_id: Optional[str] = None
-    algorithm: Optional[str] = None
+    private_key: Optional[Dict[str, str]] = field(default=None, hash=False, compare=False)
 
     def __post_init__(self):
         if self.share_credentials_version > DeltaSharingProfile.CURRENT:
@@ -83,22 +87,31 @@ class DeltaSharingProfile:
             )
         elif share_credentials_version == 2:
             type = json["type"]
-            if type == "oauth_client_private_key":
-                token_endpoint = json["tokenEndpoint"]
+            if type == "oauth_jwt_bearer_private_key_jwt":
+                # New nested format with auth object
+                auth = json["auth"]
+                token_endpoint = auth["tokenEndpoint"]
                 if token_endpoint is not None and token_endpoint.endswith("/"):
                     token_endpoint = token_endpoint[:-1]
+
+                # Extract privateKey from nested structure
+                private_key_config = auth.get("privateKey", {})
+                private_key_dict = {
+                    "privateKeyFile": private_key_config.get("privateKeyFile"),
+                    "keyId": private_key_config.get("keyId"),
+                    "algorithm": private_key_config.get("algorithm"),
+                }
+
                 return DeltaSharingProfile(
                     share_credentials_version=share_credentials_version,
                     type=type,
                     endpoint=endpoint,
                     token_endpoint=token_endpoint,
-                    issuer=json["issuer"],
-                    client_id=json["clientId"],
-                    private_key=json["privateKey"],
-                    key_id=json["keyId"],
-                    audience=json["audience"],
-                    scope=json.get("scope"),
-                    algorithm=json.get("algorithm"),
+                    issuer=auth["issuer"],
+                    client_id=auth["clientId"],
+                    private_key=private_key_dict,
+                    audience=auth["audience"],
+                    scope=auth.get("scope"),
                 )
             elif type == "oauth_client_credentials":
                 token_endpoint = json["tokenEndpoint"]
