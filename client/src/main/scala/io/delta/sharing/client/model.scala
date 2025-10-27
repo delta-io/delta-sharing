@@ -125,12 +125,18 @@ private[sharing] case class Protocol(minReaderVersion: Int) extends Action {
   override def wrap: SingleAction = SingleAction(protocol = this)
 }
 
+private[sharing] case class ValidationURL(
+  id: String,
+  url: String
+)
+
 private[sharing] case class EndStreamAction(
     refreshToken: String,
     nextPageToken: String,
     minUrlExpirationTimestamp: java.lang.Long,
     errorMessage: String = null,
-    httpStatusErrorCode: java.lang.Integer = null)
+    httpStatusErrorCode: java.lang.Integer = null,
+    validationUrls: Seq[ValidationURL] = null)
   extends Action {
   override def wrap: SingleAction = SingleAction(endStreamAction = this)
 }
