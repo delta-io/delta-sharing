@@ -36,3 +36,5 @@ addSbtPlugin("com.github.sbt" % "sbt-native-packager" % "1.9.16")
 addSbtPlugin("com.github.sbt" % "sbt-pgp" % "2.1.2")
 
 libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.11.12"
+
+addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.14.2")

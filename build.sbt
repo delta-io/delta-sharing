@@ -165,15 +165,15 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   libraryDependencies ++= Seq(
     // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a
     // breaking change making us not able to use `delta-standalone`.
-    "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7",
-    "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7.3",
-    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.6.7.1",
-    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.6.7",
+    "com.fasterxml.jackson.core" % "jackson-core" % "2.15.2",
+    "com.fasterxml.jackson.core" % "jackson-databind" % "2.15.2",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.15.2",
+    "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml" % "2.15.2",
     "org.json4s" %% "json4s-jackson" % "3.5.3" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module")
     ),
-    "com.linecorp.armeria" %% "armeria-scalapb" % "1.6.0" excludeAll(
+    "com.linecorp.armeria" %% "armeria-scalapb" % "1.9.2" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("org.json4s")
@@ -245,7 +245,9 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
     "org.slf4j" % "slf4j-simple" % "1.6.1",
     "net.sourceforge.argparse4j" % "argparse4j" % "0.9.0",
 
-    "org.scalatest" %% "scalatest" % "3.0.5" % "test",
+    "org.scalatest" %% "scalatest" % "3.2.19" % "test",
+    "dev.zio" %% "zio-test" % "2.0.19" % "test",
+    "dev.zio" %% "zio-test-sbt" % "2.0.19" % "test",
     "org.bouncycastle" % "bcprov-jdk15on" % "1.70" % "test",
     "org.bouncycastle" % "bcpkix-jdk15on" % "1.70" % "test"
   ),

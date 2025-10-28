@@ -22,12 +22,13 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
+import scala.collection.JavaConverters._
+
 import io.delta.standalone.internal.actions.CommitMarker
 import io.delta.standalone.internal.util.FileNames
 import io.delta.storage.LogStore
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
-import scala.collection.JavaConverters._
 
 object DeltaSharingHistoryManager {
   /**

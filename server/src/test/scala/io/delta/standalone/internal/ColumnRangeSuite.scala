@@ -18,11 +18,11 @@
 
 package io.delta.standalone.internal
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import io.delta.sharing.server.common.TimestampUtils
 
-class ColumnRangeSuite extends FunSuite {
+class ColumnRangeSuite extends AnyFunSuite {
 
   test("invalid column range test") {
     assert(intercept[IllegalArgumentException] {

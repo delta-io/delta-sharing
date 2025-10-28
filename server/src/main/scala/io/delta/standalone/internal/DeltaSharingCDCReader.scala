@@ -19,6 +19,10 @@ package io.delta.standalone.internal
 
 import java.sql.Timestamp
 
+import scala.collection.JavaConverters._
+import scala.collection.mutable.ListBuffer
+import scala.util.control.NonFatal
+
 import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{
   Action,
@@ -31,9 +35,6 @@ import io.delta.standalone.internal.actions.{
 import io.delta.standalone.internal.exception.DeltaErrors
 import io.delta.standalone.internal.util.ConversionUtils
 import org.apache.hadoop.conf.Configuration
-import scala.collection.JavaConverters._
-import scala.collection.mutable.ListBuffer
-import scala.util.control.NonFatal
 
 /**
  * This is a special CDCReader that is optimized for delta sharing server usage.

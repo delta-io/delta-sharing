@@ -22,6 +22,8 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.util.Base64
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ListBuffer
+import scala.util.control.NonFatal
 
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
 import com.google.common.hash.Hashing
@@ -36,8 +38,6 @@ import org.apache.hadoop.fs.azure.NativeAzureFileSystem
 import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem
 import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
-import scala.collection.mutable.ListBuffer
-import scala.util.control.NonFatal
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
 import io.delta.sharing.server.{model, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
