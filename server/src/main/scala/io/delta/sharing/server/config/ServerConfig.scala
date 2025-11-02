@@ -76,6 +76,7 @@ case class ServerConfig(
       version = null,
       shares = Collections.emptyList(),
       authorization = null,
+      hdfsSigner = null,
       ssl = null,
       host = "localhost",
       port = 80,

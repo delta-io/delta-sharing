@@ -1,23 +1,37 @@
 /*
- * HDFS content-server signer: creates short-lived JWT for the content server
+ * Copyright (2021) The Delta Lake Project Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+// HDFS content-server signer: creates short-lived JWT for the content server
 package io.delta.sharing.server.common
 
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
-import java.time.{Duration, Instant}
-import java.util
+import java.security.PrivateKey
+import java.time.Instant
 
 import org.apache.hadoop.fs.Path
+
 import org.jose4j.jwa.AlgorithmConstraints
 import org.jose4j.jwa.AlgorithmConstraints.ConstraintType
 import org.jose4j.jws.AlgorithmIdentifiers
 import org.jose4j.jws.JsonWebSignature
-import org.jose4j.jwt.JwtClaims
+import org.jose4j.jwt.{JwtClaims, NumericDate}
 import org.jose4j.keys.EdDsaKeyUtil
+
 import io.delta.sharing.server.config.HdfsSignerConfig
-import org.jose4j.jwt.NumericDate
 
 /**
  * Produces PreSignedUrl values that point to a Content Server `/get?token=...` endpoint.
@@ -30,19 +44,30 @@ import org.jose4j.jwt.NumericDate
  *  - SIGNING_KID or -Dsigning.kid
  */
 class HdfsFileSigner(preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
-  private val resolved: (String, java.security.PrivateKey, Option[String], Option[String]) = {
+  private val resolved: (String, PrivateKey, Option[String], Option[String]) = {
     HdfsFileSigner.config match {
       case Some(cfg) =>
-        val pem = new String(Files.readAllBytes(Paths.get(cfg.getSigningPrivateKeyFile)), StandardCharsets.UTF_8)
-        (cfg.getContentServerBase, new EdDsaKeyUtil().fromPemEncodedPrivateKey(pem), Option(cfg.getAudience), Option(cfg.getKid))
+        val pem = new String(
+          Files.readAllBytes(Paths.get(cfg.getSigningPrivateKeyFile)),
+          StandardCharsets.UTF_8)
+        val key = new EdDsaKeyUtil().fromPemEncoded(pem).asInstanceOf[PrivateKey]
+        (cfg.getContentServerBase,
+          key,
+          Option(cfg.getAudience),
+          Option(cfg.getKid))
       case None =>
-        val contentBase = propOrEnv("CONTENT_SERVER_BASE", "content.server.base").getOrElse("http://localhost:8443")
+        val contentBase = propOrEnv("CONTENT_SERVER_BASE", "content.server.base")
+          .getOrElse("http://localhost:8443")
         val privateKeyPemPath = propOrEnv("SIGNING_PRIVATE_KEY", "signing.key.path")
-          .getOrElse(throw new IllegalStateException("Missing signing key path: SIGNING_PRIVATE_KEY or -Dsigning.key.path"))
-        val pem = new String(Files.readAllBytes(Paths.get(privateKeyPemPath)), StandardCharsets.UTF_8)
+          .getOrElse(throw new IllegalStateException(
+            "Missing signing key path: SIGNING_PRIVATE_KEY or -Dsigning.key.path"))
+        val pem = new String(
+          Files.readAllBytes(Paths.get(privateKeyPemPath)),
+          StandardCharsets.UTF_8)
         val audience = propOrEnv("SIGNING_AUDIENCE", "signing.aud")
         val kid = propOrEnv("SIGNING_KID", "signing.kid")
-        (contentBase, new EdDsaKeyUtil().fromPemEncodedPrivateKey(pem), audience, kid)
+        val key = new EdDsaKeyUtil().fromPemEncoded(pem).asInstanceOf[PrivateKey]
+        (contentBase, key, audience, kid)
     }
   }
 
@@ -52,7 +77,7 @@ class HdfsFileSigner(preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
     val exp = now.plusSeconds(preSignedUrlTimeoutSeconds)
 
     val claims = new JwtClaims()
-    claims.setExpirationTimeNumericDate(NumericDate.fromSeconds(exp.getEpochSecond))
+    claims.setExpirationTime(NumericDate.fromSeconds(exp.getEpochSecond))
     resolved._3.foreach(claims.setAudience)
     claims.setGeneratedJwtId()
     claims.setClaim("hdfs_path", hdfsPath)
@@ -67,7 +92,8 @@ class HdfsFileSigner(preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
     jws.setAlgorithmConstraints(new AlgorithmConstraints(ConstraintType.WHITELIST, AlgorithmIdentifiers.EDDSA))
 
     val jwt = jws.getCompactSerialization
-    val url = s"${resolved._1.stripSuffix("/")}/get?token=" + URLEncoder.encode(jwt, "UTF-8")
+    val url = s"${resolved._1.stripSuffix("/")}/get?token=" +
+      URLEncoder.encode(jwt, "UTF-8")
     new PreSignedUrl(url, System.currentTimeMillis() + preSignedUrlTimeoutSeconds * 1000L)
   }
 

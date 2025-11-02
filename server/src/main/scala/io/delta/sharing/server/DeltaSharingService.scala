@@ -42,7 +42,7 @@ import org.apache.commons.io.FileUtils
 import org.slf4j.LoggerFactory
 import scalapb.json4s.Printer
 
-import io.delta.sharing.server.common.JsonUtils
+import io.delta.sharing.server.common.{HdfsFileSigner, JsonUtils}
 import io.delta.sharing.server.config.ServerConfig
 import io.delta.sharing.server.model.{QueryStatus, SingleAction}
 import io.delta.sharing.server.protocol._
@@ -685,17 +685,8 @@ object DeltaSharingService {
   def start(serverConfig: ServerConfig): Server = {
     lazy val server = {
       // Configure HDFS signer if provided via YAML
-      try {
-        val method = classOf[ServerConfig].getMethod("getHdfsSigner")
-        val cfg = method.invoke(serverConfig).asInstanceOf[AnyRef]
-        if (cfg != null) {
-          val hdfsSignerCls = Class.forName("io.delta.sharing.server.common.HdfsFileSigner$")
-          val module = hdfsSignerCls.getDeclaredField("MODULE$").get(null)
-          val configure = hdfsSignerCls.getMethod("configureFrom", Class.forName("io.delta.sharing.server.config.HdfsSignerConfig"))
-          configure.invoke(module, cfg)
-        }
-      } catch {
-        case _: Throwable => // ignore if not present
+      if (serverConfig.getHdfsSigner != null) {
+        HdfsFileSigner.configureFrom(serverConfig.getHdfsSigner)
       }
       updateDefaultJsonPrinterForScalaPbConverterUtil()
       val builder = Server.builder()
