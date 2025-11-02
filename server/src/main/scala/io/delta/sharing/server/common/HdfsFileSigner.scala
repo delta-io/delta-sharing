@@ -23,7 +23,6 @@ import java.security.PrivateKey
 import java.time.Instant
 
 import org.apache.hadoop.fs.Path
-
 import org.jose4j.jwa.AlgorithmConstraints
 import org.jose4j.jwa.AlgorithmConstraints.ConstraintType
 import org.jose4j.jws.AlgorithmIdentifiers
@@ -89,7 +88,10 @@ class HdfsFileSigner(preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
     jws.setKey(resolved._2)
     jws.setHeader("typ", "JWT")
     jws.setDoKeyValidation(false)
-    jws.setAlgorithmConstraints(new AlgorithmConstraints(ConstraintType.WHITELIST, AlgorithmIdentifiers.EDDSA))
+    jws.setAlgorithmConstraints(
+      new AlgorithmConstraints(
+        ConstraintType.WHITELIST,
+        AlgorithmIdentifiers.EDDSA))
 
     val jwt = jws.getCompactSerialization
     val url = s"${resolved._1.stripSuffix("/")}/get?token=" +
@@ -98,7 +100,9 @@ class HdfsFileSigner(preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
   }
 
   private def propOrEnv(env: String, prop: String): Option[String] = {
-    Option(System.getProperty(prop)).filter(_.nonEmpty).orElse(Option(System.getenv(env)).filter(_.nonEmpty))
+    Option(System.getProperty(prop))
+      .filter(_.nonEmpty)
+      .orElse(Option(System.getenv(env)).filter(_.nonEmpty))
   }
 }
 
