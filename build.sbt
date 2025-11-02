@@ -218,6 +218,8 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")
     ),
+    // JWT signing for HDFS signer (Ed25519)
+    "org.bitbucket.b_c" % "jose4j" % "0.9.6",
     "io.delta" %% "delta-standalone" % "3.2.0" % "provided" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
       ExclusionRule("com.fasterxml.jackson.module"),
