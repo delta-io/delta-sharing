@@ -18,15 +18,21 @@ import sbt.ExclusionRule
 
 ThisBuild / parallelExecution := false
 
-val sparkVersion = "3.3.2"
-val scala212 = "2.12.10"
-val scala213 = "2.13.11"
+val previousSparkVersion = "3.5.3"
+val latestSparkVersion = "4.0.0"
+val scala212 = "2.12.18"
+val scala213 = "2.13.13"
+val scalaTestVersion = "3.2.15"
+
+def sparkVersionFor(scalaVer: String): String = scalaVer match {
+  case v if v.startsWith("2.12") => previousSparkVersion
+  case v if v.startsWith("2.13") => latestSparkVersion
+  case _ => sys.error(s"Unsupported Scala version: $scalaVer")
+}
 
 lazy val commonSettings = Seq(
   organization := "io.delta",
   fork := true,
-  javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
-  scalacOptions += "-target:jvm-1.8",
   // Configurations to speed up tests and reduce memory footprint
   Test / javaOptions ++= Seq(
     "-Dspark.ui.enabled=false",
@@ -40,23 +46,52 @@ lazy val commonSettings = Seq(
   )
 )
 
+lazy val java8Settings = Seq(
+  javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
+  scalacOptions += "-target:jvm-1.8",
+)
+
+lazy val java17Settings = Seq(
+  javacOptions ++= Seq("--release", "17"),
+  Test / javaOptions ++= Seq(
+    // Copied from SparkBuild.scala to support Java 17 for unit tests (see apache/spark#34153)
+    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+    "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+    "--add-opens=java.base/java.io=ALL-UNNAMED",
+    "--add-opens=java.base/java.net=ALL-UNNAMED",
+    "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    "--add-opens=java.base/java.util=ALL-UNNAMED",
+    "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
+    "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+    "--add-opens=java.base/sun.nio.cs=ALL-UNNAMED",
+    "--add-opens=java.base/sun.security.action=ALL-UNNAMED",
+    "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
+  ),
+)
+
 lazy val root = (project in file(".")).aggregate(client, spark, server)
 
 lazy val client = (project in file("client")) settings(
   name := "delta-sharing-client",
+  scalaVersion := scala213,
   crossScalaVersions := Seq(scala212, scala213),
   commonSettings,
+  java17Settings,
   scalaStyleSettings,
   releaseSettings,
-  libraryDependencies ++= Seq(
-    "org.apache.httpcomponents" % "httpclient" % "4.5.14",
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-    "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
-    "org.scalatest" %% "scalatest" % "3.2.3" % "test",
-    "org.scalatestplus" %% "mockito-4-11" % "3.2.18.0" % "test"
-  ),
+  libraryDependencies ++= {
+    val sv = scalaVersion.value
+    val sparkVer = sparkVersionFor(sv)
+    Seq(
+      "org.apache.httpcomponents" % "httpclient" % "4.5.14",
+      "org.apache.spark" %% "spark-sql" % sparkVer % "provided",
+      "org.apache.spark" %% "spark-catalyst" % sparkVer % "test" classifier "tests",
+      "org.apache.spark" %% "spark-core" % sparkVer % "test" classifier "tests",
+      "org.apache.spark" %% "spark-sql" % sparkVer % "test" classifier "tests",
+      "org.scalatest" %% "scalatest" % scalaTestVersion % "test",
+      "org.scalatestplus" %% "mockito-4-11" % "3.2.18.0" % "test"
+    )
+  },
   Compile / sourceGenerators += Def.task {
     val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "client" / "package.scala"
     IO.write(file,
@@ -67,21 +102,42 @@ lazy val client = (project in file("client")) settings(
          |}
          |""".stripMargin)
     Seq(file)
+  },
+  // Use scala-2.12 and scala-2.13 folders for version-specific overrides
+  Compile / unmanagedSourceDirectories ++= {
+    val sv = scalaVersion.value
+    val base = (Compile / sourceDirectory).value
+    sv match {
+      case v if v.startsWith("2.12") => Seq(base / "scala-2.12")
+      case v if v.startsWith("2.13") => Seq(base / "scala-2.13")
+      case _ => Seq.empty
+    }
+  },
+  Test / unmanagedSourceDirectories ++= {
+    val sv = scalaVersion.value
+    val base = (Test / sourceDirectory).value
+    sv match {
+      case v if v.startsWith("2.12") => Seq(base / "scala-2.12")
+      case v if v.startsWith("2.13") => Seq(base / "scala-2.13")
+      case _ => Seq.empty
+    }
   }
 )
 
 lazy val spark = (project in file("spark")) dependsOn(client) settings(
   name := "delta-sharing-spark",
-  crossScalaVersions := Seq(scala212, scala213),
+  scalaVersion := scala213,
+  crossScalaVersions := Seq(scala213),
   commonSettings,
+  java17Settings,
   scalaStyleSettings,
   releaseSettings,
   libraryDependencies ++= Seq(
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-    "org.apache.spark" %% "spark-catalyst" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-core" % sparkVersion % "test" classifier "tests",
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "test" classifier "tests",
-    "org.scalatest" %% "scalatest" % "3.2.3" % "test"
+    "org.apache.spark" %% "spark-sql" % latestSparkVersion % "provided",
+    "org.apache.spark" %% "spark-catalyst" % latestSparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-core" % latestSparkVersion % "test" classifier "tests",
+    "org.apache.spark" %% "spark-sql" % latestSparkVersion % "test" classifier "tests",
+    "org.scalatest" %% "scalatest" % scalaTestVersion % "test"
   ),
   Compile / sourceGenerators += Def.task {
     val file = (Compile / sourceManaged).value / "io" / "delta" / "sharing" / "spark" / "package.scala"
@@ -100,6 +156,7 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   name := "delta-sharing-server",
   scalaVersion := scala212,
   commonSettings,
+  java8Settings,
   scalaStyleSettings,
   releaseSettings,
   dockerUsername := Some("deltaio"),
@@ -188,7 +245,9 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
     "org.slf4j" % "slf4j-simple" % "1.6.1",
     "net.sourceforge.argparse4j" % "argparse4j" % "0.9.0",
 
-    "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+    "org.scalatest" %% "scalatest" % "3.0.5" % "test",
+    "org.bouncycastle" % "bcprov-jdk15on" % "1.70" % "test",
+    "org.bouncycastle" % "bcpkix-jdk15on" % "1.70" % "test"
   ),
   Compile / PB.targets := Seq(
     scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
@@ -225,11 +284,11 @@ lazy val releaseSettings = Seq(
   Test / publishArtifact := false,
 
   publishTo := {
-    val nexus = "https://oss.sonatype.org/"
+    val ossrhBase = "https://ossrh-staging-api.central.sonatype.com/"
     if (isSnapshot.value) {
-      Some("snapshots" at nexus + "content/repositories/snapshots")
+      Some("snapshots" at ossrhBase + "content/repositories/snapshots")
     } else {
-      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+      Some("releases" at ossrhBase + "service/local/staging/deploy/maven2")
     }
   },
 
@@ -302,7 +361,7 @@ lazy val releaseSettings = Seq(
 // Looks like some of release settings should be set for the root project as well.
 publishArtifact := false  // Don't release the root project
 publish := {}
-publishTo := Some("snapshots" at "https://oss.sonatype.org/content/repositories/snapshots")
+publishTo := Some("snapshots" at "https://ossrh-staging-api.central.sonatype.com/content/repositories/snapshots")
 releaseCrossBuild := false
 // crossScalaVersions must be set to Nil on the root project
 crossScalaVersions := Nil

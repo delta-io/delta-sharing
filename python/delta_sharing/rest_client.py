@@ -143,7 +143,8 @@ class DataSharingRestClient:
     USER_AGENT: ClassVar[str] = _client_user_agent()
     DELTA_RESPONSE_FORMAT = "responseformat=delta"
     DELTA_AND_PARQUET_RESPONSE_FORMAT = "responseformat=delta,parquet"
-    DELTA_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping"
+    DELTA_SNAPSHOT_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping,timestampntz"
+    DELTA_CDF_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping"
     CAPABILITIES_HEADER = "delta-sharing-capabilities"
     DELTA_TABLE_VERSION_HEADER = "delta-table-version"
     DELTA_FORMAT = "delta"
@@ -164,14 +165,22 @@ class DataSharingRestClient:
     def __auth_session(self, profile):
         self._session = requests.Session()
         self._auth_credential_provider = (
-            AuthCredentialProviderFactory.create_auth_credential_provider(profile))
+            AuthCredentialProviderFactory.create_auth_credential_provider(profile)
+        )
         if urlparse(profile.endpoint).hostname == "localhost":
             self._session.verify = False
 
+    def __get_reader_features(self, for_cdf):
+        if for_cdf:
+            return DataSharingRestClient.DELTA_CDF_READER_FEATURES
+        else:
+            return DataSharingRestClient.DELTA_SNAPSHOT_READER_FEATURES
+
     def set_sharing_capabilities_header(self):
         delta_sharing_capabilities = (
-            DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT + ';' +
-            DataSharingRestClient.DELTA_READER_FEATURES
+            DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT
+            + ";"
+            + self.__get_reader_features(False)
         )
         self._session.headers.update(
             {
@@ -182,10 +191,9 @@ class DataSharingRestClient:
     def remove_sharing_capabilities_header(self):
         del self._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
 
-    def set_delta_format_header(self):
+    def set_delta_format_header(self, for_cdf=False):
         delta_sharing_capabilities = (
-            DataSharingRestClient.DELTA_RESPONSE_FORMAT + ';' +
-            DataSharingRestClient.DELTA_READER_FEATURES
+            DataSharingRestClient.DELTA_RESPONSE_FORMAT + ";" + self.__get_reader_features(for_cdf)
         )
         self._session.headers.update(
             {
@@ -272,7 +280,7 @@ class DataSharingRestClient:
     def query_table_metadata(self, table: Table) -> QueryTableMetadataResponse:
         with self._get_internal(
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
-            return_headers=True
+            return_headers=True,
         ) as values:
             headers = values[0]
             # it's a bug in the server if it doesn't return delta-table-version in the header
@@ -282,8 +290,9 @@ class DataSharingRestClient:
             protocol_json = json.loads(next(lines))
             metadata_json = json.loads(next(lines))
             return QueryTableMetadataResponse(
-                delta_table_version=int(headers.get(
-                    DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)),
+                delta_table_version=int(
+                    headers.get(DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)
+                ),
                 protocol=Protocol.from_json(protocol_json["protocol"]),
                 metadata=Metadata.from_json(metadata_json["metaData"]),
             )
@@ -299,7 +308,7 @@ class DataSharingRestClient:
 
         with self._get_internal(
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
-            return_headers=True
+            return_headers=True,
         ) as values:
             # removing the client-reader-features that were set to avoid diverging standard codepath
             self.remove_sharing_capabilities_header()
@@ -315,7 +324,7 @@ class DataSharingRestClient:
             response_format = headers[DataSharingRestClient.CAPABILITIES_HEADER]
 
             # we now parse it to get either "delta" or "parquet"
-            if (DataSharingRestClient.DELTA_FORMAT in response_format):
+            if DataSharingRestClient.DELTA_FORMAT in response_format:
                 return DataSharingRestClient.DELTA_FORMAT
             else:
                 return DataSharingRestClient.PARQUET_FORMAT
@@ -329,10 +338,7 @@ class DataSharingRestClient:
         query_str = f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/version"
         if starting_timestamp is not None:
             query_str += f"?startingTimestamp={quote(starting_timestamp)}"
-        with self._get_internal(
-            query_str,
-            return_headers=True
-        ) as values:
+        with self._get_internal(query_str, return_headers=True) as values:
             headers = values[0]
 
             # it's a bug in the server if it doesn't return delta-table-version in the header
@@ -368,7 +374,7 @@ class DataSharingRestClient:
         with self._post_internal(
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query",
             data=data,
-            return_headers=True
+            return_headers=True,
         ) as values:
             headers = values[0]
             # it's a bug in the server if it doesn't return delta-table-version in the header
@@ -377,11 +383,14 @@ class DataSharingRestClient:
 
             lines = values[1]
 
-            if (DataSharingRestClient.CAPABILITIES_HEADER in headers and
-                    "responseformat=delta" in headers[DataSharingRestClient.CAPABILITIES_HEADER]):
+            if (
+                DataSharingRestClient.CAPABILITIES_HEADER in headers
+                and "responseformat=delta" in headers[DataSharingRestClient.CAPABILITIES_HEADER]
+            ):
                 return ListFilesInTableResponse(
-                    delta_table_version=int(headers.get(
-                        DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)),
+                    delta_table_version=int(
+                        headers.get(DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)
+                    ),
                     protocol=None,
                     metadata=None,
                     add_files=[],
@@ -396,7 +405,7 @@ class DataSharingRestClient:
                     protocol=Protocol.from_json(protocol_json["protocol"]),
                     metadata=Metadata.from_json(metadata_json["metaData"]),
                     add_files=[AddFile.from_json(json.loads(file)["file"]) for file in lines],
-                    lines=[]
+                    lines=[],
                 )
 
     @retry_with_exponential_backoff
@@ -422,8 +431,10 @@ class DataSharingRestClient:
             if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
                 raise LookupError("Missing delta-table-version header")
 
-            if (DataSharingRestClient.CAPABILITIES_HEADER in headers and
-                    "responseformat=delta" in headers[DataSharingRestClient.CAPABILITIES_HEADER]):
+            if (
+                DataSharingRestClient.CAPABILITIES_HEADER in headers
+                and "responseformat=delta" in headers[DataSharingRestClient.CAPABILITIES_HEADER]
+            ):
                 return ListTableChangesResponse(
                     protocol=None,
                     metadata=None,
@@ -441,7 +452,7 @@ class DataSharingRestClient:
                     protocol=Protocol.from_json(protocol_json["protocol"]),
                     metadata=Metadata.from_json(metadata_json["metaData"]),
                     actions=actions,
-                    lines=None
+                    lines=None,
                 )
 
     def close(self):
@@ -454,7 +465,8 @@ class DataSharingRestClient:
         return_headers: bool = False,
     ):
         return self._request_internal(
-            request=self._session.get, return_headers=return_headers, target=target, params=data)
+            request=self._session.get, return_headers=return_headers, target=target, params=data
+        )
 
     def _post_internal(
         self,
@@ -463,7 +475,8 @@ class DataSharingRestClient:
         return_headers: bool = False,
     ):
         return self._request_internal(
-            request=self._session.post, return_headers=return_headers, target=target, json=data)
+            request=self._session.post, return_headers=return_headers, target=target, json=data
+        )
 
     @contextmanager
     def _request_internal(

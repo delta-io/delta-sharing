@@ -51,10 +51,7 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
     return (profile, share, schema, table)
 
 
-def get_table_version(
-    url: str,
-    starting_timestamp: Optional[str] = None
-) -> int:
+def get_table_version(url: str, starting_timestamp: Optional[str] = None) -> int:
     """
     Get the shared table version using the given url.
 
@@ -66,8 +63,7 @@ def get_table_version(
     profile = DeltaSharingProfile.read_from_file(profile_json)
     rest_client = DataSharingRestClient(profile)
     response = rest_client.query_table_version(
-        Table(name=table, share=share, schema=schema),
-        starting_timestamp
+        Table(name=table, share=share, schema=schema), starting_timestamp
     )
     return response.delta_table_version
 
@@ -117,6 +113,7 @@ def load_as_pandas(
     timestamp: Optional[str] = None,
     jsonPredicateHints: Optional[str] = None,
     use_delta_format: Optional[bool] = None,
+    convert_in_batches: bool = False,
 ) -> pd.DataFrame:
     """
     Load the shared table using the given url as a pandas DataFrame.
@@ -128,6 +125,12 @@ def load_as_pandas(
     :param version: an optional non-negative int. Load the snapshot of table at version
     :param jsonPredicateHints: Predicate hints to be applied to the table. For more details see:
       https://github.com/delta-io/delta-sharing/blob/main/PROTOCOL.md#json-predicates-for-filtering
+    :param use_delta_format: Whether to use delta format or parquet format. If not set, table
+      metadata will be used to determine whether to use delta or parquet format.
+    :param convert_in_batches: Whether to convert the parquet files to pandas one batch at a time
+      rather than one file at a time. This may reduce memory consumption at the cost of taking
+      longer or downloading more data, with parquet format queries being more likely to see
+      improvements.
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
@@ -139,15 +142,13 @@ def load_as_pandas(
         limit=limit,
         version=version,
         timestamp=timestamp,
-        use_delta_format=use_delta_format
+        use_delta_format=use_delta_format,
+        convert_in_batches=convert_in_batches,
     ).to_pandas()
 
 
 def load_as_spark(
-    url: str,
-    version: Optional[int] = None,
-    timestamp: Optional[str] = None,
-    delta_sharing_profile: Optional[DeltaSharingProfile] = None
+    url: str, version: Optional[int] = None, timestamp: Optional[str] = None
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed,
@@ -155,14 +156,9 @@ def load_as_spark(
     Sharing installed. Only one of version/timestamp is supported at one time.
 
     :param url: a url under the format "<profile>#<share>.<schema>.<table>".
-    :type url: str
     :param version: an optional non-negative int. Load the snapshot of table at version.
-    :type version: Optional[int]
     :param timestamp: an optional string. Load the snapshot of table at version corresponding
       to the timestamp.
-    :type timestamp: Optional[str]
-    :param delta_sharing_profile: The DeltaSharingProfile to use for the connection
-    :type delta_sharing_profile: Optional[DeltaSharingProfile]
     :return: A Spark DataFrame representing the shared table.
     """
     try:
@@ -176,25 +172,6 @@ def load_as_spark(
         "`load_as_spark` requires running in a PySpark application."
     )
     df = spark.read.format("deltaSharing")
-    if delta_sharing_profile is not None:
-        if delta_sharing_profile.share_credentials_version is not None:
-            df.option("shareCredentialsVersion", delta_sharing_profile.share_credentials_version)
-        if delta_sharing_profile.type is not None:
-            df.option("shareCredentialsType", delta_sharing_profile.type)
-        if delta_sharing_profile.endpoint is not None:
-            df.option("endpoint", delta_sharing_profile.endpoint)
-        if delta_sharing_profile.token_endpoint is not None:
-            df.option("tokenEndpoint", delta_sharing_profile.token_endpoint)
-        if delta_sharing_profile.client_id is not None:
-            df.option("clientId", delta_sharing_profile.client_id)
-        if delta_sharing_profile.client_secret is not None:
-            df.option("clientSecret", delta_sharing_profile.client_secret)
-        if delta_sharing_profile.scope is not None:
-            df.option("scope", delta_sharing_profile.scope)
-        if delta_sharing_profile.bearer_token is not None:
-            df.option("bearerToken", delta_sharing_profile.bearer_token)
-        if delta_sharing_profile.expiration_time is not None:
-            df.option("expirationTime", delta_sharing_profile.expiration_time)
     if version is not None:
         df.option("versionAsOf", version)
     if timestamp is not None:
@@ -208,7 +185,6 @@ def load_table_changes_as_spark(
     ending_version: Optional[int] = None,
     starting_timestamp: Optional[str] = None,
     ending_timestamp: Optional[str] = None,
-    delta_sharing_profile: Optional[DeltaSharingProfile] = None
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the table changes of a shared table as a Spark DataFrame using the given url.
@@ -219,24 +195,18 @@ def load_table_changes_as_spark(
     latest table version for it. The parameter range is inclusive in the query.
 
     :param url: a url under the format "<profile>#<share>.<schema>.<table>".
-    :type url: str
     :param starting_version: The starting version of table changes.
-    :type starting_version: Optional[int]
     :param ending_version: The ending version of table changes.
-    :type ending_version: Optional[int]
     :param starting_timestamp: The starting timestamp of table changes.
-    :type starting_timestamp: Optional[str]
     :param ending_timestamp: The ending timestamp of table changes.
-    :type ending_timestamp: Optional[str]
-    :param delta_sharing_profile: The DeltaSharingProfile to use for the connection
-    :type delta_sharing_profile: Optional[DeltaSharingProfile]
     :return: A Spark DataFrame representing the table changes.
     """
     try:
         from pyspark.sql import SparkSession
     except ImportError:
         raise ImportError(
-            "Unable to import pyspark. `load_table_changes_as_spark` requires PySpark.")
+            "Unable to import pyspark. `load_table_changes_as_spark` requires PySpark."
+        )
 
     spark = SparkSession.getActiveSession()
     assert spark is not None, (
@@ -244,25 +214,6 @@ def load_table_changes_as_spark(
         "`load_table_changes_as_spark` requires running in a PySpark application."
     )
     df = spark.read.format("deltaSharing").option("readChangeFeed", "true")
-    if delta_sharing_profile is not None:
-        if delta_sharing_profile.share_credentials_version is not None:
-            df.option("shareCredentialsVersion", delta_sharing_profile.share_credentials_version)
-        if delta_sharing_profile.type is not None:
-            df.option("shareCredentialsType", delta_sharing_profile.type)
-        if delta_sharing_profile.endpoint is not None:
-            df.option("endpoint", delta_sharing_profile.endpoint)
-        if delta_sharing_profile.token_endpoint is not None:
-            df.option("tokenEndpoint", delta_sharing_profile.token_endpoint)
-        if delta_sharing_profile.client_id is not None:
-            df.option("clientId", delta_sharing_profile.client_id)
-        if delta_sharing_profile.client_secret is not None:
-            df.option("clientSecret", delta_sharing_profile.client_secret)
-        if delta_sharing_profile.scope is not None:
-            df.option("scope", delta_sharing_profile.scope)
-        if delta_sharing_profile.bearer_token is not None:
-            df.option("bearerToken", delta_sharing_profile.bearer_token)
-        if delta_sharing_profile.expiration_time is not None:
-            df.option("expirationTime", delta_sharing_profile.expiration_time)
     if starting_version is not None:
         df.option("startingVersion", starting_version)
     if ending_version is not None:
@@ -280,7 +231,8 @@ def load_table_changes_as_pandas(
     ending_version: Optional[int] = None,
     starting_timestamp: Optional[str] = None,
     ending_timestamp: Optional[str] = None,
-    use_delta_format: Optional[bool] = None
+    use_delta_format: Optional[bool] = None,
+    convert_in_batches: bool = False,
 ) -> pd.DataFrame:
     """
     Load the table changes of shared table as a pandas DataFrame using the given url.
@@ -293,6 +245,12 @@ def load_table_changes_as_pandas(
     :param ending_version: The ending version of table changes.
     :param starting_timestamp: The starting timestamp of table changes.
     :param ending_timestamp: The ending timestamp of table changes.
+    :param use_delta_format: Whether to use delta format or parquet format. Default is parquet
+      format.
+    :param convert_in_batches: Whether to convert the parquet files to pandas one batch at a time
+      rather than one file at a time. This may reduce memory consumption at the cost of taking
+      longer or downloading more data, with parquet format queries being more likely to see
+      improvements.
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
@@ -300,16 +258,19 @@ def load_table_changes_as_pandas(
     return DeltaSharingReader(
         table=Table(name=table, share=share, schema=schema),
         rest_client=DataSharingRestClient(profile),
-        use_delta_format=use_delta_format
-    ).table_changes_to_pandas(CdfOptions(
-        starting_version=starting_version,
-        ending_version=ending_version,
-        starting_timestamp=starting_timestamp,
-        ending_timestamp=ending_timestamp,
-        # when using delta format, we need to get metadata changes and
-        # handle them properly when replaying the delta log
-        include_historical_metadata=use_delta_format
-    ))
+        use_delta_format=use_delta_format,
+        convert_in_batches=convert_in_batches,
+    ).table_changes_to_pandas(
+        CdfOptions(
+            starting_version=starting_version,
+            ending_version=ending_version,
+            starting_timestamp=starting_timestamp,
+            ending_timestamp=ending_timestamp,
+            # when using delta format, we need to get metadata changes and
+            # handle them properly when replaying the delta log
+            include_historical_metadata=use_delta_format,
+        )
+    )
 
 
 class SharingClient:

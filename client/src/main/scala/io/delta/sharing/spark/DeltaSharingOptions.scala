@@ -17,8 +17,6 @@
 package io.delta.sharing.spark
 
 // scalastyle:off import.ordering.noEmptyLine
-import java.util.Locale
-
 import scala.util.Try
 
 import org.apache.spark.internal.Logging
@@ -114,12 +112,16 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
   // The input string is quite flexible, and can be in any timezone, examples of accepted format:
   // "2022", "2022-01-01", "2022-01-01 00:00:00" "2022-01-01T00:00:00-08:00", etc.
   private def getFormattedTimestamp(str: String): String = {
-    val castResult = new Cast(
-    Literal(str), TimestampType, Option(SQLConf.get.sessionLocalTimeZone)).eval()
-    if (castResult == null) {
-      throw DeltaSharingErrors.timestampInvalid(str)
+    try {
+      // For invalid timestamp strings, Spark 3.5 returns null, while Spark 4.0 throws an exception.
+      val castResult =
+        new Cast(Literal(str), TimestampType, Option(SQLConf.get.sessionLocalTimeZone)).eval()
+      if (castResult == null) throw DeltaSharingErrors.timestampInvalid(str)
+      DateTimeUtils.toJavaTimestamp(castResult.asInstanceOf[java.lang.Long]).toInstant.toString
+    } catch {
+      case _: Exception =>
+        throw DeltaSharingErrors.timestampInvalid(str)
     }
-    DateTimeUtils.toJavaTimestamp(castResult.asInstanceOf[java.lang.Long]).toInstant.toString
   }
 
   private def prepareCdfOptions(): Map[String, String] = {

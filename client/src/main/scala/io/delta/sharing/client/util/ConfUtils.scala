@@ -48,6 +48,10 @@ object ConfUtils {
   val TIMEOUT_CONF = "spark.delta.sharing.network.timeout"
   val TIMEOUT_DEFAULT = "320s"
 
+  // Note: There is a separate pool for proxy and non-proxy connections.
+  //       Thus, if you use both spark.delta.sharing.network.proxyHost and
+  //       spark.delta.sharing.network.noProxyHosts,
+  //       the max number of connections will be 2 * spark.delta.sharing.network.maxConnections.
   val MAX_CONNECTION_CONF = "spark.delta.sharing.network.maxConnections"
   val MAX_CONNECTION_DEFAULT = 64
 
@@ -100,6 +104,9 @@ object ConfUtils {
 
   val STRUCTURAL_SCHEMA_MATCH_CONF = "spark.delta.sharing.client.useStructuralSchemaMatch"
   val STRUCTURAL_SCHEMA_MATCH_DEFAULT = "false"
+
+  val SPARK_PARQUET_IO_CACHE_CONF = "spark.delta.sharing.client.sparkParquetIOCache.enabled"
+  val SPARK_PARQUET_IO_CACHE_DEFAULT = "false"
 
   def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
     val proxyHost = conf.get(PROXY_HOST, null)
@@ -309,6 +316,16 @@ object ConfUtils {
 
   def structuralSchemaMatchingEnabled(conf: SQLConf): Boolean =
     conf.getConfString(STRUCTURAL_SCHEMA_MATCH_CONF, STRUCTURAL_SCHEMA_MATCH_DEFAULT).toBoolean
+
+  def sparkParquetIOCacheEnabled(conf: Configuration): Boolean = {
+    conf.getBoolean(
+      SPARK_PARQUET_IO_CACHE_CONF, SPARK_PARQUET_IO_CACHE_DEFAULT.toBoolean)
+  }
+
+  def sparkParquetIOCacheEnabled(conf: SQLConf): Boolean = {
+    conf.getConfString(
+      SPARK_PARQUET_IO_CACHE_CONF, SPARK_PARQUET_IO_CACHE_DEFAULT).toBoolean
+  }
 
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {
     val timeInSeconds = JavaUtils.timeStringAs(timeStr, TimeUnit.SECONDS)

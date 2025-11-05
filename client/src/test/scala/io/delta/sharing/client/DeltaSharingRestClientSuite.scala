@@ -26,13 +26,16 @@ import io.delta.sharing.client.model.{
   AddFile,
   AddFileForCDF,
   DeltaTableFiles,
+  EndStreamAction,
   Format,
   Metadata,
   Protocol,
   RemoveFile,
   Table
 }
+import io.delta.sharing.client.util.JsonUtils
 import io.delta.sharing.client.util.UnexpectedHttpStatus
+import io.delta.sharing.spark.{DeltaSharingServerException, MissingEndStreamActionException}
 
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
@@ -187,7 +190,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "table_with_cm_name", schema = "default", share = "share8"),
         Table(name = "table_with_cm_id", schema = "default", share = "share8"),
         Table(name = "deletion_vectors_with_dvs_dv_property_on", schema = "default", share = "share8"),
-        Table(name = "dv_and_cm_table", schema = "default", share = "share8")
+        Table(name = "dv_and_cm_table", schema = "default", share = "share8"),
+        Table(name = "timestampntz_cdf_table", schema = "default", share = "share8"),
+        Table(name = "12k_rows", schema = "default", share = "share8")
       )
       assert(expected == client.listAllTables().toSet)
     } finally {
@@ -1233,5 +1238,166 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           client.close()
         }
     }
+  }
+
+  val fakeAddFileStr = JsonUtils.toJson(AddFile(
+    url = "https://unused-url",
+    expirationTimestamp = 12345,
+    id = "random-id",
+    partitionValues = Map.empty,
+    size = 123,
+    stats = """{"numRecords":1,"minValues":{"age":"1"},"maxValues":{"age":"3"},"nullCount":{"age":0}}"""
+  ).wrap)
+  val fakeEndStreamActionStr = JsonUtils.toJson(EndStreamAction(
+    refreshToken = "random-refresh",
+    nextPageToken = "random-next",
+    minUrlExpirationTimestamp = 0
+  ).wrap)
+  val fakeEndStreamActionErrorStr = JsonUtils.toJson(EndStreamAction(
+    refreshToken = null,
+    nextPageToken = null,
+    minUrlExpirationTimestamp = null,
+    errorMessage = "BAD REQUEST: Error Occurred During Streaming"
+  ).wrap)
+  val fakeEndStreamActionStrWithErrorMsgAndCode = JsonUtils.toJson(EndStreamAction(
+      refreshToken = null,
+      nextPageToken = null,
+      minUrlExpirationTimestamp = null,
+      errorMessage = "BAD REQUEST: Error Occurred During Streaming",
+      httpStatusErrorCode = 400
+    ).wrap)
+
+  test("checkEndStreamAction succeeded") {
+    // DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true
+    // Succeeded because the responded header is true, and EndStreamAction exists
+    checkEndStreamAction(
+      Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+      Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+      Seq(fakeAddFileStr, fakeEndStreamActionStr),
+      "random-query-id"
+    )
+
+    // DELTA_SHARING_INCLUDE_END_STREAM_ACTION=false
+    // Succeeded even though the last line is not EndStreamAction
+    checkEndStreamAction(
+      Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=false"),
+      Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "false"),
+      Seq(fakeAddFileStr),
+      "random-query-id"
+    )
+    // Succeeded even though the lines are empty.
+    checkEndStreamAction(
+      Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=false"),
+      Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "false"),
+      Seq.empty,
+      "random-query-id"
+    )
+    // Succeeded even though the last line cannot be parsed.
+    checkEndStreamAction(
+      Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=false"),
+      Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "false"),
+      Seq("random-string-server-error"),
+      "random-query-id"
+    )
+
+    // DELTA_SHARING_INCLUDE_END_STREAM_ACTION not in header
+    // Succeeded even though the last line is not EndStreamAction
+    checkEndStreamAction(None, Map.empty, Seq(fakeAddFileStr), "random-query-id")
+    // Succeeded even though the lines are empty.
+    checkEndStreamAction(None, Map.empty, Seq.empty, "random-query-id")
+    // Succeeded even though the last line cannot be parsed.
+    checkEndStreamAction(None, Map.empty, Seq("random-string-server-error"), "random-query-id")
+  }
+
+  test("checkEndStreamAction failed") {
+    def checkErrorMessage(
+        e: MissingEndStreamActionException,
+        additionalErrorMsg: String): Unit = {
+      val commonErrorMsg = "Client sets includeendstreamaction=true random-query-id, " +
+      "server responded with the header set to true(Some(includeendstreamaction=true)) and"
+      assert(e.getMessage.contains(commonErrorMsg))
+
+      assert(e.getMessage.contains(additionalErrorMsg))
+    }
+
+    // Failed because the last line is not EndStreamAction.
+    var e = intercept[MissingEndStreamActionException] {
+      checkEndStreamAction(
+        Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+        Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+        Seq(fakeAddFileStr),
+        "random-query-id"
+      )
+    }
+    checkErrorMessage(e, s"and 1 lines, and last line as [$fakeAddFileStr].")
+
+    // Failed because the last line cannot be parsed.
+    e = intercept[MissingEndStreamActionException] {
+      checkEndStreamAction(
+        Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+        Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+        Seq("random-string-server-error"),
+        "random-query-id"
+      )
+    }
+    checkErrorMessage(e, s"and 1 lines, and last line as [random-string-server-error].")
+
+    // Failed because the responded lines are empty.
+    e = intercept[MissingEndStreamActionException] {
+      checkEndStreamAction(
+        Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+        Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+        Seq.empty,
+        "random-query-id"
+      )
+    }
+    checkErrorMessage(e, s"and 0 lines, and last line as [Empty_Seq_in_checkEndStreamAction].")
+  }
+
+  test("checkEndStreamAction with error message throws streaming error") {
+    def checkErrorMessage(
+        e: DeltaSharingServerException,
+        additionalErrorMsg: String,
+        errorCodeOpt: Option[Int] = None): Unit = {
+      val commonErrorMsg = s"Server Exception[${errorCodeOpt.getOrElse("")}]"
+      assert(e.getMessage.contains(commonErrorMsg))
+      // null/non-existent httpStatusErrorCode in endStreamAction json string defaults to e.statusCodeOpt=None
+      assert(e.statusCodeOpt == errorCodeOpt)
+
+      assert(e.getMessage.contains(additionalErrorMsg))
+    }
+
+    // checkEndStreamAction throws error if the last line is EndStreamAction with error message
+    var e = intercept[DeltaSharingServerException] {
+      checkEndStreamAction(
+        Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+        Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+        Seq(fakeAddFileStr, fakeEndStreamActionErrorStr),
+        "random-query-id"
+      )
+    }
+    checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
+
+    // checkEndStreamAction throws error if the last line is EndStreamAction with error message
+    e = intercept[DeltaSharingServerException] {
+      checkEndStreamAction(
+        Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+        Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+        Seq(fakeAddFileStr, fakeEndStreamActionStrWithErrorMsgAndCode),
+        "random-query-id"
+      )
+    }
+    checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming", Some(400))
+
+    // checkEndStreamAction throws error if the only line is EndStreamAction with error message & errorCode
+    e = intercept[DeltaSharingServerException] {
+      checkEndStreamAction(
+        Some(s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"),
+        Map(DELTA_SHARING_INCLUDE_END_STREAM_ACTION -> "true"),
+        Seq(fakeEndStreamActionErrorStr),
+        "random-query-id"
+      )
+    }
+    checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
   }
 }

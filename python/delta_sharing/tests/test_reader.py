@@ -19,6 +19,7 @@ from datetime import date
 from typing import Optional, Sequence
 
 import pandas as pd
+import numpy as np
 
 from delta_sharing.protocol import AddFile, AddCdcFile, CdfOptions, Metadata, RemoveFile, Table
 from delta_sharing.reader import DeltaSharingReader
@@ -85,7 +86,7 @@ def test_to_pandas_non_partitioned(tmp_path):
                 protocol=None,
                 metadata=metadata,
                 add_files=add_files,
-                lines=[]
+                lines=[],
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -97,9 +98,15 @@ def test_to_pandas_non_partitioned(tmp_path):
     pd.testing.assert_frame_equal(pdf, expected)
 
     reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
+    )
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected)
+
+    reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"),
         RestClientMock(),
-        jsonPredicateHints="dummy_hints"
+        jsonPredicateHints="dummy_hints",
     )
     pdf = reader.to_pandas()
     expected = pd.concat([pdf1]).reset_index(drop=True)
@@ -108,7 +115,7 @@ def test_to_pandas_non_partitioned(tmp_path):
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"),
         RestClientMock(),
-        predicateHints="dummy_hints"
+        predicateHints="dummy_hints",
     )
     pdf = reader.to_pandas()
     expected = pd.concat([pdf2]).reset_index(drop=True)
@@ -164,7 +171,7 @@ def test_to_pandas_partitioned(tmp_path):
                 protocol=None,
                 metadata=metadata,
                 add_files=add_files,
-                lines=[]
+                lines=[],
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -179,6 +186,12 @@ def test_to_pandas_partitioned(tmp_path):
     expected2["B"] = "y"
     expected = pd.concat([expected1, expected2]).reset_index(drop=True)
 
+    pd.testing.assert_frame_equal(pdf, expected)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
+    )
+    pdf = reader.to_pandas()
     pd.testing.assert_frame_equal(pdf, expected)
 
 
@@ -232,7 +245,7 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
                 protocol=None,
                 metadata=metadata,
                 add_files=add_files,
-                lines=[]
+                lines=[],
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -248,6 +261,114 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
     expected = pd.concat([expected1, expected2])[["a", "b", "c"]].reset_index(drop=True)
 
     pd.testing.assert_frame_equal(pdf, expected)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
+    )
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
+def test_to_pandas_large_table_batch_convert(tmp_path):
+    pdf1 = pd.DataFrame(np.random.randint(0, 100, size=(200000, 4)), columns=list("abcd"))
+    pdf2 = pd.DataFrame(np.random.randint(0, 100, size=(200000, 4)), columns=list("abcd"))
+
+    pdf1.to_parquet(tmp_path / "pdf1.parquet")
+    pdf2.to_parquet(tmp_path / "pdf2.parquet")
+
+    class RestClientMock:
+        def list_files_in_table(
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
+            limitHint: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[int] = None,
+        ) -> ListFilesInTableResponse:
+            assert table == Table("table_name", "share_name", "schema_name")
+
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"a","nullable":true,"type":"integer"},'
+                    '{"metadata":{},"name":"b","nullable":true,"type":"integer"},'
+                    '{"metadata":{},"name":"c","nullable":true,"type":"integer"},'
+                    '{"metadata":{},"name":"d","nullable":true,"type":"integer"}'
+                    '],"type":"struct"}'
+                )
+            )
+            add_file1 = AddFile(
+                url=str(tmp_path / "pdf1.parquet"),
+                id="pdf1",
+                partition_values={},
+                size=0,
+                stats="",
+            )
+            add_file2 = AddFile(
+                url=str(tmp_path / "pdf2.parquet"),
+                id="pdf2",
+                partition_values={},
+                size=0,
+                stats="",
+            )
+
+            add_files = [add_file1, add_file2]
+            return ListFilesInTableResponse(
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=add_files,
+                lines=[],
+            )
+
+        def autoresolve_query_format(self, table: Table):
+            return "parquet"
+
+    expected = pd.concat([pdf1, pdf2]).reset_index(drop=True)
+    expected_100k = pdf1.head(100000)
+    expected_300k = pd.concat([pdf1, pdf2.head(100000)]).reset_index(drop=True)
+
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), limit=100000
+    )
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected_100k)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), limit=300000
+    )
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected_300k)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
+    )
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"),
+        RestClientMock(),
+        limit=100000,
+        convert_in_batches=True,
+    )
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected_100k)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"),
+        RestClientMock(),
+        limit=300000,
+        convert_in_batches=True,
+    )
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected_300k)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -296,7 +417,7 @@ def test_to_pandas_empty(rest_client: DataSharingRestClient):
                 protocol=None,
                 metadata=metadata,
                 add_files=add_files,
-                lines=[]
+                lines=[],
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -405,10 +526,7 @@ def test_table_changes_to_pandas_non_partitioned(tmp_path):
                 ),
             ]
             return ListTableChangesResponse(
-                protocol=None,
-                metadata=metadata,
-                actions=actions,
-                lines=None
+                protocol=None, metadata=metadata, actions=actions, lines=None
             )
 
         def autoresolve_query_format(self, table: Table):
@@ -418,6 +536,12 @@ def test_table_changes_to_pandas_non_partitioned(tmp_path):
     pdf = reader.table_changes_to_pandas(CdfOptions())
 
     expected = pd.concat([pdf1, pdf2, pdf3, pdf4]).reset_index(drop=True)
+    pd.testing.assert_frame_equal(pdf, expected)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
+    )
+    pdf = reader.table_changes_to_pandas(CdfOptions())
     pd.testing.assert_frame_equal(pdf, expected)
 
 
@@ -476,16 +600,19 @@ def test_table_changes_to_pandas_partitioned(tmp_path):
                 ),
             ]
             return ListTableChangesResponse(
-                protocol=None,
-                metadata=metadata,
-                actions=actions,
-                lines=None
+                protocol=None, metadata=metadata, actions=actions, lines=None
             )
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.table_changes_to_pandas(CdfOptions())
 
     expected = pd.concat([pdf1, pdf2]).reset_index(drop=True)
+    pd.testing.assert_frame_equal(pdf, expected)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
+    )
+    pdf = reader.table_changes_to_pandas(CdfOptions())
     pd.testing.assert_frame_equal(pdf, expected)
 
 
@@ -505,21 +632,28 @@ def test_table_changes_empty(tmp_path):
                 )
             )
             return ListTableChangesResponse(
-                protocol=None,
-                metadata=metadata,
-                actions=[],
-                lines=None
+                protocol=None, metadata=metadata, actions=[], lines=None
             )
 
+    def validate_pdf(pdf):
+        assert pdf.empty
+        assert pdf.columns.values.size == 5
+        assert pdf.columns.values[0] == "a"
+        assert pdf.columns.values[1] == "b"
+        assert pdf.columns.values[2] == DeltaSharingReader._change_type_col_name()
+        assert pdf.columns.values[3] == DeltaSharingReader._commit_version_col_name()
+        assert pdf.columns.values[4] == DeltaSharingReader._commit_timestamp_col_name()
+
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+
     pdf = reader.table_changes_to_pandas(CdfOptions())
-    assert pdf.empty
-    assert pdf.columns.values.size == 5
-    assert pdf.columns.values[0] == "a"
-    assert pdf.columns.values[1] == "b"
-    assert pdf.columns.values[2] == DeltaSharingReader._change_type_col_name()
-    assert pdf.columns.values[3] == DeltaSharingReader._commit_version_col_name()
-    assert pdf.columns.values[4] == DeltaSharingReader._commit_timestamp_col_name()
+    validate_pdf(pdf)
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
+    )
+    pdf = reader.table_changes_to_pandas(CdfOptions())
+    validate_pdf(pdf)
 
 
 def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
@@ -575,9 +709,9 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                 '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
                 '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
                 '],"type":"struct"}'
-            ).replace('"',r'\"')
+            ).replace('"', r"\"")
             lines = [
-                f'''{{
+                f"""{{
                     "protocol": {{
                         "deltaProtocol": {{
                             "minReaderVersion": 3,
@@ -587,8 +721,8 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                                 ["deletionVectors", "changeDataFeed"]
                         }}
                     }}
-                }}''',
-                f'''{{
+                }}""",
+                f"""{{
                     "metaData":{{
                         "version":0,
                         "deltaMetadata":{{
@@ -604,8 +738,8 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                             }}
                         }}
                     }}
-                }}''',
-                f'''{{
+                }}""",
+                f"""{{
                     "file":{{
                         "id":"pdf1",
                         "version":{version1},
@@ -620,8 +754,8 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                             }}
                         }}
                     }}
-                }}''',
-                f'''{{
+                }}""",
+                f"""{{
                     "file":{{
                         "id":"pdf2",
                         "version":{version2},
@@ -635,8 +769,8 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                             }}
                         }}
                     }}
-                }}''',
-                f'''{{
+                }}""",
+                f"""{{
                     "file":{{
                         "id":"pdf3",
                         "version":{version3},
@@ -650,8 +784,8 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                             }}
                         }}
                     }}
-                }}''',
-                f'''{{
+                }}""",
+                f"""{{
                     "file":{{
                         "id":"pdf4",
                         "version":{version4},
@@ -665,23 +799,21 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
                             }}
                         }}
                     }}
-                }}'''
+                }}""",
             ]
             return ListTableChangesResponse(protocol=None, metadata=None, actions=None, lines=lines)
 
-        def set_delta_format_header(self):
+        def set_delta_format_header(self, for_cdf=False):
             return
 
         def remove_delta_format_header(self):
             return
 
     reader = DeltaSharingReader(
-        Table("table_name", "share_name", "schema_name"),
-        RestClientMock(),
-        use_delta_format=True
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), use_delta_format=True
     )
     pdf = reader.table_changes_to_pandas(CdfOptions())
-    pdf['_commit_timestamp'] = pdf['_commit_timestamp'].astype('int') // 1000
+    pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
 
     expected = pd.concat([pdf1, pdf2, pdf3, pdf4]).reset_index(drop=True)
 

@@ -16,11 +16,13 @@
 
 from unittest.mock import MagicMock
 from datetime import datetime, timedelta
-from delta_sharing._internal_auth import (OAuthClient,
-                                          BasicAuthProvider,
-                                          AuthCredentialProviderFactory,
-                                          OAuthClientCredentialsAuthProvider,
-                                          OAuthClientCredentials)
+from delta_sharing._internal_auth import (
+    ClientSecretOAuthClient,
+    BasicAuthProvider,
+    AuthCredentialProviderFactory,
+    OAuthClientCredentialsAuthProvider,
+    OAuthClientCredentials,
+)
 from requests import Session
 import requests
 from delta_sharing._internal_auth import BearerTokenAuthProvider
@@ -66,7 +68,7 @@ def test_bearer_token_auth_provider_get_expiration_time():
 
 
 def test_oauth_client_credentials_auth_provider_exchange_token():
-    oauth_client = MagicMock(spec=OAuthClient)
+    oauth_client = MagicMock(spec=ClientSecretOAuthClient)
     profile = MagicMock()
     profile.token_endpoint = "http://example.com/token"
     profile.client_id = "client-id"
@@ -83,12 +85,13 @@ def test_oauth_client_credentials_auth_provider_exchange_token():
     provider.add_auth_header(mock_session)
 
     mock_session.headers.update.assert_called_once_with(
-        {"Authorization": f"Bearer {token.access_token}"})
+        {"Authorization": f"Bearer {token.access_token}"}
+    )
     oauth_client.client_credentials.assert_called_once()
 
 
 def test_oauth_client_credentials_auth_provider_reuse_token():
-    oauth_client = MagicMock(spec=OAuthClient)
+    oauth_client = MagicMock(spec=ClientSecretOAuthClient)
     profile = MagicMock()
     profile.token_endpoint = "http://example.com/token"
     profile.client_id = "client-id"
@@ -99,19 +102,19 @@ def test_oauth_client_credentials_auth_provider_reuse_token():
     mock_session = MagicMock(spec=Session)
     mock_session.headers = MagicMock()
 
-    valid_token = OAuthClientCredentials(
-        "valid-token", 3600, int(datetime.now().timestamp()))
+    valid_token = OAuthClientCredentials("valid-token", 3600, int(datetime.now().timestamp()))
     provider.current_token = valid_token
 
     provider.add_auth_header(mock_session)
 
     mock_session.headers.update.assert_called_once_with(
-        {"Authorization": f"Bearer {valid_token.access_token}"})
+        {"Authorization": f"Bearer {valid_token.access_token}"}
+    )
     oauth_client.client_credentials.assert_not_called()
 
 
 def test_oauth_client_credentials_auth_provider_refresh_token():
-    oauth_client = MagicMock(spec=OAuthClient)
+    oauth_client = MagicMock(spec=ClientSecretOAuthClient)
     profile = MagicMock()
     profile.token_endpoint = "http://example.com/token"
     profile.client_id = "client-id"
@@ -123,21 +126,22 @@ def test_oauth_client_credentials_auth_provider_refresh_token():
     mock_session.headers = MagicMock()
 
     expired_token = OAuthClientCredentials(
-        "expired-token", 1, int(datetime.now().timestamp()) - 3600)
-    new_token = OAuthClientCredentials(
-        "new-token", 3600, int(datetime.now().timestamp()))
+        "expired-token", 1, int(datetime.now().timestamp()) - 3600
+    )
+    new_token = OAuthClientCredentials("new-token", 3600, int(datetime.now().timestamp()))
     provider.current_token = expired_token
     oauth_client.client_credentials.return_value = new_token
 
     provider.add_auth_header(mock_session)
 
     mock_session.headers.update.assert_called_once_with(
-        {"Authorization": f"Bearer {new_token.access_token}"})
+        {"Authorization": f"Bearer {new_token.access_token}"}
+    )
     oauth_client.client_credentials.assert_called_once()
 
 
 def test_oauth_client_credentials_auth_provider_needs_refresh():
-    oauth_client = MagicMock(spec=OAuthClient)
+    oauth_client = MagicMock(spec=ClientSecretOAuthClient)
     profile = MagicMock()
     profile.token_endpoint = "http://example.com/token"
     profile.client_id = "client-id"
@@ -147,20 +151,21 @@ def test_oauth_client_credentials_auth_provider_needs_refresh():
     provider = OAuthClientCredentialsAuthProvider(oauth_client)
 
     expired_token = OAuthClientCredentials(
-        "expired-token", 1, int(datetime.now().timestamp()) - 3600)
+        "expired-token", 1, int(datetime.now().timestamp()) - 3600
+    )
     assert provider.needs_refresh(expired_token)
 
     token_expiring_soon = OAuthClientCredentials(
-        "expiring-soon-token", 600 - 5, int(datetime.now().timestamp()))
+        "expiring-soon-token", 600 - 5, int(datetime.now().timestamp())
+    )
     assert provider.needs_refresh(token_expiring_soon)
 
-    valid_token = OAuthClientCredentials(
-        "valid-token", 600 + 10, int(datetime.now().timestamp()))
+    valid_token = OAuthClientCredentials("valid-token", 600 + 10, int(datetime.now().timestamp()))
     assert not provider.needs_refresh(valid_token)
 
 
 def test_oauth_client_credentials_auth_provider_is_expired():
-    oauth_client = MagicMock(spec=OAuthClient)
+    oauth_client = MagicMock(spec=ClientSecretOAuthClient)
     profile = MagicMock()
     profile.token_endpoint = "http://example.com/token"
     profile.client_id = "client-id"
@@ -172,7 +177,7 @@ def test_oauth_client_credentials_auth_provider_is_expired():
 
 
 def test_oauth_client_credentials_auth_provider_get_expiration_time():
-    oauth_client = MagicMock(spec=OAuthClient)
+    oauth_client = MagicMock(spec=ClientSecretOAuthClient)
     profile = MagicMock()
     profile.token_endpoint = "http://example.com/token"
     profile.client_id = "client-id"
@@ -215,7 +220,7 @@ def test_factory_creation():
         type="basic",
         endpoint="https://localhost/delta-sharing/",
         username="username",
-        password="password"
+        password="password",
     )
     provider = AuthCredentialProviderFactory.create_auth_credential_provider(profile_basic)
     assert isinstance(provider, BasicAuthProvider)
@@ -225,7 +230,7 @@ def test_factory_creation():
         type="bearer_token",
         endpoint="https://localhost/delta-sharing/",
         bearer_token="token",
-        expiration_time=(datetime.now() + timedelta(hours=1)).isoformat()
+        expiration_time=(datetime.now() + timedelta(hours=1)).isoformat(),
     )
     provider = AuthCredentialProviderFactory.create_auth_credential_provider(profile_bearer)
     assert isinstance(provider, BearerTokenAuthProvider)
@@ -236,9 +241,27 @@ def test_factory_creation():
         endpoint="https://localhost/delta-sharing/",
         token_endpoint="https://localhost/token",
         client_id="clientId",
-        client_secret="clientSecret"
+        client_secret="clientSecret",
     )
     provider = AuthCredentialProviderFactory.create_auth_credential_provider(profile_oauth)
+    assert isinstance(provider, OAuthClientCredentialsAuthProvider)
+
+    profile_pk = DeltaSharingProfile(
+        share_credentials_version=2,
+        type="oauth_jwt_bearer_private_key_jwt",
+        endpoint="https://localhost/delta-sharing/",
+        token_endpoint="https://localhost/token",
+        client_id="clientId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
+        issuer="issuer",
+        scope="scope",
+        audience="audience",
+    )
+    provider = AuthCredentialProviderFactory.create_auth_credential_provider(profile_pk)
     assert isinstance(provider, OAuthClientCredentialsAuthProvider)
 
 
@@ -249,7 +272,7 @@ def test_oauth_auth_provider_reused():
         endpoint="https://localhost/delta-sharing/",
         token_endpoint="https://localhost/token",
         client_id="clientId",
-        client_secret="clientSecret"
+        client_secret="clientSecret",
     )
     provider1 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_oauth1)
     assert isinstance(provider1, OAuthClientCredentialsAuthProvider)
@@ -260,7 +283,7 @@ def test_oauth_auth_provider_reused():
         endpoint="https://localhost/delta-sharing/",
         token_endpoint="https://localhost/token",
         client_id="clientId",
-        client_secret="clientSecret"
+        client_secret="clientSecret",
     )
 
     provider2 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_oauth2)
@@ -275,7 +298,7 @@ def test_oauth_auth_provider_with_different_profiles():
         endpoint="https://localhost/delta-sharing/",
         token_endpoint="https://localhost/1/token",
         client_id="clientId",
-        client_secret="clientSecret"
+        client_secret="clientSecret",
     )
     provider1 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_oauth1)
     assert isinstance(provider1, OAuthClientCredentialsAuthProvider)
@@ -286,9 +309,85 @@ def test_oauth_auth_provider_with_different_profiles():
         endpoint="https://localhost/delta-sharing/",
         token_endpoint="https://localhost/2/token",
         client_id="clientId",
-        client_secret="clientSecret"
+        client_secret="clientSecret",
     )
 
     provider2 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_oauth2)
 
+    assert provider1 != provider2
+
+
+def test_oauth_private_key_auth_provider_reused():
+    profile_pk1 = DeltaSharingProfile(
+        share_credentials_version=2,
+        type="oauth_jwt_bearer_private_key_jwt",
+        endpoint="https://localhost/delta-sharing/",
+        token_endpoint="https://localhost/token",
+        client_id="clientId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
+        issuer="issuer",
+        scope="scope",
+        audience="audience",
+    )
+    provider1 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_pk1)
+    assert isinstance(provider1, OAuthClientCredentialsAuthProvider)
+
+    profile_pk2 = DeltaSharingProfile(
+        share_credentials_version=2,
+        type="oauth_jwt_bearer_private_key_jwt",
+        endpoint="https://localhost/delta-sharing/",
+        token_endpoint="https://localhost/token",
+        client_id="clientId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
+        issuer="issuer",
+        scope="scope",
+        audience="audience",
+    )
+    provider2 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_pk2)
+    assert provider1 == provider2
+
+
+def test_oauth_private_key_auth_provider_with_different_profiles():
+    profile_pk1 = DeltaSharingProfile(
+        share_credentials_version=2,
+        type="oauth_jwt_bearer_private_key_jwt",
+        endpoint="https://localhost/delta-sharing/",
+        token_endpoint="https://localhost/1/token",
+        client_id="clientId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
+        issuer="issuer",
+        scope="scope",
+        audience="audience",
+    )
+    provider1 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_pk1)
+    assert isinstance(provider1, OAuthClientCredentialsAuthProvider)
+
+    profile_pk2 = DeltaSharingProfile(
+        share_credentials_version=2,
+        type="oauth_jwt_bearer_private_key_jwt",
+        endpoint="https://localhost/delta-sharing/",
+        token_endpoint="https://localhost/2/token",
+        client_id="clientId",
+        private_key={
+            "privateKeyFile": "/path/to/privateKey.pem",
+            "keyId": "keyId",
+            "algorithm": "RS256",
+        },
+        issuer="issuer",
+        scope="scope",
+        audience="audience",
+    )
+    provider2 = AuthCredentialProviderFactory.create_auth_credential_provider(profile_pk2)
     assert provider1 != provider2

@@ -15,15 +15,17 @@
 #
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import requests
 import base64
 import json
+from jwcrypto import jwk, jwt
 import threading
 import requests.sessions
 import time
 from typing import Dict
+import uuid
 
 from delta_sharing.protocol import (
     DeltaSharingProfile,
@@ -35,12 +37,16 @@ from delta_sharing.protocol import (
 
 
 class AuthConfig:
-    def __init__(self, token_exchange_max_retries=5,
-                 token_exchange_max_retry_duration_in_seconds=60,
-                 token_renewal_threshold_in_seconds=600):
+    def __init__(
+        self,
+        token_exchange_max_retries=5,
+        token_exchange_max_retry_duration_in_seconds=60,
+        token_renewal_threshold_in_seconds=600,
+    ):
         self.token_exchange_max_retries = token_exchange_max_retries
         self.token_exchange_max_retry_duration_in_seconds = (
-            token_exchange_max_retry_duration_in_seconds)
+            token_exchange_max_retry_duration_in_seconds
+        )
         self.token_renewal_threshold_in_seconds = token_renewal_threshold_in_seconds
 
 
@@ -90,7 +96,10 @@ class BasicAuthProvider(AuthCredentialProvider):
 
     def add_auth_header(self, session: requests.Session) -> None:
         session.auth = (self.username, self.password)
-        session.post(self.endpoint, data={"grant_type": "client_credentials"},)
+        session.post(
+            self.endpoint,
+            data={"grant_type": "client_credentials"},
+        )
 
     def is_expired(self) -> bool:
         return False
@@ -106,29 +115,10 @@ class OAuthClientCredentials:
         self.creation_timestamp = creation_timestamp
 
 
-class OAuthClient:
-    def __init__(self,
-                 token_endpoint: str,
-                 client_id: str,
-                 client_secret: str,
-                 scope: Optional[str] = None):
-        self.token_endpoint = token_endpoint
-        self.client_id = client_id
-        self.client_secret = client_secret
-        self.scope = scope
-
+class OAuthClient(ABC):
+    @abstractmethod
     def client_credentials(self) -> OAuthClientCredentials:
-        credentials = base64.b64encode(
-            f"{self.client_id}:{self.client_secret}".encode('utf-8')).decode('utf-8')
-        headers = {
-            'accept': 'application/json',
-            'authorization': f'Basic {credentials}',
-            'content-type': 'application/x-www-form-urlencoded'
-        }
-        body = f"grant_type=client_credentials{f'&scope={self.scope}' if self.scope else ''}"
-        response = requests.post(self.token_endpoint, headers=headers, data=body)
-        response.raise_for_status()
-        return self.parse_oauth_token_response(response.text)
+        pass
 
     def parse_oauth_token_response(self, response: str) -> OAuthClientCredentials:
         if not response:
@@ -136,9 +126,9 @@ class OAuthClient:
         # Parsing the response per oauth spec
         # https://datatracker.ietf.org/doc/html/rfc6749#section-5.1
         json_node = json.loads(response)
-        if 'access_token' not in json_node or not isinstance(json_node['access_token'], str):
+        if "access_token" not in json_node or not isinstance(json_node["access_token"], str):
             raise RuntimeError("Missing 'access_token' field in OAuth token response")
-        if 'expires_in' not in json_node:
+        if "expires_in" not in json_node:
             raise RuntimeError("Missing 'expires_in' field in OAuth token response")
         try:
             # OAuth spec requires 'expires_in' to be an integer, e.g., 3600.
@@ -153,16 +143,102 @@ class OAuthClient:
             #   -d "client_id=$CLIENT_ID" \
             #   -d "client_secret=$CLIENT_SECRET" \
             #   -d "scope=https://graph.microsoft.com/.default"
-            expires_in = int(json_node['expires_in'])  # Convert to int if it's a string
+            expires_in = int(json_node["expires_in"])  # Convert to int if it's a string
         except ValueError:
             raise RuntimeError(
                 "'expires_in' field must be an integer or a string convertible to integer"
             )
         return OAuthClientCredentials(
-            json_node['access_token'],
-            expires_in,
-            int(datetime.now().timestamp())
+            json_node["access_token"], expires_in, int(datetime.now().timestamp())
         )
+
+
+class ClientSecretOAuthClient(OAuthClient):
+    def __init__(
+        self,
+        token_endpoint: str,
+        client_id: str,
+        client_secret: str,
+        scope: Optional[str] = None,
+    ):
+        self.token_endpoint = token_endpoint
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.scope = scope
+
+    def client_credentials(self) -> OAuthClientCredentials:
+        credentials = base64.b64encode(
+            f"{self.client_id}:{self.client_secret}".encode("utf-8")
+        ).decode("utf-8")
+        headers = {
+            "accept": "application/json",
+            "authorization": f"Basic {credentials}",
+            "content-type": "application/x-www-form-urlencoded",
+        }
+        body = f"grant_type=client_credentials{f'&scope={self.scope}' if self.scope else ''}"
+        response = requests.post(self.token_endpoint, headers=headers, data=body)
+        response.raise_for_status()
+        return self.parse_oauth_token_response(response.text)
+
+
+class PrivateKeyOAuthClient(OAuthClient):
+    def __init__(
+        self,
+        token_endpoint: str,
+        client_id: str,
+        key_id: str,
+        private_key: str,
+        issuer: str,
+        scope: Optional[str] = None,
+        resource: Optional[str] = None,
+        algorithm: Optional[str] = None,
+    ):
+        self.token_endpoint = token_endpoint
+        self.client_id = client_id
+        self.key_id = key_id
+        self.private_key = private_key
+        self.issuer = issuer
+        self.scope = scope
+        self.resource = resource
+        if algorithm is None:
+            algorithm = "RS256"
+        self.algorithm = algorithm
+
+    def client_credentials(self) -> OAuthClientCredentials:
+        timestamp = int(datetime.now(timezone.utc).timestamp())
+        jwt_header = {"alg": self.algorithm, "kid": self.key_id}
+        jwt_claims = {
+            "aud": self.issuer,
+            "iss": self.client_id,
+            "iat": timestamp,
+            "exp": timestamp + 120,
+            "jti": str(uuid.uuid4()),
+        }
+        if self.scope:
+            jwt_claims["scope"] = self.scope
+        if self.resource:
+            jwt_claims["resource"] = self.resource  # In OAuth 2 spec audience is called resource
+        signed_jwt = self._signed_jwt(jwt_header, jwt_claims)
+        body = {
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion": signed_jwt,
+        }
+        headers = {
+            "accept": "application/json",
+            "content-type": "application/x-www-form-urlencoded",
+        }
+        response = requests.post(self.token_endpoint, headers=headers, data=body)
+        response.raise_for_status()
+        return self.parse_oauth_token_response(response.text)
+
+    def _signed_jwt(self, jwt_header, jwt_claims):
+        """Generate a signed JWT token using the private key"""
+        jwt_token = jwt.JWT(header=jwt_header, claims=jwt_claims)
+        with open(self.private_key, "rb") as key_file:
+            pem_data = key_file.read()
+            private_key = jwk.JWK.from_pem(pem_data)
+        jwt_token.make_signed_token(private_key)
+        return jwt_token.serialize()
 
 
 class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
@@ -172,7 +248,7 @@ class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
         self.current_token: Optional[OAuthClientCredentials] = None
         self.lock = threading.RLock()
 
-    def add_auth_header(self,session: requests.Session) -> None:
+    def add_auth_header(self, session: requests.Session) -> None:
         token = self.maybe_refresh_token()
         with self.lock:
             session.headers.update(
@@ -199,25 +275,28 @@ class OAuthClientCredentialsAuthProvider(AuthCredentialProvider):
 
 
 class AuthCredentialProviderFactory:
-    __oauth_auth_provider_cache : Dict[
-        DeltaSharingProfile,
-        OAuthClientCredentialsAuthProvider] = {}
+    __oauth_auth_provider_cache: Dict[DeltaSharingProfile, OAuthClientCredentialsAuthProvider] = {}
 
     @staticmethod
     def create_auth_credential_provider(profile: DeltaSharingProfile):
         if profile.share_credentials_version == 2:
             if profile.type == "oauth_client_credentials":
                 return AuthCredentialProviderFactory.__oauth_client_credentials(profile)
+            elif profile.type == "oauth_jwt_bearer_private_key_jwt":
+                return AuthCredentialProviderFactory.__oauth_jwt_bearer_private_key_jwt(profile)
             elif profile.type == "basic":
                 return AuthCredentialProviderFactory.__auth_basic(profile)
-        elif (profile.share_credentials_version == 1 and
-              (profile.type is None or profile.type == "bearer_token")):
+        elif profile.share_credentials_version == 1 and (
+            profile.type is None or profile.type == "bearer_token"
+        ):
             return AuthCredentialProviderFactory.__auth_bearer_token(profile)
 
         # any other scenario is unsupported
-        raise RuntimeError(f"unsupported profile.type: {profile.type}"
-                           f" profile.share_credentials_version"
-                           f" {profile.share_credentials_version}")
+        raise RuntimeError(
+            f"unsupported profile.type: {profile.type}"
+            f" profile.share_credentials_version"
+            f" {profile.share_credentials_version}"
+        )
 
     @staticmethod
     def __oauth_client_credentials(profile):
@@ -231,15 +310,49 @@ class AuthCredentialProviderFactory:
         if profile in AuthCredentialProviderFactory.__oauth_auth_provider_cache:
             return AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile]
 
-        oauth_client = OAuthClient(
+        oauth_client = ClientSecretOAuthClient(
             token_endpoint=profile.token_endpoint,
             client_id=profile.client_id,
             client_secret=profile.client_secret,
-            scope=profile.scope
+            scope=profile.scope,
         )
         provider = OAuthClientCredentialsAuthProvider(
-            oauth_client=oauth_client,
-            auth_config=AuthConfig()
+            oauth_client=oauth_client, auth_config=AuthConfig()
+        )
+        AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile] = provider
+        return provider
+
+    @staticmethod
+    def __oauth_jwt_bearer_private_key_jwt(profile):
+        # Once a clientId/privateKey/keyId is exchanged for an accessToken,
+        # the accessToken can be reused until it expires.
+        # Resource-claim in JWT-grant is optional, value is set in config.share.audience
+        # The Python client re-creates DeltaSharingClient for different requests.
+        # To ensure the OAuth access_token is reused,
+        # we keep a mapping from profile -> OAuthClientCredentialsAuthProvider.
+        # This prevents re-initializing OAuthClientCredentialsAuthProvider for the same profile,
+        # ensuring the access_token can be reused.
+        if profile in AuthCredentialProviderFactory.__oauth_auth_provider_cache:
+            return AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile]
+
+        # Extract private key configuration from nested structure
+        private_key_config = profile.private_key or {}
+        private_key_file = private_key_config.get("privateKeyFile")
+        key_id = private_key_config.get("keyId")
+        algorithm = private_key_config.get("algorithm")
+
+        oauth_client = PrivateKeyOAuthClient(
+            token_endpoint=profile.token_endpoint,
+            client_id=profile.client_id,
+            key_id=key_id,
+            private_key=private_key_file,
+            issuer=profile.issuer,
+            resource=profile.audience,
+            scope=profile.scope,
+            algorithm=algorithm,
+        )
+        provider = OAuthClientCredentialsAuthProvider(
+            oauth_client=oauth_client, auth_config=AuthConfig()
         )
         AuthCredentialProviderFactory.__oauth_auth_provider_cache[profile] = provider
         return provider

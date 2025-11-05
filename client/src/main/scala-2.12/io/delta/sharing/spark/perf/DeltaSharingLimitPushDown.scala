@@ -16,15 +16,12 @@
 
 package io.delta.sharing.spark.perf
 
-import scala.reflect.runtime.universe.termNames
-import scala.reflect.runtime.universe.typeOf
-import scala.reflect.runtime.universe.typeTag
+import scala.reflect.runtime.universe.{termNames, typeOf, typeTag}
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.catalog.CatalogTable
-import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.IntegerLiteral
-import org.apache.spark.sql.catalyst.plans.logical.{LocalLimit, LogicalPlan}
+import org.apache.spark.sql.catalyst.plans.logical.{LocalLimit, LogicalPlan, Project}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.sources.BaseRelation

@@ -16,9 +16,15 @@
 from dataclasses import dataclass, field
 from json import loads
 from pathlib import Path
-from typing import ClassVar, Dict, IO, List, Optional, Sequence, Union
+from typing import ClassVar, Dict, IO, List, Optional, Sequence, Union, TypedDict
 
 import fsspec
+
+
+class PrivateKeyConfig(TypedDict, total=False):
+    privateKeyFile: Optional[str]
+    keyId: Optional[str]
+    algorithm: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -36,6 +42,9 @@ class DeltaSharingProfile:
     username: Optional[str] = None
     password: Optional[str] = None
     scope: Optional[str] = None
+    issuer: Optional[str] = None
+    audience: Optional[str] = None
+    private_key: Optional[Dict[str, str]] = field(default=None, hash=False, compare=False)
 
     def __post_init__(self):
         if self.share_credentials_version > DeltaSharingProfile.CURRENT:
@@ -78,7 +87,33 @@ class DeltaSharingProfile:
             )
         elif share_credentials_version == 2:
             type = json["type"]
-            if type == "oauth_client_credentials":
+            if type == "oauth_jwt_bearer_private_key_jwt":
+                # New nested format with auth object
+                auth = json["auth"]
+                token_endpoint = auth["tokenEndpoint"]
+                if token_endpoint is not None and token_endpoint.endswith("/"):
+                    token_endpoint = token_endpoint[:-1]
+
+                # Extract privateKey from nested structure
+                private_key_config = auth.get("privateKey", {})
+                private_key_dict = {
+                    "privateKeyFile": private_key_config.get("privateKeyFile"),
+                    "keyId": private_key_config.get("keyId"),
+                    "algorithm": private_key_config.get("algorithm"),
+                }
+
+                return DeltaSharingProfile(
+                    share_credentials_version=share_credentials_version,
+                    type=type,
+                    endpoint=endpoint,
+                    token_endpoint=token_endpoint,
+                    issuer=auth["issuer"],
+                    client_id=auth["clientId"],
+                    private_key=private_key_dict,
+                    audience=auth["audience"],
+                    scope=auth.get("scope"),
+                )
+            elif type == "oauth_client_credentials":
                 token_endpoint = json["tokenEndpoint"]
                 if token_endpoint is not None and token_endpoint.endswith("/"):
                     token_endpoint = token_endpoint[:-1]
@@ -97,7 +132,7 @@ class DeltaSharingProfile:
                     type=type,
                     endpoint=endpoint,
                     bearer_token=json["bearerToken"],
-                    expiration_time=json.get("expirationTime")
+                    expiration_time=json.get("expirationTime"),
                 )
             elif type == "basic":
                 return DeltaSharingProfile(
@@ -109,8 +144,8 @@ class DeltaSharingProfile:
                 )
             else:
                 raise ValueError(
-                    f"The current release does not supports {type} type. "
-                    "Please check type.")
+                    f"The current release does not supports {type} type. " "Please check type."
+                )
         else:
             raise ValueError(
                 "'shareCredentialsVersion' in the profile is "
@@ -153,8 +188,7 @@ class Table:
     def from_json(json) -> "Table":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        return Table(name=json["name"], share=json["share"],
-                     schema=json["schema"])
+        return Table(name=json["name"], share=json["share"], schema=json["schema"])
 
 
 @dataclass(frozen=True)
@@ -234,7 +268,7 @@ class Metadata:
                 version=json.get("version", None),
                 size=json.get("size", None),
                 num_files=json.get("numFiles", None),
-                created_time=delta_metadata.get("createdTime", None)
+                created_time=delta_metadata.get("createdTime", None),
             )
         else:
             configuration = json.get("configuration", {})
@@ -248,7 +282,7 @@ class Metadata:
                 partition_columns=json["partitionColumns"],
                 version=json.get("version", None),
                 size=json.get("size", None),
-                num_files=json.get("numFiles", None)
+                num_files=json.get("numFiles", None),
             )
 
 

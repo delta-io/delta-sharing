@@ -18,7 +18,20 @@ package io.delta.sharing.spark
 
 import org.apache.spark.sql.types.StructType
 
+// Common base exception class that also encapsulates the associated errorCode
+abstract class DeltaSharingExceptionWithErrorCode(
+    message: String,
+    val statusCodeOpt: Option[Int]
+) extends IllegalStateException(message)
+
+object DeltaSharingExceptionWithErrorCode {
+  def unapply(e: DeltaSharingExceptionWithErrorCode): Option[Option[Int]] = Some(e.statusCodeOpt)
+}
+
 class MissingEndStreamActionException(message: String) extends IllegalStateException(message)
+
+class DeltaSharingServerException(message: String, statusCodeOpt: Option[Int])
+  extends DeltaSharingExceptionWithErrorCode(message, statusCodeOpt)
 
 object DeltaSharingErrors {
   def nonExistentDeltaSharingTable(tableId: String): Throwable = {
@@ -40,8 +53,8 @@ object DeltaSharingErrors {
   }
 
   def unsupportedTableReaderVersion(supportedVersion: Long, tableVersion: Long): Throwable = {
-    new IllegalStateException(s"The table reader version ${tableVersion} is larger than " +
-      s"supported reader version $supportedVersion. Please upgrade to a new release."
+    new IllegalStateException(s"The table reader version ${tableVersion} is not equal to " +
+      s"supported reader version $supportedVersion."
     )
   }
 

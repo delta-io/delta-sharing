@@ -207,6 +207,18 @@ object TestResource {
             "default",
             java.util.Arrays.asList(
               TableConfig(
+                "12k_rows",
+                s"s3a://${AWS.bucket}/delta-exchange-test/12k_rows",
+                "00000000-0000-0000-0000-000000000096",
+                historyShared = true
+              ),
+              TableConfig(
+                "timestampntz_cdf_table",
+                s"s3a://${AWS.bucket}/delta-exchange-test/timestampntz_cdf_table",
+                "00000000-0000-0000-0000-000000000096",
+                historyShared = true
+              ),
+              TableConfig(
                 "cdf_table_cdf_enabled",
                 s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_cdf_enabled",
                 "00000000-0000-0000-0000-000000000095",

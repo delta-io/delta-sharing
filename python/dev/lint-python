@@ -238,7 +238,7 @@ function black_test {
     local BLACK_STATUS=
 
     # Skip check if black is not installed.
-    $BLACK_BUILD 2> /dev/null
+    $BLACK_BUILD --version >> /dev/null 2>&1
     if [ $? -ne 0 ]; then
         echo "The $BLACK_BUILD command was not found. Skipping black checks for now."
         echo

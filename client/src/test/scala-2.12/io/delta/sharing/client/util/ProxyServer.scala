@@ -1,8 +1,7 @@
 package io.delta.sharing.client.util
 
-import java.net.URI
 import java.util.Collections
-import javax.servlet.http.{HttpServletRequest, HttpServletResponse}
+import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 
 import scala.util.Try
 

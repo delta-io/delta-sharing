@@ -20,6 +20,8 @@ import java.lang.ref.WeakReference
 import java.text.SimpleDateFormat
 import java.util.{TimeZone, UUID}
 
+import scala.reflect.runtime.universe.{termNames, typeOf, typeTag}
+
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkException
 import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
@@ -27,31 +29,17 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DeltaSharingScanUtils, Encoder, SparkSession}
 import org.apache.spark.sql.catalyst.analysis.{Resolver, UnresolvedAttribute}
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
-import org.apache.spark.sql.catalyst.expressions.{
-  And,
-  Attribute,
-  Cast,
-  Expression,
-  Literal,
-  SubqueryExpression
-}
+import org.apache.spark.sql.catalyst.expressions.{And, Attribute, Cast, Expression, Literal, SubqueryExpression}
 import org.apache.spark.sql.execution.datasources.{FileFormat, HadoopFsRelation}
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingRestClient}
-import io.delta.sharing.client.model.{
-  AddFile,
-  CDFColumnInfo,
-  DeltaTableMetadata,
-  Metadata,
-  Protocol,
-  Table => DeltaSharingTable
-}
+import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, DeltaTableMetadata, Metadata, Protocol, Table => DeltaSharingTable}
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
-import io.delta.sharing.spark.util.SchemaUtils
+import io.delta.sharing.spark.util.{QueryUtils, SchemaUtils}
 
 /**
  * Used to query the current state of the transaction logs of a remote shared Delta table.
@@ -123,7 +111,24 @@ private[sharing] object RemoteDeltaLog {
   private lazy val _addFileEncoder: ExpressionEncoder[AddFile] = ExpressionEncoder[AddFile]()
 
   implicit def addFileEncoder: Encoder[AddFile] = {
-    _addFileEncoder.copy()
+    // Make a copy for the encoder because some states are not shareable
+    val paramsForPrimaryConstructor = _addFileEncoder.productIterator.toArray
+    val constructor = typeOf[ExpressionEncoder[AddFile]]
+      .decl(termNames.CONSTRUCTOR)
+      // Getting all the constructors
+      .alternatives
+      .map(_.asMethod)
+      // Picking the primary constructor
+      .find(_.isPrimaryConstructor)
+      // A class must always have a primary constructor, so this is safe
+      .get
+    val constructorMirror = typeTag[ExpressionEncoder[AddFile]].mirror
+      .reflectClass(typeOf[ExpressionEncoder[AddFile]].typeSymbol.asClass)
+      .reflectConstructor(constructor)
+
+    constructorMirror
+      .apply(paramsForPrimaryConstructor: _*)
+      .asInstanceOf[ExpressionEncoder[AddFile]]
   }
 
   // Get a unique string composed of a formatted timestamp and an uuid.
@@ -152,9 +157,15 @@ private[sharing] object RemoteDeltaLog {
       schema = parsedPath.schema,
       share = parsedPath.share
     )
+    // Use a clean path and add a query parameter suffix later,
+    // or append a timestamp UUID suffix to ensure the uniqueness of the table path.
+    val updatedPath = new Path(
+      if (ConfUtils.sparkParquetIOCacheEnabled(SparkSession.active.sessionState.conf)) path
+      else path + getFormattedTimestampWithUUID
+    )
     new RemoteDeltaLog(
       deltaSharingTable,
-      new Path(path + getFormattedTimestampWithUUID),
+      updatedPath,
       client,
       initDeltaTableMetadata
     )
@@ -199,9 +210,6 @@ class RemoteSnapshot(
   //   - The table does not contain this information in its metadata.
   // We perform a full scan in that case.
   lazy val sizeInBytes: Long = {
-    val implicits = spark.implicits
-    import implicits._
-
     if (metadata.size != null) {
       metadata.size
     } else {
@@ -254,7 +262,8 @@ class RemoteSnapshot(
       filters: Seq[Expression],
       limitHint: Option[Long],
       jsonPredicateHints: Option[String],
-      fileIndex: RemoteDeltaSnapshotFileIndex): Seq[AddFile] = {
+      fileIndex: RemoteDeltaSnapshotFileIndex
+    ): (Seq[AddFile], String) = {
     implicit val enc = RemoteDeltaLog.addFileEncoder
 
     val partitionFilters = filters.flatMap { filter =>
@@ -272,12 +281,25 @@ class RemoteSnapshot(
       logDebug(s"Sending predicates $predicates to the server")
     }
 
-    val remoteFiles = {
+    val (remoteFiles, queryParamsHashId) = {
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(
         table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints, None
       )
+      // Ensure different query shapes against the same table have distinct entries
+      // in the pre-signed URL cache.
+      val queryParamsHashId = QueryUtils.getQueryParamsHashId(
+        predicates, limitHint, jsonPredicateHints, tableFiles.version
+      )
+      val tablePathWithParams =
+        if (ConfUtils.sparkParquetIOCacheEnabled(spark.sessionState.conf)) {
+          QueryUtils.getTablePathWithIdSuffix(
+            fileIndex.params.path.toString, queryParamsHashId
+          )
+        } else {
+          fileIndex.params.path.toString
+        }
       var minUrlExpirationTimestamp: Option[Long] = None
       val idToUrl = tableFiles.files.map { file =>
         if (file.expirationTimestamp != null) {
@@ -292,7 +314,7 @@ class RemoteSnapshot(
       }.toMap
       CachedTableManager.INSTANCE
         .register(
-          fileIndex.params.path.toString,
+          tablePathWithParams,
           idToUrl,
           Seq(new WeakReference(fileIndex)),
           fileIndex.params.profileProvider,
@@ -323,13 +345,13 @@ class RemoteSnapshot(
         )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
-      tableFiles.files.toDS()
+      (tableFiles.files.toDS(), queryParamsHashId)
     }
 
     val columnFilter = DeltaSharingScanUtils.toColumn(
       rewrittenFilters.reduceLeftOption(And).getOrElse(Literal(true))
     )
-    remoteFiles.filter(columnFilter).as[AddFile].collect()
+    (remoteFiles.filter(columnFilter).as[AddFile].collect(), queryParamsHashId)
   }
 }
 

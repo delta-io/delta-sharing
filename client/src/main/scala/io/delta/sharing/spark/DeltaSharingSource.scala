@@ -24,7 +24,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, SparkSession}
+import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, Row, SparkSession}
 import org.apache.spark.sql.connector.read.streaming
 import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl}
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
@@ -33,7 +33,7 @@ import org.apache.spark.sql.types.StructType
 
 import io.delta.sharing.client.model.{AddCDCFile, AddFile, AddFileForCDF, DeltaTableFiles, FileAction, RemoveFile}
 import io.delta.sharing.client.util.ConfUtils
-import io.delta.sharing.spark.util.SchemaUtils
+import io.delta.sharing.spark.util.{QueryUtils, SchemaUtils}
 
 /**
  * A case class to help with `Dataset` operations regarding Offset indexing, representing a
@@ -170,6 +170,10 @@ case class DeltaSharingSource(
   private var latestRefreshFunc = (_: Option[String]) => {
     TableRefreshResult(Map.empty[String, String], None, None)
   }
+
+  // Ensure different query shapes against the same table have distinct entries
+  // in the pre-signed URL cache.
+  private var queryParamsHashId: String = _
 
   private lazy val getTableInfoForLogging: String =
     s" for table(id:$tableId, name:${deltaLog.table.toString}, source:$sourceId)"
@@ -436,6 +440,7 @@ case class DeltaSharingSource(
         jsonPredicateHints = None,
         refreshToken = None
       )
+      queryParamsHashId = QueryUtils.getQueryParamsHashId(Nil, None, None, fromVersion)
       latestRefreshFunc = _ => {
         val queryTimestamp = System.currentTimeMillis()
         val files = deltaLog.client.getFiles(
@@ -500,6 +505,7 @@ case class DeltaSharingSource(
       val tableFiles = deltaLog.client.getFiles(
         deltaLog.table, fromVersion, Some(endingVersionForQuery)
       )
+      queryParamsHashId = QueryUtils.getQueryParamsHashId(fromVersion, endingVersionForQuery)
       latestRefreshFunc = _ => {
         val queryTimestamp = System.currentTimeMillis()
         val addFiles = deltaLog.client.getFiles(
@@ -570,22 +576,21 @@ case class DeltaSharingSource(
     logInfo(s"Fetching CDF files with fromVersion($fromVersion), fromIndex($fromIndex), " +
       s"endingVersionForQuery($endingVersionForQuery)," + getTableInfoForLogging)
     resetGlobalTimestamp()
+    val cdfOptions = Map(
+      DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
+      DeltaSharingOptions.CDF_END_VERSION -> endingVersionForQuery.toString
+    )
     val tableFiles = deltaLog.client.getCDFFiles(
       deltaLog.table,
-      Map(
-        DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
-        DeltaSharingOptions.CDF_END_VERSION -> endingVersionForQuery.toString
-      ),
+      cdfOptions,
       true
     )
+    queryParamsHashId = QueryUtils.getQueryParamsHashId(cdfOptions)
     latestRefreshFunc = _ => {
       val queryTimestamp = System.currentTimeMillis()
       val d = deltaLog.client.getCDFFiles(
         deltaLog.table,
-        Map(
-          DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
-          DeltaSharingOptions.CDF_END_VERSION -> endingVersionForQuery.toString
-        ),
+        cdfOptions,
         true
       )
 
@@ -791,11 +796,25 @@ case class DeltaSharingSource(
       add.id -> add.url
     }.toMap
 
+    // For streaming queries, we return a DataFrame.
+    // The FileIndex here is a one-time use object to list files.
     val params = new RemoteDeltaFileIndexParams(
-      spark, initSnapshot, deltaLog.client.getProfileProvider)
+      spark, initSnapshot, deltaLog.client.getProfileProvider, Some(queryParamsHashId))
     val fileIndex = new RemoteDeltaBatchFileIndex(params, addFilesList)
+
+    val tablePathWithParams =
+      if (ConfUtils.sparkParquetIOCacheEnabled(spark.sessionState.conf)) {
+        // Ensure different query shapes against the same table have distinct entries
+        // in the pre-signed URL cache.
+        QueryUtils.getTablePathWithIdSuffix(
+          params.path.toString, queryParamsHashId
+        )
+      } else {
+        params.path.toString
+      }
+
     CachedTableManager.INSTANCE.register(
-      params.path.toString,
+      tablePathWithParams,
       idToUrl,
       Seq(new WeakReference(fileIndex)),
       params.profileProvider,
@@ -842,7 +861,12 @@ case class DeltaSharingSource(
     }
 
     DeltaSharingCDFReader.changesToDF(
-      new RemoteDeltaFileIndexParams(spark, initSnapshot, deltaLog.client.getProfileProvider),
+      new RemoteDeltaFileIndexParams(
+        spark,
+        initSnapshot,
+        deltaLog.client.getProfileProvider,
+        Some(queryParamsHashId)
+      ),
       schema.fields.map(f => f.name),
       addFiles.toSeq,
       cdfFiles.toSeq,
@@ -1046,7 +1070,7 @@ case class DeltaSharingSource(
         // This happens only if we recover from a failure and `MicroBatchExecution` tries to call
         // us with the previous offsets. The returned DataFrame will be dropped immediately, so we
         // can return any DataFrame.
-        return DeltaSharingScanUtils.internalCreateDataFrame(spark, schema)
+        return spark.createDataFrame(spark.sparkContext.emptyRDD[Row], schema)
       }
       (startOffset.tableVersion, startOffset.index, startOffset.isStartingVersion,
         Some(startOffset.sourceVersion))

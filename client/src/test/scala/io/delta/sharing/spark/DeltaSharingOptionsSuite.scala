@@ -16,11 +16,8 @@
 
 package io.delta.sharing.spark
 
-import java.util.Locale
-
 // scalastyle:off import.ordering.noEmptyLine
 import org.apache.spark.SparkFunSuite
-import org.apache.spark.sql.QueryTest
 
 
 class DeltaSharingOptionsSuite extends SparkFunSuite {
