@@ -75,7 +75,8 @@ private[sharing] object RetryUtils extends Logging {
       case _: java.net.SocketTimeoutException => true
       case e: java.net.SocketException =>
         // Retry on connection reset errors
-        if (e.getMessage != null && e.getMessage.toLowerCase.contains("connection reset")) {
+        if (e.getMessage != null && 
+            e.getMessage.toLowerCase(java.util.Locale.ROOT).contains("connection reset")) {
           true
         } else {
           false
