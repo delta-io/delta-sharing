@@ -126,7 +126,8 @@ class CachedTableManager(
     val preSignedUrlExpirationMs: Long,
     refreshCheckIntervalMs: Long,
     val refreshThresholdMs: Long,
-    expireAfterAccessMs: Long) extends Logging {
+    expireAfterAccessMs: Long,
+    val logPreSignedUrlAccess: Boolean) extends Logging {
 
   private val cache = new java.util.concurrent.ConcurrentHashMap[String, BaseCachedTable]()
 
@@ -398,6 +399,11 @@ class CachedTableManager(
         s"with expiration ${new java.util.Date(cachedTable.expiration)}")
       throw new IllegalStateException(s"cannot find url for id $fileId in table $tablePath")
     })
+    
+    if (logPreSignedUrlAccess) {
+      logInfo(s"PreSignedUrl access - tablePath: $tablePath, fileId: $fileId, url: $url")
+    }
+    
     (url, cachedTable.expiration)
   }
 
@@ -763,11 +769,17 @@ object CachedTableManager {
     .map(_.toLong)
     .getOrElse(TimeUnit.HOURS.toMillis(1))
 
+  private lazy val logPreSignedUrlAccess = Option(SparkEnv.get)
+    .flatMap(_.conf.getOption(ConfUtils.LOG_PRESIGNED_URL_ACCESS_CONF))
+    .map(_.toBoolean)
+    .getOrElse(ConfUtils.LOG_PRESIGNED_URL_ACCESS_DEFAULT.toBoolean)
+
   lazy val INSTANCE = new CachedTableManager(
     preSignedUrlExpirationMs = preSignedUrlExpirationMs,
     refreshCheckIntervalMs = refreshCheckIntervalMs,
     refreshThresholdMs = refreshThresholdMs,
-    expireAfterAccessMs = expireAfterAccessMs)
+    expireAfterAccessMs = expireAfterAccessMs,
+    logPreSignedUrlAccess = logPreSignedUrlAccess)
 }
 
 /** An `RpcEndpoint` running in Spark driver to allow executors to fetch pre signed urls. */

@@ -108,6 +108,9 @@ object ConfUtils {
   val SPARK_PARQUET_IO_CACHE_CONF = "spark.delta.sharing.client.sparkParquetIOCache.enabled"
   val SPARK_PARQUET_IO_CACHE_DEFAULT = "false"
 
+  val LOG_PRESIGNED_URL_ACCESS_CONF = "spark.delta.sharing.client.logPreSignedUrlAccess.enabled"
+  val LOG_PRESIGNED_URL_ACCESS_DEFAULT = "false"
+
   def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
     val proxyHost = conf.get(PROXY_HOST, null)
     val proxyPortAsString = conf.get(PROXY_PORT, null)
@@ -325,6 +328,16 @@ object ConfUtils {
   def sparkParquetIOCacheEnabled(conf: SQLConf): Boolean = {
     conf.getConfString(
       SPARK_PARQUET_IO_CACHE_CONF, SPARK_PARQUET_IO_CACHE_DEFAULT).toBoolean
+  }
+
+  def logPreSignedUrlAccessEnabled(conf: Configuration): Boolean = {
+    conf.getBoolean(
+      LOG_PRESIGNED_URL_ACCESS_CONF, LOG_PRESIGNED_URL_ACCESS_DEFAULT.toBoolean)
+  }
+
+  def logPreSignedUrlAccessEnabled(conf: SQLConf): Boolean = {
+    conf.getConfString(
+      LOG_PRESIGNED_URL_ACCESS_CONF, LOG_PRESIGNED_URL_ACCESS_DEFAULT).toBoolean
   }
 
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {

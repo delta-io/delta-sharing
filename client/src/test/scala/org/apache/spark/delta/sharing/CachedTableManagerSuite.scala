@@ -55,7 +55,8 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
       preSignedUrlExpirationMs,
       refreshCheckIntervalMs,
       refreshThresholdMs,
-      expireAfterAccessMs
+      expireAfterAccessMs,
+      logPreSignedUrlAccess = false
     )
   }
 
@@ -70,7 +71,8 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
       preSignedUrlExpirationMs = 10,
       refreshCheckIntervalMs = 10,
       refreshThresholdMs = 10,
-      expireAfterAccessMs = 60000
+      expireAfterAccessMs = 60000,
+      logPreSignedUrlAccess = false
     )
     try {
       val ref = new AnyRef
@@ -150,7 +152,8 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
       preSignedUrlExpirationMs = 6000,
       refreshCheckIntervalMs = 1000,
       refreshThresholdMs = 1000,
-      expireAfterAccessMs = 60000
+      expireAfterAccessMs = 60000,
+      logPreSignedUrlAccess = false
     )
     try {
       val ref = new AnyRef
@@ -245,7 +248,8 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
       preSignedUrlExpirationMs = 10,
       refreshCheckIntervalMs = 10,
       refreshThresholdMs = 10,
-      expireAfterAccessMs = 60000
+      expireAfterAccessMs = 60000,
+      logPreSignedUrlAccess = false
     )
     try {
       val ref = new AnyRef
@@ -291,7 +295,8 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
       preSignedUrlExpirationMs = 10,
       refreshCheckIntervalMs = 10,
       refreshThresholdMs = 10,
-      expireAfterAccessMs = 10
+      expireAfterAccessMs = 10,
+      logPreSignedUrlAccess = false
     )
     try {
       val ref = new AnyRef
@@ -750,7 +755,8 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
       0, // force always refresh
       refreshCheckIntervalMs,
       refreshThresholdMs,
-      expireAfterAccessMs
+      expireAfterAccessMs,
+      logPreSignedUrlAccess = false
     )
     val tablePath = "test_table"
     val fileId = "file1"

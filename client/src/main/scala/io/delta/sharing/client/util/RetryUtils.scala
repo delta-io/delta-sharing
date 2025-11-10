@@ -73,6 +73,13 @@ private[sharing] object RetryUtils extends Logging {
         }
       case _: MissingEndStreamActionException => true
       case _: java.net.SocketTimeoutException => true
+      case e: java.net.SocketException =>
+        // Retry on connection reset errors
+        if (e.getMessage != null && e.getMessage.toLowerCase.contains("connection reset")) {
+          true
+        } else {
+          false
+        }
       // do not retry on ConnectionClosedException because it can be caused by invalid json returned
       // from the delta sharing server.
       case _: org.apache.http.ConnectionClosedException => false
