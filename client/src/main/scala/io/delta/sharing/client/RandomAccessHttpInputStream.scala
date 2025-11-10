@@ -63,7 +63,8 @@ private[sharing] class RandomAccessHttpInputStream(
     contentLength: Long,
     stats: FileSystem.Statistics,
     numRetries: Int,
-    maxRetryDuration: Long = Long.MaxValue) extends FSInputStream with Logging {
+    maxRetryDuration: Long = Long.MaxValue,
+    logPreSignedUrlAccess: Boolean = false) extends FSInputStream with Logging {
 
   private var closed = false
   private var pos = 0L
@@ -145,9 +146,27 @@ private[sharing] class RandomAccessHttpInputStream(
     } else if (contentLength > 0L && pos > this.contentLength - 1L) {
       throw new EOFException(FSExceptionMessages.CANNOT_SEEK_PAST_EOF + " " + pos)
     } else {
-      logDebug(s"Opening file $uri at pos $pos")
+      val errorLogger = if (logPreSignedUrlAccess) {
+        Some((e: Exception) => {
+          e match {
+            case ue: UnexpectedHttpStatus =>
+              logInfo(s"HTTP request failed - uri: $uri, pos: $pos, " +
+                s"statusCode: ${ue.statusCode}, exception: ${e.getClass.getName}, " +
+                s"message: ${e.getMessage}")
+            case _ =>
+              logInfo(s"Exception during HTTP request - uri: $uri, pos: $pos, " +
+                s"exception: ${e.getClass.getName}, message: ${e.getMessage}")
+          }
+        })
+      } else {
+        None
+      }
 
-      val entity = RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
+      val entity = RetryUtils.runWithExponentialBackoff(
+        numRetries, 
+        maxRetryDuration,
+        onError = errorLogger
+      ) {
         val httpRequest = createHttpRequest(pos)
         val response = client.execute(httpRequest)
         val status = response.getStatusLine()

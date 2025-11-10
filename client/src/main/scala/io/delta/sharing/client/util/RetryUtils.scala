@@ -30,7 +30,8 @@ private[sharing] object RetryUtils extends Logging {
   def runWithExponentialBackoff[T](
       numRetries: Int,
       maxDurationMillis: Long = Long.MaxValue,
-      retrySleepInterval: Long = 1000)(func: => T): T = {
+      retrySleepInterval: Long = 1000,
+      onError: Option[Exception => Unit] = None)(func: => T): T = {
     var times = 0
     var sleepMs = retrySleepInterval
     val startTime = System.currentTimeMillis()
@@ -48,6 +49,9 @@ private[sharing] object RetryUtils extends Logging {
             ", totalDuration=" + totalDuration + " : " + e.getMessage,
             e
           )
+          // Call custom error handler if provided
+          onError.foreach(_(e))
+
           if (shouldRetry(e) && times <= numRetries && totalDuration <= maxDurationMillis) {
             logWarning(s"Sleeping $sleepMs ms to retry on error: ${e.getMessage}.")
             sleeper(sleepMs)
