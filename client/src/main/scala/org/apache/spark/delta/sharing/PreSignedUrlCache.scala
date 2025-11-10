@@ -399,11 +399,12 @@ class CachedTableManager(
         s"with expiration ${new java.util.Date(cachedTable.expiration)}")
       throw new IllegalStateException(s"cannot find url for id $fileId in table $tablePath")
     })
-    
+
     if (logPreSignedUrlAccess) {
-      logInfo(s"PreSignedUrl access - tablePath: $tablePath, fileId: $fileId, url: $url")
+      logInfo(s"PreSignedUrl access - tablePath: $tablePath, fileId: $fileId, url: $url, " +
+        s"expiration: ${new java.util.Date(cachedTable.expiration)}")
     }
-    
+
     (url, cachedTable.expiration)
   }
 
