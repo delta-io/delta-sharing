@@ -330,16 +330,6 @@ object ConfUtils {
       SPARK_PARQUET_IO_CACHE_CONF, SPARK_PARQUET_IO_CACHE_DEFAULT).toBoolean
   }
 
-  def logPreSignedUrlAccessEnabled(conf: Configuration): Boolean = {
-    conf.getBoolean(
-      LOG_PRESIGNED_URL_ACCESS_CONF, LOG_PRESIGNED_URL_ACCESS_DEFAULT.toBoolean)
-  }
-
-  def logPreSignedUrlAccessEnabled(conf: SQLConf): Boolean = {
-    conf.getConfString(
-      LOG_PRESIGNED_URL_ACCESS_CONF, LOG_PRESIGNED_URL_ACCESS_DEFAULT).toBoolean
-  }
-
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {
     val timeInSeconds = JavaUtils.timeStringAs(timeStr, TimeUnit.SECONDS)
     validateNonNeg(timeInSeconds, conf)
