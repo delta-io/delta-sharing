@@ -96,5 +96,5 @@ private[sharing] object RetryUtils extends Logging {
   }
 }
 
-private[sharing] class UnexpectedHttpStatus(message: String, val statusCode: Int)
+class UnexpectedHttpStatus(message: String, val statusCode: Int)
     extends DeltaSharingExceptionWithErrorCode(message, Some(statusCode))

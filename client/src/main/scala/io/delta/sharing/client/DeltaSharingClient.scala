@@ -354,6 +354,7 @@ class DeltaSharingRestClient(
       table = getFullTableName(table)
     )
     if (response.lines.size != 2) {
+      logFirstKLines(response.lines, "getMetadata", 10)
       throw new IllegalStateException(s"received more than two lines:${response.lines.size}," +
         getDsQueryIdForLogging)
     }
@@ -389,6 +390,25 @@ class DeltaSharingRestClient(
         s"is ${DeltaSharingProfile.CURRENT} and below. Please upgrade to a newer release." +
         getDsQueryIdForLogging)
     }
+  }
+
+  private def logFirstKLines(
+      lines: Seq[String],
+      methodName: String,
+      linesToLog: Int
+  ): Unit = {
+    val firstKLines = lines
+      .take(linesToLog)
+      .zipWithIndex
+      .map {
+        case (line, index) => s"Line ${index + 1}: $line"
+      }
+      .mkString("\n")
+    logError(
+      s"[$methodName] Unexpected line format or count. " +
+      s"Showing up to first $linesToLog lines:\n$firstKLines" +
+      getDsQueryIdForLogging
+    )
   }
 
   override def getFiles(
@@ -556,8 +576,10 @@ class DeltaSharingRestClient(
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => throw new IllegalStateException(
-          s"Unexpected Line:${line}" + getDsQueryIdForLogging)
+        case _ =>
+          logFirstKLines(lines, "getFiles", 10)
+          throw new IllegalStateException(
+            s"Unexpected Line:${line}" + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
