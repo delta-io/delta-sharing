@@ -109,7 +109,7 @@ object ConfUtils {
   val SPARK_PARQUET_IO_CACHE_DEFAULT = "false"
 
   val LOG_PRESIGNED_URL_ACCESS_CONF = "spark.delta.sharing.client.logPreSignedUrlAccess.enabled"
-  val LOG_PRESIGNED_URL_ACCESS_DEFAULT = "false"
+  val LOG_PRESIGNED_URL_ACCESS_DEFAULT = false
 
   def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
     val proxyHost = conf.get(PROXY_HOST, null)

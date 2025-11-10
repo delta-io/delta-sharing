@@ -773,7 +773,7 @@ object CachedTableManager {
   private lazy val logPreSignedUrlAccess = Option(SparkEnv.get)
     .flatMap(_.conf.getOption(ConfUtils.LOG_PRESIGNED_URL_ACCESS_CONF))
     .map(_.toBoolean)
-    .getOrElse(ConfUtils.LOG_PRESIGNED_URL_ACCESS_DEFAULT.toBoolean)
+    .getOrElse(ConfUtils.LOG_PRESIGNED_URL_ACCESS_DEFAULT)
 
   lazy val INSTANCE = new CachedTableManager(
     preSignedUrlExpirationMs = preSignedUrlExpirationMs,
