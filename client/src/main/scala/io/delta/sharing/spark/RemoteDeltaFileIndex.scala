@@ -188,7 +188,7 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
 }
 
 // The index for processing files in a delta snapshot.
-private[sharing] case class RemoteDeltaSnapshotFileIndex(
+case class RemoteDeltaSnapshotFileIndex(
     override val params: RemoteDeltaFileIndexParams,
     limitHint: Option[Long]) extends RemoteDeltaFileIndexBase(params) {
 
