@@ -163,7 +163,7 @@ private[sharing] class RandomAccessHttpInputStream(
       }
 
       val entity = RetryUtils.runWithExponentialBackoff(
-        numRetries, 
+        numRetries,
         maxRetryDuration,
         onError = errorLogger
       ) {
