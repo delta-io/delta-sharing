@@ -1481,6 +1481,15 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
 **{table}**: The table name to query. It's case-insensitive.
 </td>
 </tr>
+<tr>
+<td>Query Parameters</td>
+<td>
+
+**version** (type: Long, optional): If set, will return metadata as of the specified version of the table. This is only supported on tables with history sharing enabled.
+
+**timestamp** (type: String, optional): If set, will return metadata as of the table version corresponding to the specified timestamp in the [Timestamp Format](#timestamp-format). This is only supported on tables with history sharing enabled.
+</td>
+</tr>
 </table>
 
 <details open>
@@ -1682,6 +1691,16 @@ The response contains two lines:
 Example (See [API Response Actions in Parquet Format](#api-response-actions-in-parquet-format) for more details about the format):
 
 `GET {prefix}/shares/share_name/schemas/schema_name/tables/table_name/metadata`
+
+```
+HTTP/2 200 
+content-type: application/x-ndjson; charset=utf-8
+delta-table-version: 123
+```
+
+Example with version parameter:
+
+`GET {prefix}/shares/share_name/schemas/schema_name/tables/table_name/metadata?version=123`
 
 ```
 HTTP/2 200 
