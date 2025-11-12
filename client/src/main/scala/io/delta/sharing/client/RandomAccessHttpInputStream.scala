@@ -146,6 +146,8 @@ private[sharing] class RandomAccessHttpInputStream(
     } else if (contentLength > 0L && pos > this.contentLength - 1L) {
       throw new EOFException(FSExceptionMessages.CANNOT_SEEK_PAST_EOF + " " + pos)
     } else {
+      logDebug(s"Opening file $uri at pos $pos")
+
       val errorLogger = if (logPreSignedUrlAccess) {
         Some((e: Exception) => {
           e match {
