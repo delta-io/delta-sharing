@@ -1465,19 +1465,19 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val mockClient = new DeltaSharingClient {
       override def listAllTables(): Seq[Table] = Seq.empty
       override def getTableVersion(table: Table, startingTimestamp: Option[String]): Long = 0L
-      
+
       override def getMetadata(
           table: Table,
           versionAsOf: Option[Long],
           timestampAsOf: Option[String]): DeltaTableMetadata = {
         val requestedVersion = versionAsOf.get
         val returnedVersion = requestedVersion + 1  // Simulate server returning wrong version
-        
+
         // This should trigger the validation error
         require(versionAsOf.isEmpty || versionAsOf.get == returnedVersion,
           s"The returned table version $returnedVersion does not match the requested versionAsOf " +
             s"${versionAsOf.get} in getMetadata")
-        
+
         DeltaTableMetadata(
           version = returnedVersion,
           protocol = Protocol(minReaderVersion = 1),
@@ -1490,7 +1490,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           respondedFormat = RESPONSE_FORMAT_PARQUET
         )
       }
-      
+
       override def getFiles(
           table: Table,
           predicates: Seq[String],
@@ -1499,15 +1499,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           timestampAsOf: Option[String],
           jsonPredicateHints: Option[String],
           refreshToken: Option[String]): DeltaTableFiles = null
-      
+
       override def getFiles(table: Table, startingVersion: Long, endingVersion: Option[Long]): DeltaTableFiles = null
-      
+
       override def getCDFFiles(
           table: Table,
           cdfOptions: Map[String, String],
           includeHistoricalMetadata: Boolean): DeltaTableFiles = null
     }
-    
+
     val exception = intercept[IllegalArgumentException] {
       mockClient.getMetadata(
         Table(name = "test_table", schema = "test_schema", share = "test_share"),
@@ -1528,7 +1528,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           table: Table,
           versionAsOf: Option[Long],
           timestampAsOf: Option[String]): DeltaTableMetadata = null
-      
+
       override def getFiles(
           table: Table,
           predicates: Seq[String],
@@ -1539,12 +1539,12 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           refreshToken: Option[String]): DeltaTableFiles = {
         val requestedVersion = versionAsOf.get
         val returnedVersion = requestedVersion + 2  // Simulate server returning wrong version
-        
+
         // This should trigger the validation error
         require(versionAsOf.isEmpty || versionAsOf.get == returnedVersion,
           s"The returned table version $returnedVersion does not match the requested versionAsOf " +
             s"${versionAsOf.get} in getFiles")
-        
+
         DeltaTableFiles(
           version = returnedVersion,
           protocol = Protocol(minReaderVersion = 1),
@@ -1558,15 +1558,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           respondedFormat = RESPONSE_FORMAT_PARQUET
         )
       }
-      
+
       override def getFiles(table: Table, startingVersion: Long, endingVersion: Option[Long]): DeltaTableFiles = null
-      
+
       override def getCDFFiles(
           table: Table,
           cdfOptions: Map[String, String],
           includeHistoricalMetadata: Boolean): DeltaTableFiles = null
     }
-    
+
     val exception = intercept[IllegalArgumentException] {
       mockClient.getFiles(
         Table(name = "test_table", schema = "test_schema", share = "test_share"),
