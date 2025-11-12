@@ -41,6 +41,12 @@ class RetryUtilsSuite extends SparkFunSuite {
     assert(shouldRetry(new DeltaSharingServerException("error", Some(429))))
     assert(!shouldRetry(new DeltaSharingServerException("error", None)))
     assert(shouldRetry(new DeltaSharingServerException("error", Some(503))))
+    // Test connection reset errors
+    assert(shouldRetry(new java.net.SocketException("Connection reset")))
+    assert(shouldRetry(new java.net.SocketException("Connection reset by peer")))
+    assert(shouldRetry(new java.net.SocketException("CONNECTION RESET")))
+    assert(!shouldRetry(new java.net.SocketException("Some other socket error")))
+    assert(!shouldRetry(new java.net.SocketException(null)))
   }
 
   test("runWithExponentialBackoff") {

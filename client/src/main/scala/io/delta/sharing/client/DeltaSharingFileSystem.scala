@@ -45,6 +45,7 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
   lazy private val numRetries = ConfUtils.numRetries(getConf)
   lazy private val maxRetryDurationMillis = ConfUtils.maxRetryDurationMillis(getConf)
   lazy private val timeoutInSeconds = ConfUtils.timeoutInSeconds(getConf)
+  lazy private val logPreSignedUrlAccess = ConfUtils.logPreSignedUrlAccessEnabled(getConf)
   lazy private val httpClient = createHttpClient()
 
   private[sharing] def createHttpClient() = {
@@ -115,7 +116,8 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
           path.fileSize,
           statistics,
           numRetries,
-          maxRetryDurationMillis
+          maxRetryDurationMillis,
+          logPreSignedUrlAccess
         )
       )
     }
