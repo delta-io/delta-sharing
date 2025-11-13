@@ -40,7 +40,7 @@ sealed trait DeltaSharingProfile {
   private [client] def validate(): Unit = {
     if (shareCredentialsVersion.isEmpty) {
       throw new IllegalArgumentException(
-        "Cannot find the 'shareCredentialsVersion' field in the profile file")
+        "Cannot find the 'shareCredentialsVersion' field in the profile")
     }
 
     if (shareCredentialsVersion.get > DeltaSharingProfile.CURRENT) {
@@ -142,14 +142,14 @@ object DeltaSharingProfile {
   private [client] def validateNotNullAndEmpty(fieldValue: String,
                                                fieldName: String): Unit = {
     if (fieldValue == null || fieldValue.isEmpty) {
-      throw new IllegalArgumentException(s"Cannot find the '$fieldName' field in the profile file")
+      throw new IllegalArgumentException(s"Cannot find the '$fieldName' field in the profile")
     }
   }
 
   private [client] def validateNotNullAndEmpty(fieldValue: Option[Long],
                                                fieldName: String): Unit = {
     if (fieldValue == null || fieldValue.isEmpty) {
-      throw new IllegalArgumentException(s"Cannot find the '$fieldName' field in the profile file")
+      throw new IllegalArgumentException(s"Cannot find the '$fieldName' field in the profile")
     }
   }
 }
@@ -200,6 +200,24 @@ private[sharing] class DeltaSharingFileProfileProvider(
       input.close()
     }
 
+    profile.validate()
+
+    profile
+  }
+
+  override def getProfile: DeltaSharingProfile = profile
+}
+
+/**
+ * Load [[DeltaSharingProfile]] from options.
+ */
+private[sharing] class DeltaSharingOptionsProfileProvider(
+    shareCredentialsOptions: Map[String, String]) extends DeltaSharingProfileProvider {
+
+  val profile = {
+    val profile = {
+      JsonUtils.fromJson[DeltaSharingProfile](JsonUtils.toJson(shareCredentialsOptions))
+    }
     profile.validate()
 
     profile
