@@ -999,11 +999,12 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
          |  "bearerToken": "xxxxx"
          |}""".stripMargin, UTF_8)
     val tablePath = s"${testProfileFile.getCanonicalPath}#share.schema.table"
+    lazy val shareCredentialsOptions: Map[String, String] = Map.empty
 
     spark.sessionState.conf.setConfString(
       "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
     // Same as the table path
-    val deltaLog1 = RemoteDeltaLog(tablePath)
+    val deltaLog1 = RemoteDeltaLog(tablePath, shareCredentialsOptions)
     assert(deltaLog1.path.toString == tablePath)
     val snapshot1 = deltaLog1.snapshot()
     assert(snapshot1.getTablePath.toString == tablePath)
@@ -1012,7 +1013,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       "spark.delta.sharing.client.sparkParquetIOCache.enabled", "false")
     // Append timestamp suffix
     // <profile>#share.schema.table_yyyyMMdd_HHmmss_uuid
-    val deltaLog2 = RemoteDeltaLog(tablePath)
+    val deltaLog2 = RemoteDeltaLog(tablePath, shareCredentialsOptions)
     assert(deltaLog2.path.toString.split("#")(1).split("_").length == 4)
     val snapshot2 = deltaLog2.snapshot()
     assert(snapshot2.getTablePath.toString.split("#")(1).split("_").length == 4)
