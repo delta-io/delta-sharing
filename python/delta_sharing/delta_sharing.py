@@ -143,7 +143,7 @@ def load_as_spark(
     url: str,
     version: Optional[int] = None,
     timestamp: Optional[str] = None,
-    delta_sharing_profile: Optional[DeltaSharingProfile] = None
+    delta_sharing_profile: Optional[DeltaSharingProfile] = None,
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed,
@@ -204,7 +204,7 @@ def load_table_changes_as_spark(
     ending_version: Optional[int] = None,
     starting_timestamp: Optional[str] = None,
     ending_timestamp: Optional[str] = None,
-    delta_sharing_profile: Optional[DeltaSharingProfile] = None
+    delta_sharing_profile: Optional[DeltaSharingProfile] = None,
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the table changes of a shared table as a Spark DataFrame using the given url.
