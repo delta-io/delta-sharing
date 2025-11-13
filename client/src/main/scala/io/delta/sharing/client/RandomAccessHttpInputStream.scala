@@ -108,7 +108,7 @@ private[sharing] class RandomAccessHttpInputStream(
       currentStream.read()
     } catch {
       case e: Exception =>
-        if(logPreSignedUrlAccess) {
+        if (logPreSignedUrlAccess) {
           logInfo(s"Error reading from stream - uri: $uri, position: $pos, " +
             s"error: ${e.getMessage}")
         }
@@ -139,7 +139,7 @@ private[sharing] class RandomAccessHttpInputStream(
       currentStream.read(buf, off, len)
     } catch {
       case e: Exception =>
-        if(logPreSignedUrlAccess) {
+        if (logPreSignedUrlAccess) {
           logInfo(s"Error reading from stream - uri: $uri, position: $pos, offset: $off, " +
             s"length: $len, error: ${e.getMessage}")
         }
