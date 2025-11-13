@@ -104,7 +104,16 @@ private[sharing] class RandomAccessHttpInputStream(
     if (currentStream == null) {
       reopen(pos)
     }
-    val byte = currentStream.read()
+    val byte = try {
+      currentStream.read()
+    } catch {
+      case e: Exception =>
+        if (logPreSignedUrlAccess) {
+          logInfo(s"Error reading from stream - uri: $uri, position: $pos, " +
+            s"error: ${e.getMessage}")
+        }
+        throw e
+    }
     if (byte >= 0) {
       pos += 1
     }
@@ -126,7 +135,16 @@ private[sharing] class RandomAccessHttpInputStream(
     if (currentStream == null) {
       reopen(pos)
     }
-    val byteRead = currentStream.read(buf, off, len)
+    val byteRead = try {
+      currentStream.read(buf, off, len)
+    } catch {
+      case e: Exception =>
+        if (logPreSignedUrlAccess) {
+          logInfo(s"Error reading from stream - uri: $uri, position: $pos, offset: $off, " +
+            s"length: $len, error: ${e.getMessage}")
+        }
+        throw e
+    }
     if (byteRead > 0) {
       pos += byteRead
     }
