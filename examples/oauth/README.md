@@ -38,7 +38,7 @@ With the virtual environment active:
 pip install -r requirements.txt
 ```
 
-### 3. Run the script
+## 3. Run the script
 
 Run the script on your desktop machine. It will open a browser window where you can authenticate using your own Entra ID tenant credentials.
 Make sure to pass your tenant ID (not the example below).
