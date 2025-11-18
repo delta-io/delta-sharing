@@ -7,7 +7,6 @@ It:
 - Opens a browser for interactive login  
 - Runs a local webserver to receive the OAuth redirect  
 - Exchanges the authorization code for tokens  
-- Prints the raw **JWT access token**  
 - Decodes and displays the token claims (useful for debugging missing `groups`, `aud`, etc.)
 
 ---
