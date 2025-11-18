@@ -40,8 +40,8 @@ pip install -r requirements.txt
 
 ### 3. Run the script
 
-
-Run the script on your desktop machine. It will open a browser window where you can authenticate with your usual Entra ID credentials.
+Run the script on your desktop machine. It will open a browser window where you can authenticate using your own Entra ID tenant credentials.
+Make sure to pass your tenant ID (not the example below).
  
 ```bash
 python u2m-entraid-capture-jwt-token.py --tenant-id 9fca8007-4338-4251-99db-4791001e3151
