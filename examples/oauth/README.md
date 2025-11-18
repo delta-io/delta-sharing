@@ -40,12 +40,33 @@ pip install -r requirements.txt
 
 ## 3. Run the script
 
-Run the script on your desktop machine. It will open a browser window where you can authenticate using your own Entra ID tenant credentials.
-Make sure to pass your tenant ID (not the example below).
- 
+Run this script directly on your desktop or laptop. When executed, it will automatically open a browser window and prompt you to authenticate using your own Entra ID credentials.
+After successful authentication, the script captures and prints the decoded JWT access token and ID token claims.
+
+You can authenticate in one of two ways:
+
+### Option 1: Use a Delta Sharing OIDC Recipient Endpoint
+
+If you have a Delta Sharing OIDC recipient configured in Databricks, you can pass its full REST API endpoint.
+The script will automatically perform OIDC discovery:
+
+Example:
 ```bash
-python u2m-entraid-capture-jwt-token.py --tenant-id 9fca8007-4338-4251-99db-4791001e3151
+python u2m-entraid-capture-jwt-token.py --delta-sharing-oidc-recipient-endpoint https://oregon.databricks.com/api/2.0/delta-sharing/metastores/9c4f95a7-cd20-4d93-a4ab-6857e7085c2c/recipients/777b07d7-acb6-4f61-bda5-ccca2ad0ffc1
 ```
+(Replace the metastore ID and recipient ID above with your real values.
+The UUIDs shown are sample placeholders.)
+
+#### Option 2: Use Your Entra ID Tenant ID Directly
+
+If you prefer to authenticate using your Entra tenant, pass the tenant ID (GUID).
+The script will use the standard Microsoft OAuth2 v2.0 endpoints.
+
+Example:
+```bash
+python3 u2m-entraid-capture-jwt-token.py --entraid-tenant-id 9fca8007-4338-4251-99db-4791001e3151
+```
+(Replace this with your actual tenant ID.)
 
 After login completes, the script will print the captured and decoded JWT token.
 This is useful for verifying that all required claims (such as groups) are present.
