@@ -52,7 +52,7 @@ The script will automatically perform OIDC discovery:
 
 Example:
 ```bash
-python u2m-entraid-capture-jwt-token.py --delta-sharing-oidc-recipient-endpoint https://oregon.databricks.com/api/2.0/delta-sharing/metastores/11111111-2222-3333-4444-555555555555/recipients/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+python3 u2m-entraid-capture-jwt-token.py --delta-sharing-oidc-recipient-endpoint https://oregon.databricks.com/api/2.0/delta-sharing/metastores/11111111-2222-3333-4444-555555555555/recipients/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
 ```
 (Replace the metastore ID and recipient ID above with your real values.
 The UUIDs shown are sample placeholders.)
