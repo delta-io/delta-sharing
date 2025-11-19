@@ -103,6 +103,8 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
     str
   }.getOrElse(RESPONSE_FORMAT_PARQUET)
 
+  val shareCredentialsOptions: Map[String, String] = prepareShareCredentialsOptions()
+
   def isTimeTravel: Boolean = versionAsOf.isDefined || timestampAsOf.isDefined
 
   // Parse the input timestamp string and TimestampType, and generate a formatted timestamp string
@@ -133,6 +135,21 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
       )
     } else {
      Map.empty[String, String]
+    }
+  }
+
+  private def prepareShareCredentialsOptions(): Map[String, String] = {
+    validShareCredentialsOptions.filter { option =>
+      options.contains(option._1)
+    }.map { option =>
+      val key = option._1
+      val value = key match {
+        case PROFILE_EXPIRATION_TIME =>
+          getFormattedTimestamp(options.get(key).get)
+        case _ =>
+          options.get(key).get
+      }
+      key -> value
     }
   }
 
@@ -195,9 +212,18 @@ object DeltaSharingOptions extends Logging {
   val TIME_TRAVEL_TIMESTAMP = "timestampAsOf"
 
   val RESPONSE_FORMAT = "responseFormat"
-
   val RESPONSE_FORMAT_PARQUET = "parquet"
   val RESPONSE_FORMAT_DELTA = "delta"
+
+  val PROFILE_SHARE_CREDENTIALS_VERSION = "shareCredentialsVersion"
+  val PROFILE_TYPE = "shareCredentialsType"
+  val PROFILE_ENDPOINT = "endpoint"
+  val PROFILE_TOKEN_ENDPOINT = "tokenEndpoint"
+  val PROFILE_CLIENT_ID = "clientId"
+  val PROFILE_CLIENT_SECRET = "clientSecret"
+  val PROFILE_SCOPE = "scope"
+  val PROFILE_BEARER_TOKEN = "bearerToken"
+  val PROFILE_EXPIRATION_TIME = "expirationTime"
 
   val validCdfOptions = Map(
     CDF_READ_OPTION -> "",
@@ -206,6 +232,18 @@ object DeltaSharingOptions extends Logging {
     CDF_END_TIMESTAMP -> "",
     CDF_START_VERSION -> "",
     CDF_END_VERSION -> ""
+  )
+
+  val validShareCredentialsOptions = Map(
+    PROFILE_SHARE_CREDENTIALS_VERSION -> "",
+    PROFILE_TYPE -> "",
+    PROFILE_ENDPOINT -> "",
+    PROFILE_TOKEN_ENDPOINT -> "",
+    PROFILE_CLIENT_ID -> "",
+    PROFILE_CLIENT_SECRET -> "",
+    PROFILE_SCOPE -> "",
+    PROFILE_BEARER_TOKEN -> "",
+    PROFILE_EXPIRATION_TIME -> ""
   )
 }
 

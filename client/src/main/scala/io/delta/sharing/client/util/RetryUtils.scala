@@ -30,7 +30,8 @@ private[sharing] object RetryUtils extends Logging {
   def runWithExponentialBackoff[T](
       numRetries: Int,
       maxDurationMillis: Long = Long.MaxValue,
-      retrySleepInterval: Long = 1000)(func: => T): T = {
+      retrySleepInterval: Long = 1000,
+      onError: Option[Exception => Unit] = None)(func: => T): T = {
     var times = 0
     var sleepMs = retrySleepInterval
     val startTime = System.currentTimeMillis()
@@ -48,6 +49,9 @@ private[sharing] object RetryUtils extends Logging {
             ", totalDuration=" + totalDuration + " : " + e.getMessage,
             e
           )
+          // Call custom error handler if provided
+          onError.foreach(_(e))
+
           if (shouldRetry(e) && times <= numRetries && totalDuration <= maxDurationMillis) {
             logWarning(s"Sleeping $sleepMs ms to retry on error: ${e.getMessage}.")
             sleeper(sleepMs)
@@ -73,6 +77,14 @@ private[sharing] object RetryUtils extends Logging {
         }
       case _: MissingEndStreamActionException => true
       case _: java.net.SocketTimeoutException => true
+      case e: java.net.SocketException =>
+        // Retry on connection reset errors
+        if (e.getMessage != null &&
+            e.getMessage.toLowerCase(java.util.Locale.ROOT).contains("connection reset")) {
+          true
+        } else {
+          false
+        }
       // do not retry on ConnectionClosedException because it can be caused by invalid json returned
       // from the delta sharing server.
       case _: org.apache.http.ConnectionClosedException => false
@@ -84,5 +96,5 @@ private[sharing] object RetryUtils extends Logging {
   }
 }
 
-private[sharing] class UnexpectedHttpStatus(message: String, val statusCode: Int)
+class UnexpectedHttpStatus(message: String, val statusCode: Int)
     extends DeltaSharingExceptionWithErrorCode(message, Some(statusCode))
