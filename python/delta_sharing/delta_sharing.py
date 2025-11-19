@@ -146,6 +146,26 @@ def load_as_pandas(
         convert_in_batches=convert_in_batches,
     ).to_pandas()
 
+def __apply_options(df: "PySparkDataFrame", delta_sharing_profile: DeltaSharingProfile) -> "PySparkDataFrame":
+    if delta_sharing_profile.share_credentials_version is not None:
+        df.option("shareCredentialsVersion", delta_sharing_profile.share_credentials_version)
+    if delta_sharing_profile.type is not None:
+        df.option("shareCredentialsType", delta_sharing_profile.type)
+    if delta_sharing_profile.endpoint is not None:
+        df.option("endpoint", delta_sharing_profile.endpoint)
+    if delta_sharing_profile.token_endpoint is not None:
+        df.option("tokenEndpoint", delta_sharing_profile.token_endpoint)
+    if delta_sharing_profile.client_id is not None:
+        df.option("clientId", delta_sharing_profile.client_id)
+    if delta_sharing_profile.client_secret is not None:
+        df.option("clientSecret", delta_sharing_profile.client_secret)
+    if delta_sharing_profile.scope is not None:
+        df.option("scope", delta_sharing_profile.scope)
+    if delta_sharing_profile.bearer_token is not None:
+        df.option("bearerToken", delta_sharing_profile.bearer_token)
+    if delta_sharing_profile.expiration_time is not None:
+        df.option("expirationTime", delta_sharing_profile.expiration_time)
+    return df
 
 def load_as_spark(
     url: str,
@@ -158,7 +178,8 @@ def load_as_spark(
     and the application must be a PySpark application with the Apache Spark Connector for Delta
     Sharing installed. Only one of version/timestamp is supported at one time.
 
-    :param url: a url under the format "<profile>#<share>.<schema>.<table>".
+    :param url: a url under the format "<share>.<schema>.<table>" when delta_sharing_profile is provided.
+            Otherwise, applies format "<profile>#<share>.<schema>.<table>".
     :type url: str
     :param version: an optional non-negative int. Load the snapshot of table at version.
     :type version: Optional[int]
@@ -180,25 +201,9 @@ def load_as_spark(
         "`load_as_spark` requires running in a PySpark application."
     )
     df = spark.read.format("deltaSharing")
+
     if delta_sharing_profile is not None:
-        if delta_sharing_profile.share_credentials_version is not None:
-            df.option("shareCredentialsVersion", delta_sharing_profile.share_credentials_version)
-        if delta_sharing_profile.type is not None:
-            df.option("shareCredentialsType", delta_sharing_profile.type)
-        if delta_sharing_profile.endpoint is not None:
-            df.option("endpoint", delta_sharing_profile.endpoint)
-        if delta_sharing_profile.token_endpoint is not None:
-            df.option("tokenEndpoint", delta_sharing_profile.token_endpoint)
-        if delta_sharing_profile.client_id is not None:
-            df.option("clientId", delta_sharing_profile.client_id)
-        if delta_sharing_profile.client_secret is not None:
-            df.option("clientSecret", delta_sharing_profile.client_secret)
-        if delta_sharing_profile.scope is not None:
-            df.option("scope", delta_sharing_profile.scope)
-        if delta_sharing_profile.bearer_token is not None:
-            df.option("bearerToken", delta_sharing_profile.bearer_token)
-        if delta_sharing_profile.expiration_time is not None:
-            df.option("expirationTime", delta_sharing_profile.expiration_time)
+        __apply_options(df, delta_sharing_profile)
     if version is not None:
         df.option("versionAsOf", version)
     if timestamp is not None:
@@ -222,7 +227,8 @@ def load_table_changes_as_spark(
     parameter is accepted by the server. If the end parameter is not provided, the API will use the
     latest table version for it. The parameter range is inclusive in the query.
 
-    :param url: a url under the format "<profile>#<share>.<schema>.<table>".
+    :param url: a url under the format "<share>.<schema>.<table>" when delta_sharing_profile is provided.
+            Otherwise, applies format "<profile>#<share>.<schema>.<table>".
     :type url: str
     :param starting_version: The starting version of table changes.
     :type starting_version: Optional[int]
@@ -250,24 +256,7 @@ def load_table_changes_as_spark(
     )
     df = spark.read.format("deltaSharing").option("readChangeFeed", "true")
     if delta_sharing_profile is not None:
-        if delta_sharing_profile.share_credentials_version is not None:
-            df.option("shareCredentialsVersion", delta_sharing_profile.share_credentials_version)
-        if delta_sharing_profile.type is not None:
-            df.option("shareCredentialsType", delta_sharing_profile.type)
-        if delta_sharing_profile.endpoint is not None:
-            df.option("endpoint", delta_sharing_profile.endpoint)
-        if delta_sharing_profile.token_endpoint is not None:
-            df.option("tokenEndpoint", delta_sharing_profile.token_endpoint)
-        if delta_sharing_profile.client_id is not None:
-            df.option("clientId", delta_sharing_profile.client_id)
-        if delta_sharing_profile.client_secret is not None:
-            df.option("clientSecret", delta_sharing_profile.client_secret)
-        if delta_sharing_profile.scope is not None:
-            df.option("scope", delta_sharing_profile.scope)
-        if delta_sharing_profile.bearer_token is not None:
-            df.option("bearerToken", delta_sharing_profile.bearer_token)
-        if delta_sharing_profile.expiration_time is not None:
-            df.option("expirationTime", delta_sharing_profile.expiration_time)
+        __apply_options(df, delta_sharing_profile)
     if starting_version is not None:
         df.option("startingVersion", starting_version)
     if ending_version is not None:
