@@ -43,12 +43,25 @@ object OpDataTypes {
   val supportedTypes = Set(BoolType, IntType, LongType, StringType, DateType)
   val supportedTypesV2 = supportedTypes ++ Set(FloatType, DoubleType, TimestampType)
 
+  def stringTypeWithCollation(collationName: String): String = {
+    s"string collate $collationName"
+  }
+
   // Returns true if the specified valueType is supported.
   def isSupportedType(valueType: String, forV2: Boolean): Boolean = {
+    val normalizedType = normalizeType(valueType)
     if (forV2) {
-      OpDataTypes.supportedTypesV2.contains(valueType)
+      OpDataTypes.supportedTypesV2.contains(normalizedType)
     } else {
-      OpDataTypes.supportedTypes.contains(valueType)
+      OpDataTypes.supportedTypes.contains(normalizedType)
+    }
+  }
+
+  private def normalizeType(valueType: String): String = {
+    if (valueType.startsWith("string collate")) {
+      StringType
+    } else {
+      valueType
     }
   }
 }
