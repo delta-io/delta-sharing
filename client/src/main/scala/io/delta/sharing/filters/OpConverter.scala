@@ -186,7 +186,6 @@ object OpConverter {
       case SqlBooleanType => OpDataTypes.BoolType
       case SqlIntegerType => OpDataTypes.IntType
       case SqlLongType => OpDataTypes.LongType
-      case SqlStringType => OpDataTypes.StringType
       case s: SqlStringType => s.typeName
       case SqlDateType => OpDataTypes.DateType
       case SqlDoubleType => OpDataTypes.DoubleType
