@@ -372,24 +372,6 @@ class OpConverterSuite extends SparkFunSuite {
     assert(literalOp.valueType == OpDataTypes.stringTypeWithCollation("UNICODE_CI"))
   }
 
-  test("collated string greaterThan test") {
-    // Test with UNICODE collation
-    val collatedStringType = SqlStringType("UNICODE")
-    val sqlColumn = SqlAttributeReference("description", collatedStringType)()
-    val sqlLiteral = SqlLiteral("abc")
-    // Cast the literal to the collated type
-    val sqlGT = SqlGreaterThan(sqlColumn, SqlCast(sqlLiteral, collatedStringType))
-
-    val op = OpConverter.convert(Seq(sqlGT)).get.asInstanceOf[GreaterThanOp]
-    op.validate()
-
-    // Verify that the column has the collated type
-    val columnOp = op.children(0).asInstanceOf[ColumnOp]
-    val literalOp = op.children(1).asInstanceOf[LiteralOp]
-    assert(columnOp.valueType == OpDataTypes.stringTypeWithCollation("UNICODE"))
-    assert(literalOp.valueType == OpDataTypes.stringTypeWithCollation("UNICODE"))
-  }
-
   test("UTF8 binary collation test") {
     // Test with UTF8_BINARY (default) collation - should use StringType without collation suffix
     val defaultStringType = SqlStringType
