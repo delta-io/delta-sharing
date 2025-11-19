@@ -146,7 +146,10 @@ def load_as_pandas(
         convert_in_batches=convert_in_batches,
     ).to_pandas()
 
-def __apply_options(df: "PySparkDataFrame", delta_sharing_profile: DeltaSharingProfile) -> "PySparkDataFrame":
+
+def __apply_options(
+    df: "PySparkDataFrame", delta_sharing_profile: DeltaSharingProfile
+) -> "PySparkDataFrame":
     if delta_sharing_profile.share_credentials_version is not None:
         df.option("shareCredentialsVersion", delta_sharing_profile.share_credentials_version)
     if delta_sharing_profile.type is not None:
@@ -166,6 +169,7 @@ def __apply_options(df: "PySparkDataFrame", delta_sharing_profile: DeltaSharingP
     if delta_sharing_profile.expiration_time is not None:
         df.option("expirationTime", delta_sharing_profile.expiration_time)
     return df
+
 
 def load_as_spark(
     url: str,
