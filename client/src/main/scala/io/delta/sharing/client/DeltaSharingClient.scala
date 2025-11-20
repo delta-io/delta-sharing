@@ -1342,20 +1342,33 @@ object DeltaSharingRestClient extends Logging {
   }
 
   /**
-   * Parse the user provided path `profile_file#share.schema.table` to
-   * ParsedDeltaSharingTablePath.
+   * Validate and parse user provided path:
+   * When credentials are provided via options, path format should be `share.schema.table`
+   * Otherwise, profile file should be included `profile_file#share.schema.table`
    */
-  def parsePath(path: String): ParsedDeltaSharingTablePath = {
+  def parsePath(
+     path: String,
+     shareCredentialsOptions: Map[String, String]): ParsedDeltaSharingTablePath = {
     val shapeIndex = path.lastIndexOf('#')
-    if (shapeIndex < 0) {
-      throw new IllegalArgumentException(s"path $path is not valid")
+
+    val (profileFile, tablePath) = {
+      if (shareCredentialsOptions.nonEmpty && shapeIndex < 0) {
+        ("", path)
+      } else if (shareCredentialsOptions.nonEmpty && shapeIndex >= 0) {
+          throw new IllegalArgumentException(
+            "cannot specify both share credentials options and a profile file path")
+      } else if (shareCredentialsOptions.isEmpty && shapeIndex < 0) {
+          throw new IllegalArgumentException(s"path $path is not valid")
+      } else {
+          (path.substring(0, shapeIndex), path.substring(shapeIndex + 1))
+      }
     }
-    val profileFile = path.substring(0, shapeIndex)
-    val tableSplits = path.substring(shapeIndex + 1).split("\\.", -1)
+
+    val tableSplits = tablePath.split("\\.", -1)
     if (tableSplits.length != 3) {
       throw new IllegalArgumentException(s"path $path is not valid")
     }
-    if (profileFile.isEmpty || tableSplits(0).isEmpty ||
+    if ((profileFile.isEmpty && shareCredentialsOptions.isEmpty) || tableSplits(0).isEmpty ||
       tableSplits(1).isEmpty || tableSplits(2).isEmpty) {
       throw new IllegalArgumentException(s"path $path is not valid")
     }
@@ -1424,19 +1437,23 @@ object DeltaSharingRestClient extends Logging {
 
   def apply(
       profileFile: String,
+      shareCredentialsOptions: Map[String, String],
       forStreaming: Boolean = false,
       responseFormat: String = RESPONSE_FORMAT_PARQUET,
       readerFeatures: String = ""
   ): DeltaSharingClient = {
     val sqlConf = SparkSession.active.sessionState.conf
 
-    val profileProviderClass = ConfUtils.profileProviderClass(sqlConf)
-    val profileProvider: DeltaSharingProfileProvider =
+    val profileProvider: DeltaSharingProfileProvider = if (shareCredentialsOptions.nonEmpty) {
+        new DeltaSharingOptionsProfileProvider(shareCredentialsOptions)
+    } else {
+      val profileProviderClass = ConfUtils.profileProviderClass(sqlConf)
       Class.forName(profileProviderClass)
         .getConstructor(classOf[Configuration], classOf[String])
         .newInstance(SparkSession.active.sessionState.newHadoopConf(),
           profileFile)
         .asInstanceOf[DeltaSharingProfileProvider]
+    }
 
     // This is a flag to test the local https server. Should never be used in production.
     val sslTrustAll = ConfUtils.sslTrustAll(sqlConf)

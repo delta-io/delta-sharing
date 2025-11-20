@@ -40,6 +40,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   with SharedSparkSession with DeltaSharingIntegrationTest {
 
   import testImplicits._
+  lazy val shareCredentialsOptions: Map[String, String] = Map.empty
 
   // VERSION 0: CREATE TABLE
   // VERSION 1: INSERT 3 rows, 3 add files
@@ -66,7 +67,7 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   // VERSION 4: REMOVE 4 rows, 2 remove files
   lazy val cdfTablePath = testProfileFile.getCanonicalPath + "#share8.default.streaming_cdf_table"
 
-  lazy val deltaLog = RemoteDeltaLog(cdfTablePath, forStreaming = true)
+  lazy val deltaLog = RemoteDeltaLog(cdfTablePath, shareCredentialsOptions, forStreaming = true)
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
     val options = new DeltaSharingOptions(parameters ++ Map("readChangeFeed" -> "true"))
