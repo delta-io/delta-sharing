@@ -46,8 +46,7 @@ class RetryUtilsSuite extends SparkFunSuite {
     assert(shouldRetry(new java.net.SocketException("Connection reset by peer")))
     assert(shouldRetry(new java.net.SocketException("CONNECTION RESET")))
     assert(!shouldRetry(new java.net.SocketException("Some other socket error")))
-    // TODO: Fix ambiguous constructor issue
-    // assert(!shouldRetry(new java.net.SocketException(null)))
+    assert(!shouldRetry(new java.net.SocketException(null)))
   }
 
   test("runWithExponentialBackoff") {
