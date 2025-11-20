@@ -18,6 +18,7 @@ package io.delta.sharing.client
 
 import java.sql.Timestamp
 
+import org.apache.hadoop.conf.Configuration
 import org.apache.http.HttpHeaders
 import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
 
@@ -1408,7 +1409,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val returnedVersion = 10L
 
       val mockProfileProvider = new DeltaSharingFileProfileProvider(
-        new org.apache.hadoop.conf.Configuration(),
+        new Configuration(),
         testProfileFile.getCanonicalPath
       )
 
@@ -1465,7 +1466,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val returnedVersion = 20L
 
       val mockProfileProvider = new DeltaSharingFileProfileProvider(
-        new org.apache.hadoop.conf.Configuration(),
+        new Configuration(),
         testProfileFile.getCanonicalPath
       )
 
