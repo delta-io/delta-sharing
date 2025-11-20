@@ -343,12 +343,17 @@ object ConfUtils {
   }
 
   def versionMismatchCheckEnabled(conf: Configuration): Boolean = {
-    conf.getBoolean(VERSION_MISMATCH_CHECK_ENABLED_CONF, VERSION_MISMATCH_CHECK_ENABLED_DEFAULT)
+    conf.getBoolean(
+      VERSION_MISMATCH_CHECK_ENABLED_CONF,
+      VERSION_MISMATCH_CHECK_ENABLED_DEFAULT
+    )
   }
 
   def versionMismatchCheckEnabled(conf: SQLConf): Boolean = {
     conf.getConfString(
-      VERSION_MISMATCH_CHECK_ENABLED_CONF, VERSION_MISMATCH_CHECK_ENABLED_DEFAULT.toString).toBoolean
+      VERSION_MISMATCH_CHECK_ENABLED_CONF,
+      VERSION_MISMATCH_CHECK_ENABLED_DEFAULT.toString
+    ).toBoolean
   }
 
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {

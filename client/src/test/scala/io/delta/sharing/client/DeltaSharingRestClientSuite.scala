@@ -1393,198 +1393,116 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
   }
 
-  integrationTest("getMetadata - version validation") {
-    val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
-    try {
-      // Test that validation passes when requesting version 0 and receiving version 0
-      val metadataV0 = client.getMetadata(
-        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
-        versionAsOf = Some(0)
+  test("version mismatch check - getMetadata with mocked response") {
+    Seq(true, false).foreach { validationEnabled =>
+      val requestedVersion = 5L
+      val returnedVersion = 10L
+
+      val mockProfileProvider = new DeltaSharingFileProfileProvider(
+        new org.apache.hadoop.conf.Configuration(),
+        testProfileFile.getCanonicalPath
       )
-      assert(metadataV0.version == 0)
 
-      // Test that validation passes when requesting version 2 and receiving version 2
-      val metadataV2 = client.getMetadata(
-        Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
-        versionAsOf = Some(2)
-      )
-      assert(metadataV2.version == 2)
-    } finally {
-      client.close()
-    }
-  }
-
-  integrationTest("getFiles - version validation for parquet format") {
-    val client = new DeltaSharingRestClient(
-      testProfileProvider,
-      sslTrustAll = true,
-      responseFormat = RESPONSE_FORMAT_PARQUET
-    )
-    try {
-      // Test that validation passes when requesting version 1 and receiving version 1
-      val tableFiles = client.getFiles(
-        table = Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-        predicates = Nil,
-        limit = None,
-        versionAsOf = Some(1L),
-        timestampAsOf = None,
-        jsonPredicateHints = None,
-        refreshToken = None
-      )
-      assert(tableFiles.version == 1)
-    } finally {
-      client.close()
-    }
-  }
-
-  integrationTest("getFiles - version validation for delta format") {
-    val client = new DeltaSharingRestClient(
-      testProfileProvider,
-      sslTrustAll = true,
-      responseFormat = RESPONSE_FORMAT_DELTA
-    )
-    try {
-      // Test that validation passes when requesting version 1 and receiving version 1
-      val tableFiles = client.getFiles(
-        table = Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-        predicates = Nil,
-        limit = None,
-        versionAsOf = Some(1L),
-        timestampAsOf = None,
-        jsonPredicateHints = None,
-        refreshToken = None
-      )
-      assert(tableFiles.version == 1)
-    } finally {
-      client.close()
-    }
-  }
-
-  test("getMetadata - version validation failure") {
-    // Create a mock client that simulates version mismatch with validation enabled
-    val mockClient = new DeltaSharingClient {
-      override def listAllTables(): Seq[Table] = Seq.empty
-      override def getTableVersion(table: Table, startingTimestamp: Option[String]): Long = 0L
-
-      override def getMetadata(
-          table: Table,
-          versionAsOf: Option[Long],
-          timestampAsOf: Option[String]): DeltaTableMetadata = {
-        val requestedVersion = versionAsOf.get
-        val returnedVersion = requestedVersion + 1  // Simulate server returning wrong version
-        val versionMismatchCheckEnabled = true  // Enable validation for this test
-
-        // This should trigger the validation error when enabled
-        if (versionMismatchCheckEnabled) {
-          require(versionAsOf.isEmpty || versionAsOf.get == returnedVersion,
-            s"The returned table version $returnedVersion does not match the requested versionAsOf " +
-              s"${versionAsOf.get} in getMetadata")
+      // Create a client that overrides getNDJson to return a mocked response
+      val client = new DeltaSharingRestClient(
+        profileProvider = mockProfileProvider,
+        versionMismatchCheckEnabled = validationEnabled
+      ) {
+        override def getNDJson(
+            target: String,
+            requireVersion: Boolean,
+            setIncludeEndStreamAction: Boolean
+        ): ParsedDeltaSharingResponse = {
+          // Return a mock response with a different version than requested
+          ParsedDeltaSharingResponse(
+            version = returnedVersion,
+            respondedFormat = RESPONSE_FORMAT_PARQUET,
+            lines = Seq(
+              """{"protocol":{"minReaderVersion":1}}""",
+              """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}"""
+            ),
+            capabilitiesMap = Map.empty
+          )
         }
-
-        DeltaTableMetadata(
-          version = returnedVersion,
-          protocol = Protocol(minReaderVersion = 1),
-          metadata = Metadata(
-            id = "test-id",
-            format = Format(),
-            schemaString = """{"type":"struct","fields":[]}""",
-            partitionColumns = Seq.empty
-          ),
-          respondedFormat = RESPONSE_FORMAT_PARQUET
-        )
       }
 
-      override def getFiles(
-          table: Table,
-          predicates: Seq[String],
-          limit: Option[Long],
-          versionAsOf: Option[Long],
-          timestampAsOf: Option[String],
-          jsonPredicateHints: Option[String],
-          refreshToken: Option[String]): DeltaTableFiles = null
+      try {
+        val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
 
-      override def getFiles(table: Table, startingVersion: Long, endingVersion: Option[Long]): DeltaTableFiles = null
-
-      override def getCDFFiles(
-          table: Table,
-          cdfOptions: Map[String, String],
-          includeHistoricalMetadata: Boolean): DeltaTableFiles = null
+        if (validationEnabled) {
+          // With validation enabled, should throw exception when versions don't match
+          val exception = intercept[IllegalArgumentException] {
+            client.getMetadata(table, versionAsOf = Some(requestedVersion), timestampAsOf = None)
+          }
+          assert(exception.getMessage.contains(
+            s"The returned table version $returnedVersion does not match the requested versionAsOf $requestedVersion"
+          ))
+          assert(exception.getMessage.contains("in getMetadata"))
+        } else {
+          // With validation disabled, should succeed and return the server's version
+          val metadata = client.getMetadata(table, versionAsOf = Some(requestedVersion), timestampAsOf = None)
+          assert(metadata.version == returnedVersion)
+        }
+      } finally {
+        client.close()
+      }
     }
-
-    val exception = intercept[IllegalArgumentException] {
-      mockClient.getMetadata(
-        Table(name = "test_table", schema = "test_schema", share = "test_share"),
-        versionAsOf = Some(5L),
-        timestampAsOf = None
-      )
-    }
-    assert(exception.getMessage.contains("The returned table version 6 does not match the requested versionAsOf 5"))
-    assert(exception.getMessage.contains("in getMetadata"))
   }
 
-  test("getFiles - version validation failure") {
-    // Create a mock client that simulates version mismatch with validation enabled
-    val mockClient = new DeltaSharingClient {
-      override def listAllTables(): Seq[Table] = Seq.empty
-      override def getTableVersion(table: Table, startingTimestamp: Option[String]): Long = 0L
-      override def getMetadata(
-          table: Table,
-          versionAsOf: Option[Long],
-          timestampAsOf: Option[String]): DeltaTableMetadata = null
+  test("version mismatch check - getFiles with mocked response") {
+    Seq(true, false).foreach { validationEnabled =>
+      val requestedVersion = 15L
+      val returnedVersion = 20L
 
-      override def getFiles(
-          table: Table,
-          predicates: Seq[String],
-          limit: Option[Long],
-          versionAsOf: Option[Long],
-          timestampAsOf: Option[String],
-          jsonPredicateHints: Option[String],
-          refreshToken: Option[String]): DeltaTableFiles = {
-        val requestedVersion = versionAsOf.get
-        val returnedVersion = requestedVersion + 2  // Simulate server returning wrong version
-        val versionMismatchCheckEnabled = true  // Enable validation for this test
+      val mockProfileProvider = new DeltaSharingFileProfileProvider(
+        new org.apache.hadoop.conf.Configuration(),
+        testProfileFile.getCanonicalPath
+      )
 
-        // This should trigger the validation error when enabled
-        if (versionMismatchCheckEnabled) {
-          require(versionAsOf.isEmpty || versionAsOf.get == returnedVersion,
-            s"The returned table version $returnedVersion does not match the requested versionAsOf " +
-              s"${versionAsOf.get} in getFiles")
+      // Create a client that overrides getNDJsonPost to return a mocked response
+      val client = new DeltaSharingRestClient(
+        profileProvider = mockProfileProvider,
+        versionMismatchCheckEnabled = validationEnabled
+      ) {
+        override def getNDJsonPost[T: Manifest](
+            target: String,
+            data: T,
+            setIncludeEndStreamAction: Boolean
+        ): ParsedDeltaSharingResponse = {
+          // Return a mock response with a different version than requested
+          ParsedDeltaSharingResponse(
+            version = returnedVersion,
+            respondedFormat = RESPONSE_FORMAT_PARQUET,
+            lines = Seq(
+              """{"protocol":{"minReaderVersion":1}}""",
+              """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}"""
+            ),
+            capabilitiesMap = Map.empty
+          )
         }
-
-        DeltaTableFiles(
-          version = returnedVersion,
-          protocol = Protocol(minReaderVersion = 1),
-          metadata = Metadata(
-            id = "test-id",
-            format = Format(),
-            schemaString = """{"type":"struct","fields":[]}""",
-            partitionColumns = Seq.empty
-          ),
-          files = Seq.empty,
-          respondedFormat = RESPONSE_FORMAT_PARQUET
-        )
       }
 
-      override def getFiles(table: Table, startingVersion: Long, endingVersion: Option[Long]): DeltaTableFiles = null
+      try {
+        val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
 
-      override def getCDFFiles(
-          table: Table,
-          cdfOptions: Map[String, String],
-          includeHistoricalMetadata: Boolean): DeltaTableFiles = null
+        if (validationEnabled) {
+          // With validation enabled, should throw exception when versions don't match
+          val exception = intercept[IllegalArgumentException] {
+            client.getFiles(table, Nil, None, Some(requestedVersion), None, None, None)
+          }
+          assert(exception.getMessage.contains(
+            s"The returned table version $returnedVersion does not match the requested versionAsOf $requestedVersion"
+          ))
+          assert(exception.getMessage.contains("in getFiles"))
+        } else {
+          // With validation disabled, should succeed and return the server's version
+          val files = client.getFiles(table, Nil, None, Some(requestedVersion), None, None, None)
+          assert(files.version == returnedVersion)
+        }
+      } finally {
+        client.close()
+      }
     }
-
-    val exception = intercept[IllegalArgumentException] {
-      mockClient.getFiles(
-        Table(name = "test_table", schema = "test_schema", share = "test_share"),
-        predicates = Nil,
-        limit = None,
-        versionAsOf = Some(3L),
-        timestampAsOf = None,
-        jsonPredicateHints = None,
-        refreshToken = None
-      )
-    }
-    assert(exception.getMessage.contains("The returned table version 5 does not match the requested versionAsOf 3"))
-    assert(exception.getMessage.contains("in getFiles"))
   }
+
 }
