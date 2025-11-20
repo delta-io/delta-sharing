@@ -182,8 +182,8 @@ def load_as_spark(
     and the application must be a PySpark application with the Apache Spark Connector for Delta
     Sharing installed. Only one of version/timestamp is supported at one time.
 
-    :param url: a url under the format "<share>.<schema>.<table>" when delta_sharing_profile is provided.
-            Otherwise, applies format "<profile>#<share>.<schema>.<table>".
+    :param url: applies format "<profile>#<share>.<schema>.<table>". If delta_sharing_profile
+      is provided then "<share>.<schema>.<table>"
     :type url: str
     :param version: an optional non-negative int. Load the snapshot of table at version.
     :type version: Optional[int]
@@ -231,8 +231,8 @@ def load_table_changes_as_spark(
     parameter is accepted by the server. If the end parameter is not provided, the API will use the
     latest table version for it. The parameter range is inclusive in the query.
 
-    :param url: a url under the format "<share>.<schema>.<table>" when delta_sharing_profile is provided.
-            Otherwise, applies format "<profile>#<share>.<schema>.<table>".
+    :param url: applies format "<profile>#<share>.<schema>.<table>". If delta_sharing_profile
+      is provided then "<share>.<schema>.<table>"
     :type url: str
     :param starting_version: The starting version of table changes.
     :type starting_version: Optional[int]
