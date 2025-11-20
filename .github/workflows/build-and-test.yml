@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - 'branch-*'
   workflow_dispatch:
 jobs:
   build-and-test-server:
