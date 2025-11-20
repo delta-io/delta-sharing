@@ -501,6 +501,9 @@ class DeltaSharingRestClient(
         respondedFormat = respondedFormat
       )
     }
+    if (!versionMismatchCheckEnabled) {
+      require(versionAsOf.isEmpty || versionAsOf.get == version)
+    }
     val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
