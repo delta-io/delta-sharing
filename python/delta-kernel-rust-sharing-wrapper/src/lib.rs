@@ -126,7 +126,7 @@ impl Scan {
         &self,
         engine_interface: &PythonInterface,
     ) -> DeltaPyResult<PyArrowType<Box<dyn RecordBatchReader + Send>>> {
-        let result_schema: ArrowSchemaRef = try_get_schema(self.0.schema())?;
+        let result_schema: ArrowSchemaRef = try_get_schema(self.0.logical_schema())?;
         let results = self.0.execute(engine_interface.0.clone())?;
         let record_batch_iter = try_create_record_batch_iter(results, result_schema);
         Ok(PyArrowType(Box::new(record_batch_iter)))
