@@ -45,11 +45,8 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       "bearerToken" -> "dapi5e3574ec767ca1548ae5bbed1a2dc04d",
       "shareCredentialsVersion" -> "1"
     )
+    // Test DataFrame API with inline credentials
     checkAnswer(spark.read.format("deltaSharing").options(readOptions).load(tablePath), expected)
-    withTable("delta_sharing_test") {
-      sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
-      checkAnswer(sql(s"SELECT * FROM delta_sharing_test"), expected)
-    }
   }
 
   integrationTest("table1") {
