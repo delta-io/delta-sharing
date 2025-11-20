@@ -1459,6 +1459,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   test("version mismatch check - getFiles with mocked response") {
+    // Test delta format where version validation is controlled by the new config
     Seq(true, false).foreach { validationEnabled =>
       val requestedVersion = 15L
       val returnedVersion = 20L
@@ -1468,9 +1469,10 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         testProfileFile.getCanonicalPath
       )
 
-      // Create a client that overrides getNDJsonPost to return a mocked response
+      // Create a client that overrides getNDJsonPost to return a mocked delta format response
       val client = new DeltaSharingRestClient(
         profileProvider = mockProfileProvider,
+        responseFormat = RESPONSE_FORMAT_DELTA,
         versionMismatchCheckEnabled = validationEnabled
       ) {
         override def getNDJsonPost[T: Manifest](
@@ -1478,10 +1480,10 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             data: T,
             setIncludeEndStreamAction: Boolean
         ): ParsedDeltaSharingResponse = {
-          // Return a mock response with a different version than requested
+          // Return a mock delta format response with a different version than requested
           ParsedDeltaSharingResponse(
             version = returnedVersion,
-            respondedFormat = RESPONSE_FORMAT_PARQUET,
+            respondedFormat = RESPONSE_FORMAT_DELTA,
             lines = Seq(
               """{"protocol":{"minReaderVersion":1}}""",
               """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}"""
