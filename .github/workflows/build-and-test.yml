@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - 'branch-*'
+      - 'python-branch-*'
   workflow_dispatch:
 jobs:
   build-and-test-server:
