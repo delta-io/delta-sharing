@@ -54,7 +54,8 @@ class TestDeltaSharingClient(
     asyncQueryMaxDuration: Long = Long.MaxValue,
     tokenExchangeMaxRetries: Int = 5,
     tokenExchangeMaxRetryDurationInSeconds: Int = 60,
-    tokenRenewalThresholdInSeconds: Int = 600
+    tokenRenewalThresholdInSeconds: Int = 600,
+    versionMismatchCheckEnabled: Boolean = false
   ) extends DeltaSharingClient {
 
   import DeltaSharingOptions.RESPONSE_FORMAT_PARQUET
