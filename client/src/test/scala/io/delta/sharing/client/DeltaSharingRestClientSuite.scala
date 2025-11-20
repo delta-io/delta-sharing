@@ -1461,7 +1461,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   test("getMetadata - version validation failure") {
-    // Create a mock client that simulates version mismatch
+    // Create a mock client that simulates version mismatch with validation enabled
     val mockClient = new DeltaSharingClient {
       override def listAllTables(): Seq[Table] = Seq.empty
       override def getTableVersion(table: Table, startingTimestamp: Option[String]): Long = 0L
@@ -1472,11 +1472,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           timestampAsOf: Option[String]): DeltaTableMetadata = {
         val requestedVersion = versionAsOf.get
         val returnedVersion = requestedVersion + 1  // Simulate server returning wrong version
+        val versionMismatchCheckEnabled = true  // Enable validation for this test
 
-        // This should trigger the validation error
-        require(versionAsOf.isEmpty || versionAsOf.get == returnedVersion,
-          s"The returned table version $returnedVersion does not match the requested versionAsOf " +
-            s"${versionAsOf.get} in getMetadata")
+        // This should trigger the validation error when enabled
+        if (versionMismatchCheckEnabled) {
+          require(versionAsOf.isEmpty || versionAsOf.get == returnedVersion,
+            s"The returned table version $returnedVersion does not match the requested versionAsOf " +
+              s"${versionAsOf.get} in getMetadata")
+        }
 
         DeltaTableMetadata(
           version = returnedVersion,
@@ -1520,7 +1523,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   test("getFiles - version validation failure") {
-    // Create a mock client that simulates version mismatch
+    // Create a mock client that simulates version mismatch with validation enabled
     val mockClient = new DeltaSharingClient {
       override def listAllTables(): Seq[Table] = Seq.empty
       override def getTableVersion(table: Table, startingTimestamp: Option[String]): Long = 0L
@@ -1539,11 +1542,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           refreshToken: Option[String]): DeltaTableFiles = {
         val requestedVersion = versionAsOf.get
         val returnedVersion = requestedVersion + 2  // Simulate server returning wrong version
+        val versionMismatchCheckEnabled = true  // Enable validation for this test
 
-        // This should trigger the validation error
-        require(versionAsOf.isEmpty || versionAsOf.get == returnedVersion,
-          s"The returned table version $returnedVersion does not match the requested versionAsOf " +
-            s"${versionAsOf.get} in getFiles")
+        // This should trigger the validation error when enabled
+        if (versionMismatchCheckEnabled) {
+          require(versionAsOf.isEmpty || versionAsOf.get == returnedVersion,
+            s"The returned table version $returnedVersion does not match the requested versionAsOf " +
+              s"${versionAsOf.get} in getFiles")
+        }
 
         DeltaTableFiles(
           version = returnedVersion,

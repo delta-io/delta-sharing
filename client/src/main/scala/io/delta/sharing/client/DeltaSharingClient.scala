@@ -198,7 +198,8 @@ class DeltaSharingRestClient(
     asyncQueryMaxDuration: Long = 600000L,
     tokenExchangeMaxRetries: Int = 5,
     tokenExchangeMaxRetryDurationInSeconds: Int = 60,
-    tokenRenewalThresholdInSeconds: Int = 600
+    tokenRenewalThresholdInSeconds: Int = 600,
+    versionMismatchCheckEnabled: Boolean = false
   ) extends DeltaSharingClient with Logging {
 
   logInfo(s"DeltaSharingRestClient with endStreamActionEnabled: $endStreamActionEnabled, " +
@@ -365,9 +366,11 @@ class DeltaSharingRestClient(
     )
 
     // Validate that the response version matches the requested version
-    require(versionAsOf.isEmpty || versionAsOf.get == response.version,
-      s"The returned table version ${response.version} does not match the requested versionAsOf " +
-        s"${versionAsOf.get} in getMetadata" + getDsQueryIdForLogging)
+    if (versionMismatchCheckEnabled) {
+      require(versionAsOf.isEmpty || versionAsOf.get == response.version,
+        s"The returned table version ${response.version} does not match the requested versionAsOf " +
+          s"${versionAsOf.get} in getMetadata" + getDsQueryIdForLogging)
+    }
 
     if (response.respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(
@@ -480,9 +483,11 @@ class DeltaSharingRestClient(
     )
 
     // Validate that the response version matches the requested version
-    require(versionAsOf.isEmpty || versionAsOf.get == version,
-      s"The returned table version $version does not match the requested versionAsOf " +
-        s"${versionAsOf.get} in getFiles" + getDsQueryIdForLogging)
+    if (versionMismatchCheckEnabled) {
+      require(versionAsOf.isEmpty || versionAsOf.get == version,
+        s"The returned table version $version does not match the requested versionAsOf " +
+          s"${versionAsOf.get} in getFiles" + getDsQueryIdForLogging)
+    }
 
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(
@@ -1446,6 +1451,7 @@ object DeltaSharingRestClient extends Logging {
     val tokenExchangeMaxRetryDurationInSeconds =
       ConfUtils.tokenExchangeMaxRetryDurationInSeconds(sqlConf)
     val tokenRenewalThresholdInSeconds = ConfUtils.tokenRenewalThresholdInSeconds(sqlConf)
+    val versionMismatchCheckEnabled = ConfUtils.versionMismatchCheckEnabled(sqlConf)
 
     val clientClass = ConfUtils.clientClass(sqlConf)
     Class.forName(clientClass)
@@ -1467,7 +1473,8 @@ object DeltaSharingRestClient extends Logging {
         classOf[Long],
         classOf[Int],
         classOf[Int],
-        classOf[Int]
+        classOf[Int],
+        classOf[Boolean]
     ).newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
@@ -1485,7 +1492,8 @@ object DeltaSharingRestClient extends Logging {
         java.lang.Long.valueOf(asyncQueryMaxDurationMillis),
         java.lang.Integer.valueOf(tokenExchangeMaxRetries),
         java.lang.Integer.valueOf(tokenExchangeMaxRetryDurationInSeconds),
-        java.lang.Integer.valueOf(tokenRenewalThresholdInSeconds)
+        java.lang.Integer.valueOf(tokenRenewalThresholdInSeconds),
+        java.lang.Boolean.valueOf(versionMismatchCheckEnabled)
       ).asInstanceOf[DeltaSharingClient]
   }
 }

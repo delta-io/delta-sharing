@@ -111,6 +111,9 @@ object ConfUtils {
   val LOG_PRESIGNED_URL_ACCESS_CONF = "spark.delta.sharing.client.logPreSignedUrlAccess.enabled"
   val LOG_PRESIGNED_URL_ACCESS_DEFAULT = false
 
+  val VERSION_MISMATCH_CHECK_ENABLED_CONF = "spark.delta.sharing.client.versionMismatchCheckEnabled"
+  val VERSION_MISMATCH_CHECK_ENABLED_DEFAULT = false
+
   def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
     val proxyHost = conf.get(PROXY_HOST, null)
     val proxyPortAsString = conf.get(PROXY_PORT, null)
@@ -337,6 +340,15 @@ object ConfUtils {
   def logPreSignedUrlAccessEnabled(conf: SQLConf): Boolean = {
     conf.getConfString(
       LOG_PRESIGNED_URL_ACCESS_CONF, LOG_PRESIGNED_URL_ACCESS_DEFAULT.toString).toBoolean
+  }
+
+  def versionMismatchCheckEnabled(conf: Configuration): Boolean = {
+    conf.getBoolean(VERSION_MISMATCH_CHECK_ENABLED_CONF, VERSION_MISMATCH_CHECK_ENABLED_DEFAULT)
+  }
+
+  def versionMismatchCheckEnabled(conf: SQLConf): Boolean = {
+    conf.getConfString(
+      VERSION_MISMATCH_CHECK_ENABLED_CONF, VERSION_MISMATCH_CHECK_ENABLED_DEFAULT.toString).toBoolean
   }
 
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {

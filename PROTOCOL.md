@@ -1481,15 +1481,6 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
 **{table}**: The table name to query. It's case-insensitive.
 </td>
 </tr>
-<tr>
-<td>Query Parameters</td>
-<td>
-
-**version** (type: Long, optional): If set, will return metadata as of the specified version of the table. The server may decided to return an error if the queried version is incorrect, or if server does not permit time travel.
-
-**timestamp** (type: String, optional): If set, will return metadata as of the table version corresponding to the specified timestamp in the [Timestamp Format](#timestamp-format). The server may decided to return an error if the queried version is incorrect, or if server does not permit time travel.
-</td>
-</tr>
 </table>
 
 <details open>
@@ -1691,16 +1682,6 @@ The response contains two lines:
 Example (See [API Response Actions in Parquet Format](#api-response-actions-in-parquet-format) for more details about the format):
 
 `GET {prefix}/shares/share_name/schemas/schema_name/tables/table_name/metadata`
-
-```
-HTTP/2 200 
-content-type: application/x-ndjson; charset=utf-8
-delta-table-version: 123
-```
-
-Example with version parameter:
-
-`GET {prefix}/shares/share_name/schemas/schema_name/tables/table_name/metadata?version=123`
 
 ```
 HTTP/2 200 
@@ -2028,9 +2009,9 @@ The request body should be a JSON string containing the following optional field
 - **limitHint** (type: Int32, optional): an optional limit number. It’s a hint from the client to tell the server how many rows in the table the client plans to read. The server can use this hint to return only some files by using the file stats. For example, when running `SELECT * FROM table LIMIT 1000`, the client can set `limitHint` to `1000`.
   - Applying `limitHint` is **BEST EFFORT**. The server may return files containing more rows than the client requests.
 
-- **version** (type: Long, optional): an optional version number. If set, will return files as of the specified version of the table. The server may decided to return an error if the queried version is incorrect, or if server does not permit time travel.
+- **version** (type: Long, optional): an optional version number. If set, will return files as of the specified version of the table. This is only supported on tables with history sharing enabled.
 
-- **timestamp** (type: String, optional): an optional timestamp string in the [Timestamp Format](#timestamp-format),. If set, will return files as of the table version corresponding to the specified timestamp. The server may decided to return an error if the queried version is incorrect, or if server does not permit time travel.
+- **timestamp** (type: String, optional): an optional timestamp string in the [Timestamp Format](#timestamp-format),. If set, will return files as of the table version corresponding to the specified timestamp. This is only supported on tables with history sharing enabled.
 
 - **startingVersion** (type: Long, optional): an optional version number. If set, will return all data change files since startingVersion, inclusive, including historical metadata if seen in the delta log.
 
