@@ -1,14 +1,12 @@
 use std::sync::Arc;
 
-use arrow::compute::filter_record_batch;
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use arrow::error::ArrowError;
 use arrow::pyarrow::PyArrowType;
 use arrow::record_batch::{RecordBatch, RecordBatchIterator, RecordBatchReader};
 
-use delta_kernel::engine::default::executor::tokio::TokioBackgroundExecutor;
+use delta_kernel::engine::arrow_conversion::TryIntoArrow;
 use delta_kernel::engine::default::DefaultEngine;
-use delta_kernel::scan::ScanResult;
 use delta_kernel::table_changes::scan::{
     TableChangesScan as KernelTableChangesScan,
     TableChangesScanBuilder as KernelTableChangesScanBuilder,
@@ -21,8 +19,6 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use url::Url;
-
-use std::collections::HashMap;
 
 struct PyKernelError(KernelError);
 
@@ -41,20 +37,20 @@ impl From<KernelError> for PyKernelError {
 type DeltaPyResult<T> = std::result::Result<T, PyKernelError>;
 
 #[pyclass]
-struct Table(delta_kernel::Table);
+struct Table(Url);
 
 #[pymethods]
 impl Table {
     #[new]
     fn new(location: &str) -> DeltaPyResult<Self> {
         let location = Url::parse(location).map_err(KernelError::InvalidUrl)?;
-        let table = delta_kernel::Table::new(location);
-        Ok(Table(table))
+        Ok(Table(location))
     }
 
     fn snapshot(&self, engine_interface: &PythonInterface) -> DeltaPyResult<Snapshot> {
-        let snapshot = self.0.snapshot(engine_interface.0.as_ref(), None)?;
-        Ok(Snapshot(Arc::new(snapshot)))
+        let snapshot = delta_kernel::Snapshot::builder_for(self.0.clone())
+            .build(engine_interface.0.as_ref())?;
+        Ok(Snapshot(snapshot))
     }
 }
 
@@ -90,29 +86,23 @@ impl ScanBuilder {
 }
 
 fn try_get_schema(schema: &Arc<StructType>) -> Result<ArrowSchemaRef, KernelError> {
-    Ok(Arc::new(schema.as_ref().try_into().map_err(|e| {
+    Ok(Arc::new(schema.as_ref().try_into_arrow().map_err(|e| {
         KernelError::Generic(format!("Could not get result schema: {e}"))
     })?))
 }
 
 fn try_create_record_batch_iter(
-    results: impl Iterator<Item = DeltaResult<ScanResult>>,
+    results: impl Iterator<Item = DeltaResult<Box<dyn delta_kernel::EngineData>>>,
     result_schema: ArrowSchemaRef,
 ) -> RecordBatchIterator<impl Iterator<Item = Result<RecordBatch, ArrowError>>> {
-    let record_batches = results.map(|res| {
-        let scan_res = res.and_then(|res| Ok((res.full_mask(), res.raw_data?)));
-        let (mask, data) = scan_res.map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+    let record_batches = results.map(|data| {
         let record_batch: RecordBatch = data
+            .map_err(|e| ArrowError::from_external_error(Box::new(e)))?
             .into_any()
             .downcast::<ArrowEngineData>()
             .map_err(|_| ArrowError::CastError("Couldn't cast to ArrowEngineData".to_string()))?
             .into();
-        if let Some(mask) = mask {
-            let filtered_batch = filter_record_batch(&record_batch, &mask.into())?;
-            Ok(filtered_batch)
-        } else {
-            Ok(record_batch)
-        }
+        Ok(record_batch)
     });
     RecordBatchIterator::new(record_batches, result_schema)
 }
@@ -126,9 +116,13 @@ impl Scan {
         &self,
         engine_interface: &PythonInterface,
     ) -> DeltaPyResult<PyArrowType<Box<dyn RecordBatchReader + Send>>> {
-        let result_schema: ArrowSchemaRef = try_get_schema(self.0.schema())?;
+        let result_schema: ArrowSchemaRef = try_get_schema(self.0.logical_schema())?;
         let results = self.0.execute(engine_interface.0.clone())?;
-        let record_batch_iter = try_create_record_batch_iter(results, result_schema);
+        // TODO: the Scan::execute returns an iterator with a lifetime bound that can't be made
+        // 'static, so we collect here.
+        let results: Vec<_> = results.collect::<DeltaResult<Vec<_>>>()?;
+        let record_batch_iter =
+            try_create_record_batch_iter(results.into_iter().map(Ok), result_schema);
         Ok(PyArrowType(Box::new(record_batch_iter)))
     }
 }
@@ -146,9 +140,12 @@ impl TableChangesScanBuilder {
         start_version: u64,
         end_version: Option<u64>,
     ) -> DeltaPyResult<TableChangesScanBuilder> {
-        let table_changes = table
-            .0
-            .table_changes(engine_interface.0.as_ref(), start_version, end_version)?;
+        let table_changes = delta_kernel::table_changes::TableChanges::try_new(
+            table.0.clone(),
+            engine_interface.0.as_ref(),
+            start_version,
+            end_version,
+        )?;
         Ok(TableChangesScanBuilder(Some(
             table_changes.into_scan_builder(),
         )))
@@ -162,7 +159,7 @@ impl TableChangesScanBuilder {
                 KernelError::generic("Can only call build() once on TableChangesScanBuilder")
             })?
             .build()?;
-        let schema: ArrowSchemaRef = try_get_schema(scan.schema())?;
+        let schema: ArrowSchemaRef = try_get_schema(scan.logical_schema())?;
         Ok(TableChangesScan { scan, schema })
     }
 }
@@ -194,12 +191,11 @@ impl PythonInterface {
     #[new]
     fn new(location: &str) -> DeltaPyResult<Self> {
         let url = Url::parse(location).map_err(KernelError::InvalidUrl)?;
-        let client = DefaultEngine::try_new(
-            &url,
-            HashMap::<String, String>::new(),
-            Arc::new(TokioBackgroundExecutor::new()),
-        )?;
-        Ok(PythonInterface(Arc::new(client)))
+        let (object_store, _path) = object_store::parse_url(&url)
+            .map_err(|e| KernelError::InvalidTableLocation(format!("FIXME {e}")))?;
+        let object_store: Arc<_> = object_store.into();
+        let engine = DefaultEngine::new(object_store);
+        Ok(PythonInterface(Arc::new(engine)))
     }
 }
 
