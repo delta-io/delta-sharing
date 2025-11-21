@@ -276,34 +276,4 @@ class ConfUtilsSuite extends SparkFunSuite {
       tokenRenewalThresholdInSeconds(newSqlConf(Map(OAUTH_EXPIRATION_THRESHOLD_CONF -> "-1")))
     }.getMessage.contains(OAUTH_EXPIRATION_THRESHOLD_CONF)
   }
-
-  test("versionMismatchCheckEnabled - default value") {
-    assert(versionMismatchCheckEnabled(newConf()) == VERSION_MISMATCH_CHECK_ENABLED_DEFAULT)
-    assert(versionMismatchCheckEnabled(newConf()) == false)
-  }
-
-  test("versionMismatchCheckEnabled - true value") {
-    assert(versionMismatchCheckEnabled(
-      newConf(Map(VERSION_MISMATCH_CHECK_ENABLED_CONF -> "true"))) == true)
-  }
-
-  test("versionMismatchCheckEnabled - false value") {
-    assert(versionMismatchCheckEnabled(
-      newConf(Map(VERSION_MISMATCH_CHECK_ENABLED_CONF -> "false"))) == false)
-  }
-
-  test("versionMismatchCheckEnabled with SQLConf - default value") {
-    assert(versionMismatchCheckEnabled(newSqlConf()) == VERSION_MISMATCH_CHECK_ENABLED_DEFAULT)
-    assert(versionMismatchCheckEnabled(newSqlConf()) == false)
-  }
-
-  test("versionMismatchCheckEnabled with SQLConf - true value") {
-    assert(versionMismatchCheckEnabled(
-      newSqlConf(Map(VERSION_MISMATCH_CHECK_ENABLED_CONF -> "true"))) == true)
-  }
-
-  test("versionMismatchCheckEnabled with SQLConf - false value") {
-    assert(versionMismatchCheckEnabled(
-      newSqlConf(Map(VERSION_MISMATCH_CHECK_ENABLED_CONF -> "false"))) == false)
-  }
 }

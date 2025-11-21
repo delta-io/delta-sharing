@@ -1404,19 +1404,20 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   test("version mismatch check - getMetadata with mocked response") {
-    Seq(true, false).foreach { validationEnabled =>
+    Seq(true, false).foreach { isMSTQuery =>
       val requestedVersion = 5L
       val returnedVersion = 10L
 
       val mockProfileProvider = new DeltaSharingFileProfileProvider(
         new Configuration(),
         testProfileFile.getCanonicalPath
-      )
+      ) {
+        override def isMSTQuery(): Boolean = isMSTQuery
+      }
 
       // Create a client that overrides getNDJson to return a mocked response
       val client = new DeltaSharingRestClient(
-        profileProvider = mockProfileProvider,
-        versionMismatchCheckEnabled = validationEnabled
+        profileProvider = mockProfileProvider
       ) {
         override def getNDJson(
             target: String,
@@ -1439,8 +1440,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       try {
         val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
 
-        if (validationEnabled) {
-          // With validation enabled, should throw exception when versions don't match
+        if (isMSTQuery) {
+          // For MST queries, should throw exception when versions don't match
           val exception = intercept[IllegalArgumentException] {
             client.getMetadata(table, versionAsOf = Some(requestedVersion), timestampAsOf = None)
           }
@@ -1449,7 +1450,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           ))
           assert(exception.getMessage.contains("in getMetadata"))
         } else {
-          // With validation disabled, should succeed and return the server's version
+          // For non-MST queries, should succeed and return the server's version
           val metadata = client.getMetadata(table, versionAsOf = Some(requestedVersion), timestampAsOf = None)
           assert(metadata.version == returnedVersion)
         }
@@ -1460,21 +1461,22 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   test("version mismatch check - getFiles with mocked response") {
-    // Test delta format where version validation is controlled by the new config
-    Seq(true, false).foreach { validationEnabled =>
+    // Test delta format where version validation is controlled by isMSTQuery
+    Seq(true, false).foreach { isMSTQuery =>
       val requestedVersion = 15L
       val returnedVersion = 20L
 
       val mockProfileProvider = new DeltaSharingFileProfileProvider(
         new Configuration(),
         testProfileFile.getCanonicalPath
-      )
+      ) {
+        override def isMSTQuery(): Boolean = isMSTQuery
+      }
 
       // Create a client that overrides getNDJsonPost to return a mocked delta format response
       val client = new DeltaSharingRestClient(
         profileProvider = mockProfileProvider,
-        responseFormat = RESPONSE_FORMAT_DELTA,
-        versionMismatchCheckEnabled = validationEnabled
+        responseFormat = RESPONSE_FORMAT_DELTA
       ) {
         override def getNDJsonPost[T: Manifest](
             target: String,
@@ -1497,8 +1499,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       try {
         val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
 
-        if (validationEnabled) {
-          // With validation enabled, should throw exception when versions don't match
+        if (isMSTQuery) {
+          // For MST queries, should throw exception when versions don't match
           val exception = intercept[IllegalArgumentException] {
             client.getFiles(table, Nil, None, Some(requestedVersion), None, None, None)
           }
@@ -1507,7 +1509,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           ))
           assert(exception.getMessage.contains("in getFiles"))
         } else {
-          // With validation disabled, should succeed and return the server's version
+          // For non-MST queries, should succeed and return the server's version
           val files = client.getFiles(table, Nil, None, Some(requestedVersion), None, None, None)
           assert(files.version == returnedVersion)
         }
