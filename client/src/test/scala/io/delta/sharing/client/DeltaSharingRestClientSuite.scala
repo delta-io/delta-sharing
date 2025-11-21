@@ -18,6 +18,7 @@ package io.delta.sharing.client
 
 import java.sql.Timestamp
 
+import org.apache.hadoop.conf.Configuration
 import org.apache.http.HttpHeaders
 import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
 
@@ -26,6 +27,7 @@ import io.delta.sharing.client.model.{
   AddFile,
   AddFileForCDF,
   DeltaTableFiles,
+  DeltaTableMetadata,
   EndStreamAction,
   Format,
   Metadata,
@@ -1400,4 +1402,121 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
     checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
   }
+
+  test("version mismatch check - getMetadata with mocked response") {
+    Seq(true, false).foreach { isMSTQueryFlag =>
+      val requestedVersion = 5L
+      val returnedVersion = 10L
+
+      val mockProfileProvider = new DeltaSharingFileProfileProvider(
+        new Configuration(),
+        testProfileFile.getCanonicalPath
+      ) {
+        override def isMSTQuery(): Boolean = isMSTQueryFlag
+      }
+
+      // Create a client that overrides getNDJson to return a mocked response
+      val client = new DeltaSharingRestClient(
+        profileProvider = mockProfileProvider
+      ) {
+        override def getNDJson(
+            target: String,
+            requireVersion: Boolean,
+            setIncludeEndStreamAction: Boolean
+        ): ParsedDeltaSharingResponse = {
+          // Return a mock response with a different version than requested
+          ParsedDeltaSharingResponse(
+            version = returnedVersion,
+            respondedFormat = RESPONSE_FORMAT_PARQUET,
+            lines = Seq(
+              """{"protocol":{"minReaderVersion":1}}""",
+              """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}"""
+            ),
+            capabilitiesMap = Map.empty
+          )
+        }
+      }
+
+      try {
+        val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+
+        if (isMSTQueryFlag) {
+          // For MST queries, should throw exception when versions don't match
+          val exception = intercept[IllegalArgumentException] {
+            client.getMetadata(table, versionAsOf = Some(requestedVersion), timestampAsOf = None)
+          }
+          assert(exception.getMessage.contains(
+            s"The returned table version $returnedVersion does not match the requested versionAsOf $requestedVersion"
+          ))
+          assert(exception.getMessage.contains("in getMetadata"))
+        } else {
+          // For non-MST queries, should succeed and return the server's version
+          val metadata = client.getMetadata(table, versionAsOf = Some(requestedVersion), timestampAsOf = None)
+          assert(metadata.version == returnedVersion)
+        }
+      } finally {
+        client.close()
+      }
+    }
+  }
+
+  test("version mismatch check - getFiles with mocked response") {
+    // Test delta format where version validation is controlled by isMSTQuery
+    Seq(true, false).foreach { isMSTQueryFlag =>
+      val requestedVersion = 15L
+      val returnedVersion = 20L
+
+      val mockProfileProvider = new DeltaSharingFileProfileProvider(
+        new Configuration(),
+        testProfileFile.getCanonicalPath
+      ) {
+        override def isMSTQuery(): Boolean = isMSTQueryFlag
+      }
+
+      // Create a client that overrides getNDJsonPost to return a mocked delta format response
+      val client = new DeltaSharingRestClient(
+        profileProvider = mockProfileProvider,
+        responseFormat = RESPONSE_FORMAT_DELTA
+      ) {
+        override def getNDJsonPost[T: Manifest](
+            target: String,
+            data: T,
+            setIncludeEndStreamAction: Boolean
+        ): ParsedDeltaSharingResponse = {
+          // Return a mock delta format response with a different version than requested
+          ParsedDeltaSharingResponse(
+            version = returnedVersion,
+            respondedFormat = RESPONSE_FORMAT_DELTA,
+            lines = Seq(
+              """{"protocol":{"minReaderVersion":1}}""",
+              """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}"""
+            ),
+            capabilitiesMap = Map.empty
+          )
+        }
+      }
+
+      try {
+        val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+
+        if (isMSTQueryFlag) {
+          // For MST queries, should throw exception when versions don't match
+          val exception = intercept[IllegalArgumentException] {
+            client.getFiles(table, Nil, None, Some(requestedVersion), None, None, None)
+          }
+          assert(exception.getMessage.contains(
+            s"The returned table version $returnedVersion does not match the requested versionAsOf $requestedVersion"
+          ))
+          assert(exception.getMessage.contains("in getFiles"))
+        } else {
+          // For non-MST queries, should succeed and return the server's version
+          val files = client.getFiles(table, Nil, None, Some(requestedVersion), None, None, None)
+          assert(files.version == returnedVersion)
+        }
+      } finally {
+        client.close()
+      }
+    }
+  }
+
 }
