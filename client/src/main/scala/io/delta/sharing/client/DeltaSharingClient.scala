@@ -1245,8 +1245,9 @@ object DeltaSharingRestClient extends Logging {
   }
 
   /**
-   * Parse the user provided path `profile_file#share.schema.table` to
-   * ParsedDeltaSharingTablePath.
+   * Validate and parse user provided path:
+   * When credentials are provided via options, path format should be `share.schema.table`
+   * Otherwise, profile file should be included `profile_file#share.schema.table`
    */
   def parsePath(
      path: String,

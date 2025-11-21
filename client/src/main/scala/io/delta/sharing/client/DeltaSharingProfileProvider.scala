@@ -110,7 +110,7 @@ private[sharing] class DeltaSharingFileProfileProvider(
  * Load [[DeltaSharingProfile]] from options.
  */
 private[sharing] class DeltaSharingOptionsProfileProvider(
-    shareCredentialsOptions: Map[String, String]) extends DeltaSharingProfileProvider {
+    shareCredentialsOptions: Map[String, Any]) extends DeltaSharingProfileProvider {
 
   val profile = {
     val profile = {

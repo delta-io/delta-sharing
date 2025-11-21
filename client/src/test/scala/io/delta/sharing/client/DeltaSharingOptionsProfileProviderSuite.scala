@@ -23,7 +23,7 @@ import org.apache.spark.SparkFunSuite
 class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
 
   private def testProfile(
-      shareCredentialsOptions: Map[String, String], expected: DeltaSharingProfile): Unit = {
+      shareCredentialsOptions: Map[String, Any], expected: DeltaSharingProfile): Unit = {
     assert(new DeltaSharingOptionsProfileProvider(shareCredentialsOptions)
       .getProfile == expected)
   }
@@ -31,7 +31,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
   test("parse") {
     testProfile(
       Map(
-        "shareCredentialsVersion" -> "1",
+        "shareCredentialsVersion" -> 1,
         "endpoint" -> "foo",
         "bearerToken" -> "bar",
         "expirationTime" -> "2021-11-12T00:12:29Z"
@@ -48,7 +48,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
   test("expirationTime is optional") {
     testProfile(
       Map(
-        "shareCredentialsVersion" -> "1",
+        "shareCredentialsVersion" -> 1,
         "endpoint" -> "foo",
         "bearerToken" -> "bar"
       ),
@@ -78,7 +78,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         Map(
-          "shareCredentialsVersion" -> "2",
+          "shareCredentialsVersion" -> 2,
           "endpoint" -> "foo",
           "bearerToken" -> "bar"
         ),
@@ -86,14 +86,15 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
       )
     }
     assert(e.getMessage.contains(
-      "bearer_token only supports version 1"))
+      "'shareCredentialsVersion' in the profile is 2 which is too new. " +
+        "The current release supports version 1 and below. Please upgrade to a newer release."))
   }
 
   test("shareCredentialsVersion is not supported") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         Map(
-          "shareCredentialsVersion" -> "100"
+          "shareCredentialsVersion" -> 100
         ),
         null
       )
@@ -106,7 +107,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         Map(
-          "shareCredentialsVersion" -> "1",
+          "shareCredentialsVersion" -> 1,
           "bearerToken" -> "bar"
         ),
         null
@@ -119,7 +120,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         Map(
-          "shareCredentialsVersion" -> "1",
+          "shareCredentialsVersion" -> 1,
           "endpoint" -> "foo"
         ),
         null
@@ -131,7 +132,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
   test("unknown field should be ignored") {
     testProfile(
       Map(
-      "shareCredentialsVersion" -> "1",
+      "shareCredentialsVersion" -> 1,
       "endpoint" -> "foo",
       "bearerToken" -> "bar",
       "expirationTime" -> "2021-11-12T00:12:29Z",
@@ -146,53 +147,11 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
     )
   }
 
-  test("oauth_client_credentials profile without optional scope") {
-    testProfile(
-      Map(
-        "shareCredentialsVersion" -> "2",
-        "endpoint" -> "foo",
-        "tokenEndpoint" -> "bar",
-        "clientId" -> "abc",
-        "clientSecret" -> "xyz",
-        "type" -> "oauth_client_credentials"
-      ),
-      OAuthClientCredentialsDeltaSharingProfile(
-        shareCredentialsVersion = Some(2),
-        endpoint = "foo",
-        tokenEndpoint = "bar",
-        clientId = "abc",
-        clientSecret = "xyz"
-      )
-    )
-  }
-
-  test("oauth_client_credentials profile with optional scope") {
-    testProfile(
-      Map(
-        "shareCredentialsVersion" -> "2",
-        "endpoint" -> "foo",
-        "tokenEndpoint" -> "bar",
-        "clientId" -> "abc",
-        "clientSecret" -> "xyz",
-        "type" -> "oauth_client_credentials",
-        "scope" -> "testScope"
-      ),
-      OAuthClientCredentialsDeltaSharingProfile(
-        shareCredentialsVersion = Some(2),
-        endpoint = "foo",
-        tokenEndpoint = "bar",
-        clientId = "abc",
-        clientSecret = "xyz",
-        scope = Some("testScope")
-      )
-    )
-  }
-
   test("oauth_client_credentials only supports version 2") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         Map(
-          "shareCredentialsVersion" -> "1",
+          "shareCredentialsVersion" -> 1,
           "endpoint" -> "foo",
           "tokenEndpoint" -> "bar",
           "clientId" -> "abc",
@@ -215,7 +174,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
         mandatoryFields
         .filter(_ != missingField)
         .map(f => f -> "value")
-        .toMap + ("shareCredentialsVersion" -> "2", "type" -> "oauth_client_credentials")
+        .toMap + ("shareCredentialsVersion" -> 1, "type" -> "oauth_client_credentials")
       }
 
       val e = intercept[IllegalArgumentException] {
@@ -223,38 +182,5 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
       }
       assert(e.getMessage.contains(s"Cannot find the '$missingField' field in the profile"))
     }
-  }
-
-  test("OAuthClientCredentialsDeltaSharingProfile.type is prepopulated") {
-    val profile = OAuthClientCredentialsDeltaSharingProfile(
-      shareCredentialsVersion = Some(2),
-      endpoint = "foo",
-      tokenEndpoint = "bar",
-      clientId = "abc",
-      clientSecret = "xyz",
-      scope = Some("testScope")
-    )
-
-    assert(profile.profileType == "oauth_client_credentials")
-  }
-
-  test("DeltaSharingProfile.type is prepopulated") {
-    val profile = DeltaSharingProfile(
-      shareCredentialsVersion = Some(1),
-      endpoint = "foo",
-      bearerToken = "bar"
-    )
-
-    assert(profile.profileType == "bearer_token")
-  }
-
-  test("BearerTokenDeltaSharingProfile.type is prepopulated") {
-    val profile = BearerTokenDeltaSharingProfile(
-      shareCredentialsVersion = Some(1),
-      endpoint = "foo",
-      bearerToken = "bar"
-    )
-
-    assert(profile.profileType == "bearer_token")
   }
 }
