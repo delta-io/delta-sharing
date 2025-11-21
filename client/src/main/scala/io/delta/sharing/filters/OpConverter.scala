@@ -18,6 +18,7 @@ package io.delta.sharing.filters
 
 import scala.collection.mutable.ListBuffer
 
+import com.ibm.icu.util.VersionInfo.ICU_VERSION
 import org.apache.spark.sql.catalyst.expressions.{
   And => SqlAnd,
   Attribute => SqlAttribute,
@@ -93,15 +94,30 @@ object OpConverter {
 
       // Convert comparison operators.
       case SqlEqualTo(left, right) =>
-        EqualOp(Seq(convertAsLeaf(left), convertAsLeaf(right)))
+        EqualOp(
+          Seq(convertAsLeaf(left), convertAsLeaf(right)),
+          extractExprContext(left, right)
+        )
       case SqlLessThan(left, right) =>
-        LessThanOp(Seq(convertAsLeaf(left), convertAsLeaf(right)))
+        LessThanOp(
+          Seq(convertAsLeaf(left), convertAsLeaf(right)),
+          extractExprContext(left, right)
+        )
       case SqlLessThanOrEqual(left, right) =>
-        LessThanOrEqualOp(Seq(convertAsLeaf(left), convertAsLeaf(right)))
+        LessThanOrEqualOp(
+          Seq(convertAsLeaf(left), convertAsLeaf(right)),
+          extractExprContext(left, right)
+        )
       case SqlGreaterThan(left, right) =>
-        GreaterThanOp(Seq(convertAsLeaf(left), convertAsLeaf(right)))
+        GreaterThanOp(
+          Seq(convertAsLeaf(left), convertAsLeaf(right)),
+          extractExprContext(left, right)
+        )
       case SqlGreaterThanOrEqual(left, right) =>
-        GreaterThanOrEqualOp(Seq(convertAsLeaf(left), convertAsLeaf(right)))
+        GreaterThanOrEqualOp(
+          Seq(convertAsLeaf(left), convertAsLeaf(right)),
+          extractExprContext(left, right)
+        )
 
       // Convert null operations.
       case SqlIsNull(child) =>
@@ -118,7 +134,9 @@ object OpConverter {
           )
         }
         val leafOp = convertAsLeaf(value)
-        list.map(e => EqualOp(Seq(leafOp, convertAsLeaf(e)))) match {
+        list.map(e =>
+          EqualOp(Seq(leafOp, convertAsLeaf(e)), extractExprContext(value, e))
+        ) match {
           case Seq() =>
             throw new IllegalArgumentException("The In predicate must have at least one entry")
           case Seq(child) => child
@@ -131,13 +149,14 @@ object OpConverter {
         val rightOp = convertAsLeaf(right)
         val leftIsNullOp = IsNullOp(Seq(leftOp))
         val rightIsNullOp = IsNullOp(Seq(rightOp))
+        val exprCtx = extractExprContext(left, right)
         // Either both are null, or none is null and they are equal.
         OrOp(Seq(
           AndOp(Seq(leftIsNullOp, rightIsNullOp)),
           AndOp(Seq(
             NotOp(Seq(leftIsNullOp)),
             NotOp(Seq(rightIsNullOp)),
-            EqualOp(Seq(leftOp, rightOp))))
+            EqualOp(Seq(leftOp, rightOp), exprCtx)))
         ))
 
       // Unsupported expressions.
@@ -186,7 +205,7 @@ object OpConverter {
       case SqlBooleanType => OpDataTypes.BoolType
       case SqlIntegerType => OpDataTypes.IntType
       case SqlLongType => OpDataTypes.LongType
-      case s: SqlStringType => s.typeName
+      case _: SqlStringType => OpDataTypes.StringType
       case SqlDateType => OpDataTypes.DateType
       case SqlDoubleType => OpDataTypes.DoubleType
       case SqlFloatType => OpDataTypes.FloatType
@@ -205,6 +224,52 @@ object OpConverter {
         // We convert it to jave.time.Instant, which formats it to ISO-8601 representation.
         java.time.Instant.ofEpochMilli(lit.value.asInstanceOf[Long] / 1000).toString()
       case _ => lit.toString
+    }
+  }
+
+  // Extracts expression context from two expressions, including collation information
+  // if both are strings with the same collation. This is a generic function that can be
+  // extended to extract other dimensions of context in the future.
+  private def extractExprContext(
+      left: SqlExpression,
+      right: SqlExpression): Option[ExprContext] = {
+    val collationId = extractCollationIdentifier(left, right)
+
+    // If we have any context information, return an ExprContext
+    if (collationId.isDefined) {
+      Some(ExprContext(collationIdentifier = collationId))
+    } else {
+      None
+    }
+  }
+
+  // Extracts collation identifier from two expressions if both are strings
+  // with the same collation.
+  private def extractCollationIdentifier(
+      left: SqlExpression,
+      right: SqlExpression): Option[String] = {
+    (left.dataType, right.dataType) match {
+      case (leftStr: SqlStringType, rightStr: SqlStringType) =>
+        // Spark needs to make sure to only compare strings of the same collation.
+        if (leftStr != rightStr) {
+          throw new IllegalArgumentException(
+            s"Cannot compare strings with different collations: " +
+            s"'${leftStr.typeName}' vs '${rightStr.typeName}'"
+          )
+        }
+
+        val typeName = leftStr.typeName
+        if (typeName.startsWith("string collate")) {
+          val collationName = typeName.stripPrefix("string collate").trim
+          val provider = if (collationName.equalsIgnoreCase("UTF8_LCASE")) "spark" else "icu"
+          val version = s"${ICU_VERSION.getMajor}.${ICU_VERSION.getMinor}"
+          Some(s"$provider.$collationName.$version")
+        } else {
+          None
+        }
+
+      case _ =>
+        None
     }
   }
 }
