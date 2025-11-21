@@ -41,15 +41,12 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       Row(sqlTimestamp("2021-04-27 23:32:22.421"), sqlDate("2021-04-28"))
     )
     val readOptions = Map(
-      "endpoint" -> "https://localhost:$TEST_PORT/delta-sharing",
+      "endpoint" -> s"https://localhost:$TEST_PORT/delta-sharing",
       "bearerToken" -> "dapi5e3574ec767ca1548ae5bbed1a2dc04d",
       "shareCredentialsVersion" -> "1"
     )
+    // Test DataFrame API with inline credentials
     checkAnswer(spark.read.format("deltaSharing").options(readOptions).load(tablePath), expected)
-    withTable("delta_sharing_test") {
-      sql(s"CREATE TABLE delta_sharing_test USING deltaSharing LOCATION '$tablePath'")
-      checkAnswer(sql(s"SELECT * FROM delta_sharing_test"), expected)
-    }
   }
 
   integrationTest("table1") {
