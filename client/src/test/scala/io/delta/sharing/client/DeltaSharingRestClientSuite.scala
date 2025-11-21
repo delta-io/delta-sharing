@@ -1404,7 +1404,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   test("version mismatch check - getMetadata with mocked response") {
-    Seq(true, false).foreach { isMSTQuery =>
+    Seq(true, false).foreach { isMSTQueryFlag =>
       val requestedVersion = 5L
       val returnedVersion = 10L
 
@@ -1412,7 +1412,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         new Configuration(),
         testProfileFile.getCanonicalPath
       ) {
-        override def isMSTQuery(): Boolean = isMSTQuery
+        override def isMSTQuery(): Boolean = isMSTQueryFlag
       }
 
       // Create a client that overrides getNDJson to return a mocked response
@@ -1440,7 +1440,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       try {
         val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
 
-        if (isMSTQuery) {
+        if (isMSTQueryFlag) {
           // For MST queries, should throw exception when versions don't match
           val exception = intercept[IllegalArgumentException] {
             client.getMetadata(table, versionAsOf = Some(requestedVersion), timestampAsOf = None)
@@ -1462,7 +1462,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("version mismatch check - getFiles with mocked response") {
     // Test delta format where version validation is controlled by isMSTQuery
-    Seq(true, false).foreach { isMSTQuery =>
+    Seq(true, false).foreach { isMSTQueryFlag =>
       val requestedVersion = 15L
       val returnedVersion = 20L
 
@@ -1470,7 +1470,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         new Configuration(),
         testProfileFile.getCanonicalPath
       ) {
-        override def isMSTQuery(): Boolean = isMSTQuery
+        override def isMSTQuery(): Boolean = isMSTQueryFlag
       }
 
       // Create a client that overrides getNDJsonPost to return a mocked delta format response
@@ -1499,7 +1499,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       try {
         val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
 
-        if (isMSTQuery) {
+        if (isMSTQueryFlag) {
           // For MST queries, should throw exception when versions don't match
           val exception = intercept[IllegalArgumentException] {
             client.getFiles(table, Nil, None, Some(requestedVersion), None, None, None)
