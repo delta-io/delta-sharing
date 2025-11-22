@@ -43,6 +43,12 @@ struct Table(Url);
 impl Table {
     #[new]
     fn new(location: &str) -> DeltaPyResult<Self> {
+        // location must end in a trailing / so that it gets treated as a dir
+        let location = if location.ends_with('/') {
+            location
+        } else {
+            &format!("{location}/")
+        };
         let location = Url::parse(location).map_err(KernelError::InvalidUrl)?;
         Ok(Table(location))
     }
