@@ -12,20 +12,9 @@ git clean -fdx
 # Clean existing artifacts
 build/sbt clean
 
-printf "Please type the release version: "
-read VERSION
-echo "Release version: $VERSION"
-
-echo "Running release process for version: $VERSION"
-
 # Run SBT release process (includes version management, tagging, and publishing)
 if build/sbt "release skip-tests"; then
   echo "=== Successfully published release artifacts ==="
-  echo "Published version: $VERSION"
-
-  # Create additional git tag with v prefix (in case sbt release uses different format)
-  git tag v$VERSION
-  echo "Created git tag: v$VERSION"
 
   # Transfer deployment to Central Publisher Portal
   echo "Transferring deployment to Central Publisher Portal..."
