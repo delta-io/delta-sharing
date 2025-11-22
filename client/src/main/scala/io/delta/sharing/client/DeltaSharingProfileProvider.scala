@@ -182,6 +182,9 @@ trait DeltaSharingProfileProvider {
   // Returns an optional refresher wrapper containing the server states required to execute
   // a refresh function.
   def getCustomRefresherWrapper(): Option[QuerySpecificCachedTable.RefresherWrapper] = { None }
+
+  // Returns true if this is an MST (Multi-Statement Transaction) query
+  def isMSTQuery(): Boolean = false
 }
 
 /**
