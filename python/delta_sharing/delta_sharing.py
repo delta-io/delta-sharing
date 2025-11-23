@@ -128,6 +128,7 @@ def load_as_pandas(
         timestamp=timestamp
     ).to_pandas()
 
+
 def _validate_url(url: str, delta_sharing_profile: Optional[DeltaSharingProfile] = None) -> None:
     """
     Validate the URL format based on whether credentials are provided via profile or URL.
@@ -165,6 +166,7 @@ def _apply_options(
     if delta_sharing_profile.expiration_time is not None:
         df.option("expirationTime", delta_sharing_profile.expiration_time)
     return df
+
 
 def load_as_spark(
     url: str,
