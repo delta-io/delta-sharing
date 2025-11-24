@@ -33,6 +33,8 @@ import org.apache.spark.sql.types.{
   StringType => SqlStringType
 }
 
+import io.delta.sharing.client.util.JsonUtils
+
 class OpConverterCollationSuite extends SparkFunSuite {
 
   val icuVersion: String = s"${ICU_VERSION.getMajor}.${ICU_VERSION.getMinor}"
@@ -221,5 +223,102 @@ class OpConverterCollationSuite extends SparkFunSuite {
     assert(exception.getMessage.contains("Cannot compare strings with different collations"))
     assert(exception.getMessage.contains("string collate UNICODE_CI"))
     assert(exception.getMessage.contains("string"))
+  }
+
+  test("UTF8_BINARY toJson and fromJson - no collation context") {
+    val defaultStringType = SqlStringType
+    val sqlColumn = SqlAttributeReference("name", defaultStringType)()
+    val sqlLiteral = SqlLiteral("TestValue")
+    val sqlEq = SqlEqualTo(sqlColumn, sqlLiteral)
+
+    val op = OpConverter.convert(Seq(sqlEq)).get.asInstanceOf[EqualOp]
+    op.validate()
+
+    // Convert to JSON
+    val opJson = JsonUtils.toJson[BaseOp](op)
+    val expectedJson =
+      """{"op":"equal",
+        |"children":[
+        |  {"op":"column","name":"name","valueType":"string"},
+        |  {"op":"literal","value":"TestValue","valueType":"string"}]
+        |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+
+    assert(opJson == expectedJson, s"Expected:\n$expectedJson\nActual:\n$opJson")
+
+    // Convert back from JSON
+    val opFromJson = JsonUtils.fromJson[BaseOp](opJson).asInstanceOf[EqualOp]
+    opFromJson.validate()
+
+    // Verify the deserialized op has no collation context
+    assert(opFromJson.exprCtx.isEmpty)
+  }
+
+  test("collated string toJson and fromJson with UNICODE_CI") {
+    val collatedStringType = SqlStringType("UNICODE_CI")
+    val sqlColumn = SqlAttributeReference("name", collatedStringType)()
+    val sqlLiteral = SqlLiteral.create("TestValue", collatedStringType)
+    val sqlEq = SqlEqualTo(sqlColumn, sqlLiteral)
+
+    val op = OpConverter.convert(Seq(sqlEq)).get.asInstanceOf[EqualOp]
+    op.validate()
+
+    // Convert to JSON
+    val opJson = JsonUtils.toJson[BaseOp](op)
+    val expectedCollationId = s"icu.UNICODE_CI.$icuVersion"
+    val expectedJson =
+      s"""{"op":"equal",
+         |"children":[
+         |  {"op":"column","name":"name","valueType":"string"},
+         |  {"op":"literal","value":"TestValue","valueType":"string"}],
+         |"exprCtx":{"collationIdentifier":"$expectedCollationId"}
+         |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+
+    assert(opJson == expectedJson, s"Expected:\n$expectedJson\nActual:\n$opJson")
+
+    // Convert back from JSON
+    val opFromJson = JsonUtils.fromJson[BaseOp](opJson).asInstanceOf[EqualOp]
+    opFromJson.validate()
+
+    // Verify the deserialized op has the correct structure
+    assert(opFromJson.exprCtx.isDefined)
+    assert(opFromJson.exprCtx.get.collationIdentifier.contains(expectedCollationId))
+
+    val columnOpFromJson = opFromJson.children(0).asInstanceOf[ColumnOp]
+    val literalOpFromJson = opFromJson.children(1).asInstanceOf[LiteralOp]
+    assert(columnOpFromJson.name == "name")
+    assert(columnOpFromJson.valueType == OpDataTypes.StringType)
+    assert(literalOpFromJson.value == "TestValue")
+    assert(literalOpFromJson.valueType == OpDataTypes.StringType)
+  }
+
+  test("collated string toJson and fromJson with UTF8_LCASE") {
+    val collatedStringType = SqlStringType("UTF8_LCASE")
+    val sqlColumn = SqlAttributeReference("email", collatedStringType)()
+    val sqlLiteral = SqlLiteral.create("user@example.com", collatedStringType)
+    val sqlLt = SqlLessThan(sqlColumn, sqlLiteral)
+
+    val op = OpConverter.convert(Seq(sqlLt)).get.asInstanceOf[LessThanOp]
+    op.validate()
+
+    // Convert to JSON
+    val opJson = JsonUtils.toJson[BaseOp](op)
+    val expectedCollationId = s"spark.UTF8_LCASE.$icuVersion"
+    val expectedJson =
+      s"""{"op":"lessThan",
+         |"children":[
+         |  {"op":"column","name":"email","valueType":"string"},
+         |  {"op":"literal","value":"user@example.com","valueType":"string"}],
+         |"exprCtx":{"collationIdentifier":"$expectedCollationId"}
+         |}""".stripMargin.replaceAll("\n", "").replaceAll(" ", "")
+
+    assert(opJson == expectedJson, s"Expected:\n$expectedJson\nActual:\n$opJson")
+
+    // Convert back from JSON
+    val opFromJson = JsonUtils.fromJson[BaseOp](opJson).asInstanceOf[LessThanOp]
+    opFromJson.validate()
+
+    // Verify the deserialized op has the correct structure
+    assert(opFromJson.exprCtx.isDefined)
+    assert(opFromJson.exprCtx.get.collationIdentifier.contains(expectedCollationId))
   }
 }
