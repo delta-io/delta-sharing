@@ -353,5 +353,4 @@ class OpConverterSuite extends SparkFunSuite {
       convert(Seq.empty)
     }.getMessage.contains("The In predicate must have at least one entry"))
   }
-
 }
