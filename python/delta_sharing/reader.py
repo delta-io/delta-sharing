@@ -397,11 +397,12 @@ class DeltaSharingReader:
         response = self._rest_client.list_table_changes(self._table, cdfOptions)
 
         schema_json = loads(response.metadata.schema_string)
+        converters = to_converters(schema_json)
+        schema_with_cdf = self._add_special_cdf_schema(schema_json)
 
         if len(response.actions) == 0:
-            return get_empty_table(self._add_special_cdf_schema(schema_json))
+            return get_empty_table(schema_with_cdf)
 
-        converters = to_converters(schema_json)
         pdfs = []
         for action in response.actions:
             pdf = DeltaSharingReader._to_pandas(
@@ -409,7 +410,13 @@ class DeltaSharingReader:
             )
             pdfs.append(pdf)
 
-        return pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+        merged = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+
+        col_map = {}
+        for col in merged.columns:
+            col_map[col.lower()] = col
+
+        return merged[[col_map[field["name"].lower()] for field in schema_with_cdf["fields"]]]
 
     def _copy(
         self,

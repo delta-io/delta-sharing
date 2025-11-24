@@ -97,6 +97,8 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table_abfs", share="share_azure", schema="default"),
         Table(name="table_gcs", share="share_gcp", schema="default"),
         Table(name="12k_rows", share="share8", schema="default"),
+        Table(name="add_columns_partitioned_cdf", share="share8", schema="default"),
+        Table(name="add_columns_non_partitioned_cdf", share="share8", schema="default"),
         Table(name="timestampntz_cdf_table", share="share8", schema="default"),
         Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
         Table(name="cdf_table_with_partition", share="share8", schema="default"),
@@ -1795,3 +1797,516 @@ def test_load_table_changes_as_pandas_delta_batch_convert(
         .reset_index(drop=True)
     )
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,version,expected",
+    [
+        pytest.param(
+            "share8.default.add_columns_non_partitioned_cdf",
+            3,
+            # table initially contains c1 = [1, 2] at version 1
+            # then we add int column c2 at version 2
+            # then we insert a row with c1 = 3, c2 = 4
+            pd.DataFrame({"c1": pd.Series([1, 2, 3], dtype="int32"), "c2": [None, None, 4]}),
+            id="version 3",
+        ),
+        pytest.param(
+            "share8.default.add_columns_non_partitioned_cdf",
+            4,
+            # v4: change c2 to 5 where c1 = 1
+            pd.DataFrame({"c1": pd.Series([1, 2, 3], dtype="int32"), "c2": [5.0, None, 4.0]}),
+            id="version 4",
+        ),
+        pytest.param(
+            "share8.default.add_columns_non_partitioned_cdf",
+            5,
+            # v5: add float columns c3 and c4
+            pd.DataFrame(
+                {
+                    "c1": pd.Series([1, 2, 3], dtype="int32"),
+                    "c2": [5.0, None, 4.0],
+                    "c3": [None, None, None],
+                    "c4": [None, None, None],
+                }
+            ),
+            id="version 5",
+        ),
+        pytest.param(
+            "share8.default.add_columns_non_partitioned_cdf",
+            6,
+            # v6: add rows, some with non-null values for c3 and c4
+            pd.DataFrame(
+                {
+                    "c1": pd.Series([1, 2, 3, 5, 6, 7], dtype="int32"),
+                    "c2": [5, None, 4, 6, None, 8],
+                    "c3": pd.Series([None, None, None, 0.1, 0.2, None], dtype="float32"),
+                    "c4": pd.Series([None, None, None, 0.1, 0.2, None], dtype="float32"),
+                }
+            ),
+            id="version 6",
+        ),
+        pytest.param(
+            "share8.default.add_columns_non_partitioned_cdf",
+            7,
+            # v7: delete rows where c1 = 2 or c1 = 6
+            pd.DataFrame(
+                {
+                    "c1": pd.Series([1, 3, 5, 7], dtype="int32"),
+                    "c2": pd.Series([5, 4, 6, 8], dtype="int32"),
+                    "c3": pd.Series([None, None, 0.1, None], dtype="float32"),
+                    "c4": pd.Series([None, None, 0.1, None], dtype="float32"),
+                }
+            ),
+            id="version 7",
+        ),
+        pytest.param(
+            "share8.default.add_columns_non_partitioned_cdf",
+            8,
+            # v8: update c3 to 0.0 where c1 = 3 or c2 = 8
+            pd.DataFrame(
+                {
+                    "c1": pd.Series([1, 3, 5, 7], dtype="int32"),
+                    "c2": pd.Series([5, 4, 6, 8], dtype="int32"),
+                    "c3": pd.Series([None, 0, 0.1, 0], dtype="float32"),
+                    "c4": pd.Series([None, None, 0.1, None], dtype="float32"),
+                }
+            ),
+            id="version 8",
+        ),
+        pytest.param(
+            "share8.default.add_columns_non_partitioned_cdf",
+            9,
+            # v9: set c4 to NULL where c1 < 7
+            pd.DataFrame(
+                {
+                    "c1": pd.Series([1, 3, 5, 7], dtype="int32"),
+                    "c2": pd.Series([5, 4, 6, 8], dtype="int32"),
+                    "c3": pd.Series([None, 0, 0.1, 0], dtype="float32"),
+                    "c4": pd.Series([None, None, None, None], dtype="float32"),
+                }
+            ),
+            id="version 9",
+        ),
+        pytest.param(
+            "share8.default.add_columns_non_partitioned_cdf",
+            None,
+            pd.DataFrame(
+                {
+                    "c1": pd.Series([1, 3, 5, 7], dtype="int32"),
+                    "c2": pd.Series([5, 4, 6, 8], dtype="int32"),
+                    "c3": pd.Series([None, 0, 0.1, 0], dtype="float32"),
+                    "c4": pd.Series([None, None, None, None], dtype="float32"),
+                }
+            ),
+            id="latest",
+        ),
+    ],
+)
+def test_add_column_non_partitioned(
+    profile_path: str,
+    fragments: str,
+    version: Optional[int],
+    expected: pd.DataFrame,
+):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", version=version, use_delta_format=False)
+    # sort to eliminate row order inconsistencies
+    pdf = pdf.sort_values(by="c1").reset_index(drop=True)
+    # check_dtype=False to deal with minor type discrepancies like float32 vs float64
+    pd.testing.assert_frame_equal(pdf, expected, check_dtype=False)
+
+    pdf_delta = load_as_pandas(
+        f"{profile_path}#{fragments}", version=version, use_delta_format=True
+    )
+    pdf_delta = pdf_delta.sort_values(by="c1").reset_index(drop=True)
+    pd.testing.assert_frame_equal(pdf_delta, expected, check_dtype=False)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,version,expected",
+    [
+        pytest.param(
+            "share8.default.add_columns_partitioned_cdf",
+            1,
+            # initial data at version 1
+            pd.DataFrame(
+                {
+                    "p1": pd.Series([0.1, 0.1, 0.1, 0.1, None], dtype="float32"),
+                    "p2": ["a", "a", "a", "b", "a"],
+                    "c1": [0, 1, 2, None, 0],
+                }
+            ),
+            id="version 1",
+        ),
+        pytest.param(
+            "share8.default.add_columns_partitioned_cdf",
+            2,
+            # v2: add some rows containing NULL partition values
+            pd.DataFrame(
+                {
+                    "p1": pd.Series([0.1, 0.1, 0.1, 0.1, None, None, None], dtype="float32"),
+                    "p2": ["a", "a", "a", "b", "a", None, None],
+                    "c1": [0, 1, 2, None, 0, 0, None],
+                }
+            ),
+            id="version 2",
+        ),
+        pytest.param(
+            "share8.default.add_columns_partitioned_cdf",
+            3,
+            # v3: add int columns c2 and c3
+            pd.DataFrame(
+                {
+                    "p1": pd.Series([0.1, 0.1, 0.1, 0.1, None, None, None], dtype="float32"),
+                    "p2": ["a", "a", "a", "b", "a", None, None],
+                    "c1": [0, 1, 2, None, 0, 0, None],
+                    "c2": [None, None, None, None, None, None, None],
+                    "c3": [None, None, None, None, None, None, None],
+                }
+            ),
+            id="version 3",
+        ),
+        pytest.param(
+            "share8.default.add_columns_partitioned_cdf",
+            4,
+            # v4: set c2 = 10 where c1 = 0
+            pd.DataFrame(
+                {
+                    "p1": pd.Series([0.1, 0.1, 0.1, 0.1, None, None, None], dtype="float32"),
+                    "p2": ["a", "a", "a", "b", "a", None, None],
+                    "c1": [0, 1, 2, None, 0, 0, None],
+                    "c2": [10, None, None, None, 10, 10, None],
+                    "c3": [None, None, None, None, None, None, None],
+                }
+            ),
+            id="version 4",
+        ),
+        pytest.param(
+            "share8.default.add_columns_partitioned_cdf",
+            5,
+            # v5: add more rows, containing values in c2 and c3
+            pd.DataFrame(
+                {
+                    "p1": pd.Series(
+                        [0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.3, None, None, None], dtype="float32"
+                    ),
+                    "p2": ["a", "a", "a", "b", "b", "a", "a", "a", None, None],
+                    "c1": [0, 1, 2, 3, None, 2, 2, 0, 0, None],
+                    "c2": [10, None, None, 30, None, 20, 20, 10, 10, None],
+                    "c3": pd.Series(
+                        [None, None, None, 300, None, 200, 200, None, None, None], dtype="object"
+                    ),
+                }
+            ),
+            id="version 5",
+        ),
+        pytest.param(
+            "share8.default.add_columns_partitioned_cdf",
+            6,
+            # v6: delete partitions where p2 is NULL
+            pd.DataFrame(
+                {
+                    "p1": pd.Series([0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.3, None], dtype="float32"),
+                    "p2": ["a", "a", "a", "b", "b", "a", "a", "a"],
+                    "c1": [0, 1, 2, 3, None, 2, 2, 0],
+                    "c2": [10, None, None, 30, None, 20, 20, 10],
+                    "c3": pd.Series([None, None, None, 300, None, 200, 200, None], dtype="object"),
+                }
+            ),
+            id="version 6",
+        ),
+        pytest.param(
+            "share8.default.add_columns_partitioned_cdf",
+            7,
+            # v7: update c1 = c3, c2 =-1 where p1 is NULL or p2 = "a"
+            pd.DataFrame(
+                {
+                    "p1": pd.Series([0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.3, None], dtype="float32"),
+                    "p2": ["a", "a", "a", "b", "b", "a", "a", "a"],
+                    "c1": [10, None, None, 3, None, 20, 20, 10],
+                    "c2": [10, None, None, 30, None, 20, 20, 10],
+                    "c3": pd.Series([-1, -1, -1, 300, None, -1, -1, -1], dtype="object"),
+                }
+            ),
+            id="version 7",
+        ),
+        pytest.param(
+            "share8.default.add_columns_partitioned_cdf",
+            None,
+            pd.DataFrame(
+                {
+                    "p1": pd.Series([0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.3, None], dtype="float32"),
+                    "p2": ["a", "a", "a", "b", "b", "a", "a", "a"],
+                    "c1": [10, None, None, 3, None, 20, 20, 10],
+                    "c2": [10, None, None, 30, None, 20, 20, 10],
+                    "c3": pd.Series([-1, -1, -1, 300, None, -1, -1, -1], dtype="object"),
+                }
+            ),
+            id="latest",
+        ),
+    ],
+)
+def test_add_column_partitioned(
+    profile_path: str,
+    fragments: str,
+    version: Optional[int],
+    expected: pd.DataFrame,
+):
+    pdf = load_as_pandas(f"{profile_path}#{fragments}", version=version, use_delta_format=False)
+    # sort to eliminate row order inconsistencies
+    pdf = pdf.sort_values(by=["p1", "p2", "c1"]).reset_index(drop=True)
+    # check_dtype=False to deal with minor type discrepancies like float32 vs float64
+    pd.testing.assert_frame_equal(pdf, expected, check_dtype=False)
+
+    pdf_delta = load_as_pandas(
+        f"{profile_path}#{fragments}", version=version, use_delta_format=True
+    )
+    pdf_delta = pdf_delta.sort_values(by=["p1", "p2", "c1"]).reset_index(drop=True)
+    pd.testing.assert_frame_equal(pdf_delta, expected, check_dtype=False)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,starting_version,ending_version,expected",
+    [
+        pytest.param(
+            "share8.default.add_columns_non_partitioned_cdf",
+            0,
+            None,
+            # see test_add_column_partitioned for specific changes in each version
+            pd.DataFrame(
+                [
+                    [1, None, None, None, "insert", 1, "2025-11-20T02:38:48.000+00:00"],
+                    [2, None, None, None, "insert", 1, "2025-11-20T02:38:48.000+00:00"],
+                    [3, 4, None, None, "insert", 3, "2025-11-20T02:39:24.000+00:00"],
+                    [1, 5, None, None, "update_postimage", 4, "2025-11-20T02:40:07.000+00:00"],
+                    [1, None, None, None, "update_preimage", 4, "2025-11-20T02:40:07.000+00:00"],
+                    [5, 6, 0.1, 0.1, "insert", 6, "2025-11-20T02:40:46.000+00:00"],
+                    [6, None, 0.2, 0.2, "insert", 6, "2025-11-20T02:40:46.000+00:00"],
+                    [7, 8, None, None, "insert", 6, "2025-11-20T02:40:46.000+00:00"],
+                    [2, None, None, None, "delete", 7, "2025-11-20T02:41:04.000+00:00"],
+                    [6, None, 0.2, 0.2, "delete", 7, "2025-11-20T02:41:04.000+00:00"],
+                    [3, 4, 0, None, "update_postimage", 8, "2025-11-20T02:41:09.000+00:00"],
+                    [7, 8, 0, None, "update_postimage", 8, "2025-11-20T02:41:09.000+00:00"],
+                    [3, 4, None, None, "update_preimage", 8, "2025-11-20T02:41:09.000+00:00"],
+                    [7, 8, None, None, "update_preimage", 8, "2025-11-20T02:41:09.000+00:00"],
+                    [1, 5, None, None, "update_postimage", 9, "2025-11-20T02:41:15.000+00:00"],
+                    [3, 4, 0, None, "update_postimage", 9, "2025-11-20T02:41:15.000+00:00"],
+                    [5, 6, 0.1, None, "update_postimage", 9, "2025-11-20T02:41:15.000+00:00"],
+                    [1, 5, None, None, "update_preimage", 9, "2025-11-20T02:41:15.000+00:00"],
+                    [3, 4, 0, None, "update_preimage", 9, "2025-11-20T02:41:15.000+00:00"],
+                    [5, 6, 0.1, 0.1, "update_preimage", 9, "2025-11-20T02:41:15.000+00:00"],
+                ],
+                columns=[
+                    "c1",
+                    "c2",
+                    "c3",
+                    "c4",
+                    "_change_type",
+                    "_commit_version",
+                    "_commit_timestamp",
+                ],
+            ),
+            id="Full CDF with columns added",
+        ),
+    ],
+)
+def test_add_column_non_partitioned_cdf(
+    profile_path: str,
+    fragments: str,
+    starting_version: Optional[int],
+    ending_version: Optional[int],
+    expected: pd.DataFrame,
+):
+    expected["c1"] = expected["c1"].astype("int32")
+    expected["c3"] = expected["c3"].astype("float32")
+    expected["c4"] = expected["c4"].astype("float32")
+    # convert _commit_timestamp from date string to unix timestamp
+    expected["_commit_timestamp"] = (
+        pd.to_datetime(expected["_commit_timestamp"]).map(pd.Timestamp.timestamp).astype("int64")
+        * 1000
+    )
+    pdf = load_table_changes_as_pandas(
+        f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=False
+    )
+    pdf = pdf.sort_values(by=["_commit_timestamp", "_change_type", "c1"]).reset_index(drop=True)
+    pd.testing.assert_frame_equal(pdf, expected)
+    # TODO: enable once delta-kernel-rs supports schema changes during version range
+    # pdf_delta = load_table_changes_as_pandas(
+    #     f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=True
+    # )
+    # pdf_delta = pdf_delta.sort_values(by=["_commit_timestamp", "_change_type", "c1"]).reset_index(
+    #     drop=True
+    # )
+    # pd.testing.assert_frame_equal(pdf_delta, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "fragments,starting_version,ending_version,expected",
+    [
+        pytest.param(
+            "share8.default.add_columns_partitioned_cdf",
+            0,
+            None,
+            # see test_add_column_non_partitioned for specific changes in each version
+            pd.DataFrame(
+                [
+                    [0.1, "a", 0, None, None, "insert", 1, "2025-11-20T03:08:37.000+00:00"],
+                    [0.1, "a", 1, None, None, "insert", 1, "2025-11-20T03:08:37.000+00:00"],
+                    [0.1, "a", 2, None, None, "insert", 1, "2025-11-20T03:08:37.000+00:00"],
+                    [0.1, "b", None, None, None, "insert", 1, "2025-11-20T03:08:37.000+00:00"],
+                    [None, "a", 0, None, None, "insert", 1, "2025-11-20T03:08:37.000+00:00"],
+                    [None, None, 0, None, None, "insert", 2, "2025-11-20T03:08:39.000+00:00"],
+                    [None, None, None, None, None, "insert", 2, "2025-11-20T03:08:39.000+00:00"],
+                    [0.1, "a", 0, 10, None, "update_postimage", 4, "2025-11-20T03:08:45.000+00:00"],
+                    [
+                        None,
+                        "a",
+                        0,
+                        10,
+                        None,
+                        "update_postimage",
+                        4,
+                        "2025-11-20T03:08:45.000+00:00",
+                    ],
+                    [
+                        None,
+                        None,
+                        0,
+                        10,
+                        None,
+                        "update_postimage",
+                        4,
+                        "2025-11-20T03:08:45.000+00:00",
+                    ],
+                    [
+                        0.1,
+                        "a",
+                        0,
+                        None,
+                        None,
+                        "update_preimage",
+                        4,
+                        "2025-11-20T03:08:45.000+00:00",
+                    ],
+                    [
+                        None,
+                        "a",
+                        0,
+                        None,
+                        None,
+                        "update_preimage",
+                        4,
+                        "2025-11-20T03:08:45.000+00:00",
+                    ],
+                    [
+                        None,
+                        None,
+                        0,
+                        None,
+                        None,
+                        "update_preimage",
+                        4,
+                        "2025-11-20T03:08:45.000+00:00",
+                    ],
+                    [0.1, "b", 3, 30, 300, "insert", 5, "2025-11-20T03:08:48.000+00:00"],
+                    [0.2, "a", 2, 20, 200, "insert", 5, "2025-11-20T03:08:48.000+00:00"],
+                    [0.3, "a", 2, 20, 200, "insert", 5, "2025-11-20T03:08:48.000+00:00"],
+                    [None, None, 0, 10, None, "delete", 6, "2025-11-20T03:08:50.000+00:00"],
+                    [None, None, None, None, None, "delete", 6, "2025-11-20T03:08:50.000+00:00"],
+                    [0.1, "a", 10, 10, -1, "update_postimage", 7, "2025-11-20T03:08:52.000+00:00"],
+                    [
+                        0.1,
+                        "a",
+                        None,
+                        None,
+                        -1,
+                        "update_postimage",
+                        7,
+                        "2025-11-20T03:08:52.000+00:00",
+                    ],
+                    [
+                        0.1,
+                        "a",
+                        None,
+                        None,
+                        -1,
+                        "update_postimage",
+                        7,
+                        "2025-11-20T03:08:52.000+00:00",
+                    ],
+                    [0.2, "a", 20, 20, -1, "update_postimage", 7, "2025-11-20T03:08:52.000+00:00"],
+                    [0.3, "a", 20, 20, -1, "update_postimage", 7, "2025-11-20T03:08:52.000+00:00"],
+                    [None, "a", 10, 10, -1, "update_postimage", 7, "2025-11-20T03:08:52.000+00:00"],
+                    [0.1, "a", 0, 10, None, "update_preimage", 7, "2025-11-20T03:08:52.000+00:00"],
+                    [
+                        0.1,
+                        "a",
+                        1,
+                        None,
+                        None,
+                        "update_preimage",
+                        7,
+                        "2025-11-20T03:08:52.000+00:00",
+                    ],
+                    [
+                        0.1,
+                        "a",
+                        2,
+                        None,
+                        None,
+                        "update_preimage",
+                        7,
+                        "2025-11-20T03:08:52.000+00:00",
+                    ],
+                    [0.2, "a", 2, 20, 200, "update_preimage", 7, "2025-11-20T03:08:52.000+00:00"],
+                    [0.3, "a", 2, 20, 200, "update_preimage", 7, "2025-11-20T03:08:52.000+00:00"],
+                    [None, "a", 0, 10, None, "update_preimage", 7, "2025-11-20T03:08:52.000+00:00"],
+                ],
+                columns=[
+                    "p1",
+                    "p2",
+                    "c1",
+                    "c2",
+                    "c3",
+                    "_change_type",
+                    "_commit_version",
+                    "_commit_timestamp",
+                ],
+            ),
+            id="Full CDF with columns added",
+        ),
+    ],
+)
+def test_add_column_partitioned_cdf(
+    profile_path: str,
+    fragments: str,
+    starting_version: Optional[int],
+    ending_version: Optional[int],
+    expected: pd.DataFrame,
+):
+    expected["p1"] = expected["p1"].astype("float32")
+    # convert _commit_timestamp from date string to unix timestamp
+    expected["_commit_timestamp"] = (
+        pd.to_datetime(expected["_commit_timestamp"]).map(pd.Timestamp.timestamp).astype("int64")
+        * 1000
+    )
+    pdf = load_table_changes_as_pandas(
+        f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=False
+    )
+    pdf = pdf.sort_values(by=["_commit_timestamp", "_change_type", "p1", "p2", "c1"]).reset_index(
+        drop=True
+    )
+    print(pdf)
+    pd.testing.assert_frame_equal(pdf, expected)
+    # TODO: enable once delta-kernel-rs supports schema changes during version range
+    # pdf_delta = load_table_changes_as_pandas(
+    #     f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=True
+    # )
+    # pdf_delta = pdf_delta.sort_values(by=["_commit_timestamp", "_change_type", "c1"]).reset_index(
+    #     drop=True
+    # )
+    # pd.testing.assert_frame_equal(pdf_delta, expected)
