@@ -124,11 +124,7 @@ impl Scan {
     ) -> DeltaPyResult<PyArrowType<Box<dyn RecordBatchReader + Send>>> {
         let result_schema: ArrowSchemaRef = try_get_schema(self.0.logical_schema())?;
         let results = self.0.execute(engine_interface.0.clone())?;
-        // TODO: the Scan::execute returns an iterator with a lifetime bound that can't be made
-        // 'static, so we collect here.
-        let results: Vec<_> = results.collect::<DeltaResult<Vec<_>>>()?;
-        let record_batch_iter =
-            try_create_record_batch_iter(results.into_iter().map(Ok), result_schema);
+        let record_batch_iter = try_create_record_batch_iter(results, result_schema);
         Ok(PyArrowType(Box::new(record_batch_iter)))
     }
 }
