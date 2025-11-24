@@ -18,7 +18,6 @@ package io.delta.sharing.filters
 
 import scala.collection.mutable.ListBuffer
 
-import com.ibm.icu.util.VersionInfo.ICU_VERSION
 import org.apache.spark.sql.catalyst.expressions.{
   And => SqlAnd,
   Attribute => SqlAttribute,
@@ -233,7 +232,7 @@ object OpConverter {
   private def extractExprContext(
       left: SqlExpression,
       right: SqlExpression): Option[ExprContext] = {
-    val collationId = extractCollationIdentifier(left, right)
+    val collationId = CollationExtractor.extractCollationIdentifier(left, right)
 
     // If we have any context information, return an ExprContext
     if (collationId.isDefined) {
@@ -243,33 +242,4 @@ object OpConverter {
     }
   }
 
-  // Extracts collation identifier from two expressions if both are strings
-  // with the same collation.
-  private def extractCollationIdentifier(
-      left: SqlExpression,
-      right: SqlExpression): Option[String] = {
-    (left.dataType, right.dataType) match {
-      case (leftStr: SqlStringType, rightStr: SqlStringType) =>
-        // Spark needs to make sure to only compare strings of the same collation.
-        if (leftStr != rightStr) {
-          throw new IllegalArgumentException(
-            s"Cannot compare strings with different collations: " +
-            s"'${leftStr.typeName}' vs '${rightStr.typeName}'"
-          )
-        }
-
-        val typeName = leftStr.typeName
-        if (typeName.startsWith("string collate")) {
-          val collationName = typeName.stripPrefix("string collate").trim
-          val provider = if (collationName.equalsIgnoreCase("UTF8_LCASE")) "spark" else "icu"
-          val version = s"${ICU_VERSION.getMajor}.${ICU_VERSION.getMinor}"
-          Some(s"$provider.$collationName.$version")
-        } else {
-          None
-        }
-
-      case _ =>
-        None
-    }
-  }
 }
