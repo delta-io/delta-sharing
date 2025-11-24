@@ -1,8 +1,10 @@
+use std::mem::transmute;
 use std::sync::Arc;
 
 use arrow::compute::filter_record_batch;
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
 use arrow::error::ArrowError;
+use arrow::ffi::to_ffi;
 use arrow::pyarrow::PyArrowType;
 use arrow::record_batch::{RecordBatch, RecordBatchIterator, RecordBatchReader};
 
@@ -17,6 +19,13 @@ use delta_kernel::Error as KernelError;
 use delta_kernel::{engine::arrow_data::ArrowEngineData, schema::StructType};
 use delta_kernel::{DeltaResult, Engine};
 
+use polars::error::PolarsError;
+use polars::prelude::{concat, DataFrame, IntoLazy, Series, UnionArgs};
+
+use polars_arrow::ffi::{import_array_from_c, import_field_from_c};
+
+use pyo3_polars::{PyDataFrame, PyLazyFrame};
+
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -24,21 +33,35 @@ use url::Url;
 
 use std::collections::HashMap;
 
-struct PyKernelError(KernelError);
+enum PyRustError {
+    PyKernelError(KernelError),
+    PyPolarsError(PolarsError),
+}
 
-impl From<PyKernelError> for PyErr {
-    fn from(error: PyKernelError) -> Self {
-        PyValueError::new_err(format!("Kernel error: {}", error.0))
+
+impl From<PyRustError> for PyErr {
+    fn from(error: PyRustError) -> Self {
+        let msg = match error {
+            PyRustError::PyKernelError(e) => format!("Kernel error: {}", e),
+            PyRustError::PyPolarsError(e) => format!("Polars error: {}", e),
+        };
+        PyValueError::new_err(msg)
     }
 }
 
-impl From<KernelError> for PyKernelError {
+impl From<KernelError> for PyRustError {
     fn from(delta_kernel_error: KernelError) -> Self {
-        Self(delta_kernel_error)
+        Self::PyKernelError(delta_kernel_error)
     }
 }
 
-type DeltaPyResult<T> = std::result::Result<T, PyKernelError>;
+impl From<PolarsError> for PyRustError {
+    fn from(polars_error: PolarsError) -> Self {
+        Self::PyPolarsError(polars_error)
+    }
+}
+
+type DeltaPyResult<T> = std::result::Result<T, PyRustError>;
 
 #[pyclass]
 struct Table(delta_kernel::Table);
@@ -117,6 +140,44 @@ fn try_create_record_batch_iter(
     RecordBatchIterator::new(record_batches, result_schema)
 }
 
+unsafe fn record_batch_to_dataframe(batch: &RecordBatch) -> Result<DataFrame, PolarsError> {
+    let mut columns = Vec::with_capacity(batch.num_columns());
+
+    // Arrow stores data by columns, therefore need to be Zero-copied by column
+    for (i, col) in batch.columns().iter().enumerate() {
+        // Convert to ArrayData (arrow-rs)
+        let array = col.to_data();
+
+        // Convert to ffi with arrow-rs
+        let (out_array, out_schema) = to_ffi(&array).unwrap();
+
+        // Import field from ffi with polars
+        let field = unsafe {
+            import_field_from_c(transmute::<
+                &arrow::ffi::FFI_ArrowSchema,
+                &polars_arrow::ffi::ArrowSchema,
+                >(&out_schema))
+        }?;
+
+        // Import data from ffi with polars
+        let data = unsafe {
+            import_array_from_c(
+                transmute::<arrow::ffi::FFI_ArrowArray, polars_arrow::ffi::ArrowArray>(
+                    out_array,
+                ),
+                field.dtype().clone(),
+            )
+        }?;
+
+        // Create Polars series from arrow column
+        columns.push(Series::from_arrow(
+            batch.schema().field(i).name().into(),
+            data,
+        )?);
+    }
+    Ok(DataFrame::from_iter(columns))
+}
+
 #[pyclass]
 struct Scan(delta_kernel::scan::Scan);
 
@@ -130,6 +191,24 @@ impl Scan {
         let results = self.0.execute(engine_interface.0.clone())?;
         let record_batch_iter = try_create_record_batch_iter(results, result_schema);
         Ok(PyArrowType(Box::new(record_batch_iter)))
+    }
+
+    fn execute_polars(
+        &self,
+        engine_interface: &PythonInterface,
+    ) -> DeltaPyResult<PyDataFrame> {
+        let result_schema: ArrowSchemaRef = try_get_schema(self.0.schema())?;
+        let results = self.0.execute(engine_interface.0.clone())?;
+        let record_batch_iter = try_create_record_batch_iter(results, result_schema);
+        let mut dfs = Vec::new();
+        for rb in record_batch_iter {
+            unsafe {
+                let df = record_batch_to_dataframe(&rb.map_err(KernelError::Arrow)?)?;
+                dfs.push(df.lazy())
+            };
+        };
+        let dfs_concat = concat(dfs, UnionArgs::default());
+        Ok(PyDataFrame(dfs_concat?.collect()?))
     }
 }
 
