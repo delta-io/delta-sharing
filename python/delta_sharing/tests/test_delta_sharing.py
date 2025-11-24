@@ -670,6 +670,22 @@ def test_load_as_pandas_success_dv(
             ),
             id="column map name",
         ),
+        pytest.param(
+            "share8.default.table_with_cm_id",
+            None,
+            None,
+            pd.DataFrame(
+                {
+                    "date": [date(2024, 6, 23), date(2024, 6, 24), date(2024, 6, 25)],
+                    "eventTime": [
+                        pd.Timestamp("2024-06-23T00:00:00.000+00:00"),
+                        pd.Timestamp("2024-06-24T01:00:00.000+00:00"),
+                        pd.Timestamp("2024-06-25T00:00:00.000+00:00"),
+                    ],
+                }
+            ),
+            id="column map id",
+        ),
     ],
 )
 def test_load_as_pandas_success_cm(
@@ -949,33 +965,6 @@ def test_load_as_pandas_exception(
         assert False
     except Exception as e:
         assert isinstance(e, HTTPError)
-        assert error in str(e)
-
-
-@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-@pytest.mark.parametrize(
-    "fragments,version,timestamp,error",
-    [
-        pytest.param(
-            "share8.default.table_with_cm_id",
-            None,
-            None,
-            "Kernel error: Unsupported: Column mapping ID mode not supported",
-            id="column mapping id not supported",
-        ),
-    ],
-)
-def test_load_as_pandas_exception_kernel(
-    profile_path: str,
-    fragments: str,
-    version: Optional[int],
-    timestamp: Optional[str],
-    error: Optional[str],
-):
-    try:
-        load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp)
-        assert False
-    except Exception as e:
         assert error in str(e)
 
 
