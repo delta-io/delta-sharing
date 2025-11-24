@@ -54,23 +54,8 @@ trait DeltaSharingProfileProvider {
       refresher: Option[String] => TableRefreshResult): Option[String] => TableRefreshResult = {
     refresher
   }
-}
 
-/**
- * Load [[DeltaSharingProfile]] from a file. `conf` should be provided to load the file from remote
- * file systems.
- */
-private[sharing] class DeltaSharingFileProfileProvider(
-    conf: Configuration,
-    file: String) extends DeltaSharingProfileProvider {
-
-  val profile = {
-    val input = new Path(file).getFileSystem(conf).open(new Path(file))
-    val profile = try {
-      JsonUtils.fromJson[DeltaSharingProfile](IOUtils.toString(input, UTF_8))
-    } finally {
-      input.close()
-    }
+  def validate(profile: DeltaSharingProfile): Unit = {
     if (profile.shareCredentialsVersion.isEmpty) {
       throw new IllegalArgumentException(
         "Cannot find the 'shareCredentialsVersion' field in the profile file")
@@ -89,6 +74,43 @@ private[sharing] class DeltaSharingFileProfileProvider(
     if (profile.bearerToken == null) {
       throw new IllegalArgumentException("Cannot find the 'bearerToken' field in the profile file")
     }
+
+  }
+}
+
+/**
+ * Load [[DeltaSharingProfile]] from a file. `conf` should be provided to load the file from remote
+ * file systems.
+ */
+private[sharing] class DeltaSharingFileProfileProvider(
+    conf: Configuration,
+    file: String) extends DeltaSharingProfileProvider {
+
+  val profile = {
+    val input = new Path(file).getFileSystem(conf).open(new Path(file))
+    val profile = try {
+      JsonUtils.fromJson[DeltaSharingProfile](IOUtils.toString(input, UTF_8))
+    } finally {
+      input.close()
+    }
+    validate(profile)
+    profile
+  }
+
+  override def getProfile: DeltaSharingProfile = profile
+}
+
+/**
+ * Load [[DeltaSharingProfile]] from options.
+ */
+private[sharing] class DeltaSharingOptionsProfileProvider(
+    shareCredentialsOptions: Map[String, String]) extends DeltaSharingProfileProvider {
+
+  val profile = {
+    val profile = {
+      JsonUtils.fromJson[DeltaSharingProfile](JsonUtils.toJson(shareCredentialsOptions))
+    }
+    validate(profile)
     profile
   }
 
