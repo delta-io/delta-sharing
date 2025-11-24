@@ -1251,7 +1251,7 @@ object DeltaSharingRestClient extends Logging {
    */
   def parsePath(
      path: String,
-     shareCredentialsOptions: Map[String, String]): ParsedDeltaSharingTablePath = {
+     shareCredentialsOptions: Map[String, Any]): ParsedDeltaSharingTablePath = {
     val shapeIndex = path.lastIndexOf('#')
 
     val (profileFile, tablePath) = {
@@ -1340,7 +1340,7 @@ object DeltaSharingRestClient extends Logging {
 
   def apply(
       profileFile: String,
-      shareCredentialsOptions: Map[String, String],
+      shareCredentialsOptions: Map[String, Any],
       forStreaming: Boolean = false,
       responseFormat: String = RESPONSE_FORMAT_PARQUET,
       readerFeatures: String = ""

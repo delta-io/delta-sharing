@@ -127,7 +127,7 @@ private[sharing] object RemoteDeltaLog {
 
   def apply(
       path: String,
-      shareCredentialsOptions: Map[String, String],
+      shareCredentialsOptions: Map[String, Any],
       forStreaming: Boolean = false,
       responseFormat: String = DeltaSharingOptions.RESPONSE_FORMAT_PARQUET,
       initDeltaTableMetadata: Option[DeltaTableMetadata] = None): RemoteDeltaLog = {
