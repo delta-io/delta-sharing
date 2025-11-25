@@ -636,7 +636,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
          |  "bearerToken": "xxxxx"
          |}""".stripMargin, UTF_8)
     val tablePath = s"${testProfileFile.getCanonicalPath}#share.schema.table"
-    lazy val shareCredentialsOptions: Map[String, Any] = Map.empty
+    lazy val shareCredentialsOptions: Map[String, String] = Map.empty
 
     spark.sessionState.conf.setConfString(
       "spark.delta.sharing.client.sparkParquetIOCache.enabled", "false")
@@ -650,8 +650,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
   test("RemoteDeltaLog path with options") {
     lazy val tablePath = "share.schema.table"
-    lazy val shareCredentialsOptions: Map[String, Any] = Map(
-      "shareCredentialsVersion" -> 1,
+    lazy val shareCredentialsOptions: Map[String, String] = Map(
+      "shareCredentialsVersion" -> "1",
       "endpoint" -> "foo",
       "bearerToken" -> "bar",
       "expirationTime" -> "2021-11-12T00:12:29Z"

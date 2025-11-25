@@ -23,7 +23,7 @@ import org.apache.spark.SparkFunSuite
 class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
 
   private def testProfile(
-    shareCredentialsOptions: Map[String, Any], expected: DeltaSharingProfile): Unit = {
+    shareCredentialsOptions: Map[String, String], expected: DeltaSharingProfile): Unit = {
     assert(new DeltaSharingOptionsProfileProvider(shareCredentialsOptions)
       .getProfile == expected)
   }
@@ -31,7 +31,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
   test("parse") {
     testProfile(
       Map(
-        "shareCredentialsVersion" -> 1,
+        "shareCredentialsVersion" -> "1",
         "endpoint" -> "foo",
         "bearerToken" -> "bar",
         "expirationTime" -> "2021-11-12T00:12:29Z"
@@ -48,7 +48,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
   test("expirationTime is optional") {
     testProfile(
       Map(
-        "shareCredentialsVersion" -> 1,
+        "shareCredentialsVersion" -> "1",
         "endpoint" -> "foo",
         "bearerToken" -> "bar"
       ),
@@ -78,7 +78,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         Map(
-          "shareCredentialsVersion" -> 2,
+          "shareCredentialsVersion" -> "2",
           "endpoint" -> "foo",
           "bearerToken" -> "bar"
         ),
@@ -94,7 +94,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         Map(
-          "shareCredentialsVersion" -> 100
+          "shareCredentialsVersion" -> "100"
         ),
         null
       )
@@ -107,7 +107,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         Map(
-          "shareCredentialsVersion" -> 1,
+          "shareCredentialsVersion" -> "1",
           "bearerToken" -> "bar"
         ),
         null
@@ -120,7 +120,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
     val e = intercept[IllegalArgumentException] {
       testProfile(
         Map(
-          "shareCredentialsVersion" -> 1,
+          "shareCredentialsVersion" -> "1",
           "endpoint" -> "foo"
         ),
         null
@@ -132,7 +132,7 @@ class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
   test("unknown field should be ignored") {
     testProfile(
       Map(
-        "shareCredentialsVersion" -> 1,
+        "shareCredentialsVersion" -> "1",
         "endpoint" -> "foo",
         "bearerToken" -> "bar",
         "expirationTime" -> "2021-11-12T00:12:29Z",
