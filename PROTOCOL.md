@@ -3298,7 +3298,7 @@ When present, the `exprCtx` field is a JSON object that may contain the followin
 
 Field Name | Description
 -|-
-collationIdentifier | Optional string that specifies the collation to use for string comparisons. The format is `provider.collationName.version`. The provider is either `icu` for ICU-based collations (e.g., UNICODE_CI) or `spark` for Spark-specific collations (e.g., UTF8_LCASE). The version specifies the version of collation used (e.g. ICU version "75.1"). Example: "icu.UNICODE_CI.75.1" or "spark.UTF8_LCASE.75.1". When collationIdentifier field is absent, the default UTF8_BINARY collation is used.
+collationIdentifier | Optional string that specifies the collation to use for string comparisons. The format is `provider.collationName.version`. The provider is either `icu` for ICU-based collations (e.g., UNICODE_CI) or `spark` for Spark-specific collations (e.g., UTF8_LCASE). The version specifies the version of collation used (e.g. ICU version "75.1"). Example: "icu.UNICODE_CI.75.1" or "spark.UTF8_LCASE.75.1". When collationIdentifier field is absent, the default UTF8_BINARY collation is used. For more information about collations in Delta, see the [collations protocol RFC](https://github.com/delta-io/delta/issues/2894).
 
 
 Examples

@@ -35,21 +35,23 @@ object CollationExtractor {
           )
         }
 
-        val typeName = leftStr.typeName
-        if (typeName.startsWith("string collate")) {
-          // The 2.12 client depends on Spark 3.5, which does not support collations.
-          // This means we cannot extract the collation identifier. In this case, we
-          // should throw an error so the filter is not converted. This avoids applying
-          // an incorrect filter and ensures we do not return wrong results.
-          throw new IllegalArgumentException(
-            s"Cannot convert operand of unsupported type $typeName"
-          )
-        } else {
-          None
-        }
+        // The 2.12 client depends on Spark 3.5, which does not support collations.
+        // This means we cannot extract the collation identifier. In this case, we
+        // should throw an error so the filter is not converted. This avoids applying
+        // an incorrect filter and ensures we do not return wrong results.
+        validateNoCollations(leftStr.typeName)
+        None
 
       case _ =>
         None
+    }
+  }
+
+  private def validateNoCollations(typeName: String): Unit = {
+    if (typeName.startsWith("string collate")) {
+      throw new IllegalArgumentException(
+        s"Cannot convert operand of unsupported type $typeName"
+      )
     }
   }
 }

@@ -204,6 +204,8 @@ object OpConverter {
       case SqlBooleanType => OpDataTypes.BoolType
       case SqlIntegerType => OpDataTypes.IntType
       case SqlLongType => OpDataTypes.LongType
+      // We need to match all string types (with different collations),
+      // and not just the case object which is UTF8_BINARY collated.
       case _: SqlStringType => OpDataTypes.StringType
       case SqlDateType => OpDataTypes.DateType
       case SqlDoubleType => OpDataTypes.DoubleType
