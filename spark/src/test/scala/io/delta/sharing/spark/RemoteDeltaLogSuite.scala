@@ -625,4 +625,45 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       )
     }
   }
+
+  test("RemoteDeltaLog path") {
+    // Create a dummy table path
+    val testProfileFile = Files.createTempFile("delta-test", ".share").toFile
+    FileUtils.writeStringToFile(testProfileFile,
+      s"""{
+         |  "shareCredentialsVersion": 1,
+         |  "endpoint": "http://localhost:12345/delta-sharing",
+         |  "bearerToken": "xxxxx"
+         |}""".stripMargin, UTF_8)
+    val tablePath = s"${testProfileFile.getCanonicalPath}#share.schema.table"
+    lazy val shareCredentialsOptions: Map[String, Any] = Map.empty
+
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "false")
+    // Append timestamp suffix
+    // <profile>#share.schema.table_yyyyMMdd_HHmmss_uuid
+    val deltaLog2 = RemoteDeltaLog(tablePath, shareCredentialsOptions)
+    assert(deltaLog2.path.toString.split("#")(1).split("_").length == 4)
+    val snapshot2 = deltaLog2.snapshot()
+    assert(snapshot2.getTablePath.toString.split("#")(1).split("_").length == 4)
+  }
+
+  test("RemoteDeltaLog path with options") {
+    lazy val tablePath = "share.schema.table"
+    lazy val shareCredentialsOptions: Map[String, Any] = Map(
+      "shareCredentialsVersion" -> 1,
+      "endpoint" -> "foo",
+      "bearerToken" -> "bar",
+      "expirationTime" -> "2021-11-12T00:12:29Z"
+    )
+
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "false")
+    // Append timestamp suffix
+    // share.schema.table_yyyyMMdd_HHmmss_uuid
+    val deltaLog2 = RemoteDeltaLog(tablePath, shareCredentialsOptions)
+    assert(deltaLog2.path.toString.split("\\.")(2).split("_").length == 4)
+    val snapshot2 = deltaLog2.snapshot()
+    assert(snapshot2.getTablePath.toString.split("\\.")(2).split("_").length == 4)
+  }
 }
