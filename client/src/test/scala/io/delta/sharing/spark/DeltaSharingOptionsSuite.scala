@@ -87,12 +87,7 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
     // profile as opts
     var options = new DeltaSharingOptions(Map(
       "shareCredentialsVersion" -> "1",
-      "shareCredentialsType" -> "bearer_token",
       "endpoint" -> "foo",
-      "tokenEndpoint" -> "bar",
-      "clientId" -> "abc",
-      "clientSecret" -> "xyz",
-      "scope" -> "testScope",
       "bearerToken" -> "bar",
       "expirationTime" -> "2022-01-01T00:00:00-02:00"
     ))
@@ -100,17 +95,7 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
     assert(options.shareCredentialsOptions.get(
       DeltaSharingOptions.PROFILE_SHARE_CREDENTIALS_VERSION) == Some("1"))
     assert(options.shareCredentialsOptions.get(
-      DeltaSharingOptions.PROFILE_TYPE) == Some("bearer_token"))
-    assert(options.shareCredentialsOptions.get(
       DeltaSharingOptions.PROFILE_ENDPOINT) == Some("foo"))
-    assert(options.shareCredentialsOptions.get(
-      DeltaSharingOptions.PROFILE_TOKEN_ENDPOINT) == Some("bar"))
-    assert(options.shareCredentialsOptions.get(
-      DeltaSharingOptions.PROFILE_CLIENT_ID) == Some("abc"))
-    assert(options.shareCredentialsOptions.get(
-      DeltaSharingOptions.PROFILE_CLIENT_SECRET) == Some("xyz"))
-    assert(options.shareCredentialsOptions.get(
-      DeltaSharingOptions.PROFILE_SCOPE) == Some("testScope"))
     assert(options.shareCredentialsOptions.get(
       DeltaSharingOptions.PROFILE_BEARER_TOKEN) == Some("bar"))
     assert(options.shareCredentialsOptions.get(

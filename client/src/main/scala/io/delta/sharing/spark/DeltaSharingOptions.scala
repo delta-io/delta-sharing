@@ -214,12 +214,7 @@ object DeltaSharingOptions extends Logging {
   val RESPONSE_FORMAT_DELTA = "delta"
 
   val PROFILE_SHARE_CREDENTIALS_VERSION = "shareCredentialsVersion"
-  val PROFILE_TYPE = "shareCredentialsType"
   val PROFILE_ENDPOINT = "endpoint"
-  val PROFILE_TOKEN_ENDPOINT = "tokenEndpoint"
-  val PROFILE_CLIENT_ID = "clientId"
-  val PROFILE_CLIENT_SECRET = "clientSecret"
-  val PROFILE_SCOPE = "scope"
   val PROFILE_BEARER_TOKEN = "bearerToken"
   val PROFILE_EXPIRATION_TIME = "expirationTime"
 
@@ -234,12 +229,7 @@ object DeltaSharingOptions extends Logging {
 
   val validShareCredentialsOptions = Map(
     PROFILE_SHARE_CREDENTIALS_VERSION -> "",
-    PROFILE_TYPE -> "",
     PROFILE_ENDPOINT -> "",
-    PROFILE_TOKEN_ENDPOINT -> "",
-    PROFILE_CLIENT_ID -> "",
-    PROFILE_CLIENT_SECRET -> "",
-    PROFILE_SCOPE -> "",
     PROFILE_BEARER_TOKEN -> "",
     PROFILE_EXPIRATION_TIME -> ""
   )
