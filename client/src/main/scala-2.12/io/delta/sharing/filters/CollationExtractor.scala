@@ -25,33 +25,11 @@ object CollationExtractor {
   def extractCollationIdentifier(
       left: SqlExpression,
       right: SqlExpression): Option[String] = {
-    (left.dataType, right.dataType) match {
-      case (leftStr: SqlStringType, rightStr: SqlStringType) =>
-        // Spark needs to make sure to only compare strings of the same collation.
-        if (leftStr != rightStr) {
-          throw new IllegalArgumentException(
-            s"Cannot compare strings with different collations: " +
-            s"'${leftStr.typeName}' vs '${rightStr.typeName}'"
-          )
-        }
-
-        // The 2.12 client depends on Spark 3.5, which does not support collations.
-        // This means we cannot extract the collation identifier. In this case, we
-        // should throw an error so the filter is not converted. This avoids applying
-        // an incorrect filter and ensures we do not return wrong results.
-        validateNoCollations(leftStr.typeName)
-        None
-
-      case _ =>
-        None
-    }
-  }
-
-  private def validateNoCollations(typeName: String): Unit = {
-    if (typeName.startsWith("string collate")) {
-      throw new IllegalArgumentException(
-        s"Cannot convert operand of unsupported type $typeName"
-      )
-    }
+    // The 2.12 client depends on Spark 3.5, which does not support collations.
+    // This means we cannot extract the collation identifier. In this case, we
+    // return None to default to UTF8 binary comparisons, as collations are just a
+    // writer feature in Delta and Spark 3.5 does not support them but should still
+    // be able to read the table.
+    None
   }
 }
