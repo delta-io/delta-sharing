@@ -24,6 +24,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.spark.delta.sharing.TableRefreshResult
 
 import io.delta.sharing.client.util.JsonUtils
+import io.delta.sharing.spark.DeltaSharingOptions
 
 case class DeltaSharingProfile(
     shareCredentialsVersion: Option[Int],
@@ -111,11 +112,18 @@ private[sharing] class DeltaSharingFileProfileProvider(
  * Load [[DeltaSharingProfile]] from options.
  */
 private[sharing] class DeltaSharingOptionsProfileProvider(
-    shareCredentialsOptions: Map[String, Any]) extends DeltaSharingProfileProvider {
+    shareCredentialsOptions: Map[String, String]) extends DeltaSharingProfileProvider {
 
   val profile = {
+    // Convert string representations of shareCredentialsVersion to Int
+    val normalizedOptions: Map[String, Any] = shareCredentialsOptions.map {
+      case (DeltaSharingOptions.PROFILE_SHARE_CREDENTIALS_VERSION, v) =>
+        DeltaSharingOptions.PROFILE_SHARE_CREDENTIALS_VERSION -> v.toInt
+      case (k, v) => k -> v
+    }
+
     val profile = {
-      JsonUtils.fromJson[DeltaSharingProfile](JsonUtils.toJson(shareCredentialsOptions))
+      JsonUtils.fromJson[DeltaSharingProfile](JsonUtils.toJson(normalizedOptions))
     }
 
     validate(profile)
