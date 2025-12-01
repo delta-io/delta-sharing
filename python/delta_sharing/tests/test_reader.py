@@ -607,6 +607,15 @@ def test_table_changes_to_pandas_partitioned(tmp_path):
     pdf = reader.table_changes_to_pandas(CdfOptions())
 
     expected = pd.concat([pdf1, pdf2]).reset_index(drop=True)
+    expected = expected[
+        [
+            "a",
+            "b",
+            DeltaSharingReader._change_type_col_name(),
+            DeltaSharingReader._commit_version_col_name(),
+            DeltaSharingReader._commit_timestamp_col_name(),
+        ]
+    ]
     pd.testing.assert_frame_equal(pdf, expected)
 
     reader = DeltaSharingReader(

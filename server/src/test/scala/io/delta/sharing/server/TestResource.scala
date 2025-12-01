@@ -213,6 +213,18 @@ object TestResource {
                 historyShared = true
               ),
               TableConfig(
+                "add_columns_partitioned_cdf",
+                s"s3a://${AWS.bucket}/delta-exchange-test/add_columns_partitioned_cdf",
+                "00000000-0000-0000-0000-000000000098",
+                historyShared = true
+              ),
+              TableConfig(
+                "add_columns_non_partitioned_cdf",
+                s"s3a://${AWS.bucket}/delta-exchange-test/add_columns_non_partitioned_cdf",
+                "00000000-0000-0000-0000-000000000097",
+                historyShared = true
+              ),
+              TableConfig(
                 "timestampntz_cdf_table",
                 s"s3a://${AWS.bucket}/delta-exchange-test/timestampntz_cdf_table",
                 "00000000-0000-0000-0000-000000000096",

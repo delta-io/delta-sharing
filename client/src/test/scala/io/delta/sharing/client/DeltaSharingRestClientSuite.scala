@@ -194,7 +194,10 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "deletion_vectors_with_dvs_dv_property_on", schema = "default", share = "share8"),
         Table(name = "dv_and_cm_table", schema = "default", share = "share8"),
         Table(name = "timestampntz_cdf_table", schema = "default", share = "share8"),
-        Table(name = "12k_rows", schema = "default", share = "share8")
+        Table(name = "12k_rows", schema = "default", share = "share8"),
+        Table(name = "timestampntz_cdf_table", schema = "default", share = "share8"),
+        Table(name = "add_columns_non_partitioned_cdf", schema = "default", share = "share8"),
+        Table(name = "add_columns_partitioned_cdf", schema = "default", share = "share8")
       )
       assert(expected == client.listAllTables().toSet)
     } finally {
@@ -1403,7 +1406,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
   }
 
-  test("version mismatch check - getMetadata with mocked response") {
+  integrationTest("version mismatch check - getMetadata with mocked response") {
     Seq(true, false).foreach { isMSTQueryFlag =>
       val requestedVersion = 5L
       val returnedVersion = 10L
@@ -1460,7 +1463,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  test("version mismatch check - getFiles with mocked response") {
+  integrationTest("version mismatch check - getFiles with mocked response") {
     // Test delta format where version validation is controlled by isMSTQuery
     Seq(true, false).foreach { isMSTQueryFlag =>
       val requestedVersion = 15L
