@@ -364,6 +364,13 @@ class DeltaSharingRestClient(
         s"with response format ${response.respondedFormat}" + getDsQueryIdForLogging
     )
 
+    // Validate that the response version matches the requested version for MST queries
+    require(
+      !profileProvider.isMSTQuery() || versionAsOf.isEmpty || versionAsOf.get == response.version,
+      s"The returned table version ${response.version} does not match the requested " +
+        s"versionAsOf ${versionAsOf.get} in getMetadata" + getDsQueryIdForLogging
+    )
+
     if (response.respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(
         response.version,
@@ -472,6 +479,13 @@ class DeltaSharingRestClient(
       s"Response: version $version, respondedFormat $respondedFormat, lines ${lines.size}, " +
       s"refreshTokenOpt $refreshTokenOpt, " +
       s"time cost ${(System.currentTimeMillis() - startTime) / 1000.0}s." + getDsQueryIdForLogging
+    )
+
+    // Validate that the response version matches the requested version for MST queries
+    require(
+      !profileProvider.isMSTQuery() || versionAsOf.isEmpty || versionAsOf.get == version,
+      s"The returned table version $version does not match the requested versionAsOf " +
+        s"${versionAsOf.get} in getFiles" + getDsQueryIdForLogging
     )
 
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
@@ -906,7 +920,7 @@ class DeltaSharingRestClient(
     }.mkString("&")
   }
 
-  private def getNDJson(
+  private[sharing] def getNDJson(
       target: String,
       requireVersion: Boolean,
       setIncludeEndStreamAction: Boolean): ParsedDeltaSharingResponse = {
@@ -1032,7 +1046,7 @@ class DeltaSharingRestClient(
     (version, respondedFormat, lines, queryIdOpt)
   }
 
-  private def getNDJsonPost[T: Manifest](
+  private[sharing] def getNDJsonPost[T: Manifest](
       target: String,
       data: T,
       setIncludeEndStreamAction: Boolean): ParsedDeltaSharingResponse = {
