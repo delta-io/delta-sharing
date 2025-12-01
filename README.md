@@ -1,3 +1,9 @@
+> ⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️
+> 
+> With the emergence of open-source catalogs like [Unity](https://github.com/unitycatalog/unitycatalog) and [Polaris](https://github.com/apache/polaris)￼both of which overlap with Whitefox’s goals and benefit from stronger community and funding—we’ve decided to archive the Whitefox project.
+> 
+> ⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️
+
 # Whitefox: An Open Protocol for Secure Data Sharing
 
 Fork of Delta-Sharing with the following goals:
