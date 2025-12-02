@@ -110,20 +110,31 @@ private[sharing] object RemoteDeltaLog {
   }
 
   /**
-   * Parse the user provided path `profile_file#share.schema.share` to
-   * `(profile_file, share, schema, share)`.
+   * Validate and parse user provided path:
+   * When credentials are provided via options, path format should be `share.schema.table`
+   * Otherwise, profile file should be included `profile_file#share.schema.table`
    */
-  def parsePath(path: String): (String, String, String, String) = {
+  def parsePath(path: String,
+                shareCredentialsOptions: Map[String, String]): (String, String, String, String) = {
     val shapeIndex = path.lastIndexOf('#')
-    if (shapeIndex < 0) {
-      throw new IllegalArgumentException(s"path $path is not valid")
+    val (profileFile, tablePath) = {
+      if (shareCredentialsOptions.nonEmpty && shapeIndex < 0) {
+        ("", path)
+      }
+      else if (shareCredentialsOptions.nonEmpty && shapeIndex >= 0) {
+        throw new IllegalArgumentException(
+          "cannot specify both share credentials options and a profile file path")
+      } else if (shareCredentialsOptions.isEmpty && shapeIndex < 0) {
+        throw new IllegalArgumentException(s"path $path is not valid")
+      } else {
+        (path.substring(0, shapeIndex), path.substring(shapeIndex + 1))
+      }
     }
-    val profileFile = path.substring(0, shapeIndex)
-    val tableSplits = path.substring(shapeIndex + 1).split("\\.", -1)
+    val tableSplits = tablePath.split("\\.", -1)
     if (tableSplits.length != 3) {
       throw new IllegalArgumentException(s"path $path is not valid")
     }
-    if (profileFile.isEmpty || tableSplits(0).isEmpty ||
+    if ((profileFile.isEmpty && shareCredentialsOptions.isEmpty) || tableSplits(0).isEmpty ||
       tableSplits(1).isEmpty || tableSplits(2).isEmpty) {
       throw new IllegalArgumentException(s"path $path is not valid")
     }
@@ -142,20 +153,24 @@ private[sharing] object RemoteDeltaLog {
     s"_${formattedDateTime}_${uuid}"
   }
 
-  def apply(path: String, forStreaming: Boolean = false): RemoteDeltaLog = {
+  def apply(path: String,
+            shareCredentialsOptions: Map[String, String],
+            forStreaming: Boolean = false): RemoteDeltaLog = {
     val sqlConf = SparkSession.active.sessionState.conf
-    val (profileFile, share, schema, table) = parsePath(path)
+    val (profileFile, share, schema, table) = parsePath(path, shareCredentialsOptions)
 
-    val profileProviderclass =
-      sqlConf.getConfString("spark.delta.sharing.profile.provider.class",
-        "io.delta.sharing.spark.DeltaSharingFileProfileProvider")
-
-    val profileProvider: DeltaSharingProfileProvider =
+    val profileProvider: DeltaSharingProfileProvider = if (shareCredentialsOptions.nonEmpty) {
+      new DeltaSharingOptionsProfileProvider(shareCredentialsOptions)
+    } else {
+      val profileProviderclass =
+        sqlConf.getConfString("spark.delta.sharing.profile.provider.class",
+          "io.delta.sharing.spark.DeltaSharingFileProfileProvider")
       Class.forName(profileProviderclass)
         .getConstructor(classOf[Configuration], classOf[String])
         .newInstance(SparkSession.active.sessionState.newHadoopConf(),
           profileFile)
         .asInstanceOf[DeltaSharingProfileProvider]
+    }
 
     val deltaSharingTable = DeltaSharingTable(name = table, schema = schema, share = share)
     // This is a flag to test the local https server. Should never be used in production.

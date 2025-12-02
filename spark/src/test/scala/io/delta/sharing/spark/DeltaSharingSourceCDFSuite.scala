@@ -65,8 +65,9 @@ class DeltaSharingSourceCDFSuite extends QueryTest
   // VERSION 3: UPDATE 4 rows, 4 cdf files, 8 cdf rows
   // VERSION 4: REMOVE 4 rows, 2 remove files
   lazy val cdfTablePath = testProfileFile.getCanonicalPath + "#share8.default.streaming_cdf_table"
+  lazy val shareCredentialsOptions: Map[String, String] = Map.empty
 
-  lazy val deltaLog = RemoteDeltaLog(cdfTablePath, forStreaming = true)
+  lazy val deltaLog = RemoteDeltaLog(cdfTablePath, shareCredentialsOptions, forStreaming = true)
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
     val options = new DeltaSharingOptions(parameters ++ Map("readChangeFeed" -> "true"))

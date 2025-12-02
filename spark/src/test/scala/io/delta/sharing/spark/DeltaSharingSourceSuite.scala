@@ -66,8 +66,9 @@ class DeltaSharingSourceSuite extends QueryTest
       "#share8.default.streaming_notnull_to_null"
   lazy val toNotNullTable = testProfileFile.getCanonicalPath +
     "#share8.default.streaming_null_to_notnull"
+  lazy val shareCredentialsOptions: Map[String, String] = Map.empty
 
-  lazy val deltaLog = RemoteDeltaLog(tablePath, forStreaming = true)
+  lazy val deltaLog = RemoteDeltaLog(tablePath, shareCredentialsOptions, forStreaming = true)
 
   def getSource(parameters: Map[String, String]): DeltaSharingSource = {
     val options = new DeltaSharingOptions(parameters)
