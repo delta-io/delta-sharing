@@ -117,8 +117,9 @@ private[sharing] object RemoteDeltaLog {
   def parsePath(path: String,
                 shareCredentialsOptions: Map[String, String]): (String, String, String, String) = {
     val shapeIndex = path.lastIndexOf('#')
-    val (profileFile, tablePath) = if (shareCredentialsOptions.nonEmpty && shapeIndex < 0) {
-      ("", path)
+    val (profileFile, tablePath) = {
+      if (shareCredentialsOptions.nonEmpty && shapeIndex < 0) {
+        ("", path)
       }
       else if (shareCredentialsOptions.nonEmpty && shapeIndex >= 0) {
         throw new IllegalArgumentException(
@@ -126,7 +127,8 @@ private[sharing] object RemoteDeltaLog {
       } else if (shareCredentialsOptions.isEmpty && shapeIndex < 0) {
         throw new IllegalArgumentException(s"path $path is not valid")
       } else {
-      (path.substring(0, shapeIndex), path.substring(shapeIndex + 1))
+        (path.substring(0, shapeIndex), path.substring(shapeIndex + 1))
+      }
     }
     val tableSplits = tablePath.split("\\.", -1)
     if (tableSplits.length != 3) {

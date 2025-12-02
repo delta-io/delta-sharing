@@ -39,19 +39,37 @@ import io.delta.sharing.spark.util.JsonUtils
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
   test("parsePath") {
-    lazy val shareCredentialsOptions: Map[String, String] = Map.empty
-    assert(RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c", shareCredentialsOptions) ==
+    lazy val emptyShareCredentialsOptions: Map[String, String] = Map.empty
+    assert(RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c", emptyShareCredentialsOptions) ==
       ("file:///foo/bar", "a", "b", "c"))
-    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c", shareCredentialsOptions) ==
+    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c", emptyShareCredentialsOptions) ==
       ("file:///foo/bar#bar", "a", "b", "c"))
-    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c ", shareCredentialsOptions) ==
+    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c ", emptyShareCredentialsOptions) ==
       ("file:///foo/bar#bar", "a", "b", "c "))
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("file:///foo/bar", shareCredentialsOptions)
+      RemoteDeltaLog.parsePath("file:///foo/bar", emptyShareCredentialsOptions)
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("file:///foo/bar#a.b", shareCredentialsOptions)
+      RemoteDeltaLog.parsePath("file:///foo/bar#a.b", emptyShareCredentialsOptions)
     }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c.d", emptyShareCredentialsOptions)
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("#a.b.c", emptyShareCredentialsOptions)
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("foo#a.b.", emptyShareCredentialsOptions)
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("foo#a.b.c.", emptyShareCredentialsOptions)
+    }
+  }
+
+  test("parsePath with options") {
+    lazy val shareCredentialsOptions: Map[String, String] = Map("key" -> "value")
+    assert(RemoteDeltaLog.parsePath("a.b.c", shareCredentialsOptions) ==
+      ("", "a", "b", "c"))
     intercept[IllegalArgumentException] {
       RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c.d", shareCredentialsOptions)
     }
@@ -59,10 +77,19 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       RemoteDeltaLog.parsePath("#a.b.c", shareCredentialsOptions)
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("foo#a.b.", shareCredentialsOptions)
+      RemoteDeltaLog.parsePath("", shareCredentialsOptions)
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("foo#a.b.c.", shareCredentialsOptions)
+      RemoteDeltaLog.parsePath("a.b", shareCredentialsOptions)
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("a.b.c.d", shareCredentialsOptions)
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("a.b.", shareCredentialsOptions)
+    }
+    intercept[IllegalArgumentException] {
+      RemoteDeltaLog.parsePath("a.b.c.", shareCredentialsOptions)
     }
   }
 

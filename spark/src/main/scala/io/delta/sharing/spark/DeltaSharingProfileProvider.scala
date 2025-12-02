@@ -55,6 +55,12 @@ trait DeltaSharingProfileProvider {
     refresher
   }
 
+  /**
+   * Validate that a DeltaSharingProfile has all required fields and valid values.
+   *
+   * @param profile The profile to validate
+   * @throws IllegalArgumentException if validation fails
+   */
   def validate(profile: DeltaSharingProfile): Unit = {
     if (profile.shareCredentialsVersion.isEmpty) {
       throw new IllegalArgumentException(
