@@ -58,7 +58,7 @@ trait DeltaSharingProfileProvider {
   def validate(profile: DeltaSharingProfile): Unit = {
     if (profile.shareCredentialsVersion.isEmpty) {
       throw new IllegalArgumentException(
-        "Cannot find the 'shareCredentialsVersion' field in the profile file")
+        "Cannot find the 'shareCredentialsVersion' field in the profile")
     }
 
     if (profile.shareCredentialsVersion.get > DeltaSharingProfile.CURRENT) {
@@ -69,10 +69,10 @@ trait DeltaSharingProfileProvider {
           s"release.")
     }
     if (profile.endpoint == null) {
-      throw new IllegalArgumentException("Cannot find the 'endpoint' field in the profile file")
+      throw new IllegalArgumentException("Cannot find the 'endpoint' field in the profile")
     }
     if (profile.bearerToken == null) {
-      throw new IllegalArgumentException("Cannot find the 'bearerToken' field in the profile file")
+      throw new IllegalArgumentException("Cannot find the 'bearerToken' field in the profile")
     }
 
   }
@@ -107,8 +107,14 @@ private[sharing] class DeltaSharingOptionsProfileProvider(
     shareCredentialsOptions: Map[String, String]) extends DeltaSharingProfileProvider {
 
   val profile = {
+    // Convert string representations of shareCredentialsVersion to Int
+    val normalizedOptions: Map[String, Any] = shareCredentialsOptions.map {
+      case (DeltaSharingOptions.PROFILE_SHARE_CREDENTIALS_VERSION, v) =>
+        DeltaSharingOptions.PROFILE_SHARE_CREDENTIALS_VERSION -> v.toInt
+      case (k, v) => k -> v
+    }
     val profile = {
-      JsonUtils.fromJson[DeltaSharingProfile](JsonUtils.toJson(shareCredentialsOptions))
+      JsonUtils.fromJson[DeltaSharingProfile](JsonUtils.toJson(normalizedOptions))
     }
     validate(profile)
     profile

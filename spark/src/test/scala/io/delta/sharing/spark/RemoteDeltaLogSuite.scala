@@ -39,28 +39,30 @@ import io.delta.sharing.spark.util.JsonUtils
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
   test("parsePath") {
-    assert(RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c") == ("file:///foo/bar", "a", "b", "c"))
-    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c") ==
+    lazy val shareCredentialsOptions: Map[String, String] = Map.empty
+    assert(RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c", shareCredentialsOptions) ==
+      ("file:///foo/bar", "a", "b", "c"))
+    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c", shareCredentialsOptions) ==
       ("file:///foo/bar#bar", "a", "b", "c"))
-    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c ") ==
+    assert(RemoteDeltaLog.parsePath("file:///foo/bar#bar#a.b.c ", shareCredentialsOptions) ==
       ("file:///foo/bar#bar", "a", "b", "c "))
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("file:///foo/bar")
+      RemoteDeltaLog.parsePath("file:///foo/bar", shareCredentialsOptions)
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("file:///foo/bar#a.b")
+      RemoteDeltaLog.parsePath("file:///foo/bar#a.b", shareCredentialsOptions)
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c.d")
+      RemoteDeltaLog.parsePath("file:///foo/bar#a.b.c.d", shareCredentialsOptions)
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("#a.b.c")
+      RemoteDeltaLog.parsePath("#a.b.c", shareCredentialsOptions)
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("foo#a.b.")
+      RemoteDeltaLog.parsePath("foo#a.b.", shareCredentialsOptions)
     }
     intercept[IllegalArgumentException] {
-      RemoteDeltaLog.parsePath("foo#a.b.c.")
+      RemoteDeltaLog.parsePath("foo#a.b.c.", shareCredentialsOptions)
     }
   }
 
@@ -449,5 +451,46 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       }
       assert(TestDeltaSharingClient.limits === Seq(2L, 3L))
     }
+  }
+
+  test("RemoteDeltaLog path") {
+    // Create a dummy table path
+    val testProfileFile = Files.createTempFile("delta-test", ".share").toFile
+    FileUtils.writeStringToFile(testProfileFile,
+      s"""{
+         |  "shareCredentialsVersion": 1,
+         |  "endpoint": "http://localhost:12345/delta-sharing",
+         |  "bearerToken": "xxxxx"
+         |}""".stripMargin, UTF_8)
+    val tablePath = s"${testProfileFile.getCanonicalPath}#share.schema.table"
+    lazy val shareCredentialsOptions: Map[String, String] = Map.empty
+
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "false")
+    // Append timestamp suffix
+    // <profile>#share.schema.table_yyyyMMdd_HHmmss_uuid
+    val deltaLog2 = RemoteDeltaLog(tablePath, shareCredentialsOptions)
+    assert(deltaLog2.path.toString.split("#")(1).split("_").length == 4)
+    val snapshot2 = deltaLog2.snapshot()
+    assert(snapshot2.getTablePath.toString.split("#")(1).split("_").length == 4)
+  }
+
+  test("RemoteDeltaLog path with options") {
+    lazy val tablePath = "share.schema.table"
+    lazy val shareCredentialsOptions: Map[String, String] = Map(
+      "shareCredentialsVersion" -> "1",
+      "endpoint" -> "foo",
+      "bearerToken" -> "bar",
+      "expirationTime" -> "2021-11-12T00:12:29Z"
+    )
+
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "false")
+    // Append timestamp suffix
+    // share.schema.table_yyyyMMdd_HHmmss_uuid
+    val deltaLog2 = RemoteDeltaLog(tablePath, shareCredentialsOptions)
+    assert(deltaLog2.path.toString.split("\\.")(2).split("_").length == 4)
+    val snapshot2 = deltaLog2.snapshot()
+    assert(snapshot2.getTablePath.toString.split("\\.")(2).split("_").length == 4)
   }
 }
