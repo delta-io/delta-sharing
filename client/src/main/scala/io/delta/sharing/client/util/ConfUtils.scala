@@ -313,27 +313,6 @@ object ConfUtils {
   def structuralSchemaMatchingEnabled(conf: SQLConf): Boolean =
     conf.getConfString(STRUCTURAL_SCHEMA_MATCH_CONF, STRUCTURAL_SCHEMA_MATCH_DEFAULT).toBoolean
 
-<<<<<<< HEAD
-=======
-  def sparkParquetIOCacheEnabled(conf: Configuration): Boolean = {
-    conf.getBoolean(
-      SPARK_PARQUET_IO_CACHE_CONF, SPARK_PARQUET_IO_CACHE_DEFAULT.toBoolean)
-  }
-
-  def sparkParquetIOCacheEnabled(conf: SQLConf): Boolean = {
-    conf.getConfString(
-      SPARK_PARQUET_IO_CACHE_CONF, SPARK_PARQUET_IO_CACHE_DEFAULT).toBoolean
-  }
-
-  def logPreSignedUrlAccessEnabled(conf: Configuration): Boolean = {
-    conf.getBoolean(LOG_PRESIGNED_URL_ACCESS_CONF, LOG_PRESIGNED_URL_ACCESS_DEFAULT)
-  }
-
-  def logPreSignedUrlAccessEnabled(conf: SQLConf): Boolean = {
-    conf.getConfString(
-      LOG_PRESIGNED_URL_ACCESS_CONF, LOG_PRESIGNED_URL_ACCESS_DEFAULT.toString).toBoolean
-  }
-
   def optionsProfileProviderEnabled(conf: Configuration): Boolean = {
     conf.getBoolean(
       OPTIONS_PROFILE_PROVIDER_ENABLED_CONF, OPTIONS_PROFILE_PROVIDER_ENABLED_DEFAULT)
@@ -345,7 +324,6 @@ object ConfUtils {
       OPTIONS_PROFILE_PROVIDER_ENABLED_DEFAULT.toString).toBoolean
   }
 
->>>>>>> 3ab1dcaef (Add configuration to guard DeltaSharingOptionsProfileProvider usage (#824))
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {
     val timeInSeconds = JavaUtils.timeStringAs(timeStr, TimeUnit.SECONDS)
     validateNonNeg(timeInSeconds, conf)
