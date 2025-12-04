@@ -35,6 +35,7 @@ import io.delta.sharing.client.model.{
   RemoveFile,
   Table
 }
+import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.client.util.JsonUtils
 import io.delta.sharing.client.util.UnexpectedHttpStatus
 import io.delta.sharing.spark.{DeltaSharingServerException, MissingEndStreamActionException}
@@ -77,6 +78,65 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
     intercept[IllegalArgumentException] {
       DeltaSharingRestClient.parsePath("foo#a.b.c.", emptyShareCredentialsOptions)
+    }
+  }
+
+  test("parsePath with optionsProfileProvider disabled") {
+    withSparkSessionForTest { spark =>
+      spark.conf.set(ConfUtils.OPTIONS_PROFILE_PROVIDER_ENABLED_CONF, "false")
+
+      val emptyShareCredentialsOptions: Map[String, String] = Map.empty
+      val testShareCredentialsOptions: Map[String, String] = Map("key" -> "value")
+
+      // Should work fine with profile file format when options are empty
+      assert(
+        DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c", emptyShareCredentialsOptions) ==
+        ParsedDeltaSharingTablePath("file:///foo/bar", "a", "b", "c"))
+
+      // Should fail when shareCredentialsOptions is non-empty
+      val e1 = intercept[IllegalArgumentException] {
+        DeltaSharingRestClient.parsePath("a.b.c", testShareCredentialsOptions)
+      }
+      assert(e1.getMessage.contains("DeltaSharingOptionsProfileProvider is disabled"))
+      assert(e1.getMessage.contains(ConfUtils.OPTIONS_PROFILE_PROVIDER_ENABLED_CONF))
+
+      // Should fail when path has no profile file (shapeIndex < 0) even with empty options
+      val e2 = intercept[IllegalArgumentException] {
+        DeltaSharingRestClient.parsePath("a.b.c", emptyShareCredentialsOptions)
+      }
+      assert(e2.getMessage.contains("you must provide a profile file path"))
+      assert(e2.getMessage.contains("profile_file#share.schema.table"))
+    }
+  }
+
+  test("DeltaSharingRestClient.apply with optionsProfileProvider disabled") {
+    withSparkSessionForTest { spark =>
+      spark.conf.set(ConfUtils.OPTIONS_PROFILE_PROVIDER_ENABLED_CONF, "false")
+
+      val testShareCredentialsOptions: Map[String, String] = Map(
+        "shareCredentialsVersion" -> "1",
+        "endpoint" -> "https://example.com",
+        "bearerToken" -> "test-token"
+      )
+
+      // Should fail when trying to create client with shareCredentialsOptions when flag is disabled
+      val e = intercept[IllegalArgumentException] {
+        DeltaSharingRestClient("", testShareCredentialsOptions)
+      }
+      assert(e.getMessage.contains("DeltaSharingOptionsProfileProvider is disabled"))
+      assert(e.getMessage.contains(ConfUtils.OPTIONS_PROFILE_PROVIDER_ENABLED_CONF))
+    }
+  }
+
+  private def withSparkSessionForTest(f: org.apache.spark.sql.SparkSession => Unit): Unit = {
+    val spark = org.apache.spark.sql.SparkSession.builder()
+      .master("local[1]")
+      .appName("DeltaSharingRestClientSuite")
+      .getOrCreate()
+    try {
+      f(spark)
+    } finally {
+      spark.stop()
     }
   }
 
