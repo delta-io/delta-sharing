@@ -126,7 +126,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
     assert(e2.getMessage.contains("you must provide a profile file path"))
     assert(e2.getMessage.contains("profile_file#share.schema.table"))
-    
+
     // Reset config for other tests
     spark.conf.set(ConfUtils.OPTIONS_PROFILE_PROVIDER_ENABLED_CONF, "true")
   }
@@ -146,7 +146,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
     assert(e.getMessage.contains("DeltaSharingOptionsProfileProvider is disabled"))
     assert(e.getMessage.contains(ConfUtils.OPTIONS_PROFILE_PROVIDER_ENABLED_CONF))
-    
+
     // Reset config for other tests
     spark.conf.set(ConfUtils.OPTIONS_PROFILE_PROVIDER_ENABLED_CONF, "true")
   }
