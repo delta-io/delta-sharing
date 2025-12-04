@@ -1360,7 +1360,6 @@ object DeltaSharingRestClient extends Logging {
       if (shapeIndex < 0) {
         throw new IllegalArgumentException(
           s"Path $path is not valid. " +
-          s"When ${ConfUtils.OPTIONS_PROFILE_PROVIDER_ENABLED_CONF}=false, " +
           s"you must provide a profile file path in the format: profile_file#share.schema.table"
         )
       }
