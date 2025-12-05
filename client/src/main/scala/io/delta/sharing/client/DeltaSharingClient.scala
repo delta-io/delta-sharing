@@ -1347,6 +1347,24 @@ object DeltaSharingRestClient extends Logging {
      shareCredentialsOptions: Map[String, String]): ParsedDeltaSharingTablePath = {
     val shapeIndex = path.lastIndexOf('#')
 
+    val sqlConf = SparkSession.active.sessionState.conf
+    if (!ConfUtils.optionsProfileProviderEnabled(sqlConf)) {
+      // When disabled, shareCredentialsOptions must be empty and shapeIndex < 0 is not allowed
+      if (shareCredentialsOptions.nonEmpty) {
+        throw new IllegalArgumentException(
+          s"DeltaSharingOptionsProfileProvider is disabled. " +
+          s"Please set ${ConfUtils.OPTIONS_PROFILE_PROVIDER_ENABLED_CONF}=true to enable it, " +
+          s"or use a profile file path format: profile_file#share.schema.table"
+        )
+      }
+      if (shapeIndex < 0) {
+        throw new IllegalArgumentException(
+          s"Path $path is not valid. " +
+          s"you must provide a profile file path in the format: profile_file#share.schema.table"
+        )
+      }
+    }
+
     val (profileFile, tablePath) = {
       if (shareCredentialsOptions.nonEmpty && shapeIndex < 0) {
         ("", path)
@@ -1440,8 +1458,17 @@ object DeltaSharingRestClient extends Logging {
   ): DeltaSharingClient = {
     val sqlConf = SparkSession.active.sessionState.conf
 
+    // Check if options profile provider is disabled
+    if (!ConfUtils.optionsProfileProviderEnabled(sqlConf) && shareCredentialsOptions.nonEmpty) {
+      throw new IllegalArgumentException(
+        s"DeltaSharingOptionsProfileProvider is disabled. " +
+        s"Please set ${ConfUtils.OPTIONS_PROFILE_PROVIDER_ENABLED_CONF}=true to enable it, " +
+        s"or use a profile file path format: profile_file#share.schema.table"
+      )
+    }
+
     val profileProvider: DeltaSharingProfileProvider = if (shareCredentialsOptions.nonEmpty) {
-        new DeltaSharingOptionsProfileProvider(shareCredentialsOptions)
+      new DeltaSharingOptionsProfileProvider(shareCredentialsOptions)
     } else {
       val profileProviderClass = ConfUtils.profileProviderClass(sqlConf)
       Class.forName(profileProviderClass)
