@@ -45,38 +45,29 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   import DeltaSharingRestClient._
 
   test("parsePath") {
-    val emptyShareCredentialsOptions: Map[String, String] = Map.empty
-    val testShareCredentialsOptions: Map[String, String] = Map("key" -> "value")
-
-    assert(
-      DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c", emptyShareCredentialsOptions) ==
+    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c") ==
       ParsedDeltaSharingTablePath("file:///foo/bar", "a", "b", "c"))
-    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#bar#a.b.c", emptyShareCredentialsOptions) ==
+    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#bar#a.b.c") ==
       ParsedDeltaSharingTablePath("file:///foo/bar#bar", "a", "b", "c"))
-    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#bar#a.b.c ", emptyShareCredentialsOptions) ==
+    assert(DeltaSharingRestClient.parsePath("file:///foo/bar#bar#a.b.c ") ==
       ParsedDeltaSharingTablePath("file:///foo/bar#bar", "a", "b", "c "))
-    assert(DeltaSharingRestClient.parsePath("a.b.c", testShareCredentialsOptions) ==
-      ParsedDeltaSharingTablePath("", "a", "b", "c"))
     intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("file:///foo/barr#a.b.c ", testShareCredentialsOptions)
+      DeltaSharingRestClient.parsePath("file:///foo/bar")
     }
     intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("file:///foo/bar", emptyShareCredentialsOptions)
+      DeltaSharingRestClient.parsePath("file:///foo/bar#a.b")
     }
     intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("file:///foo/bar#a.b", emptyShareCredentialsOptions)
+      DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c.d")
     }
     intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("file:///foo/bar#a.b.c.d", emptyShareCredentialsOptions)
+      DeltaSharingRestClient.parsePath("#a.b.c")
     }
     intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("#a.b.c", emptyShareCredentialsOptions)
+      DeltaSharingRestClient.parsePath("foo#a.b.")
     }
     intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("foo#a.b.", emptyShareCredentialsOptions)
-    }
-    intercept[IllegalArgumentException] {
-      DeltaSharingRestClient.parsePath("foo#a.b.c.", emptyShareCredentialsOptions)
+      DeltaSharingRestClient.parsePath("foo#a.b.c.")
     }
   }
 
