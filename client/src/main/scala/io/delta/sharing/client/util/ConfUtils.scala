@@ -111,9 +111,6 @@ object ConfUtils {
   val LOG_PRESIGNED_URL_ACCESS_CONF = "spark.delta.sharing.client.logPreSignedUrlAccess.enabled"
   val LOG_PRESIGNED_URL_ACCESS_DEFAULT = false
 
-  val OPTIONS_PROFILE_PROVIDER_ENABLED_CONF = "spark.delta.sharing.profile.optionsProvider.enabled"
-  val OPTIONS_PROFILE_PROVIDER_ENABLED_DEFAULT = true
-
   def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
     val proxyHost = conf.get(PROXY_HOST, null)
     val proxyPortAsString = conf.get(PROXY_PORT, null)
@@ -340,17 +337,6 @@ object ConfUtils {
   def logPreSignedUrlAccessEnabled(conf: SQLConf): Boolean = {
     conf.getConfString(
       LOG_PRESIGNED_URL_ACCESS_CONF, LOG_PRESIGNED_URL_ACCESS_DEFAULT.toString).toBoolean
-  }
-
-  def optionsProfileProviderEnabled(conf: Configuration): Boolean = {
-    conf.getBoolean(
-      OPTIONS_PROFILE_PROVIDER_ENABLED_CONF, OPTIONS_PROFILE_PROVIDER_ENABLED_DEFAULT)
-  }
-
-  def optionsProfileProviderEnabled(conf: SQLConf): Boolean = {
-    conf.getConfString(
-      OPTIONS_PROFILE_PROVIDER_ENABLED_CONF,
-      OPTIONS_PROFILE_PROVIDER_ENABLED_DEFAULT.toString).toBoolean
   }
 
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {
