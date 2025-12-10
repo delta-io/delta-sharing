@@ -108,7 +108,7 @@ private[sharing] class RandomAccessHttpInputStream(
       currentStream.read()
     } catch {
       case e: Exception =>
-        if (logPreSignedUrlAccess) {
+        if (true) {
           logInfo(s"Error reading from stream - uri: $uri, position: $pos, " +
             s"error: ${e.getMessage}")
         }
@@ -139,7 +139,7 @@ private[sharing] class RandomAccessHttpInputStream(
       currentStream.read(buf, off, len)
     } catch {
       case e: Exception =>
-        if (logPreSignedUrlAccess) {
+        if (true) {
           logInfo(s"Error reading from stream - uri: $uri, position: $pos, offset: $off, " +
             s"length: $len, error: ${e.getMessage}")
         }
@@ -166,7 +166,7 @@ private[sharing] class RandomAccessHttpInputStream(
     } else {
       logDebug(s"Opening file $uri at pos $pos")
 
-      val errorLogger = if (logPreSignedUrlAccess) {
+      val errorLogger = if (true) {
         Some((e: Exception) => {
           e match {
             case ue: UnexpectedHttpStatus =>
@@ -210,6 +210,7 @@ private[sharing] class RandomAccessHttpInputStream(
               s" while accessing URI of shared table file",
             statusCode)
         }
+        logInfo(s"uri: $uri, reopen: $pos, request: $httpRequest, response: $response")
         entity
       }
       currentStream = entity.getContent()
