@@ -104,11 +104,11 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
       // `InMemoryHttpInputStream` loads the content into the memory immediately, so we don't need
       // to refresh urls.
       val stream = new FSDataInputStream(new InMemoryHttpInputStream(new URI(fetcher.getUrl())))
-      logInfo(s"Took ${(System.currentTimeMillis() - start)/1000}s to build " +
+      logDebug(s"Took ${(System.currentTimeMillis() - start)/1000}s to build " +
         s"InMemoryHttpInputStream for delta sharing path $path.")
       stream
     } else {
-      logInfo(s"opening delta sharing path [$path] with RandomAccessHttpInputStream, " +
+      logDebug(s"opening delta sharing path [$path] with RandomAccessHttpInputStream, " +
         s"with bufferSize:[$bufferSize].")
       new FSDataInputStream(
         new RandomAccessHttpInputStream(
