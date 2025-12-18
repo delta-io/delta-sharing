@@ -211,7 +211,7 @@ private[sharing] class RandomAccessHttpInputStream(
             statusCode)
         }
         if (logPreSignedUrlAccess) {
-          val (cloudProvider, requestId) = 
+          val (cloudProvider, requestId) =
             Option(response.getFirstHeader("x-amz-request-id"))
               .map(h => ("AWS", h.getValue))
               .orElse(Option(response.getFirstHeader("x-ms-request-id"))
