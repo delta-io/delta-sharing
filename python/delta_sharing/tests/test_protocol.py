@@ -544,9 +544,7 @@ def test_protocol():
             "minReaderVersion" : 100
         }
         """
-    with pytest.raises(
-        ValueError, match="The table requires a newer version 100 to read."
-    ):
+    with pytest.raises(ValueError, match="The table requires a newer version 100 to read."):
         Protocol.from_json(json)
 
 
@@ -562,9 +560,7 @@ def test_protocol_delta():
         }
         """
     protocol = Protocol.from_json(json)
-    assert protocol == Protocol(
-        3, 7, ["columnMapping"], ["columnMapping", "deletionVectors"]
-    )
+    assert protocol == Protocol(3, 7, ["columnMapping"], ["columnMapping", "deletionVectors"])
     json = """
         {
             "deltaProtocol": {
@@ -573,9 +569,7 @@ def test_protocol_delta():
             }
         }
         """
-    with pytest.raises(
-        ValueError, match="The table requires a newer version 100 to read."
-    ):
+    with pytest.raises(ValueError, match="The table requires a newer version 100 to read."):
         Protocol.from_json(json)
 
 

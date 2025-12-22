@@ -45,9 +45,7 @@ class DeltaSharingProfile:
     scope: Optional[str] = None
     issuer: Optional[str] = None
     audience: Optional[str] = None
-    private_key: Optional[Dict[str, str]] = field(
-        default=None, hash=False, compare=False
-    )
+    private_key: Optional[Dict[str, str]] = field(default=None, hash=False, compare=False)
 
     def __post_init__(self):
         if self.share_credentials_version > DeltaSharingProfile.CURRENT:
@@ -147,8 +145,7 @@ class DeltaSharingProfile:
                 )
             else:
                 raise ValueError(
-                    f"The current release does not supports {type} type. "
-                    "Please check type."
+                    f"The current release does not supports {type} type. " "Please check type."
                 )
         else:
             raise ValueError(
@@ -171,9 +168,7 @@ class DeltaSharingProfile:
         expiration = os.environ.get(expiration_env)
 
         if version is None or token is None or endpoint is None:
-            raise ValueError(
-                "Missing required environment variables for Delta Sharing profile."
-            )
+            raise ValueError("Missing required environment variables for Delta Sharing profile.")
 
         if endpoint.endswith("/"):
             endpoint = endpoint[:-1]
@@ -264,9 +259,7 @@ class Format:
     def from_json(json) -> "Format":
         if isinstance(json, (str, bytes, bytearray)):
             json = loads(json)
-        return Format(
-            provider=json.get("provider", "parquet"), options=json.get("options", {})
-        )
+        return Format(provider=json.get("provider", "parquet"), options=json.get("options", {}))
 
 
 @dataclass(frozen=True)
