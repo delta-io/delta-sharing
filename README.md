@@ -84,6 +84,12 @@ profile_file = "<profile-file-path>"
 # Create a SharingClient.
 client = delta_sharing.SharingClient(profile_file)
 
+# You can also build a profile from environment variables (useful in CI).
+# Required: DSHARING_VERSION, DSHARING_TOKEN, DSHARING_ENDPOINT
+# Optional: DSHARING_EXPTIME
+profile = delta_sharing.protocol.DeltaSharingProfile.from_env()
+client = delta_sharing.SharingClient(profile)
+
 # List all shared tables.
 client.list_all_tables()
 

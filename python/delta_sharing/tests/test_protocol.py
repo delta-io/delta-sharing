@@ -93,7 +93,8 @@ def test_share_profile(tmp_path):
         }
         """
     with pytest.raises(
-        ValueError, match="'shareCredentialsVersion' in the profile is 100 which is too new."
+        ValueError,
+        match="'shareCredentialsVersion' in the profile is 100 which is too new.",
     ):
         DeltaSharingProfile.read_from_file(io.StringIO(json))
 
@@ -191,7 +192,8 @@ def test_share_profile_bearer(tmp_path):
         }
         """
     with pytest.raises(
-        ValueError, match="'shareCredentialsVersion' in the profile is 100 which is too new."
+        ValueError,
+        match="'shareCredentialsVersion' in the profile is 100 which is too new.",
     ):
         DeltaSharingProfile.read_from_file(io.StringIO(json))
 
@@ -294,7 +296,8 @@ def test_profile_share_oauth_client_credentials(tmp_path):
         }
         """
     with pytest.raises(
-        ValueError, match="'shareCredentialsVersion' in the profile is 100 which is too new."
+        ValueError,
+        match="'shareCredentialsVersion' in the profile is 100 which is too new.",
     ):
         DeltaSharingProfile.read_from_file(io.StringIO(json))
 
@@ -374,7 +377,8 @@ def test_share_profile_oauth_jwt_bearer_private_key_jwt(tmp_path):
         }
         """
     with pytest.raises(
-        ValueError, match="'shareCredentialsVersion' in the profile is 100 which is too new."
+        ValueError,
+        match="'shareCredentialsVersion' in the profile is 100 which is too new.",
     ):
         DeltaSharingProfile.read_from_file(io.StringIO(json))
 
@@ -487,7 +491,8 @@ def test_share_profile_basic(tmp_path):
         }
         """
     with pytest.raises(
-        ValueError, match="'shareCredentialsVersion' in the profile is 100 which is too new."
+        ValueError,
+        match="'shareCredentialsVersion' in the profile is 100 which is too new.",
     ):
         DeltaSharingProfile.read_from_file(io.StringIO(json))
 
@@ -539,7 +544,9 @@ def test_protocol():
             "minReaderVersion" : 100
         }
         """
-    with pytest.raises(ValueError, match="The table requires a newer version 100 to read."):
+    with pytest.raises(
+        ValueError, match="The table requires a newer version 100 to read."
+    ):
         Protocol.from_json(json)
 
 
@@ -555,7 +562,9 @@ def test_protocol_delta():
         }
         """
     protocol = Protocol.from_json(json)
-    assert protocol == Protocol(3, 7, ["columnMapping"], ["columnMapping", "deletionVectors"])
+    assert protocol == Protocol(
+        3, 7, ["columnMapping"], ["columnMapping", "deletionVectors"]
+    )
     json = """
         {
             "deltaProtocol": {
@@ -564,7 +573,9 @@ def test_protocol_delta():
             }
         }
         """
-    with pytest.raises(ValueError, match="The table requires a newer version 100 to read."):
+    with pytest.raises(
+        ValueError, match="The table requires a newer version 100 to read."
+    ):
         Protocol.from_json(json)
 
 
@@ -914,3 +925,34 @@ def test_add_cdc_file(json: str, expected: AddCdcFile):
 )
 def test_remove_file(json: str, expected: RemoveFile):
     assert RemoveFile.from_json(json) == expected
+
+
+def test_share_profile_from_env_defaults(monkeypatch):
+    monkeypatch.setenv("DSHARING_VERSION", "1")
+    monkeypatch.setenv("DSHARING_TOKEN", "token")
+    monkeypatch.setenv("DSHARING_ENDPOINT", "https://localhost/delta-sharing/")
+    monkeypatch.setenv("DSHARING_EXPTIME", "2021-11-12T00:12:29.0Z")
+
+    profile = DeltaSharingProfile.from_env()
+
+    assert profile == DeltaSharingProfile(
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
+    )
+
+
+def test_share_profile_from_env_custom_names(monkeypatch):
+    monkeypatch.setenv("CUSTOM_VERSION", "1")
+    monkeypatch.setenv("CUSTOM_TOKEN", "token")
+    monkeypatch.setenv("CUSTOM_ENDPOINT", "https://localhost/delta-sharing/")
+    monkeypatch.setenv("CUSTOM_EXPTIME", "2021-11-12T00:12:29.0Z")
+
+    profile = DeltaSharingProfile.from_env(
+        version_env="CUSTOM_VERSION",
+        token_env="CUSTOM_TOKEN",
+        endpoint_env="CUSTOM_ENDPOINT",
+        expiration_env="CUSTOM_EXPTIME",
+    )
+
+    assert profile == DeltaSharingProfile(
+        1, "https://localhost/delta-sharing", "token", "2021-11-12T00:12:29.0Z"
+    )
