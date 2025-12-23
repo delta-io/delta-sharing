@@ -210,6 +210,22 @@ private[sharing] class RandomAccessHttpInputStream(
               s" while accessing URI of shared table file",
             statusCode)
         }
+        if (logPreSignedUrlAccess) {
+          val (cloudProvider, requestId) =
+            Option(response.getFirstHeader("x-amz-request-id"))
+              .map(h => ("AWS", h.getValue))
+              .orElse(Option(response.getFirstHeader("x-ms-request-id"))
+                .map(h => ("Azure", h.getValue)))
+              .orElse(Option(response.getFirstHeader("x-goog-request-id"))
+                .map(h => ("GCS", h.getValue)))
+              .getOrElse(("Unknown", "N/A"))
+          val headers = response.getAllHeaders
+            .map(h => s"${h.getName}: ${h.getValue}")
+            .mkString(", ")
+          logInfo(s"HTTP request succeeded - uri: $uri, pos: $pos, " +
+            s"status: ${response.getStatusLine}, cloud: $cloudProvider, " +
+            s"requestId: $requestId, headers: [$headers]")
+        }
         entity
       }
       currentStream = entity.getContent()

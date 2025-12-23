@@ -57,7 +57,8 @@ private[sharing] class DeltaSharingFileSystem extends FileSystem with Logging {
       .setConnectionRequestTimeout(timeoutInSeconds * 1000)
       .setSocketTimeout(timeoutInSeconds * 1000).build()
 
-    logDebug(s"Creating delta sharing httpClient with timeoutInSeconds: $timeoutInSeconds.")
+    logInfo(s"Creating delta sharing httpClient with timeoutInSeconds: $timeoutInSeconds, " +
+      s"maxConnections: $maxConnections, neverUseHttps: $neverUseHttps")
     val clientBuilder = DeltaSharingFileSystemHttpClientBuilder.create()
       .setMaxConnTotal(maxConnections)
       .setMaxConnPerRoute(maxConnections)
