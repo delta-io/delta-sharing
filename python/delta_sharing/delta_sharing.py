@@ -147,18 +147,77 @@ def load_as_pandas(
     ).to_pandas()
 
 
+def _validate_url(url: str, delta_sharing_profile: Optional[DeltaSharingProfile] = None) -> None:
+    """
+    Validate the URL format based on whether credentials are provided via profile or URL.
+    When delta_sharing_profile is provided, the URL should be in format: "share.schema.table"
+    When delta_sharing_profile is None, URL should be in format: "profile_file#share.schema.table"
+    :param url: The URL string to validate.
+    :param delta_sharing_profile: Optional profile containing credentials. If provided, the URL
+                                   should not contain a '#' separator.
+    :raises ValueError: If the URL format is invalid for the given profile configuration.
+    """
+    shape_index = url.rfind("#")
+    if delta_sharing_profile is not None and shape_index >= 0:
+        raise ValueError(f"Cannot specify both share credentials options and a profile file path")
+    if delta_sharing_profile is None and shape_index < 0:
+        raise ValueError(f"Invalid 'url': {url}")
+
+
+def _apply_options(
+    df: "PySparkDataFrame", delta_sharing_profile: DeltaSharingProfile
+) -> "PySparkDataFrame":
+    """
+    Apply Delta Sharing profile credentials and configuration as Spark DataFrame options.
+    These options are passed through to the Scala Spark connector, which uses them to
+    authenticate and connect to the Delta Sharing server instead of reading from a profile file.
+
+    :param df: The Spark DataFrame reader to configure.
+    :param delta_sharing_profile: Profile containing credentials and endpoint configuration.
+    :return: The DataFrame reader with credentials applied as options.
+    """
+    if delta_sharing_profile.share_credentials_version is not None:
+        df.option("shareCredentialsVersion", delta_sharing_profile.share_credentials_version)
+    if delta_sharing_profile.type is not None:
+        df.option("shareCredentialsType", delta_sharing_profile.type)
+    if delta_sharing_profile.endpoint is not None:
+        df.option("endpoint", delta_sharing_profile.endpoint)
+    if delta_sharing_profile.token_endpoint is not None:
+        df.option("tokenEndpoint", delta_sharing_profile.token_endpoint)
+    if delta_sharing_profile.client_id is not None:
+        df.option("clientId", delta_sharing_profile.client_id)
+    if delta_sharing_profile.client_secret is not None:
+        df.option("clientSecret", delta_sharing_profile.client_secret)
+    if delta_sharing_profile.scope is not None:
+        df.option("scope", delta_sharing_profile.scope)
+    if delta_sharing_profile.bearer_token is not None:
+        df.option("bearerToken", delta_sharing_profile.bearer_token)
+    if delta_sharing_profile.expiration_time is not None:
+        df.option("expirationTime", delta_sharing_profile.expiration_time)
+    return df
+
+
 def load_as_spark(
-    url: str, version: Optional[int] = None, timestamp: Optional[str] = None
+    url: str,
+    version: Optional[int] = None,
+    timestamp: Optional[str] = None,
+    delta_sharing_profile: Optional[DeltaSharingProfile] = None,
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the shared table using the given url as a Spark DataFrame. `PySpark` must be installed,
     and the application must be a PySpark application with the Apache Spark Connector for Delta
     Sharing installed. Only one of version/timestamp is supported at one time.
 
-    :param url: a url under the format "<profile>#<share>.<schema>.<table>".
+    :param url: applies format "<profile>#<share>.<schema>.<table>". If delta_sharing_profile
+      is provided then "<share>.<schema>.<table>"
+    :type url: str
     :param version: an optional non-negative int. Load the snapshot of table at version.
+    :type version: Optional[int]
     :param timestamp: an optional string. Load the snapshot of table at version corresponding
       to the timestamp.
+    :type timestamp: Optional[str]
+    :param delta_sharing_profile: The DeltaSharingProfile to use for the connection
+    :type delta_sharing_profile: Optional[DeltaSharingProfile]
     :return: A Spark DataFrame representing the shared table.
     """
     try:
@@ -166,12 +225,16 @@ def load_as_spark(
     except ImportError:
         raise ImportError("Unable to import pyspark. `load_as_spark` requires PySpark.")
 
+    _validate_url(url, delta_sharing_profile)
     spark = SparkSession.getActiveSession()
     assert spark is not None, (
         "No active SparkSession was found. "
         "`load_as_spark` requires running in a PySpark application."
     )
     df = spark.read.format("deltaSharing")
+
+    if delta_sharing_profile is not None:
+        _apply_options(df, delta_sharing_profile)
     if version is not None:
         df.option("versionAsOf", version)
     if timestamp is not None:
@@ -185,6 +248,7 @@ def load_table_changes_as_spark(
     ending_version: Optional[int] = None,
     starting_timestamp: Optional[str] = None,
     ending_timestamp: Optional[str] = None,
+    delta_sharing_profile: Optional[DeltaSharingProfile] = None,
 ) -> "PySparkDataFrame":  # noqa: F821
     """
     Load the table changes of a shared table as a Spark DataFrame using the given url.
@@ -194,11 +258,19 @@ def load_table_changes_as_spark(
     parameter is accepted by the server. If the end parameter is not provided, the API will use the
     latest table version for it. The parameter range is inclusive in the query.
 
-    :param url: a url under the format "<profile>#<share>.<schema>.<table>".
+    :param url: applies format "<profile>#<share>.<schema>.<table>". If delta_sharing_profile
+      is provided then "<share>.<schema>.<table>"
+    :type url: str
     :param starting_version: The starting version of table changes.
+    :type starting_version: Optional[int]
     :param ending_version: The ending version of table changes.
+    :type ending_version: Optional[int]
     :param starting_timestamp: The starting timestamp of table changes.
+    :type starting_timestamp: Optional[str]
     :param ending_timestamp: The ending timestamp of table changes.
+    :type ending_timestamp: Optional[str]
+    :param delta_sharing_profile: The DeltaSharingProfile to use for the connection
+    :type delta_sharing_profile: Optional[DeltaSharingProfile]
     :return: A Spark DataFrame representing the table changes.
     """
     try:
@@ -208,12 +280,15 @@ def load_table_changes_as_spark(
             "Unable to import pyspark. `load_table_changes_as_spark` requires PySpark."
         )
 
+    _validate_url(url, delta_sharing_profile)
     spark = SparkSession.getActiveSession()
     assert spark is not None, (
         "No active SparkSession was found. "
         "`load_table_changes_as_spark` requires running in a PySpark application."
     )
     df = spark.read.format("deltaSharing").option("readChangeFeed", "true")
+    if delta_sharing_profile is not None:
+        _apply_options(df, delta_sharing_profile)
     if starting_version is not None:
         df.option("startingVersion", starting_version)
     if ending_version is not None:

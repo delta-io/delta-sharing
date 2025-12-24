@@ -30,6 +30,7 @@ from delta_sharing.delta_sharing import (
     load_table_changes_as_spark,
     load_table_changes_as_pandas,
     _parse_url,
+    _validate_url,
 )
 from delta_sharing.protocol import Format, Metadata, Protocol, Schema, Share, Table
 from delta_sharing.rest_client import (
@@ -1564,6 +1565,23 @@ def test_load_as_spark(
             ImportError, match="Unable to import pyspark. `load_as_spark` requires PySpark."
         ):
             load_as_spark("not-used")
+
+
+def test_validate_url():
+    with pytest.raises(
+        ValueError, match="Cannot specify both share credentials options and a profile file path"
+    ):
+        _validate_url(
+            "profile#share.schema.table",
+            DeltaSharingProfile(
+                share_credentials_version=1,
+                type="oauth",
+                endpoint="https://example.com",
+                token_endpoint="https://example.com/token",
+            ),
+        )
+    with pytest.raises(ValueError, match="Invalid 'url': share.schema.table"):
+        _validate_url("share.schema.table", None)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
