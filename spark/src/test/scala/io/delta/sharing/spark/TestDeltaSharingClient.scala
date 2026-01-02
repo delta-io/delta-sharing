@@ -201,7 +201,11 @@ class TestDeltaSharingClient(
     TemporaryCredentials(
       credentials = Credentials(
         location = s"s3://some/path/to/table",
-        awsTempCredentials = AwsTempCredentials(accessKeyId = "some-access-key-id", secretAccessKey = "some-secret-access-key", sessionToken = "some-session-token"),
+        awsTempCredentials = AwsTempCredentials(
+          accessKeyId = "some-access-key-id",
+          secretAccessKey = "some-secret-access-key",
+          sessionToken = "some-session-token"
+        ),
         expirationTime = 1L
       )
     )
