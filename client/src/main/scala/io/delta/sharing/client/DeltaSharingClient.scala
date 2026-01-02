@@ -85,6 +85,8 @@ trait DeltaSharingClient {
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean): DeltaTableFiles
 
+  def generateTemporaryTableCredential(table: Table): TemporaryCredentials
+
   def getForStreaming(): Boolean = false
 
   def getProfileProvider: DeltaSharingProfileProvider = null
@@ -1069,6 +1071,32 @@ class DeltaSharingRestClient(
       capabilitiesMap = capabilitiesMap
     )
     response
+  }
+
+  override def generateTemporaryTableCredential(table: Table): TemporaryCredentials = {
+    val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
+    val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
+    val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
+
+    val target =
+      getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/" +
+        s"$encodedTableName/temporary-table-credentials")
+
+    val httpPost = new HttpPost(target)
+    val (_, _, response) = getResponse(
+      httpPost,
+      allowNoContent = false,
+      fetchAsOneString = true,
+      setIncludeEndStreamAction = false
+    )
+
+    if (response.size != 1) {
+      throw new IllegalStateException(
+        s"Unexpected response for target:$target, response=$response" + getDsQueryIdForLogging
+      )
+    }
+
+    JsonUtils.fromJson[TemporaryCredentials](response(0))
   }
 
   private def getRespondedFormat(capabilitiesMap: Map[String, String]): String = {
