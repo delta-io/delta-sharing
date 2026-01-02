@@ -26,14 +26,19 @@ import io.delta.sharing.client.model.{
   AddCDCFile,
   AddFile,
   AddFileForCDF,
+  AwsTempCredentials,
+  AzureUserDelegationSas,
+  Credentials,
   DeltaTableFiles,
   DeltaTableMetadata,
   EndStreamAction,
   Format,
+  GcpOauthToken,
   Metadata,
   Protocol,
   RemoveFile,
-  Table
+  Table,
+  TemporaryCredentials
 }
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.client.util.JsonUtils
@@ -1475,6 +1480,112 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       )
     }
     checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
+  }
+
+  test("generateTemporaryTableCredential - parse responses") {
+    val testCases = Seq(
+      (
+        """{"credentials":{"location":"s3://some/path/to/table","awsTempCredentials":{"accessKeyId":"some-access-key-id","secretAccessKey":"some-secret-access-key","sessionToken":"some-session-token"},"expirationTime":1}}""", 
+        TemporaryCredentials(
+          credentials = Credentials(
+            location = "s3://some/path/to/table",
+            awsTempCredentials = AwsTempCredentials(
+              accessKeyId = "some-access-key-id",
+              secretAccessKey = "some-secret-access-key",
+              sessionToken = "some-session-token"
+            ),
+            expirationTime = 1L
+          )
+        )
+      ),
+      (
+        """{"credentials":{"location":"abfss://my-container@mystorage.dfs.core.windows.net/some/path/to/table","azureUserDelegationSas":{"sasToken":"some-sas-token"},"expirationTime":1}}""", 
+        TemporaryCredentials(
+          credentials = Credentials(
+            location = "abfss://my-container@mystorage.dfs.core.windows.net/some/path/to/table",
+            azureUserDelegationSas = AzureUserDelegationSas(
+              sasToken = "some-sas-token"
+            ),
+            expirationTime = 1L
+          )
+        )
+      ),
+      (
+        """{"credentials":{"location":"gs://my-bucket/some/path/to/table","gcpOauthToken":{"oauthToken":"some-oauth-token"},"expirationTime":1}}""", 
+        TemporaryCredentials(
+          credentials = Credentials(
+            location = "gs://my-bucket/some/path/to/table",
+            gcpOauthToken = GcpOauthToken(
+              oauthToken = "some-oauth-token"
+            ),
+            expirationTime = 1L
+          )
+        )
+      )
+    )
+
+    val mockProfileProvider = new DeltaSharingFileProfileProvider(
+      new Configuration(),
+      testProfileFile.getCanonicalPath
+    )
+
+    testCases.foreach { case (jsonResponse, expectedCredentials) =>
+      // Create a client that overrides getResponse to return a mocked response
+      val client = new DeltaSharingRestClient(
+        profileProvider = mockProfileProvider
+      ) {
+        override private[client] def getResponse(
+          httpRequest: HttpRequestBase,
+          allowNoContent: Boolean = false,
+          fetchAsOneString: Boolean = false,
+          setIncludeEndStreamAction: Boolean = false
+        ): (Option[Long], Map[String, String], Seq[String]) = {
+          // Return a mock response with the test JSON
+          (
+            None,
+            Map.empty,
+            Seq(jsonResponse)
+          )
+        }
+      }
+
+      try {
+        val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+        val result = client.generateTemporaryTableCredential(table)
+        
+        // Verify the result matches the expected credentials
+        assert(result == expectedCredentials)
+        assert(result.credentials.location == expectedCredentials.credentials.location)
+        assert(result.credentials.expirationTime == expectedCredentials.credentials.expirationTime)
+        
+        // Verify AWS credentials if present
+        if (expectedCredentials.credentials.awsTempCredentials != null) {
+          assert(result.credentials.awsTempCredentials != null)
+          assert(result.credentials.awsTempCredentials.accessKeyId == 
+            expectedCredentials.credentials.awsTempCredentials.accessKeyId)
+          assert(result.credentials.awsTempCredentials.secretAccessKey == 
+            expectedCredentials.credentials.awsTempCredentials.secretAccessKey)
+          assert(result.credentials.awsTempCredentials.sessionToken == 
+            expectedCredentials.credentials.awsTempCredentials.sessionToken)
+        }
+        
+        // Verify Azure credentials if present
+        if (expectedCredentials.credentials.azureUserDelegationSas != null) {
+          assert(result.credentials.azureUserDelegationSas != null)
+          assert(result.credentials.azureUserDelegationSas.sasToken == 
+            expectedCredentials.credentials.azureUserDelegationSas.sasToken)
+        }
+        
+        // Verify GCP credentials if present
+        if (expectedCredentials.credentials.gcpOauthToken != null) {
+          assert(result.credentials.gcpOauthToken != null)
+          assert(result.credentials.gcpOauthToken.oauthToken == 
+            expectedCredentials.credentials.gcpOauthToken.oauthToken)
+        }
+      } finally {
+        client.close()
+      }
+    }
   }
 
   integrationTest("version mismatch check - getMetadata with mocked response") {
