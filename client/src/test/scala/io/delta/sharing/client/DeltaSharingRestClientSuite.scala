@@ -1588,6 +1588,75 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
+  test("generateTemporaryTableCredential - error on not one-line response") {
+    val mockProfileProvider = new DeltaSharingFileProfileProvider(
+      new Configuration(),
+      testProfileFile.getCanonicalPath
+    )
+
+    // Test with more than 1 line in response
+    val client = new DeltaSharingRestClient(
+      profileProvider = mockProfileProvider
+    ) {
+      override private[client] def getResponse(
+        httpRequest: HttpRequestBase,
+        allowNoContent: Boolean = false,
+        fetchAsOneString: Boolean = false,
+        setIncludeEndStreamAction: Boolean = false
+      ): (Option[Long], Map[String, String], Seq[String]) = {
+        // Return a mock response with multiple lines (invalid for this endpoint)
+        (
+          None,
+          Map.empty,
+          Seq(
+            """{"credentials":{"location":"s3://some/path/to/table","awsTempCredentials":{"accessKeyId":"some-access-key-id","secretAccessKey":"some-secret-access-key","sessionToken":"some-session-token"},"expirationTime":1}}""",
+            """{"extraLine":"this should not be here"}"""
+          )
+        )
+      }
+    }
+
+    try {
+      val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+      val exception = intercept[IllegalStateException] {
+        client.generateTemporaryTableCredential(table)
+      }
+      assert(exception.getMessage.contains("Unexpected response"))
+      assert(exception.getMessage.contains("response="))
+    } finally {
+      client.close()
+    }
+
+    // Test with 0 lines in response
+    val client2 = new DeltaSharingRestClient(
+      profileProvider = mockProfileProvider
+    ) {
+      override private[client] def getResponse(
+        httpRequest: HttpRequestBase,
+        allowNoContent: Boolean = false,
+        fetchAsOneString: Boolean = false,
+        setIncludeEndStreamAction: Boolean = false
+      ): (Option[Long], Map[String, String], Seq[String]) = {
+        // Return a mock response with no lines (invalid)
+        (
+          None,
+          Map.empty,
+          Seq.empty
+        )
+      }
+    }
+
+    try {
+      val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+      val exception = intercept[IllegalStateException] {
+        client2.generateTemporaryTableCredential(table)
+      }
+      assert(exception.getMessage.contains("Unexpected response"))
+    } finally {
+      client2.close()
+    }
+  }
+
   integrationTest("version mismatch check - getMetadata with mocked response") {
     Seq(true, false).foreach { isMSTQueryFlag =>
       val requestedVersion = 5L
