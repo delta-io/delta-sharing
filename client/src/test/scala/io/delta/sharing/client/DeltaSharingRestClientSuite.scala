@@ -1482,10 +1482,10 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
   }
 
-  test("generateTemporaryTableCredential - parse responses") {
+  integrationTest("generateTemporaryTableCredential - parse responses") {
     val testCases = Seq(
       (
-        """{"credentials":{"location":"s3://some/path/to/table","awsTempCredentials":{"accessKeyId":"some-access-key-id","secretAccessKey":"some-secret-access-key","sessionToken":"some-session-token"},"expirationTime":1}}""", 
+        """{"credentials":{"location":"s3://some/path/to/table","awsTempCredentials":{"accessKeyId":"some-access-key-id","secretAccessKey":"some-secret-access-key","sessionToken":"some-session-token"},"expirationTime":1}}""",
         TemporaryCredentials(
           credentials = Credentials(
             location = "s3://some/path/to/table",
@@ -1499,7 +1499,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       ),
       (
-        """{"credentials":{"location":"abfss://my-container@mystorage.dfs.core.windows.net/some/path/to/table","azureUserDelegationSas":{"sasToken":"some-sas-token"},"expirationTime":1}}""", 
+        """{"credentials":{"location":"abfss://my-container@mystorage.dfs.core.windows.net/some/path/to/table","azureUserDelegationSas":{"sasToken":"some-sas-token"},"expirationTime":1}}""",
         TemporaryCredentials(
           credentials = Credentials(
             location = "abfss://my-container@mystorage.dfs.core.windows.net/some/path/to/table",
@@ -1511,7 +1511,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         )
       ),
       (
-        """{"credentials":{"location":"gs://my-bucket/some/path/to/table","gcpOauthToken":{"oauthToken":"some-oauth-token"},"expirationTime":1}}""", 
+        """{"credentials":{"location":"gs://my-bucket/some/path/to/table","gcpOauthToken":{"oauthToken":"some-oauth-token"},"expirationTime":1}}""",
         TemporaryCredentials(
           credentials = Credentials(
             location = "gs://my-bucket/some/path/to/table",
@@ -1524,15 +1524,11 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       )
     )
 
-    val mockProfileProvider = new DeltaSharingFileProfileProvider(
-      new Configuration(),
-      testProfileFile.getCanonicalPath
-    )
-
     testCases.foreach { case (jsonResponse, expectedCredentials) =>
       // Create a client that overrides getResponse to return a mocked response
       val client = new DeltaSharingRestClient(
-        profileProvider = mockProfileProvider
+        profileProvider = testProfileProvider,
+        sslTrustAll = true
       ) {
         override private[client] def getResponse(
           httpRequest: HttpRequestBase,
@@ -1552,34 +1548,34 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       try {
         val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
         val result = client.generateTemporaryTableCredential(table)
-        
+
         // Verify the result matches the expected credentials
         assert(result == expectedCredentials)
         assert(result.credentials.location == expectedCredentials.credentials.location)
         assert(result.credentials.expirationTime == expectedCredentials.credentials.expirationTime)
-        
+
         // Verify AWS credentials if present
         if (expectedCredentials.credentials.awsTempCredentials != null) {
           assert(result.credentials.awsTempCredentials != null)
-          assert(result.credentials.awsTempCredentials.accessKeyId == 
+          assert(result.credentials.awsTempCredentials.accessKeyId ==
             expectedCredentials.credentials.awsTempCredentials.accessKeyId)
-          assert(result.credentials.awsTempCredentials.secretAccessKey == 
+          assert(result.credentials.awsTempCredentials.secretAccessKey ==
             expectedCredentials.credentials.awsTempCredentials.secretAccessKey)
-          assert(result.credentials.awsTempCredentials.sessionToken == 
+          assert(result.credentials.awsTempCredentials.sessionToken ==
             expectedCredentials.credentials.awsTempCredentials.sessionToken)
         }
-        
+
         // Verify Azure credentials if present
         if (expectedCredentials.credentials.azureUserDelegationSas != null) {
           assert(result.credentials.azureUserDelegationSas != null)
-          assert(result.credentials.azureUserDelegationSas.sasToken == 
+          assert(result.credentials.azureUserDelegationSas.sasToken ==
             expectedCredentials.credentials.azureUserDelegationSas.sasToken)
         }
-        
+
         // Verify GCP credentials if present
         if (expectedCredentials.credentials.gcpOauthToken != null) {
           assert(result.credentials.gcpOauthToken != null)
-          assert(result.credentials.gcpOauthToken.oauthToken == 
+          assert(result.credentials.gcpOauthToken.oauthToken ==
             expectedCredentials.credentials.gcpOauthToken.oauthToken)
         }
       } finally {
@@ -1588,15 +1584,11 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  test("generateTemporaryTableCredential - error on not one-line response") {
-    val mockProfileProvider = new DeltaSharingFileProfileProvider(
-      new Configuration(),
-      testProfileFile.getCanonicalPath
-    )
-
+  integrationTest("generateTemporaryTableCredential - error on not one-line response") {
     // Test with more than 1 line in response
     val client = new DeltaSharingRestClient(
-      profileProvider = mockProfileProvider
+      profileProvider = testProfileProvider,
+      sslTrustAll = true
     ) {
       override private[client] def getResponse(
         httpRequest: HttpRequestBase,
@@ -1629,7 +1621,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
     // Test with 0 lines in response
     val client2 = new DeltaSharingRestClient(
-      profileProvider = mockProfileProvider
+      profileProvider = testProfileProvider,
+      sslTrustAll = true
     ) {
       override private[client] def getResponse(
         httpRequest: HttpRequestBase,

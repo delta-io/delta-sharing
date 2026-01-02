@@ -1176,7 +1176,7 @@ class DeltaSharingRestClient(
    *   - single string, if fetchAsOneString is true.
    *   - multi-line response (typically, one per action). This is the default.
    */
-  private def getResponse(
+  private[client] def getResponse(
       httpRequest: HttpRequestBase,
       allowNoContent: Boolean = false,
       fetchAsOneString: Boolean = false,
