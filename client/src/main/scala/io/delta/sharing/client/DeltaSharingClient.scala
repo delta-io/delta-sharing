@@ -85,7 +85,9 @@ trait DeltaSharingClient {
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean): DeltaTableFiles
 
-  def generateTemporaryTableCredential(table: Table): TemporaryCredentials
+  def generateTemporaryTableCredential(
+    table: Table,
+    location: Option[String] = None): TemporaryCredentials
 
   def getForStreaming(): Boolean = false
 
@@ -1073,7 +1075,9 @@ class DeltaSharingRestClient(
     response
   }
 
-  override def generateTemporaryTableCredential(table: Table): TemporaryCredentials = {
+  override def generateTemporaryTableCredential(
+      table: Table,
+      location: Option[String] = None): TemporaryCredentials = {
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
@@ -1083,6 +1087,11 @@ class DeltaSharingRestClient(
         s"$encodedTableName/temporary-table-credentials")
 
     val httpPost = new HttpPost(target)
+    if (location.isDefined) {
+      val json = JsonUtils.toJson(Map("location" -> location.get))
+      httpPost.setEntity(new StringEntity(json, UTF_8))
+      httpPost.setHeader("Content-type", "application/json")
+    }
     val (_, _, response) = getResponse(
       httpPost,
       allowNoContent = false,
