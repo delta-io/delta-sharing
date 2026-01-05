@@ -1586,7 +1586,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   integrationTest("generateTemporaryTableCredential - with location parameter") {
     var capturedRequest: Option[HttpRequestBase] = None
-    
+
     val client = new DeltaSharingRestClient(
       profileProvider = testProfileProvider,
       sslTrustAll = true
@@ -1610,28 +1610,28 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     try {
       val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
       val customLocation = "s3://custom/location/path"
-      
+
       // Test with location parameter
       val result = client.generateTemporaryTableCredential(table, Some(customLocation))
-      
+
       // Verify the request was captured
       assert(capturedRequest.isDefined)
       val httpRequest = capturedRequest.get
-      
+
       // Verify it's a POST request
       assert(httpRequest.isInstanceOf[HttpPost])
       val httpPost = httpRequest.asInstanceOf[HttpPost]
-      
+
       // Verify the request has the correct content-type header
       assert(httpPost.getFirstHeader("Content-type").getValue == "application/json")
-      
+
       // Verify the request body contains the location
       val entity = httpPost.getEntity
       assert(entity != null)
       val content = scala.io.Source.fromInputStream(entity.getContent).mkString
       assert(content.contains(customLocation))
       assert(content.contains("\"location\""))
-      
+
       // Verify the response is parsed correctly
       assert(result.credentials.location == customLocation)
     } finally {
@@ -1661,18 +1661,18 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
     try {
       val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
-      
+
       // Test without location parameter
       val result = client2.generateTemporaryTableCredential(table, None)
-      
+
       // Verify the request was captured
       assert(capturedRequest.isDefined)
       val httpRequest = capturedRequest.get
-      
+
       // Verify it's a POST request
       assert(httpRequest.isInstanceOf[HttpPost])
       val httpPost = httpRequest.asInstanceOf[HttpPost]
-      
+
       // Verify the request has no entity (no body) when location is None
       val entity = httpPost.getEntity
       assert(entity == null || {
