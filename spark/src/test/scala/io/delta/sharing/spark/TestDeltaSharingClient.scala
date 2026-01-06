@@ -197,7 +197,9 @@ class TestDeltaSharingClient(
     )
   }
 
-  override def generateTemporaryTableCredential(table: Table, location: Option[String] = None): TemporaryCredentials = {
+  override def generateTemporaryTableCredential(
+      table: Table,
+      location: Option[String] = None): TemporaryCredentials = {
     TemporaryCredentials(
       credentials = Credentials(
         location = s"s3://some/path/to/table",

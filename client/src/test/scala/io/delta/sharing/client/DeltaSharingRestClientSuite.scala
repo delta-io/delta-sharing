@@ -1781,7 +1781,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       malformedJsonClient.close()
     }
 
-    // Test with missing required fields
+    // Test with missing required fields (no credentials types set)
     val missingFieldsClient = new DeltaSharingRestClient(
       profileProvider = testProfileProvider,
       sslTrustAll = true
@@ -1795,18 +1795,19 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         (
           None,
           Map.empty,
-          Seq("""{"credentials":{}}""")
+          Seq("""{"credentials":{"location":"s3://path","expirationTime":1}}""")
         )
       }
     }
 
     try {
       val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
-      // This should succeed but return credentials with null/default values
-      val result = missingFieldsClient.generateTemporaryTableCredential(table)
-      assert(result.credentials != null)
-      // Location should be null or empty when not provided
-      assert(result.credentials.location == null || result.credentials.location.isEmpty)
+      // This should throw an exception because no credential types are set
+      val exception = intercept[IllegalStateException] {
+        missingFieldsClient.generateTemporaryTableCredential(table)
+      }
+      assert(exception.getMessage.contains("No valid credentials found in response"))
+      assert(exception.getMessage.contains("awsTempCredentials, azureUserDelegationSas, or gcpOauthToken"))
     } finally {
       missingFieldsClient.close()
     }
@@ -1832,9 +1833,11 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
     try {
       val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
-      // This should succeed but return credentials with null/default values
-      val result = nullCredentialsClient.generateTemporaryTableCredential(table)
-      assert(result.credentials == null)
+      // This should throw an exception because credentials object is null
+      val exception = intercept[IllegalStateException] {
+        nullCredentialsClient.generateTemporaryTableCredential(table)
+      }
+      assert(exception.getMessage.contains("Credentials object is null"))
     } finally {
       nullCredentialsClient.close()
     }
@@ -1889,9 +1892,11 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
     try {
       val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
-      // This should succeed but return credentials with null/default values
-      val result = emptyJsonClient.generateTemporaryTableCredential(table)
-      assert(result.credentials == null)
+      // This should throw an exception because credentials object is missing
+      val exception = intercept[IllegalStateException] {
+        emptyJsonClient.generateTemporaryTableCredential(table)
+      }
+      assert(exception.getMessage.contains("Credentials object is null"))
     } finally {
       emptyJsonClient.close()
     }

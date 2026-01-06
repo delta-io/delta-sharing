@@ -1105,7 +1105,29 @@ class DeltaSharingRestClient(
       )
     }
 
-    JsonUtils.fromJson[TemporaryCredentials](response(0))
+    val tempCredentials = JsonUtils.fromJson[TemporaryCredentials](response(0))
+
+    // Validate that at least one credential type is set
+    if (tempCredentials.credentials == null) {
+      throw new IllegalStateException(
+        s"Credentials object is null in response for target:$target" + getDsQueryIdForLogging
+      )
+    }
+
+    val credentials = tempCredentials.credentials
+    val hasAwsCredentials = credentials.awsTempCredentials != null
+    val hasAzureCredentials = credentials.azureUserDelegationSas != null
+    val hasGcpCredentials = credentials.gcpOauthToken != null
+
+    if (!hasAwsCredentials && !hasAzureCredentials && !hasGcpCredentials) {
+      throw new IllegalStateException(
+        s"No valid credentials found in response. At least one of " +
+        s"awsTempCredentials, azureUserDelegationSas, or gcpOauthToken must be set. " +
+        s"Response: $response" + getDsQueryIdForLogging
+      )
+    }
+
+    tempCredentials
   }
 
   private def getRespondedFormat(capabilitiesMap: Map[String, String]): String = {
