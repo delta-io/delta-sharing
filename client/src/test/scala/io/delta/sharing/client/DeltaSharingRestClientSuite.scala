@@ -1898,7 +1898,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  test("version mismatch check - getMetadata with mocked response") {
+  integrationTest("version mismatch check - getMetadata with mocked response") {
     Seq(true, false).foreach { isMSTQueryFlag =>
       val requestedVersion = 5L
       val returnedVersion = 10L
@@ -1955,7 +1955,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  test("version mismatch check - getFiles with mocked response") {
+  integrationTest("version mismatch check - getFiles with mocked response") {
     // Test delta format where version validation is controlled by isMSTQuery
     Seq(true, false).foreach { isMSTQueryFlag =>
       val requestedVersion = 15L
