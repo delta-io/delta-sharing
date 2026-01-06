@@ -25,13 +25,16 @@ import io.delta.sharing.client.model.{
   AddCDCFile,
   AddFile,
   AddFileForCDF,
+  AwsTempCredentials,
+  Credentials,
   DeltaTableFiles,
   DeltaTableMetadata,
   Metadata,
   Protocol,
   RemoveFile,
   SingleAction,
-  Table
+  Table,
+  TemporaryCredentials
 }
 import io.delta.sharing.client.util.JsonUtils
 import io.delta.sharing.spark.TestDeltaSharingClient.TESTING_TIMESTAMP
@@ -184,6 +187,22 @@ class TestDeltaSharingClient(
       cdfFiles = cdcFiles,
       removeFiles = removeFiles,
       respondedFormat = RESPONSE_FORMAT_PARQUET
+    )
+  }
+
+  override def generateTemporaryTableCredential(
+      table: Table,
+      location: Option[String] = None): TemporaryCredentials = {
+    TemporaryCredentials(
+      credentials = Credentials(
+        location = s"s3://some/path/to/table",
+        awsTempCredentials = AwsTempCredentials(
+          accessKeyId = "some-access-key-id",
+          secretAccessKey = "some-secret-access-key",
+          sessionToken = "some-session-token"
+        ),
+        expirationTime = 1L
+      )
     )
   }
 

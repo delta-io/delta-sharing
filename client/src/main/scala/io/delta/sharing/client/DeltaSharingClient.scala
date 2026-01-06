@@ -85,6 +85,10 @@ trait DeltaSharingClient {
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean): DeltaTableFiles
 
+  def generateTemporaryTableCredential(
+    table: Table,
+    location: Option[String] = None): TemporaryCredentials
+
   def getForStreaming(): Boolean = false
 
   def getProfileProvider: DeltaSharingProfileProvider = null
@@ -1035,6 +1039,61 @@ class DeltaSharingRestClient(
     response
   }
 
+  override def generateTemporaryTableCredential(
+      table: Table,
+      location: Option[String] = None): TemporaryCredentials = {
+    val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
+    val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
+    val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
+
+    val target =
+      getTargetUrl(s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/" +
+        s"$encodedTableName/temporary-table-credentials")
+
+    val httpPost = new HttpPost(target)
+    if (location.isDefined) {
+      val json = JsonUtils.toJson(Map("location" -> location.get))
+      httpPost.setEntity(new StringEntity(json, UTF_8))
+      httpPost.setHeader("Content-type", "application/json")
+    }
+    val (_, _, response) = getResponse(
+      httpPost,
+      allowNoContent = false,
+      fetchAsOneString = true,
+      setIncludeEndStreamAction = false
+    )
+
+    if (response.size != 1) {
+      throw new IllegalStateException(
+        s"Unexpected response for target:$target, response=$response" + getDsQueryIdForLogging
+      )
+    }
+
+    val tempCredentials = JsonUtils.fromJson[TemporaryCredentials](response(0))
+
+    // Validate that at least one credential type is set
+    if (tempCredentials.credentials == null) {
+      throw new IllegalStateException(
+        s"Credentials object is null in response for target:$target" + getDsQueryIdForLogging
+      )
+    }
+
+    val credentials = tempCredentials.credentials
+    val hasAwsCredentials = credentials.awsTempCredentials != null
+    val hasAzureCredentials = credentials.azureUserDelegationSas != null
+    val hasGcpCredentials = credentials.gcpOauthToken != null
+
+    if (!hasAwsCredentials && !hasAzureCredentials && !hasGcpCredentials) {
+      throw new IllegalStateException(
+        s"No valid credentials found in response. At least one of " +
+        s"awsTempCredentials, azureUserDelegationSas, or gcpOauthToken must be set. " +
+        s"Response: $response" + getDsQueryIdForLogging
+      )
+    }
+
+    tempCredentials
+  }
+
   private def getRespondedFormat(capabilitiesMap: Map[String, String]): String = {
     capabilitiesMap.get(RESPONSE_FORMAT).getOrElse(RESPONSE_FORMAT_PARQUET)
   }
@@ -1112,7 +1171,7 @@ class DeltaSharingRestClient(
    *   - single string, if fetchAsOneString is true.
    *   - multi-line response (typically, one per action). This is the default.
    */
-  private def getResponse(
+  private[client] def getResponse(
       httpRequest: HttpRequestBase,
       allowNoContent: Boolean = false,
       fetchAsOneString: Boolean = false,
