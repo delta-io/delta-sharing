@@ -63,6 +63,32 @@ private[sharing] case class Table(name: String, schema: String, share: String) {
   override def toString(): String = { s"$share.$schema.$name" }
 }
 
+private[sharing] case class AwsTempCredentials(
+  accessKeyId: String,
+  secretAccessKey: String,
+  sessionToken: String
+)
+
+private[sharing] case class AzureUserDelegationSas(
+  sasToken: String
+)
+
+private[sharing] case class GcpOauthToken(
+  oauthToken: String
+)
+
+private[sharing] case class Credentials(
+  location: String,
+  awsTempCredentials: AwsTempCredentials = null,
+  azureUserDelegationSas: AzureUserDelegationSas = null,
+  gcpOauthToken: GcpOauthToken = null,
+  expirationTime: Long
+)
+
+private[sharing] case class TemporaryCredentials(
+  credentials: Credentials
+)
+
 private[sharing] case class SingleAction(
     file: AddFile = null,
     add: AddFileForCDF = null,
