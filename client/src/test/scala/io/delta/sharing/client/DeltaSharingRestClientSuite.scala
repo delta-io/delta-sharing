@@ -20,20 +20,25 @@ import java.sql.Timestamp
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.http.HttpHeaders
-import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
+import org.apache.http.client.methods.{HttpGet, HttpPost, HttpRequestBase}
 
 import io.delta.sharing.client.model.{
   AddCDCFile,
   AddFile,
   AddFileForCDF,
+  AwsTempCredentials,
+  AzureUserDelegationSas,
+  Credentials,
   DeltaTableFiles,
   DeltaTableMetadata,
   EndStreamAction,
   Format,
+  GcpOauthToken,
   Metadata,
   Protocol,
   RemoveFile,
-  Table
+  Table,
+  TemporaryCredentials
 }
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.client.util.JsonUtils
@@ -1471,6 +1476,426 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       )
     }
     checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
+  }
+
+  integrationTest("generateTemporaryTableCredential - parse responses") {
+    val testCases = Seq(
+      (
+        """{"credentials":{"location":"s3://some/path/to/table","awsTempCredentials":{"accessKeyId":"some-access-key-id","secretAccessKey":"some-secret-access-key","sessionToken":"some-session-token"},"expirationTime":1}}""",
+        TemporaryCredentials(
+          credentials = Credentials(
+            location = "s3://some/path/to/table",
+            awsTempCredentials = AwsTempCredentials(
+              accessKeyId = "some-access-key-id",
+              secretAccessKey = "some-secret-access-key",
+              sessionToken = "some-session-token"
+            ),
+            expirationTime = 1L
+          )
+        )
+      ),
+      (
+        """{"credentials":{"location":"abfss://my-container@mystorage.dfs.core.windows.net/some/path/to/table","azureUserDelegationSas":{"sasToken":"some-sas-token"},"expirationTime":1}}""",
+        TemporaryCredentials(
+          credentials = Credentials(
+            location = "abfss://my-container@mystorage.dfs.core.windows.net/some/path/to/table",
+            azureUserDelegationSas = AzureUserDelegationSas(
+              sasToken = "some-sas-token"
+            ),
+            expirationTime = 1L
+          )
+        )
+      ),
+      (
+        """{"credentials":{"location":"gs://my-bucket/some/path/to/table","gcpOauthToken":{"oauthToken":"some-oauth-token"},"expirationTime":1}}""",
+        TemporaryCredentials(
+          credentials = Credentials(
+            location = "gs://my-bucket/some/path/to/table",
+            gcpOauthToken = GcpOauthToken(
+              oauthToken = "some-oauth-token"
+            ),
+            expirationTime = 1L
+          )
+        )
+      )
+    )
+
+    testCases.foreach { case (jsonResponse, expectedCredentials) =>
+      // Create a client that overrides getResponse to return a mocked response
+      val client = new DeltaSharingRestClient(
+        profileProvider = testProfileProvider,
+        sslTrustAll = true
+      ) {
+        override private[client] def getResponse(
+          httpRequest: HttpRequestBase,
+          allowNoContent: Boolean = false,
+          fetchAsOneString: Boolean = false,
+          setIncludeEndStreamAction: Boolean = false
+        ): (Option[Long], Map[String, String], Seq[String]) = {
+          // Return a mock response with the test JSON
+          (
+            None,
+            Map.empty,
+            Seq(jsonResponse)
+          )
+        }
+      }
+
+      try {
+        val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+        val result = client.generateTemporaryTableCredential(table)
+
+        // Verify the result matches the expected credentials
+        assert(result == expectedCredentials)
+        assert(result.credentials.location == expectedCredentials.credentials.location)
+        assert(result.credentials.expirationTime == expectedCredentials.credentials.expirationTime)
+
+        // Verify AWS credentials if present
+        if (expectedCredentials.credentials.awsTempCredentials != null) {
+          assert(result.credentials.awsTempCredentials != null)
+          assert(result.credentials.awsTempCredentials.accessKeyId ==
+            expectedCredentials.credentials.awsTempCredentials.accessKeyId)
+          assert(result.credentials.awsTempCredentials.secretAccessKey ==
+            expectedCredentials.credentials.awsTempCredentials.secretAccessKey)
+          assert(result.credentials.awsTempCredentials.sessionToken ==
+            expectedCredentials.credentials.awsTempCredentials.sessionToken)
+        }
+
+        // Verify Azure credentials if present
+        if (expectedCredentials.credentials.azureUserDelegationSas != null) {
+          assert(result.credentials.azureUserDelegationSas != null)
+          assert(result.credentials.azureUserDelegationSas.sasToken ==
+            expectedCredentials.credentials.azureUserDelegationSas.sasToken)
+        }
+
+        // Verify GCP credentials if present
+        if (expectedCredentials.credentials.gcpOauthToken != null) {
+          assert(result.credentials.gcpOauthToken != null)
+          assert(result.credentials.gcpOauthToken.oauthToken ==
+            expectedCredentials.credentials.gcpOauthToken.oauthToken)
+        }
+      } finally {
+        client.close()
+      }
+    }
+  }
+
+  integrationTest("generateTemporaryTableCredential - with location parameter") {
+    var capturedRequest: Option[HttpRequestBase] = None
+
+    val client = new DeltaSharingRestClient(
+      profileProvider = testProfileProvider,
+      sslTrustAll = true
+    ) {
+      override private[client] def getResponse(
+        httpRequest: HttpRequestBase,
+        allowNoContent: Boolean = false,
+        fetchAsOneString: Boolean = false,
+        setIncludeEndStreamAction: Boolean = false
+      ): (Option[Long], Map[String, String], Seq[String]) = {
+        capturedRequest = Some(httpRequest)
+        // Return a mock response
+        (
+          None,
+          Map.empty,
+          Seq("""{"credentials":{"location":"s3://custom/location/path","awsTempCredentials":{"accessKeyId":"test-key","secretAccessKey":"test-secret","sessionToken":"test-token"},"expirationTime":1}}""")
+        )
+      }
+    }
+
+    try {
+      val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+      val customLocation = "s3://custom/location/path"
+
+      // Test with location parameter
+      val result = client.generateTemporaryTableCredential(table, Some(customLocation))
+
+      // Verify the request was captured
+      assert(capturedRequest.isDefined)
+      val httpRequest = capturedRequest.get
+
+      // Verify it's a POST request
+      assert(httpRequest.isInstanceOf[HttpPost])
+      val httpPost = httpRequest.asInstanceOf[HttpPost]
+
+      // Verify the request has the correct content-type header
+      assert(httpPost.getFirstHeader("Content-type").getValue == "application/json")
+
+      // Verify the request body contains the location
+      val entity = httpPost.getEntity
+      assert(entity != null)
+      val content = scala.io.Source.fromInputStream(entity.getContent).mkString
+      assert(content.contains(customLocation))
+      assert(content.contains("\"location\""))
+
+      // Verify the response is parsed correctly
+      assert(result.credentials.location == customLocation)
+    } finally {
+      client.close()
+    }
+
+    // Test without location parameter (location = None)
+    capturedRequest = None
+    val client2 = new DeltaSharingRestClient(
+      profileProvider = testProfileProvider,
+      sslTrustAll = true
+    ) {
+      override private[client] def getResponse(
+        httpRequest: HttpRequestBase,
+        allowNoContent: Boolean = false,
+        fetchAsOneString: Boolean = false,
+        setIncludeEndStreamAction: Boolean = false
+      ): (Option[Long], Map[String, String], Seq[String]) = {
+        capturedRequest = Some(httpRequest)
+        (
+          None,
+          Map.empty,
+          Seq("""{"credentials":{"location":"s3://default/path","awsTempCredentials":{"accessKeyId":"test-key","secretAccessKey":"test-secret","sessionToken":"test-token"},"expirationTime":1}}""")
+        )
+      }
+    }
+
+    try {
+      val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+
+      // Test without location parameter
+      val result = client2.generateTemporaryTableCredential(table, None)
+
+      // Verify the request was captured
+      assert(capturedRequest.isDefined)
+      val httpRequest = capturedRequest.get
+
+      // Verify it's a POST request
+      assert(httpRequest.isInstanceOf[HttpPost])
+      val httpPost = httpRequest.asInstanceOf[HttpPost]
+
+      // Verify the request has no entity (no body) when location is None
+      val entity = httpPost.getEntity
+      assert(entity == null || {
+        val content = scala.io.Source.fromInputStream(entity.getContent).mkString
+        content.isEmpty
+      })
+    } finally {
+      client2.close()
+    }
+  }
+
+  integrationTest("generateTemporaryTableCredential - error on not one-line response") {
+    // Test with more than 1 line in response
+    val client = new DeltaSharingRestClient(
+      profileProvider = testProfileProvider,
+      sslTrustAll = true
+    ) {
+      override private[client] def getResponse(
+        httpRequest: HttpRequestBase,
+        allowNoContent: Boolean = false,
+        fetchAsOneString: Boolean = false,
+        setIncludeEndStreamAction: Boolean = false
+      ): (Option[Long], Map[String, String], Seq[String]) = {
+        // Return a mock response with multiple lines (invalid for this endpoint)
+        (
+          None,
+          Map.empty,
+          Seq(
+            """{"credentials":{"location":"s3://some/path/to/table","awsTempCredentials":{"accessKeyId":"some-access-key-id","secretAccessKey":"some-secret-access-key","sessionToken":"some-session-token"},"expirationTime":1}}""",
+            """{"extraLine":"this should not be here"}"""
+          )
+        )
+      }
+    }
+
+    try {
+      val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+      val exception = intercept[IllegalStateException] {
+        client.generateTemporaryTableCredential(table)
+      }
+      assert(exception.getMessage.contains("Unexpected response"))
+      assert(exception.getMessage.contains("response="))
+    } finally {
+      client.close()
+    }
+
+    // Test with 0 lines in response
+    val client2 = new DeltaSharingRestClient(
+      profileProvider = testProfileProvider,
+      sslTrustAll = true
+    ) {
+      override private[client] def getResponse(
+        httpRequest: HttpRequestBase,
+        allowNoContent: Boolean = false,
+        fetchAsOneString: Boolean = false,
+        setIncludeEndStreamAction: Boolean = false
+      ): (Option[Long], Map[String, String], Seq[String]) = {
+        // Return a mock response with no lines (invalid)
+        (
+          None,
+          Map.empty,
+          Seq.empty
+        )
+      }
+    }
+
+    try {
+      val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+      val exception = intercept[IllegalStateException] {
+        client2.generateTemporaryTableCredential(table)
+      }
+      assert(exception.getMessage.contains("Unexpected response"))
+    } finally {
+      client2.close()
+    }
+  }
+
+  integrationTest("generateTemporaryTableCredential - malformed response handling") {
+    // Test with malformed JSON
+    val malformedJsonClient = new DeltaSharingRestClient(
+      profileProvider = testProfileProvider,
+      sslTrustAll = true
+    ) {
+      override private[client] def getResponse(
+        httpRequest: HttpRequestBase,
+        allowNoContent: Boolean = false,
+        fetchAsOneString: Boolean = false,
+        setIncludeEndStreamAction: Boolean = false
+      ): (Option[Long], Map[String, String], Seq[String]) = {
+        (
+          None,
+          Map.empty,
+          Seq("""{"credentials":{"location":"s3://path","invalid-json""")
+        )
+      }
+    }
+
+    try {
+      val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+      val exception = intercept[Exception] {
+        malformedJsonClient.generateTemporaryTableCredential(table)
+      }
+      // Should throw a JSON parsing exception
+      assert(exception != null)
+    } finally {
+      malformedJsonClient.close()
+    }
+
+    // Test with missing required fields (no credentials types set)
+    val missingFieldsClient = new DeltaSharingRestClient(
+      profileProvider = testProfileProvider,
+      sslTrustAll = true
+    ) {
+      override private[client] def getResponse(
+        httpRequest: HttpRequestBase,
+        allowNoContent: Boolean = false,
+        fetchAsOneString: Boolean = false,
+        setIncludeEndStreamAction: Boolean = false
+      ): (Option[Long], Map[String, String], Seq[String]) = {
+        (
+          None,
+          Map.empty,
+          Seq("""{"credentials":{"location":"s3://path","expirationTime":1}}""")
+        )
+      }
+    }
+
+    try {
+      val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+      // This should throw an exception because no credential types are set
+      val exception = intercept[IllegalStateException] {
+        missingFieldsClient.generateTemporaryTableCredential(table)
+      }
+      assert(exception.getMessage.contains("No valid credentials found in response"))
+      assert(exception.getMessage.contains("awsTempCredentials, azureUserDelegationSas, or gcpOauthToken"))
+    } finally {
+      missingFieldsClient.close()
+    }
+
+    // Test with null credentials
+    val nullCredentialsClient = new DeltaSharingRestClient(
+      profileProvider = testProfileProvider,
+      sslTrustAll = true
+    ) {
+      override private[client] def getResponse(
+        httpRequest: HttpRequestBase,
+        allowNoContent: Boolean = false,
+        fetchAsOneString: Boolean = false,
+        setIncludeEndStreamAction: Boolean = false
+      ): (Option[Long], Map[String, String], Seq[String]) = {
+        (
+          None,
+          Map.empty,
+          Seq("""{"credentials":null}""")
+        )
+      }
+    }
+
+    try {
+      val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+      // This should throw an exception because credentials object is null
+      val exception = intercept[IllegalStateException] {
+        nullCredentialsClient.generateTemporaryTableCredential(table)
+      }
+      assert(exception.getMessage.contains("Credentials object is null"))
+    } finally {
+      nullCredentialsClient.close()
+    }
+
+    // Test with completely invalid JSON structure
+    val invalidStructureClient = new DeltaSharingRestClient(
+      profileProvider = testProfileProvider,
+      sslTrustAll = true
+    ) {
+      override private[client] def getResponse(
+        httpRequest: HttpRequestBase,
+        allowNoContent: Boolean = false,
+        fetchAsOneString: Boolean = false,
+        setIncludeEndStreamAction: Boolean = false
+      ): (Option[Long], Map[String, String], Seq[String]) = {
+        (
+          None,
+          Map.empty,
+          Seq("""["this", "is", "an", "array"]""")
+        )
+      }
+    }
+
+    try {
+      val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+      val exception = intercept[Exception] {
+        invalidStructureClient.generateTemporaryTableCredential(table)
+      }
+      assert(exception != null)
+    } finally {
+      invalidStructureClient.close()
+    }
+
+    // Test with empty JSON object
+    val emptyJsonClient = new DeltaSharingRestClient(
+      profileProvider = testProfileProvider,
+      sslTrustAll = true
+    ) {
+      override private[client] def getResponse(
+        httpRequest: HttpRequestBase,
+        allowNoContent: Boolean = false,
+        fetchAsOneString: Boolean = false,
+        setIncludeEndStreamAction: Boolean = false
+      ): (Option[Long], Map[String, String], Seq[String]) = {
+        (
+          None,
+          Map.empty,
+          Seq("""{}""")
+        )
+      }
+    }
+
+    try {
+      val table = Table(name = "test_table", schema = "test_schema", share = "test_share")
+      // This should throw an exception because credentials object is missing
+      val exception = intercept[IllegalStateException] {
+        emptyJsonClient.generateTemporaryTableCredential(table)
+      }
+      assert(exception.getMessage.contains("Credentials object is null"))
+    } finally {
+      emptyJsonClient.close()
+    }
   }
 
   test("version mismatch check - getMetadata with mocked response") {
