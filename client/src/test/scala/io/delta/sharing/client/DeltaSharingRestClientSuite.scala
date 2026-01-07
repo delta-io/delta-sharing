@@ -1470,7 +1470,16 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
   }
 
-  integrationTest("generateTemporaryTableCredential - parse responses") {
+  class TestProfileProvider(isMSTQuery: Boolean = false) extends DeltaSharingProfileProvider {
+    override def getProfile: DeltaSharingProfile = DeltaSharingProfile(
+      shareCredentialsVersion = Some(1),
+      endpoint = "http://localhost:12345",
+      bearerToken = "test-bearer-token"
+    )
+    override def isMSTQuery(): Boolean = isMSTQuery
+  }
+
+  test("generateTemporaryTableCredential - parse responses") {
     val testCases = Seq(
       (
         """{"credentials":{"location":"s3://some/path/to/table","awsTempCredentials":{"accessKeyId":"some-access-key-id","secretAccessKey":"some-secret-access-key","sessionToken":"some-session-token"},"expirationTime":1}}""",
@@ -1515,7 +1524,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     testCases.foreach { case (jsonResponse, expectedCredentials) =>
       // Create a client that overrides getResponse to return a mocked response
       val client = new DeltaSharingRestClient(
-        profileProvider = testProfileProvider,
+        profileProvider = new TestProfileProvider,
         sslTrustAll = true
       ) {
         override private[client] def getResponse(
@@ -1572,11 +1581,11 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("generateTemporaryTableCredential - with location parameter") {
+  test("generateTemporaryTableCredential - with location parameter") {
     var capturedRequest: Option[HttpRequestBase] = None
 
     val client = new DeltaSharingRestClient(
-      profileProvider = testProfileProvider,
+      profileProvider = new TestProfileProvider,
       sslTrustAll = true
     ) {
       override private[client] def getResponse(
@@ -1629,7 +1638,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     // Test without location parameter (location = None)
     capturedRequest = None
     val client2 = new DeltaSharingRestClient(
-      profileProvider = testProfileProvider,
+      profileProvider = new TestProfileProvider,
       sslTrustAll = true
     ) {
       override private[client] def getResponse(
@@ -1672,10 +1681,10 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("generateTemporaryTableCredential - error on not one-line response") {
+  test("generateTemporaryTableCredential - error on not one-line response") {
     // Test with more than 1 line in response
     val client = new DeltaSharingRestClient(
-      profileProvider = testProfileProvider,
+      profileProvider = new TestProfileProvider,
       sslTrustAll = true
     ) {
       override private[client] def getResponse(
@@ -1709,7 +1718,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
     // Test with 0 lines in response
     val client2 = new DeltaSharingRestClient(
-      profileProvider = testProfileProvider,
+      profileProvider = new TestProfileProvider,
       sslTrustAll = true
     ) {
       override private[client] def getResponse(
@@ -1738,10 +1747,10 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("generateTemporaryTableCredential - malformed response handling") {
+  test("generateTemporaryTableCredential - malformed response handling") {
     // Test with malformed JSON
     val malformedJsonClient = new DeltaSharingRestClient(
-      profileProvider = testProfileProvider,
+      profileProvider = new TestProfileProvider,
       sslTrustAll = true
     ) {
       override private[client] def getResponse(
@@ -1771,7 +1780,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
     // Test with missing required fields (no credentials types set)
     val missingFieldsClient = new DeltaSharingRestClient(
-      profileProvider = testProfileProvider,
+      profileProvider = new TestProfileProvider,
       sslTrustAll = true
     ) {
       override private[client] def getResponse(
@@ -1802,7 +1811,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
     // Test with null credentials
     val nullCredentialsClient = new DeltaSharingRestClient(
-      profileProvider = testProfileProvider,
+      profileProvider = new TestProfileProvider,
       sslTrustAll = true
     ) {
       override private[client] def getResponse(
@@ -1832,7 +1841,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
     // Test with completely invalid JSON structure
     val invalidStructureClient = new DeltaSharingRestClient(
-      profileProvider = testProfileProvider,
+      profileProvider = new TestProfileProvider,
       sslTrustAll = true
     ) {
       override private[client] def getResponse(
@@ -1861,7 +1870,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
     // Test with empty JSON object
     val emptyJsonClient = new DeltaSharingRestClient(
-      profileProvider = testProfileProvider,
+      profileProvider = new TestProfileProvider,
       sslTrustAll = true
     ) {
       override private[client] def getResponse(
@@ -1890,21 +1899,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("version mismatch check - getMetadata with mocked response") {
+  test("version mismatch check - getMetadata with mocked response") {
     Seq(true, false).foreach { isMSTQueryFlag =>
       val requestedVersion = 5L
       val returnedVersion = 10L
 
-      val mockProfileProvider = new DeltaSharingFileProfileProvider(
-        new Configuration(),
-        testProfileFile.getCanonicalPath
-      ) {
-        override def isMSTQuery(): Boolean = isMSTQueryFlag
-      }
-
       // Create a client that overrides getNDJson to return a mocked response
       val client = new DeltaSharingRestClient(
-        profileProvider = mockProfileProvider
+        profileProvider = new TestProfileProvider(isMSTQueryFlag)
       ) {
         override def getNDJson(
             target: String,
@@ -1947,22 +1949,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("version mismatch check - getFiles with mocked response") {
+  test("version mismatch check - getFiles with mocked response") {
     // Test delta format where version validation is controlled by isMSTQuery
     Seq(true, false).foreach { isMSTQueryFlag =>
       val requestedVersion = 15L
       val returnedVersion = 20L
 
-      val mockProfileProvider = new DeltaSharingFileProfileProvider(
-        new Configuration(),
-        testProfileFile.getCanonicalPath
-      ) {
-        override def isMSTQuery(): Boolean = isMSTQueryFlag
-      }
-
       // Create a client that overrides getNDJsonPost to return a mocked delta format response
       val client = new DeltaSharingRestClient(
-        profileProvider = mockProfileProvider,
+        profileProvider = new TestProfileProvider(isMSTQueryFlag),
         responseFormat = RESPONSE_FORMAT_DELTA
       ) {
         override def getNDJsonPost[T: Manifest](
