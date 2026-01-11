@@ -104,6 +104,12 @@ class DeltaSharedTable(
         AbfsFileSigner(abfs, deltaLog.dataPath.toUri, preSignedUrlTimeoutSeconds)
       case gc: GoogleHadoopFileSystem =>
         new GCSFileSigner(deltaLog.dataPath.toUri, conf, preSignedUrlTimeoutSeconds)
+      case _: org.apache.hadoop.hdfs.web.WebHdfsFileSystem =>
+        new io.delta.sharing.server.common.HdfsFileSigner(preSignedUrlTimeoutSeconds)
+      case _: org.apache.hadoop.hdfs.web.SWebHdfsFileSystem =>
+        new io.delta.sharing.server.common.HdfsFileSigner(preSignedUrlTimeoutSeconds)
+      case _: org.apache.hadoop.hdfs.DistributedFileSystem =>
+        new io.delta.sharing.server.common.HdfsFileSigner(preSignedUrlTimeoutSeconds)
       case _ =>
         throw new IllegalStateException(s"File system ${fs.getClass} is not supported")
     }
