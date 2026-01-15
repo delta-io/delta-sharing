@@ -1476,13 +1476,12 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     checkErrorMessage(e, "BAD REQUEST: Error Occurred During Streaming")
   }
 
-  class TestProfileProvider(isMSTQuery: Boolean = false) extends DeltaSharingProfileProvider {
+  class TestProfileProvider extends DeltaSharingProfileProvider {
     override def getProfile: DeltaSharingProfile = DeltaSharingProfile(
       shareCredentialsVersion = Some(1),
       endpoint = "http://localhost:12345",
       bearerToken = "test-bearer-token"
     )
-    override def isMSTQuery(): Boolean = isMSTQuery
   }
 
   test("generateTemporaryTableCredential - parse responses") {
