@@ -265,7 +265,7 @@ class DeltaSharingRestClient(
     if (response != null && response.items != null) {
       shares ++= response.items
     }
-    while (response.nextPageToken.nonEmpty) {
+    while (response.nextPageToken.exists(_.nonEmpty)) {
       val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
       val target = getTargetUrl(s"/shares?pageToken=$encodedPageToken")
       response = getJson[ListSharesResponse](target)
@@ -284,7 +284,7 @@ class DeltaSharingRestClient(
     if (response != null && response.items != null) {
       tables ++= response.items
     }
-    while (response.nextPageToken.nonEmpty) {
+    while (response.nextPageToken.exists(_.nonEmpty)) {
       val encodedPageToken = URLEncoder.encode(response.nextPageToken.get, "UTF-8")
       val target =
         getTargetUrl(s"/shares/$encodedShareName/all-tables?pageToken=$encodedPageToken")
