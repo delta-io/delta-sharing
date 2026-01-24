@@ -61,7 +61,7 @@ object ConfUtils {
   val JSON_PREDICATE_DEFAULT = "true"
 
   val JSON_PREDICATE_V2_CONF = "spark.delta.sharing.jsonPredicateV2Hints.enabled"
-  val JSON_PREDICATE_V2_DEFAULT = "false"
+  val JSON_PREDICATE_V2_DEFAULT = "true"
 
   val QUERY_PAGINATION_ENABLED_CONF = "spark.delta.sharing.queryPagination.enabled"
   val QUERY_PAGINATION_ENABLED_DEFAULT = "false"
