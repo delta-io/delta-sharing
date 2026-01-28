@@ -103,7 +103,12 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
   "items": [
     {
       "name": "string",
-      "id": "string"
+      "id": "string",
+      "displayName": "string",
+      "comment": "string",
+      "properties": {
+        "key": "value"
+      }
     }
   ],
   "nextPageToken": "string"
@@ -115,6 +120,12 @@ Note: the `items` field may be an empty array or missing when no results are fou
 Note: check the format of the `name` field in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
 Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and stay immutable through the share's lifecycle. The format recommendation of `id` is UUID.
+
+Note: the `displayName` is optional. If `displayName` is populated for a share, this is the share name that should be displayed to the user. `displayName` must not exceed 255 characters, otherwise it should be truncated by the client.
+
+Note: the `comment` is optional and should not exceed 65536 characters, otherwise it should be truncated by the client.
+
+Note: the `properties` field is optional. If `properties` is populated for a share, it should be of type `Map<String, String>`. `key` should not exceed 255 characters and `value` should not exceed 1000 characters. The amount of `keys` should not exceed 50. Any fields exceeding the above lengths should be truncated by the client.
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
 </td>
@@ -254,11 +265,25 @@ Example:
    "items": [
       {
          "name": "vaccine_share",
-         "id": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f"   
+         "id": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
+         "displayName": "Vaccine Share",
+         "comment": "A sample share containing vaccine-related datasets",
+         "properties": {
+           "owner": "vaccine-team",
+           "region": "us-west-2",
+           "created_date": "2024-01-15"
+         }   
       },
       {
          "name": "sales_share",
-         "id": "3e979c79-6399-4dac-bcf8-54e268f48515"
+         "id": "3e979c79-6399-4dac-bcf8-54e268f48515",
+         "displayName": "Sales Share",
+         "comment": "A sample share containing sales and revenue data",
+         "properties": {
+           "owner": "sales-team",
+           "region": "us-east-1",
+           "created_date": "2024-02-20"
+         }
       }
    ],
    "nextPageToken": "..."
@@ -300,7 +325,12 @@ URL Parameters | **{share}**: The share name to query. It's case-insensitive.
 {
   "share": {
     "name": "string",
-    "id": "string"
+    "id": "string",
+    "displayName": "string",
+    "comment": "string",
+    "properties": {
+      "key": "value"
+    }
   }
 }
 ```
@@ -309,6 +339,11 @@ Note: the `id` field is optional. If `id` is populated for a share, its value sh
 
 Note: check the format of the `name` field in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
+Note: the `displayName` is optional. If `displayName` is populated for a share, this is the share name that should be displayed to the user. `displayName` must not exceed 255 characters, otherwise it should be truncated by the client.
+
+Note: the `comment` is optional and should not exceed 65536 characters, otherwise it should be truncated by the client.
+
+Note: the `properties` field is optional. If `properties` is populated for a share, it should be of type `Map<String, String>`. `key` should not exceed 255 characters and `value` should not exceed 1000 characters. The amount of `keys` should not exceed 50. Any fields exceeding the above lengths should be truncated by the client.
 </td>
 </tr>
 </table>
@@ -476,7 +511,14 @@ Example:
 {
   "share": {
     "name": "vaccine_share",
-    "id": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f"
+    "id": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
+    "displayName": "Vaccine Share",
+    "comment": "A sample share containing vaccine-related datasets",
+    "properties": {
+      "owner": "vaccine-team",
+      "region": "us-west-2",
+      "created_date": "2024-01-15"
+    }
   }
 }
 ```
