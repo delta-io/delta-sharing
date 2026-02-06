@@ -121,11 +121,11 @@ Note: check the format of the `name` field in the sharing service. Object names 
 
 Note: the `id` field is optional. If `id` is populated for a share, its value should be unique across the sharing server and stay immutable through the share's lifecycle. The format recommendation of `id` is UUID.
 
-Note: the `displayName` is optional. If `displayName` is populated for a share, this is the share name that should be displayed to the user. `displayName` must not exceed 255 characters, otherwise it should be truncated by the client.
+Note: the `displayName` is optional. If `displayName` is populated for a share, this is the share name that should be displayed to the user. `displayName` must not exceed 255 characters, otherwise it could be truncated by the client.
 
-Note: the `comment` is optional and should not exceed 65536 characters, otherwise it should be truncated by the client.
+Note: the `comment` is optional and should not exceed 65536 characters, otherwise it could be truncated by the client.
 
-Note: the `properties` field is optional. If `properties` is populated for a share, it should be of type `Map<String, String>`. `key` should not exceed 255 characters and `value` should not exceed 1000 characters. The amount of `keys` should not exceed 50. Any fields exceeding the above lengths should be truncated by the client.
+Note: the `properties` field is optional. If `properties` is populated for a share, it should be of type `Map<String, String>`. `key` should not exceed 255 characters and `value` should not exceed 1000 characters. The number of key-value pairs should not exceed 50 and could be truncated by the client. Exceeding the above lengths could result in truncation by the client.
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
 </td>
@@ -339,11 +339,11 @@ Note: the `id` field is optional. If `id` is populated for a share, its value sh
 
 Note: check the format of the `name` field in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
-Note: the `displayName` is optional. If `displayName` is populated for a share, this is the share name that should be displayed to the user. `displayName` must not exceed 255 characters, otherwise it should be truncated by the client.
+Note: the `displayName` is optional. If `displayName` is populated for a share, this is the share name that should be displayed to the user. `displayName` must not exceed 255 characters, otherwise it could be truncated by the client.
 
-Note: the `comment` is optional and should not exceed 65536 characters, otherwise it should be truncated by the client.
+Note: the `comment` is optional and should not exceed 65536 characters, otherwise it could be truncated by the client.
 
-Note: the `properties` field is optional. If `properties` is populated for a share, it should be of type `Map<String, String>`. `key` should not exceed 255 characters and `value` should not exceed 1000 characters. The amount of `keys` should not exceed 50. Any fields exceeding the above lengths should be truncated by the client.
+Note: the `properties` field is optional. If `properties` is populated for a share, it should be of type `Map<String, String>`. `key` should not exceed 255 characters and `value` should not exceed 1000 characters. The number of key-value paris should not exceed 50, otherwise it could be truncated by the client. Exceeding the above lengths could result in truncation by the client.
 </td>
 </tr>
 </table>
