@@ -1064,8 +1064,6 @@ Note: `location` if present must point to the root directory of the table where 
 
 Note: `auxiliaryLocations` is optional and lists extra storage locations for table files (usually no more than one). These should be supported in the `auxiliaryLocation` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. Most tables use only the root directory, but if some files are stored elsewhere, the delta log in the root will include absolute paths to them. If a client can't read from an auxiliary location, it should fall back to URL access (if available) or fail the request. 
 
-If the client does not support reading from one or more auxiliary locations, they should either fall back to url based access if the server supports it, or fail the request.
-
 Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. If this field is not present, the client will assume that the server only supports url based access.
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
@@ -3080,7 +3078,7 @@ id | String | Unique identifier for this table | Required
 name | String | User-provided identifier for this table | Optional
 description | String | User-provided description for this table | Optional
 location | String | The root directory of the table. For `dir` tables, the server must support directory based access for the table and metadata must include the directory of the table. In the case that the client does not support directory based access, this field is optional. However, we recommend that this field be included to support recipients with network restrictions to allow these locations to be accessed. | Optional
-auxiliaryLocations | Array<String> | An array containing any auxiliary storage locations for the table. This field is optional; if not present, there are no auxiliary locations. These should be supported in the `auxiliaryLocation` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. | Optional
+auxiliaryLocations | Array<String> | An array containing any auxiliary storage locations for the table. This field is optional; if not present, there are no auxiliary locations. These should be supported in the `location` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. | Optional
 accessModes | Array<String> | An array of the supported access modes for the table. Valid values are `url` and/or `dir`. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. | Optional
 format | [Format](#format) Object | Specification of the encoding for the files stored in the table. | Required
 schemaString | String | Schema of the table. This is a serialized JSON string which can be deserialized to a [Schema](#schema-object) Object. | Required
@@ -3569,7 +3567,7 @@ version | Long | The table version the metadata corresponds to, returned when qu
 size | Long | The size of the table in bytes, will be returned if available in the delta log. | Optional
 numFiles | Long | The number of files in the table, will be returned if available in the delta log. | Optional
 location | String | The root directory of the table. For `dir` tables, the server must support directory based access for the table and metadata must include the directory of the table. In the case that the client does not support directory based access, this field is optional. However, we recommend that this field be included to support recipients with network restrictions to allow these locations to be accessed. | Optional
-auxiliaryLocations | Array<String> | An array containing any auxiliary storage locations for the table. This field is optional; if not present, there are no auxiliary locations. These should be supported in the `auxiliaryLocation` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. | Optional
+auxiliaryLocations | Array<String> | An array containing any auxiliary storage locations for the table. This field is optional; if not present, there are no auxiliary locations. These should be supported in the `location` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. | Optional
 accessModes | Array<String> | An array of the supported access modes for the table. Valid values are `url` and/or `dir`. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
