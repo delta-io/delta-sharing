@@ -808,11 +808,11 @@ Note: check the format of the `name`, `schema`, and `share` fields in the sharin
 
 Note: the `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
 
-Note: `location` should point to the root directory of the table.
+Note: `location` if present must point to the root directory of the table where the delta log exists. If the server supports `dir` based access for the table, this field must be present (see `accessModes`).
 
-Note: `auxiliaryLocations` is an optional field which represents any auxiliary storage locations for the table. These should be supported in the `auxiliaryLocation` field of the Generate Temporary Table Credential request body
+Note: `auxiliaryLocations` is optional and lists extra storage locations for table files (usually no more than one). These should be supported in the `auxiliaryLocation` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. Most tables use only the root directory, but if some files are stored elsewhere, the delta log in the root will include absolute paths to them. If a client can't read from an auxiliary location, it should fall back to URL access (if available) or fail the request.
 
-Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) endpoint should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table.
+Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. If this field is not present, the client will assume that the server only supports url based access.
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
 </td>
@@ -1060,11 +1060,13 @@ Note: check the format of the `name`, `schema`, and `share` fields in the sharin
 
 Note: the `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
 
-Note: `location` should point to the root directory of the table.
+Note: `location` if present must point to the root directory of the table where the delta log exists. If the server supports `dir` based access for the table, this field must be present (see `accessModes`).
 
-Note: `auxiliaryLocations` is an optional field which represents any auxiliary storage locations for the table. These should be supported in the `auxiliaryLocation` field of the Generate Temporary Table Credential request body
+Note: `auxiliaryLocations` is optional and lists extra storage locations for table files (usually no more than one). These should be supported in the `auxiliaryLocation` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. Most tables use only the root directory, but if some files are stored elsewhere, the delta log in the root will include absolute paths to them. If a client can't read from an auxiliary location, it should fall back to URL access (if available) or fail the request. 
 
-Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) endpoint should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) endpoint should be implemented for the table.
+If the client does not support reading from one or more auxiliary locations, they should either fall back to url based access if the server supports it, or fail the request.
+
+Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. If this field is not present, the client will assume that the server only supports url based access.
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
 </td>
@@ -1240,10 +1242,6 @@ Example:
       "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
       "id": "2f9729e9-6fcf-4d34-96df-bf72b26dfbe9",
       "location": "s3://deltasharing/vaccine_share/acme_vaccine_ingredient_data/vaccine_ingredients",
-      "auxiliaryLocations": [
-        "s3://secondary/deltasharing/vaccine_share/acme_vaccine_ingredient_data/vaccine_ingredients",
-        "s3://tertiary2/delta_project/alt_share/alternate_schema/alternate_table",
-      ],
       "accessModes": ["url","dir"]
     },
     {
@@ -1775,8 +1773,7 @@ delta-table-version: 123
     "id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
     "location": "s3://my-bucket/tables/customer",
     "auxiliaryLocations": [
-       "s3://secondary-bucket/tables/customer",
-       "s3://other-bucket/tables/customer"
+       "s3://secondary-bucket/tables/customer"
     ],
     "accessModes": ["url","dir"],
     "format": {
@@ -2641,7 +2638,7 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
 <td>Request Body</td>
 <td>
 
-The `location` field is optional and specifies the location URL path to generate temporary credentials for. If this field is not provided, the response should contain credentials for the table's main location. If the main location is specified the server should still respond with the credential.
+The `location` field is optional and specifies the location URL path to generate temporary credentials for. This API should be called for the root location as well as all the auxiliary locations. If a table has auxiliary locations and a client does not support reading from multiple locations, they should either fall back to url based access via [QueryTable](#read-data-from-a-table) API or throw an error. If this field is not provided, the response should contain credentials for the table's main location. 
 
 ```json
 {
@@ -3103,8 +3100,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
     ],
     "location": "s3://delta-share-demo/tables/table1",
     "auxiliaryLocations": [
-       "s3://delta-share-demo/tables/table1-aux1",
-       "s3://delta-share-demo/tables/table1-aux2"
+       "s3://delta-share-demo/tables/table1-aux1"
     ],
     "accessModes": ["url", "dir"],
     "format": {
@@ -3574,7 +3570,7 @@ size | Long | The size of the table in bytes, will be returned if available in t
 numFiles | Long | The number of files in the table, will be returned if available in the delta log. | Optional
 location | String | The root directory of the table. For `dir` tables, the server must support directory based access for the table and metadata must include the directory of the table. In the case that the client does not support directory based access, this field is optional. However, we recommend that this field be included to support recipients with network restrictions to allow these locations to be accessed. | Optional
 auxiliaryLocations | Array<String> | An array containing any auxiliary storage locations for the table. This field is optional; if not present, there are no auxiliary locations. These should be supported in the `auxiliaryLocation` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. | Optional
-accessModes | Array<String> | An array of the supported access modes for the table. Valid values are `url` and/or `dir`. If `url` is present, the QueryTable endpoint should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) endpoint should be implemented for the table. | Optional
+accessModes | Array<String> | An array of the supported access modes for the table. Valid values are `url` and/or `dir`. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -3586,8 +3582,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
     "numFiles": 5,
     "location": "s3://delta-share-demo/tables/table1",
     "auxiliaryLocations": [
-       "s3://delta-share-demo/tables/table1-aux1",
-       "s3://delta-share-demo/tables/table1-aux2"
+       "s3://delta-share-demo/tables/table1-aux1"
     ],
     "accessModes": ["url", "dir"],
     "deltaMetadata": {
