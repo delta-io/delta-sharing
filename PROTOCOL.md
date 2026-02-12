@@ -788,6 +788,11 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
       "schema": "string",
       "share": "string",
       "shareId": "string",
+      "location": "string",
+      "auxiliaryLocations": [
+        "string"
+      ],
+      "accessModes": ["url","dir"],
       "id": "string"
     }
   ],
@@ -802,6 +807,12 @@ Note: the `id` field is optional. If `id` is populated for a table, its value sh
 Note: check the format of the `name`, `schema`, and `share` fields in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
 Note: the `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
+
+Note: `location` should point to the root directory of the table.
+
+Note: `auxiliaryLocations` is an optional field which represents any auxiliary storage locations for the table. These should be supported in the `auxiliaryLocation` field of the Generate Temporary Table Credential request body
+
+Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the QueryTable endpoint should be implemented for the table. If `dir` is present, the GenerateTemporaryTableCredential endpoint should be implemented for the table.
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
 </td>
@@ -1029,7 +1040,12 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
       "schema": "string",
       "share": "string",
       "shareId": "string",
-      "id": "string"
+      "id": "string",
+      "location": "string",
+      "auxiliaryLocations": [
+        "string"
+      ],
+      "accessModes": ["url","dir"]
     }
   ],
   "nextPageToken": "string"
@@ -1043,6 +1059,12 @@ Note: the `id` field is optional. If `id` is populated for a table, its value sh
 Note: check the format of the `name`, `schema`, and `share` fields in the sharing service. Object names must not exceed 255 characters and must not contain restricted characters. 
 
 Note: the `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
+
+Note: `location` should point to the root directory of the table.
+
+Note: `auxiliaryLocations` is an optional field which represents any auxiliary storage locations for the table. These should be supported in the `auxiliaryLocation` field of the Generate Temporary Table Credential request body
+
+Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the QueryTable endpoint should be implemented for the table. If `dir` is present, the GenerateTemporaryTableCredential endpoint should be implemented for the table.
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
 </td>
@@ -1216,14 +1238,25 @@ Example:
       "schema" : "acme_vaccine_ingredient_data",
       "name" : "vaccine_ingredients",
       "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
-      "id": "2f9729e9-6fcf-4d34-96df-bf72b26dfbe9"
+      "id": "2f9729e9-6fcf-4d34-96df-bf72b26dfbe9",
+      "location": "s3://deltasharing/vaccine_share/acme_vaccine_ingredient_data/vaccine_ingredients",
+      "auxiliaryLocations": [
+        "s3://secondary/deltasharing/vaccine_share/acme_vaccine_ingredient_data/vaccine_ingredients",
+        "s3://tertiary2/delta_project/alt_share/alternate_schema/alternate_table",
+      ],
+      "accessModes": ["url","dir"]
     },
     {
       "share": "vaccine_share",
       "schema": "acme_vaccine_patient_data",
       "name": "vaccine_patients",
       "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
-      "id": "74be6365-0fc8-4a2f-8720-0de125bb5832"
+      "id": "74be6365-0fc8-4a2f-8720-0de125bb5832",
+      "location": "s3://deltasharing/vaccine_share/acme_vaccine_patient_data/vaccine_patients",
+      "auxiliaryLocations": [
+        "s3://secondary/deltasharing/vaccine_share/acme_vaccine_patient_data/vaccine_patients",
+      ],
+      "accessModes": ["dir"]
     }
   ],
   "nextPageToken": "..."
@@ -1740,6 +1773,12 @@ delta-table-version: 123
 {
   "metaData": {
     "id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+    "location": "s3://my-bucket/tables/customer",
+    "auxiliaryLocations": [
+       "s3://backup-bucket/tables/customer",
+       "s3://archive-bucket/tables/customer"
+    ],
+    "accessModes": ["url","dir"],
     "format": {
       "provider": "parquet"
     },
@@ -2552,6 +2591,324 @@ content-type: application/x-ndjson; charset=utf-8
 ### Timestamp Format
 Accepted timestamp format by a delta sharing server: in the ISO8601 format, in the UTC timezone, such as `2022-01-01T00:00:00Z`.   
 
+
+### Generate Temporary Table Credential
+
+This API returns Cloud Tokens, which are directory (prefix) based STS tokens that grant temporary read access to the table’s root directory. This approach bypasses the pre-signing workflow, and instead provides direct read only access to the table. The query engines that are capable of processing the delta log get direct access to it, and can optimize query performance by leveraging their custom metadata optimizations, caching and distributed metadata processing. The response follows the format of [GenerateTemporaryTableCredential](https://github.com/unitycatalog/unitycatalog/blob/main/api/Apis/TemporaryCredentialsApi.md#generatetemporarytablecredentials) in UC OSS. The `location` field is also added to introduce a potentially lightweight approach which avoids the metadata call and pre-processing the delta log. It should be the location which the credentials are generated for. Clients that do not support reading from a cloud vendor can throw an error.
+
+<table>
+<tr>
+<th>HTTP Request</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Method</td>
+<td>
+
+`POST`
+</td>
+</tr>
+<tr>
+<td>Headers</td>
+<td>
+
+`Authorization: Bearer {token}`
+
+Optional: `Content-Type: application/json; charset=utf-8`
+
+Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors;accessModes=url,prefix`
+</td>
+</tr>
+<tr>
+<td>URL</td>
+<td>
+
+`{prefix}/shares/{share}/schemas/{schema}/tables/{table}/temporary-table-credentials`
+</td>
+</tr>
+<tr>
+<td>URL Parameters</td>
+<td>
+
+**{share}**: The share name to query. It's case-insensitive.
+
+**{schema}**: The schema name to query. It's case-insensitive.
+
+**{table}**: The table name to query. It's case-insensitive.
+</td>
+</tr>
+<tr>
+<td>Request Body</td>
+<td>
+
+The `location` field is optional and specifies the location URL path to generate temporary credentials for. If this field is not provided, the response should contain credentials for the table's main location. If the main location is specified the server should still respond with the credential.
+
+```json
+{
+  "location": "{scheme}://some/path/to/table"
+}
+```
+</td>
+</tr>
+<tr>
+<td>Response Body</td>
+<td>
+
+Only one of `awsTempCredentials`, `azureUserDelegationSas`, `gcpOauthToken` should be defined.
+
+```json
+{
+  "credentials": {
+    "location": "string",
+    "awsTempCredentials": {
+      "accessKeyId": "string",
+      "secretAccessKey": "string",
+      "sessionToken": "string"
+    },
+    "azureUserDelegationSas": {
+      "sasToken": "string"
+    },
+    "gcpOauthToken": {
+      "oauthToken": "string"
+    },
+    "expirationTime": 1234567890000
+  }
+}
+```
+
+</td>
+</tr>
+</table>
+<details>
+<summary><b>400: The request is malformed.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>401: The request is unauthenticated. The bearer token is missing or incorrect.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>403: The request is forbidden from being fulfilled.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>404: The requested resource does not exist.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>500: The request is not handled correctly due to a server error.</b></summary>
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+
+`POST {prefix}/shares/share_name/schemas/schema_name/tables/table_name/temporary-table-credentials`
+
+
+```
+HTTP/2 200 
+content-type: application/x-ndjson; charset=utf-8
+```
+
+```json
+{
+  "credentials": {
+    "location": "s3://some/path/to/table",
+    "awsTempCredentials": {
+      "accessKeyId": "REDACTED_ACCESS_KEY_ID",
+      "secretAccessKey": "REDACTED_SECRET_ACCESS_KEY",
+      "sessionToken": "REDACTED_SESSION_TOKEN"
+    },
+    "expirationTime": 1718298900000
+  }
+}
+
+```
+
+#### TemporaryCredentials
+
+Only one of `awsTempCredentials`, `azureUserDelegationSas`, `gcpOauthToken` should be defined. Their definitions follow Unity Catalog OSS [models and APIs](https://github.com/unitycatalog/unitycatalog/blob/main/api/Apis/TemporaryCredentialsApi.md).
+
+| Name | Type | Description | Optional/Required |
+|---|---|---|---|
+| location | string | The directory which the temporary credentials are granted read access to. | Required |
+| awsTempCredentials | AwsCredentials | | Optional |
+| azureUserDelegationSas | AzureUserDelegationSAS | | Optional |
+| gcpOauthToken | GcpOauthToken | | Optional |
+| expirationTime | Long | Server time when the credential will expire, in epoch milliseconds. The API client is advised to cache the credential given this expiration time. | Required |
+
+#### AwsCredentials
+
+| Name | Type | Description | Notes |
+|---|---|---|---|
+| accessKeyId | String | The access key ID that identifies the temporary credentials. | Required |
+| secretAccessKey | String | The secret access key that can be used to sign AWS API requests. | Required |
+| sessionToken | String | The token that users must pass to AWS API to use the temporary credentials. | Required |
+
+#### AzureUserDelegationSAS
+
+| Name | Type | Description | Notes |
+|---|---|---|---|
+| sasToken | String | Azure SAS Token | Required |
+
+#### GcpOauthToken
+
+| Name | Type | Description | Notes |
+|---|---|---|---|
+| oauthToken | String | Gcp Token | Required |
+
+#### Delta Kernel Example
+
+To load a table shared with driectory access using Delta Kernel, follow these steps from the [Delta Kernel documentation](https://delta-docs-incubator.netlify.app/delta-kernel/). The [Hadoop](https://hadoop.apache.org/docs/stable/hadoop-aws/tools/hadoop-aws/index.html#Authentication_properties) configuration needs to be modified to contain the credentials used to authenticate with the cloud provider.
+
+```java
+import io.delta.kernel.*;
+import io.delta.kernel.defaults.*;
+import org.apache.hadoop.conf.Configuration;
+
+String myTablePath = "s3://some/path/to/table";
+Configuration hadoopConf = new Configuration();
+hadoopConf.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.TemporaryAWSCredentialsProvider");
+hadoopConf.set("fs.s3a.access.key", "YOUR_ACCESS_KEY_ID");
+hadoopConf.set("fs.s3a.secret.key", "YOUR_SECRET_ACCESS_KEY")
+hadoopConf.set("fs.s3a.session.token", "YOUR_SESSION_TOKEN");
+Engine myEngine = DefaultEngine.create(hadoopConf);
+Table myTable = Table.forPath(myEngine, myTablePath);
+...
+```
+
 ## Delta Sharing Capabilities Header
 This section explains the details of the Delta Sharing Capabilities header, which was introduced to enable the 
 Delta Sharing protocol to evolve over time. This includes supporting new features and maintaining compatibility with 
@@ -2725,6 +3082,9 @@ Field Name | Data Type | Description | Optional/Required
 id | String | Unique identifier for this table | Required
 name | String | User-provided identifier for this table | Optional
 description | String | User-provided description for this table | Optional
+location | String | The root directory of the table. For `dir` tables, the server must support directory based access for the table and metadata must include the directory of the table. In the case that the client does not support directory based access, this field is optional. However, we recommend that this field be included to support recipients with network restrictions to allow these locations to be accessed. | Optional
+auxiliaryLocations | Array<String> | An array containing any auxiliary storage locations for the table. This field is optional; if not present, there are no auxiliary locations. These should be supported in the auxiliaryLocation field of the GenerateTemporaryTableCredential request body. | Optional
+accessModes | Array<String> | An array of the supported access modes for the table. Valid values are `url` and/or `dir`. If `url` is present, the QueryTable endpoint should be implemented for the table. If `dir` is present, the GenerateTemporaryTableCredential endpoint should be implemented for the table. | Optional
 format | [Format](#format) Object | Specification of the encoding for the files stored in the table. | Required
 schemaString | String | Schema of the table. This is a serialized JSON string which can be deserialized to a [Schema](#schema-object) Object. | Required
 partitionColumns | Array<String> | An array containing the names of columns by which the data should be partitioned. When a table doesn’t have partition columns, this will be an **empty** array. | Required
@@ -2741,6 +3101,12 @@ Example (for illustration purposes; each JSON object must be a single line in th
     "partitionColumns": [
       "date"
     ],
+    "location": "s3://delta-share-demo/tables/table1",
+    "auxiliaryLocations": [
+       "s3://delta-share-demo/tables/table1-aux1",
+       "s3://delta-share-demo/tables/table1-aux2"
+    ],
+    "accessModes": ["url", "dir"],
     "format": {
       "provider": "parquet"
     },
@@ -3206,6 +3572,9 @@ deltaMetadata | Delta Metadata | Need to be parsed by a delta library as delta m
 version | Long | The table version the metadata corresponds to, returned when querying table data with a version or timestamp parameter, or cdf query with includeHistoricalMetadata set to true. | Optional
 size | Long | The size of the table in bytes, will be returned if available in the delta log. | Optional
 numFiles | Long | The number of files in the table, will be returned if available in the delta log. | Optional
+location | String | The root directory of the table. For `dir` tables, the server must support directory based access for the table and metadata must include the directory of the table. In the case that the client does not support directory based access, this field is optional. However, we recommend that this field be included to support recipients with network restrictions to allow these locations to be accessed. | Optional
+auxiliaryLocations | Array<String> | An array containing any auxiliary storage locations for the table. This field is optional; if not present, there are no auxiliary locations. These should be supported in the auxiliaryLocation field of the GenerateTemporaryTableCredential request body. | Optional
+accessModes | Array<String> | An array of the supported access modes for the table. Valid values are `url` and/or `dir`. If `url` is present, the QueryTable endpoint should be implemented for the table. If `dir` is present, the GenerateTemporaryTableCredential endpoint should be implemented for the table. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
@@ -3215,6 +3584,12 @@ Example (for illustration purposes; each JSON object must be a single line in th
     "version": 20,
     "size": 123456,
     "numFiles": 5,
+    "location": "s3://delta-share-demo/tables/table1",
+    "auxiliaryLocations": [
+       "s3://delta-share-demo/tables/table1-aux1",
+       "s3://delta-share-demo/tables/table1-aux2"
+    ],
+    "accessModes": ["url", "dir"],
     "deltaMetadata": {
       "partitionColumns": [
         "date"
