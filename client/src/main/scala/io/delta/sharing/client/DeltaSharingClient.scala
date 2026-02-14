@@ -202,7 +202,8 @@ class DeltaSharingRestClient(
     asyncQueryMaxDuration: Long = 600000L,
     tokenExchangeMaxRetries: Int = 5,
     tokenExchangeMaxRetryDurationInSeconds: Int = 60,
-    tokenRenewalThresholdInSeconds: Int = 600
+    tokenRenewalThresholdInSeconds: Int = 600,
+    userAgent: String = ""
   ) extends DeltaSharingClient with Logging {
 
   logInfo(s"DeltaSharingRestClient with endStreamActionEnabled: $endStreamActionEnabled, " +
@@ -1310,7 +1311,9 @@ class DeltaSharingRestClient(
     } else {
       "Delta-Sharing-Spark"
     }
-    s"$sparkAgent/$VERSION" + s" $sparkVersionString" + s" $getQueryIdString" + USER_AGENT
+    val customUserAgentPart = if (userAgent.nonEmpty) s" $userAgent" else ""
+    s"$sparkAgent/$VERSION" + s" $sparkVersionString" + s" $getQueryIdString" +
+      customUserAgentPart + USER_AGENT
   }
 
   private def getQueryIdString: String = {
@@ -1513,7 +1516,8 @@ object DeltaSharingRestClient extends Logging {
       shareCredentialsOptions: Map[String, String],
       forStreaming: Boolean = false,
       responseFormat: String = RESPONSE_FORMAT_PARQUET,
-      readerFeatures: String = ""
+      readerFeatures: String = "",
+      userAgent: Option[String] = None
   ): DeltaSharingClient = {
     val sqlConf = SparkSession.active.sessionState.conf
 
@@ -1575,7 +1579,8 @@ object DeltaSharingRestClient extends Logging {
         classOf[Long],
         classOf[Int],
         classOf[Int],
-        classOf[Int]
+        classOf[Int],
+        classOf[String]
     ).newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
@@ -1593,7 +1598,8 @@ object DeltaSharingRestClient extends Logging {
         java.lang.Long.valueOf(asyncQueryMaxDurationMillis),
         java.lang.Integer.valueOf(tokenExchangeMaxRetries),
         java.lang.Integer.valueOf(tokenExchangeMaxRetryDurationInSeconds),
-        java.lang.Integer.valueOf(tokenRenewalThresholdInSeconds)
+        java.lang.Integer.valueOf(tokenRenewalThresholdInSeconds),
+        userAgent.filter(_.nonEmpty).getOrElse("")
       ).asInstanceOf[DeltaSharingClient]
   }
 }
