@@ -43,7 +43,7 @@ import io.delta.sharing.client.model.{
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.client.util.JsonUtils
 import io.delta.sharing.client.util.UnexpectedHttpStatus
-import io.delta.sharing.spark.{DeltaSharingServerException, MissingEndStreamActionException}
+import io.delta.sharing.spark.{DeltaSharingOptions, DeltaSharingServerException, MissingEndStreamActionException, RemoteDeltaLog}
 
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
@@ -233,6 +233,38 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         client, s"delta,parquet", s";$READER_FEATURES=$readerFeatures", endStreamActionEnabled
       )
     }
+  }
+
+  test("RemoteDeltaLog passes userAgent option to request header") {
+    // Same path as DeltaSharingDataSource: options -> RemoteDeltaLog.apply(..., userAgent) -> client.
+    // Assert the client sends userAgent in the User-Agent header.
+    val options = new DeltaSharingOptions(Map(
+      "path" -> "share1.default.table1",
+      DeltaSharingOptions.USER_AGENT_OPTION -> "adobe",
+      "endpoint" -> s"https://localhost:$TEST_PORT/delta-sharing",
+      "bearerToken" -> "token",
+      "shareCredentialsVersion" -> "1"
+    ))
+    val deltaLog = RemoteDeltaLog(
+      "share1.default.table1",
+      options.shareCredentialsOptions,
+      forStreaming = false,
+      options.responseFormat,
+      userAgent = options.userAgent
+    )
+    val client = deltaLog.client.asInstanceOf[DeltaSharingRestClient]
+    val httpRequest = new HttpGet("random_url")
+    val request = client.prepareHeaders(httpRequest, setIncludeEndStreamAction = false)
+    val userAgentHeader = request.getFirstHeader(HttpHeaders.USER_AGENT).getValue
+    assert(userAgentHeader.contains(" adobe"), s"User-Agent should contain 'adobe': $userAgentHeader")
+    assert(userAgentHeader.contains(" QueryId-"), "User-Agent should contain QueryId")
+    val queryIdPos = userAgentHeader.indexOf(" QueryId-")
+    val adobePos = userAgentHeader.indexOf(" adobe")
+    val hadoopPos = userAgentHeader.indexOf(" Hadoop/")
+    assert(
+      queryIdPos < adobePos && adobePos < hadoopPos,
+      s"userAgent should appear after QueryId and before Hadoop: $userAgentHeader"
+    )
   }
 
   integrationTest("listAllTables") {
