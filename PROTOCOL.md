@@ -81,7 +81,7 @@ The following table describes behavior when the **server** returns (or omits) `a
 </tr>
 <tr>
 <th>Client only supports URL-based access</th>
-<td>Proceeds with URL-based access (legacy behavior).</td>
+<td>Proceeds with URL-based access.</td>
 <td>Proceeds with URL-based access.</td>
 <td>Must fail or error (server does not offer URL access).</td>
 <td>Proceeds with URL-based access.</td>
@@ -95,7 +95,7 @@ The following table describes behavior when the **server** returns (or omits) `a
 </tr>
 <tr>
 <th>Client supports both URL and directory access</th>
-<td>Proceeds with URL-based access (legacy default).</td>
+<td>Proceeds with URL-based access.</td>
 <td>Proceeds with URL-based access.</td>
 <td>Proceeds with directory-based access.</td>
 <td>Client may choose either mode.</td>
