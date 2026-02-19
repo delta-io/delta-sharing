@@ -256,13 +256,13 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val httpRequest = new HttpGet("random_url")
     val request = client.prepareHeaders(httpRequest, setIncludeEndStreamAction = false)
     val userAgentHeader = request.getFirstHeader(HttpHeaders.USER_AGENT).getValue
-    assert(userAgentHeader.contains(" adobe"), s"User-Agent should contain 'adobe': $userAgentHeader")
+    assert(userAgentHeader.contains(" callerOrg-adobe"), s"User-Agent should contain 'callerOrg-adobe': $userAgentHeader")
     assert(userAgentHeader.contains(" QueryId-"), "User-Agent should contain QueryId")
     val queryIdPos = userAgentHeader.indexOf(" QueryId-")
-    val adobePos = userAgentHeader.indexOf(" adobe")
+    val callerOrgPos = userAgentHeader.indexOf(" callerOrg-adobe")
     val hadoopPos = userAgentHeader.indexOf(" Hadoop/")
     assert(
-      queryIdPos < adobePos && adobePos < hadoopPos,
+      queryIdPos < callerOrgPos && callerOrgPos < hadoopPos,
       s"callerOrg should appear after QueryId and before Hadoop: $userAgentHeader"
     )
   }

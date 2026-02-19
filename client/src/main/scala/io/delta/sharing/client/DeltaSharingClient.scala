@@ -1311,7 +1311,7 @@ class DeltaSharingRestClient(
     } else {
       "Delta-Sharing-Spark"
     }
-    val customUserAgentPart = if (callerOrg.nonEmpty) s" $callerOrg" else ""
+    val customUserAgentPart = if (callerOrg.nonEmpty) s" callerOrg-$callerOrg" else ""
     s"$sparkAgent/$VERSION" + s" $sparkVersionString" + s" $getQueryIdString" +
       customUserAgentPart + USER_AGENT
   }
