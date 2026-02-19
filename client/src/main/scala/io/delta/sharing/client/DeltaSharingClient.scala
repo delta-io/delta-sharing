@@ -1311,9 +1311,14 @@ class DeltaSharingRestClient(
     } else {
       "Delta-Sharing-Spark"
     }
-    val customUserAgentPart = if (callerOrg.nonEmpty) s" callerOrg-$callerOrg" else ""
-    s"$sparkAgent/$VERSION" + s" $sparkVersionString" + s" $getQueryIdString" +
-      customUserAgentPart + USER_AGENT
+    val parts = Seq(
+      Some(s"$sparkAgent/$VERSION"),
+      Some(sparkVersionString),
+      Some(getQueryIdString),
+      Option(callerOrg).filter(_.nonEmpty).map(o => s"callerOrg-$o"),
+      Some(USER_AGENT)
+    ).flatten
+    parts.mkString(" ")
   }
 
   private def getQueryIdString: String = {
@@ -1599,7 +1604,7 @@ object DeltaSharingRestClient extends Logging {
         java.lang.Integer.valueOf(tokenExchangeMaxRetries),
         java.lang.Integer.valueOf(tokenExchangeMaxRetryDurationInSeconds),
         java.lang.Integer.valueOf(tokenRenewalThresholdInSeconds),
-        callerOrg.filter(_.nonEmpty).getOrElse("")
+        callerOrg.getOrElse("")
       ).asInstanceOf[DeltaSharingClient]
   }
 }
