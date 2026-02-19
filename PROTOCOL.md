@@ -63,6 +63,45 @@ This document is a specification for the Delta Sharing Protocol, which defines t
 - Recipient: A principal that has a bearer token to access shared tables.
 - Sharing Server: A server that implements this protocol.
 
+### Access Modes
+
+Delta Sharing supports two ways for clients to read table data: **[URL-based access](#read-data-from-a-table)** and **[directory-based access](#generate-temporary-table-credential)**. With URL-based access (`url`), the server returns pre-signed URLs for individual data files and the client fetches them via the [Query Table](#read-data-from-a-table) API. With directory-based access (`dir`), the server issues temporary cloud credentials (e.g., STS) via the [Generate Temporary Table Credential](#generate-temporary-table-credential) API so the client can read from the table’s root (and optional [auxiliary](#generate-temporary-table-credential) locations); the client then reads the Delta log and data files using the cloud storage API. Table metadata returned by [Query Table Metadata](#query-table-metadata) (and list-table APIs) includes an `accessModes` array indicating which modes the server supports for that table. The client reads `accessModes` from the server’s response and chooses how to read the table based on that and its own capabilities (e.g., URL-only, dir-only, or both).
+
+#### Compatibility
+
+The following table describes behavior when the **server** returns (or omits) `accessModes` in table metadata and the **client** has different capabilities.
+
+<table>
+<tr>
+<th>Client / Server</th>
+<th>Server omits accessModes</th>
+<th>Server returns accessModes=url</th>
+<th>Server returns accessModes=dir</th>
+<th>Server returns accessModes=url,dir</th>
+</tr>
+<tr>
+<th>Client only supports URL-based access</th>
+<td>Proceeds with URL-based access (legacy behavior).</td>
+<td>Proceeds with URL-based access.</td>
+<td>Must fail or error (server does not offer URL access).</td>
+<td>Proceeds with URL-based access.</td>
+</tr>
+<tr>
+<th>Client only supports directory-based access</th>
+<td>Must fail or error (server implies URL-only when accessModes is omitted).</td>
+<td>Must fail or error (server only supports URL).</td>
+<td>Proceeds with directory-based access.</td>
+<td>Proceeds with directory-based access.</td>
+</tr>
+<tr>
+<th>Client supports both URL and directory access</th>
+<td>Proceeds with URL-based access (legacy default).</td>
+<td>Proceeds with URL-based access.</td>
+<td>Proceeds with directory-based access.</td>
+<td>Client may choose either mode.</td>
+</tr>
+</table>
+
 ## REST APIs
 
 Here are the list of APIs used by Delta Sharing Protocol. All of the REST APIs use [bearer tokens for authorization](https://tools.ietf.org/html/rfc6750). The `{prefix}` of each API is configurable, and servers hosted by different providers may pick up different prefixes.
