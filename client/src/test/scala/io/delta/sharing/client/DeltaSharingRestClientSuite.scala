@@ -235,12 +235,12 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  test("RemoteDeltaLog passes userAgent option to request header") {
-    // Same path as DeltaSharingDataSource: options -> RemoteDeltaLog.apply(..., userAgent) -> client.
-    // Assert the client sends userAgent in the User-Agent header.
+  test("RemoteDeltaLog passes callerOrg option to request header") {
+    // Same path as DeltaSharingDataSource: options -> RemoteDeltaLog.apply(..., callerOrg) -> client.
+    // Assert the client sends callerOrg in the User-Agent header.
     val options = new DeltaSharingOptions(Map(
       "path" -> "share1.default.table1",
-      DeltaSharingOptions.USER_AGENT_OPTION -> "adobe",
+      DeltaSharingOptions.CALLER_ORG_OPTION -> "adobe",
       "endpoint" -> s"https://localhost:$TEST_PORT/delta-sharing",
       "bearerToken" -> "token",
       "shareCredentialsVersion" -> "1"
@@ -250,7 +250,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       options.shareCredentialsOptions,
       forStreaming = false,
       options.responseFormat,
-      userAgent = options.userAgent
+      callerOrg = options.callerOrg
     )
     val client = deltaLog.client.asInstanceOf[DeltaSharingRestClient]
     val httpRequest = new HttpGet("random_url")
@@ -263,7 +263,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val hadoopPos = userAgentHeader.indexOf(" Hadoop/")
     assert(
       queryIdPos < adobePos && adobePos < hadoopPos,
-      s"userAgent should appear after QueryId and before Hadoop: $userAgentHeader"
+      s"callerOrg should appear after QueryId and before Hadoop: $userAgentHeader"
     )
   }
 

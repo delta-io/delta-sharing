@@ -34,15 +34,15 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
     assert(!options.readChangeFeed)
     assert(options.startingVersion.isEmpty)
     assert(options.startingTimestamp.isEmpty)
-    assert(options.userAgent.isEmpty)
+    assert(options.callerOrg.isEmpty)
   }
 
-  test("userAgent option is parsed from Spark options") {
+  test("callerOrg option is parsed from Spark options") {
     val options = new DeltaSharingOptions(Map(
       "path" -> "profile#share.schema.table",
-      DeltaSharingOptions.USER_AGENT_OPTION -> "adobe"
+      DeltaSharingOptions.CALLER_ORG_OPTION -> "adobe"
     ))
-    assert(options.userAgent === Some("adobe"))
+    assert(options.callerOrg === Some("adobe"))
   }
 
   test("Convert successfully") {

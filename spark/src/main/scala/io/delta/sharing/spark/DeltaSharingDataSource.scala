@@ -50,7 +50,7 @@ private[sharing] class DeltaSharingDataSource
     val deltaLog = RemoteDeltaLog(
       path, options.shareCredentialsOptions,
       forStreaming = false, responseFormat = options.responseFormat,
-      userAgent = options.userAgent
+      callerOrg = options.callerOrg
     )
     deltaLog.createRelation(options.versionAsOf, options.timestampAsOf, options.cdfOptions)
   }
@@ -73,7 +73,7 @@ private[sharing] class DeltaSharingDataSource
     val deltaLog = RemoteDeltaLog(
       path, options.shareCredentialsOptions,
       forStreaming = true, responseFormat = options.responseFormat,
-      userAgent = options.userAgent
+      callerOrg = options.callerOrg
     )
     val schemaToUse = deltaLog.snapshot().schema
     if (schemaToUse.isEmpty) {
@@ -101,7 +101,7 @@ private[sharing] class DeltaSharingDataSource
     val path = options.options.getOrElse("path", throw DeltaSharingErrors.pathNotSpecifiedException)
     val deltaLog = RemoteDeltaLog(
       path, options.shareCredentialsOptions, forStreaming = true, options.responseFormat,
-      userAgent = options.userAgent
+      callerOrg = options.callerOrg
     )
 
     DeltaSharingSource(SparkSession.active, deltaLog, options)

@@ -103,7 +103,7 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
     str
   }.getOrElse(RESPONSE_FORMAT_PARQUET)
 
-  val userAgent: Option[String] = options.get(USER_AGENT_OPTION).filter(_.nonEmpty)
+  val callerOrg: Option[String] = options.get(CALLER_ORG_OPTION).filter(_.nonEmpty)
 
   val shareCredentialsOptions: Map[String, String] = prepareShareCredentialsOptions()
 
@@ -217,7 +217,7 @@ object DeltaSharingOptions extends Logging {
   val RESPONSE_FORMAT_PARQUET = "parquet"
   val RESPONSE_FORMAT_DELTA = "delta"
 
-  val USER_AGENT_OPTION = "userAgent"
+  val CALLER_ORG_OPTION = "callerOrg"
 
   val PROFILE_SHARE_CREDENTIALS_VERSION = "shareCredentialsVersion"
   val PROFILE_TYPE = "shareCredentialsType"

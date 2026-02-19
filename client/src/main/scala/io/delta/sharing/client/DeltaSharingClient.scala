@@ -203,7 +203,7 @@ class DeltaSharingRestClient(
     tokenExchangeMaxRetries: Int = 5,
     tokenExchangeMaxRetryDurationInSeconds: Int = 60,
     tokenRenewalThresholdInSeconds: Int = 600,
-    userAgent: String = ""
+    callerOrg: String = ""
   ) extends DeltaSharingClient with Logging {
 
   logInfo(s"DeltaSharingRestClient with endStreamActionEnabled: $endStreamActionEnabled, " +
@@ -1311,7 +1311,7 @@ class DeltaSharingRestClient(
     } else {
       "Delta-Sharing-Spark"
     }
-    val customUserAgentPart = if (userAgent.nonEmpty) s" $userAgent" else ""
+    val customUserAgentPart = if (callerOrg.nonEmpty) s" $callerOrg" else ""
     s"$sparkAgent/$VERSION" + s" $sparkVersionString" + s" $getQueryIdString" +
       customUserAgentPart + USER_AGENT
   }
@@ -1517,7 +1517,7 @@ object DeltaSharingRestClient extends Logging {
       forStreaming: Boolean = false,
       responseFormat: String = RESPONSE_FORMAT_PARQUET,
       readerFeatures: String = "",
-      userAgent: Option[String] = None
+      callerOrg: Option[String] = None
   ): DeltaSharingClient = {
     val sqlConf = SparkSession.active.sessionState.conf
 
@@ -1599,7 +1599,7 @@ object DeltaSharingRestClient extends Logging {
         java.lang.Integer.valueOf(tokenExchangeMaxRetries),
         java.lang.Integer.valueOf(tokenExchangeMaxRetryDurationInSeconds),
         java.lang.Integer.valueOf(tokenRenewalThresholdInSeconds),
-        userAgent.filter(_.nonEmpty).getOrElse("")
+        callerOrg.filter(_.nonEmpty).getOrElse("")
       ).asInstanceOf[DeltaSharingClient]
   }
 }
