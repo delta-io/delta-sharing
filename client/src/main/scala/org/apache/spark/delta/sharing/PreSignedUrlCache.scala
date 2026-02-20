@@ -489,7 +489,7 @@ class CachedTableManager(
       if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
         logInfo(
           s"Pre-signed URLs to be registered are already close to expiring: " +
-          s"${new java.util.Date(cachedTable.expiration)}. Refreshing now."
+          s"${new java.util.Date(expirationTimestamp)}. Refreshing now."
         )
         val refreshRes = refresherWrapper(refreshToken, refresher)
         if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
