@@ -481,12 +481,16 @@ class CachedTableManager(
       throw new IllegalStateException("refresherWrapper is not defined.")
     )
     if (refs.size != 1) {
-      logWarning(s"Multiple references sharing the same QuerySpecificCachedTable: ${refs.size}")
+      logInfo(s"Multiple references sharing the same QuerySpecificCachedTable: ${refs.size}")
     }
 
     // If the pre signed urls are going to expire, we will refresh them.
     val (resolvedIdToUrl, resolvedExpiration, resolvedRefreshToken) =
       if (expirationTimestamp - System.currentTimeMillis() < refreshThresholdMs) {
+        logInfo(
+          s"Pre-signed URLs to be registered are already close to expiring: " +
+          s"${new java.util.Date(cachedTable.expiration)}. Refreshing now."
+        )
         val refreshRes = refresherWrapper(refreshToken, refresher)
         if (isValidUrlExpirationTime(refreshRes.expirationTimestamp)) {
           (refreshRes.idToUrl, refreshRes.expirationTimestamp.get, refreshRes.refreshToken)
@@ -507,7 +511,8 @@ class CachedTableManager(
         // If the table is not in cache, we will create a new entry
         logInfo(
           s"Registered a new QuerySpecificCachedTable in cache for table $tablePath, " +
-          s"queryId ${queryId}."
+          s"queryId $queryId, total urls ${resolvedIdToUrl.size}, " +
+          s"expiration ${new java.util.Date(resolvedExpiration)}."
         )
         new QuerySpecificCachedTable(
           expiration = resolvedExpiration,
