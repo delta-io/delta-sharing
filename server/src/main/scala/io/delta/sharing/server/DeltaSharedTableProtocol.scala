@@ -16,6 +16,8 @@
 
 package io.delta.sharing.server
 
+import io.delta.sharing.server.model.TemporaryCredentials
+
 /**
  *  QueryResult of query and queryCDF function, including a version, a resopnseFormat, and a list
  *  of actions.
@@ -57,4 +59,9 @@ trait DeltaSharedTableProtocol {
 
   def getPartitionSpecLogicalToPhysicalMap(inputFullHistoryShared: Boolean): Map[String, String] =
     Map.empty
+
+  def generateTemporaryTableCredential(location: Option[String]): TemporaryCredentials = {
+    throw new DeltaSharingUnsupportedOperationException(
+      "generateTemporaryTableCredential is not supported by this table")
+  }
 }
