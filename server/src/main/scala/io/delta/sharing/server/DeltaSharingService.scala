@@ -44,7 +44,12 @@ import scalapb.json4s.Printer
 
 import io.delta.sharing.server.common.JsonUtils
 import io.delta.sharing.server.config.ServerConfig
-import io.delta.sharing.server.model.{QueryStatus, SingleAction}
+import io.delta.sharing.server.model.{
+  GenerateTemporaryTableCredentialRequest,
+  QueryStatus,
+  SingleAction,
+  TemporaryCredentials
+}
 import io.delta.sharing.server.protocol._
 
 object ErrorCode {
@@ -608,6 +613,21 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       queryResult.responseFormat,
       queryResult.actions,
       includeEndStreamAction
+    )
+  }
+
+  @Post("/shares/{share}/schemas/{schema}/tables/{table}/temporary-table-credentials")
+  @ConsumesJson
+  @ProducesJson
+  def generateTemporaryTableCredential(
+      req: HttpRequest,
+      @Param("share") share: String,
+      @Param("schema") schema: String,
+      @Param("table") table: String,
+      request: GenerateTemporaryTableCredentialRequest): TemporaryCredentials = processRequest {
+    val tableConfig = sharedTableManager.getTable(share, schema, table)
+    deltaSharedTableLoader.loadTable(tableConfig).generateTemporaryTableCredential(
+      request.location
     )
   }
 

@@ -41,8 +41,16 @@ import scala.util.control.NonFatal
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
 import io.delta.sharing.server.{model, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
-import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, JsonUtils, PreSignedUrl, S3FileSigner, WasbFileSigner}
+import io.delta.sharing.server.common.{
+  AbfsFileSigner,
+  GCSFileSigner,
+  JsonUtils,
+  PreSignedUrl,
+  S3FileSigner,
+  WasbFileSigner
+}
 import io.delta.sharing.server.config.TableConfig
+import io.delta.sharing.server.credential.{Privilege, StorageCredentialVendor}
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
 
 /**
@@ -107,6 +115,10 @@ class DeltaSharedTable(
       case _ =>
         throw new IllegalStateException(s"File system ${fs.getClass} is not supported")
     }
+  }
+
+  private val storageCredentialVendor: StorageCredentialVendor = withClassLoader {
+    new StorageCredentialVendor(conf)
   }
 
   /**
@@ -331,7 +343,7 @@ class DeltaSharedTable(
       refreshToken: Option[String],
       responseFormatSet: Set[String],
       clientReaderFeaturesSet: Set[String],
-      includeEndStreamAction: Boolean): QueryResult = withClassLoader {
+      includeEndStreamAction: Boolean): io.delta.sharing.server.QueryResult = withClassLoader {
     // scalastyle:on argcount
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
@@ -518,7 +530,7 @@ class DeltaSharedTable(
       }
     }
 
-    QueryResult(snapshot.version, actions, responseFormat)
+    io.delta.sharing.server.QueryResult(snapshot.version, actions, responseFormat)
   }
 
   private def queryDataChangeSinceStartVersion(
@@ -661,7 +673,7 @@ class DeltaSharedTable(
       pageToken: Option[String],
       responseFormatSet: Set[String] = Set(DeltaSharedTable.RESPONSE_FORMAT_PARQUET),
       includeEndStreamAction: Boolean
-  ): QueryResult = withClassLoader {
+  ): io.delta.sharing.server.QueryResult = withClassLoader {
     // Step 1: validate pageToken if it's specified
     lazy val queryParamChecksum = computeChecksum(
       QueryParamChecksum(
@@ -760,7 +772,7 @@ class DeltaSharedTable(
           // Return early if we already have enough files in the current page
           if (pageSizeOpt.contains(numSignedFiles)) {
             actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
-            return QueryResult(start, actions.toSeq, responseFormat)
+            return io.delta.sharing.server.QueryResult(start, actions.toSeq, responseFormat)
           }
           val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, c.path))
           minUrlExpirationTimestamp =
@@ -779,7 +791,7 @@ class DeltaSharedTable(
           // Return early if we already have enough files in the current page
           if (pageSizeOpt.contains(numSignedFiles)) {
             actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
-            return QueryResult(start, actions.toSeq, responseFormat)
+            return io.delta.sharing.server.QueryResult(start, actions.toSeq, responseFormat)
           }
           val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path))
           minUrlExpirationTimestamp =
@@ -799,7 +811,7 @@ class DeltaSharedTable(
           // Return early if we already have enough files in the current page
           if (pageSizeOpt.contains(numSignedFiles)) {
             actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
-            return QueryResult(start, actions.toSeq, responseFormat)
+            return io.delta.sharing.server.QueryResult(start, actions.toSeq, responseFormat)
           }
           val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path))
           minUrlExpirationTimestamp =
@@ -822,8 +834,21 @@ class DeltaSharedTable(
     if (maxFiles.isDefined || includeEndStreamAction) {
       actions.append(getEndStreamAction(null, minUrlExpirationTimestamp))
     }
-    QueryResult(start, actions.toSeq, responseFormat)
+    io.delta.sharing.server.QueryResult(start, actions.toSeq, responseFormat)
   }
+
+  override def generateTemporaryTableCredential(
+      location: Option[String]): model.TemporaryCredentials =
+    withClassLoader {
+      val tableRootUri = location
+        .map(s => new URI(s))
+        .getOrElse(deltaLog.dataPath.toUri)
+      storageCredentialVendor.vendCredential(
+        tableRootUri,
+        Set(Privilege.SELECT),
+        preSignedUrlTimeoutSeconds
+      )
+    }
 
   def update(): Unit = withClassLoader {
     deltaLog.update()
