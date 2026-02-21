@@ -3908,4 +3908,41 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 568)
   }
+
+  integrationTest("temporary-table-credentials endpoint") {
+    val url = requestPath("/shares/share1/schemas/default/tables/table1/temporary-table-credentials")
+    val response = readHttpContent(
+      url,
+      Some("POST"),
+      Some("""{}"""),
+      RESPONSE_FORMAT_PARQUET,
+      None,
+      "application/json; charset=utf-8"
+    )
+    val result = JsonUtils.fromJson[TemporaryCredentials](response)
+    assert(result != null)
+    assert(result.credentials != null)
+    assert(result.credentials.expirationTime > System.currentTimeMillis())
+    assert(result.credentials.location != null && result.credentials.location.nonEmpty)
+    val hasCreds = result.credentials.awsTempCredentials != null ||
+      result.credentials.azureUserDelegationSas != null ||
+      result.credentials.gcpOauthToken != null
+    assert(hasCreds, "Expected one of awsTempCredentials, azureUserDelegationSas, or gcpOauthToken")
+  }
+
+  integrationTest("temporary-table-credentials with location override") {
+    val url = requestPath("/shares/share1/schemas/default/tables/table1/temporary-table-credentials")
+    val response = readHttpContent(
+      url,
+      Some("POST"),
+      Some("""{"location": "s3a://test-bucket/custom/path"}"""),
+      RESPONSE_FORMAT_PARQUET,
+      None,
+      "application/json; charset=utf-8"
+    )
+    val result = JsonUtils.fromJson[TemporaryCredentials](response)
+    assert(result.credentials != null)
+    assert(result.credentials.location == "s3a://test-bucket/custom/path" ||
+      result.credentials.location.contains("test-bucket"))
+  }
 }
