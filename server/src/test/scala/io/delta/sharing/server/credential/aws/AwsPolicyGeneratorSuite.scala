@@ -53,6 +53,8 @@ class AwsPolicyGeneratorSuite extends FunSuite {
     val e = intercept[IllegalArgumentException] {
       AwsPolicyGenerator.generatePolicy(Set(Privilege.SELECT), Seq.empty)
     }
+    // scalastyle:off caselocale
     assert(e.getMessage.toLowerCase.contains("location"))
+    // scalastyle:on caselocale
   }
 }

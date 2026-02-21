@@ -25,10 +25,12 @@ class CredentialContextSuite extends FunSuite {
   test("StorageScheme.fromUri") {
     assert(StorageScheme.fromUri(new URI("s3a://bucket/key")) == StorageScheme.S3)
     assert(StorageScheme.fromUri(new URI("s3://bucket/key")) == StorageScheme.S3)
-    assert(StorageScheme.fromUri(new URI("wasb://c@account.blob.core.windows.net/p")) == StorageScheme.AzureWasb)
-    assert(StorageScheme.fromUri(new URI("wasbs://c@account.blob.core.windows.net/p")) == StorageScheme.AzureWasb)
-    assert(StorageScheme.fromUri(new URI("abfss://c@account.dfs.core.windows.net/p")) == StorageScheme.AzureAbfs)
-    assert(StorageScheme.fromUri(new URI("abfs://c@account.dfs.core.windows.net/p")) == StorageScheme.AzureAbfs)
+    assert(StorageScheme.fromUri(
+      new URI("wasb://c@account.blob.core.windows.net/p")) == StorageScheme.AzureWasb)
+    assert(StorageScheme.fromUri(
+      new URI("wasbs://c@account.blob.core.windows.net/p")) == StorageScheme.AzureWasb)
+    assert(StorageScheme.fromUri(
+      new URI("abfs://c@account.dfs.core.windows.net/p")) == StorageScheme.AzureAbfs)
     assert(StorageScheme.fromUri(new URI("gs://bucket/key")) == StorageScheme.GCS)
     assert(StorageScheme.fromUri(new URI("file:///tmp/path")) == StorageScheme.File)
     assert(StorageScheme.fromUri(new URI("http://example.com/path")) == StorageScheme.Null)
