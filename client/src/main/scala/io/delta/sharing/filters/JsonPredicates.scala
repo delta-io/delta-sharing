@@ -28,6 +28,13 @@ import com.fasterxml.jackson.annotation.{JsonSubTypes, JsonTypeInfo}
 case class EvalContext(partitionValues: Map[String, String])
 
 /**
+ * The expression context containing metadata about the operation.
+ *
+ * @param collationIdentifier The collation identifier for string comparisons, if applicable.
+ */
+case class ExprContext(collationIdentifier: Option[String] = None)
+
+/**
  * The data types supported by the filtering operations.
  */
 object OpDataTypes {
@@ -243,33 +250,38 @@ case class IsNullOp(children: Seq[LeafOp]) extends NonLeafOp with UnaryOp {
  * @param children Expected size is 2.
  */
 
-case class EqualOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
+case class EqualOp(children: Seq[LeafOp], exprCtx: Option[ExprContext] = None)
+    extends NonLeafOp with BinaryOp {
   override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = EvalHelper.equal(children, ctx)
 }
 
-case class LessThanOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
+case class LessThanOp(children: Seq[LeafOp], exprCtx: Option[ExprContext] = None)
+    extends NonLeafOp with BinaryOp {
   override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = EvalHelper.lessThan(children, ctx)
 }
 
-case class LessThanOrEqualOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
+case class LessThanOrEqualOp(children: Seq[LeafOp], exprCtx: Option[ExprContext] = None)
+    extends NonLeafOp with BinaryOp {
   override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any =
     EvalHelper.lessThan(children, ctx) || EvalHelper.equal(children, ctx)
 }
 
-case class GreaterThanOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
+case class GreaterThanOp(children: Seq[LeafOp], exprCtx: Option[ExprContext] = None)
+    extends NonLeafOp with BinaryOp {
   override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any =
     !EvalHelper.lessThan(children, ctx) && !EvalHelper.equal(children, ctx)
 }
 
-case class GreaterThanOrEqualOp(children: Seq[LeafOp]) extends NonLeafOp with BinaryOp {
+case class GreaterThanOrEqualOp(children: Seq[LeafOp], exprCtx: Option[ExprContext] = None)
+    extends NonLeafOp with BinaryOp {
   override def validate(forV2: Boolean = false): Unit = validateChildren(children, forV2)
 
   override def eval(ctx: EvalContext): Any = !EvalHelper.lessThan(children, ctx)
