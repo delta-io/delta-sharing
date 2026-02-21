@@ -41,6 +41,7 @@ case class ServerConfig(
     @BeanProperty var version: java.lang.Integer,
     @BeanProperty var shares: java.util.List[ShareConfig],
     @BeanProperty var authorization: Authorization,
+    @BeanProperty var hdfsSigner: HdfsSignerConfig,
     @BeanProperty var ssl: SSLConfig,
     @BeanProperty var host: String,
     @BeanProperty var port: Int,
@@ -75,6 +76,7 @@ case class ServerConfig(
       version = null,
       shares = Collections.emptyList(),
       authorization = null,
+      hdfsSigner = null,
       ssl = null,
       host = "localhost",
       port = 80,
@@ -115,6 +117,9 @@ case class ServerConfig(
     shares.forEach(_.checkConfig())
     if (authorization != null) {
       authorization.checkConfig()
+    }
+    if (hdfsSigner != null) {
+      hdfsSigner.checkConfig()
     }
     if (ssl != null) {
       ssl.checkConfig()
@@ -247,6 +252,26 @@ case class TableConfig(
     }
     if (location == null) {
       throw new IllegalArgumentException("'location' in a table must be provided")
+    }
+  }
+}
+
+case class HdfsSignerConfig(
+    @BeanProperty var contentServerBase: String,
+    @BeanProperty var signingPrivateKeyFile: String,
+    @BeanProperty var audience: String,
+    @BeanProperty var kid: String) extends ConfigItem {
+
+  def this() {
+    this(null, null, null, null)
+  }
+
+  override def checkConfig(): Unit = {
+    if (contentServerBase == null) {
+      throw new IllegalArgumentException("'contentServerBase' in 'hdfsSigner' must be provided")
+    }
+    if (signingPrivateKeyFile == null) {
+      throw new IllegalArgumentException("'signingPrivateKeyFile' in 'hdfsSigner' must be provided")
     }
   }
 }
