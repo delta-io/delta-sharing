@@ -159,7 +159,11 @@ class CachedTableManager(
       fileId: String): PreSignedUrlCache.Rpc.GetPreSignedUrlResponse = {
     val cachedTable = cache.get(tablePath)
     if (cachedTable == null) {
-      throw new IllegalStateException(s"table $tablePath was removed")
+      throw new IllegalStateException(
+        s"Table $tablePath was removed from the cache (URL entry idle too long and cleaned up). " +
+        s"Set spark.delta.sharing.driver.accessThresholdToExpireMs (milliseconds) " +
+        s"to be the same as the query's expected execution time."
+      )
     }
     cachedTable.lastAccess = System.currentTimeMillis()
     val url = cachedTable.idToUrl.getOrElse(fileId, {
