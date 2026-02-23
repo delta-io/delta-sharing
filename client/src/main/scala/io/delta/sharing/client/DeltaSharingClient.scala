@@ -1483,7 +1483,7 @@ object DeltaSharingRestClient extends Logging {
         classOf[Long],
         classOf[Long],
         classOf[String]
-    ).newInstance(profileProvider,
+      ).newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
         java.lang.Long.valueOf(maxRetryDurationMillis),
