@@ -53,7 +53,8 @@ class TestDeltaSharingClient(
     endStreamActionEnabled: Boolean = false,
     enableAsyncQuery: Boolean = false,
     asyncQueryPollIntervalMillis: Long = 1000L,
-    asyncQueryMaxDuration: Long = Long.MaxValue
+    asyncQueryMaxDuration: Long = Long.MaxValue,
+    callerOrg: String = ""
   ) extends DeltaSharingClient {
 
   import DeltaSharingOptions.RESPONSE_FORMAT_PARQUET
