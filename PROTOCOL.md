@@ -102,6 +102,8 @@ The following table describes behavior when the **server** returns (or omits) `a
 </tr>
 </table>
 
+Note: For backward compatibility, if `accessModes` is not present, the client should assume the server only supports URL-based access. Legacy clients that do not understand `accessModes` will directly issue QueryTable requests; if the server only supports directory-based access for a table, such calls will fail.
+
 ## REST APIs
 
 Here are the list of APIs used by Delta Sharing Protocol. All of the REST APIs use [bearer tokens for authorization](https://tools.ietf.org/html/rfc6750). The `{prefix}` of each API is configurable, and servers hosted by different providers may pick up different prefixes.
@@ -849,7 +851,7 @@ Note: the `shareId` field is optional. If `shareId` is populated for a table, it
 
 Note: `location` if present must point to the root directory of the table where the delta log exists. If the server supports `dir` based access for the table, this field must be present (see `accessModes`).
 
-Note: `auxiliaryLocations` is optional and lists extra storage locations for table files (usually no more than one). These should be supported in the `auxiliaryLocation` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. Most tables use only the root directory, but if some files are stored elsewhere, the delta log in the root will include absolute paths to them. If a client can't read from an auxiliary location, it should fall back to URL access (if available) or fail the request.
+Note: `auxiliaryLocations` is optional and lists extra storage locations for table files (usually no more than one). These should be supported in the `location` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. Most tables use only the root directory, but if some files are stored elsewhere, the delta log in the root will include absolute paths to them. If a client can't read from an auxiliary location, it should fall back to URL access (if available) or fail the request.
 
 Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. If this field is not present, the client will assume that the server only supports url based access.
 
@@ -1101,7 +1103,7 @@ Note: the `shareId` field is optional. If `shareId` is populated for a table, it
 
 Note: `location` if present must point to the root directory of the table where the delta log exists. If the server supports `dir` based access for the table, this field must be present (see `accessModes`).
 
-Note: `auxiliaryLocations` is optional and lists extra storage locations for table files (usually no more than one). These should be supported in the `auxiliaryLocation` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. Most tables use only the root directory, but if some files are stored elsewhere, the delta log in the root will include absolute paths to them. If a client can't read from an auxiliary location, it should fall back to URL access (if available) or fail the request. 
+Note: `auxiliaryLocations` is optional and lists extra storage locations for table files (usually no more than one). These should be supported in the `location` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. Most tables use only the root directory, but if some files are stored elsewhere, the delta log in the root will include absolute paths to them. If a client can't read from an auxiliary location, it should fall back to URL access (if available) or fail the request. 
 
 Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. If this field is not present, the client will assume that the server only supports url based access.
 
@@ -1288,9 +1290,6 @@ Example:
       "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
       "id": "74be6365-0fc8-4a2f-8720-0de125bb5832",
       "location": "s3://deltasharing/vaccine_share/acme_vaccine_patient_data/vaccine_patients",
-      "auxiliaryLocations": [
-        "s3://secondary/deltasharing/vaccine_share/acme_vaccine_patient_data/vaccine_patients",
-      ],
       "accessModes": ["dir"]
     }
   ],
@@ -2628,7 +2627,7 @@ Accepted timestamp format by a delta sharing server: in the ISO8601 format, in t
 
 ### Generate Temporary Table Credential
 
-This API returns Cloud Tokens, which are directory (prefix) based STS tokens that grant temporary read access to the table’s root directory. This approach bypasses the pre-signing workflow, and instead provides direct read only access to the table. The query engines that are capable of processing the delta log get direct access to it, and can optimize query performance by leveraging their custom metadata optimizations, caching and distributed metadata processing. The response follows the format of [GenerateTemporaryTableCredential](https://github.com/unitycatalog/unitycatalog/blob/main/api/Apis/TemporaryCredentialsApi.md#generatetemporarytablecredentials) in UC OSS. The `location` field is also added to introduce a potentially lightweight approach which avoids the metadata call and pre-processing the delta log. It should be the location which the credentials are generated for. Clients that do not support reading from a cloud vendor can throw an error.
+This API returns Cloud Tokens, which are directory (prefix) based STS tokens that grant temporary read access to the table’s root directory. This approach bypasses the pre-signing workflow, and instead provides direct read only access to the table. The query engines that are capable of processing the delta log get direct access to it, and can optimize query performance by leveraging their custom metadata optimizations, caching and distributed metadata processing. The response follows the format of [GenerateTemporaryTableCredential](https://github.com/unitycatalog/unitycatalog/blob/main/api/Apis/TemporaryCredentialsApi.md#generatetemporarytablecredentials) in UC OSS. The `location` should be the location which the credentials are generated for. Clients that do not support reading from the cloud vendor this location belongs to can throw an error.
 
 <table>
 <tr>
@@ -2649,8 +2648,6 @@ This API returns Cloud Tokens, which are directory (prefix) based STS tokens tha
 `Authorization: Bearer {token}`
 
 Optional: `Content-Type: application/json; charset=utf-8`
-
-Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors;accessModes=url,prefix`
 </td>
 </tr>
 <tr>
