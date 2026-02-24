@@ -305,6 +305,7 @@ object TestResource {
     serverConfig.setSsl(SSLConfig(selfSigned = true, null, null, null))
     serverConfig.setEvaluatePredicateHints(true)
     serverConfig.setEvaluateJsonPredicateHints(true)
+    serverConfig.setEvaluateJsonPredicateHintsV2(true)
 
     serverConfig.save(testConfigFile.getCanonicalPath)
     testConfigFile

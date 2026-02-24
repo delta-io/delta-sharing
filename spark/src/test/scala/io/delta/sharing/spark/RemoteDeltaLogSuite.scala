@@ -110,6 +110,9 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     )
 
     // With V2 predicates disabled, the client should get json for partition filters only.
+    spark.sessionState.conf.setConfString(
+      "spark.delta.sharing.jsonPredicateV2Hints.enabled", "false"
+    )
     val expectedJson =
       """{"op":"equal",
          |"children":[
