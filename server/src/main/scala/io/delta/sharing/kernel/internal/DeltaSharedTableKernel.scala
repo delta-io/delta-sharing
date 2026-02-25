@@ -51,6 +51,7 @@ import io.delta.sharing.server.{DeltaSharedTableProtocol, DeltaSharingIllegalArg
 import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, JsonUtils, S3FileSigner, SnapshotChecker, WasbFileSigner}
 import io.delta.sharing.server.common.actions.{DeletionVectorDescriptor, DeletionVectorsTableFeature, DeltaAddFile, DeltaFormat, DeltaProtocol, DeltaSingleAction}
 import io.delta.sharing.server.config.TableConfig
+import io.delta.sharing.server.credential.{Privilege, StorageCredentialVendor}
 import io.delta.sharing.server.model._
 import io.delta.sharing.server.protocol.RefreshToken
 
@@ -105,6 +106,10 @@ class DeltaSharedTableKernel(
       case _ =>
         throw new IllegalStateException(s"File system ${fs.getClass} is not supported")
     }
+  }
+
+  private val storageCredentialVendor: StorageCredentialVendor = withClassLoader {
+    new StorageCredentialVendor(new Configuration())
   }
 
   /**
@@ -388,6 +393,18 @@ class DeltaSharedTableKernel(
       includeEndStreamAction: Boolean): QueryResult = {
 
     throw new DeltaSharingUnsupportedOperationException("not implemented yet")
+  }
+
+  override def generateTemporaryTableCredential(
+      location: Option[String]): TemporaryCredentials = withClassLoader {
+    val tableRootUri = location
+      .map(s => new URI(s))
+      .getOrElse(new URI(tableConfig.getLocation))
+    storageCredentialVendor.vendCredential(
+      tableRootUri,
+      Set(Privilege.SELECT),
+      preSignedUrlTimeoutSeconds
+    )
   }
 
   // Creates a Kernel predicate for data filtering based on
