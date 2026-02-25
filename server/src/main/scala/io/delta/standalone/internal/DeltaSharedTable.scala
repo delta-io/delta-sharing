@@ -50,7 +50,6 @@ import io.delta.sharing.server.common.{
   WasbFileSigner
 }
 import io.delta.sharing.server.config.TableConfig
-import io.delta.sharing.server.credential.{Privilege, StorageCredentialVendor}
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
 
 /**
@@ -115,10 +114,6 @@ class DeltaSharedTable(
       case _ =>
         throw new IllegalStateException(s"File system ${fs.getClass} is not supported")
     }
-  }
-
-  private val storageCredentialVendor: StorageCredentialVendor = withClassLoader {
-    new StorageCredentialVendor(conf)
   }
 
   /**
@@ -836,19 +831,6 @@ class DeltaSharedTable(
     }
     io.delta.sharing.server.QueryResult(start, actions.toSeq, responseFormat)
   }
-
-  override def generateTemporaryTableCredential(
-      location: Option[String]): model.TemporaryCredentials =
-    withClassLoader {
-      val tableRootUri = location
-        .map(s => new URI(s))
-        .getOrElse(deltaLog.dataPath.toUri)
-      storageCredentialVendor.vendCredential(
-        tableRootUri,
-        Set(Privilege.SELECT),
-        preSignedUrlTimeoutSeconds
-      )
-    }
 
   def update(): Unit = withClassLoader {
     deltaLog.update()
