@@ -55,10 +55,10 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     // sanity check for dummy client
     val client = new TestDeltaSharingClient()
     client.getFiles(
-      Table("fe", "fi", "fo"), Nil, Some(2L), None, None, Some("jsonPredicate1"), None
+      Table("fe", "fi", "fo"), Nil, Some(2L), None, None, Some("jsonPredicate1"), None, None
     )
     client.getFiles(
-      Table("fe", "fi", "fo"), Nil, Some(3L), None, None, Some("jsonPredicate2"), None
+      Table("fe", "fi", "fo"), Nil, Some(3L), None, None, Some("jsonPredicate2"), None, None
     )
     assert(TestDeltaSharingClient.limits === Seq(2L, 3L))
     assert(TestDeltaSharingClient.jsonPredicateHints === Seq("jsonPredicate1", "jsonPredicate2"))
@@ -349,7 +349,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       params.profileProvider.getCustomTablePath(params.path.toString),
       queryParamsHashId
     )
-    val deltaTableFiles = client.getCDFFiles(table, Map.empty, false)
+    val deltaTableFiles = client.getCDFFiles(table, Map.empty, false, None)
 
     // Test CDFAddFileIndex
     val addFilesIndex = new RemoteDeltaCDFAddFileIndex(params, deltaTableFiles.addFiles)
@@ -424,7 +424,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       params.profileProvider.getCustomTablePath(params.path.toString),
       queryParamsHashId
     )
-    val deltaTableFiles = client.getFiles(table, Nil, None, Some(startVersion), None, None, None)
+    val deltaTableFiles = client.getFiles(table, Nil, None, Some(startVersion), None, None, None, None)
 
     // Test BatchFileIndex list files
     val batchFilesIndex = new RemoteDeltaBatchFileIndex(params, deltaTableFiles.files)
@@ -745,7 +745,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val snapshot = new RemoteSnapshot(path, client, table)
     val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
 
-    val deltaTableFiles = client.getCDFFiles(table, Map.empty, false)
+    val deltaTableFiles = client.getCDFFiles(table, Map.empty, false, None)
 
     val addFilesIndex = new RemoteDeltaCDFAddFileIndex(params, deltaTableFiles.addFiles)
 

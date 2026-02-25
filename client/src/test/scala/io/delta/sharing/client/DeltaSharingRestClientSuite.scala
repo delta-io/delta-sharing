@@ -472,7 +472,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         versionAsOf = None,
         timestampAsOf = None,
         jsonPredicateHints = None,
-        refreshToken = None
+        refreshToken = None,
+        fileIdHash = None
       )
     }.getMessage
 
@@ -534,7 +535,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           versionAsOf = None,
           timestampAsOf = None,
           jsonPredicateHints = None,
-          refreshToken = None
+          refreshToken = None,
+          fileIdHash = None
         )
       verifyTableFiles(tableFiles)
     }
@@ -607,7 +609,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               versionAsOf = None,
               timestampAsOf = None,
               jsonPredicateHints = None,
-              refreshToken = None
+              refreshToken = None,
+              fileIdHash = None
             )
           verifyTableFiles(tableFiles)
 
@@ -620,7 +623,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
                 versionAsOf = None,
                 timestampAsOf = None,
                 jsonPredicateHints = None,
-                refreshToken = tableFiles.refreshToken
+                refreshToken = tableFiles.refreshToken,
+                fileIdHash = None
               )
             verifyTableFiles(refreshedTableFiles)
           }
@@ -642,7 +646,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         versionAsOf = Some(1L),
         timestampAsOf = None,
         jsonPredicateHints = None,
-        refreshToken = None
+        refreshToken = None,
+        fileIdHash = None
       )
       assert(tableFiles.version == 1)
       assert(tableFiles.files.size == 3)
@@ -706,7 +711,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               versionAsOf = Some(1L),
               timestampAsOf = None,
               jsonPredicateHints = None,
-              refreshToken = None
+              refreshToken = None,
+              fileIdHash = None
             )
           }.getMessage
           assert(errorMessage.contains("Reading table by version or timestamp is not supported because history sharing is not enabled on table: share1.default.table1"))
@@ -739,7 +745,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               versionAsOf = None,
               timestampAsOf = Some("2000-01-01T00:00:00Z"),
               jsonPredicateHints = None,
-              refreshToken = None
+              refreshToken = None,
+              fileIdHash = None
             )
           }.getMessage
           assert(errorMessage.contains("The provided timestamp"))
@@ -768,7 +775,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               versionAsOf = None,
               timestampAsOf = Some("abc"),
               jsonPredicateHints = None,
-              refreshToken = None
+              refreshToken = None,
+              fileIdHash = None
             )
           }.getMessage
           assert(errorMessage.contains("Reading table by version or timestamp is not supported because history sharing is not enabled on table: share1.default.table1"))
@@ -790,6 +798,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         val tableFiles = client.getFiles(
           Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
           1L,
+          None,
           None
         )
         assert(tableFiles.version == 1)
@@ -894,7 +903,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       val tableFiles = client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 1L, Some(1L)
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 1L, Some(1L), None
       )
       assert(tableFiles.version == 1)
       assert(tableFiles.addFiles.size == 3)
@@ -940,7 +949,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       val tableFiles = client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 2L, Some(3L)
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 2L, Some(3L), None
       )
       assert(tableFiles.version == 2)
       assert(tableFiles.addFiles.size == 1)
@@ -989,7 +998,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
       val tableFiles = client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 4L, Some(5L)
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 4L, Some(5L), None
       )
       assert(tableFiles.version == 4)
       assert(tableFiles.addFiles.size == 0)
@@ -1024,6 +1033,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             client.getFiles(
               Table(name = "table1", schema = "default", share = "share1"),
               1,
+              None,
               None
             )
           }.getMessage
@@ -1033,6 +1043,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             client.getFiles(
               Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
               -1,
+              None,
               None
             )
           }.getMessage
@@ -1042,7 +1053,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             client.getFiles(
               Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
               2,
-              Some(1)
+              Some(1),
+              None
             )
           }.getMessage
           assert(errorMessage.contains("startingVersion(2) must be smaller than or equal to " +
@@ -1073,7 +1085,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           val tableFiles = client.getCDFFiles(
             Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
             cdfOptions,
-            false
+            false,
+            None
           )
           assert(tableFiles.version == 0)
           assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
@@ -1166,7 +1179,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val tableFiles = client.getCDFFiles(
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
         cdfOptions,
-        includeHistoricalMetadata = true
+        includeHistoricalMetadata = true,
+        fileIdHash = None
       )
       assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
@@ -1199,7 +1213,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val tableFiles = client.getCDFFiles(
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
         cdfOptions,
-        includeHistoricalMetadata = false
+        includeHistoricalMetadata = false,
+        fileIdHash = None
       )
       assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
@@ -1229,7 +1244,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val tableFiles = client.getCDFFiles(
         Table(name = "cdf_table_with_vacuum", schema = "default", share = "share8"),
         cdfOptions,
-        false
+        false,
+        None
       )
       assert(tableFiles.version == 0)
       assert(Protocol(minReaderVersion = 1) == tableFiles.protocol)
@@ -1257,7 +1273,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             client.getCDFFiles(
               Table(name = "cdf_table_missing_log", schema = "default", share = "share8"),
               cdfOptions,
-              false
+              false,
+              None
             )
           }.getMessage
           assert(errorMessage.contains("""400 Bad Request for query"""))
@@ -1288,7 +1305,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             val tableFiles = client.getCDFFiles(
               Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
               cdfOptions,
-              false
+              false,
+              None
             )
           }.getMessage
           assert(errorMessage.contains("Please use a timestamp greater"))
@@ -1317,7 +1335,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             val tableFiles = client.getCDFFiles(
               Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
               cdfOptions,
-              false
+              false,
+              None
             )
           }.getMessage
           assert(errorMessage.contains("Please use a timestamp less than or equal to"))
@@ -1343,7 +1362,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             client.getCDFFiles(
               Table(name = "table1", schema = "default", share = "share1"),
               cdfOptions,
-              false
+              false,
+              None
             )
           }.getMessage
           assert(errorMessage.contains("cdf is not enabled on table share1.default.table1"))
@@ -1575,13 +1595,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           httpRequest: HttpRequestBase,
           allowNoContent: Boolean = false,
           fetchAsOneString: Boolean = false,
-          setIncludeEndStreamAction: Boolean = false
-        ): (Option[Long], Map[String, String], Seq[String]) = {
+          setIncludeEndStreamAction: Boolean = false,
+          requestFileIdHash: Option[String]
+        ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
           // Return a mock response with the test JSON
           (
             None,
             Map.empty,
-            Seq(jsonResponse)
+            Seq(jsonResponse),
+            None
           )
         }
       }
@@ -1636,14 +1658,16 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         httpRequest: HttpRequestBase,
         allowNoContent: Boolean = false,
         fetchAsOneString: Boolean = false,
-        setIncludeEndStreamAction: Boolean = false
-      ): (Option[Long], Map[String, String], Seq[String]) = {
+        setIncludeEndStreamAction: Boolean = false,
+        requestFileIdHash: Option[String]
+      ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
         capturedRequest = Some(httpRequest)
         // Return a mock response
         (
           None,
           Map.empty,
-          Seq("""{"credentials":{"location":"s3://custom/location/path","awsTempCredentials":{"accessKeyId":"test-key","secretAccessKey":"test-secret","sessionToken":"test-token"},"expirationTime":1}}""")
+          Seq("""{"credentials":{"location":"s3://custom/location/path","awsTempCredentials":{"accessKeyId":"test-key","secretAccessKey":"test-secret","sessionToken":"test-token"},"expirationTime":1}}"""),
+          None
         )
       }
     }
@@ -1689,13 +1713,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         httpRequest: HttpRequestBase,
         allowNoContent: Boolean = false,
         fetchAsOneString: Boolean = false,
-        setIncludeEndStreamAction: Boolean = false
-      ): (Option[Long], Map[String, String], Seq[String]) = {
+        setIncludeEndStreamAction: Boolean = false,
+        requestFileIdHash: Option[String]
+      ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
         capturedRequest = Some(httpRequest)
         (
           None,
           Map.empty,
-          Seq("""{"credentials":{"location":"s3://default/path","awsTempCredentials":{"accessKeyId":"test-key","secretAccessKey":"test-secret","sessionToken":"test-token"},"expirationTime":1}}""")
+          Seq("""{"credentials":{"location":"s3://default/path","awsTempCredentials":{"accessKeyId":"test-key","secretAccessKey":"test-secret","sessionToken":"test-token"},"expirationTime":1}}"""),
+          None
         )
       }
     }
@@ -1735,8 +1761,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         httpRequest: HttpRequestBase,
         allowNoContent: Boolean = false,
         fetchAsOneString: Boolean = false,
-        setIncludeEndStreamAction: Boolean = false
-      ): (Option[Long], Map[String, String], Seq[String]) = {
+        setIncludeEndStreamAction: Boolean = false,
+        requestFileIdHash: Option[String]
+      ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
         // Return a mock response with multiple lines (invalid for this endpoint)
         (
           None,
@@ -1744,7 +1771,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           Seq(
             """{"credentials":{"location":"s3://some/path/to/table","awsTempCredentials":{"accessKeyId":"some-access-key-id","secretAccessKey":"some-secret-access-key","sessionToken":"some-session-token"},"expirationTime":1}}""",
             """{"extraLine":"this should not be here"}"""
-          )
+          ),
+          None
         )
       }
     }
@@ -1769,13 +1797,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         httpRequest: HttpRequestBase,
         allowNoContent: Boolean = false,
         fetchAsOneString: Boolean = false,
-        setIncludeEndStreamAction: Boolean = false
-      ): (Option[Long], Map[String, String], Seq[String]) = {
+        setIncludeEndStreamAction: Boolean = false,
+        requestFileIdHash: Option[String]
+      ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
         // Return a mock response with no lines (invalid)
         (
           None,
           Map.empty,
-          Seq.empty
+          Seq.empty,
+          None
         )
       }
     }
@@ -1801,12 +1831,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         httpRequest: HttpRequestBase,
         allowNoContent: Boolean = false,
         fetchAsOneString: Boolean = false,
-        setIncludeEndStreamAction: Boolean = false
-      ): (Option[Long], Map[String, String], Seq[String]) = {
+        setIncludeEndStreamAction: Boolean = false,
+        requestFileIdHash: Option[String]
+      ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
         (
           None,
           Map.empty,
-          Seq("""{"credentials":{"location":"s3://path","invalid-json""")
+          Seq("""{"credentials":{"location":"s3://path","invalid-json"""),
+          None
         )
       }
     }
@@ -1831,12 +1863,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         httpRequest: HttpRequestBase,
         allowNoContent: Boolean = false,
         fetchAsOneString: Boolean = false,
-        setIncludeEndStreamAction: Boolean = false
-      ): (Option[Long], Map[String, String], Seq[String]) = {
+        setIncludeEndStreamAction: Boolean = false,
+        requestFileIdHash: Option[String]
+      ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
         (
           None,
           Map.empty,
-          Seq("""{"credentials":{"location":"s3://path","expirationTime":1}}""")
+          Seq("""{"credentials":{"location":"s3://path","expirationTime":1}}"""),
+          None
         )
       }
     }
@@ -1862,12 +1896,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         httpRequest: HttpRequestBase,
         allowNoContent: Boolean = false,
         fetchAsOneString: Boolean = false,
-        setIncludeEndStreamAction: Boolean = false
-      ): (Option[Long], Map[String, String], Seq[String]) = {
+        setIncludeEndStreamAction: Boolean = false,
+        requestFileIdHash: Option[String]
+      ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
         (
           None,
           Map.empty,
-          Seq("""{"credentials":null}""")
+          Seq("""{"credentials":null}"""),
+          None
         )
       }
     }
@@ -1892,12 +1928,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         httpRequest: HttpRequestBase,
         allowNoContent: Boolean = false,
         fetchAsOneString: Boolean = false,
-        setIncludeEndStreamAction: Boolean = false
-      ): (Option[Long], Map[String, String], Seq[String]) = {
+        setIncludeEndStreamAction: Boolean = false,
+        requestFileIdHash: Option[String]
+      ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
         (
           None,
           Map.empty,
-          Seq("""["this", "is", "an", "array"]""")
+          Seq("""["this", "is", "an", "array"]"""),
+          None
         )
       }
     }
@@ -1921,12 +1959,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         httpRequest: HttpRequestBase,
         allowNoContent: Boolean = false,
         fetchAsOneString: Boolean = false,
-        setIncludeEndStreamAction: Boolean = false
-      ): (Option[Long], Map[String, String], Seq[String]) = {
+        setIncludeEndStreamAction: Boolean = false,
+        requestFileIdHash: Option[String]
+      ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
         (
           None,
           Map.empty,
-          Seq("""{}""")
+          Seq("""{}"""),
+          None
         )
       }
     }
@@ -1955,7 +1995,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         override def getNDJson(
             target: String,
             requireVersion: Boolean,
-            setIncludeEndStreamAction: Boolean
+            setIncludeEndStreamAction: Boolean,
+            requestFileIdHash: Option[String]
         ): ParsedDeltaSharingResponse = {
           // Return a mock response with a different version than requested
           ParsedDeltaSharingResponse(
@@ -2007,7 +2048,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         override def getNDJsonPost[T: Manifest](
             target: String,
             data: T,
-            setIncludeEndStreamAction: Boolean
+            setIncludeEndStreamAction: Boolean,
+            requestFileIdHash: Option[String]
         ): ParsedDeltaSharingResponse = {
           // Return a mock delta format response with a different version than requested
           ParsedDeltaSharingResponse(
@@ -2028,7 +2070,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         if (isMSTQueryFlag) {
           // For MST queries, should throw exception when versions don't match
           val exception = intercept[IllegalArgumentException] {
-            client.getFiles(table, Nil, None, Some(requestedVersion), None, None, None)
+            client.getFiles(table, Nil, None, Some(requestedVersion), None, None, None, None)
           }
           assert(exception.getMessage.contains(
             s"The returned table version $returnedVersion does not match the requested versionAsOf $requestedVersion"
@@ -2036,12 +2078,166 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           assert(exception.getMessage.contains("in getFiles"))
         } else {
           // For non-MST queries, should succeed and return the server's version
-          val files = client.getFiles(table, Nil, None, Some(requestedVersion), None, None, None)
+          val files = client.getFiles(table, Nil, None, Some(requestedVersion), None, None, None, None)
           assert(files.version == returnedVersion)
         }
       } finally {
         client.close()
       }
+    }
+  }
+
+  test("fileIdHash - getFiles with valid value and server echoes same") {
+    val client = new DeltaSharingRestClient(
+      profileProvider = new TestProfileProvider(false),
+      responseFormat = RESPONSE_FORMAT_DELTA
+    ) {
+      override def getNDJsonPost[T: Manifest](
+          target: String,
+          data: T,
+          setIncludeEndStreamAction: Boolean,
+          requestFileIdHash: Option[String]
+      ): ParsedDeltaSharingResponse = {
+        ParsedDeltaSharingResponse(
+          version = 1L,
+          respondedFormat = RESPONSE_FORMAT_DELTA,
+          lines = Seq(
+            """{"protocol":{"minReaderVersion":1}}""",
+            """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}"""
+          ),
+          capabilitiesMap = Map.empty,
+          fileIdHash = Some("md5")
+        )
+      }
+    }
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      val files = client.getFiles(table, Nil, None, None, None, None, None, Some("md5"))
+      assert(files.version == 1L)
+    } finally {
+      client.close()
+    }
+  }
+
+  test("fileIdHash - getFiles case-insensitive verification (client sends MD5, server echoes md5)") {
+    val client = new DeltaSharingRestClient(
+      profileProvider = new TestProfileProvider(false),
+      responseFormat = RESPONSE_FORMAT_DELTA
+    ) {
+      override def getNDJsonPost[T: Manifest](
+          target: String,
+          data: T,
+          setIncludeEndStreamAction: Boolean,
+          requestFileIdHash: Option[String]
+      ): ParsedDeltaSharingResponse = {
+        ParsedDeltaSharingResponse(
+          version = 1L,
+          respondedFormat = RESPONSE_FORMAT_DELTA,
+          lines = Seq(
+            """{"protocol":{"minReaderVersion":1}}""",
+            """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{}","partitionColumns":[]}}"""
+          ),
+          capabilitiesMap = Map.empty,
+          fileIdHash = Some("md5")
+        )
+      }
+    }
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      val files = client.getFiles(table, Nil, None, None, None, None, None, Some("MD5"))
+      assert(files.version == 1L)
+    } finally {
+      client.close()
+    }
+  }
+
+  test("fileIdHash - getFiles fails when client sends header but server does not return it") {
+    val client = new DeltaSharingRestClient(
+      profileProvider = new TestProfileProvider(false),
+      responseFormat = RESPONSE_FORMAT_DELTA
+    ) {
+      override def getNDJsonPost[T: Manifest](
+          target: String,
+          data: T,
+          setIncludeEndStreamAction: Boolean,
+          requestFileIdHash: Option[String]
+      ): ParsedDeltaSharingResponse = {
+        ParsedDeltaSharingResponse(
+          version = 1L,
+          respondedFormat = RESPONSE_FORMAT_DELTA,
+          lines = Seq(
+            """{"protocol":{"minReaderVersion":1}}""",
+            """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{}","partitionColumns":[]}}"""
+          ),
+          capabilitiesMap = Map.empty,
+          fileIdHash = None
+        )
+      }
+    }
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      val e = intercept[IllegalStateException] {
+        client.getFiles(table, Nil, None, None, None, None, None, Some("md5"))
+      }
+      assert(e.getMessage.contains("fileidhash"))
+      assert(e.getMessage.contains("did not return"))
+    } finally {
+      client.close()
+    }
+  }
+
+  test("fileIdHash - getFiles fails when server returns different value than client sent") {
+    val client = new DeltaSharingRestClient(
+      profileProvider = new TestProfileProvider(false),
+      responseFormat = RESPONSE_FORMAT_DELTA
+    ) {
+      override def getNDJsonPost[T: Manifest](
+          target: String,
+          data: T,
+          setIncludeEndStreamAction: Boolean,
+          requestFileIdHash: Option[String]
+      ): ParsedDeltaSharingResponse = {
+        ParsedDeltaSharingResponse(
+          version = 1L,
+          respondedFormat = RESPONSE_FORMAT_DELTA,
+          lines = Seq(
+            """{"protocol":{"minReaderVersion":1}}""",
+            """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{}","partitionColumns":[]}}"""
+          ),
+          capabilitiesMap = Map.empty,
+          fileIdHash = Some("sha256")
+        )
+      }
+    }
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      val e = intercept[IllegalStateException] {
+        client.getFiles(table, Nil, None, None, None, None, None, Some("md5"))
+      }
+      assert(e.getMessage.contains("fileidhash"))
+      assert(e.getMessage.contains("sha256"))
+      assert(e.getMessage.contains("md5"))
+    } finally {
+      client.close()
+    }
+  }
+
+  test("fileIdHash - getFiles rejects invalid value") {
+    val client = new DeltaSharingRestClient(
+      profileProvider = new TestProfileProvider(false),
+      responseFormat = RESPONSE_FORMAT_DELTA
+    )
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      val e = intercept[IllegalArgumentException] {
+        client.getFiles(table, Nil, None, None, None, None, None, Some("invalid"))
+      }
+      assert(e.getMessage.contains("fileidhash"))
+      assert(e.getMessage.contains("must be one of"))
+      assert(e.getMessage.contains("md5"))
+      assert(e.getMessage.contains("sha256"))
+    } finally {
+      client.close()
     }
   }
 

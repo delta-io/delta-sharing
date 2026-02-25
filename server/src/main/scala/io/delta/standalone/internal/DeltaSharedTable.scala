@@ -316,7 +316,7 @@ class DeltaSharedTable(
   }
 
   // scalastyle:off argcount
-  def query(
+  override def query(
       includeFiles: Boolean,
       predicateHints: Seq[String],
       jsonPredicateHints: Option[String],
@@ -654,12 +654,12 @@ class DeltaSharedTable(
     actions.toSeq
   }
 
-  def queryCDF(
+  override def queryCDF(
       cdfOptions: Map[String, String],
-      includeHistoricalMetadata: Boolean = false,
+      includeHistoricalMetadata: Boolean,
       maxFiles: Option[Int],
       pageToken: Option[String],
-      responseFormatSet: Set[String] = Set(DeltaSharedTable.RESPONSE_FORMAT_PARQUET),
+      responseFormatSet: Set[String],
       includeEndStreamAction: Boolean
   ): QueryResult = withClassLoader {
     // Step 1: validate pageToken if it's specified
