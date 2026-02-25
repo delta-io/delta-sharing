@@ -41,14 +41,7 @@ import scala.util.control.NonFatal
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
 import io.delta.sharing.server.{model, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
-import io.delta.sharing.server.common.{
-  AbfsFileSigner,
-  GCSFileSigner,
-  JsonUtils,
-  PreSignedUrl,
-  S3FileSigner,
-  WasbFileSigner
-}
+import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, JsonUtils, PreSignedUrl, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
 
@@ -338,7 +331,7 @@ class DeltaSharedTable(
       refreshToken: Option[String],
       responseFormatSet: Set[String],
       clientReaderFeaturesSet: Set[String],
-      includeEndStreamAction: Boolean): io.delta.sharing.server.QueryResult = withClassLoader {
+      includeEndStreamAction: Boolean): QueryResult = withClassLoader {
     // scalastyle:on argcount
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
@@ -525,7 +518,7 @@ class DeltaSharedTable(
       }
     }
 
-    io.delta.sharing.server.QueryResult(snapshot.version, actions, responseFormat)
+    QueryResult(snapshot.version, actions, responseFormat)
   }
 
   private def queryDataChangeSinceStartVersion(
@@ -668,7 +661,7 @@ class DeltaSharedTable(
       pageToken: Option[String],
       responseFormatSet: Set[String] = Set(DeltaSharedTable.RESPONSE_FORMAT_PARQUET),
       includeEndStreamAction: Boolean
-  ): io.delta.sharing.server.QueryResult = withClassLoader {
+  ): QueryResult = withClassLoader {
     // Step 1: validate pageToken if it's specified
     lazy val queryParamChecksum = computeChecksum(
       QueryParamChecksum(
@@ -767,7 +760,7 @@ class DeltaSharedTable(
           // Return early if we already have enough files in the current page
           if (pageSizeOpt.contains(numSignedFiles)) {
             actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
-            return io.delta.sharing.server.QueryResult(start, actions.toSeq, responseFormat)
+            return QueryResult(start, actions.toSeq, responseFormat)
           }
           val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, c.path))
           minUrlExpirationTimestamp =
@@ -786,7 +779,7 @@ class DeltaSharedTable(
           // Return early if we already have enough files in the current page
           if (pageSizeOpt.contains(numSignedFiles)) {
             actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
-            return io.delta.sharing.server.QueryResult(start, actions.toSeq, responseFormat)
+            return QueryResult(start, actions.toSeq, responseFormat)
           }
           val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, a.path))
           minUrlExpirationTimestamp =
@@ -806,7 +799,7 @@ class DeltaSharedTable(
           // Return early if we already have enough files in the current page
           if (pageSizeOpt.contains(numSignedFiles)) {
             actions.append(getEndStreamAction(tokenGenerator(v, idx), minUrlExpirationTimestamp))
-            return io.delta.sharing.server.QueryResult(start, actions.toSeq, responseFormat)
+            return QueryResult(start, actions.toSeq, responseFormat)
           }
           val preSignedUrl = fileSigner.sign(absolutePath(deltaLog.dataPath, r.path))
           minUrlExpirationTimestamp =
@@ -829,7 +822,7 @@ class DeltaSharedTable(
     if (maxFiles.isDefined || includeEndStreamAction) {
       actions.append(getEndStreamAction(null, minUrlExpirationTimestamp))
     }
-    io.delta.sharing.server.QueryResult(start, actions.toSeq, responseFormat)
+    QueryResult(start, actions.toSeq, responseFormat)
   }
 
   def update(): Unit = withClassLoader {
