@@ -26,7 +26,7 @@ import javax.annotation.Nullable
 import scala.collection.JavaConverters._
 import scala.util.Try
 
-import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
+import com.linecorp.armeria.common.{AggregatedHttpRequest, HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
 import com.linecorp.armeria.common.auth.OAuth2Token
 import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
@@ -617,18 +617,38 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   }
 
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/temporary-table-credentials")
-  @ConsumesJson
-  @ProducesJson
   def generateTemporaryTableCredential(
       req: HttpRequest,
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
-      request: GenerateTemporaryTableCredentialRequest): TemporaryCredentials = processRequest {
+      aggregatedRequest: AggregatedHttpRequest): HttpResponse = processRequest {
+    val request = parseTemporaryTableCredentialRequest(aggregatedRequest)
     val tableConfig = sharedTableManager.getTable(share, schema, table)
-    deltaSharedTableLoader.loadTable(tableConfig).generateTemporaryTableCredential(
-      request.location
-    )
+    val result = deltaSharedTableLoader
+      .loadTable(tableConfig, useKernel = true)
+      .generateTemporaryTableCredential(
+        request.location
+      )
+    HttpResponse.of(
+      HttpStatus.OK,
+      MediaType.JSON_UTF_8,
+      JsonUtils.toJson(result))
+  }
+
+  private def parseTemporaryTableCredentialRequest(
+      aggregatedRequest: AggregatedHttpRequest): GenerateTemporaryTableCredentialRequest = {
+    val content = aggregatedRequest.contentUtf8()
+    if (content == null || content.trim.isEmpty) {
+      GenerateTemporaryTableCredentialRequest(location = None)
+    } else {
+      try {
+        JsonUtils.fromJson[GenerateTemporaryTableCredentialRequest](content)
+      } catch {
+        case _: Exception =>
+          GenerateTemporaryTableCredentialRequest(location = None)
+      }
+    }
   }
 
   private def streamingOutput(
