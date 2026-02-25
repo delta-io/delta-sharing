@@ -17,6 +17,7 @@
 package io.delta.sharing.server
 
 import java.io.{ByteArrayOutputStream, File, FileNotFoundException}
+import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.AccessDeniedException
 import java.security.MessageDigest
@@ -39,11 +40,13 @@ import io.delta.standalone.internal.DeltaDataSource
 import io.delta.standalone.internal.DeltaSharedTable
 import net.sourceforge.argparse4j.ArgumentParsers
 import org.apache.commons.io.FileUtils
+import org.apache.hadoop.conf.Configuration
 import org.slf4j.LoggerFactory
 import scalapb.json4s.Printer
 
 import io.delta.sharing.server.common.JsonUtils
 import io.delta.sharing.server.config.ServerConfig
+import io.delta.sharing.server.credential.{Privilege, StorageCredentialVendor}
 import io.delta.sharing.server.model.{
   GenerateTemporaryTableCredentialRequest,
   QueryStatus,
@@ -625,11 +628,21 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       aggregatedRequest: AggregatedHttpRequest): HttpResponse = processRequest {
     val request = parseTemporaryTableCredentialRequest(aggregatedRequest)
     val tableConfig = sharedTableManager.getTable(share, schema, table)
-    val result = deltaSharedTableLoader
-      .loadTable(tableConfig, useKernel = true)
-      .generateTemporaryTableCredential(
-        request.location
-      )
+    if (!tableConfig.historyShared) {
+      throw new DeltaSharingIllegalArgumentException(
+        "Temporary table credentials are not supported because history sharing is not enabled " +
+        s"on table: $share.$schema.$table")
+    }
+    val uri = request.location
+      .map(s => new URI(s))
+      .getOrElse(new URI(tableConfig.getLocation))
+    val conf = new Configuration()
+    val vendor = new StorageCredentialVendor(conf)
+    val result = vendor.vendCredential(
+      uri,
+      Set(Privilege.SELECT),
+      serverConfig.preSignedUrlTimeoutSeconds
+    )
     HttpResponse.of(
       HttpStatus.OK,
       MediaType.JSON_UTF_8,
