@@ -570,12 +570,13 @@ class DeltaSharingRestClient(
           getFullTableName(table) + s" with maxFiles=$maxFilesPerReq, " +
           getDsQueryIdForLogging
       )
-      val (v, fmt, lns, _, respFileIdHash) = getFilesByPage(table, target, request, fileIdHash)
-      logInfo(s"Took ${System.currentTimeMillis() - start} ms to query ${lns.size} files for " +
+      val (version, respondedFormat, lines, _, respFileIdHash) =
+        getFilesByPage(table, target, request, fileIdHash)
+      logInfo(s"Took ${System.currentTimeMillis() - start} ms to query ${lines.size} files for " +
         "table " + getFullTableName(table) + s" with [$startingVersion, $endingVersion]," +
         getDsQueryIdForLogging
       )
-      (v, fmt, lns, respFileIdHash)
+      (version, respondedFormat, lines, respFileIdHash)
     } else {
       val response = getNDJsonPost(
         target = target,
@@ -708,6 +709,7 @@ class DeltaSharingRestClient(
         expectedProtocol = protocol,
         expectedMetadata = metadata,
         pageNumber = numPages,
+        // Do not set EndStreamAction for async queries yet, and set it for sync queries.
         setIncludeEndStreamAction = !enableAsyncQuery,
         requestFileIdHash = fileIdHash
       )
