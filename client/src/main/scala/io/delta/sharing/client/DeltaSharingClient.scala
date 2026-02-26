@@ -1466,8 +1466,9 @@ object DeltaSharingRestClient extends Logging {
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
   val RESPONSE_TABLE_VERSION_HEADER_KEY = "Delta-Table-Version"
   val FILEIDHASH_HEADER = "fileidhash"
-  /** Hardcoded allowed values for fileidhash header (no config). */
-  val FILEIDHASH_VALID_VALUES = Set("md5", "sha256")
+  val FILEIDHASH_MD5 = "md5"
+  val FILEIDHASH_SHA256 = "sha256"
+  val FILEIDHASH_VALID_VALUES = Set(FILEIDHASH_MD5, FILEIDHASH_SHA256)
   val RESPONSE_FORMAT = "responseformat"
   val READER_FEATURES = "readerfeatures"
   val DELTA_SHARING_CAPABILITIES_ASYNC_READ = "asyncquery"
