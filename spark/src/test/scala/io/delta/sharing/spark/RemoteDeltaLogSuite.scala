@@ -424,7 +424,8 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
       params.profileProvider.getCustomTablePath(params.path.toString),
       queryParamsHashId
     )
-    val deltaTableFiles = client.getFiles(table, Nil, None, Some(startVersion), None, None, None, None)
+    val deltaTableFiles = client.getFiles(
+      table, Nil, None, Some(startVersion), None, None, None, None)
 
     // Test BatchFileIndex list files
     val batchFilesIndex = new RemoteDeltaBatchFileIndex(params, deltaTableFiles.files)
