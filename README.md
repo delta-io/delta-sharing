@@ -669,6 +669,53 @@ docker run -p <host-port>:<container-port> \
 
 Note that `<container-port>` should be the same as the port defined inside the config file.
 
+### Local testing with SBT (Azure)
+
+For local Azure Data Lake Storage Gen2 testing with SBT, add your config directory (with `core-site.xml`) to the server's resource path and run the server:
+
+```
+build/sbt \
+  "set server / Compile / unmanagedResourceDirectories += file(\"/path/to/server-configs\")" \
+  "server/run --config=/path/to/server-configs/delta-sharing-server.yaml"
+```
+
+Example `delta-sharing-server.yaml`:
+
+```yaml
+version: 1
+shares:
+- name: "example"
+  schemas:
+  - name: "default"
+    tables:
+    - name: "example-table"
+      location: "abfss://<container>@<account>.dfs.core.windows.net/<table-path>"
+      id: "00000000-0000-0000-0000-000000000001"
+host: "localhost"
+port: 8080
+endpoint: "/delta-sharing"
+authorization:
+  bearerToken: "change-me"
+```
+
+Example `core-site.xml` (Shared Key auth):
+
+```xml
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>fs.azure.account.auth.type.<account>.dfs.core.windows.net</name>
+    <value>SharedKey</value>
+  </property>
+  <property>
+    <name>fs.azure.account.key.<account>.dfs.core.windows.net</name>
+    <value>YOUR-ACCOUNT-KEY</value>
+  </property>
+</configuration>
+```
+
+Make sure the account name in the table `location` matches the `<account>` name in `core-site.xml`.
 
 Refer to [SBT docs](https://www.scala-sbt.org/1.x/docs/Command-Line-Reference.html) for more commands.
 
