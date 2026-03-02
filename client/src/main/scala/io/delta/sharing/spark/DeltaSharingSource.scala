@@ -435,7 +435,8 @@ case class DeltaSharingSource(
         versionAsOf = Some(fromVersion),
         timestampAsOf = None,
         jsonPredicateHints = None,
-        refreshToken = None
+        refreshToken = None,
+        fileIdHash = None
       )
       latestRefreshFunc = _ => {
         val queryTimestamp = System.currentTimeMillis()
@@ -446,7 +447,8 @@ case class DeltaSharingSource(
           versionAsOf = Some(fromVersion),
           timestampAsOf = None,
           jsonPredicateHints = None,
-          refreshToken = None
+          refreshToken = None,
+          fileIdHash = None
         ).files
         var minUrlExpiration: Option[Long] = None
         val idToUrl = files.map { f =>
@@ -499,12 +501,12 @@ case class DeltaSharingSource(
       // If isStartingVersion is false, it means to fetch table changes since fromVersion, not
       // including files from previous versions.
       val tableFiles = deltaLog.client.getFiles(
-        deltaLog.table, fromVersion, Some(endingVersionForQuery)
+        deltaLog.table, fromVersion, Some(endingVersionForQuery), None
       )
       latestRefreshFunc = _ => {
         val queryTimestamp = System.currentTimeMillis()
         val addFiles = deltaLog.client.getFiles(
-          deltaLog.table, fromVersion, Some(endingVersionForQuery)
+          deltaLog.table, fromVersion, Some(endingVersionForQuery), None
         ).addFiles
         var minUrlExpiration: Option[Long] = None
         val idToUrl = addFiles.map { a =>
@@ -577,7 +579,8 @@ case class DeltaSharingSource(
         DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
         DeltaSharingOptions.CDF_END_VERSION -> endingVersionForQuery.toString
       ),
-      true
+      true,
+      None
     )
     latestRefreshFunc = _ => {
       val queryTimestamp = System.currentTimeMillis()
@@ -587,7 +590,8 @@ case class DeltaSharingSource(
           DeltaSharingOptions.CDF_START_VERSION -> fromVersion.toString,
           DeltaSharingOptions.CDF_END_VERSION -> endingVersionForQuery.toString
         ),
-        true
+        true,
+        None
       )
 
       val idToUrl = DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)

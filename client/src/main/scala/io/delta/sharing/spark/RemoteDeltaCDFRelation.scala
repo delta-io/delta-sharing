@@ -46,7 +46,7 @@ case class RemoteDeltaCDFRelation(
   override def buildScan(
       requiredColumns: Array[String],
       filters: Array[Filter]): RDD[Row] = {
-    val deltaTabelFiles = client.getCDFFiles(table, cdfOptions, false)
+    val deltaTabelFiles = client.getCDFFiles(table, cdfOptions, false, None)
 
     DeltaSharingCDFReader.changesToDF(
       new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider),
@@ -57,7 +57,7 @@ case class RemoteDeltaCDFRelation(
       DeltaTableUtils.addCdcSchema(deltaTabelFiles.metadata.schemaString),
       false,
       _ => {
-        val d = client.getCDFFiles(table, cdfOptions, false)
+        val d = client.getCDFFiles(table, cdfOptions, false, None)
         TableRefreshResult(
           DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
           DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles),

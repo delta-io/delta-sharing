@@ -109,7 +109,8 @@ class TestDeltaSharingClient(
     versionAsOf: Option[Long],
     timestampAsOf: Option[String],
     jsonPredicateHints: Option[String],
-    refreshToken: Option[String]): DeltaTableFiles = {
+    refreshToken: Option[String],
+    fileIdHash: Option[String]): DeltaTableFiles = {
     limit.foreach(lim => TestDeltaSharingClient.limits = TestDeltaSharingClient.limits :+ lim)
     jsonPredicateHints.foreach(p => {
       TestDeltaSharingClient.jsonPredicateHints = TestDeltaSharingClient.jsonPredicateHints :+ p
@@ -147,8 +148,8 @@ class TestDeltaSharingClient(
   override def getFiles(
       table: Table,
       startingVersion: Long,
-      endingVersion: Option[Long]
-  ): DeltaTableFiles = {
+      endingVersion: Option[Long],
+      fileIdHash: Option[String]): DeltaTableFiles = {
     // This is not used anywhere.
     DeltaTableFiles(
       0, Protocol(0), metadata, Nil, Nil, Nil, Nil, respondedFormat = RESPONSE_FORMAT_PARQUET
@@ -158,7 +159,8 @@ class TestDeltaSharingClient(
   override def getCDFFiles(
       table: Table,
       cdfOptions: Map[String, String],
-      includeHistoricalMetadata: Boolean): DeltaTableFiles = {
+      includeHistoricalMetadata: Boolean,
+      fileIdHash: Option[String]): DeltaTableFiles = {
     val addFiles: Seq[AddFileForCDF] = Seq(
       AddFileForCDF("cdf_add1.parquet", "cdf_add1", Map.empty, 100, 1, 1000)
     )

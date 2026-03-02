@@ -202,7 +202,8 @@ class RemoteSnapshot(
         versionAsOf,
         timestampAsOf,
         jsonPredicateHints = None,
-        refreshToken = None
+        refreshToken = None,
+        fileIdHash = None
       )
       checkProtocolNotChange(tableFiles.protocol)
       checkSchemaNotChange(tableFiles.metadata)
@@ -265,7 +266,7 @@ class RemoteSnapshot(
       val implicits = spark.implicits
       import implicits._
       val tableFiles = client.getFiles(
-        table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints, None
+        table, predicates, limitHint, versionAsOf, timestampAsOf, jsonPredicateHints, None, None
       )
       var minUrlExpirationTimestamp: Option[Long] = None
       val idToUrl = tableFiles.files.map { file =>
@@ -287,7 +288,7 @@ class RemoteSnapshot(
           fileIndex.params.profileProvider,
           refreshToken => {
             val tableFiles = client.getFiles(
-              table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints, refreshToken
+              table, Nil, None, versionAsOf, timestampAsOf, jsonPredicateHints, refreshToken, None
             )
             var minUrlExpiration: Option[Long] = None
             val idToUrl = tableFiles.files.map { add =>
