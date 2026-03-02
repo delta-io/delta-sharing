@@ -277,4 +277,14 @@ class ConfUtilsSuite extends SparkFunSuite {
       tokenRenewalThresholdInSeconds(newSqlConf(Map(OAUTH_EXPIRATION_THRESHOLD_CONF -> "-1")))
     }.getMessage.contains(OAUTH_EXPIRATION_THRESHOLD_CONF)
   }
+
+  test("skipFileIdHashVerification with SQLConf") {
+    assert(skipFileIdHashVerification(newSqlConf()) == false)
+    assert(
+      skipFileIdHashVerification(newSqlConf(Map(SKIP_FILE_ID_HASH_VERIFICATION_CONF -> "true")))
+        == true)
+    assert(
+      skipFileIdHashVerification(newSqlConf(Map(SKIP_FILE_ID_HASH_VERIFICATION_CONF -> "false")))
+        == false)
+  }
 }

@@ -28,6 +28,11 @@ import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{DataType, FloatType, IntegerType, LongType, StringType, StructField, StructType}
 
+import io.delta.sharing.client.{DeltaSharingFileSystem, DeltaSharingRestClient}
+import io.delta.sharing.client.model.Table
+import io.delta.sharing.client.util.ConfUtils
+import io.delta.sharing.spark.util.QueryUtils
+
 import io.delta.sharing.client.model.{DeltaTableMetadata, Table}
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
@@ -669,5 +674,33 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(deltaLog2.path.toString.split("\\.")(2).split("_").length == 4)
     val snapshot2 = deltaLog2.snapshot()
     assert(snapshot2.getTablePath.toString.split("\\.")(2).split("_").length == 4)
+  }
+
+  test("skipFileIdHashVerification conf is passed through DeltaSharingRestClient.apply()") {
+    val testShareCredentialsOptions: Map[String, String] = Map(
+      "shareCredentialsVersion" -> "1",
+      "endpoint" -> "https://example.com",
+      "bearerToken" -> "test-token"
+    )
+    val spark = SparkSession.active
+    val sqlConf = spark.sessionState.conf
+    val originalClientClass =
+      sqlConf.getConfString(ConfUtils.CLIENT_CLASS_CONF, ConfUtils.CLIENT_CLASS_DEFAULT)
+    try {
+      sqlConf.setConfString(ConfUtils.CLIENT_CLASS_CONF,
+        "io.delta.sharing.spark.TestDeltaSharingClient")
+      TestDeltaSharingClient.lastSkipFileIdHashVerification = false
+
+      sqlConf.setConfString(ConfUtils.SKIP_FILE_ID_HASH_VERIFICATION_CONF, "true")
+      DeltaSharingRestClient("", testShareCredentialsOptions)
+      assert(TestDeltaSharingClient.lastSkipFileIdHashVerification === true)
+
+      sqlConf.setConfString(ConfUtils.SKIP_FILE_ID_HASH_VERIFICATION_CONF, "false")
+      DeltaSharingRestClient("", testShareCredentialsOptions)
+      assert(TestDeltaSharingClient.lastSkipFileIdHashVerification === false)
+    } finally {
+      sqlConf.setConfString(ConfUtils.CLIENT_CLASS_CONF, originalClientClass)
+      sqlConf.setConfString(ConfUtils.SKIP_FILE_ID_HASH_VERIFICATION_CONF, "false")
+    }
   }
 }

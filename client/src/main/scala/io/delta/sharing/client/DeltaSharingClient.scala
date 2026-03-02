@@ -211,11 +211,12 @@ class DeltaSharingRestClient(
     tokenExchangeMaxRetries: Int = 5,
     tokenExchangeMaxRetryDurationInSeconds: Int = 60,
     tokenRenewalThresholdInSeconds: Int = 600,
-    callerOrg: String = ""
+    callerOrg: String = "",
+    skipFileIdHashVerification: Boolean = false
   ) extends DeltaSharingClient with Logging {
 
   logInfo(s"DeltaSharingRestClient with endStreamActionEnabled: $endStreamActionEnabled, " +
-    s"enableAsyncQuery:$enableAsyncQuery")
+    s"enableAsyncQuery:$enableAsyncQuery, skipFileIdHashVerification:$skipFileIdHashVerification")
 
   import DeltaSharingRestClient._
 
@@ -1246,6 +1247,7 @@ class DeltaSharingRestClient(
       requestFileIdHash: Option[String],
       responseFileIdHash: Option[String],
       rpc: String): Unit = {
+    if (skipFileIdHashVerification) return
     if (requestFileIdHash.isDefined) {
       val expected = requestFileIdHash.get.toLowerCase(Locale.ROOT)
       if (responseFileIdHash.isEmpty) {
@@ -1635,6 +1637,7 @@ object DeltaSharingRestClient extends Logging {
     val tokenExchangeMaxRetryDurationInSeconds =
       ConfUtils.tokenExchangeMaxRetryDurationInSeconds(sqlConf)
     val tokenRenewalThresholdInSeconds = ConfUtils.tokenRenewalThresholdInSeconds(sqlConf)
+    val skipFileIdHashVerification = ConfUtils.skipFileIdHashVerification(sqlConf)
 
     val clientClass = ConfUtils.clientClass(sqlConf)
     Class.forName(clientClass)
@@ -1657,7 +1660,8 @@ object DeltaSharingRestClient extends Logging {
         classOf[Int],
         classOf[Int],
         classOf[Int],
-        classOf[String]
+        classOf[String],
+        classOf[Boolean]
     ).newInstance(profileProvider,
         java.lang.Integer.valueOf(timeoutInSeconds),
         java.lang.Integer.valueOf(numRetries),
@@ -1676,7 +1680,8 @@ object DeltaSharingRestClient extends Logging {
         java.lang.Integer.valueOf(tokenExchangeMaxRetries),
         java.lang.Integer.valueOf(tokenExchangeMaxRetryDurationInSeconds),
         java.lang.Integer.valueOf(tokenRenewalThresholdInSeconds),
-        callerOrg.getOrElse("")
+        callerOrg.getOrElse(""),
+        java.lang.Boolean.valueOf(skipFileIdHashVerification)
       ).asInstanceOf[DeltaSharingClient]
   }
 }

@@ -2129,4 +2129,37 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       client.close()
     }
   }
+
+  test("fileIdHash - skipFileIdHashVerification=true skips verification when server does not echo") {
+    val client = new DeltaSharingRestClient(
+      profileProvider = new TestProfileProvider(false),
+      responseFormat = RESPONSE_FORMAT_DELTA,
+      skipFileIdHashVerification = true
+    ) {
+      override def getNDJsonPost[T: Manifest](
+          target: String,
+          data: T,
+          setIncludeEndStreamAction: Boolean,
+          requestFileIdHash: Option[String]
+      ): ParsedDeltaSharingResponse = {
+        ParsedDeltaSharingResponse(
+          version = 1L,
+          respondedFormat = RESPONSE_FORMAT_DELTA,
+          lines = Seq(
+            """{"protocol":{"minReaderVersion":1}}""",
+            """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{}","partitionColumns":[]}}"""
+          ),
+          capabilitiesMap = Map.empty,
+          fileIdHash = None
+        )
+      }
+    }
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      val files = client.getFiles(table, Nil, None, None, None, None, None, Some("md5"))
+      assert(files.version == 1L)
+    } finally {
+      client.close()
+    }
+  }
 }
