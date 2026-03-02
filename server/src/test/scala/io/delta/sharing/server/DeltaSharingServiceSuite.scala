@@ -110,8 +110,15 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       url: String,
       expectedTableVersion: Option[Long] = None,
       asyncQuery: String = "false"): String = {
-    readHttpContent(url, None, None, RESPONSE_FORMAT_PARQUET, expectedTableVersion,
-      "application/json; charset=utf-8", asyncQuery = asyncQuery)
+    readHttpContent(
+      url,
+      None,
+      None,
+      RESPONSE_FORMAT_PARQUET,
+      expectedTableVersion,
+      "application/json; charset=utf-8",
+      asyncQuery = asyncQuery
+    )
   }
 
   def readNDJson(
@@ -124,10 +131,18 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     readerFeatures: String = "",
     includeEndStreamAction: Boolean = false,
     requestFileIdHash: Option[String] = None): String = {
-    readHttpContent(url, method, data, responseFormat, expectedTableVersion,
-      "application/x-ndjson; charset=utf-8", asyncQuery = asyncQuery,
-      readerFeatures = readerFeatures, includeEndStreamAction = includeEndStreamAction,
-      requestFileIdHash = requestFileIdHash)
+    readHttpContent(
+      url,
+      method,
+      data,
+      responseFormat,
+      expectedTableVersion,
+      "application/x-ndjson; charset=utf-8",
+      asyncQuery = asyncQuery,
+      readerFeatures = readerFeatures,
+      includeEndStreamAction = includeEndStreamAction,
+      requestFileIdHash = requestFileIdHash
+    )
   }
 
   /** Like readNDJson but returns (content, fileidhash response header) for verification. */
@@ -180,8 +195,19 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val (content, connection) = executeHttpRequest(
       url, method, data, responseFormat, asyncQuery, readerFeatures,
       includeEndStreamAction, requestFileIdHash)
-    assertResponseHeaders(connection, content, expectedContentType, responseFormat,
-      expectedTableVersion, includeEndStreamAction, requestFileIdHash)
+    val contentType = connection.getHeaderField("Content-Type")
+    assert(expectedContentType == contentType, s"Incorrect content type: $contentType. Error: $content")
+    expectedTableVersion.foreach { v =>
+      val caps = connection.getHeaderField("delta-sharing-capabilities")
+      var expected = s"responseformat=$responseFormat"
+      if (includeEndStreamAction) expected += s";$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+      assert(caps == expected, s"Incorrect header: $caps")
+      assert(connection.getHeaderField("Delta-Table-Version") == v.toString)
+    }
+    requestFileIdHash.foreach { expected =>
+      val actual = connection.getHeaderField("fileidhash")
+      assert(actual == expected, s"Expected fileidhash response header '$expected', got '$actual'")
+    }
     val fileIdHash = Option(connection.getHeaderField("fileidhash"))
     (content, fileIdHash)
   }
@@ -197,9 +223,13 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     requestFileIdHash: Option[String]): (String, HttpsURLConnection) = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
-    var caps = s"asyncquery=$asyncQuery;responseformat=$responseFormat" + readerFeatures
-    if (includeEndStreamAction) caps += s";$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
-    connection.setRequestProperty("delta-sharing-capabilities", caps)
+    var deltaSharingCapabilities = s"asyncquery=$asyncQuery"
+    deltaSharingCapabilities += s";responseformat=$responseFormat"
+    deltaSharingCapabilities += readerFeatures
+    if (includeEndStreamAction) {
+      deltaSharingCapabilities += s";$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+    }
+    connection.setRequestProperty("delta-sharing-capabilities", deltaSharingCapabilities)
     requestFileIdHash.foreach(connection.setRequestProperty("fileidhash", _))
     method.foreach(connection.setRequestMethod)
     data.foreach { d =>
@@ -211,29 +241,6 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     val input = connection.getInputStream()
     val content = try IOUtils.toString(input) finally input.close()
     (content, connection)
-  }
-
-  private def assertResponseHeaders(
-    connection: HttpsURLConnection,
-    content: String,
-    expectedContentType: String,
-    responseFormat: String,
-    expectedTableVersion: Option[Long],
-    includeEndStreamAction: Boolean,
-    requestFileIdHash: Option[String]): Unit = {
-    val contentType = connection.getHeaderField("Content-Type")
-    assert(expectedContentType == contentType, s"Incorrect content type: $contentType. Error: $content")
-    expectedTableVersion.foreach { v =>
-      val caps = connection.getHeaderField("delta-sharing-capabilities")
-      var expected = s"responseformat=$responseFormat"
-      if (includeEndStreamAction) expected += s";$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
-      assert(caps == expected, s"Incorrect header: $caps")
-      assert(connection.getHeaderField("Delta-Table-Version") == v.toString)
-    }
-    requestFileIdHash.foreach { expected =>
-      val actual = connection.getHeaderField("fileidhash")
-      assert(actual == expected, s"Expected fileidhash response header '$expected', got '$actual'")
-    }
   }
 
   def integrationTest(testName: String)(func: => Unit): Unit = {
