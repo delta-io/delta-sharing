@@ -273,7 +273,8 @@ class DeltaSharedTableKernel(
       refreshToken: Option[String],
       responseFormatSet: Set[String],
       clientReaderFeaturesSet: Set[String],
-      includeEndStreamQuery: Boolean): QueryResult = withClassLoader {
+      includeEndStreamQuery: Boolean,
+      fileIdHash: Option[String] = None): QueryResult = withClassLoader {
 
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
@@ -344,7 +345,8 @@ class DeltaSharedTableKernel(
             table,
             engine,
             globalLimitHint,
-            clientReaderFeaturesSet
+            clientReaderFeaturesSet,
+            fileIdHash
           )
           if (nextResponse.nonEmpty) {
             actions = actions ++ nextResponse
@@ -385,7 +387,8 @@ class DeltaSharedTableKernel(
       maxFiles: Option[Int],
       pageToken: Option[String],
       responseFormatSet: Set[String] = Set("parquet"),
-      includeEndStreamAction: Boolean): QueryResult = {
+      includeEndStreamAction: Boolean,
+      fileIdHash: Option[String] = None): QueryResult = {
 
     throw new DeltaSharingUnsupportedOperationException("not implemented yet")
   }
@@ -428,7 +431,8 @@ class DeltaSharedTableKernel(
       table: Table,
       engine: Engine,
       limitHint: Option[Long],
-      clientReaderFeaturesSet: Set[String]): Seq[Object] = {
+      clientReaderFeaturesSet: Set[String],
+      fileIdHash: Option[String] = None): Seq[Object] = {
 
     val batchData = scanFileBatch.getData
     val batchSize = batchData.getSize
@@ -456,7 +460,8 @@ class DeltaSharedTableKernel(
           respondedFormat,
           queryType,
           dataPath,
-          clientReaderFeaturesSet
+          clientReaderFeaturesSet,
+          fileIdHash
         )
         addFileObjects = addFileObjects :+ addFile
       }
@@ -690,6 +695,24 @@ class DeltaSharedTableKernel(
     }).json
   }
 
+  /** Hash file path to produce file id (md5 or sha256). */
+  private def hashFileId(
+      path: String,
+      fileIdHash: Option[String],
+      respondedFormat: String): String = {
+    fileIdHash match {
+      case Some("sha256") => Hashing.sha256().hashString(path, UTF_8).toString
+      case Some("md5") => Hashing.md5().hashString(path, UTF_8).toString
+      case _ =>
+        // Default: sha256 for delta format, md5 for parquet (backward compatibility)
+        if (respondedFormat == DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
+          Hashing.sha256().hashString(path, UTF_8).toString
+        } else {
+          Hashing.md5().hashString(path, UTF_8).toString
+        }
+    }
+  }
+
   private def getResponseAddFile(
       addFileColumnVectors: AddFileColumnVectors,
       rowId: Int,
@@ -698,7 +721,8 @@ class DeltaSharedTableKernel(
       respondedFormat: String,
       queryType: QueryTypes.QueryType,
       dataPath: Path,
-      clientReaderFeaturesSet: Set[String]): Object = {
+      clientReaderFeaturesSet: Set[String],
+      fileIdHash: Option[String] = None): Object = {
 
     val partitionValues = getDeltaPartitionValues(addFileColumnVectors.partitionValues, rowId)
     val addFileVectorPath = addFileColumnVectors.path.getString(rowId)
@@ -723,10 +747,10 @@ class DeltaSharedTableKernel(
       numRecords -= dvDescriptor.cardinality
     }
 
+    val fileId = hashFileId(addFileVectorPath, fileIdHash, respondedFormat)
     if (respondedFormat == DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
-        // Using sha256 instead of m5 because it's less likely to have key collision.
-        id = Hashing.sha256().hashString(addFileVectorPath, UTF_8).toString,
+        id = fileId,
         // `version` is left empty in latest snapshot query
         version = if (queryType == QueryTypes.QueryLatestSnapshot) null else version,
         timestamp = timestamp,
@@ -746,7 +770,7 @@ class DeltaSharedTableKernel(
     } else {
       AddFile(
         url = signedUrl.url,
-        id = Hashing.md5().hashString(addFileVectorPath, UTF_8).toString,
+        id = fileId,
         expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = partitionValues,
         size = size,
