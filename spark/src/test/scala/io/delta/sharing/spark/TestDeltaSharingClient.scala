@@ -58,8 +58,11 @@ class TestDeltaSharingClient(
     tokenExchangeMaxRetries: Int = 5,
     tokenExchangeMaxRetryDurationInSeconds: Int = 60,
     tokenRenewalThresholdInSeconds: Int = 600,
-    callerOrg: String = ""
+    callerOrg: String = "",
+    skipFileIdHashVerification: Boolean = false
   ) extends DeltaSharingClient {
+
+  TestDeltaSharingClient.lastSkipFileIdHashVerification = skipFileIdHashVerification
 
   import DeltaSharingOptions.RESPONSE_FORMAT_PARQUET
 
@@ -234,6 +237,9 @@ object TestDeltaSharingClient {
   var jsonPredicateHints = Seq.empty[String]
 
   var numMetadataCalled = 0
+
+  /** Captured skipFileIdHashVerification from last constructor call (for conf wiring tests). */
+  var lastSkipFileIdHashVerification: Boolean = false
 
   val TESTING_TIMESTAMP = "2022-01-01 00:00:00.0"
 
