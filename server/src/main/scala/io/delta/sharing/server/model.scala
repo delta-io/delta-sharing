@@ -22,6 +22,37 @@ import org.codehaus.jackson.annotate.JsonRawValue
 
 import io.delta.sharing.server.common.actions.{DeltaFormat, DeltaMetadata, DeltaProtocol, DeltaSingleAction}
 
+// Request for generating temporary table credentials (table-root downscoped credentials).
+case class GenerateTemporaryTableCredentialRequest(
+    location: Option[String] = None)
+
+// Temporary credentials returned to the client for accessing the table root.
+// Exactly one of awsTempCredentials, azureUserDelegationSas, or gcpOauthToken should be set.
+@JsonInclude(JsonInclude.Include.NON_NULL)
+case class Credentials(
+    location: String,
+    awsTempCredentials: AwsTempCredentials = null,
+    azureUserDelegationSas: AzureUserDelegationSas = null,
+    gcpOauthToken: GcpOauthToken = null,
+    expirationTime: Long)
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
+case class AwsTempCredentials(
+    accessKeyId: String,
+    secretAccessKey: String,
+    sessionToken: String)
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
+case class AzureUserDelegationSas(
+    sasToken: String)
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
+case class GcpOauthToken(
+    oauthToken: String)
+
+case class TemporaryCredentials(
+    credentials: Credentials)
+
 case class SingleAction(
     file: AddFile = null,
     add: AddFileForCDF = null,

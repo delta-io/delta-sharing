@@ -70,7 +70,8 @@ object TestResource {
               TableConfig(
                 "table1",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table1",
-                "00000000-0000-0000-0000-000000000001"
+                "00000000-0000-0000-0000-000000000001",
+                historyShared = true
               ),
               TableConfig(
                 "table3",
@@ -175,12 +176,14 @@ object TestResource {
               TableConfig(
                 "table_wasb",
                 s"wasbs://${Azure.container}@${Azure.accountName}.blob.core.windows.net/delta-sharing-test/table1",
-                "00000000-0000-0000-0000-000000000098"
+                "00000000-0000-0000-0000-000000000098",
+                historyShared = true
               ),
               TableConfig(
                 "table_abfs",
                 s"abfss://${Azure.container}@${Azure.accountName}.dfs.core.windows.net/delta-sharing-test/table1",
-                "00000000-0000-0000-0000-000000000097"
+                "00000000-0000-0000-0000-000000000097",
+                historyShared = true
               )
             )
           )
@@ -195,7 +198,8 @@ object TestResource {
               TableConfig(
                 "table_gcs",
                 s"gs://${GCP.bucket}/delta-sharing-test/table1",
-                "00000000-0000-0000-0000-000000000096"
+                "00000000-0000-0000-0000-000000000096",
+                historyShared = true
               )
             )
           )
