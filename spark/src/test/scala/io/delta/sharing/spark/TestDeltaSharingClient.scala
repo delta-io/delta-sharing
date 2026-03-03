@@ -58,8 +58,11 @@ class TestDeltaSharingClient(
     tokenExchangeMaxRetries: Int = 5,
     tokenExchangeMaxRetryDurationInSeconds: Int = 60,
     tokenRenewalThresholdInSeconds: Int = 600,
-    callerOrg: String = ""
+    callerOrg: String = "",
+    skipFileIdHashVerification: Boolean = false
   ) extends DeltaSharingClient {
+
+  TestDeltaSharingClient.lastSkipFileIdHashVerification = skipFileIdHashVerification
 
   import DeltaSharingOptions.RESPONSE_FORMAT_PARQUET
 
@@ -113,7 +116,8 @@ class TestDeltaSharingClient(
     versionAsOf: Option[Long],
     timestampAsOf: Option[String],
     jsonPredicateHints: Option[String],
-    refreshToken: Option[String]): DeltaTableFiles = {
+    refreshToken: Option[String],
+    fileIdHash: Option[String]): DeltaTableFiles = {
     limit.foreach(lim => TestDeltaSharingClient.limits = TestDeltaSharingClient.limits :+ lim)
     jsonPredicateHints.foreach(p => {
       TestDeltaSharingClient.jsonPredicateHints = TestDeltaSharingClient.jsonPredicateHints :+ p
@@ -151,8 +155,8 @@ class TestDeltaSharingClient(
   override def getFiles(
       table: Table,
       startingVersion: Long,
-      endingVersion: Option[Long]
-  ): DeltaTableFiles = {
+      endingVersion: Option[Long],
+      fileIdHash: Option[String]): DeltaTableFiles = {
     // This is not used anywhere.
     DeltaTableFiles(
       0, Protocol(0), metadata, Nil, Nil, Nil, Nil, respondedFormat = RESPONSE_FORMAT_PARQUET
@@ -162,7 +166,8 @@ class TestDeltaSharingClient(
   override def getCDFFiles(
       table: Table,
       cdfOptions: Map[String, String],
-      includeHistoricalMetadata: Boolean): DeltaTableFiles = {
+      includeHistoricalMetadata: Boolean,
+      fileIdHash: Option[String]): DeltaTableFiles = {
     val addFiles: Seq[AddFileForCDF] = Seq(
       AddFileForCDF("cdf_add1.parquet", "cdf_add1", Map.empty, 100, 1, 1000)
     )
@@ -227,6 +232,9 @@ object TestDeltaSharingClient {
   var jsonPredicateHints = Seq.empty[String]
 
   var numMetadataCalled = 0
+
+  /** Captured skipFileIdHashVerification from last constructor call (for conf wiring tests). */
+  var lastSkipFileIdHashVerification: Boolean = false
 
   val TESTING_TIMESTAMP = "2022-01-01 00:00:00.0"
 }

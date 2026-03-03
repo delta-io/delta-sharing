@@ -104,6 +104,9 @@ object ConfUtils {
   val OPTIONS_PROFILE_PROVIDER_ENABLED_CONF = "spark.delta.sharing.profile.optionsProvider.enabled"
   val OPTIONS_PROFILE_PROVIDER_ENABLED_DEFAULT = true
 
+  val SKIP_FILE_ID_HASH_VERIFICATION_CONF = "spark.delta.sharing.client.skipFileIdHashVerification"
+  val SKIP_FILE_ID_HASH_VERIFICATION_DEFAULT = "false"
+
   def getProxyConfig(conf: Configuration): Option[ProxyConfig] = {
     val proxyHost = conf.get(PROXY_HOST, null)
     val proxyPortAsString = conf.get(PROXY_PORT, null)
@@ -322,6 +325,12 @@ object ConfUtils {
     conf.getConfString(
       OPTIONS_PROFILE_PROVIDER_ENABLED_CONF,
       OPTIONS_PROFILE_PROVIDER_ENABLED_DEFAULT.toString).toBoolean
+  }
+
+  def skipFileIdHashVerification(conf: SQLConf): Boolean = {
+    conf.getConfString(
+      SKIP_FILE_ID_HASH_VERIFICATION_CONF,
+      SKIP_FILE_ID_HASH_VERIFICATION_DEFAULT).toBoolean
   }
 
   private def toTimeInSeconds(timeStr: String, conf: String): Int = {
