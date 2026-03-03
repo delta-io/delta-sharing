@@ -28,12 +28,9 @@ import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{DataType, FloatType, IntegerType, LongType, StringType, StructField, StructType}
 
-import io.delta.sharing.client.{DeltaSharingFileSystem, DeltaSharingRestClient}
-import io.delta.sharing.client.model.Table
-import io.delta.sharing.client.util.ConfUtils
-import io.delta.sharing.spark.util.QueryUtils
-
+import io.delta.sharing.client.DeltaSharingRestClient
 import io.delta.sharing.client.model.{DeltaTableMetadata, Table}
+import io.delta.sharing.client.util.ConfUtils
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
