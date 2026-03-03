@@ -26,9 +26,11 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference => SqlAttributeReference, EqualTo => SqlEqualTo, Literal => SqlLiteral}
 import org.apache.spark.sql.execution.datasources.HadoopFsRelation
 import org.apache.spark.sql.test.SharedSparkSession
-import org.apache.spark.sql.types.{DataType, FloatType, IntegerType, LongType, StringType, StructField, StructType}
+import org.apache.spark.sql.types._
 
+import io.delta.sharing.client.{DeltaSharingFileSystem, DeltaSharingRestClient}
 import io.delta.sharing.client.model.{DeltaTableMetadata, Table}
+import io.delta.sharing.client.util.ConfUtils
 
 class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
 
@@ -39,10 +41,10 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     // sanity check for dummy client
     val client = new TestDeltaSharingClient()
     client.getFiles(
-      Table("fe", "fi", "fo"), Nil, Some(2L), None, None, Some("jsonPredicate1"), None
+      Table("fe", "fi", "fo"), Nil, Some(2L), None, None, Some("jsonPredicate1"), None, None
     )
     client.getFiles(
-      Table("fe", "fi", "fo"), Nil, Some(3L), None, None, Some("jsonPredicate2"), None
+      Table("fe", "fi", "fo"), Nil, Some(3L), None, None, Some("jsonPredicate2"), None, None
     )
     assert(TestDeltaSharingClient.limits === Seq(2L, 3L))
     assert(TestDeltaSharingClient.jsonPredicateHints === Seq("jsonPredicate1", "jsonPredicate2"))
@@ -385,7 +387,7 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     val snapshot = new RemoteSnapshot(path, client, table)
     val params = RemoteDeltaFileIndexParams(spark, snapshot, client.getProfileProvider)
 
-    val deltaTableFiles = client.getCDFFiles(table, Map.empty, false)
+    val deltaTableFiles = client.getCDFFiles(table, Map.empty, false, None)
 
     val addFilesIndex = new RemoteDeltaCDFAddFileIndex(params, deltaTableFiles.addFiles)
 
@@ -668,5 +670,33 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(deltaLog2.path.toString.split("\\.")(2).split("_").length == 4)
     val snapshot2 = deltaLog2.snapshot()
     assert(snapshot2.getTablePath.toString.split("\\.")(2).split("_").length == 4)
+  }
+
+  test("skipFileIdHashVerification conf is passed through DeltaSharingRestClient.apply()") {
+    val testShareCredentialsOptions: Map[String, String] = Map(
+      "shareCredentialsVersion" -> "1",
+      "endpoint" -> "https://example.com",
+      "bearerToken" -> "test-token"
+    )
+    val spark = SparkSession.active
+    val sqlConf = spark.sessionState.conf
+    val originalClientClass =
+      sqlConf.getConfString(ConfUtils.CLIENT_CLASS_CONF, ConfUtils.CLIENT_CLASS_DEFAULT)
+    try {
+      sqlConf.setConfString(ConfUtils.CLIENT_CLASS_CONF,
+        "io.delta.sharing.spark.TestDeltaSharingClient")
+      TestDeltaSharingClient.lastSkipFileIdHashVerification = false
+
+      sqlConf.setConfString(ConfUtils.SKIP_FILE_ID_HASH_VERIFICATION_CONF, "true")
+      DeltaSharingRestClient("", testShareCredentialsOptions)
+      assert(TestDeltaSharingClient.lastSkipFileIdHashVerification === true)
+
+      sqlConf.setConfString(ConfUtils.SKIP_FILE_ID_HASH_VERIFICATION_CONF, "false")
+      DeltaSharingRestClient("", testShareCredentialsOptions)
+      assert(TestDeltaSharingClient.lastSkipFileIdHashVerification === false)
+    } finally {
+      sqlConf.setConfString(ConfUtils.CLIENT_CLASS_CONF, originalClientClass)
+      sqlConf.setConfString(ConfUtils.SKIP_FILE_ID_HASH_VERIFICATION_CONF, "false")
+    }
   }
 }

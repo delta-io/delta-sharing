@@ -190,4 +190,14 @@ class ConfUtilsSuite extends SparkFunSuite {
       getProxyConfig(conf)
     }.getMessage.contains(PROXY_PORT)
   }
+
+  test("skipFileIdHashVerification with SQLConf") {
+    assert(skipFileIdHashVerification(newSqlConf()) == false)
+    assert(
+      skipFileIdHashVerification(newSqlConf(Map(SKIP_FILE_ID_HASH_VERIFICATION_CONF -> "true")))
+        == true)
+    assert(
+      skipFileIdHashVerification(newSqlConf(Map(SKIP_FILE_ID_HASH_VERIFICATION_CONF -> "false")))
+        == false)
+  }
 }

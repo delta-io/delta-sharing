@@ -118,7 +118,9 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
           versionAsOf = None,
           timestampAsOf = None,
           jsonPredicateHints = None,
-          refreshToken = None)
+          refreshToken = None,
+          fileIdHash = None
+      )
       verifyTableFiles(tableFiles)
       val refreshedTableFiles = client.getFiles(
         table,
@@ -127,7 +129,8 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
         versionAsOf = None,
         timestampAsOf = None,
         jsonPredicateHints = None,
-        refreshToken = tableFiles.refreshToken
+        refreshToken = tableFiles.refreshToken,
+        fileIdHash = None
       )
       verifyTableFiles(refreshedTableFiles)
     } finally {
@@ -145,7 +148,9 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
         versionAsOf = Some(1L),
         timestampAsOf = None,
         jsonPredicateHints = None,
-        refreshToken = None)
+        refreshToken = None,
+        fileIdHash = None
+      )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 1, expectedNumLines = 5)
       assert(tableFiles.lines(1).contains("""{"deltaMetadata":{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1651272615011"""))
       val prefix = """{"file":{"id":""""
@@ -204,7 +209,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
     val client = getDeltaSharingClientWithDeltaResponse
     try {
       val tableFiles = client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 1L, None
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 1L, None, None
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 1, expectedNumLines = 10)
       checkCdfTableCdfEnabledTableV0Metadata(tableFiles.lines(1))
@@ -220,7 +225,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
     val client = getDeltaSharingClientWithDeltaResponse
     try {
       val tableFiles = client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 1L, Some(1L)
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 1L, Some(1L), None
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 1, expectedNumLines = 5)
       checkCdfTableCdfEnabledTableV0Metadata(tableFiles.lines(1))
@@ -234,7 +239,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
     val client = getDeltaSharingClientWithDeltaResponse
     try {
       val tableFiles = client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 2L, Some(3L)
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 2L, Some(3L), None
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 2, expectedNumLines = 5)
       checkCdfTableCdfEnabledTableV0Metadata(tableFiles.lines(1), version = "2")
@@ -248,7 +253,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
     val client = getDeltaSharingClientWithDeltaResponse
     try {
       val tableFiles = client.getFiles(
-        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 4L, Some(5L)
+        Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"), 4L, Some(5L), None
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 4, expectedNumLines = 3)
       checkCdfTableCdfEnabledTableV4ToV5(tableFiles.lines.slice(1, 3))
@@ -274,7 +279,8 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       val tableFiles = client.getCDFFiles(
         Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
         cdfOptions,
-        false
+        false,
+        None
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 0, expectedNumLines = 7)
       checkCdfTableCdfEnabledTableV5Metadata(tableFiles.lines(1))
@@ -312,7 +318,8 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       val tableFiles = client.getCDFFiles(
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
         cdfOptions,
-        includeHistoricalMetadata = true
+        includeHistoricalMetadata = true,
+        fileIdHash = None
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 0, expectedNumLines = 5)
       checkNotnullToNullTableV0Metadata(tableFiles.lines(1))
@@ -330,7 +337,8 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       val tableFiles = client.getCDFFiles(
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
         cdfOptions,
-        includeHistoricalMetadata = false
+        includeHistoricalMetadata = false,
+        fileIdHash = None
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 0, expectedNumLines = 4)
       checkNotnullToNullTableV2V3Metadata(tableFiles.lines(1), version = "3")
@@ -347,7 +355,8 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       val tableFiles = client.getCDFFiles(
         Table(name = "cdf_table_with_vacuum", schema = "default", share = "share8"),
         cdfOptions,
-        false
+        false,
+        None
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 0, expectedNumLines = 8)
       assert(tableFiles.lines(1).contains(""""deltaMetadata":{"id":"b960061d-dc64-4b29-8fb0-d0ddc1b29cc2","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1655408042120"""))
