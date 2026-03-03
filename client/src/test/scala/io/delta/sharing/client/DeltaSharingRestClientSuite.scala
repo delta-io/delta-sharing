@@ -45,6 +45,16 @@ import io.delta.sharing.client.util.JsonUtils
 import io.delta.sharing.client.util.UnexpectedHttpStatus
 import io.delta.sharing.spark.{DeltaSharingOptions, DeltaSharingServerException, MissingEndStreamActionException, RemoteDeltaLog}
 
+private[client] class TestProfileProvider(
+    isMST: Boolean) extends DeltaSharingProfileProvider {
+  override def getProfile: DeltaSharingProfile = BearerTokenDeltaSharingProfile(
+    shareCredentialsVersion = Some(1),
+    endpoint = "https://localhost/delta-sharing",
+    bearerToken = "token"
+  )
+  override def isMSTQuery(): Boolean = isMST
+}
+
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
