@@ -54,9 +54,6 @@ class TestDeltaSharingClient(
     enableAsyncQuery: Boolean = false,
     asyncQueryPollIntervalMillis: Long = 1000L,
     asyncQueryMaxDuration: Long = Long.MaxValue,
-    tokenExchangeMaxRetries: Int = 5,
-    tokenExchangeMaxRetryDurationInSeconds: Int = 60,
-    tokenRenewalThresholdInSeconds: Int = 600,
     callerOrg: String = "",
     skipFileIdHashVerification: Boolean = false
   ) extends DeltaSharingClient {

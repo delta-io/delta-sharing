@@ -1972,7 +1972,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("fileIdHash - getFiles with valid value and server echoes same") {
     val client = new DeltaSharingRestClient(
-      profileProvider = new TestProfileProvider(false),
+      profileProvider = new TestProfileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA
     ) {
       override def getNDJsonPost[T: Manifest](
@@ -1980,16 +1980,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           data: T,
           setIncludeEndStreamAction: Boolean,
           requestFileIdHash: Option[String]
-      ): ParsedDeltaSharingResponse = {
-        ParsedDeltaSharingResponse(
-          version = 1L,
-          respondedFormat = RESPONSE_FORMAT_DELTA,
-          lines = Seq(
+      ): (Long, String, Seq[String], Option[String]) = {
+        (
+          1L,
+          RESPONSE_FORMAT_DELTA,
+          Seq(
             """{"protocol":{"minReaderVersion":1}}""",
             """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}"""
           ),
-          capabilitiesMap = Map.empty,
-          fileIdHash = Some("md5")
+          Some("md5")
         )
       }
     }
@@ -2004,7 +2003,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("fileIdHash - getFiles case-insensitive verification (client sends MD5, server echoes md5)") {
     val client = new DeltaSharingRestClient(
-      profileProvider = new TestProfileProvider(false),
+      profileProvider = new TestProfileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA
     ) {
       override def getNDJsonPost[T: Manifest](
@@ -2012,16 +2011,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           data: T,
           setIncludeEndStreamAction: Boolean,
           requestFileIdHash: Option[String]
-      ): ParsedDeltaSharingResponse = {
-        ParsedDeltaSharingResponse(
-          version = 1L,
-          respondedFormat = RESPONSE_FORMAT_DELTA,
-          lines = Seq(
+      ): (Long, String, Seq[String], Option[String]) = {
+        (
+          1L,
+          RESPONSE_FORMAT_DELTA,
+          Seq(
             """{"protocol":{"minReaderVersion":1}}""",
             """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{}","partitionColumns":[]}}"""
           ),
-          capabilitiesMap = Map.empty,
-          fileIdHash = Some("md5")
+          Some("md5")
         )
       }
     }
@@ -2036,7 +2034,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("fileIdHash - getFiles fails when client sends header but server does not return it") {
     val client = new DeltaSharingRestClient(
-      profileProvider = new TestProfileProvider(false),
+      profileProvider = new TestProfileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA
     ) {
       override def getNDJsonPost[T: Manifest](
@@ -2044,16 +2042,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           data: T,
           setIncludeEndStreamAction: Boolean,
           requestFileIdHash: Option[String]
-      ): ParsedDeltaSharingResponse = {
-        ParsedDeltaSharingResponse(
-          version = 1L,
-          respondedFormat = RESPONSE_FORMAT_DELTA,
-          lines = Seq(
+      ): (Long, String, Seq[String], Option[String]) = {
+        (
+          1L,
+          RESPONSE_FORMAT_DELTA,
+          Seq(
             """{"protocol":{"minReaderVersion":1}}""",
             """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{}","partitionColumns":[]}}"""
           ),
-          capabilitiesMap = Map.empty,
-          fileIdHash = None
+          None
         )
       }
     }
@@ -2071,7 +2068,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("fileIdHash - getFiles fails when server returns different value than client sent") {
     val client = new DeltaSharingRestClient(
-      profileProvider = new TestProfileProvider(false),
+      profileProvider = new TestProfileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA
     ) {
       override def getNDJsonPost[T: Manifest](
@@ -2079,16 +2076,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           data: T,
           setIncludeEndStreamAction: Boolean,
           requestFileIdHash: Option[String]
-      ): ParsedDeltaSharingResponse = {
-        ParsedDeltaSharingResponse(
-          version = 1L,
-          respondedFormat = RESPONSE_FORMAT_DELTA,
-          lines = Seq(
+      ): (Long, String, Seq[String], Option[String]) = {
+        (
+          1L,
+          RESPONSE_FORMAT_DELTA,
+          Seq(
             """{"protocol":{"minReaderVersion":1}}""",
             """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{}","partitionColumns":[]}}"""
           ),
-          capabilitiesMap = Map.empty,
-          fileIdHash = Some("sha256")
+          Some("sha256")
         )
       }
     }
@@ -2107,7 +2103,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("fileIdHash - getFiles rejects invalid value") {
     val client = new DeltaSharingRestClient(
-      profileProvider = new TestProfileProvider(false),
+      profileProvider = new TestProfileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA
     )
     try {
@@ -2126,7 +2122,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("fileIdHash - skipFileIdHashVerification=true skips verification when server does not echo") {
     val client = new DeltaSharingRestClient(
-      profileProvider = new TestProfileProvider(false),
+      profileProvider = new TestProfileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA,
       skipFileIdHashVerification = true
     ) {
@@ -2135,16 +2131,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           data: T,
           setIncludeEndStreamAction: Boolean,
           requestFileIdHash: Option[String]
-      ): ParsedDeltaSharingResponse = {
-        ParsedDeltaSharingResponse(
-          version = 1L,
-          respondedFormat = RESPONSE_FORMAT_DELTA,
-          lines = Seq(
+      ): (Long, String, Seq[String], Option[String]) = {
+        (
+          1L,
+          RESPONSE_FORMAT_DELTA,
+          Seq(
             """{"protocol":{"minReaderVersion":1}}""",
             """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{}","partitionColumns":[]}}"""
           ),
-          capabilitiesMap = Map.empty,
-          fileIdHash = None
+          None
         )
       }
     }
