@@ -576,7 +576,7 @@ class DeltaSharingRestClient(
         setIncludeEndStreamAction = endStreamActionEnabled,
         requestFileIdHash = fileIdHash
       )
-      (version, respondedFormat, lines, responseFileIdHash)
+      (version, respondedFormat, lines, None, responseFileIdHash)
     }
 
     var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
@@ -630,7 +630,6 @@ class DeltaSharingRestClient(
         expectedProtocol = protocol,
         expectedMetadata = metadata,
         pageNumber = numPages,
-        setIncludeEndStreamAction = !enableAsyncQuery,
         requestFileIdHash = fileIdHash
       )
       allLines.appendAll(res._1)
@@ -813,14 +812,14 @@ class DeltaSharingRestClient(
       getNDJsonPost(
         target = targetUrl,
         data = requestBody.get,
-        setIncludeEndStreamAction = setIncludeEndStreamAction,
+        setIncludeEndStreamAction = endStreamActionEnabled,
         requestFileIdHash = requestFileIdHash
       )
     } else {
       getNDJson(
         targetUrl,
         requireVersion = false,
-        setIncludeEndStreamAction = setIncludeEndStreamAction,
+        setIncludeEndStreamAction = endStreamActionEnabled,
         requestFileIdHash = requestFileIdHash
       )
     }
