@@ -1978,7 +1978,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("fileIdHash - getFiles with valid value and server echoes same") {
     val client = new DeltaSharingRestClient(
-      profileProvider = new TestProfileProvider(false),
+      profileProvider = new TestProfileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA
     ) {
       override def getNDJsonPost[T: Manifest](
@@ -2010,7 +2010,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("fileIdHash - getFiles case-insensitive verification (client sends MD5, server echoes md5)") {
     val client = new DeltaSharingRestClient(
-      profileProvider = new TestProfileProvider(false),
+      profileProvider = new TestProfileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA
     ) {
       override def getNDJsonPost[T: Manifest](
@@ -2042,7 +2042,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("fileIdHash - getFiles fails when client sends header but server does not return it") {
     val client = new DeltaSharingRestClient(
-      profileProvider = new TestProfileProvider(false),
+      profileProvider = new TestProfileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA
     ) {
       override def getNDJsonPost[T: Manifest](
@@ -2077,7 +2077,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("fileIdHash - getFiles fails when server returns different value than client sent") {
     val client = new DeltaSharingRestClient(
-      profileProvider = new TestProfileProvider(false),
+      profileProvider = new TestProfileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA
     ) {
       override def getNDJsonPost[T: Manifest](
@@ -2113,7 +2113,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("fileIdHash - getFiles rejects invalid value") {
     val client = new DeltaSharingRestClient(
-      profileProvider = new TestProfileProvider(false),
+      profileProvider = new TestProfileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA
     )
     try {
@@ -2132,7 +2132,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   test("fileIdHash - skipFileIdHashVerification=true skips verification when server does not echo") {
     val client = new DeltaSharingRestClient(
-      profileProvider = new TestProfileProvider(false),
+      profileProvider = new TestProfileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA,
       skipFileIdHashVerification = true
     ) {
