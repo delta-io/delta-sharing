@@ -654,7 +654,6 @@ class DeltaSharingRestClient(
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean,
       fileIdHash: Option[String]): DeltaTableFiles = {
-    val start = System.currentTimeMillis()
     val encodedShare = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchema = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTable = URLEncoder.encode(table.name, "UTF-8")
@@ -670,7 +669,7 @@ class DeltaSharingRestClient(
       )
       getCDFFilesByPage(target, fileIdHash)
     } else {
-      val (version, respondedFormat, lines, fIdHash) = getNDJson(
+      val (version, respondedFormat, lines, responseFileIdHash) = getNDJson(
         target,
         requireVersion = false,
         setIncludeEndStreamAction = endStreamActionEnabled,
