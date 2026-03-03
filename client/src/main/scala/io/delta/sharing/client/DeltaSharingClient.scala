@@ -1020,7 +1020,7 @@ class DeltaSharingRestClient(
     (version, respondedFormat, lines, queryIdOpt, responseFileIdHash)
   }
 
-  private def getNDJsonPost[T: Manifest](
+  private[sharing] def getNDJsonPost[T: Manifest](
       target: String,
       data: T,
       setIncludeEndStreamAction: Boolean,
