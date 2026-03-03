@@ -43,7 +43,8 @@ trait DeltaSharedTableProtocol {
       refreshToken: Option[String],
       responseFormatSet: Set[String],
       clientReaderFeaturesSet: Set[String],
-      includeEndStreamAction: Boolean): QueryResult
+      includeEndStreamAction: Boolean,
+      fileIdHash: Option[String] = None): QueryResult
 
   def queryCDF(
       cdfOptions: Map[String, String],
@@ -51,7 +52,8 @@ trait DeltaSharedTableProtocol {
       maxFiles: Option[Int],
       pageToken: Option[String],
       responseFormatSet: Set[String] = Set("parquet"),
-      includeEndStreamAction: Boolean): QueryResult
+      includeEndStreamAction: Boolean,
+      fileIdHash: Option[String] = None): QueryResult
 
   def validateTable(inputFullHistoryShared: Boolean): Unit = {}
 
