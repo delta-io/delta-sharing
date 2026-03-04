@@ -3724,13 +3724,13 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
   }
 
-  integrationTest("table1 - cannot query table changes") {
+  integrationTest("table2 - cannot query table changes (historyShared is false)") {
     assertHttpError(
-      url = requestPath("/shares/share1/schemas/default/tables/table1/changes"),
+      url = requestPath("/shares/share2/schemas/default/tables/table2/changes"),
       method = "GET",
       data = None,
       expectedErrorCode = 400,
-      expectedErrorMessage = "cdf is not enabled on table share1.default.table1"
+      expectedErrorMessage = "cdf is not enabled on table share2.default.table2"
     )
   }
 
@@ -3907,5 +3907,91 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
     assert(expectedFiles == actualFiles.toList)
     verifyPreSignedUrl(actualFiles(0).url, 568)
+  }
+
+  integrationTest("temporary-table-credentials endpoint - AWS") {
+    val url = requestPath("/shares/share1/schemas/default/tables/table1/temporary-table-credentials")
+    val response = readHttpContent(
+      url,
+      Some("POST"),
+      Some("""{}"""),
+      RESPONSE_FORMAT_PARQUET,
+      None,
+      "application/json; charset=utf-8"
+    )
+    val result = JsonUtils.fromJson[TemporaryCredentials](response)
+    assert(result != null)
+    assert(result.credentials != null)
+    assert(result.credentials.expirationTime > System.currentTimeMillis())
+    assert(result.credentials.location != null && result.credentials.location.nonEmpty)
+    assert(result.credentials.awsTempCredentials != null,
+      "Expected awsTempCredentials for S3 table")
+    assert(result.credentials.awsTempCredentials.accessKeyId != null)
+    assert(result.credentials.awsTempCredentials.secretAccessKey != null)
+    assert(result.credentials.awsTempCredentials.sessionToken != null)
+    assert(result.credentials.azureUserDelegationSas == null)
+    assert(result.credentials.gcpOauthToken == null)
+  }
+
+  integrationTest("temporary-table-credentials endpoint - Azure") {
+    val url = requestPath(
+      "/shares/share_azure/schemas/default/tables/table_abfs/temporary-table-credentials")
+    val response = readHttpContent(
+      url,
+      Some("POST"),
+      Some("""{}"""),
+      RESPONSE_FORMAT_PARQUET,
+      None,
+      "application/json; charset=utf-8"
+    )
+    val result = JsonUtils.fromJson[TemporaryCredentials](response)
+    assert(result != null)
+    assert(result.credentials != null)
+    assert(result.credentials.expirationTime > System.currentTimeMillis())
+    assert(result.credentials.location != null && result.credentials.location.nonEmpty)
+    assert(result.credentials.azureUserDelegationSas != null,
+      "Expected azureUserDelegationSas for Azure table")
+    assert(result.credentials.azureUserDelegationSas.sasToken != null)
+    assert(result.credentials.awsTempCredentials == null)
+    assert(result.credentials.gcpOauthToken == null)
+  }
+
+  integrationTest("temporary-table-credentials endpoint - GCP") {
+    val url = requestPath(
+      "/shares/share_gcp/schemas/default/tables/table_gcs/temporary-table-credentials")
+    val response = readHttpContent(
+      url,
+      Some("POST"),
+      Some("""{}"""),
+      RESPONSE_FORMAT_PARQUET,
+      None,
+      "application/json; charset=utf-8"
+    )
+    val result = JsonUtils.fromJson[TemporaryCredentials](response)
+    assert(result != null)
+    assert(result.credentials != null)
+    assert(result.credentials.expirationTime > System.currentTimeMillis())
+    assert(result.credentials.location != null && result.credentials.location.nonEmpty)
+    assert(result.credentials.gcpOauthToken != null,
+      "Expected gcpOauthToken for GCS table")
+    assert(result.credentials.gcpOauthToken.oauthToken != null)
+    assert(result.credentials.awsTempCredentials == null)
+    assert(result.credentials.azureUserDelegationSas == null)
+  }
+
+  integrationTest("temporary-table-credentials with location override") {
+    val url = requestPath("/shares/share1/schemas/default/tables/table1/temporary-table-credentials")
+    val response = readHttpContent(
+      url,
+      Some("POST"),
+      Some("""{"location": "s3a://test-bucket/custom/path"}"""),
+      RESPONSE_FORMAT_PARQUET,
+      None,
+      "application/json; charset=utf-8"
+    )
+    val result = JsonUtils.fromJson[TemporaryCredentials](response)
+    assert(result.credentials != null)
+    assert(result.credentials.location == "s3a://test-bucket/custom/path" ||
+      result.credentials.location.contains("test-bucket"))
   }
 }
