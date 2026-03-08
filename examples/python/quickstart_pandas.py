@@ -32,7 +32,9 @@ print(client.list_all_tables())
 table = client.table(table_fqn)
 
 # Fetch 10 rows from a table and convert it to a Pandas DataFrame. This can be used to read sample data from a table that cannot fit in the memory.
-print("########### Loading 10 rows from delta_sharing.default.owid-covid-data as a Pandas DataFrame with client.table(...).to_pandas #############")
+print(
+    "########### Loading 10 rows from delta_sharing.default.owid-covid-data as a Pandas DataFrame with client.table(...).to_pandas #############"
+)
 data = table.to_pandas(limit=10)
 
 # Print the sample.
@@ -40,7 +42,9 @@ print("########### Show the fetched 10 rows #############")
 print(data)
 
 # Load a table as a Pandas DataFrame. This can be used to process tables that can fit in the memory.
-print("########### Loading delta_sharing.default.owid-covid-data as a Pandas DataFrame with client.table(...).to_pandas #############")
+print(
+    "########### Loading delta_sharing.default.owid-covid-data as a Pandas DataFrame with client.table(...).to_pandas #############"
+)
 data = table.to_pandas()
 
 # Do whatever you want to your share data!
@@ -52,8 +56,34 @@ print(data[data["iso_code"] == "USA"].head(10))
 # (`<share-name>.<schema-name>.<table-name>`).
 table_url = profile_file + "#" + table_fqn
 
-print("########### Loading 10 rows from delta_sharing.default.owid-covid-data as a Pandas DataFrame with load_as_pandas #############")
+print(
+    "########### Loading 10 rows from delta_sharing.default.owid-covid-data as a Pandas DataFrame with load_as_pandas #############"
+)
 legacy_data = delta_sharing.load_as_pandas(table_url, limit=10)
 
 print("########### Show the fetched 10 rows from the legacy interface #############")
 print(legacy_data)
+
+# Change Data Feed (CDF) example.
+# The bundled open-datasets.share profile does not expose a CDF-enabled table, so the example
+# below is commented out by default. Replace `cdf_table_fqn` with a CDF-enabled table from your
+# own share credentials before running it.
+#
+# cdf_table_fqn = "share.schema.cdf_table"
+# cdf_changes = client.table(cdf_table_fqn).changes(starting_version=0)
+#
+# print(
+#     "########### Loading table changes from "
+#     + cdf_table_fqn
+#     + " as a Pandas DataFrame with client.table(...).changes(...).to_pandas #############"
+# )
+# cdf_data = cdf_changes.to_pandas()
+# print(cdf_data)
+#
+# print("########### Loading the same table changes with the legacy interface #############")
+# cdf_table_url = profile_file + "#" + cdf_table_fqn
+# legacy_cdf_data = delta_sharing.load_table_changes_as_pandas(
+#     cdf_table_url,
+#     starting_version=0,
+# )
+# print(legacy_cdf_data)

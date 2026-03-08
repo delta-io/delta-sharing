@@ -5,6 +5,7 @@ The profile file from the open, example Delta Sharing Server is downloaded and l
 ### Prerequisites
 * For Python examples, Python3.6+, Delta-Sharing Python Connector, and any example-specific dependencies need to be installed, see [the project docs](https://github.com/delta-io/delta-sharing) for details.
 * `./python/quickstart_arrow.py` also requires `duckdb` to be installed.
+* The bundled `open-datasets.share` profile does not expose a CDF-enabled table, so the CDF snippets in the quickstarts are commented out and require your own CDF-enabled share/table.
 
 ### Instructions
 * To run the example of PySpark in Python run `spark-submit --packages io.delta:delta-sharing-spark_2.12:0.6.2 ./python/quickstart_spark.py`

@@ -68,3 +68,28 @@ print("########### Show the DuckDB result #############")
 print(duckdb_result)
 
 duckdb_result
+
+# Change Data Feed (CDF) example.
+# The bundled open-datasets.share profile does not expose a CDF-enabled table, so the example
+# below is commented out by default. Replace `cdf_table_fqn` with a CDF-enabled table from your
+# own share credentials before running it.
+#
+# cdf_table_fqn = "share.schema.cdf_table"
+# cdf_changes = client.table(cdf_table_fqn).changes(starting_version=0)
+#
+# print(
+#     "########### Loading table changes from "
+#     + cdf_table_fqn
+#     + " as a PyArrow Table with client.table(...).changes(...).to_arrow #############"
+# )
+# cdf_arrow_table = cdf_changes.to_arrow()
+# print(cdf_arrow_table)
+#
+# print(
+#     "########### Querying table changes from "
+#     + cdf_table_fqn
+#     + " in DuckDB via client.table(...).changes(...).to_record_batch_reader #############"
+# )
+# cdf_reader = cdf_changes.to_record_batch_reader()
+# cdf_duckdb_result = duckdb_con.from_arrow(cdf_reader).limit(5).df()
+# print(cdf_duckdb_result)
