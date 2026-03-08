@@ -177,7 +177,9 @@ def test_to_arrow_non_partitioned(tmp_path):
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     arrow_table = reader.to_arrow()
-    expected = pa.Table.from_pandas(pd.concat([pdf1, pdf2]).reset_index(drop=True), preserve_index=False)
+    expected = pa.Table.from_pandas(
+        pd.concat([pdf1, pdf2]).reset_index(drop=True), preserve_index=False
+    )
     assert arrow_table.equals(expected)
 
 

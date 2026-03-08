@@ -407,7 +407,7 @@ class DeltaSharingReader:
         delta_protocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
         start_version = cdfOptions.starting_version
 
-        min_version = start_version if start_version is not None else (10**20 - 1)
+        min_version = start_version if start_version is not None else (10 ** 20 - 1)
         max_version = 0
         version_to_actions = defaultdict(list)
         version_to_metadata = {}
@@ -654,9 +654,7 @@ class DeltaSharingReader:
             if limit is not None and rows_read + batch.num_rows > limit:
                 batch = batch.slice(0, limit - rows_read)
 
-            yield DeltaSharingReader._normalize_record_batch(
-                batch, action, schema_json, converters
-            )
+            yield DeltaSharingReader._normalize_record_batch(batch, action, schema_json, converters)
             rows_read += batch.num_rows
 
     @staticmethod
@@ -681,9 +679,7 @@ class DeltaSharingReader:
     ) -> pa.RecordBatch:
         columns = []
         names = []
-        lower_to_index = {
-            name.lower(): index for index, name in enumerate(batch.schema.names)
-        }
+        lower_to_index = {name.lower(): index for index, name in enumerate(batch.schema.names)}
         num_rows = batch.num_rows
 
         for field in schema_json["fields"]:

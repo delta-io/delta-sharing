@@ -293,7 +293,9 @@ class DeltaSharingTable:
         return __get_table_metadata(self._rest_client, self._table, use_delta_format).protocol
 
     def version(self, starting_timestamp: Optional[str] = None) -> int:
-        return self._rest_client.query_table_version(self._table, starting_timestamp).delta_table_version
+        return self._rest_client.query_table_version(
+            self._table, starting_timestamp
+        ).delta_table_version
 
     def to_pandas(self, **kwargs) -> pd.DataFrame:
         return self.scan(**kwargs).to_pandas()
