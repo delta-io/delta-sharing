@@ -232,6 +232,43 @@ class DeltaSharingScan:
         return self._reader().to_record_batch_reader()
 
 
+class DeltaSharingChanges:
+    def __init__(
+        self,
+        table: Table,
+        rest_client: DataSharingRestClient,
+        *,
+        cdf_options: CdfOptions,
+        use_delta_format: Optional[bool] = None,
+        convert_in_batches: bool = False,
+    ):
+        self._table = table
+        self._rest_client = rest_client
+        self._cdf_options = cdf_options
+        self._use_delta_format = use_delta_format
+        self._convert_in_batches = convert_in_batches
+
+    def _reader(self) -> DeltaSharingReader:
+        return DeltaSharingReader(
+            table=self._table,
+            rest_client=self._rest_client,
+            use_delta_format=self._use_delta_format,
+            convert_in_batches=self._convert_in_batches,
+        )
+
+    def to_pandas(self) -> pd.DataFrame:
+        return self._reader().table_changes_to_pandas(self._cdf_options)
+
+    def to_arrow(self) -> pa.Table:
+        return self._reader().table_changes_to_arrow(self._cdf_options)
+
+    def to_record_batches(self) -> Iterator[pa.RecordBatch]:
+        return self._reader().table_changes_to_record_batches(self._cdf_options)
+
+    def to_record_batch_reader(self) -> pa.RecordBatchReader:
+        return self._reader().table_changes_to_record_batch_reader(self._cdf_options)
+
+
 class DeltaSharingTable:
     def __init__(self, table: Table, rest_client: DataSharingRestClient):
         self._table = table
@@ -267,6 +304,30 @@ class DeltaSharingTable:
 
     def protocol(self, use_delta_format: bool = True) -> Protocol:
         return __get_table_metadata(self._rest_client, self._table, use_delta_format).protocol
+
+    def changes(
+        self,
+        *,
+        starting_version: Optional[int] = None,
+        ending_version: Optional[int] = None,
+        starting_timestamp: Optional[str] = None,
+        ending_timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
+        convert_in_batches: bool = False,
+    ) -> "DeltaSharingChanges":
+        return DeltaSharingChanges(
+            table=self._table,
+            rest_client=self._rest_client,
+            cdf_options=CdfOptions(
+                starting_version=starting_version,
+                ending_version=ending_version,
+                starting_timestamp=starting_timestamp,
+                ending_timestamp=ending_timestamp,
+                include_historical_metadata=use_delta_format,
+            ),
+            use_delta_format=use_delta_format,
+            convert_in_batches=convert_in_batches,
+        )
 
     def version(self, starting_timestamp: Optional[str] = None) -> int:
         return self._rest_client.query_table_version(

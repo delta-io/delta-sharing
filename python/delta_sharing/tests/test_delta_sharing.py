@@ -21,6 +21,7 @@ import pyarrow as pa
 import pytest
 
 from delta_sharing.delta_sharing import (
+    DeltaSharingChanges,
     DeltaSharingTable,
     DeltaSharingProfile,
     SharingClient,
@@ -36,7 +37,7 @@ from delta_sharing.delta_sharing import (
     _parse_table_name,
     _validate_url,
 )
-from delta_sharing.protocol import Format, Metadata, Protocol, Schema, Share, Table
+from delta_sharing.protocol import CdfOptions, Format, Metadata, Protocol, Schema, Share, Table
 from delta_sharing.rest_client import (
     DataSharingRestClient,
     ListAllTablesResponse,
@@ -179,6 +180,110 @@ def test_sharing_client_table(profile: DeltaSharingProfile):
     table = Table(name="table2", share="share2", schema="schema2")
     table_from_object = sharing_client.table(table)
     assert table_from_object.table == table
+
+
+def test_delta_sharing_table_changes(profile: DeltaSharingProfile):
+    client = SharingClient(profile)
+
+    changes = client.table("share.schema.table").changes(
+        starting_version=5,
+        ending_version=10,
+        starting_timestamp="2024-01-01T00:00:00Z",
+        ending_timestamp="2024-01-02T00:00:00Z",
+        use_delta_format=True,
+        convert_in_batches=True,
+    )
+
+    assert isinstance(changes, DeltaSharingChanges)
+    assert changes._table == Table(name="table", share="share", schema="schema")
+    assert changes._rest_client is client._rest_client
+    assert changes._cdf_options == CdfOptions(
+        starting_version=5,
+        ending_version=10,
+        starting_timestamp="2024-01-01T00:00:00Z",
+        ending_timestamp="2024-01-02T00:00:00Z",
+        include_historical_metadata=True,
+    )
+    assert changes._use_delta_format is True
+    assert changes._convert_in_batches is True
+
+
+def test_load_table_changes_as_pandas_and_table_changes_to_pandas_match(
+    profile: DeltaSharingProfile, monkeypatch: pytest.MonkeyPatch
+):
+    expected = pd.DataFrame({"value": [1]})
+    captured = []
+
+    monkeypatch.setattr(DeltaSharingProfile, "read_from_file", staticmethod(lambda _: profile))
+
+    def fake_table_changes_to_pandas(self, cdf_options):
+        captured.append(
+            {
+                "table": self._table,
+                "use_delta_format": self._use_delta_format,
+                "convert_in_batches": self._convert_in_batches,
+                "cdf_options": cdf_options,
+            }
+        )
+        return expected
+
+    monkeypatch.setattr(
+        "delta_sharing.delta_sharing.DeltaSharingReader.table_changes_to_pandas",
+        fake_table_changes_to_pandas,
+    )
+
+    legacy = load_table_changes_as_pandas(
+        "/tmp/profile.share#share.schema.table",
+        starting_version=5,
+        ending_version=10,
+        starting_timestamp="2024-01-01T00:00:00Z",
+        ending_timestamp="2024-01-02T00:00:00Z",
+        use_delta_format=True,
+        convert_in_batches=True,
+    )
+
+    modern = (
+        SharingClient(profile)
+        .table("share.schema.table")
+        .changes(
+            starting_version=5,
+            ending_version=10,
+            starting_timestamp="2024-01-01T00:00:00Z",
+            ending_timestamp="2024-01-02T00:00:00Z",
+            use_delta_format=True,
+            convert_in_batches=True,
+        )
+        .to_pandas()
+    )
+
+    pd.testing.assert_frame_equal(legacy, expected)
+    pd.testing.assert_frame_equal(modern, expected)
+    assert captured == [
+        {
+            "table": Table(name="table", share="share", schema="schema"),
+            "use_delta_format": True,
+            "convert_in_batches": True,
+            "cdf_options": CdfOptions(
+                starting_version=5,
+                ending_version=10,
+                starting_timestamp="2024-01-01T00:00:00Z",
+                ending_timestamp="2024-01-02T00:00:00Z",
+                include_historical_metadata=True,
+            ),
+        },
+        {
+            "table": Table(name="table", share="share", schema="schema"),
+            "use_delta_format": True,
+            "convert_in_batches": True,
+            "cdf_options": CdfOptions(
+                starting_version=5,
+                ending_version=10,
+                starting_timestamp="2024-01-01T00:00:00Z",
+                ending_timestamp="2024-01-02T00:00:00Z",
+                include_historical_metadata=True,
+            ),
+        },
+    ]
 
 
 def test_load_as_arrow(profile: DeltaSharingProfile, monkeypatch: pytest.MonkeyPatch):

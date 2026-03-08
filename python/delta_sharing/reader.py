@@ -190,6 +190,36 @@ class DeltaSharingReader:
 
         return scan_result.schema, iterator()
 
+    @staticmethod
+    def _record_batches_to_pandas(
+        schema: pa.Schema,
+        batches: Iterator[pa.RecordBatch],
+        convert_in_batches: bool,
+    ) -> pd.DataFrame:
+        if convert_in_batches:
+            pdfs = [
+                batch.to_pandas(
+                    date_as_object=True,
+                    use_threads=False,
+                    split_blocks=False,
+                    self_destruct=True,
+                )
+                for batch in batches
+            ]
+            if len(pdfs) == 0:
+                return pd.DataFrame(columns=schema.names)
+            return pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+
+        batch_list = list(batches)
+        if len(batch_list) == 0:
+            return pd.DataFrame(columns=schema.names)
+        return pa.Table.from_batches(batch_list, schema=schema).to_pandas(
+            date_as_object=True,
+            use_threads=False,
+            split_blocks=False,
+            self_destruct=True,
+        )
+
     def to_pandas(self) -> pd.DataFrame:
         response_format = ""
         # If client does not specify which format to use, autoresolve it.
@@ -398,12 +428,13 @@ class DeltaSharingReader:
                 last_checkpoint_file.write(last_checkpoint_content)
                 last_checkpoint_file.close()
 
-    def __table_changes_to_pandas_kernel(self, cdfOptions: CdfOptions) -> pd.DataFrame:
+    def __table_changes_record_batches_kernel(
+        self, cdfOptions: CdfOptions
+    ) -> Tuple[pa.Schema, Iterator[pa.RecordBatch]]:
         self._rest_client.set_delta_format_header(for_cdf=True)
         response = self._rest_client.list_table_changes(self._table, cdfOptions)
         lines = response.lines
 
-        # first line is protocol
         protocol_json = loads(lines.pop(0))
         delta_protocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
         start_version = cdfOptions.starting_version
@@ -414,10 +445,7 @@ class DeltaSharingReader:
         version_to_metadata = {}
         version_to_timestamp = {}
 
-        # Construct map from version to actions that took place in that version
-        line_count = 1
         for line in lines:
-            line_count += 1
             line_json = loads(line)
             if "file" in line_json:
                 file = line_json["file"]
@@ -437,21 +465,10 @@ class DeltaSharingReader:
             else:
                 raise Exception(f"Invalid JSON object:\n{line}\nIs neither metadata nor file.")
 
-        num_versions_with_action = len(version_to_actions)
-        print(
-            f"table_changes stats: min_version={min_version}, "
-            f"max_version={max_version}, "
-            f"num_versions_with_action={num_versions_with_action}, "
-            f"num_versions_with_metadata={len(version_to_metadata)}, "
-            f"lines_in_response={line_count}, "
-        )
-        # Create a temporary directory using the tempfile module
         temp_dir = tempfile.TemporaryDirectory()
         try:
             delta_log_dir_name = temp_dir.name
             table_path = "file:///" + delta_log_dir_name
-
-            # Create a new directory named '_delta_log' within the temporary directory
             log_dir = os.path.join(delta_log_dir_name, "_delta_log")
             os.makedirs(log_dir)
             self.__write_temp_delta_log_cdf(
@@ -464,57 +481,74 @@ class DeltaSharingReader:
                 version_to_timestamp,
             )
 
-            # Invoke delta-kernel-rust to return the pandas dataframe
             interface = delta_kernel_rust_sharing_wrapper.PythonInterface(table_path)
             table = delta_kernel_rust_sharing_wrapper.Table(table_path)
             scan = delta_kernel_rust_sharing_wrapper.TableChangesScanBuilder(
                 table, interface, min_version, max_version
             ).build()
-
             scan_result = scan.execute(interface)
-            if num_versions_with_action == 0:
-                schema = scan_result.schema
-                result = pd.DataFrame(columns=schema.names)
-            elif self._convert_in_batches:
-                pdfs = [batch.to_pandas(self_destruct=True) for batch in scan_result]
-                result = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
-            else:
-                result = pa.Table.from_batches(scan_result).to_pandas(self_destruct=True)
-        finally:
-            # Delete the temp folder explicitly and remove the delta format from header
+        except Exception:
             temp_dir.cleanup()
             self._rest_client.remove_delta_format_header()
+            raise
 
-        return result
+        def iterator() -> Iterator[pa.RecordBatch]:
+            try:
+                for batch in scan_result:
+                    yield batch
+            finally:
+                temp_dir.cleanup()
+                self._rest_client.remove_delta_format_header()
 
-    def table_changes_to_pandas(self, cdfOptions: CdfOptions) -> pd.DataFrame:
-        # Only use delta format if explicitly specified
+        return scan_result.schema, iterator()
+
+    def _table_changes_to_arrow_stream(
+        self, cdfOptions: CdfOptions
+    ) -> Tuple[pa.Schema, Iterator[pa.RecordBatch]]:
         if self._use_delta_format:
-            return self.__table_changes_to_pandas_kernel(cdfOptions)
+            return self.__table_changes_record_batches_kernel(cdfOptions)
 
         response = self._rest_client.list_table_changes(self._table, cdfOptions)
 
         schema_json = loads(response.metadata.schema_string)
-        converters = to_converters(schema_json)
         schema_with_cdf = self._add_special_cdf_schema(schema_json)
+        schema = DeltaSharingReader._to_arrow_schema(schema_with_cdf)
 
         if len(response.actions) == 0:
-            return get_empty_table(schema_with_cdf)
+            return schema, iter(())
 
-        pdfs = []
-        for action in response.actions:
-            pdf = DeltaSharingReader._to_pandas(
-                action, converters, True, None, self._convert_in_batches
-            )
-            pdfs.append(pdf)
+        converters = to_converters(schema_json)
 
-        merged = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+        def iterator() -> Iterator[pa.RecordBatch]:
+            for action in response.actions:
+                for batch in DeltaSharingReader._to_record_batches(
+                    action,
+                    schema_with_cdf,
+                    converters,
+                    None,
+                    for_cdf=True,
+                ):
+                    yield batch
 
-        col_map = {}
-        for col in merged.columns:
-            col_map[col.lower()] = col
+        return schema, iterator()
 
-        return merged[[col_map[field["name"].lower()] for field in schema_with_cdf["fields"]]]
+    def table_changes_to_pandas(self, cdfOptions: CdfOptions) -> pd.DataFrame:
+        schema, batches = self._table_changes_to_arrow_stream(cdfOptions)
+        return DeltaSharingReader._record_batches_to_pandas(
+            schema, batches, self._convert_in_batches
+        )
+
+    def table_changes_to_arrow(self, cdfOptions: CdfOptions) -> pa.Table:
+        schema, batches = self._table_changes_to_arrow_stream(cdfOptions)
+        return pa.Table.from_batches(list(batches), schema=schema)
+
+    def table_changes_to_record_batches(self, cdfOptions: CdfOptions) -> Iterator[pa.RecordBatch]:
+        _, batches = self._table_changes_to_arrow_stream(cdfOptions)
+        return batches
+
+    def table_changes_to_record_batch_reader(self, cdfOptions: CdfOptions) -> pa.RecordBatchReader:
+        schema, batches = self._table_changes_to_arrow_stream(cdfOptions)
+        return pa.RecordBatchReader.from_batches(schema, batches)
 
     def _copy(
         self,
@@ -620,6 +654,7 @@ class DeltaSharingReader:
         schema_json: dict,
         converters: Dict[str, Callable[[str], Any]],
         limit: Optional[int],
+        for_cdf: bool = False,
     ) -> Iterator[pa.RecordBatch]:
         url = urlparse(action.url)
         if "storage.googleapis.com" in (url.netloc.lower()):
@@ -643,7 +678,9 @@ class DeltaSharingReader:
             if limit is not None and rows_read + batch.num_rows > limit:
                 batch = batch.slice(0, limit - rows_read)
 
-            yield DeltaSharingReader._normalize_record_batch(batch, action, schema_json, converters)
+            yield DeltaSharingReader._normalize_record_batch(
+                batch, action, schema_json, converters, for_cdf
+            )
             rows_read += batch.num_rows
 
     @staticmethod
@@ -665,6 +702,7 @@ class DeltaSharingReader:
         action: FileAction,
         schema_json: dict,
         converters: Dict[str, Callable[[str], Any]],
+        for_cdf: bool = False,
     ) -> pa.RecordBatch:
         columns = []
         names = []
@@ -683,6 +721,29 @@ class DeltaSharingReader:
                     column = column.cast(field_type)
                 columns.append(column)
                 continue
+
+            if for_cdf:
+                if field_name == DeltaSharingReader._change_type_col_name():
+                    if isinstance(action, AddCdcFile):
+                        raise ValueError("Missing _change_type column in change data feed file")
+                    columns.append(
+                        pa.array([action.get_change_type_col_value()] * num_rows, type=field_type)
+                    )
+                    continue
+                if field_name == DeltaSharingReader._commit_version_col_name():
+                    columns.append(
+                        pa.array([action.version] * num_rows, type=field_type)
+                        if action.version is not None
+                        else pa.nulls(num_rows, type=field_type)
+                    )
+                    continue
+                if field_name == DeltaSharingReader._commit_timestamp_col_name():
+                    columns.append(
+                        pa.array([action.timestamp] * num_rows, type=field_type)
+                        if action.timestamp is not None
+                        else pa.nulls(num_rows, type=field_type)
+                    )
+                    continue
 
             if field_name in action.partition_values:
                 converter = converters[field_name]
@@ -755,8 +816,8 @@ class DeltaSharingReader:
 
     @staticmethod
     def _add_special_cdf_schema(schema_json: dict) -> dict:
-        fields = schema_json["fields"]
+        fields = list(schema_json["fields"])
         fields.append({"name": DeltaSharingReader._change_type_col_name(), "type": "string"})
         fields.append({"name": DeltaSharingReader._commit_version_col_name(), "type": "long"})
         fields.append({"name": DeltaSharingReader._commit_timestamp_col_name(), "type": "long"})
-        return schema_json
+        return {**schema_json, "fields": fields}
