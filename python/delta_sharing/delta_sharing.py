@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 from itertools import chain
-from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
+from typing import BinaryIO, Iterator, List, Optional, Sequence, TextIO, Tuple, Union
 from pathlib import Path
 
 import pandas as pd
@@ -273,17 +273,81 @@ class DeltaSharingTable:
             self._table, starting_timestamp
         ).delta_table_version
 
-    def to_pandas(self, **kwargs) -> pd.DataFrame:
-        return self.scan(**kwargs).to_pandas()
+    def to_pandas(
+        self,
+        *,
+        jsonPredicateHints: Optional[str] = None,
+        limit: Optional[int] = None,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
+        convert_in_batches: bool = False,
+    ) -> pd.DataFrame:
+        return self.scan(
+            jsonPredicateHints=jsonPredicateHints,
+            limit=limit,
+            version=version,
+            timestamp=timestamp,
+            use_delta_format=use_delta_format,
+            convert_in_batches=convert_in_batches,
+        ).to_pandas()
 
-    def to_arrow(self, **kwargs) -> pa.Table:
-        return self.scan(**kwargs).to_arrow()
+    def to_arrow(
+        self,
+        *,
+        jsonPredicateHints: Optional[str] = None,
+        limit: Optional[int] = None,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
+        convert_in_batches: bool = False,
+    ) -> pa.Table:
+        return self.scan(
+            jsonPredicateHints=jsonPredicateHints,
+            limit=limit,
+            version=version,
+            timestamp=timestamp,
+            use_delta_format=use_delta_format,
+            convert_in_batches=convert_in_batches,
+        ).to_arrow()
 
-    def to_record_batches(self, **kwargs):
-        return self.scan(**kwargs).to_record_batches()
+    def to_record_batches(
+        self,
+        *,
+        jsonPredicateHints: Optional[str] = None,
+        limit: Optional[int] = None,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
+        convert_in_batches: bool = False,
+    ) -> Iterator[pa.RecordBatch]:
+        return self.scan(
+            jsonPredicateHints=jsonPredicateHints,
+            limit=limit,
+            version=version,
+            timestamp=timestamp,
+            use_delta_format=use_delta_format,
+            convert_in_batches=convert_in_batches,
+        ).to_record_batches()
 
-    def to_record_batch_reader(self, **kwargs) -> pa.RecordBatchReader:
-        return self.scan(**kwargs).to_record_batch_reader()
+    def to_record_batch_reader(
+        self,
+        *,
+        jsonPredicateHints: Optional[str] = None,
+        limit: Optional[int] = None,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
+        convert_in_batches: bool = False,
+    ) -> pa.RecordBatchReader:
+        return self.scan(
+            jsonPredicateHints=jsonPredicateHints,
+            limit=limit,
+            version=version,
+            timestamp=timestamp,
+            use_delta_format=use_delta_format,
+            convert_in_batches=convert_in_batches,
+        ).to_record_batch_reader()
 
 
 def _validate_url(url: str, delta_sharing_profile: Optional[DeltaSharingProfile] = None) -> None:
