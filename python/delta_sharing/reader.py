@@ -407,7 +407,7 @@ class DeltaSharingReader:
         delta_protocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
         start_version = cdfOptions.starting_version
 
-        min_version = start_version if start_version is not None else (10 ** 20 - 1)
+        min_version = start_version if start_version is not None else (10**20 - 1)
         max_version = 0
         version_to_actions = defaultdict(list)
         version_to_metadata = {}
