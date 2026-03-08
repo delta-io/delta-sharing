@@ -632,10 +632,11 @@ class DeltaSharingReader:
         else:
             filesystem = fsspec.filesystem(protocol)
 
-        pa_file = ParquetFile(action.url, filesystem=filesystem)
+        pa_dataset = dataset(source=action.url, format="parquet", filesystem=filesystem)
+        scanner = pa_dataset.scanner()
         rows_read = 0
 
-        for batch in pa_file.iter_batches():
+        for batch in scanner.to_batches():
             if limit is not None and rows_read == limit:
                 return
 
