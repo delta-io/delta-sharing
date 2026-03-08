@@ -687,12 +687,15 @@ class DeltaSharingReader:
             field_name = field["name"]
             lower_name = field_name.lower()
             names.append(field_name)
+            field_type = DeltaSharingReader._to_arrow_type(field["type"])
 
             if lower_name in lower_to_index:
-                columns.append(batch.column(lower_to_index[lower_name]))
+                column = batch.column(lower_to_index[lower_name])
+                if column.type != field_type:
+                    column = column.cast(field_type)
+                columns.append(column)
                 continue
 
-            field_type = DeltaSharingReader._to_arrow_type(field["type"])
             if field_name in action.partition_values:
                 converter = converters[field_name]
                 if converter is None:

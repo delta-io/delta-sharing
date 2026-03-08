@@ -183,6 +183,52 @@ def test_to_arrow_non_partitioned(tmp_path):
     assert arrow_table.equals(expected)
 
 
+def test_to_arrow_casts_timestamp_columns_to_declared_schema(tmp_path):
+    pdf = pd.DataFrame({"ts": pd.to_datetime(["2024-01-01 00:00:00", "2024-01-02 12:34:56"])})
+    pdf.to_parquet(tmp_path / "timestamps.parquet")
+
+    class RestClientMock:
+        def list_files_in_table(
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
+            limitHint: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[int] = None,
+        ) -> ListFilesInTableResponse:
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"ts","nullable":true,"type":"timestamp"}'
+                    '],"type":"struct"}'
+                )
+            )
+            return ListFilesInTableResponse(
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=[
+                    AddFile(
+                        url=str(tmp_path / "timestamps.parquet"),
+                        id="timestamps",
+                        partition_values={},
+                        size=0,
+                        stats="",
+                    )
+                ],
+                lines=[],
+            )
+
+        def autoresolve_query_format(self, table: Table):
+            return "parquet"
+
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    arrow_table = reader.to_arrow()
+    assert arrow_table.schema.field("ts").type == pa.timestamp("ns")
+
+
 def test_to_arrow_partitioned(tmp_path):
     pdf1 = pd.DataFrame({"a": [1, 2, 3]})
     pdf2 = pd.DataFrame({"a": [4, 5, 6]})
