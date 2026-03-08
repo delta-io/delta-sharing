@@ -207,7 +207,7 @@ class DeltaSharingScan:
         self._use_delta_format = use_delta_format
         self._convert_in_batches = convert_in_batches
 
-    def to_pandas(self) -> pd.DataFrame:
+    def _reader(self) -> DeltaSharingReader:
         return DeltaSharingReader(
             table=self._table,
             rest_client=self._rest_client,
@@ -217,43 +217,19 @@ class DeltaSharingScan:
             timestamp=self._timestamp,
             use_delta_format=self._use_delta_format,
             convert_in_batches=self._convert_in_batches,
-        ).to_pandas()
+        )
+
+    def to_pandas(self) -> pd.DataFrame:
+        return self._reader().to_pandas()
 
     def to_arrow(self) -> pa.Table:
-        return DeltaSharingReader(
-            table=self._table,
-            rest_client=self._rest_client,
-            jsonPredicateHints=self._jsonPredicateHints,
-            limit=self._limit,
-            version=self._version,
-            timestamp=self._timestamp,
-            use_delta_format=self._use_delta_format,
-            convert_in_batches=self._convert_in_batches,
-        ).to_arrow()
+        return self._reader().to_arrow()
 
     def to_record_batches(self):
-        return DeltaSharingReader(
-            table=self._table,
-            rest_client=self._rest_client,
-            jsonPredicateHints=self._jsonPredicateHints,
-            limit=self._limit,
-            version=self._version,
-            timestamp=self._timestamp,
-            use_delta_format=self._use_delta_format,
-            convert_in_batches=self._convert_in_batches,
-        ).to_record_batches()
+        return self._reader().to_record_batches()
 
     def to_record_batch_reader(self) -> pa.RecordBatchReader:
-        return DeltaSharingReader(
-            table=self._table,
-            rest_client=self._rest_client,
-            jsonPredicateHints=self._jsonPredicateHints,
-            limit=self._limit,
-            version=self._version,
-            timestamp=self._timestamp,
-            use_delta_format=self._use_delta_format,
-            convert_in_batches=self._convert_in_batches,
-        ).to_record_batch_reader()
+        return self._reader().to_record_batch_reader()
 
 
 class DeltaSharingTable:
