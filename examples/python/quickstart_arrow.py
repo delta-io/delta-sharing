@@ -51,6 +51,7 @@ print(
 )
 arrow_batches = table.to_record_batches(limit=limit)
 print(next(arrow_batches))
+# Close the iterator if you stop early so temporary resources are released promptly.
 arrow_batches.close()
 
 # Feed the Arrow RecordBatchReader into DuckDB so DuckDB consumes the stream.

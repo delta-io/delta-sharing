@@ -18,6 +18,9 @@ The Python connector supports:
 * client and table-handle access such as `SharingClient(profile).table("share.schema.table")`
 * Arrow-native reads via `load_as_arrow(...)`, `table.to_arrow(...)`, `table.to_record_batches(...)`, and `table.to_record_batch_reader(...)`
 
+When using lazy Arrow APIs such as `to_record_batches(...)` or `to_record_batch_reader(...)`, exhaust the
+stream or close it if you stop early so temporary resources can be released promptly.
+
 ## Documentation
 
 This README only contains basic information about the Delta Sharing Python Connector. Please read [the project documentation](https://github.com/delta-io/delta-sharing) for full usage details.
