@@ -189,7 +189,7 @@ class DataSharingRestClient:
         )
 
     def remove_sharing_capabilities_header(self):
-        del self._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        self._session.headers.pop(DataSharingRestClient.CAPABILITIES_HEADER, None)
 
     def set_delta_format_header(self, for_cdf=False):
         delta_sharing_capabilities = (
@@ -202,7 +202,7 @@ class DataSharingRestClient:
         )
 
     def remove_delta_format_header(self):
-        del self._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        self._session.headers.pop(DataSharingRestClient.CAPABILITIES_HEADER, None)
 
     @retry_with_exponential_backoff
     def list_shares(

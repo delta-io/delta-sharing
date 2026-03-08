@@ -20,6 +20,7 @@ import pandas as pd
 import pytest
 
 from delta_sharing.delta_sharing import (
+    DeltaSharingTable,
     DeltaSharingProfile,
     SharingClient,
     get_table_metadata,
@@ -30,6 +31,7 @@ from delta_sharing.delta_sharing import (
     load_table_changes_as_spark,
     load_table_changes_as_pandas,
     _parse_url,
+    _parse_table_name,
     _validate_url,
 )
 from delta_sharing.protocol import Format, Metadata, Protocol, Schema, Share, Table
@@ -157,6 +159,24 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
     sharing_client._rest_client = TestDataSharingRestClient()
     tables = sharing_client.list_all_tables()
     _verify_all_tables_result(tables)
+
+
+def test_parse_table_name():
+    assert _parse_table_name("share.schema.table") == Table(
+        name="table", share="share", schema="schema"
+    )
+
+
+def test_sharing_client_table(profile: DeltaSharingProfile):
+    sharing_client = SharingClient(profile)
+
+    table_from_string = sharing_client.table("share.schema.table")
+    assert isinstance(table_from_string, DeltaSharingTable)
+    assert table_from_string.table == Table(name="table", share="share", schema="schema")
+
+    table = Table(name="table2", share="share2", schema="schema2")
+    table_from_object = sharing_client.table(table)
+    assert table_from_object.table == table
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -820,6 +840,24 @@ def test_load_as_pandas_success_client_delta_kernel_enabled_with_normal_table(
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None, None, True)
     expected["eventTime"] = expected["eventTime"].astype("datetime64[us, UTC]")
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize("use_delta_format", [None, True, False])
+def test_load_as_pandas_legacy_and_table_handle_match(
+    profile_path: str, profile: DeltaSharingProfile, use_delta_format: Optional[bool]
+):
+    fragments = "share1.default.table1"
+    limit = 2
+
+    legacy_pdf = load_as_pandas(
+        f"{profile_path}#{fragments}", limit=limit, use_delta_format=use_delta_format
+    )
+
+    client = SharingClient(profile)
+    table_pdf = client.table(fragments).to_pandas(limit=limit, use_delta_format=use_delta_format)
+
+    pd.testing.assert_frame_equal(legacy_pdf, table_pdf)
 
 
 # We will test predicates with the table share8.default.cdf_table_with_partition

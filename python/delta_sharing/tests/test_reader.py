@@ -20,6 +20,7 @@ from typing import Optional, Sequence
 
 import pandas as pd
 import numpy as np
+import pyarrow as pa
 
 from delta_sharing.protocol import AddFile, AddCdcFile, CdfOptions, Metadata, RemoveFile, Table
 from delta_sharing.reader import DeltaSharingReader
@@ -120,6 +121,260 @@ def test_to_pandas_non_partitioned(tmp_path):
     pdf = reader.to_pandas()
     expected = pd.concat([pdf2]).reset_index(drop=True)
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+def test_to_arrow_non_partitioned(tmp_path):
+    pdf1 = pd.DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
+    pdf2 = pd.DataFrame({"a": [4, 5, 6], "b": ["d", "e", "f"]})
+
+    pdf1.to_parquet(tmp_path / "pdf1.parquet")
+    pdf2.to_parquet(tmp_path / "pdf2.parquet")
+
+    class RestClientMock:
+        def list_files_in_table(
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
+            limitHint: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[int] = None,
+        ) -> ListFilesInTableResponse:
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
+                    '],"type":"struct"}'
+                )
+            )
+            return ListFilesInTableResponse(
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=[
+                    AddFile(
+                        url=str(tmp_path / "pdf1.parquet"),
+                        id="pdf1",
+                        partition_values={},
+                        size=0,
+                        stats="",
+                    ),
+                    AddFile(
+                        url=str(tmp_path / "pdf2.parquet"),
+                        id="pdf2",
+                        partition_values={},
+                        size=0,
+                        stats="",
+                    ),
+                ],
+                lines=[],
+            )
+
+        def autoresolve_query_format(self, table: Table):
+            return "parquet"
+
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    arrow_table = reader.to_arrow()
+    expected = pa.Table.from_pandas(pd.concat([pdf1, pdf2]).reset_index(drop=True), preserve_index=False)
+    assert arrow_table.equals(expected)
+
+
+def test_to_arrow_partitioned(tmp_path):
+    pdf1 = pd.DataFrame({"a": [1, 2, 3]})
+    pdf2 = pd.DataFrame({"a": [4, 5, 6]})
+
+    pdf1.to_parquet(tmp_path / "pdf1.parquet")
+    pdf2.to_parquet(tmp_path / "pdf2.parquet")
+
+    class RestClientMock:
+        def list_files_in_table(
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
+            limitHint: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[int] = None,
+        ) -> ListFilesInTableResponse:
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
+                    '],"type":"struct"}'
+                )
+            )
+            return ListFilesInTableResponse(
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=[
+                    AddFile(
+                        url=str(tmp_path / "pdf1.parquet"),
+                        id="pdf1",
+                        partition_values={"b": "x"},
+                        size=0,
+                        stats="",
+                    ),
+                    AddFile(
+                        url=str(tmp_path / "pdf2.parquet"),
+                        id="pdf2",
+                        partition_values={"b": "y"},
+                        size=0,
+                        stats="",
+                    ),
+                ],
+                lines=[],
+            )
+
+        def autoresolve_query_format(self, table: Table):
+            return "parquet"
+
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    arrow_table = reader.to_arrow()
+
+    expected1 = pdf1.copy()
+    expected1["b"] = "x"
+    expected2 = pdf2.copy()
+    expected2["b"] = "y"
+    expected = pa.Table.from_pandas(
+        pd.concat([expected1, expected2]).reset_index(drop=True), preserve_index=False
+    )
+    assert arrow_table.equals(expected)
+
+
+def test_to_record_batches_non_partitioned(tmp_path):
+    pdf1 = pd.DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
+    pdf2 = pd.DataFrame({"a": [4, 5, 6], "b": ["d", "e", "f"]})
+
+    pdf1.to_parquet(tmp_path / "pdf1.parquet")
+    pdf2.to_parquet(tmp_path / "pdf2.parquet")
+
+    class RestClientMock:
+        def list_files_in_table(
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
+            limitHint: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[int] = None,
+        ) -> ListFilesInTableResponse:
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
+                    '],"type":"struct"}'
+                )
+            )
+            return ListFilesInTableResponse(
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=[
+                    AddFile(
+                        url=str(tmp_path / "pdf1.parquet"),
+                        id="pdf1",
+                        partition_values={},
+                        size=0,
+                        stats="",
+                    ),
+                    AddFile(
+                        url=str(tmp_path / "pdf2.parquet"),
+                        id="pdf2",
+                        partition_values={},
+                        size=0,
+                        stats="",
+                    ),
+                ],
+                lines=[],
+            )
+
+        def autoresolve_query_format(self, table: Table):
+            return "parquet"
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"), RestClientMock(), limit=4
+    )
+    batches = list(reader.to_record_batches())
+    assert [batch.num_rows for batch in batches] == [3, 1]
+
+    table = pa.Table.from_batches(batches)
+    expected = pa.Table.from_pandas(
+        pd.concat([pdf1, pdf2]).reset_index(drop=True).head(4), preserve_index=False
+    )
+    assert table.equals(expected)
+
+
+def test_to_record_batch_reader_partitioned(tmp_path):
+    pdf1 = pd.DataFrame({"a": [1, 2, 3]})
+    pdf2 = pd.DataFrame({"a": [4, 5, 6]})
+
+    pdf1.to_parquet(tmp_path / "pdf1.parquet")
+    pdf2.to_parquet(tmp_path / "pdf2.parquet")
+
+    class RestClientMock:
+        def list_files_in_table(
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
+            limitHint: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[int] = None,
+        ) -> ListFilesInTableResponse:
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
+                    '],"type":"struct"}'
+                )
+            )
+            return ListFilesInTableResponse(
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=[
+                    AddFile(
+                        url=str(tmp_path / "pdf1.parquet"),
+                        id="pdf1",
+                        partition_values={"b": "x"},
+                        size=0,
+                        stats="",
+                    ),
+                    AddFile(
+                        url=str(tmp_path / "pdf2.parquet"),
+                        id="pdf2",
+                        partition_values={"b": "y"},
+                        size=0,
+                        stats="",
+                    ),
+                ],
+                lines=[],
+            )
+
+        def autoresolve_query_format(self, table: Table):
+            return "parquet"
+
+    reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
+    batch_reader = reader.to_record_batch_reader()
+    table = batch_reader.read_all()
+
+    expected1 = pdf1.copy()
+    expected1["b"] = "x"
+    expected2 = pdf2.copy()
+    expected2["b"] = "y"
+    expected = pa.Table.from_pandas(
+        pd.concat([expected1, expected2]).reset_index(drop=True), preserve_index=False
+    )
+    assert table.equals(expected)
 
 
 def test_to_pandas_partitioned(tmp_path):

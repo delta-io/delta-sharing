@@ -18,6 +18,7 @@ from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
 from pathlib import Path
 
 import pandas as pd
+import pyarrow as pa
 
 from delta_sharing.protocol import CdfOptions, Protocol, Metadata
 
@@ -49,6 +50,14 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
     if len(profile) == 0 or len(share) == 0 or len(schema) == 0 or len(table) == 0:
         raise ValueError(f"Invalid 'url': {url}")
     return (profile, share, schema, table)
+
+
+def _parse_table_name(name: str) -> Table:
+    fragments = name.split(".")
+    if len(fragments) != 3 or any(len(fragment) == 0 for fragment in fragments):
+        raise ValueError(f"Invalid table name: {name}")
+    share, schema, table = fragments
+    return Table(name=table, share=share, schema=schema)
 
 
 def get_table_version(url: str, starting_timestamp: Optional[str] = None) -> int:
@@ -145,6 +154,158 @@ def load_as_pandas(
         use_delta_format=use_delta_format,
         convert_in_batches=convert_in_batches,
     ).to_pandas()
+
+
+def load_as_arrow(
+    url: str,
+    limit: Optional[int] = None,
+    version: Optional[int] = None,
+    timestamp: Optional[str] = None,
+    jsonPredicateHints: Optional[str] = None,
+    use_delta_format: Optional[bool] = None,
+    convert_in_batches: bool = False,
+) -> pa.Table:
+    """
+    Load the shared table using the given url as a PyArrow Table.
+
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>"
+    :return: A PyArrow Table representing the shared table.
+    """
+    profile_json, share, schema, table = _parse_url(url)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
+    return DeltaSharingReader(
+        table=Table(name=table, share=share, schema=schema),
+        rest_client=DataSharingRestClient(profile),
+        jsonPredicateHints=jsonPredicateHints,
+        limit=limit,
+        version=version,
+        timestamp=timestamp,
+        use_delta_format=use_delta_format,
+        convert_in_batches=convert_in_batches,
+    ).to_arrow()
+
+
+class DeltaSharingScan:
+    def __init__(
+        self,
+        table: Table,
+        rest_client: DataSharingRestClient,
+        *,
+        jsonPredicateHints: Optional[str] = None,
+        limit: Optional[int] = None,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
+        convert_in_batches: bool = False,
+    ):
+        self._table = table
+        self._rest_client = rest_client
+        self._jsonPredicateHints = jsonPredicateHints
+        self._limit = limit
+        self._version = version
+        self._timestamp = timestamp
+        self._use_delta_format = use_delta_format
+        self._convert_in_batches = convert_in_batches
+
+    def to_pandas(self) -> pd.DataFrame:
+        return DeltaSharingReader(
+            table=self._table,
+            rest_client=self._rest_client,
+            jsonPredicateHints=self._jsonPredicateHints,
+            limit=self._limit,
+            version=self._version,
+            timestamp=self._timestamp,
+            use_delta_format=self._use_delta_format,
+            convert_in_batches=self._convert_in_batches,
+        ).to_pandas()
+
+    def to_arrow(self) -> pa.Table:
+        return DeltaSharingReader(
+            table=self._table,
+            rest_client=self._rest_client,
+            jsonPredicateHints=self._jsonPredicateHints,
+            limit=self._limit,
+            version=self._version,
+            timestamp=self._timestamp,
+            use_delta_format=self._use_delta_format,
+            convert_in_batches=self._convert_in_batches,
+        ).to_arrow()
+
+    def to_record_batches(self):
+        return DeltaSharingReader(
+            table=self._table,
+            rest_client=self._rest_client,
+            jsonPredicateHints=self._jsonPredicateHints,
+            limit=self._limit,
+            version=self._version,
+            timestamp=self._timestamp,
+            use_delta_format=self._use_delta_format,
+            convert_in_batches=self._convert_in_batches,
+        ).to_record_batches()
+
+    def to_record_batch_reader(self) -> pa.RecordBatchReader:
+        return DeltaSharingReader(
+            table=self._table,
+            rest_client=self._rest_client,
+            jsonPredicateHints=self._jsonPredicateHints,
+            limit=self._limit,
+            version=self._version,
+            timestamp=self._timestamp,
+            use_delta_format=self._use_delta_format,
+            convert_in_batches=self._convert_in_batches,
+        ).to_record_batch_reader()
+
+
+class DeltaSharingTable:
+    def __init__(self, table: Table, rest_client: DataSharingRestClient):
+        self._table = table
+        self._rest_client = rest_client
+
+    @property
+    def table(self) -> Table:
+        return self._table
+
+    def scan(
+        self,
+        *,
+        jsonPredicateHints: Optional[str] = None,
+        limit: Optional[int] = None,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
+        convert_in_batches: bool = False,
+    ) -> "DeltaSharingScan":
+        return DeltaSharingScan(
+            table=self._table,
+            rest_client=self._rest_client,
+            jsonPredicateHints=jsonPredicateHints,
+            limit=limit,
+            version=version,
+            timestamp=timestamp,
+            use_delta_format=use_delta_format,
+            convert_in_batches=convert_in_batches,
+        )
+
+    def metadata(self, use_delta_format: bool = True) -> Metadata:
+        return __get_table_metadata(self._rest_client, self._table, use_delta_format).metadata
+
+    def protocol(self, use_delta_format: bool = True) -> Protocol:
+        return __get_table_metadata(self._rest_client, self._table, use_delta_format).protocol
+
+    def version(self, starting_timestamp: Optional[str] = None) -> int:
+        return self._rest_client.query_table_version(self._table, starting_timestamp).delta_table_version
+
+    def to_pandas(self, **kwargs) -> pd.DataFrame:
+        return self.scan(**kwargs).to_pandas()
+
+    def to_arrow(self, **kwargs) -> pa.Table:
+        return self.scan(**kwargs).to_arrow()
+
+    def to_record_batches(self, **kwargs):
+        return self.scan(**kwargs).to_record_batches()
+
+    def to_record_batch_reader(self, **kwargs) -> pa.RecordBatchReader:
+        return self.scan(**kwargs).to_record_batch_reader()
 
 
 def _validate_url(url: str, delta_sharing_profile: Optional[DeltaSharingProfile] = None) -> None:
@@ -432,3 +593,8 @@ class SharingClient:
                 return list(chain(*(self.list_tables(schema) for schema in schemas)))
             else:
                 raise e
+
+    def table(self, table: Union[str, Table]) -> DeltaSharingTable:
+        if isinstance(table, str):
+            table = _parse_table_name(table)
+        return DeltaSharingTable(table, self._rest_client)
