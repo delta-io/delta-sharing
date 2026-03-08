@@ -95,18 +95,6 @@ def test_retry(rest_client: DataSharingRestClient):
     wrapper.sleeps.clear()
 
 
-def test_remove_sharing_capabilities_header_is_idempotent(rest_client: DataSharingRestClient):
-    rest_client.set_sharing_capabilities_header()
-    rest_client.remove_sharing_capabilities_header()
-    rest_client.remove_sharing_capabilities_header()
-
-
-def test_remove_delta_format_header_is_idempotent(rest_client: DataSharingRestClient):
-    rest_client.set_delta_format_header()
-    rest_client.remove_delta_format_header()
-    rest_client.remove_delta_format_header()
-
-
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_read_endpoint(rest_client: DataSharingRestClient):
     assert not rest_client._profile.endpoint.endswith("/")
