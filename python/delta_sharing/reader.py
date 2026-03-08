@@ -615,19 +615,6 @@ class DeltaSharingReader:
         return pdf
 
     @staticmethod
-    def _to_arrow(
-        action: FileAction,
-        schema_json: dict,
-        converters: Dict[str, Callable[[str], Any]],
-        limit: Optional[int],
-        convert_in_batches: bool,
-    ) -> pa.Table:
-        return pa.Table.from_batches(
-            list(DeltaSharingReader._to_record_batches(action, schema_json, converters, limit)),
-            schema=DeltaSharingReader._to_arrow_schema(schema_json),
-        )
-
-    @staticmethod
     def _to_record_batches(
         action: FileAction,
         schema_json: dict,
