@@ -304,9 +304,10 @@ class DeltaSharingReader:
                     yield batch
                     if left is not None:
                         left -= batch.num_rows
-                        assert (
-                            left >= 0
-                        ), f"'_to_record_batches' returned too many rows. Required: {left}, returned: {batch.num_rows}"
+                        assert left >= 0, (
+                            "'_to_record_batches' returned too many rows. "
+                            f"Required: {left}, returned: {batch.num_rows}"
+                        )
                         if left == 0:
                             return
 
