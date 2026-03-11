@@ -349,7 +349,7 @@ def test_delta_sharing_scan_to_record_batch_reader(
     )
 
     client = SharingClient(profile)
-    scan = client.table("share.schema.table").scan(
+    snapshot = client.table("share.schema.table").snapshot(
         limit=10,
         version=2,
         timestamp="2024-01-01T00:00:00Z",
@@ -357,7 +357,7 @@ def test_delta_sharing_scan_to_record_batch_reader(
         use_delta_format=False,
         convert_in_batches=True,
     )
-    result = scan.to_record_batch_reader()
+    result = snapshot.to_record_batch_reader()
 
     assert result.read_all().equals(expected)
     assert captured == {

@@ -17,6 +17,7 @@
 from delta_sharing.delta_sharing import (
     DeltaSharingChanges,
     DeltaSharingScan,
+    DeltaSharingSnapshot,
     DeltaSharingTable,
     SharingClient,
     load_as_arrow,
@@ -32,6 +33,7 @@ from delta_sharing.version import __version__
 __all__ = [
     "SharingClient",
     "DeltaSharingTable",
+    "DeltaSharingSnapshot",
     "DeltaSharingScan",
     "DeltaSharingChanges",
     "Share",

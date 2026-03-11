@@ -185,7 +185,7 @@ def load_as_arrow(
     ).to_arrow()
 
 
-class DeltaSharingScan:
+class DeltaSharingSnapshot:
     def __init__(
         self,
         table: Table,
@@ -278,6 +278,27 @@ class DeltaSharingTable:
     def table(self) -> Table:
         return self._table
 
+    def snapshot(
+        self,
+        *,
+        jsonPredicateHints: Optional[str] = None,
+        limit: Optional[int] = None,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
+        convert_in_batches: bool = False,
+    ) -> "DeltaSharingSnapshot":
+        return DeltaSharingSnapshot(
+            table=self._table,
+            rest_client=self._rest_client,
+            jsonPredicateHints=jsonPredicateHints,
+            limit=limit,
+            version=version,
+            timestamp=timestamp,
+            use_delta_format=use_delta_format,
+            convert_in_batches=convert_in_batches,
+        )
+
     def scan(
         self,
         *,
@@ -287,10 +308,8 @@ class DeltaSharingTable:
         timestamp: Optional[str] = None,
         use_delta_format: Optional[bool] = None,
         convert_in_batches: bool = False,
-    ) -> "DeltaSharingScan":
-        return DeltaSharingScan(
-            table=self._table,
-            rest_client=self._rest_client,
+    ) -> "DeltaSharingSnapshot":
+        return self.snapshot(
             jsonPredicateHints=jsonPredicateHints,
             limit=limit,
             version=version,
@@ -335,16 +354,19 @@ class DeltaSharingTable:
         ).delta_table_version
 
     def to_pandas(self) -> pd.DataFrame:
-        return self.scan().to_pandas()
+        return self.snapshot().to_pandas()
 
     def to_arrow(self) -> pa.Table:
-        return self.scan().to_arrow()
+        return self.snapshot().to_arrow()
 
     def to_record_batches(self) -> Iterator[pa.RecordBatch]:
-        return self.scan().to_record_batches()
+        return self.snapshot().to_record_batches()
 
     def to_record_batch_reader(self) -> pa.RecordBatchReader:
-        return self.scan().to_record_batch_reader()
+        return self.snapshot().to_record_batch_reader()
+
+
+DeltaSharingScan = DeltaSharingSnapshot
 
 
 def _validate_url(url: str, delta_sharing_profile: Optional[DeltaSharingProfile] = None) -> None:

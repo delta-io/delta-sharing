@@ -33,9 +33,9 @@ table = client.table(table_fqn)
 
 # Configure a scan and fetch 10 rows from a table as a Pandas DataFrame.
 print(
-    "########### Loading 10 rows from delta_sharing.default.owid-covid-data as a Pandas DataFrame with client.table(...).scan(...).to_pandas #############"
+    "########### Loading 10 rows from delta_sharing.default.owid-covid-data as a Pandas DataFrame with client.table(...).snapshot(...).to_pandas #############"
 )
-data = table.scan(limit=10).to_pandas()
+data = table.snapshot(limit=10).to_pandas()
 
 # Print the sample.
 print("########### Show the fetched 10 rows #############")

@@ -38,18 +38,18 @@ table = client.table(table_fqn)
 print(
     "########### Loading 10 rows from "
     + table_fqn
-    + " as a PyArrow Table with client.table(...).scan(...).to_arrow #############"
+    + " as a PyArrow Table with client.table(...).snapshot(...).to_arrow #############"
 )
-arrow_table = table.scan(limit=limit).to_arrow()
+arrow_table = table.snapshot(limit=limit).to_arrow()
 print(arrow_table)
 
 # Stream Arrow RecordBatches lazily.
 print(
     "########### Reading the first Arrow RecordBatch from "
     + table_fqn
-    + " with client.table(...).scan(...).to_record_batches #############"
+    + " with client.table(...).snapshot(...).to_record_batches #############"
 )
-arrow_batches = table.scan(limit=limit).to_record_batches()
+arrow_batches = table.snapshot(limit=limit).to_record_batches()
 print(next(arrow_batches))
 # Close the iterator if you stop early so temporary resources are released promptly.
 arrow_batches.close()
@@ -58,9 +58,9 @@ arrow_batches.close()
 print(
     "########### Querying "
     + table_fqn
-    + " in DuckDB via client.table(...).scan(...).to_record_batch_reader #############"
+    + " in DuckDB via client.table(...).snapshot(...).to_record_batch_reader #############"
 )
-arrow_batch_reader = table.scan(limit=limit).to_record_batch_reader()
+arrow_batch_reader = table.snapshot(limit=limit).to_record_batch_reader()
 duckdb_con = duckdb.connect()
 duckdb_result = duckdb_con.from_arrow(arrow_batch_reader).limit(5).df()
 

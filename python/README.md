@@ -16,8 +16,8 @@ The Python connector supports:
 
 * URL-based access such as `load_as_pandas("<profile>#<share>.<schema>.<table>")`
 * client and table-handle access such as `SharingClient(profile).table("share.schema.table")`
-* query configuration via `table.scan(...)` and `table.changes(...)`
-* Arrow-native reads via `load_as_arrow(...)`, `table.scan(...).to_arrow()`, `table.scan(...).to_record_batches()`, and `table.scan(...).to_record_batch_reader()`
+* query configuration via `table.snapshot(...)` and `table.changes(...)`
+* Arrow-native reads via `load_as_arrow(...)`, `table.snapshot(...).to_arrow()`, `table.snapshot(...).to_record_batches()`, and `table.snapshot(...).to_record_batch_reader()`
 * object-based CDF reads via `table.changes(...).to_pandas()`, `to_arrow()`, `to_record_batches()`, and `to_record_batch_reader()`
 
 When using lazy Arrow APIs such as `to_record_batches(...)` or `to_record_batch_reader(...)`, exhaust the
