@@ -2,13 +2,26 @@
 
 [Delta Sharing](https://delta.io/sharing) is an open protocol for secure real-time exchange of large datasets, which enables secure data sharing across different computing platforms. It lets organizations share access to existing [Delta Lake](https://delta.io) and [Apache Parquet](https://parquet.apache.org) tables with other organizations, who can then directly read the table in Pandas, Apache Spark, or any other software that implements the open protocol.
 
-This is the Python client library for Delta Sharing, which lets you load shared tables as [pandas](https://pandas.pydata.org/) DataFrames or as [Apache Spark](http://spark.apache.org/) DataFrames if running in PySpark with the [Apache Spark Connector library](https://github.com/delta-io/delta-sharing#set-up-apache-spark).
+This is the Python client library for Delta Sharing, which lets you load shared tables as [pandas](https://pandas.pydata.org/) DataFrames, [PyArrow](https://arrow.apache.org/docs/python/) Tables and RecordBatches, or as [Apache Spark](http://spark.apache.org/) DataFrames if running in PySpark with the [Apache Spark Connector library](https://github.com/delta-io/delta-sharing#set-up-apache-spark).
 
 ## Installation and Usage
 
 1. Install using `pip install delta-sharing`.
     a. On some environments, you may also need to [install Rust](https://www.rust-lang.org/tools/install). This is because the `delta-sharing` package depends on the `delta-kernel-rust-sharing-wrapper` package, which does not have a pre-built Python wheel for all environments. As a result, pip will have to build `delta-kernel-rust-sharing-wrapper` from source.
 2. To use the Python Connector, see [the project docs](https://github.com/delta-io/delta-sharing) for details.
+
+## Python APIs
+
+The Python connector supports:
+
+* URL-based access such as `load_as_pandas("<profile>#<share>.<schema>.<table>")`
+* client and table-handle access such as `SharingClient(profile).table("share.schema.table")`
+* query configuration via `table.snapshot(...)` and `table.changes(...)`
+* Arrow-native reads via `load_as_arrow(...)`, `table.snapshot(...).to_arrow()`, `table.snapshot(...).to_record_batches()`, and `table.snapshot(...).to_record_batch_reader()`
+* object-based CDF reads via `table.changes(...).to_pandas()`, `to_arrow()`, `to_record_batches()`, and `to_record_batch_reader()`
+
+When using lazy Arrow APIs such as `to_record_batches(...)` or `to_record_batch_reader(...)`, exhaust the
+stream or close it if you stop early so temporary resources can be released promptly.
 
 ## Documentation
 

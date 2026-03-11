@@ -17,22 +17,27 @@ from datetime import date, datetime
 from typing import Optional, Sequence
 
 import pandas as pd
+import pyarrow as pa
 import pytest
 
 from delta_sharing.delta_sharing import (
+    DeltaSharingChanges,
+    DeltaSharingTable,
     DeltaSharingProfile,
     SharingClient,
     get_table_metadata,
     get_table_protocol,
     get_table_version,
+    load_as_arrow,
     load_as_pandas,
     load_as_spark,
     load_table_changes_as_spark,
     load_table_changes_as_pandas,
     _parse_url,
+    _parse_table_name,
     _validate_url,
 )
-from delta_sharing.protocol import Format, Metadata, Protocol, Schema, Share, Table
+from delta_sharing.protocol import CdfOptions, Format, Metadata, Protocol, Schema, Share, Table
 from delta_sharing.rest_client import (
     DataSharingRestClient,
     ListAllTablesResponse,
@@ -157,6 +162,214 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
     sharing_client._rest_client = TestDataSharingRestClient()
     tables = sharing_client.list_all_tables()
     _verify_all_tables_result(tables)
+
+
+def test_parse_table_name():
+    assert _parse_table_name("share.schema.table") == Table(
+        name="table", share="share", schema="schema"
+    )
+
+
+def test_sharing_client_table(profile: DeltaSharingProfile):
+    sharing_client = SharingClient(profile)
+
+    table_from_string = sharing_client.table("share.schema.table")
+    assert isinstance(table_from_string, DeltaSharingTable)
+    assert table_from_string.table == Table(name="table", share="share", schema="schema")
+
+    table = Table(name="table2", share="share2", schema="schema2")
+    table_from_object = sharing_client.table(table)
+    assert table_from_object.table == table
+
+
+def test_delta_sharing_table_changes(profile: DeltaSharingProfile):
+    client = SharingClient(profile)
+
+    changes = client.table("share.schema.table").changes(
+        starting_version=5,
+        ending_version=10,
+        starting_timestamp="2024-01-01T00:00:00Z",
+        ending_timestamp="2024-01-02T00:00:00Z",
+        use_delta_format=True,
+        convert_in_batches=True,
+    )
+
+    assert isinstance(changes, DeltaSharingChanges)
+    assert changes._table == Table(name="table", share="share", schema="schema")
+    assert changes._rest_client is client._rest_client
+    assert changes._cdf_options == CdfOptions(
+        starting_version=5,
+        ending_version=10,
+        starting_timestamp="2024-01-01T00:00:00Z",
+        ending_timestamp="2024-01-02T00:00:00Z",
+        include_historical_metadata=True,
+    )
+    assert changes._use_delta_format is True
+    assert changes._convert_in_batches is True
+
+
+def test_load_table_changes_as_pandas_and_table_changes_to_pandas_match(
+    profile: DeltaSharingProfile, monkeypatch: pytest.MonkeyPatch
+):
+    expected = pd.DataFrame({"value": [1]})
+    captured = []
+
+    monkeypatch.setattr(DeltaSharingProfile, "read_from_file", staticmethod(lambda _: profile))
+
+    def fake_table_changes_to_pandas(self, cdf_options):
+        captured.append(
+            {
+                "table": self._table,
+                "use_delta_format": self._use_delta_format,
+                "convert_in_batches": self._convert_in_batches,
+                "cdf_options": cdf_options,
+            }
+        )
+        return expected
+
+    monkeypatch.setattr(
+        "delta_sharing.delta_sharing.DeltaSharingReader.table_changes_to_pandas",
+        fake_table_changes_to_pandas,
+    )
+
+    legacy = load_table_changes_as_pandas(
+        "/tmp/profile.share#share.schema.table",
+        starting_version=5,
+        ending_version=10,
+        starting_timestamp="2024-01-01T00:00:00Z",
+        ending_timestamp="2024-01-02T00:00:00Z",
+        use_delta_format=True,
+        convert_in_batches=True,
+    )
+
+    modern = (
+        SharingClient(profile)
+        .table("share.schema.table")
+        .changes(
+            starting_version=5,
+            ending_version=10,
+            starting_timestamp="2024-01-01T00:00:00Z",
+            ending_timestamp="2024-01-02T00:00:00Z",
+            use_delta_format=True,
+            convert_in_batches=True,
+        )
+        .to_pandas()
+    )
+
+    pd.testing.assert_frame_equal(legacy, expected)
+    pd.testing.assert_frame_equal(modern, expected)
+    assert captured == [
+        {
+            "table": Table(name="table", share="share", schema="schema"),
+            "use_delta_format": True,
+            "convert_in_batches": True,
+            "cdf_options": CdfOptions(
+                starting_version=5,
+                ending_version=10,
+                starting_timestamp="2024-01-01T00:00:00Z",
+                ending_timestamp="2024-01-02T00:00:00Z",
+                include_historical_metadata=True,
+            ),
+        },
+        {
+            "table": Table(name="table", share="share", schema="schema"),
+            "use_delta_format": True,
+            "convert_in_batches": True,
+            "cdf_options": CdfOptions(
+                starting_version=5,
+                ending_version=10,
+                starting_timestamp="2024-01-01T00:00:00Z",
+                ending_timestamp="2024-01-02T00:00:00Z",
+                include_historical_metadata=True,
+            ),
+        },
+    ]
+
+
+def test_load_as_arrow(profile: DeltaSharingProfile, monkeypatch: pytest.MonkeyPatch):
+    expected = pa.table({"value": [1]})
+    captured = {}
+
+    monkeypatch.setattr(DeltaSharingProfile, "read_from_file", staticmethod(lambda _: profile))
+
+    def fake_to_arrow(self):
+        captured["table"] = self._table
+        captured["jsonPredicateHints"] = self._jsonPredicateHints
+        captured["limit"] = self._limit
+        captured["version"] = self._version
+        captured["timestamp"] = self._timestamp
+        captured["use_delta_format"] = self._use_delta_format
+        captured["convert_in_batches"] = self._convert_in_batches
+        return expected
+
+    monkeypatch.setattr("delta_sharing.delta_sharing.DeltaSharingReader.to_arrow", fake_to_arrow)
+
+    result = load_as_arrow(
+        "/tmp/profile.share#share.schema.table",
+        limit=10,
+        version=2,
+        timestamp="2024-01-01T00:00:00Z",
+        jsonPredicateHints='{"op":"equal"}',
+        use_delta_format=False,
+        convert_in_batches=True,
+    )
+
+    assert result.equals(expected)
+    assert captured == {
+        "table": Table(name="table", share="share", schema="schema"),
+        "jsonPredicateHints": '{"op":"equal"}',
+        "limit": 10,
+        "version": 2,
+        "timestamp": "2024-01-01T00:00:00Z",
+        "use_delta_format": False,
+        "convert_in_batches": True,
+    }
+
+
+def test_delta_sharing_scan_to_record_batch_reader(
+    profile: DeltaSharingProfile, monkeypatch: pytest.MonkeyPatch
+):
+    expected = pa.table({"value": [1]})
+    captured = {}
+
+    def fake_to_record_batch_reader(self):
+        captured["table"] = self._table
+        captured["rest_client"] = self._rest_client
+        captured["jsonPredicateHints"] = self._jsonPredicateHints
+        captured["limit"] = self._limit
+        captured["version"] = self._version
+        captured["timestamp"] = self._timestamp
+        captured["use_delta_format"] = self._use_delta_format
+        captured["convert_in_batches"] = self._convert_in_batches
+        return pa.RecordBatchReader.from_batches(expected.schema, expected.to_batches())
+
+    monkeypatch.setattr(
+        "delta_sharing.delta_sharing.DeltaSharingReader.to_record_batch_reader",
+        fake_to_record_batch_reader,
+    )
+
+    client = SharingClient(profile)
+    snapshot = client.table("share.schema.table").snapshot(
+        limit=10,
+        version=2,
+        timestamp="2024-01-01T00:00:00Z",
+        jsonPredicateHints='{"op":"equal"}',
+        use_delta_format=False,
+        convert_in_batches=True,
+    )
+    result = snapshot.to_record_batch_reader()
+
+    assert result.read_all().equals(expected)
+    assert captured == {
+        "table": Table(name="table", share="share", schema="schema"),
+        "rest_client": client._rest_client,
+        "jsonPredicateHints": '{"op":"equal"}',
+        "limit": 10,
+        "version": 2,
+        "timestamp": "2024-01-01T00:00:00Z",
+        "use_delta_format": False,
+        "convert_in_batches": True,
+    }
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -820,6 +1033,26 @@ def test_load_as_pandas_success_client_delta_kernel_enabled_with_normal_table(
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None, None, True)
     expected["eventTime"] = expected["eventTime"].astype("datetime64[us, UTC]")
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize("use_delta_format", [None, True, False])
+def test_load_as_pandas_legacy_and_table_handle_match(
+    profile_path: str, profile: DeltaSharingProfile, use_delta_format: Optional[bool]
+):
+    fragments = "share1.default.table1"
+    limit = 2
+
+    legacy_pdf = load_as_pandas(
+        f"{profile_path}#{fragments}", limit=limit, use_delta_format=use_delta_format
+    )
+
+    client = SharingClient(profile)
+    table_pdf = (
+        client.table(fragments).snapshot(limit=limit, use_delta_format=use_delta_format).to_pandas()
+    )
+
+    pd.testing.assert_frame_equal(legacy_pdf, table_pdf)
 
 
 # We will test predicates with the table share8.default.cdf_table_with_partition
