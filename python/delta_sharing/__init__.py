@@ -18,6 +18,7 @@ from delta_sharing.delta_sharing import (
     TableSnapshot,
     DeltaSharingTable,
     SharingClient,
+    load_as_arrow,
     load_as_pandas,
     load_as_spark,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "get_table_protocol",
     "get_table_version",
     "load_as_pandas",
+    "load_as_arrow",
     "load_as_spark",
     "load_table_changes_as_pandas",
     "load_table_changes_as_spark",

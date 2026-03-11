@@ -2,7 +2,7 @@
 
 [Delta Sharing](https://delta.io/sharing) is an open protocol for secure real-time exchange of large datasets, which enables secure data sharing across different computing platforms. It lets organizations share access to existing [Delta Lake](https://delta.io) and [Apache Parquet](https://parquet.apache.org) tables with other organizations, who can then directly read the table in Pandas, Apache Spark, or any other software that implements the open protocol.
 
-This is the Python client library for Delta Sharing, which lets you load shared tables as [pandas](https://pandas.pydata.org/) DataFrames or as [Apache Spark](http://spark.apache.org/) DataFrames if running in PySpark with the [Apache Spark Connector library](https://github.com/delta-io/delta-sharing#set-up-apache-spark).
+This is the Python client library for Delta Sharing, which lets you load shared tables as [pandas](https://pandas.pydata.org/) DataFrames, [PyArrow](https://arrow.apache.org/docs/python/) Tables and RecordBatches, or as [Apache Spark](http://spark.apache.org/) DataFrames if running in PySpark with the [Apache Spark Connector library](https://github.com/delta-io/delta-sharing#set-up-apache-spark).
 
 ## Installation and Usage
 
@@ -16,7 +16,11 @@ The Python connector supports:
 
 * URL-based access such as `load_as_pandas("<profile>#<share>.<schema>.<table>")`
 * client and table-handle access such as `SharingClient(profile).table("share.schema.table")`
-* snapshot configuration via `table.snapshot(...)`
+* query configuration via `table.snapshot(...)`
+* Arrow-native reads via `load_as_arrow(...)`, `table.snapshot(...).to_arrow()`, `table.snapshot(...).to_record_batches()`, and `table.snapshot(...).to_record_batch_reader()`
+
+When using lazy Arrow APIs such as `to_record_batches(...)` or `to_record_batch_reader(...)`, exhaust the
+stream or close it if you stop early so temporary resources can be released promptly.
 
 ## Documentation
 

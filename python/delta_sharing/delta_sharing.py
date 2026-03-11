@@ -15,9 +15,10 @@
 #
 from pathlib import Path
 from itertools import chain
-from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
+from typing import BinaryIO, Iterator, List, Optional, Sequence, TextIO, Tuple, Union
 
 import pandas as pd
+import pyarrow as pa
 
 from delta_sharing.protocol import CdfOptions, Metadata, Protocol
 
@@ -155,6 +156,33 @@ def load_as_pandas(
     ).to_pandas()
 
 
+def load_as_arrow(
+    url: str,
+    limit: Optional[int] = None,
+    version: Optional[int] = None,
+    timestamp: Optional[str] = None,
+    jsonPredicateHints: Optional[str] = None,
+    use_delta_format: Optional[bool] = None,
+) -> pa.Table:
+    """
+    Load the shared table using the given url as a PyArrow Table.
+
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>"
+    :return: A PyArrow Table representing the shared table.
+    """
+    profile_json, share, schema, table = _parse_url(url)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
+    return DeltaSharingReader(
+        table=Table(name=table, share=share, schema=schema),
+        rest_client=DataSharingRestClient(profile),
+        jsonPredicateHints=jsonPredicateHints,
+        limit=limit,
+        version=version,
+        timestamp=timestamp,
+        use_delta_format=use_delta_format,
+    ).to_arrow()
+
+
 class TableSnapshot:
     def __init__(
         self,
@@ -189,6 +217,15 @@ class TableSnapshot:
 
     def to_pandas(self, convert_in_batches: bool = False) -> pd.DataFrame:
         return self._reader(convert_in_batches=convert_in_batches).to_pandas()
+
+    def to_arrow(self) -> pa.Table:
+        return self._reader().to_arrow()
+
+    def to_record_batches(self):
+        return self._reader().to_record_batches()
+
+    def to_record_batch_reader(self) -> pa.RecordBatchReader:
+        return self._reader().to_record_batch_reader()
 
 
 class DeltaSharingTable:
@@ -232,6 +269,15 @@ class DeltaSharingTable:
 
     def to_pandas(self, convert_in_batches: bool = False) -> pd.DataFrame:
         return self.snapshot().to_pandas(convert_in_batches=convert_in_batches)
+
+    def to_arrow(self) -> pa.Table:
+        return self.snapshot().to_arrow()
+
+    def to_record_batches(self) -> Iterator[pa.RecordBatch]:
+        return self.snapshot().to_record_batches()
+
+    def to_record_batch_reader(self) -> pa.RecordBatchReader:
+        return self.snapshot().to_record_batch_reader()
 
 
 def _validate_url(url: str, delta_sharing_profile: Optional[DeltaSharingProfile] = None) -> None:
