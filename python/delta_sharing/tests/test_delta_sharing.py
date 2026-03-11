@@ -326,7 +326,7 @@ def test_load_as_arrow(profile: DeltaSharingProfile, monkeypatch: pytest.MonkeyP
     }
 
 
-def test_delta_sharing_table_to_record_batch_reader(
+def test_delta_sharing_scan_to_record_batch_reader(
     profile: DeltaSharingProfile, monkeypatch: pytest.MonkeyPatch
 ):
     expected = pa.table({"value": [1]})
@@ -349,8 +349,7 @@ def test_delta_sharing_table_to_record_batch_reader(
     )
 
     client = SharingClient(profile)
-    table = client.table("share.schema.table")
-    result = table.to_record_batch_reader(
+    scan = client.table("share.schema.table").scan(
         limit=10,
         version=2,
         timestamp="2024-01-01T00:00:00Z",
@@ -358,6 +357,7 @@ def test_delta_sharing_table_to_record_batch_reader(
         use_delta_format=False,
         convert_in_batches=True,
     )
+    result = scan.to_record_batch_reader()
 
     assert result.read_all().equals(expected)
     assert captured == {
