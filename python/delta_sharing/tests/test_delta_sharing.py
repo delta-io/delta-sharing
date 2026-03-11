@@ -1048,7 +1048,11 @@ def test_load_as_pandas_legacy_and_table_handle_match(
     )
 
     client = SharingClient(profile)
-    table_pdf = client.table(fragments).to_pandas(limit=limit, use_delta_format=use_delta_format)
+    table_pdf = (
+        client.table(fragments)
+        .snapshot(limit=limit, use_delta_format=use_delta_format)
+        .to_pandas()
+    )
 
     pd.testing.assert_frame_equal(legacy_pdf, table_pdf)
 
