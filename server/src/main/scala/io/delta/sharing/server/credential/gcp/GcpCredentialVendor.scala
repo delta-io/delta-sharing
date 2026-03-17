@@ -16,6 +16,7 @@
 
 package io.delta.sharing.server.credential.gcp
 
+import java.util.Collections
 import java.util.concurrent.TimeUnit.SECONDS
 
 import com.google.auth.oauth2.{CredentialAccessBoundary, DownscopedCredentials, GoogleCredentials}
@@ -50,7 +51,11 @@ class GcpCredentialVendor {
                 "Credentials (e.g. JSON key or workload identity)")
         }
     }
-    oauth2Creds.refreshIfExpired()
+    // Explicitly request cloud-platform scope so token refresh succeeds (avoids invalid_scope from
+    // default/empty scopes in some environments).
+    val scopedCreds = oauth2Creds.createScoped(
+      Collections.singletonList("https://www.googleapis.com/auth/cloud-platform"))
+    scopedCreds.refreshIfExpired()
     val (bucketName, objectPrefix) = getBucketAndPrefix(new Path(location))
     val token = if (objectPrefix != null && objectPrefix.nonEmpty) {
       val resource = s"//storage.googleapis.com/projects/_/buckets/$bucketName"
@@ -60,13 +65,13 @@ class GcpCredentialVendor {
         .build
       val cab = CredentialAccessBoundary.newBuilder.addRule(rule).build
       val downscoped = DownscopedCredentials.newBuilder()
-        .setSourceCredential(oauth2Creds)
+        .setSourceCredential(scopedCreds)
         .setCredentialAccessBoundary(cab)
         .build()
       downscoped.refreshIfExpired()
       downscoped.getAccessToken
     } else {
-      oauth2Creds.getAccessToken
+      scopedCreds.getAccessToken
     }
     Credentials(
       location = location.toString,
