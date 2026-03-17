@@ -214,8 +214,6 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
       ExclusionRule("com.fasterxml.jackson.module"),
       ExclusionRule("com.google.guava", "guava")
     ),
-    // Pin Guava so GCS connector's CacheBuilder.expireAfterWrite(Duration) is available (Guava 25+).
-    // Without this, an older Guava can appear on the classpath and cause NoSuchMethodError.
     "com.google.guava" % "guava" % "31.0.1-jre",
     "org.apache.hadoop" % "hadoop-common" % "3.3.4" excludeAll(
       ExclusionRule("com.fasterxml.jackson.core"),
