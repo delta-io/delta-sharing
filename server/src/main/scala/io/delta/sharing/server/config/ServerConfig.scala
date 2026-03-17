@@ -47,6 +47,8 @@ case class ServerConfig(
     @BeanProperty var endpoint: String,
     // The timeout of S3 presigned url in seconds
     @BeanProperty var preSignedUrlTimeoutSeconds: Long,
+    // The validity in seconds of temporary table credentials (e.g. STS, SAS, OAuth) vended by the server. Default: 1 hour.
+    @BeanProperty var temporaryCredentialValiditySeconds: Long,
     // How many tables to cache in the memory.
     @BeanProperty var deltaTableCacheSize: Int,
     // Whether we can accept working with a stale version of the table. This is useful when sharing
@@ -80,6 +82,7 @@ case class ServerConfig(
       port = 80,
       endpoint = "/delta-sharing",
       preSignedUrlTimeoutSeconds = 3600,
+      temporaryCredentialValiditySeconds = 3600, // 1 hour
       deltaTableCacheSize = 10,
       stalenessAcceptable = false,
       evaluatePredicateHints = false,
@@ -112,6 +115,9 @@ case class ServerConfig(
 
   override def checkConfig(): Unit = {
     checkVersion()
+    if (temporaryCredentialValiditySeconds <= 0) {
+      temporaryCredentialValiditySeconds = 3600 // 1 hour default
+    }
     shares.forEach(_.checkConfig())
     if (authorization != null) {
       authorization.checkConfig()

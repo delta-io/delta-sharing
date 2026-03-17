@@ -641,7 +641,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     val result = vendor.vendCredential(
       uri,
       Set(Privilege.SELECT),
-      serverConfig.preSignedUrlTimeoutSeconds
+      serverConfig.temporaryCredentialValiditySeconds
     )
     HttpResponse.of(
       HttpStatus.OK,
