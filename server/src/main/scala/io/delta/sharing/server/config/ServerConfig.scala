@@ -47,7 +47,8 @@ case class ServerConfig(
     @BeanProperty var endpoint: String,
     // The timeout of S3 presigned url in seconds
     @BeanProperty var preSignedUrlTimeoutSeconds: Long,
-    // The validity in seconds of temporary table credentials (e.g. STS, SAS, OAuth) vended by the server. Default: 1 hour.
+    // The validity in seconds of temporary table credentials vended by the server. 
+    // Default: 1 hour.
     @BeanProperty var temporaryCredentialValiditySeconds: Long,
     // How many tables to cache in the memory.
     @BeanProperty var deltaTableCacheSize: Int,
