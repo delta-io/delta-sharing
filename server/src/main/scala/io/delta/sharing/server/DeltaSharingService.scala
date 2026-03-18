@@ -20,14 +20,13 @@ import java.io.{ByteArrayOutputStream, File, FileNotFoundException}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.AccessDeniedException
 import java.security.MessageDigest
-
-import com.google.common.hash.Hashing
 import java.util.concurrent.CompletableFuture
 import javax.annotation.Nullable
 
 import scala.collection.JavaConverters._
 import scala.util.Try
 
+import com.google.common.hash.Hashing
 import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
 import com.linecorp.armeria.common.auth.OAuth2Token
 import com.linecorp.armeria.internal.server.ResponseConversionUtil
