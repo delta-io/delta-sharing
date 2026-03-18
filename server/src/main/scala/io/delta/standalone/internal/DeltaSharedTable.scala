@@ -24,7 +24,6 @@ import java.util.Base64
 import scala.collection.JavaConverters._
 
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
-import com.google.common.hash.Hashing
 import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, Metadata, Protocol, RemoveFile}
 import io.delta.standalone.internal.exception.DeltaErrors
@@ -40,7 +39,7 @@ import scala.collection.mutable.ListBuffer
 import scala.util.control.NonFatal
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
-import io.delta.sharing.server.{model, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
+import io.delta.sharing.server.{model, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingService, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
 import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, JsonUtils, PreSignedUrl, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
@@ -203,14 +202,6 @@ class DeltaSharedTable(
     }
   }
 
-  /** Hash file path to produce file id using the requested algorithm (md5 or sha256). */
-  private def hashFileId(path: String, fileIdHash: Option[String]): String = {
-    fileIdHash match {
-      case Some("sha256") => Hashing.sha256().hashString(path, UTF_8).toString
-      case _ => Hashing.md5().hashString(path, UTF_8).toString
-    }
-  }
-
   // Construct the returning class for addFile based on requested responseFormat.
   private def getResponseAddFile(
       addFile: AddFile,
@@ -220,7 +211,7 @@ class DeltaSharedTable(
       responseFormat: String,
       returnAddFileForCDF: Boolean = false,
       fileIdHash: Option[String] = None): Object = {
-    val fileId = hashFileId(addFile.path, fileIdHash)
+    val fileId = DeltaSharingService.hashFileId(addFile.path, fileIdHash, responseFormat)
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
         id = fileId,
@@ -263,7 +254,7 @@ class DeltaSharedTable(
     timestamp: java.lang.Long,
     responseFormat: String,
     fileIdHash: Option[String] = None): Object = {
-    val fileId = hashFileId(removeFile.path, fileIdHash)
+    val fileId = DeltaSharingService.hashFileId(removeFile.path, fileIdHash, responseFormat)
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
         id = fileId,
@@ -295,7 +286,7 @@ class DeltaSharedTable(
     responseFormat: String,
     fileIdHash: Option[String] = None
   ): Object = {
-    val fileId = hashFileId(addCDCFile.path, fileIdHash)
+    val fileId = DeltaSharingService.hashFileId(addCDCFile.path, fileIdHash, responseFormat)
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
         id = fileId,

@@ -20,6 +20,8 @@ import java.io.{ByteArrayOutputStream, File, FileNotFoundException}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.AccessDeniedException
 import java.security.MessageDigest
+
+import com.google.common.hash.Hashing
 import java.util.concurrent.CompletableFuture
 import javax.annotation.Nullable
 
@@ -630,11 +632,15 @@ class DeltaSharingService(serverConfig: ServerConfig) {
   /** Returns validated fileidhash request header (md5 or sha256, lowercase) or None. */
   private def getRequestFileIdHash(req: HttpRequest): Option[String] = {
     // scalastyle:off caselocale
-    val value = Option(req.headers().get(FILEIDHASH_HEADER))
-      .map(_.trim.toLowerCase(java.util.Locale.ROOT))
-      .filter(FILEIDHASH_VALID_VALUES.contains)
+    Option(req.headers().get(FILEIDHASH_HEADER)).map { raw =>
+      val normalized = raw.trim.toLowerCase(java.util.Locale.ROOT)
+      if (!FILEIDHASH_VALID_VALUES.contains(normalized)) {
+        throw new DeltaSharingIllegalArgumentException(
+          s"Unsupported fileidhash: '$raw'. Supported: ${FILEIDHASH_VALID_VALUES.mkString(", ")}")
+      }
+      normalized
+    }
     // scalastyle:on caselocale
-    value
   }
 
   private def streamingOutput(
@@ -643,24 +649,27 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       actions: Seq[Object],
       includeEndStreamAction: Boolean = false,
       requestFileIdHash: Option[String] = None): HttpResponse = {
-    var capabilities = Seq[String](s"${DELTA_SHARING_RESPONSE_FORMAT}=$responseFormat")
-    if (includeEndStreamAction) {
-      capabilities = capabilities :+ s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+    val capabilities = {
+      val base = Seq(s"${DELTA_SHARING_RESPONSE_FORMAT}=$responseFormat")
+      if (includeEndStreamAction) {
+        base :+ s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+      } else {
+        base
+      }
     }
     val dsCapHeader = capabilities.mkString(DELTA_SHARING_CAPABILITIES_DELIMITER)
 
-    var headersBuilder = if (version.isDefined) {
+    val baseBuilder = if (version.isDefined) {
       createHeadersBuilderForTableVersion(version.get)
     } else {
       ResponseHeaders.builder(200)
     }
-    headersBuilder = headersBuilder
+    val withCaps = baseBuilder
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
       .set(DELTA_SHARING_CAPABILITIES_HEADER, dsCapHeader)
-    if (requestFileIdHash.isDefined) {
-      headersBuilder = headersBuilder.set(FILEIDHASH_HEADER, requestFileIdHash.get)
-    }
-    val headers = headersBuilder.build()
+    val headers = requestFileIdHash
+      .fold(withCaps)(h => withCaps.set(FILEIDHASH_HEADER, h))
+      .build()
     ResponseConversionUtil.streamingFrom(
       actions.asJava.stream(),
       headers,
@@ -682,7 +691,29 @@ object DeltaSharingService {
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
   val FILEIDHASH_HEADER = "fileidhash"
   val FILEIDHASH_VALID_VALUES = Set("md5", "sha256")
+  val RESPONSE_FORMAT_DELTA = "delta"
   val DELTA_SHARING_RESPONSE_FORMAT = "responseformat"
+
+  /**
+   * Hash a file path to produce a file ID. When the client explicitly requests an algorithm
+   * via `fileIdHash`, that algorithm is used. Otherwise the default is sha256 for the delta
+   * response format and md5 for parquet (backward compatibility).
+   */
+  def hashFileId(
+      path: String,
+      fileIdHash: Option[String],
+      respondedFormat: String): String = {
+    fileIdHash match {
+      case Some("sha256") => Hashing.sha256().hashString(path, UTF_8).toString
+      case Some("md5") => Hashing.md5().hashString(path, UTF_8).toString
+      case _ =>
+        if (respondedFormat == RESPONSE_FORMAT_DELTA) {
+          Hashing.sha256().hashString(path, UTF_8).toString
+        } else {
+          Hashing.md5().hashString(path, UTF_8).toString
+        }
+    }
+  }
   val DELTA_SHARING_CAPABILITIES_ASYNC_QUERY = "asyncquery"
   val DELTA_SHARING_INCLUDE_END_STREAM_ACTION = "includeendstreamaction"
   val DELTA_SHARING_READER_FEATURES = "readerfeatures"

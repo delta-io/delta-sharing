@@ -28,7 +28,6 @@ import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
-import com.google.common.hash.Hashing
 import io.delta.kernel.Table
 import io.delta.kernel.data.{ColumnarBatch, ColumnVector, FilteredColumnarBatch}
 import io.delta.kernel.defaults.engine.DefaultEngine
@@ -47,7 +46,7 @@ import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
-import io.delta.sharing.server.{DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
+import io.delta.sharing.server.{DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingService, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
 import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, JsonUtils, S3FileSigner, SnapshotChecker, WasbFileSigner}
 import io.delta.sharing.server.common.actions.{DeletionVectorDescriptor, DeletionVectorsTableFeature, DeltaAddFile, DeltaFormat, DeltaProtocol, DeltaSingleAction}
 import io.delta.sharing.server.config.TableConfig
@@ -695,23 +694,6 @@ class DeltaSharedTableKernel(
     }).json
   }
 
-  /** Hash file path to produce file id (md5 or sha256). */
-  private def hashFileId(
-      path: String,
-      fileIdHash: Option[String],
-      respondedFormat: String): String = {
-    fileIdHash match {
-      case Some("sha256") => Hashing.sha256().hashString(path, UTF_8).toString
-      case Some("md5") => Hashing.md5().hashString(path, UTF_8).toString
-      case _ =>
-        // Default: sha256 for delta format, md5 for parquet (backward compatibility)
-        if (respondedFormat == DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
-          Hashing.sha256().hashString(path, UTF_8).toString
-        } else {
-          Hashing.md5().hashString(path, UTF_8).toString
-        }
-    }
-  }
 
   private def getResponseAddFile(
       addFileColumnVectors: AddFileColumnVectors,
@@ -747,7 +729,7 @@ class DeltaSharedTableKernel(
       numRecords -= dvDescriptor.cardinality
     }
 
-    val fileId = hashFileId(addFileVectorPath, fileIdHash, respondedFormat)
+    val fileId = DeltaSharingService.hashFileId(addFileVectorPath, fileIdHash, respondedFormat)
     if (respondedFormat == DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
         id = fileId,

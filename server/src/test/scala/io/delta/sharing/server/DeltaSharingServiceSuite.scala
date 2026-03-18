@@ -744,6 +744,78 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(fileIdsMd5 != fileIdsSha256, "file ids should differ between md5 and sha256")
   }
 
+  integrationTest("queryTable fileidhash defaults: parquet=md5, delta=sha256") {
+    val p =
+      s"""
+         |{
+         |  "predicateHints": [
+         |    "date = CAST('2021-04-28' AS DATE)"
+         |  ]
+         |}
+         |""".stripMargin
+    val url = requestPath("/shares/share1/schemas/default/tables/table1/query")
+
+    val defaultParquetIds = extractFileIdsFromQueryResponse(
+      readNDJson(url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_PARQUET))
+    val explicitMd5Ids = extractFileIdsFromQueryResponse(
+      readNDJson(url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_PARQUET,
+        requestFileIdHash = Some("md5")))
+    assert(defaultParquetIds.nonEmpty)
+    defaultParquetIds.foreach { id =>
+      assert(id.length == 32, s"Parquet default should produce 32-char md5 IDs: $id")
+    }
+    assert(defaultParquetIds == explicitMd5Ids,
+      "Parquet default file IDs should match explicit md5 file IDs")
+
+    val defaultDeltaIds = extractFileIdsFromQueryResponse(
+      readNDJson(url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_DELTA))
+    val explicitSha256Ids = extractFileIdsFromQueryResponse(
+      readNDJson(url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_DELTA,
+        requestFileIdHash = Some("sha256")))
+    assert(defaultDeltaIds.nonEmpty)
+    defaultDeltaIds.foreach { id =>
+      assert(id.length == 64, s"Delta default should produce 64-char sha256 IDs: $id")
+    }
+    assert(defaultDeltaIds == explicitSha256Ids,
+      "Delta default file IDs should match explicit sha256 file IDs")
+  }
+
+  integrationTest("queryTable rejects unsupported fileidhash value with 400") {
+    val queryBody = """{"predicateHints": []}"""
+    val url = requestPath("/shares/share1/schemas/default/tables/table1/query")
+    Seq("sha512", "SHA3-256", "none", "blake2b").foreach { invalid =>
+      assertHttpError(
+        url = url,
+        method = "POST",
+        data = Some(queryBody),
+        expectedErrorCode = 400,
+        expectedErrorMessage = s"Unsupported fileidhash: '$invalid'",
+        headers = Map(
+          "delta-sharing-capabilities" -> s"responseformat=$RESPONSE_FORMAT_PARQUET",
+          "fileidhash" -> invalid
+        )
+      )
+    }
+  }
+
+  integrationTest("queryTable rejects empty or whitespace fileidhash with 400") {
+    val queryBody = """{"predicateHints": []}"""
+    val url = requestPath("/shares/share1/schemas/default/tables/table1/query")
+    Seq("", "  ", "\t").foreach { blank =>
+      assertHttpError(
+        url = url,
+        method = "POST",
+        data = Some(queryBody),
+        expectedErrorCode = 400,
+        expectedErrorMessage = "Unsupported fileidhash",
+        headers = Map(
+          "delta-sharing-capabilities" -> s"responseformat=$RESPONSE_FORMAT_PARQUET",
+          "fileidhash" -> blank
+        )
+      )
+    }
+  }
+
   /** Extract file ids from query/CDF NDJSON response (AddFile, AddCDCFile, RemoveFile). */
   private def extractFileIdsFromQueryResponse(response: String): Seq[String] = {
     val lines = response.split("\n").toSeq
