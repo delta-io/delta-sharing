@@ -3910,7 +3910,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("temporary-table-credentials endpoint - AWS") {
-    val url = requestPath("/shares/share1/schemas/default/tables/table1/temporary-table-credentials")
+    val url = requestPath("/shares/share1/schemas/default/tables/table_temp_cred/temporary-table-credentials")
     val response = readHttpContent(
       url,
       Some("POST"),
@@ -3935,7 +3935,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("temporary-table-credentials endpoint - Azure") {
     val url = requestPath(
-      "/shares/share_azure/schemas/default/tables/table_abfs/temporary-table-credentials")
+      "/shares/share_azure/schemas/default/tables/table_temp_cred_abfs/temporary-table-credentials")
     val response = readHttpContent(
       url,
       Some("POST"),
@@ -3958,7 +3958,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("temporary-table-credentials endpoint - GCP") {
     val url = requestPath(
-      "/shares/share_gcp/schemas/default/tables/table_gcs/temporary-table-credentials")
+      "/shares/share_gcp/schemas/default/tables/table_temp_cred_gcs/temporary-table-credentials")
     val response = readHttpContent(
       url,
       Some("POST"),
@@ -3980,7 +3980,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
   }
 
   integrationTest("temporary-table-credentials with location override") {
-    val url = requestPath("/shares/share1/schemas/default/tables/table1/temporary-table-credentials")
+    val url = requestPath("/shares/share1/schemas/default/tables/table_temp_cred/temporary-table-credentials")
     val response = readHttpContent(
       url,
       Some("POST"),
