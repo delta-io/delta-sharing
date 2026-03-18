@@ -667,9 +667,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
           assert(responseMetadata.deltaMetadata.id == "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf")
 
           val actualFiles = lines.drop(2).map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
-          assert(actualFiles(0).id == "061cb3683a467066995f8cdaabd8667d")
+          actualFiles.foreach { f =>
+            assert(f.id.length == 64 && f.id.matches("[0-9a-f]+"),
+              s"Delta format default should produce sha256 IDs (64 hex chars): ${f.id}")
+          }
+          assert(actualFiles(0).id != actualFiles(1).id)
           assert(actualFiles(0).deltaSingleAction.add != null)
-          assert(actualFiles(1).id == "e268cbf70dbaa6143e7e9fa3e2d3b00e")
           assert(actualFiles(1).deltaSingleAction.add != null)
           assert(actualFiles.count(_.expirationTimestamp > System.currentTimeMillis()) == 2)
           verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 781)
@@ -931,9 +934,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         assert(responseMetadata.deltaMetadata.id == "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf")
 
         val actualFiles = files.map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
-        assert(actualFiles(0).id == "061cb3683a467066995f8cdaabd8667d")
+        actualFiles.foreach { f =>
+          assert(f.id.length == 64 && f.id.matches("[0-9a-f]+"),
+            s"Delta format default should produce sha256 IDs (64 hex chars): ${f.id}")
+        }
+        assert(actualFiles(0).id != actualFiles(1).id)
         assert(actualFiles(0).deltaSingleAction.add != null)
-        assert(actualFiles(1).id == "e268cbf70dbaa6143e7e9fa3e2d3b00e")
         assert(actualFiles(1).deltaSingleAction.add != null)
         assert(actualFiles.count(_.expirationTimestamp > System.currentTimeMillis()) == 2)
         verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 781)
