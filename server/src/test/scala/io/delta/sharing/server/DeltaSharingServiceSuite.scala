@@ -327,6 +327,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
           schema = Some("default"),
           share = Some("share1"),
           id = Some("00000000-0000-0000-0000-000000000007")
+        )::
+        Table(
+          name = Some("table_temp_cred"),
+          schema = Some("default"),
+          share = Some("share1"),
+          id = Some("00000000-0000-0000-0000-000000000095")
         )::Nil
     )
     assert(expected == JsonFormat.fromJsonString[ListTablesResponse](response))
@@ -358,6 +364,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
           schema = Some("default"),
           share = Some("share1"),
           id = Some("00000000-0000-0000-0000-000000000007")
+        )::
+        Table(
+          name = Some("table_temp_cred"),
+          schema = Some("default"),
+          share = Some("share1"),
+          id = Some("00000000-0000-0000-0000-000000000095")
         )::Nil
     assert(expected == tables)
   }

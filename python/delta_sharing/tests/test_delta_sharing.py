@@ -77,6 +77,7 @@ def test_list_tables(sharing_client: SharingClient):
         Table(name="table1", share="share1", schema="default"),
         Table(name="table3", share="share1", schema="default"),
         Table(name="table7", share="share1", schema="default"),
+        Table(name="table_temp_cred", share="share1", schema="default"),
     ]
 
     tables = sharing_client.list_tables(Schema(name="default", share="share2"))
@@ -88,6 +89,7 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table1", share="share1", schema="default"),
         Table(name="table3", share="share1", schema="default"),
         Table(name="table7", share="share1", schema="default"),
+        Table(name="table_temp_cred", share="share1", schema="default"),
         Table(name="table2", share="share2", schema="default"),
         Table(name="table4", share="share3", schema="default"),
         Table(name="table5", share="share3", schema="default"),
@@ -96,7 +98,9 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="table9", share="share7", schema="schema2"),
         Table(name="table_wasb", share="share_azure", schema="default"),
         Table(name="table_abfs", share="share_azure", schema="default"),
+        Table(name="table_temp_cred_abfs", share="share_azure", schema="default"),
         Table(name="table_gcs", share="share_gcp", schema="default"),
+        Table(name="table_temp_cred_gcs", share="share_gcp", schema="default"),
         Table(name="12k_rows", share="share8", schema="default"),
         Table(name="add_columns_partitioned_cdf", share="share8", schema="default"),
         Table(name="add_columns_non_partitioned_cdf", share="share8", schema="default"),
