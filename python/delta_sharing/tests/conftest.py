@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 import os
+import socket
+import time
 from pathlib import Path
 import subprocess
 import threading
@@ -27,6 +29,8 @@ from delta_sharing.protocol import DeltaSharingProfile
 from delta_sharing.rest_client import DataSharingRestClient
 
 
+# Port the test server listens on (must match TestResource.TEST_PORT).
+TEST_SERVER_PORT = 12345
 ENABLE_INTEGRATION = len(os.environ.get("AWS_ACCESS_KEY_ID", "")) > 0
 SKIP_MESSAGE = "The integration tests are disabled."
 
@@ -39,6 +43,18 @@ def _repo_root() -> Path:
             return path
         path = path.parent
     return Path.cwd()
+
+
+def _wait_for_port(host: str, port: int, timeout_seconds: float = 30.0) -> None:
+    """Wait until the server is accepting connections on the given port."""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=2):
+                return
+        except (socket.error, OSError):
+            time.sleep(0.5)
+    raise TimeoutError(f"Server at {host}:{port} did not accept connections within {timeout_seconds}s")
 
 
 @pytest.fixture
@@ -78,7 +94,7 @@ def test_server(tmp_path_factory: TempPathFactory) -> Iterator[None]:
                     ),
                 ],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 cwd=str(repo_root),
             )
 
@@ -86,14 +102,17 @@ def test_server(tmp_path_factory: TempPathFactory) -> Iterator[None]:
 
             def wait_for_server() -> None:
                 for line in proc.stdout:
-                    print(line.decode("utf-8").strip())
-                    if b"https://127.0.0.1:12345/" in line:
+                    print(line.decode("utf-8", errors="replace").strip())
+                    if b"https://127.0.0.1:12345/" in line or b"127.0.0.1:12345" in line:
                         ready.set()
 
             threading.Thread(target=wait_for_server, daemon=True).start()
 
             if not ready.wait(timeout=120):
                 raise TimeoutError("the server didn't start in 120 seconds")
+            # Wait until the server is actually accepting connections (avoids races where
+            # the URL is printed before the socket is bound, e.g. in config dump).
+            _wait_for_port("127.0.0.1", TEST_SERVER_PORT, timeout_seconds=30.0)
         yield
     finally:
         if ENABLE_INTEGRATION:
