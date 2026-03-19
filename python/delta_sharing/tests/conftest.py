@@ -114,9 +114,7 @@ def test_server(tmp_path_factory: TempPathFactory) -> Iterator[None]:
             # Do not wait for a specific log line: JVM/sbt output can be buffered differently
             # across Python/OS versions, causing flaky timeouts. Wait until the port accepts
             # connections (with a generous budget for cold CI: compile + server start).
-            start_timeout = float(
-                os.environ.get("DELTA_SHARING_SERVER_START_TIMEOUT", "240")
-            )
+            start_timeout = float(os.environ.get("DELTA_SHARING_SERVER_START_TIMEOUT", "240"))
             _wait_for_port(TEST_SERVER_PORT, timeout_seconds=start_timeout)
             if proc.poll() is not None:
                 raise RuntimeError(
