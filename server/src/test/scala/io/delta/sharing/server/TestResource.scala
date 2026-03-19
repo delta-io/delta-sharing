@@ -366,8 +366,6 @@ object TestResource {
     serverConfig.setVersion(1)
     serverConfig.setShares(shares)
     serverConfig.setAuthorization(Authorization(testAuthorizationToken))
-    /* Use IPv4 loopback so Python/clients avoid localhost -> ::1 vs 127.0.0.1 mismatches. */
-    serverConfig.setHost("127.0.0.1")
     serverConfig.setPort(TEST_PORT)
     serverConfig.setSsl(SSLConfig(selfSigned = true, null, null, null))
     serverConfig.setEvaluatePredicateHints(true)

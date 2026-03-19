@@ -14,8 +14,6 @@
 # limitations under the License.
 #
 import os
-import socket
-import time
 from pathlib import Path
 import subprocess
 import threading
@@ -29,38 +27,8 @@ from delta_sharing.protocol import DeltaSharingProfile
 from delta_sharing.rest_client import DataSharingRestClient
 
 
-# Port the test server listens on (must match TestResource.TEST_PORT).
-TEST_SERVER_PORT = 12345
 ENABLE_INTEGRATION = len(os.environ.get("AWS_ACCESS_KEY_ID", "")) > 0
 SKIP_MESSAGE = "The integration tests are disabled."
-
-
-def _repo_root() -> Path:
-    """Return the repository root (directory containing build.sbt)."""
-    path = Path(__file__).resolve().parent
-    for _ in range(5):
-        if (path / "build.sbt").exists():
-            return path
-        path = path.parent
-    return Path.cwd()
-
-
-def _wait_for_port(port: int, timeout_seconds: float = 30.0) -> None:
-    """Wait until the server accepts TCP connections on the given port (IPv4 and/or localhost)."""
-    deadline = time.monotonic() + timeout_seconds
-    hosts = ("127.0.0.1", "localhost")
-    while time.monotonic() < deadline:
-        for host in hosts:
-            try:
-                with socket.create_connection((host, port), timeout=2):
-                    return
-            except (socket.error, OSError):
-                pass
-        time.sleep(0.5)
-    raise TimeoutError(
-        f"Server did not accept connections on port {port} within {timeout_seconds}s "
-        f"(tried {hosts})"
-    )
 
 
 @pytest.fixture
@@ -74,22 +42,21 @@ def profile(profile_path) -> DeltaSharingProfile:
 
 
 @pytest.fixture
-def rest_client(profile, test_server) -> DataSharingRestClient:
+def rest_client(profile) -> DataSharingRestClient:
     return DataSharingRestClient(profile)
 
 
 @pytest.fixture
-def sharing_client(profile, test_server) -> SharingClient:
+def sharing_client(profile) -> SharingClient:
     return SharingClient(profile)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session", autouse=ENABLE_INTEGRATION)
 def test_server(tmp_path_factory: TempPathFactory) -> Iterator[None]:
     pid_file: Optional[Path] = None
     proc: Optional[subprocess.Popen] = None
     try:
         if ENABLE_INTEGRATION:
-            repo_root = _repo_root()
             pid_file = tmp_path_factory.getbasetemp() / "delta-sharing-server.pid"
             proc = subprocess.Popen(
                 [
@@ -100,26 +67,22 @@ def test_server(tmp_path_factory: TempPathFactory) -> Iterator[None]:
                     ),
                 ],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                cwd=str(repo_root),
+                stderr=subprocess.PIPE,
+                cwd="..",
             )
 
-            def drain_server_output() -> None:
-                assert proc.stdout is not None
+            ready = threading.Event()
+
+            def wait_for_server() -> None:
                 for line in proc.stdout:
-                    print(line.decode("utf-8", errors="replace").strip())
+                    print(line.decode("utf-8").strip())
+                    if b"https://127.0.0.1:12345/" in line:
+                        ready.set()
 
-            threading.Thread(target=drain_server_output, daemon=True).start()
+            threading.Thread(target=wait_for_server, daemon=True).start()
 
-            # Do not wait for a specific log line: JVM/sbt output can be buffered differently
-            # across Python/OS versions, causing flaky timeouts. Wait until the port accepts
-            # connections (with a generous budget for cold CI: compile + server start).
-            start_timeout = float(os.environ.get("DELTA_SHARING_SERVER_START_TIMEOUT", "240"))
-            _wait_for_port(TEST_SERVER_PORT, timeout_seconds=start_timeout)
-            if proc.poll() is not None:
-                raise RuntimeError(
-                    f"Delta Sharing server process exited early with code {proc.poll()}"
-                )
+            if not ready.wait(timeout=120):
+                raise TimeoutError("the server didn't start in 120 seconds")
         yield
     finally:
         if ENABLE_INTEGRATION:

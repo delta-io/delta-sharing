@@ -167,9 +167,7 @@ class DataSharingRestClient:
         self._auth_credential_provider = (
             AuthCredentialProviderFactory.create_auth_credential_provider(profile)
         )
-        # Self-signed test server (TestDeltaSharingServer): disable verify for loopback only.
-        hostname = urlparse(profile.endpoint).hostname
-        if hostname in ("localhost", "127.0.0.1"):
+        if urlparse(profile.endpoint).hostname == "localhost":
             self._session.verify = False
 
     def __get_reader_features(self, for_cdf):
