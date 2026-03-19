@@ -61,4 +61,33 @@ class CredentialContextSuite extends FunSuite {
     assert(ctx.storageScheme == StorageScheme.GCS)
     assert(ctx.privileges == Set(Privilege.SELECT, Privilege.UPDATE))
   }
+
+  test("temporaryCredentialLocationAllowed accepts equivalent S3 schemes and trailing slash") {
+    val table = "s3a://my-bucket/prefix/table"
+    assert(CredentialContext.temporaryCredentialLocationAllowed(table, new URI("s3://my-bucket/prefix/table")))
+    assert(CredentialContext.temporaryCredentialLocationAllowed(table, new URI("s3n://my-bucket/prefix/table")))
+    assert(CredentialContext.temporaryCredentialLocationAllowed(table, new URI("s3a://my-bucket/prefix/table/")))
+  }
+
+  test("temporaryCredentialLocationAllowed rejects different bucket or path") {
+    val table = "s3a://my-bucket/prefix/table"
+    assert(!CredentialContext.temporaryCredentialLocationAllowed(table, new URI("s3://other-bucket/prefix/table")))
+    assert(!CredentialContext.temporaryCredentialLocationAllowed(table, new URI("s3://my-bucket/other")))
+  }
+
+  test("temporaryCredentialLocationAllowed allows subdirectory under table root") {
+    val table = "s3a://my-bucket/prefix/table"
+    assert(CredentialContext.temporaryCredentialLocationAllowed(
+      table, new URI("s3://my-bucket/prefix/table/_delta_log")))
+    assert(CredentialContext.temporaryCredentialLocationAllowed(
+      table, new URI("s3a://my-bucket/prefix/table/part-00000.parquet")))
+  }
+
+  test("temporaryCredentialLocationAllowed rejects sibling path prefix attack") {
+    val table = "s3a://my-bucket/prefix/table"
+    assert(!CredentialContext.temporaryCredentialLocationAllowed(
+      table, new URI("s3://my-bucket/prefix/tableevil")))
+    assert(!CredentialContext.temporaryCredentialLocationAllowed(
+      table, new URI("s3://my-bucket/prefix/tabl")))
+  }
 }

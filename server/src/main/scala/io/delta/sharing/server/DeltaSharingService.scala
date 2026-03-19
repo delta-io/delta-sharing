@@ -46,7 +46,7 @@ import scalapb.json4s.Printer
 
 import io.delta.sharing.server.common.JsonUtils
 import io.delta.sharing.server.config.ServerConfig
-import io.delta.sharing.server.credential.{Privilege, StorageCredentialVendor}
+import io.delta.sharing.server.credential.{CredentialContext, Privilege, StorageCredentialVendor}
 import io.delta.sharing.server.model.{
   GenerateTemporaryTableCredentialRequest,
   QueryStatus,
@@ -636,6 +636,13 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     val uri = request.location
       .map(s => new URI(s))
       .getOrElse(new URI(tableConfig.getLocation))
+    request.location.foreach { _ =>
+      if (!CredentialContext.temporaryCredentialLocationAllowed(tableConfig.getLocation, uri)) {
+        throw new DeltaSharingIllegalArgumentException(
+          "The requested location must be the same as or under this table's configured storage " +
+          "location.")
+      }
+    }
     val conf = new Configuration()
     val vendor = new StorageCredentialVendor(conf)
     val result = vendor.vendCredential(

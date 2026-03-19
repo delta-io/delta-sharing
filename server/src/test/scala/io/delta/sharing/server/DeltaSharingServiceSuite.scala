@@ -3991,19 +3991,47 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(result.credentials.azureUserDelegationSas == null)
   }
 
-  integrationTest("temporary-table-credentials with location override") {
+  integrationTest("temporary-table-credentials with location override matching table root") {
     val url = requestPath("/shares/share1/schemas/default/tables/table_temp_cred/temporary-table-credentials")
+    // Same root as table config but s3:// alias (table is configured with s3a://)
+    val tableRootS3 = s"s3://${TestResource.AWS.bucket}/delta-exchange-test/table1"
     val response = readHttpContent(
       url,
       Some("POST"),
-      Some("""{"location": "s3a://test-bucket/custom/path"}"""),
+      Some(s"""{"location": "$tableRootS3"}"""),
       RESPONSE_FORMAT_PARQUET,
       None,
       "application/json; charset=utf-8"
     )
     val result = JsonUtils.fromJson[TemporaryCredentials](response)
     assert(result.credentials != null)
-    assert(result.credentials.location == "s3a://test-bucket/custom/path" ||
-      result.credentials.location.contains("test-bucket"))
+    assert(result.credentials.awsTempCredentials != null)
+  }
+
+  integrationTest("temporary-table-credentials allows location under table root") {
+    val url = requestPath("/shares/share1/schemas/default/tables/table_temp_cred/temporary-table-credentials")
+    val subLoc = s"s3://${TestResource.AWS.bucket}/delta-exchange-test/table1/_delta_log"
+    val response = readHttpContent(
+      url,
+      Some("POST"),
+      Some(s"""{"location": "$subLoc"}"""),
+      RESPONSE_FORMAT_PARQUET,
+      None,
+      "application/json; charset=utf-8"
+    )
+    val result = JsonUtils.fromJson[TemporaryCredentials](response)
+    assert(result.credentials != null)
+    assert(result.credentials.awsTempCredentials != null)
+  }
+
+  integrationTest("temporary-table-credentials rejects location that does not match table") {
+    val url = requestPath("/shares/share1/schemas/default/tables/table_temp_cred/temporary-table-credentials")
+    assertHttpError(
+      url = url,
+      method = "POST",
+      data = Some("""{"location": "s3a://other-bucket/some/path"}"""),
+      expectedErrorCode = 400,
+      expectedErrorMessage = "same as or under this table's configured storage"
+    )
   }
 }
