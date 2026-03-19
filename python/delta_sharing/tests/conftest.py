@@ -45,17 +45,21 @@ def _repo_root() -> Path:
     return Path.cwd()
 
 
-def _wait_for_port(host: str, port: int, timeout_seconds: float = 30.0) -> None:
-    """Wait until the server is accepting connections on the given port."""
+def _wait_for_port(port: int, timeout_seconds: float = 30.0) -> None:
+    """Wait until the server accepts TCP connections on the given port (IPv4 and/or localhost)."""
     deadline = time.monotonic() + timeout_seconds
+    hosts = ("127.0.0.1", "localhost")
     while time.monotonic() < deadline:
-        try:
-            with socket.create_connection((host, port), timeout=2):
-                return
-        except (socket.error, OSError):
-            time.sleep(0.5)
+        for host in hosts:
+            try:
+                with socket.create_connection((host, port), timeout=2):
+                    return
+            except (socket.error, OSError):
+                pass
+        time.sleep(0.5)
     raise TimeoutError(
-        f"Server at {host}:{port} did not accept connections within {timeout_seconds}s"
+        f"Server did not accept connections on port {port} within {timeout_seconds}s "
+        f"(tried {hosts})"
     )
 
 
@@ -70,16 +74,16 @@ def profile(profile_path) -> DeltaSharingProfile:
 
 
 @pytest.fixture
-def rest_client(profile) -> DataSharingRestClient:
+def rest_client(profile, test_server) -> DataSharingRestClient:
     return DataSharingRestClient(profile)
 
 
 @pytest.fixture
-def sharing_client(profile) -> SharingClient:
+def sharing_client(profile, test_server) -> SharingClient:
     return SharingClient(profile)
 
 
-@pytest.fixture(scope="session", autouse=ENABLE_INTEGRATION)
+@pytest.fixture(scope="session", autouse=True)
 def test_server(tmp_path_factory: TempPathFactory) -> Iterator[None]:
     pid_file: Optional[Path] = None
     proc: Optional[subprocess.Popen] = None
@@ -100,21 +104,24 @@ def test_server(tmp_path_factory: TempPathFactory) -> Iterator[None]:
                 cwd=str(repo_root),
             )
 
-            ready = threading.Event()
-
-            def wait_for_server() -> None:
+            def drain_server_output() -> None:
+                assert proc.stdout is not None
                 for line in proc.stdout:
                     print(line.decode("utf-8", errors="replace").strip())
-                    if b"https://127.0.0.1:12345/" in line or b"127.0.0.1:12345" in line:
-                        ready.set()
 
-            threading.Thread(target=wait_for_server, daemon=True).start()
+            threading.Thread(target=drain_server_output, daemon=True).start()
 
-            if not ready.wait(timeout=120):
-                raise TimeoutError("the server didn't start in 120 seconds")
-            # Wait until the server is actually accepting connections (avoids races where
-            # the URL is printed before the socket is bound, e.g. in config dump).
-            _wait_for_port("127.0.0.1", TEST_SERVER_PORT, timeout_seconds=30.0)
+            # Do not wait for a specific log line: JVM/sbt output can be buffered differently
+            # across Python/OS versions, causing flaky timeouts. Wait until the port accepts
+            # connections (with a generous budget for cold CI: compile + server start).
+            start_timeout = float(
+                os.environ.get("DELTA_SHARING_SERVER_START_TIMEOUT", "240")
+            )
+            _wait_for_port(TEST_SERVER_PORT, timeout_seconds=start_timeout)
+            if proc.poll() is not None:
+                raise RuntimeError(
+                    f"Delta Sharing server process exited early with code {proc.poll()}"
+                )
         yield
     finally:
         if ENABLE_INTEGRATION:
