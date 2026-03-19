@@ -54,7 +54,9 @@ def _wait_for_port(host: str, port: int, timeout_seconds: float = 30.0) -> None:
                 return
         except (socket.error, OSError):
             time.sleep(0.5)
-    raise TimeoutError(f"Server at {host}:{port} did not accept connections within {timeout_seconds}s")
+    raise TimeoutError(
+        f"Server at {host}:{port} did not accept connections within {timeout_seconds}s"
+    )
 
 
 @pytest.fixture
