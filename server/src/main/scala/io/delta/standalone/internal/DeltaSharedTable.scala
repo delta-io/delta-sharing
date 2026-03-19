@@ -39,7 +39,7 @@ import scala.collection.mutable.ListBuffer
 import scala.util.control.NonFatal
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
-import io.delta.sharing.server.{model, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingService, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
+import io.delta.sharing.server.{model, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, DeltaSharingUtils, ErrorStrings, QueryResult}
 import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, JsonUtils, PreSignedUrl, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
@@ -211,7 +211,7 @@ class DeltaSharedTable(
       responseFormat: String,
       returnAddFileForCDF: Boolean = false,
       fileIdHash: Option[String] = None): Object = {
-    val fileId = DeltaSharingService.hashFileId(addFile.path, fileIdHash, responseFormat)
+    val fileId = DeltaSharingUtils.hashFileId(addFile.path, fileIdHash, responseFormat)
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
         id = fileId,
@@ -254,7 +254,7 @@ class DeltaSharedTable(
     timestamp: java.lang.Long,
     responseFormat: String,
     fileIdHash: Option[String] = None): Object = {
-    val fileId = DeltaSharingService.hashFileId(removeFile.path, fileIdHash, responseFormat)
+    val fileId = DeltaSharingUtils.hashFileId(removeFile.path, fileIdHash, responseFormat)
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
         id = fileId,
@@ -286,7 +286,7 @@ class DeltaSharedTable(
     responseFormat: String,
     fileIdHash: Option[String] = None
   ): Object = {
-    val fileId = DeltaSharingService.hashFileId(addCDCFile.path, fileIdHash, responseFormat)
+    val fileId = DeltaSharingUtils.hashFileId(addCDCFile.path, fileIdHash, responseFormat)
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
         id = fileId,

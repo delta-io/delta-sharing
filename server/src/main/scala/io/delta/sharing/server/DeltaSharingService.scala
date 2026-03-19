@@ -26,7 +26,6 @@ import javax.annotation.Nullable
 import scala.collection.JavaConverters._
 import scala.util.Try
 
-import com.google.common.hash.Hashing
 import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
 import com.linecorp.armeria.common.auth.OAuth2Token
 import com.linecorp.armeria.internal.server.ResponseConversionUtil
@@ -690,29 +689,7 @@ object DeltaSharingService {
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
   val FILEIDHASH_HEADER = "fileidhash"
   val FILEIDHASH_VALID_VALUES = Set("md5", "sha256")
-  val RESPONSE_FORMAT_DELTA = "delta"
   val DELTA_SHARING_RESPONSE_FORMAT = "responseformat"
-
-  /**
-   * Hash a file path to produce a file ID. When the client explicitly requests an algorithm
-   * via `fileIdHash`, that algorithm is used. Otherwise the default is sha256 for the delta
-   * response format and md5 for parquet (backward compatibility).
-   */
-  def hashFileId(
-      path: String,
-      fileIdHash: Option[String],
-      respondedFormat: String): String = {
-    fileIdHash match {
-      case Some("sha256") => Hashing.sha256().hashString(path, UTF_8).toString
-      case Some("md5") => Hashing.md5().hashString(path, UTF_8).toString
-      case _ =>
-        if (respondedFormat == RESPONSE_FORMAT_DELTA) {
-          Hashing.sha256().hashString(path, UTF_8).toString
-        } else {
-          Hashing.md5().hashString(path, UTF_8).toString
-        }
-    }
-  }
   val DELTA_SHARING_CAPABILITIES_ASYNC_QUERY = "asyncquery"
   val DELTA_SHARING_INCLUDE_END_STREAM_ACTION = "includeendstreamaction"
   val DELTA_SHARING_READER_FEATURES = "readerfeatures"
