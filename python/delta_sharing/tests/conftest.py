@@ -31,6 +31,16 @@ ENABLE_INTEGRATION = len(os.environ.get("AWS_ACCESS_KEY_ID", "")) > 0
 SKIP_MESSAGE = "The integration tests are disabled."
 
 
+def _repo_root() -> Path:
+    """Return the repository root (directory containing build.sbt)."""
+    path = Path(__file__).resolve().parent
+    for _ in range(5):
+        if (path / "build.sbt").exists():
+            return path
+        path = path.parent
+    return Path.cwd()
+
+
 @pytest.fixture
 def profile_path() -> str:
     return os.path.join(os.path.dirname(__file__), "test_profile.json")
@@ -57,6 +67,7 @@ def test_server(tmp_path_factory: TempPathFactory) -> Iterator[None]:
     proc: Optional[subprocess.Popen] = None
     try:
         if ENABLE_INTEGRATION:
+            repo_root = _repo_root()
             pid_file = tmp_path_factory.getbasetemp() / "delta-sharing-server.pid"
             proc = subprocess.Popen(
                 [
@@ -68,7 +79,7 @@ def test_server(tmp_path_factory: TempPathFactory) -> Iterator[None]:
                 ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                cwd="..",
+                cwd=str(repo_root),
             )
 
             ready = threading.Event()
