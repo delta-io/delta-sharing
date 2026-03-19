@@ -81,6 +81,13 @@ object TestResource {
                 "table7",
                 s"s3a://${AWS.bucket}/delta-exchange-test/table7",
                 "00000000-0000-0000-0000-000000000007"
+              ),
+              // Dedicated table for temporary-table-credentials tests (historyShared required).
+              TableConfig(
+                "table_temp_cred",
+                s"s3a://${AWS.bucket}/delta-exchange-test/table1",
+                "00000000-0000-0000-0000-000000000095",
+                historyShared = true
               )
             )
           )
@@ -181,6 +188,13 @@ object TestResource {
                 "table_abfs",
                 s"abfss://${Azure.container}@${Azure.accountName}.dfs.core.windows.net/delta-sharing-test/table1",
                 "00000000-0000-0000-0000-000000000097"
+              ),
+              // Dedicated table for temporary-table-credentials tests (historyShared required).
+              TableConfig(
+                "table_temp_cred_abfs",
+                s"abfss://${Azure.container}@${Azure.accountName}.dfs.core.windows.net/delta-sharing-test/table1",
+                "00000000-0000-0000-0000-000000000094",
+                historyShared = true
               )
             )
           )
@@ -196,6 +210,13 @@ object TestResource {
                 "table_gcs",
                 s"gs://${GCP.bucket}/delta-sharing-test/table1",
                 "00000000-0000-0000-0000-000000000096"
+              ),
+              // Dedicated table for temporary-table-credentials tests (historyShared required).
+              TableConfig(
+                "table_temp_cred_gcs",
+                s"gs://${GCP.bucket}/delta-sharing-test/table1",
+                "00000000-0000-0000-0000-000000000093",
+                historyShared = true
               )
             )
           )
