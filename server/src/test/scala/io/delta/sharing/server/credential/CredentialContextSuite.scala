@@ -64,15 +64,20 @@ class CredentialContextSuite extends FunSuite {
 
   test("temporaryCredentialLocationAllowed accepts equivalent S3 schemes and trailing slash") {
     val table = "s3a://my-bucket/prefix/table"
-    assert(CredentialContext.temporaryCredentialLocationAllowed(table, new URI("s3://my-bucket/prefix/table")))
-    assert(CredentialContext.temporaryCredentialLocationAllowed(table, new URI("s3n://my-bucket/prefix/table")))
-    assert(CredentialContext.temporaryCredentialLocationAllowed(table, new URI("s3a://my-bucket/prefix/table/")))
+    assert(CredentialContext.temporaryCredentialLocationAllowed(
+      table, new URI("s3://my-bucket/prefix/table")))
+    assert(CredentialContext.temporaryCredentialLocationAllowed(
+      table, new URI("s3n://my-bucket/prefix/table")))
+    assert(CredentialContext.temporaryCredentialLocationAllowed(
+      table, new URI("s3a://my-bucket/prefix/table/")))
   }
 
   test("temporaryCredentialLocationAllowed rejects different bucket or path") {
     val table = "s3a://my-bucket/prefix/table"
-    assert(!CredentialContext.temporaryCredentialLocationAllowed(table, new URI("s3://other-bucket/prefix/table")))
-    assert(!CredentialContext.temporaryCredentialLocationAllowed(table, new URI("s3://my-bucket/other")))
+    assert(!CredentialContext.temporaryCredentialLocationAllowed(
+      table, new URI("s3://other-bucket/prefix/table")))
+    assert(!CredentialContext.temporaryCredentialLocationAllowed(
+      table, new URI("s3://my-bucket/other")))
   }
 
   test("temporaryCredentialLocationAllowed allows subdirectory under table root") {
