@@ -647,6 +647,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       normalized
     }
     // scalastyle:on caselocale
+  }
 
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/temporary-table-credentials")
   def generateTemporaryTableCredential(
