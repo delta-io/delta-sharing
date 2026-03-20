@@ -17,6 +17,8 @@ jobs:
       AZURE_TEST_ACCOUNT_KEY: ${{ secrets.AZURE_TEST_ACCOUNT_KEY }}
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/google_service_account_key.json
       GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+      STAGING_ENDPOINT: ${{ secrets.STAGING_ENDPOINT }}
+      STAGING_BEARER_TOKEN: ${{ secrets.STAGING_BEARER_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -44,6 +46,8 @@ jobs:
       AZURE_TEST_ACCOUNT_KEY: ${{ secrets.AZURE_TEST_ACCOUNT_KEY }}
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/google_service_account_key.json
       GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+      STAGING_ENDPOINT: ${{ secrets.STAGING_ENDPOINT }}
+      STAGING_BEARER_TOKEN: ${{ secrets.STAGING_BEARER_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -71,6 +75,8 @@ jobs:
       AZURE_TEST_ACCOUNT_KEY: ${{ secrets.AZURE_TEST_ACCOUNT_KEY }}
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/google_service_account_key.json
       GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+      STAGING_ENDPOINT: ${{ secrets.STAGING_ENDPOINT }}
+      STAGING_BEARER_TOKEN: ${{ secrets.STAGING_BEARER_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -108,6 +114,8 @@ jobs:
       AZURE_TEST_ACCOUNT_KEY: ${{ secrets.AZURE_TEST_ACCOUNT_KEY }}
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/google_service_account_key.json
       GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+      STAGING_ENDPOINT: ${{ secrets.STAGING_ENDPOINT }}
+      STAGING_BEARER_TOKEN: ${{ secrets.STAGING_BEARER_TOKEN }}
       # Github Actions' default miniconda
       CONDA_PREFIX: /usr/share/miniconda
     steps:
