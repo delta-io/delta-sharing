@@ -132,7 +132,7 @@ def _staging_profile() -> DeltaSharingProfile:
     return DeltaSharingProfile(
         share_credentials_version=1,
         endpoint=os.environ.get("STAGING_ENDPOINT", ""),
-        bearer_token=os.environ.get("STAGING_BEARER_TOKEN", "")
+        bearer_token=os.environ.get("STAGING_BEARER_TOKEN", ""),
     )
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -820,15 +820,21 @@ def test_load_as_pandas_success_timestampntz(
     ],
 )
 def test_load_as_pandas_success_managed_iceberg(
-    share: str, schema: str, table:str, expected: pd.DataFrame
+    share: str, schema: str, table: str, expected: pd.DataFrame
 ):
     profile = _staging_profile()
-    pdf = DeltaSharingReader(
-        table=Table(name=table, share=share, schema=schema),
-        rest_client=DataSharingRestClient(profile)
-    ).to_pandas().sort_values(by=["name", "age"]).reset_index(drop=True)
+    pdf = (
+            DeltaSharingReader(
+                table=Table(name=table, share=share, schema=schema),
+                rest_client=DataSharingRestClient(profile),
+            )
+            .to_pandas()
+            .sort_values(by=["name", "age"])
+            .reset_index(drop=True)
+        )
     expected["age"] = expected["age"].astype("int32")
     pd.testing.assert_frame_equal(pdf, expected)
+
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(

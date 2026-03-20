@@ -32,6 +32,7 @@ SKIP_MESSAGE = "The integration tests are disabled."
 
 ENABLE_STAGING = len(os.environ.get("STAGING_BEARER_TOKEN", "")) > 0
 
+
 @pytest.fixture
 def profile_path() -> str:
     return os.path.join(os.path.dirname(__file__), "test_profile.json")
