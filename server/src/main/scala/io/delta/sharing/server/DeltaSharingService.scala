@@ -17,6 +17,7 @@
 package io.delta.sharing.server
 
 import java.io.{ByteArrayOutputStream, File, FileNotFoundException}
+import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.AccessDeniedException
 import java.security.MessageDigest
@@ -26,7 +27,7 @@ import javax.annotation.Nullable
 import scala.collection.JavaConverters._
 import scala.util.Try
 
-import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
+import com.linecorp.armeria.common.{AggregatedHttpRequest, HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
 import com.linecorp.armeria.common.auth.OAuth2Token
 import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
@@ -39,12 +40,19 @@ import io.delta.standalone.internal.DeltaDataSource
 import io.delta.standalone.internal.DeltaSharedTable
 import net.sourceforge.argparse4j.ArgumentParsers
 import org.apache.commons.io.FileUtils
+import org.apache.hadoop.conf.Configuration
 import org.slf4j.LoggerFactory
 import scalapb.json4s.Printer
 
 import io.delta.sharing.server.common.JsonUtils
 import io.delta.sharing.server.config.ServerConfig
-import io.delta.sharing.server.model.{QueryStatus, SingleAction}
+import io.delta.sharing.server.credential.{CredentialContext, Privilege, StorageCredentialVendor}
+import io.delta.sharing.server.model.{
+  GenerateTemporaryTableCredentialRequest,
+  QueryStatus,
+  SingleAction,
+  TemporaryCredentials
+}
 import io.delta.sharing.server.protocol._
 
 object ErrorCode {
@@ -639,6 +647,57 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       normalized
     }
     // scalastyle:on caselocale
+
+  @Post("/shares/{share}/schemas/{schema}/tables/{table}/temporary-table-credentials")
+  def generateTemporaryTableCredential(
+      req: HttpRequest,
+      @Param("share") share: String,
+      @Param("schema") schema: String,
+      @Param("table") table: String,
+      aggregatedRequest: AggregatedHttpRequest): HttpResponse = processRequest {
+    val request = parseTemporaryTableCredentialRequest(aggregatedRequest)
+    val tableConfig = sharedTableManager.getTable(share, schema, table)
+    if (!tableConfig.historyShared) {
+      throw new DeltaSharingIllegalArgumentException(
+        "Temporary table credentials are not supported because history sharing is not enabled " +
+        s"on table: $share.$schema.$table")
+    }
+    val uri = request.location
+      .map(s => new URI(s))
+      .getOrElse(new URI(tableConfig.getLocation))
+    request.location.foreach { _ =>
+      if (!CredentialContext.temporaryCredentialLocationAllowed(tableConfig.getLocation, uri)) {
+        throw new DeltaSharingIllegalArgumentException(
+          "The requested location must be the same as or under this table's configured storage " +
+          "location.")
+      }
+    }
+    val conf = new Configuration()
+    val vendor = new StorageCredentialVendor(conf)
+    val result = vendor.vendCredential(
+      uri,
+      Set(Privilege.SELECT),
+      serverConfig.temporaryCredentialValiditySeconds
+    )
+    HttpResponse.of(
+      HttpStatus.OK,
+      MediaType.JSON_UTF_8,
+      JsonUtils.toJson(result))
+  }
+
+  private def parseTemporaryTableCredentialRequest(
+      aggregatedRequest: AggregatedHttpRequest): GenerateTemporaryTableCredentialRequest = {
+    val content = aggregatedRequest.contentUtf8()
+    if (content == null || content.trim.isEmpty) {
+      GenerateTemporaryTableCredentialRequest(location = None)
+    } else {
+      try {
+        JsonUtils.fromJson[GenerateTemporaryTableCredentialRequest](content)
+      } catch {
+        case _: Exception =>
+          GenerateTemporaryTableCredentialRequest(location = None)
+      }
+    }
   }
 
   private def streamingOutput(

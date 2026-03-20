@@ -277,6 +277,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "table4", schema = "default", share = "share3"),
         Table(name = "table5", schema = "default", share = "share3"),
         Table(name = "table7", schema = "default", share = "share1"),
+        Table(name = "table_temp_cred", schema = "default", share = "share1"),
         Table(name = "table8", schema = "schema1", share = "share7"),
         Table(name = "table9", schema = "schema2", share = "share7"),
         Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
@@ -296,7 +297,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         Table(name = "test_gzip", schema = "default", share = "share4"),
         Table(name = "table_wasb", schema = "default", share = "share_azure"),
         Table(name = "table_abfs", schema = "default", share = "share_azure"),
+        Table(name = "table_temp_cred_abfs", schema = "default", share = "share_azure"),
         Table(name = "table_gcs", schema = "default", share = "share_gcp"),
+        Table(name = "table_temp_cred_gcs", schema = "default", share = "share_gcp"),
         Table(name = "table_with_cm_name", schema = "default", share = "share8"),
         Table(name = "table_with_cm_id", schema = "default", share = "share8"),
         Table(name = "deletion_vectors_with_dvs_dv_property_on", schema = "default", share = "share8"),
@@ -2241,4 +2244,36 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
+  test("fileIdHash - skipFileIdHashVerification=true skips verification when server does not echo") {
+    val client = new DeltaSharingRestClient(
+      profileProvider = new TestProfileProvider(false),
+      responseFormat = RESPONSE_FORMAT_DELTA,
+      skipFileIdHashVerification = true
+    ) {
+      override def getNDJsonPost[T: Manifest](
+          target: String,
+          data: T,
+          setIncludeEndStreamAction: Boolean,
+          requestFileIdHash: Option[String]
+      ): ParsedDeltaSharingResponse = {
+        ParsedDeltaSharingResponse(
+          version = 1L,
+          respondedFormat = RESPONSE_FORMAT_DELTA,
+          lines = Seq(
+            """{"protocol":{"minReaderVersion":1}}""",
+            """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{}","partitionColumns":[]}}"""
+          ),
+          capabilitiesMap = Map.empty,
+          fileIdHash = None
+        )
+      }
+    }
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      val files = client.getFiles(table, Nil, None, None, None, None, None, Some("md5"))
+      assert(files.version == 1L)
+    } finally {
+      client.close()
+    }
+  }
 }

@@ -48,6 +48,8 @@ port: 8080
 endpoint: "/delta-sharing"
 # Set the timeout of S3 presigned url in seconds
 preSignedUrlTimeoutSeconds: 3600
+# Set the validity in seconds of temporary table credentials (STS/SAS/OAuth) returned by the server (default: 3600 = 1 hour)
+temporaryCredentialValiditySeconds: 3600
 # How many tables to cache in the server
 deltaTableCacheSize: 10
 # Whether we can accept working with a stale version of the table. This is useful when sharing
