@@ -129,7 +129,8 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     responseFormat: String = RESPONSE_FORMAT_PARQUET,
     asyncQuery: String = "false",
     readerFeatures: String = "",
-    includeEndStreamAction: Boolean = false): String = {
+    includeEndStreamAction: Boolean = false,
+    requestFileIdHash: Option[String] = None): String = {
     readHttpContent(
       url,
       method,
@@ -139,8 +140,26 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       "application/x-ndjson; charset=utf-8",
       asyncQuery = asyncQuery,
       readerFeatures = readerFeatures,
-      includeEndStreamAction = includeEndStreamAction
+      includeEndStreamAction = includeEndStreamAction,
+      requestFileIdHash = requestFileIdHash
     )
+  }
+
+  /** Like readNDJson but returns (content, fileidhash response header) for verification. */
+  def readNDJsonWithFileIdHashHeader(
+    url: String,
+    method: Option[String] = None,
+    data: Option[String] = None,
+    expectedTableVersion: Option[Long] = None,
+    responseFormat: String = RESPONSE_FORMAT_PARQUET,
+    asyncQuery: String = "false",
+    readerFeatures: String = "",
+    includeEndStreamAction: Boolean = false,
+    requestFileIdHash: Option[String] = None): (String, Option[String]) = {
+    readHttpContentReturningFileIdHash(url, method, data, responseFormat, expectedTableVersion,
+      "application/x-ndjson; charset=utf-8", asyncQuery = asyncQuery,
+      readerFeatures = readerFeatures, includeEndStreamAction = includeEndStreamAction,
+      requestFileIdHash = requestFileIdHash)
   }
 
   def readHttpContent(
@@ -152,7 +171,56 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     expectedContentType: String,
     asyncQuery: String = "true",
     readerFeatures: String = "",
-    includeEndStreamAction: Boolean = false): String = {
+    includeEndStreamAction: Boolean = false,
+    requestFileIdHash: Option[String] = None): String = {
+    val (content, _) = readHttpContentReturningFileIdHash(
+      url, method, data, responseFormat, expectedTableVersion, expectedContentType,
+      asyncQuery = asyncQuery, readerFeatures = readerFeatures,
+      includeEndStreamAction = includeEndStreamAction, requestFileIdHash = requestFileIdHash)
+    content
+  }
+
+  /** Executes HTTP request and returns (content, fileidhash response header). */
+  private def readHttpContentReturningFileIdHash(
+    url: String,
+    method: Option[String],
+    data: Option[String] = None,
+    responseFormat: String = RESPONSE_FORMAT_PARQUET,
+    expectedTableVersion: Option[Long] = None,
+    expectedContentType: String,
+    asyncQuery: String = "true",
+    readerFeatures: String = "",
+    includeEndStreamAction: Boolean = false,
+    requestFileIdHash: Option[String] = None): (String, Option[String]) = {
+    val (content, connection) = executeHttpRequest(
+      url, method, data, responseFormat, asyncQuery, readerFeatures,
+      includeEndStreamAction, requestFileIdHash)
+    val contentType = connection.getHeaderField("Content-Type")
+    assert(expectedContentType == contentType, s"Incorrect content type: $contentType. Error: $content")
+    expectedTableVersion.foreach { v =>
+      val caps = connection.getHeaderField("delta-sharing-capabilities")
+      var expected = s"responseformat=$responseFormat"
+      if (includeEndStreamAction) expected += s";$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+      assert(caps == expected, s"Incorrect header: $caps")
+      assert(connection.getHeaderField("Delta-Table-Version") == v.toString)
+    }
+    requestFileIdHash.foreach { expected =>
+      val actual = connection.getHeaderField("fileidhash")
+      assert(actual == expected, s"Expected fileidhash response header '$expected', got '$actual'")
+    }
+    val fileIdHash = Option(connection.getHeaderField("fileidhash"))
+    (content, fileIdHash)
+  }
+
+  private def executeHttpRequest(
+    url: String,
+    method: Option[String],
+    data: Option[String],
+    responseFormat: String,
+    asyncQuery: String,
+    readerFeatures: String,
+    includeEndStreamAction: Boolean,
+    requestFileIdHash: Option[String]): (String, HttpsURLConnection) = {
     val connection = new URL(url).openConnection().asInstanceOf[HttpsURLConnection]
     connection.setRequestProperty("Authorization", s"Bearer ${TestResource.testAuthorizationToken}")
     var deltaSharingCapabilities = s"asyncquery=$asyncQuery"
@@ -162,41 +230,17 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
       deltaSharingCapabilities += s";$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
     }
     connection.setRequestProperty("delta-sharing-capabilities", deltaSharingCapabilities)
-
+    requestFileIdHash.foreach(connection.setRequestProperty("fileidhash", _))
     method.foreach(connection.setRequestMethod)
     data.foreach { d =>
       connection.setDoOutput(true)
       connection.setRequestProperty("Content-Type", "application/json; charset=utf8")
-      val output = connection.getOutputStream()
-      try {
-        output.write(d.getBytes(UTF_8))
-      } finally {
-        output.close()
-      }
+      val out = connection.getOutputStream()
+      try out.write(d.getBytes(UTF_8)) finally out.close()
     }
     val input = connection.getInputStream()
-    val content = try {
-      IOUtils.toString(input)
-    } finally {
-      input.close()
-    }
-    val contentType = connection.getHeaderField("Content-Type")
-    assert(
-      expectedContentType == contentType,
-      s"Incorrect content type: $contentType. Error: $content")
-    if (expectedTableVersion.isDefined) {
-      val responseCapabilities = connection.getHeaderField("delta-sharing-capabilities")
-      var expectedHeader = s"responseformat=$responseFormat"
-      if (includeEndStreamAction) {
-        expectedHeader += s";$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
-      }
-      assert(responseCapabilities == expectedHeader, s"Incorrect header: $responseCapabilities")
-    }
-    val deltaTableVersion = connection.getHeaderField("Delta-Table-Version")
-    expectedTableVersion.foreach { v =>
-      assert(v.toString == deltaTableVersion)
-    }
-    content
+    val content = try IOUtils.toString(input) finally input.close()
+    (content, connection)
   }
 
   def integrationTest(testName: String)(func: => Unit): Unit = {
@@ -635,9 +679,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
           assert(responseMetadata.deltaMetadata.id == "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf")
 
           val actualFiles = lines.drop(2).map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
-          assert(actualFiles(0).id == "061cb3683a467066995f8cdaabd8667d")
+          actualFiles.foreach { f =>
+            assert(f.id.length == 64 && f.id.matches("[0-9a-f]+"),
+              s"Delta format default should produce sha256 IDs (64 hex chars): ${f.id}")
+          }
+          assert(actualFiles(0).id != actualFiles(1).id)
           assert(actualFiles(0).deltaSingleAction.add != null)
-          assert(actualFiles(1).id == "e268cbf70dbaa6143e7e9fa3e2d3b00e")
           assert(actualFiles(1).deltaSingleAction.add != null)
           assert(actualFiles.count(_.expirationTimestamp > System.currentTimeMillis()) == 2)
           verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 781)
@@ -678,6 +725,126 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
           verifyPreSignedUrl(actualFiles(1).url, 781)
         }
       }
+    }
+  }
+
+  integrationTest("queryTable file id signed with requested fileidhash (md5 and sha256)") {
+    val p =
+      s"""
+         |{
+         |  "predicateHints": [
+         |    "date = CAST('2021-04-28' AS DATE)"
+         |  ]
+         |}
+         |""".stripMargin
+    val url = requestPath("/shares/share1/schemas/default/tables/table1/query")
+    val (responseMd5, fileIdHashHeaderMd5) = readNDJsonWithFileIdHashHeader(
+      url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_PARQUET, requestFileIdHash = Some("md5"))
+    val (responseSha256, fileIdHashHeaderSha256) = readNDJsonWithFileIdHashHeader(
+      url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_PARQUET, requestFileIdHash = Some("sha256"))
+    assert(fileIdHashHeaderMd5.contains("md5"), s"Expected fileidhash response header 'md5', got $fileIdHashHeaderMd5")
+    assert(fileIdHashHeaderSha256.contains("sha256"), s"Expected fileidhash response header 'sha256', got $fileIdHashHeaderSha256")
+    val fileIdsMd5 = extractFileIdsFromQueryResponse(responseMd5)
+    val fileIdsSha256 = extractFileIdsFromQueryResponse(responseSha256)
+    assert(fileIdsMd5.nonEmpty && fileIdsSha256.nonEmpty)
+    assert(fileIdsMd5.size == fileIdsSha256.size)
+    fileIdsMd5.foreach { id =>
+      assert(id.length == 32, s"MD5 file id should be 32 hex chars: $id")
+      assert(id.matches("[0-9a-f]+"), s"MD5 file id should be hex: $id")
+    }
+    fileIdsSha256.foreach { id =>
+      assert(id.length == 64, s"SHA256 file id should be 64 hex chars: $id")
+      assert(id.matches("[0-9a-f]+"), s"SHA256 file id should be hex: $id")
+    }
+    assert(fileIdsMd5 != fileIdsSha256, "file ids should differ between md5 and sha256")
+  }
+
+  integrationTest("queryTable fileidhash defaults: parquet=md5, delta=sha256") {
+    val p =
+      s"""
+         |{
+         |  "predicateHints": [
+         |    "date = CAST('2021-04-28' AS DATE)"
+         |  ]
+         |}
+         |""".stripMargin
+    val url = requestPath("/shares/share1/schemas/default/tables/table1/query")
+
+    val defaultParquetIds = extractFileIdsFromQueryResponse(
+      readNDJson(url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_PARQUET))
+    val explicitMd5Ids = extractFileIdsFromQueryResponse(
+      readNDJson(url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_PARQUET,
+        requestFileIdHash = Some("md5")))
+    assert(defaultParquetIds.nonEmpty)
+    defaultParquetIds.foreach { id =>
+      assert(id.length == 32, s"Parquet default should produce 32-char md5 IDs: $id")
+    }
+    assert(defaultParquetIds == explicitMd5Ids,
+      "Parquet default file IDs should match explicit md5 file IDs")
+
+    val defaultDeltaIds = extractFileIdsFromQueryResponse(
+      readNDJson(url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_DELTA))
+    val explicitSha256Ids = extractFileIdsFromQueryResponse(
+      readNDJson(url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_DELTA,
+        requestFileIdHash = Some("sha256")))
+    assert(defaultDeltaIds.nonEmpty)
+    defaultDeltaIds.foreach { id =>
+      assert(id.length == 64, s"Delta default should produce 64-char sha256 IDs: $id")
+    }
+    assert(defaultDeltaIds == explicitSha256Ids,
+      "Delta default file IDs should match explicit sha256 file IDs")
+  }
+
+  integrationTest("queryTable rejects unsupported fileidhash value with 400") {
+    val queryBody = """{"predicateHints": []}"""
+    val url = requestPath("/shares/share1/schemas/default/tables/table1/query")
+    Seq("sha512", "SHA3-256", "none", "blake2b").foreach { invalid =>
+      assertHttpError(
+        url = url,
+        method = "POST",
+        data = Some(queryBody),
+        expectedErrorCode = 400,
+        expectedErrorMessage = s"Unsupported fileidhash: '$invalid'",
+        headers = Map(
+          "delta-sharing-capabilities" -> s"responseformat=$RESPONSE_FORMAT_PARQUET",
+          "fileidhash" -> invalid
+        )
+      )
+    }
+  }
+
+  integrationTest("queryTable rejects empty or whitespace fileidhash with 400") {
+    val queryBody = """{"predicateHints": []}"""
+    val url = requestPath("/shares/share1/schemas/default/tables/table1/query")
+    Seq("", "  ", "\t").foreach { blank =>
+      assertHttpError(
+        url = url,
+        method = "POST",
+        data = Some(queryBody),
+        expectedErrorCode = 400,
+        expectedErrorMessage = "Unsupported fileidhash",
+        headers = Map(
+          "delta-sharing-capabilities" -> s"responseformat=$RESPONSE_FORMAT_PARQUET",
+          "fileidhash" -> blank
+        )
+      )
+    }
+  }
+
+  /** Extract file ids from query/CDF NDJSON response (AddFile, AddCDCFile, RemoveFile). */
+  private def extractFileIdsFromQueryResponse(response: String): Seq[String] = {
+    val lines = response.split("\n").toSeq
+    val dataLines = if (lines.size >= 2) {
+      val last = JsonUtils.fromJson[SingleAction](lines.last)
+      if (last.endStreamAction != null) lines.dropRight(1) else lines
+    } else lines
+    dataLines.drop(2).flatMap { line =>
+      val a = JsonUtils.fromJson[SingleAction](line)
+      if (a.file != null) Seq(a.file.id)
+      else if (a.add != null) Seq(a.add.id)
+      else if (a.cdf != null) Seq(a.cdf.id)
+      else if (a.remove != null) Seq(a.remove.id)
+      else Nil
     }
   }
 
@@ -779,9 +946,12 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         assert(responseMetadata.deltaMetadata.id == "ed96aa41-1d81-4b7f-8fb5-846878b4b0cf")
 
         val actualFiles = files.map(f => JsonUtils.fromJson[DeltaResponseSingleAction](f).file)
-        assert(actualFiles(0).id == "061cb3683a467066995f8cdaabd8667d")
+        actualFiles.foreach { f =>
+          assert(f.id.length == 64 && f.id.matches("[0-9a-f]+"),
+            s"Delta format default should produce sha256 IDs (64 hex chars): ${f.id}")
+        }
+        assert(actualFiles(0).id != actualFiles(1).id)
         assert(actualFiles(0).deltaSingleAction.add != null)
-        assert(actualFiles(1).id == "e268cbf70dbaa6143e7e9fa3e2d3b00e")
         assert(actualFiles(1).deltaSingleAction.add != null)
         assert(actualFiles.count(_.expirationTimestamp > System.currentTimeMillis()) == 2)
         verifyPreSignedUrl(actualFiles(0).deltaSingleAction.add.path, 781)
@@ -3008,6 +3178,28 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
         responseFormat
       )
     }
+  }
+
+  integrationTest("queryCDF file id signed with requested fileidhash (md5 and sha256)") {
+    val baseUrl = requestPath(
+      s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3")
+    val responseMd5 = readNDJson(baseUrl, Some("GET"), None, Some(0), RESPONSE_FORMAT_PARQUET,
+      requestFileIdHash = Some("md5"))
+    val responseSha256 = readNDJson(baseUrl, Some("GET"), None, Some(0), RESPONSE_FORMAT_PARQUET,
+      requestFileIdHash = Some("sha256"))
+    val fileIdsMd5 = extractFileIdsFromQueryResponse(responseMd5)
+    val fileIdsSha256 = extractFileIdsFromQueryResponse(responseSha256)
+    assert(fileIdsMd5.nonEmpty && fileIdsSha256.nonEmpty)
+    assert(fileIdsMd5.size == fileIdsSha256.size)
+    fileIdsMd5.foreach { id =>
+      assert(id.length == 32, s"MD5 file id should be 32 hex chars: $id")
+      assert(id.matches("[0-9a-f]+"), s"MD5 file id should be hex: $id")
+    }
+    fileIdsSha256.foreach { id =>
+      assert(id.length == 64, s"SHA256 file id should be 64 hex chars: $id")
+      assert(id.matches("[0-9a-f]+"), s"SHA256 file id should be hex: $id")
+    }
+    assert(fileIdsMd5 != fileIdsSha256, "file ids should differ between md5 and sha256")
   }
 
   integrationTest("cdf_table_cdf_enabled_changes - paginated query table changes") {

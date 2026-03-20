@@ -24,7 +24,6 @@ import java.util.Base64
 import scala.collection.JavaConverters._
 
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
-import com.google.common.hash.Hashing
 import io.delta.standalone.DeltaLog
 import io.delta.standalone.internal.actions.{AddCDCFile, AddFile, Metadata, Protocol, RemoveFile}
 import io.delta.standalone.internal.exception.DeltaErrors
@@ -40,7 +39,7 @@ import scala.collection.mutable.ListBuffer
 import scala.util.control.NonFatal
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
-import io.delta.sharing.server.{model, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
+import io.delta.sharing.server.{model, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, DeltaSharingUtils, ErrorStrings, QueryResult}
 import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, JsonUtils, PreSignedUrl, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
@@ -210,10 +209,12 @@ class DeltaSharedTable(
       version: java.lang.Long,
       timestamp: java.lang.Long,
       responseFormat: String,
-      returnAddFileForCDF: Boolean = false): Object = {
+      returnAddFileForCDF: Boolean = false,
+      fileIdHash: Option[String] = None): Object = {
+    val fileId = DeltaSharingUtils.hashFileId(addFile.path, fileIdHash, responseFormat)
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
-        id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+        id = fileId,
         expirationTimestamp = signedUrl.expirationTimestamp,
         version = version,
         timestamp = timestamp,
@@ -222,7 +223,7 @@ class DeltaSharedTable(
     } else if (returnAddFileForCDF) {
       model.AddFileForCDF(
         url = signedUrl.url,
-        id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+        id = fileId,
         expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = addFile.partitionValues,
         size = addFile.size,
@@ -233,7 +234,7 @@ class DeltaSharedTable(
     } else {
       model.AddFile(
         url = signedUrl.url,
-        id = Hashing.md5().hashString(addFile.path, UTF_8).toString,
+        id = fileId,
         expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = addFile.partitionValues,
         size = addFile.size,
@@ -251,10 +252,12 @@ class DeltaSharedTable(
     signedUrl: PreSignedUrl,
     version: java.lang.Long,
     timestamp: java.lang.Long,
-    responseFormat: String): Object = {
+    responseFormat: String,
+    fileIdHash: Option[String] = None): Object = {
+    val fileId = DeltaSharingUtils.hashFileId(removeFile.path, fileIdHash, responseFormat)
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
-        id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
+        id = fileId,
         expirationTimestamp = signedUrl.expirationTimestamp,
         version = version,
         timestamp = timestamp,
@@ -263,7 +266,7 @@ class DeltaSharedTable(
     } else {
       model.RemoveFile(
         url = signedUrl.url,
-        id = Hashing.md5().hashString(removeFile.path, UTF_8).toString,
+        id = fileId,
         expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = removeFile.partitionValues,
         size = removeFile.size.get,
@@ -280,11 +283,13 @@ class DeltaSharedTable(
     signedUrl: PreSignedUrl,
     version: java.lang.Long,
     timestamp: java.lang.Long,
-    responseFormat: String
+    responseFormat: String,
+    fileIdHash: Option[String] = None
   ): Object = {
+    val fileId = DeltaSharingUtils.hashFileId(addCDCFile.path, fileIdHash, responseFormat)
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
-        id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
+        id = fileId,
         expirationTimestamp = signedUrl.expirationTimestamp,
         version = version,
         timestamp = timestamp,
@@ -293,7 +298,7 @@ class DeltaSharedTable(
     } else {
       model.AddCDCFile(
         url = signedUrl.url,
-        id = Hashing.md5().hashString(addCDCFile.path, UTF_8).toString,
+        id = fileId,
         expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = addCDCFile.partitionValues,
         size = addCDCFile.size,
@@ -331,7 +336,8 @@ class DeltaSharedTable(
       refreshToken: Option[String],
       responseFormatSet: Set[String],
       clientReaderFeaturesSet: Set[String],
-      includeEndStreamAction: Boolean): QueryResult = withClassLoader {
+      includeEndStreamAction: Boolean,
+      fileIdHash: Option[String] = None): QueryResult = withClassLoader {
     // scalastyle:on argcount
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
@@ -415,7 +421,8 @@ class DeltaSharedTable(
           pageTokenOpt,
           queryParamChecksum,
           responseFormat,
-          includeEndStreamAction
+          includeEndStreamAction,
+          fileIdHash
         )
       } else if (includeFiles) {
         val ts = if (isVersionQuery) {
@@ -490,7 +497,8 @@ class DeltaSharedTable(
               signedUrl,
               if (isVersionQuery) { snapshot.version } else null,
               if (isVersionQuery) { ts.get } else null,
-              responseFormat
+              responseFormat,
+              fileIdHash = fileIdHash
             )
         }
         val refreshTokenStr = if (includeRefreshToken) {
@@ -528,7 +536,8 @@ class DeltaSharedTable(
       pageTokenOpt: Option[QueryTablePageToken],
       queryParamChecksum: String,
       responseFormat: String,
-      includeEndStreamAction: Boolean
+      includeEndStreamAction: Boolean,
+      fileIdHash: Option[String] = None
     ): Seq[Object] = {
     // For subsequent page calls, instead of using the current latestVersion, use latestVersion in
     // the pageToken (which is equal to the latestVersion when the first page call is received),
@@ -608,7 +617,8 @@ class DeltaSharedTable(
                 v,
                 ts.getTime,
                 responseFormat,
-                true
+                true,
+                fileIdHash
               )
             )
             numSignedFiles += 1
@@ -627,7 +637,8 @@ class DeltaSharedTable(
                 preSignedUrl,
                 v,
                 ts.getTime,
-                responseFormat
+                responseFormat,
+                fileIdHash
               )
             )
             numSignedFiles += 1
@@ -660,7 +671,8 @@ class DeltaSharedTable(
       maxFiles: Option[Int],
       pageToken: Option[String],
       responseFormatSet: Set[String] = Set(DeltaSharedTable.RESPONSE_FORMAT_PARQUET),
-      includeEndStreamAction: Boolean
+      includeEndStreamAction: Boolean,
+      fileIdHash: Option[String] = None
   ): QueryResult = withClassLoader {
     // Step 1: validate pageToken if it's specified
     lazy val queryParamChecksum = computeChecksum(
@@ -771,7 +783,8 @@ class DeltaSharedTable(
               preSignedUrl,
               v,
               ts.getTime,
-              responseFormat
+              responseFormat,
+              fileIdHash
             )
           )
           numSignedFiles += 1
@@ -791,7 +804,8 @@ class DeltaSharedTable(
               v,
               ts.getTime,
               responseFormat,
-              returnAddFileForCDF = true
+              returnAddFileForCDF = true,
+              fileIdHash = fileIdHash
             )
           )
           numSignedFiles += 1
@@ -810,7 +824,8 @@ class DeltaSharedTable(
               preSignedUrl,
               v,
               ts.getTime,
-              responseFormat
+              responseFormat,
+              fileIdHash
             )
           )
           numSignedFiles += 1
