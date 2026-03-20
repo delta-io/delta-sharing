@@ -135,6 +135,7 @@ def _staging_profile() -> DeltaSharingProfile:
         bearer_token=os.environ.get("STAGING_BEARER_TOKEN", ""),
     )
 
+
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_all_tables(sharing_client: SharingClient):
     tables = sharing_client.list_all_tables()
@@ -801,6 +802,7 @@ def test_load_as_pandas_success_timestampntz(
     expected["id"] = expected["id"].astype("int32")
     pd.testing.assert_frame_equal(pdf, expected)
 
+
 @pytest.mark.skipif(not ENABLE_STAGING, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
     "share,schema,table,expected",
@@ -824,14 +826,14 @@ def test_load_as_pandas_success_managed_iceberg(
 ):
     profile = _staging_profile()
     pdf = (
-            DeltaSharingReader(
-                table=Table(name=table, share=share, schema=schema),
-                rest_client=DataSharingRestClient(profile),
-            )
-            .to_pandas()
-            .sort_values(by=["name", "age"])
-            .reset_index(drop=True)
+        DeltaSharingReader(
+            table=Table(name=table, share=share, schema=schema),
+            rest_client=DataSharingRestClient(profile),
         )
+        .to_pandas()
+        .sort_values(by=["name", "age"])
+        .reset_index(drop=True)
+    )
     expected["age"] = expected["age"].astype("int32")
     pd.testing.assert_frame_equal(pdf, expected)
 
