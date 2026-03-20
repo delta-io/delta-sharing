@@ -30,6 +30,7 @@ from delta_sharing.rest_client import DataSharingRestClient
 ENABLE_INTEGRATION = len(os.environ.get("AWS_ACCESS_KEY_ID", "")) > 0
 SKIP_MESSAGE = "The integration tests are disabled."
 
+ENABLE_STAGING = len(os.environ.get("STAGING_BEARER_TOKEN", "")) > 0
 
 @pytest.fixture
 def profile_path() -> str:

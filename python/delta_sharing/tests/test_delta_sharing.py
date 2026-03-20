@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 from datetime import date, datetime
 from typing import Optional, Sequence
 
@@ -33,12 +34,13 @@ from delta_sharing.delta_sharing import (
     _validate_url,
 )
 from delta_sharing.protocol import Format, Metadata, Protocol, Schema, Share, Table
+from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import (
     DataSharingRestClient,
     ListAllTablesResponse,
     retry_with_exponential_backoff,
 )
-from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
+from delta_sharing.tests.conftest import ENABLE_INTEGRATION, ENABLE_STAGING, SKIP_MESSAGE
 
 from requests.models import Response
 from requests.exceptions import HTTPError
@@ -125,6 +127,13 @@ def _verify_all_tables_result(tables: Sequence[Table]):
         Table(name="dv_and_cm_table", share="share8", schema="default"),
     ]
 
+
+def _staging_profile() -> DeltaSharingProfile:
+    return DeltaSharingProfile(
+        share_credentials_version=1,
+        endpoint=os.environ.get("STAGING_ENDPOINT", ""),
+        bearer_token=os.environ.get("STAGING_BEARER_TOKEN", "")
+    )
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_all_tables(sharing_client: SharingClient):
@@ -792,6 +801,34 @@ def test_load_as_pandas_success_timestampntz(
     expected["id"] = expected["id"].astype("int32")
     pd.testing.assert_frame_equal(pdf, expected)
 
+@pytest.mark.skipif(not ENABLE_STAGING, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize(
+    "share,schema,table,expected",
+    [
+        pytest.param(
+            "oss_test_share_do_not_change",
+            "default",
+            "managed_iceberg_table_20260319",
+            pd.DataFrame(
+                {
+                    "name": ["one", "thr", "thr", "two_new", "two_new"],
+                    "age": [2, 1, 2, 1, 2],
+                }
+            ),
+            id="test read managed iceberg table",
+        )
+    ],
+)
+def test_load_as_pandas_success_managed_iceberg(
+    share: str, schema: str, table:str, expected: pd.DataFrame
+):
+    profile = _staging_profile()
+    pdf = DeltaSharingReader(
+        table=Table(name=table, share=share, schema=schema),
+        rest_client=DataSharingRestClient(profile)
+    ).to_pandas().sort_values(by=["name", "age"]).reset_index(drop=True)
+    expected["age"] = expected["age"].astype("int32")
+    pd.testing.assert_frame_equal(pdf, expected)
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
