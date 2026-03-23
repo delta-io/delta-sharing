@@ -151,3 +151,5 @@ jobs:
           conda activate test-environment
           ./python/dev/lint-python
           ./python/dev/pytest
+          python -m pip install -e ./cli
+          cd cli && python -m unittest discover -v -p 'test*.py'

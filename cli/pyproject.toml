@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "delta-sharing-cli"
+dynamic = ["version"]
+description = "Command-line client for Delta Sharing servers (protocol-compatible JSON API)"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.8"
+authors = [{ name = "Delta Lake Authors" }]
+keywords = ["delta", "delta-sharing", "cli", "lakehouse"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Database",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/delta-io/delta-sharing"
+Documentation = "https://github.com/delta-io/delta-sharing/blob/main/cli/README.md"
+Repository = "https://github.com/delta-io/delta-sharing"
+Issues = "https://github.com/delta-io/delta-sharing/issues"
+
+[project.scripts]
+delta-sharing = "cli:main"
+
+[tool.setuptools]
+py-modules = ["cli"]
+
+[tool.setuptools.dynamic]
+version = { attr = "cli.__version__" }

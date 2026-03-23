@@ -30,16 +30,25 @@ A profile file follows the Delta Sharing protocol spec (JSON):
 All output is pretty-printed JSON.
 """
 
+from __future__ import annotations
+
 import argparse
+import getpass
 import json
 import os
 import re
+import socket
 import ssl
 import sys
+from typing import Dict, Optional
 import urllib.error
 import urllib.parse
 import urllib.request
 
+__version__ = "0.1.0"
+
+# Default HTTP timeout (seconds) for all requests. Override with env DELTA_SHARING_REQUEST_TIMEOUT.
+_DEFAULT_REQUEST_TIMEOUT = 120.0
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -48,6 +57,40 @@ import urllib.request
 CONFIG_FILE = os.path.expanduser("~/.delta-sharing.cfg")
 VERBOSE = False
 INSECURE = False
+
+
+def _request_timeout() -> float:
+    raw = os.environ.get("DELTA_SHARING_REQUEST_TIMEOUT", "").strip()
+    if not raw:
+        return _DEFAULT_REQUEST_TIMEOUT
+    try:
+        t = float(raw)
+        if t <= 0:
+            return _DEFAULT_REQUEST_TIMEOUT
+        return t
+    except ValueError:
+        return _DEFAULT_REQUEST_TIMEOUT
+
+
+def _user_agent() -> str:
+    return f"delta-sharing-cli/{__version__} (Python {sys.version_info.major}.{sys.version_info.minor})"
+
+
+def _extra_headers_from_args(args) -> Optional[Dict[str, str]]:
+    """Parse repeatable -H/--header 'Name: value' into a dict."""
+    raw_list = getattr(args, "header", None) or []
+    if not raw_list:
+        return None
+    out = {}
+    for raw in raw_list:
+        if ":" not in raw:
+            _die(f"Invalid --header (expected 'Name: value'): {raw!r}")
+        name, value = raw.split(":", 1)
+        name, value = name.strip(), value.strip()
+        if not name:
+            _die(f"Invalid --header (empty name): {raw!r}")
+        out[name] = value
+    return out
 
 
 def _debug(msg):
@@ -96,6 +139,12 @@ def _write_cfg(sections):
         lines.append("")
     with open(CONFIG_FILE, "w") as f:
         f.write("\n".join(lines))
+    # Restrict read access to credentials (Unix-like systems).
+    if os.name != "nt":
+        try:
+            os.chmod(CONFIG_FILE, 0o600)
+        except OSError:
+            pass
 
 
 def _load_profile_file(path):
@@ -200,14 +249,20 @@ def _die(msg):
     sys.exit(1)
 
 
-def _request(method, url, token, body=None, headers=None):
-    """Make an HTTP request and return (status, headers, body_bytes)."""
-    hdrs = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json, application/x-ndjson",
-    }
+def _request(method, url, token, body=None, headers=None, extra_headers=None):
+    """Make an HTTP request and return (status, headers, body_bytes).
+
+    extra_headers: from -H/--header (applied before command-specific headers).
+    Authorization, Accept, and User-Agent always use CLI defaults (token wins).
+    """
+    hdrs = {}
+    if extra_headers:
+        hdrs.update(extra_headers)
     if headers:
         hdrs.update(headers)
+    hdrs["Accept"] = "application/json, application/x-ndjson"
+    hdrs["User-Agent"] = _user_agent()
+    hdrs["Authorization"] = f"Bearer {token}"
 
     data = None
     if body is not None:
@@ -230,8 +285,9 @@ def _request(method, url, token, body=None, headers=None):
         ssl_ctx = ssl.create_default_context()
         ssl_ctx.check_hostname = False
         ssl_ctx.verify_mode = ssl.CERT_NONE
+    timeout = _request_timeout()
     try:
-        resp = urllib.request.urlopen(req, context=ssl_ctx)
+        resp = urllib.request.urlopen(req, timeout=timeout, context=ssl_ctx)
         status, resp_hdrs, resp_body = resp.status, dict(resp.headers), resp.read()
     except urllib.error.HTTPError as e:
         _debug(f"< {e.code} {e.reason}")
@@ -248,6 +304,14 @@ def _request(method, url, token, body=None, headers=None):
         print(json.dumps(err, indent=2), file=sys.stderr)
         sys.exit(1)
     except urllib.error.URLError as e:
+        reason = getattr(e, "reason", e)
+        if isinstance(reason, (socket.timeout, TimeoutError)) or (
+            isinstance(reason, str) and "timed out" in reason.lower()
+        ):
+            _die(
+                f"Request timed out after {timeout}s. "
+                f"Set DELTA_SHARING_REQUEST_TIMEOUT (seconds) or check network/server."
+            )
         _die(f"Connection failed: {e.reason}")
 
     # --- verbose: response ---
@@ -283,7 +347,7 @@ def _parse_ndjson(raw_bytes):
     return [json.loads(line) for line in lines if line.strip()]
 
 
-def _collect_pages(base_url, token, max_results=None):
+def _collect_pages(base_url, token, max_results=None, extra_headers=None):
     """Auto-paginate a GET list endpoint, yielding all items."""
     all_items = []
     page_token = None
@@ -297,7 +361,7 @@ def _collect_pages(base_url, token, max_results=None):
         if qs:
             url += ("&" if "?" in url else "?") + urllib.parse.urlencode(qs)
 
-        _, _, body = _request("GET", url, token)
+        _, _, body = _request("GET", url, token, extra_headers=extra_headers)
         data = json.loads(body)
         all_items.extend(data.get("items", []))
         page_token = data.get("nextPageToken")
@@ -312,75 +376,82 @@ def _collect_pages(base_url, token, max_results=None):
 
 def cmd_list_shares(args):
     endpoint, token = resolve_connection(args)
+    xh = _extra_headers_from_args(args)
     url = _url(endpoint, "shares")
     if args.all:
-        items = _collect_pages(url, token, max_results=args.max_results)
+        items = _collect_pages(url, token, max_results=args.max_results, extra_headers=xh)
         _print_json({"items": items})
     else:
         url = _url(endpoint, "shares",
                    maxResults=args.max_results, pageToken=args.page_token)
-        _, _, body = _request("GET", url, token)
+        _, _, body = _request("GET", url, token, extra_headers=xh)
         _print_json(json.loads(body))
 
 
 def cmd_get_share(args):
     endpoint, token = resolve_connection(args)
+    xh = _extra_headers_from_args(args)
     url = _url(endpoint, "shares", args.share)
-    _, _, body = _request("GET", url, token)
+    _, _, body = _request("GET", url, token, extra_headers=xh)
     _print_json(json.loads(body))
 
 
 def cmd_list_schemas(args):
     endpoint, token = resolve_connection(args)
+    xh = _extra_headers_from_args(args)
     url = _url(endpoint, "shares", args.share, "schemas")
     if args.all:
-        items = _collect_pages(url, token, max_results=args.max_results)
+        items = _collect_pages(url, token, max_results=args.max_results, extra_headers=xh)
         _print_json({"items": items})
     else:
         url = _url(endpoint, "shares", args.share, "schemas",
                    maxResults=args.max_results, pageToken=args.page_token)
-        _, _, body = _request("GET", url, token)
+        _, _, body = _request("GET", url, token, extra_headers=xh)
         _print_json(json.loads(body))
 
 
 def cmd_list_tables(args):
     endpoint, token = resolve_connection(args)
+    xh = _extra_headers_from_args(args)
     url = _url(endpoint, "shares", args.share, "schemas", args.schema, "tables")
     if args.all:
-        items = _collect_pages(url, token, max_results=args.max_results)
+        items = _collect_pages(url, token, max_results=args.max_results, extra_headers=xh)
         _print_json({"items": items})
     else:
         url = _url(endpoint, "shares", args.share, "schemas", args.schema, "tables",
                    maxResults=args.max_results, pageToken=args.page_token)
-        _, _, body = _request("GET", url, token)
+        _, _, body = _request("GET", url, token, extra_headers=xh)
         _print_json(json.loads(body))
 
 
 def cmd_list_all_tables(args):
     endpoint, token = resolve_connection(args)
+    xh = _extra_headers_from_args(args)
     url = _url(endpoint, "shares", args.share, "all-tables")
     if args.all:
-        items = _collect_pages(url, token, max_results=args.max_results)
+        items = _collect_pages(url, token, max_results=args.max_results, extra_headers=xh)
         _print_json({"items": items})
     else:
         url = _url(endpoint, "shares", args.share, "all-tables",
                    maxResults=args.max_results, pageToken=args.page_token)
-        _, _, body = _request("GET", url, token)
+        _, _, body = _request("GET", url, token, extra_headers=xh)
         _print_json(json.loads(body))
 
 
 def cmd_get_table_version(args):
     endpoint, token = resolve_connection(args)
+    xh = _extra_headers_from_args(args)
     url = _url(endpoint, "shares", args.share, "schemas", args.schema,
                "tables", args.table, "version",
                startingTimestamp=args.starting_timestamp)
-    _, hdrs, _ = _request("GET", url, token)
+    _, hdrs, _ = _request("GET", url, token, extra_headers=xh)
     version = hdrs.get("Delta-Table-Version") or hdrs.get("delta-table-version")
     _print_json({"version": int(version) if version else None})
 
 
 def cmd_get_table_metadata(args):
     endpoint, token = resolve_connection(args)
+    xh = _extra_headers_from_args(args)
     url = _url(endpoint, "shares", args.share, "schemas", args.schema,
                "tables", args.table, "metadata")
     hdrs = {}
@@ -391,7 +462,7 @@ def cmd_get_table_metadata(args):
         if args.reader_features:
             caps.append(f"readerfeatures={args.reader_features}")
         hdrs["delta-sharing-capabilities"] = ";".join(caps)
-    _, resp_hdrs, body = _request("GET", url, token, headers=hdrs)
+    _, resp_hdrs, body = _request("GET", url, token, headers=hdrs, extra_headers=xh)
     version = resp_hdrs.get("Delta-Table-Version") or resp_hdrs.get("delta-table-version")
     records = _parse_ndjson(body)
     _print_json({"version": int(version) if version else None, "lines": records})
@@ -399,6 +470,7 @@ def cmd_get_table_metadata(args):
 
 def cmd_query_table(args):
     endpoint, token = resolve_connection(args)
+    xh = _extra_headers_from_args(args)
     url = _url(endpoint, "shares", args.share, "schemas", args.schema,
                "tables", args.table, "query")
 
@@ -427,7 +499,7 @@ def cmd_query_table(args):
             caps.append(f"readerfeatures={args.reader_features}")
         hdrs["delta-sharing-capabilities"] = ";".join(caps)
 
-    _, resp_hdrs, raw = _request("POST", url, token, body=body, headers=hdrs)
+    _, resp_hdrs, raw = _request("POST", url, token, body=body, headers=hdrs, extra_headers=xh)
     version = resp_hdrs.get("Delta-Table-Version") or resp_hdrs.get("delta-table-version")
     records = _parse_ndjson(raw)
     _print_json({"version": int(version) if version else None, "lines": records})
@@ -435,6 +507,7 @@ def cmd_query_table(args):
 
 def cmd_query_changes(args):
     endpoint, token = resolve_connection(args)
+    xh = _extra_headers_from_args(args)
     url = _url(endpoint, "shares", args.share, "schemas", args.schema,
                "tables", args.table, "changes",
                startingVersion=args.starting_version,
@@ -452,7 +525,7 @@ def cmd_query_changes(args):
             caps.append(f"readerfeatures={args.reader_features}")
         hdrs["delta-sharing-capabilities"] = ";".join(caps)
 
-    _, resp_hdrs, raw = _request("GET", url, token, headers=hdrs)
+    _, resp_hdrs, raw = _request("GET", url, token, headers=hdrs, extra_headers=xh)
     version = resp_hdrs.get("Delta-Table-Version") or resp_hdrs.get("delta-table-version")
     records = _parse_ndjson(raw)
     _print_json({"version": int(version) if version else None, "lines": records})
@@ -460,12 +533,13 @@ def cmd_query_changes(args):
 
 def cmd_get_temp_creds(args):
     endpoint, token = resolve_connection(args)
+    xh = _extra_headers_from_args(args)
     url = _url(endpoint, "shares", args.share, "schemas", args.schema,
                "tables", args.table, "temporary-table-credentials")
     body = {}
     if args.location:
         body["location"] = args.location
-    _, _, raw = _request("POST", url, token, body=body or None)
+    _, _, raw = _request("POST", url, token, body=body or None, extra_headers=xh)
     _print_json(json.loads(raw))
 
 
@@ -475,7 +549,10 @@ def cmd_configure(args):
         endpoint, token = _load_profile_file(args.from_profile)
     else:
         endpoint = input("Endpoint: ").strip()
-        token = input("Token: ").strip()
+        if sys.stdin.isatty():
+            token = getpass.getpass("Token: ").strip()
+        else:
+            token = input("Token: ").strip()
         if not endpoint or not token:
             _die("Endpoint and token are required.")
 
@@ -504,6 +581,15 @@ def cmd_profiles(args):
     _print_json(summary)
 
 
+def cmd_version(args):
+    _print_json(
+        {
+            "version": __version__,
+            "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        }
+    )
+
+
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
@@ -522,6 +608,15 @@ def _add_common(parser):
                         help="Print request/response details to stderr")
     parser.add_argument("-k", "--insecure", action="store_true",
                         help="Skip SSL certificate verification")
+    parser.add_argument(
+        "-H",
+        "--header",
+        action="append",
+        default=None,
+        metavar="NAME:VALUE",
+        help="Extra HTTP header (repeatable). Example: -H 'X-Request-Id: abc'. "
+        "Cannot override Authorization; Accept/User-Agent are always set by the CLI.",
+    )
 
 
 def _add_pagination(parser):
@@ -550,6 +645,12 @@ def build_parser():
     parser = argparse.ArgumentParser(
         prog="delta-sharing",
         description="Delta Sharing CLI — interact with a Delta Sharing server.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Print program version and exit",
     )
     sub = parser.add_subparsers(dest="group")
     sub.required = True
@@ -671,16 +772,37 @@ def build_parser():
                        help="List all configured named profiles")
     p.set_defaults(func=cmd_profiles)
 
+    p = sub.add_parser("version", help="Print version as JSON (see also --version)")
+    p.set_defaults(func=cmd_version)
+
     return parser
 
 
 def main():
     global VERBOSE, INSECURE
     parser = build_parser()
-    args = parser.parse_args()
+    try:
+        args = parser.parse_args()
+    except SystemExit:
+        raise
     VERBOSE = getattr(args, "verbose", False)
     INSECURE = getattr(args, "insecure", False)
-    args.func(args)
+    try:
+        args.func(args)
+    except KeyboardInterrupt:
+        print(json.dumps({"error": "interrupted"}), file=sys.stderr)
+        sys.exit(130)
+    except BrokenPipeError:
+        # e.g. stdout closed early: `delta-sharing shares list | head`
+        try:
+            sys.stdout.close()
+        except Exception:
+            pass
+        sys.exit(0)
+    except Exception as e:
+        if VERBOSE:
+            raise
+        _die(f"Unexpected error: {e}")
 
 
 if __name__ == "__main__":

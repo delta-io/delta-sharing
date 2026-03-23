@@ -1,6 +1,17 @@
 # delta-sharing CLI
 
-A command-line tool for interacting with [Delta Sharing](https://github.com/delta-io/delta-sharing) servers. Covers all endpoints in the [protocol spec](https://github.com/delta-io/delta-sharing/blob/main/PROTOCOL.md). Zero external dependencies — Python 3.6+ stdlib only.
+A command-line tool for interacting with [Delta Sharing](https://github.com/delta-io/delta-sharing) servers. Covers all endpoints in the [protocol spec](https://github.com/delta-io/delta-sharing/blob/main/PROTOCOL.md). **Zero third-party dependencies** — Python 3.8+ and the standard library only.
+
+## Production use
+
+- **TLS:** By default the CLI verifies server TLS certificates. Use **`-k` / `--insecure`** or `insecure = true` in `~/.delta-sharing.cfg` only for development or private CAs (documented risk).
+- **Credentials:** `~/.delta-sharing.cfg` is written with mode **600** on Unix so only your user can read bearer tokens.
+- **Timeouts:** Every HTTP request uses a **120 second** default timeout. Override with **`DELTA_SHARING_REQUEST_TIMEOUT`** (seconds), e.g. `export DELTA_SHARING_REQUEST_TIMEOUT=300`.
+- **Token prompts:** `delta-sharing configure` reads the token with **hidden input** when connected to a TTY.
+- **Identity:** Requests send **`User-Agent: delta-sharing-cli/<version> (Python x.y)`** so servers can attribute traffic.
+- **Version:** `delta-sharing --version` or `delta-sharing version` (JSON: `version`, `python`).
+- **Automation:** Use **`-V` / `--verbose`** to see failing stack traces on unexpected errors; without `-V`, errors are summarized as JSON on stderr.
+- **Custom headers:** Use **`-H` / `--header 'Name: value'`** (repeatable) on any API subcommand (`shares`, `schemas`, `tables`, …) to send extra HTTP headers (e.g. tracing, proxies). **`Authorization` is always set from your profile/token** (you cannot override it). **`Accept`** and **`User-Agent`** are always set by the CLI. Command-specific headers such as **`delta-sharing-capabilities`** still apply and override the same name if you passed it via `-H`.
 
 ## Install
 
@@ -79,6 +90,9 @@ delta-sharing shares list
 delta-sharing schemas list my_share
 delta-sharing tables list my_share my_schema
 delta-sharing tables query my_share my_schema my_table -l 10
+
+# Optional: extra HTTP headers (e.g. request correlation)
+delta-sharing shares list -H "X-Request-Id: $(uuidgen)"
 ```
 
 ## Authentication
