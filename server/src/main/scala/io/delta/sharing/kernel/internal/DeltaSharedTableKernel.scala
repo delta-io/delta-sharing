@@ -28,7 +28,6 @@ import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
 import com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
-import com.google.common.hash.Hashing
 import io.delta.kernel.Table
 import io.delta.kernel.data.{ColumnarBatch, ColumnVector, FilteredColumnarBatch}
 import io.delta.kernel.defaults.engine.DefaultEngine
@@ -47,7 +46,7 @@ import org.apache.hadoop.fs.s3a.S3AFileSystem
 import org.apache.spark.sql.types.{DataType, MetadataBuilder, StructType}
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
-import io.delta.sharing.server.{DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, ErrorStrings, QueryResult}
+import io.delta.sharing.server.{DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, DeltaSharingUtils, ErrorStrings, QueryResult}
 import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, JsonUtils, S3FileSigner, SnapshotChecker, WasbFileSigner}
 import io.delta.sharing.server.common.actions.{DeletionVectorDescriptor, DeletionVectorsTableFeature, DeltaAddFile, DeltaFormat, DeltaProtocol, DeltaSingleAction}
 import io.delta.sharing.server.config.TableConfig
@@ -273,7 +272,8 @@ class DeltaSharedTableKernel(
       refreshToken: Option[String],
       responseFormatSet: Set[String],
       clientReaderFeaturesSet: Set[String],
-      includeEndStreamQuery: Boolean): QueryResult = withClassLoader {
+      includeEndStreamQuery: Boolean,
+      fileIdHash: Option[String] = None): QueryResult = withClassLoader {
 
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
@@ -344,7 +344,8 @@ class DeltaSharedTableKernel(
             table,
             engine,
             globalLimitHint,
-            clientReaderFeaturesSet
+            clientReaderFeaturesSet,
+            fileIdHash
           )
           if (nextResponse.nonEmpty) {
             actions = actions ++ nextResponse
@@ -385,7 +386,8 @@ class DeltaSharedTableKernel(
       maxFiles: Option[Int],
       pageToken: Option[String],
       responseFormatSet: Set[String] = Set("parquet"),
-      includeEndStreamAction: Boolean): QueryResult = {
+      includeEndStreamAction: Boolean,
+      fileIdHash: Option[String] = None): QueryResult = {
 
     throw new DeltaSharingUnsupportedOperationException("not implemented yet")
   }
@@ -428,7 +430,8 @@ class DeltaSharedTableKernel(
       table: Table,
       engine: Engine,
       limitHint: Option[Long],
-      clientReaderFeaturesSet: Set[String]): Seq[Object] = {
+      clientReaderFeaturesSet: Set[String],
+      fileIdHash: Option[String] = None): Seq[Object] = {
 
     val batchData = scanFileBatch.getData
     val batchSize = batchData.getSize
@@ -456,7 +459,8 @@ class DeltaSharedTableKernel(
           respondedFormat,
           queryType,
           dataPath,
-          clientReaderFeaturesSet
+          clientReaderFeaturesSet,
+          fileIdHash
         )
         addFileObjects = addFileObjects :+ addFile
       }
@@ -690,6 +694,7 @@ class DeltaSharedTableKernel(
     }).json
   }
 
+
   private def getResponseAddFile(
       addFileColumnVectors: AddFileColumnVectors,
       rowId: Int,
@@ -698,7 +703,8 @@ class DeltaSharedTableKernel(
       respondedFormat: String,
       queryType: QueryTypes.QueryType,
       dataPath: Path,
-      clientReaderFeaturesSet: Set[String]): Object = {
+      clientReaderFeaturesSet: Set[String],
+      fileIdHash: Option[String] = None): Object = {
 
     val partitionValues = getDeltaPartitionValues(addFileColumnVectors.partitionValues, rowId)
     val addFileVectorPath = addFileColumnVectors.path.getString(rowId)
@@ -723,10 +729,10 @@ class DeltaSharedTableKernel(
       numRecords -= dvDescriptor.cardinality
     }
 
+    val fileId = DeltaSharingUtils.hashFileId(addFileVectorPath, fileIdHash, respondedFormat)
     if (respondedFormat == DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
       DeltaResponseFileAction(
-        // Using sha256 instead of m5 because it's less likely to have key collision.
-        id = Hashing.sha256().hashString(addFileVectorPath, UTF_8).toString,
+        id = fileId,
         // `version` is left empty in latest snapshot query
         version = if (queryType == QueryTypes.QueryLatestSnapshot) null else version,
         timestamp = timestamp,
@@ -746,7 +752,7 @@ class DeltaSharedTableKernel(
     } else {
       AddFile(
         url = signedUrl.url,
-        id = Hashing.md5().hashString(addFileVectorPath, UTF_8).toString,
+        id = fileId,
         expirationTimestamp = signedUrl.expirationTimestamp,
         partitionValues = partitionValues,
         size = size,

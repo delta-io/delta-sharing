@@ -17,6 +17,7 @@
 package io.delta.sharing.server
 
 import java.io.{ByteArrayOutputStream, File, FileNotFoundException}
+import java.net.URI
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.AccessDeniedException
 import java.security.MessageDigest
@@ -26,7 +27,7 @@ import javax.annotation.Nullable
 import scala.collection.JavaConverters._
 import scala.util.Try
 
-import com.linecorp.armeria.common.{HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
+import com.linecorp.armeria.common.{AggregatedHttpRequest, HttpData, HttpHeaderNames, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpStatus, MediaType, ResponseHeaders, ResponseHeadersBuilder}
 import com.linecorp.armeria.common.auth.OAuth2Token
 import com.linecorp.armeria.internal.server.ResponseConversionUtil
 import com.linecorp.armeria.server.{Server, ServiceRequestContext}
@@ -39,12 +40,19 @@ import io.delta.standalone.internal.DeltaDataSource
 import io.delta.standalone.internal.DeltaSharedTable
 import net.sourceforge.argparse4j.ArgumentParsers
 import org.apache.commons.io.FileUtils
+import org.apache.hadoop.conf.Configuration
 import org.slf4j.LoggerFactory
 import scalapb.json4s.Printer
 
 import io.delta.sharing.server.common.JsonUtils
 import io.delta.sharing.server.config.ServerConfig
-import io.delta.sharing.server.model.{QueryStatus, SingleAction}
+import io.delta.sharing.server.credential.{CredentialContext, Privilege, StorageCredentialVendor}
+import io.delta.sharing.server.model.{
+  GenerateTemporaryTableCredentialRequest,
+  QueryStatus,
+  SingleAction,
+  TemporaryCredentials
+}
 import io.delta.sharing.server.protocol._
 
 object ErrorCode {
@@ -329,6 +337,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     }
     val responseFormatSet = getResponseFormatSet(capabilitiesMap)
     val clientReaderFeaturesSet = getReaderFeatures(capabilitiesMap)
+    val fileIdHash = getRequestFileIdHash(req)
     val queryResult = deltaSharedTableLoader.loadTable(tableConfig, useKernel = true).query(
       includeFiles = false,
       predicateHints = Nil,
@@ -344,8 +353,11 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       refreshToken = None,
       responseFormatSet = responseFormatSet,
       clientReaderFeaturesSet = clientReaderFeaturesSet,
-      includeEndStreamAction = false)
-    streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
+      includeEndStreamAction = false,
+      fileIdHash = fileIdHash)
+    streamingOutput(
+      Some(queryResult.version), queryResult.responseFormat, queryResult.actions,
+      requestFileIdHash = fileIdHash)
   }
 
 
@@ -382,6 +394,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       val capabilitiesMap = getDeltaSharingCapabilitiesMap(
         req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER))
       val responseFormatSet = getResponseFormatSet(capabilitiesMap)
+      val fileIdHash = getRequestFileIdHash(req)
       val queryResult = deltaSharedTableLoader.loadTable(tableConfig).query(
         includeFiles = true,
         Seq.empty[String],
@@ -397,14 +410,17 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         None,
         responseFormatSet = responseFormatSet,
         clientReaderFeaturesSet = Set.empty[String],
-        includeEndStreamAction = false)
+        includeEndStreamAction = false,
+        fileIdHash = fileIdHash)
       if (queryResult.version < tableConfig.startVersion) {
         throw new DeltaSharingIllegalArgumentException(
           s"You can only query table data since version ${tableConfig.startVersion}."
         )
       }
 
-      streamingOutput(Some(queryResult.version), queryResult.responseFormat, queryResult.actions)
+      streamingOutput(
+        Some(queryResult.version), queryResult.responseFormat, queryResult.actions,
+        requestFileIdHash = fileIdHash)
     }
   }
 
@@ -464,6 +480,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
     val start = System.currentTimeMillis
 
+    val requestFileIdHash = getRequestFileIdHash(req)
     if(getAsyncQuery(capabilitiesMap)) {
       val queryId = s"${share}_${schema}_${table}"
 
@@ -472,7 +489,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         "parquet",
         Seq(
           SingleAction(queryStatus = QueryStatus(queryId))
-        )
+        ),
+        requestFileIdHash = requestFileIdHash
       )
     } else {
       val tableConfig = sharedTableManager.getTable(share, schema, table)
@@ -520,7 +538,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           request.refreshToken,
           responseFormatSet = responseFormatSet,
           clientReaderFeaturesSet = clientReaderFeaturesSet,
-          includeEndStreamAction = includeEndStreamAction)
+          includeEndStreamAction = includeEndStreamAction,
+          fileIdHash = requestFileIdHash)
       } else {
         deltaSharedTableLoader.loadTable(tableConfig, useKernel = false).query(
           includeFiles = true,
@@ -537,7 +556,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           request.refreshToken,
           responseFormatSet = responseFormatSet,
           clientReaderFeaturesSet = Set.empty[String],
-          includeEndStreamAction = includeEndStreamAction)
+          includeEndStreamAction = includeEndStreamAction,
+          fileIdHash = requestFileIdHash)
       }
 
       if (queryResult.version < tableConfig.startVersion) {
@@ -551,7 +571,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         Some(queryResult.version),
         queryResult.responseFormat,
         queryResult.actions,
-        includeEndStreamAction = includeEndStreamAction
+        includeEndStreamAction = includeEndStreamAction,
+        requestFileIdHash = requestFileIdHash
       )
     }
   }
@@ -588,6 +609,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
     val responseFormatSet = getResponseFormatSet(capabilitiesMap)
     val includeEndStreamAction = getRequestEndStreamAction(capabilitiesMap)
+    val fileIdHash = getRequestFileIdHash(req)
     val queryResult = deltaSharedTableLoader.loadTable(tableConfig).queryCDF(
       getCdfOptionsMap(
         Option(startingVersion),
@@ -599,7 +621,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       Option(maxFiles).map(_.toInt),
       Option(pageToken),
       responseFormatSet = responseFormatSet,
-      includeEndStreamAction
+      includeEndStreamAction = includeEndStreamAction,
+      fileIdHash = fileIdHash
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${queryResult.actions.length - 2} urls for table $share/$schema/$table")
@@ -607,32 +630,104 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       Some(queryResult.version),
       queryResult.responseFormat,
       queryResult.actions,
-      includeEndStreamAction
+      includeEndStreamAction,
+      requestFileIdHash = fileIdHash
     )
+  }
+
+  /** Returns validated fileidhash request header (md5 or sha256, lowercase) or None. */
+  private def getRequestFileIdHash(req: HttpRequest): Option[String] = {
+    // scalastyle:off caselocale
+    Option(req.headers().get(FILEIDHASH_HEADER)).map { raw =>
+      val normalized = raw.trim.toLowerCase(java.util.Locale.ROOT)
+      if (!FILEIDHASH_VALID_VALUES.contains(normalized)) {
+        throw new DeltaSharingIllegalArgumentException(
+          s"Unsupported fileidhash: '$raw'. Supported: ${FILEIDHASH_VALID_VALUES.mkString(", ")}")
+      }
+      normalized
+    }
+    // scalastyle:on caselocale
+  }
+
+  @Post("/shares/{share}/schemas/{schema}/tables/{table}/temporary-table-credentials")
+  def generateTemporaryTableCredential(
+      req: HttpRequest,
+      @Param("share") share: String,
+      @Param("schema") schema: String,
+      @Param("table") table: String,
+      aggregatedRequest: AggregatedHttpRequest): HttpResponse = processRequest {
+    val request = parseTemporaryTableCredentialRequest(aggregatedRequest)
+    val tableConfig = sharedTableManager.getTable(share, schema, table)
+    if (!tableConfig.historyShared) {
+      throw new DeltaSharingIllegalArgumentException(
+        "Temporary table credentials are not supported because history sharing is not enabled " +
+        s"on table: $share.$schema.$table")
+    }
+    val uri = request.location
+      .map(s => new URI(s))
+      .getOrElse(new URI(tableConfig.getLocation))
+    request.location.foreach { _ =>
+      if (!CredentialContext.temporaryCredentialLocationAllowed(tableConfig.getLocation, uri)) {
+        throw new DeltaSharingIllegalArgumentException(
+          "The requested location must be the same as or under this table's configured storage " +
+          "location.")
+      }
+    }
+    val conf = new Configuration()
+    val vendor = new StorageCredentialVendor(conf)
+    val result = vendor.vendCredential(
+      uri,
+      Set(Privilege.SELECT),
+      serverConfig.temporaryCredentialValiditySeconds
+    )
+    HttpResponse.of(
+      HttpStatus.OK,
+      MediaType.JSON_UTF_8,
+      JsonUtils.toJson(result))
+  }
+
+  private def parseTemporaryTableCredentialRequest(
+      aggregatedRequest: AggregatedHttpRequest): GenerateTemporaryTableCredentialRequest = {
+    val content = aggregatedRequest.contentUtf8()
+    if (content == null || content.trim.isEmpty) {
+      GenerateTemporaryTableCredentialRequest(location = None)
+    } else {
+      try {
+        JsonUtils.fromJson[GenerateTemporaryTableCredentialRequest](content)
+      } catch {
+        case _: Exception =>
+          GenerateTemporaryTableCredentialRequest(location = None)
+      }
+    }
   }
 
   private def streamingOutput(
       version: Option[Long],
       responseFormat: String,
       actions: Seq[Object],
-      includeEndStreamAction: Boolean = false): HttpResponse = {
-    var capabilities = Seq[String](s"${DELTA_SHARING_RESPONSE_FORMAT}=$responseFormat")
-    if (includeEndStreamAction) {
-      capabilities = capabilities :+ s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+      includeEndStreamAction: Boolean = false,
+      requestFileIdHash: Option[String] = None): HttpResponse = {
+    val capabilities = {
+      val base = Seq(s"${DELTA_SHARING_RESPONSE_FORMAT}=$responseFormat")
+      if (includeEndStreamAction) {
+        base :+ s"$DELTA_SHARING_INCLUDE_END_STREAM_ACTION=true"
+      } else {
+        base
+      }
     }
     val dsCapHeader = capabilities.mkString(DELTA_SHARING_CAPABILITIES_DELIMITER)
 
-    val headers = if (version.isDefined) {
+    val baseBuilder = if (version.isDefined) {
       createHeadersBuilderForTableVersion(version.get)
-      .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
-      .set(DELTA_SHARING_CAPABILITIES_HEADER, dsCapHeader)
-      .build()
     } else {
       ResponseHeaders.builder(200)
+    }
+    val withCaps = baseBuilder
       .set(HttpHeaderNames.CONTENT_TYPE, DELTA_TABLE_METADATA_CONTENT_TYPE)
       .set(DELTA_SHARING_CAPABILITIES_HEADER, dsCapHeader)
+    val headers = requestFileIdHash
+      .fold(withCaps)(h => withCaps.set(FILEIDHASH_HEADER, h))
       .build()
-    }
     ResponseConversionUtil.streamingFrom(
       actions.asJava.stream(),
       headers,
@@ -652,6 +747,8 @@ object DeltaSharingService {
   val DELTA_TABLE_VERSION_HEADER = "Delta-Table-Version"
   val DELTA_TABLE_METADATA_CONTENT_TYPE = "application/x-ndjson; charset=utf-8"
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
+  val FILEIDHASH_HEADER = "fileidhash"
+  val FILEIDHASH_VALID_VALUES = Set("md5", "sha256")
   val DELTA_SHARING_RESPONSE_FORMAT = "responseformat"
   val DELTA_SHARING_CAPABILITIES_ASYNC_QUERY = "asyncquery"
   val DELTA_SHARING_INCLUDE_END_STREAM_ACTION = "includeendstreamaction"
