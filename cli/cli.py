@@ -2,16 +2,16 @@
 """
 Delta Sharing CLI — interact with a Delta Sharing server from the command line.
 
-Connection resolution (first match wins):
-  1. Explicit --endpoint + --token flags
-  2. --profile FILE  (path to a Delta Sharing profile JSON file)
-  3. --profile-name NAME  (named section in ~/.delta-sharing.cfg)
-  4. DS_SHARING_PROFILE env var (path to profile file)
-  5. DS_SHARING_PROFILE_NAME env var (named section lookup)
-  6. [DEFAULT] section in ~/.delta-sharing.cfg
+Connection resolution (first applicable branch wins; see resolve_connection):
+  1. Both --endpoint and --token set (explicit credentials only)
+  2. --profile FILE — JSON profile; optional --endpoint / --token override parts
+  3. --profile-name NAME — named section in ~/.delta-sharing.cfg
+  4. DS_SHARING_PROFILE env — path to profile JSON; optional --endpoint / --token override
+  5. DS_SHARING_PROFILE_NAME env — named section in ~/.delta-sharing.cfg
+  6. [default] section in ~/.delta-sharing.cfg (lowercase name; case-sensitive)
 
 Config file (~/.delta-sharing.cfg) uses INI format:
-  [DEFAULT]
+  [default]
   endpoint = https://prod.example.com/delta-sharing/
   token    = <token>
 
