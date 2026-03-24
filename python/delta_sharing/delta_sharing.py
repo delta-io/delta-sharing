@@ -176,7 +176,7 @@ def load_as_spark(
         if delta_sharing_profile.share_credentials_version is not None:
             df.option("shareCredentialsVersion", delta_sharing_profile.share_credentials_version)
         if delta_sharing_profile.type is not None:
-            df.option("shareCredentialsType", delta_sharing_profile.type)
+            df.option("type", delta_sharing_profile.type)
         if delta_sharing_profile.endpoint is not None:
             df.option("endpoint", delta_sharing_profile.endpoint)
         if delta_sharing_profile.token_endpoint is not None:
@@ -245,7 +245,7 @@ def load_table_changes_as_spark(
         if delta_sharing_profile.share_credentials_version is not None:
             df.option("shareCredentialsVersion", delta_sharing_profile.share_credentials_version)
         if delta_sharing_profile.type is not None:
-            df.option("shareCredentialsType", delta_sharing_profile.type)
+            df.option("type", delta_sharing_profile.type)
         if delta_sharing_profile.endpoint is not None:
             df.option("endpoint", delta_sharing_profile.endpoint)
         if delta_sharing_profile.token_endpoint is not None:
