@@ -1,19 +1,19 @@
 # Dependencies. When you update don't forget to update setup.py.
-pandas>=2.0.3
-pyarrow>=16.1.0
-fsspec>=0.7.4
-requests
-types-requests
-aiohttp
-yarl>=1.6.0
-maturin
+pandas>=2.0.3,<=3.0.1
+pyarrow>=16.1.0,<=23.0.1
+fsspec>=0.7.4,<=2026.2.0
+requests<=2.32.5
+types-requests<=2.32.0.20260311
+aiohttp<=3.13.3
+yarl>=1.6.0,<=1.23.0
+maturin<=1.12.6
 
 # Linter
 mypy==0.981
-flake8
+flake8<=7.3.0
 
 # Code formatter. Only support Python 3.6+
 black==21.12b0
 
 # Test
-pytest
+pytest<=9.0.2
