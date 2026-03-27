@@ -17,6 +17,7 @@
       - [Request Body](#request-body)
     - [Read Change Data Feed from a Table](#read-change-data-feed-from-a-table)
   - [Delta Sharing Capabilities Header](#delta-sharing-capabilities-header)
+  - [File ID Hash Header](#file-id-hash-header)
   - [API Response Actions in Parquet Format](#api-response-actions-in-parquet-format)
     - [JSON Wrapper Object In Each Line](#json-wrapper-object-in-each-line)
     - [Protocol](#protocol)
@@ -3042,6 +3043,43 @@ The server can:
 2) For paginated requests, the server may send back and EndStreamAction containing the nextPageToken
 
 
+## File ID Hash Header
+
+The `fileidhash` HTTP request header allows the client to request a specific hash algorithm for generating
+file `id` values in the response. This is a standalone HTTP header, not part of `delta-sharing-capabilities`.
+
+This header can be used in the request for [Query Table](#read-data-from-a-table) and
+[Query Table Changes](#read-change-data-feed-from-a-table).
+
+### Supported Values
+
+Value | Description
+-|-
+`md5` | File IDs are the MD5 hex digest of the file path (32 lowercase hex characters).
+`sha256` | File IDs are the SHA-256 hex digest of the file path (64 lowercase hex characters).
+
+The value is case-insensitive. The server must return HTTP 400 if an unsupported value is provided.
+
+### Default Behavior
+
+When the header is absent, the server continues to use its existing algorithm for generating file IDs.
+No change in behavior is required.
+
+### Response Header
+
+When the client sends a valid `fileidhash` header, the server must echo the same header and value
+(normalized to lowercase) in the response. 
+
+When the client does not send the header, the server should
+not include `fileidhash` in the response (the client does not validate the response header in this case).
+
+### Client Verification
+
+When a client sends the `fileidhash` header, it should verify that the server echoes the same value in
+the response. If the response header is missing or has a different value, the client should treat
+this as an error (the server may not support the feature or may have used a different algorithm).
+
+
 ## API Response Actions
 This section talks about the common actions in the response.  
 
@@ -3156,7 +3194,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
-id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The algorithm used to generate this value can be controlled via the [`fileidhash`](#file-id-hash-header) request header. | Required
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 stats | String | Contains statistics (e.g., count, min/max values for columns) about the data in this file. This field may be missing. A file may or may not have stats. This is a serialized JSON string which can be deserialized to a [Statistics Struct](#per-file-statistics). A client can decide whether to use stats or drop it. | Optional
@@ -3187,7 +3225,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
-id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The algorithm used to generate this value can be controlled via the [`fileidhash`](#file-id-hash-header) request header. | Required
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
@@ -3218,7 +3256,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
-id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The algorithm used to generate this value can be controlled via the [`fileidhash`](#file-id-hash-header) request header. | Required
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
@@ -3247,7 +3285,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
-id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The algorithm used to generate this value can be controlled via the [`fileidhash`](#file-id-hash-header) request header. | Required
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
@@ -3643,7 +3681,7 @@ or [Add CDC File](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#add-
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
-id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The algorithm used to generate this value can be controlled via the [`fileidhash`](#file-id-hash-header) request header. | Required
 deletionVectorFileId | String | A unique string for the deletion vector file in a table. The same deletion vector file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Optional
 version | Long | The table version of the file, returned when querying a table data with a version or timestamp parameter. | Optional
 timestamp | Long | The unix timestamp corresponding to the table version of the file, in milliseconds, returned when querying a table data with a version or timestamp parameter. | Optional
