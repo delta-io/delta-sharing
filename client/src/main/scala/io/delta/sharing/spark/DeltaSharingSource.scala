@@ -26,7 +26,7 @@ import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, Row, SparkSession}
 import org.apache.spark.sql.connector.read.streaming
-import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl}
+import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl, SupportsTriggerAvailableNow}
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.types.StructType
@@ -95,6 +95,7 @@ case class DeltaSharingSource(
   deltaLog: RemoteDeltaLog,
   options: DeltaSharingOptions) extends Source
   with SupportsAdmissionControl
+  with SupportsTriggerAvailableNow
   with Logging {
 
   // This is to ensure that the request sent from the client contains the http header for streaming.
@@ -144,6 +145,14 @@ case class DeltaSharingSource(
   // GLOBAL variable which should be protected by synchronized
   private var minUrlExpirationTimestamp: Option[Long] = None
 
+  // Whether this query is running in Trigger.AvailableNow mode.
+  // TODO: If SupportsConcurrentExecution is added, these need @volatile or synchronization.
+  private var isTriggerAvailableNow: Boolean = false
+
+  // The server version captured at query start for Trigger.AvailableNow. All processing is capped
+  // at this version. Not persisted -- re-captured fresh on every query start.
+  private var frozenServerVersionForAvailableNow: Long = -1
+
   private var lastGetVersionTimestamp: Long = -1
   private var latestTableVersion: Long = -1
   // minimum 10 seconds
@@ -185,7 +194,19 @@ case class DeltaSharingSource(
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
   // rpcs to avoid traffic jam on the delta sharing server.
+  override def prepareForTriggerAvailableNow(): Unit = {
+    // Call getOrUpdateLatestTableVersion BEFORE setting isTriggerAvailableNow, so the guard
+    // inside getOrUpdateLatestTableVersion doesn't short-circuit and we get a real RPC.
+    frozenServerVersionForAvailableNow = getOrUpdateLatestTableVersion
+    isTriggerAvailableNow = true
+    logInfo(s"Prepared for Trigger.AvailableNow with frozenServerVersionForAvailableNow=" +
+      s"$frozenServerVersionForAvailableNow," + getTableInfoForLogging)
+  }
+
   private def getOrUpdateLatestTableVersion: Long = {
+    if (isTriggerAvailableNow) {
+      return frozenServerVersionForAvailableNow
+    }
     val currentTimeMillis = System.currentTimeMillis()
     if (lastGetVersionTimestamp == -1 ||
       (currentTimeMillis - lastGetVersionTimestamp) >= QUERY_TABLE_VERSION_INTERVAL_MILLIS) {
@@ -271,6 +292,13 @@ case class DeltaSharingSource(
     }
 
     val currentLatestVersion = getOrUpdateLatestTableVersion
+    // In AvailableNow mode, stop fetching once we've reached the frozen version.
+    // Using >= defensively; in practice the fetched version should only equal the frozen version
+    // since endingVersionForQuery is capped at frozenServerVersionForAvailableNow.
+    if (isTriggerAvailableNow && fromVersion > frozenServerVersionForAvailableNow) {
+      return
+    }
+
     if (fromVersion > currentLatestVersion) {
       // If true, it means that there's no new data from the delta sharing server.
       return
