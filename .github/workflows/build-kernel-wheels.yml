@@ -10,6 +10,9 @@ on:
       - python/delta-kernel-rust-sharing-wrapper/**
       - .github/workflows/**
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
