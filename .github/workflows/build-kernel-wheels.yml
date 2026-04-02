@@ -10,8 +10,7 @@ on:
       - python/delta-kernel-rust-sharing-wrapper/**
       - .github/workflows/**
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   build:

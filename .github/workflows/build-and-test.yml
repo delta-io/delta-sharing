@@ -8,8 +8,7 @@ on:
       - 'python-branch-*'
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   build-and-test-server:
