@@ -12,6 +12,7 @@ on:
 
 jobs:
   build:
+    if: false  # Disabled: workflow uses pip install, violating org CI policy
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -90,6 +91,7 @@ jobs:
           path: python/delta-kernel-rust-sharing-wrapper/target/wheels/*.whl
 
   merge:
+    if: false  # Disabled: depends on build job which uses pip install
     runs-on: ubuntu-latest
     needs: build
     steps:
