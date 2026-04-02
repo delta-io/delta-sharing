@@ -6,6 +6,9 @@ on:
       - main
       - 'branch-*'
   workflow_dispatch:
+
+permissions: read-all
+
 jobs:
   build-and-test-server:
     runs-on: ubuntu-24.04
