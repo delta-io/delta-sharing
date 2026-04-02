@@ -10,6 +10,8 @@ on:
       - python/delta-kernel-rust-sharing-wrapper/**
       - .github/workflows/**
 
+permissions: read-all
+
 jobs:
   build:
     if: false  # Disabled: workflow uses pip install, violating org CI policy
