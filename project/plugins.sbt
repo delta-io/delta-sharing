@@ -19,9 +19,8 @@ resolvers += Resolver.url("artifactory", url("https://scalasbt.artifactoryonline
 
 resolvers += "Typesafe Repository" at "https://repo.typesafe.com/typesafe/releases/"
 
-resolvers += Resolver.url(
-  "typesafe sbt-plugins",
-  url("https://dl.bintray.com/typesafe/sbt-plugins"))(Resolver.ivyStylePatterns)
+// Removed: dl.bintray.com shut down 2021 — potential domain takeover risk
+// Typesafe plugins are available via the Typesafe Repository resolver above
 
 addSbtPlugin("com.github.gseitz" % "sbt-release" % "1.0.13")
 
