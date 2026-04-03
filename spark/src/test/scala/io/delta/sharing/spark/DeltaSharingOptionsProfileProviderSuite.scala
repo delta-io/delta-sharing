@@ -16,52 +16,41 @@
 
 package io.delta.sharing.spark
 
-import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.Files
-
-import org.apache.commons.io.FileUtils
-import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkFunSuite
 
-class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
 
-  private def testProfile(profile: String, expected: DeltaSharingProfile): Unit = {
-    val temp = Files.createTempFile("test", ".share").toFile
-    try {
-      FileUtils.writeStringToFile(temp, profile, UTF_8)
-      assert(new DeltaSharingFileProfileProvider(new Configuration, temp.getCanonicalPath)
-        .getProfile == expected)
-    } finally {
-      temp.delete()
-    }
+class DeltaSharingOptionsProfileProviderSuite extends SparkFunSuite {
+
+  private def testProfile(
+    shareCredentialsOptions: Map[String, String], expected: DeltaSharingProfile): Unit = {
+    assert(new DeltaSharingOptionsProfileProvider(shareCredentialsOptions)
+      .getProfile == expected)
   }
 
   test("parse") {
     testProfile(
-      """{
-        |  "shareCredentialsVersion": 1,
-        |  "endpoint": "foo",
-        |  "bearerToken": "bar",
-        |  "expirationTime": "2021-11-12T00:12:29.0Z"
-        |}
-        |""".stripMargin,
+      Map(
+        "shareCredentialsVersion" -> "1",
+        "endpoint" -> "foo",
+        "bearerToken" -> "bar",
+        "expirationTime" -> "2021-11-12T00:12:29Z"
+      ),
       DeltaSharingProfile(
         shareCredentialsVersion = Some(1),
         endpoint = "foo",
         bearerToken = "bar",
-        expirationTime = "2021-11-12T00:12:29.0Z"
+        expirationTime = "2021-11-12T00:12:29Z"
       )
     )
   }
 
   test("expirationTime is optional") {
     testProfile(
-      """{
-        |  "shareCredentialsVersion": 1,
-        |  "endpoint": "foo",
-        |  "bearerToken": "bar"
-        |}
-        |""".stripMargin,
+      Map(
+        "shareCredentialsVersion" -> "1",
+        "endpoint" -> "foo",
+        "bearerToken" -> "bar"
+      ),
       DeltaSharingProfile(
         shareCredentialsVersion = Some(1),
         endpoint = "foo",
@@ -73,11 +62,10 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
   test("shareCredentialsVersion is missing") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
-        """{
-          |  "endpoint": "foo",
-          |  "bearerToken": "bar"
-          |}
-          |""".stripMargin,
+        Map(
+          "endpoint" -> "foo",
+          "bearerToken" -> "bar"
+        ),
         null
       )
     }
@@ -85,13 +73,28 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
       "Cannot find the 'shareCredentialsVersion' field in the profile"))
   }
 
+  test("shareCredentialsVersion is incorrect") {
+    val e = intercept[IllegalArgumentException] {
+      testProfile(
+        Map(
+          "shareCredentialsVersion" -> "2",
+          "endpoint" -> "foo",
+          "bearerToken" -> "bar"
+        ),
+        null
+      )
+    }
+    assert(e.getMessage.contains(
+      "'shareCredentialsVersion' in the profile is 2 which is too new. " +
+        "The current release supports version 1 and below. Please upgrade to a newer release."))
+  }
+
   test("shareCredentialsVersion is not supported") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
-        """{
-          |  "shareCredentialsVersion": 100
-          |}
-          |""".stripMargin,
+        Map(
+          "shareCredentialsVersion" -> "100"
+        ),
         null
       )
     }
@@ -102,11 +105,10 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
   test("endpoint is missing") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
-        """{
-          |  "shareCredentialsVersion": 1,
-          |  "bearerToken": "bar"
-          |}
-          |""".stripMargin,
+        Map(
+          "shareCredentialsVersion" -> "1",
+          "bearerToken" -> "bar"
+        ),
         null
       )
     }
@@ -116,11 +118,10 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
   test("bearerToken is missing") {
     val e = intercept[IllegalArgumentException] {
       testProfile(
-        """{
-          |  "shareCredentialsVersion": 1,
-          |  "endpoint": "foo"
-          |}
-          |""".stripMargin,
+        Map(
+          "shareCredentialsVersion" -> "1",
+          "endpoint" -> "foo"
+        ),
         null
       )
     }
@@ -129,20 +130,20 @@ class DeltaSharingFileProfileProviderSuite extends SparkFunSuite {
 
   test("unknown field should be ignored") {
     testProfile(
-      """{
-        |  "shareCredentialsVersion": 1,
-        |  "endpoint": "foo",
-        |  "bearerToken": "bar",
-        |  "expirationTime": "2021-11-12T00:12:29.0Z",
-        |  "futureField": "xyz"
-        |}
-        |""".stripMargin,
+      Map(
+        "shareCredentialsVersion" -> "1",
+        "endpoint" -> "foo",
+        "bearerToken" -> "bar",
+        "expirationTime" -> "2021-11-12T00:12:29Z",
+        "futureField" -> "xyz"
+      ),
       DeltaSharingProfile(
         shareCredentialsVersion = Some(1),
         endpoint = "foo",
         bearerToken = "bar",
-        expirationTime = "2021-11-12T00:12:29.0Z"
+        expirationTime = "2021-11-12T00:12:29Z"
       )
     )
   }
+
 }

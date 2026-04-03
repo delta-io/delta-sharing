@@ -95,6 +95,8 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
 
   val timestampAsOf = options.get(TIME_TRAVEL_TIMESTAMP).map(getFormattedTimestamp(_))
 
+  val shareCredentialsOptions: Map[String, String] = prepareShareCredentialsOptions()
+
   def isTimeTravel: Boolean = versionAsOf.isDefined || timestampAsOf.isDefined
 
   // Parse the input timestamp string and TimestampType, and generate a formatted timestamp string
@@ -121,6 +123,21 @@ trait DeltaSharingReadOptions extends DeltaSharingOptionParser {
       )
     } else {
      Map.empty[String, String]
+    }
+  }
+
+  private def prepareShareCredentialsOptions(): Map[String, String] = {
+    validShareCredentialsOptions.filter { option =>
+      options.contains(option._1)
+    }.map { option =>
+      val key = option._1
+      val value = key match {
+        case PROFILE_EXPIRATION_TIME =>
+          getFormattedTimestamp(options.get(key).get)
+        case _ =>
+          options.get(key).get
+      }
+      key -> value
     }
   }
 
@@ -182,6 +199,11 @@ object DeltaSharingOptions extends Logging {
   val TIME_TRAVEL_VERSION = "versionAsOf"
   val TIME_TRAVEL_TIMESTAMP = "timestampAsOf"
 
+  val PROFILE_SHARE_CREDENTIALS_VERSION = "shareCredentialsVersion"
+  val PROFILE_ENDPOINT = "endpoint"
+  val PROFILE_BEARER_TOKEN = "bearerToken"
+  val PROFILE_EXPIRATION_TIME = "expirationTime"
+
   val validCdfOptions = Map(
     CDF_READ_OPTION -> "",
     CDF_READ_OPTION_LEGACY -> "",
@@ -189,6 +211,13 @@ object DeltaSharingOptions extends Logging {
     CDF_END_TIMESTAMP -> "",
     CDF_START_VERSION -> "",
     CDF_END_VERSION -> ""
+  )
+
+  val validShareCredentialsOptions = Map(
+    PROFILE_SHARE_CREDENTIALS_VERSION -> "",
+    PROFILE_ENDPOINT -> "",
+    PROFILE_BEARER_TOKEN -> "",
+    PROFILE_EXPIRATION_TIME -> ""
   )
 }
 
