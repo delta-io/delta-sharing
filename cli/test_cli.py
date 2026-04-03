@@ -104,6 +104,14 @@ class TestCfgReadWrite(unittest.TestCase):
         result = cli._read_cfg()
         self.assertEqual(result, sections)
 
+    def test_config_file_mode_restricted_on_unix(self):
+        if os.name == "nt":
+            self.skipTest("POSIX file modes")
+        sections = {"default": {"endpoint": "https://h", "token": "t"}}
+        cli._write_cfg(sections)
+        mode = os.stat(self.tmpfile.name).st_mode & 0o777
+        self.assertEqual(mode, 0o600)
+
     def test_empty_file(self):
         with open(self.tmpfile.name, "w") as f:
             f.write("")
@@ -577,6 +585,19 @@ class TestBuildParser(unittest.TestCase):
         args = self.parser.parse_args(["profiles"])
         self.assertEqual(args.group, "profiles")
 
+    def test_version_subcommand(self):
+        args = self.parser.parse_args(["version"])
+        self.assertEqual(args.group, "version")
+
+    def test_shares_list_with_headers(self):
+        args = self.parser.parse_args([
+            "shares", "list",
+            "-e", "https://h/", "-t", "tok",
+            "-H", "X-Custom: one",
+            "--header", "X-Other: two",
+        ])
+        self.assertEqual(args.header, ["X-Custom: one", "X-Other: two"])
+
     def test_short_flag_profile(self):
         args = self.parser.parse_args([
             "shares", "list", "-p", "file.json",
@@ -611,6 +632,39 @@ class TestBuildParser(unittest.TestCase):
             "-n", "20",
         ])
         self.assertEqual(args.max_results, 20)
+
+
+class TestExtraHeaders(unittest.TestCase):
+    def test_none(self):
+        self.assertIsNone(cli._extra_headers_from_args(argparse.Namespace(header=None)))
+
+    def test_two_headers(self):
+        h = cli._extra_headers_from_args(
+            argparse.Namespace(header=["X-Request-Id: abc-123", "X-Other: value:with:colons"])
+        )
+        self.assertEqual(h["X-Request-Id"], "abc-123")
+        self.assertEqual(h["X-Other"], "value:with:colons")
+
+    def test_strips_whitespace(self):
+        h = cli._extra_headers_from_args(argparse.Namespace(header=["  Name  :  val  "]))
+        self.assertEqual(h, {"Name": "val"})
+
+
+class TestRequestTimeout(unittest.TestCase):
+    def tearDown(self):
+        os.environ.pop("DELTA_SHARING_REQUEST_TIMEOUT", None)
+
+    def test_default(self):
+        os.environ.pop("DELTA_SHARING_REQUEST_TIMEOUT", None)
+        self.assertEqual(cli._request_timeout(), 120.0)
+
+    def test_from_env(self):
+        os.environ["DELTA_SHARING_REQUEST_TIMEOUT"] = "60"
+        self.assertEqual(cli._request_timeout(), 60.0)
+
+    def test_invalid_env_falls_back(self):
+        os.environ["DELTA_SHARING_REQUEST_TIMEOUT"] = "not-a-number"
+        self.assertEqual(cli._request_timeout(), 120.0)
 
 
 if __name__ == "__main__":
