@@ -1,5 +1,8 @@
 name: Build and Test
 on: [push, pull_request]
+
+permissions: read-all
+
 jobs:
   build-and-test:
     runs-on: ubuntu-24.04
