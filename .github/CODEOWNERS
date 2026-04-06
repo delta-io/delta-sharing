@@ -1,0 +1,12 @@
+# CODEOWNERS — require maintainer review for security-sensitive paths
+#
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# CI/CD workflows
+/.github/workflows/  @delta-io/delta-sharing-maintainers
+
+# Dependabot and GitHub config
+/.github/            @delta-io/delta-sharing-maintainers
+
+# Build scripts (SBT launcher, linting)
+/build/              @delta-io/delta-sharing-maintainers
