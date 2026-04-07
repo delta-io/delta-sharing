@@ -3,10 +3,10 @@
 # See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
 # CI/CD workflows
-/.github/workflows/  @delta-io/delta-sharing-maintainers
+/.github/workflows/  @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 
 # Dependabot and GitHub config
-/.github/            @delta-io/delta-sharing-maintainers
+/.github/            @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 
 # Build scripts (SBT launcher, linting)
-/build/              @delta-io/delta-sharing-maintainers
+/build/              @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
