@@ -9,7 +9,7 @@
 /build/              @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 build.sbt            @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88 
 
-# Python build scripts
+# Python dependency specifications
 python/requirements-dev.txt                                  @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 python/setup.py                                              @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 python/delta-sharing-sharing-rust-wrapper/Cargo.toml         @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
