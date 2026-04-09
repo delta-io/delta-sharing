@@ -1,0 +1,9 @@
+# CODEOWNERS — require maintainer review for security-sensitive paths
+#
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Dependabot and GitHub config
+/.github/            @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
+
+# Build scripts (SBT launcher, linting)
+/build/              @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
