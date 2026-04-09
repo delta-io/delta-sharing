@@ -2,9 +2,6 @@
 #
 # See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
-# CI/CD workflows
-/.github/workflows/  @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
-
 # Dependabot and GitHub config
 /.github/            @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 
