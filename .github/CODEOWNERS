@@ -12,6 +12,6 @@ build.sbt            @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wc
 # Python dependency specifications
 python/requirements-dev.txt                                  @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 python/setup.py                                              @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
-python/delta-sharing-sharing-rust-wrapper/Cargo.toml         @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
-python/delta-sharing-sharing-rust-wrapper/pyproject.toml     @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
+python/delta-kernel-rust-sharing-wrapper/Cargo.toml          @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
+python/delta-kernel-rust-sharing-wrapper/pyproject.toml      @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 
