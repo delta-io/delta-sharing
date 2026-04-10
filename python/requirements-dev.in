@@ -1,4 +1,4 @@
-# Dependencies. When you update don't forget to update setup.py.
+# Dependencies. When you update don't forget to update pyproject.toml.  
 pandas==2.0.3                                                                                                                                                             
 pyarrow==16.1.0                                                                                                                                                           
 numpy<2.0                                                                                                                                                                 
