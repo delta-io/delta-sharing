@@ -13,13 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from itertools import chain
-from typing import BinaryIO, List, Optional, Sequence, TextIO, Tuple, Union
 from pathlib import Path
+from itertools import chain
+from typing import BinaryIO, Iterator, List, Optional, Sequence, TextIO, Tuple, Union
 
 import pandas as pd
+import pyarrow as pa
 
-from delta_sharing.protocol import CdfOptions, Protocol, Metadata
+from delta_sharing.protocol import CdfOptions, Metadata, Protocol
 
 try:
     from pyspark.sql import DataFrame as PySparkDataFrame
@@ -51,6 +52,14 @@ def _parse_url(url: str) -> Tuple[str, str, str, str]:
     return (profile, share, schema, table)
 
 
+def _parse_table_name(name: str) -> Table:
+    fragments = name.split(".")
+    if len(fragments) != 3 or any(len(fragment) == 0 for fragment in fragments):
+        raise ValueError(f"Invalid table name: {name}")
+    share, schema, table = fragments
+    return Table(name=table, share=share, schema=schema)
+
+
 def get_table_version(url: str, starting_timestamp: Optional[str] = None) -> int:
     """
     Get the shared table version using the given url.
@@ -68,7 +77,7 @@ def get_table_version(url: str, starting_timestamp: Optional[str] = None) -> int
     return response.delta_table_version
 
 
-def __get_table_metadata(rest_client: DataSharingRestClient, table: Table, use_delta_format: bool):
+def _get_table_metadata(rest_client: DataSharingRestClient, table: Table, use_delta_format: bool):
     if use_delta_format:
         rest_client.set_sharing_capabilities_header()
         response = rest_client.query_table_metadata(table)
@@ -88,7 +97,7 @@ def get_table_protocol(url: str, use_delta_format: bool = True) -> Protocol:
     profile = DeltaSharingProfile.read_from_file(profile_json)
     rest_client = DataSharingRestClient(profile)
     table = Table(name=table_name, share=share, schema=schema)
-    full_metadata = __get_table_metadata(rest_client, table, use_delta_format)
+    full_metadata = _get_table_metadata(rest_client, table, use_delta_format)
     return full_metadata.protocol
 
 
@@ -102,7 +111,7 @@ def get_table_metadata(url: str, use_delta_format: bool = True) -> Metadata:
     profile = DeltaSharingProfile.read_from_file(profile_json)
     rest_client = DataSharingRestClient(profile)
     table = Table(name=table_name, share=share, schema=schema)
-    full_metadata = __get_table_metadata(rest_client, table, use_delta_format)
+    full_metadata = _get_table_metadata(rest_client, table, use_delta_format)
     return full_metadata.metadata
 
 
@@ -145,6 +154,158 @@ def load_as_pandas(
         use_delta_format=use_delta_format,
         convert_in_batches=convert_in_batches,
     ).to_pandas()
+
+
+def load_as_arrow(
+    url: str,
+    limit: Optional[int] = None,
+    version: Optional[int] = None,
+    timestamp: Optional[str] = None,
+    jsonPredicateHints: Optional[str] = None,
+    use_delta_format: Optional[bool] = None,
+) -> pa.Table:
+    """
+    Load the shared table using the given url as a PyArrow Table.
+
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>"
+    :return: A PyArrow Table representing the shared table.
+    """
+    profile_json, share, schema, table = _parse_url(url)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
+    return DeltaSharingReader(
+        table=Table(name=table, share=share, schema=schema),
+        rest_client=DataSharingRestClient(profile),
+        jsonPredicateHints=jsonPredicateHints,
+        limit=limit,
+        version=version,
+        timestamp=timestamp,
+        use_delta_format=use_delta_format,
+    ).to_arrow()
+
+
+class TableSnapshot:
+    def __init__(
+        self,
+        table: Table,
+        rest_client: DataSharingRestClient,
+        *,
+        jsonPredicateHints: Optional[str] = None,
+        limit: Optional[int] = None,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
+    ):
+        self._table = table
+        self._rest_client = rest_client
+        self._jsonPredicateHints = jsonPredicateHints
+        self._limit = limit
+        self._version = version
+        self._timestamp = timestamp
+        self._use_delta_format = use_delta_format
+
+    def _reader(self, convert_in_batches: bool = False) -> DeltaSharingReader:
+        return DeltaSharingReader(
+            table=self._table,
+            rest_client=self._rest_client,
+            jsonPredicateHints=self._jsonPredicateHints,
+            limit=self._limit,
+            version=self._version,
+            timestamp=self._timestamp,
+            use_delta_format=self._use_delta_format,
+            convert_in_batches=convert_in_batches,
+        )
+
+    def to_pandas(self, convert_in_batches: bool = False) -> pd.DataFrame:
+        return self._reader(convert_in_batches=convert_in_batches).to_pandas()
+
+    def to_arrow(self) -> pa.Table:
+        return self._reader().to_arrow()
+
+    def to_record_batches(self):
+        return self._reader().to_record_batches()
+
+    def to_record_batch_reader(self) -> pa.RecordBatchReader:
+        return self._reader().to_record_batch_reader()
+
+    def _table_name(self) -> str:
+        return f"{self._table.share}.{self._table.schema}.{self._table.name}"
+
+    def to_spark(self) -> "PySparkDataFrame":  # noqa: F821
+        unsupported_options = []
+        if self._limit is not None:
+            unsupported_options.append("limit")
+        if self._jsonPredicateHints is not None:
+            unsupported_options.append("jsonPredicateHints")
+        if self._use_delta_format is not None:
+            unsupported_options.append("use_delta_format")
+
+        if unsupported_options:
+            unsupported = ", ".join(unsupported_options)
+            raise ValueError(
+                f"TableSnapshot.to_spark does not support snapshot options: {unsupported}"
+            )
+
+        return load_as_spark(
+            self._table_name(),
+            version=self._version,
+            timestamp=self._timestamp,
+            delta_sharing_profile=self._rest_client._profile,
+        )
+
+
+class DeltaSharingTable:
+    def __init__(self, table: Table, rest_client: DataSharingRestClient):
+        self._table = table
+        self._rest_client = rest_client
+
+    @property
+    def table(self) -> Table:
+        return self._table
+
+    def snapshot(
+        self,
+        *,
+        jsonPredicateHints: Optional[str] = None,
+        limit: Optional[int] = None,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+        use_delta_format: Optional[bool] = None,
+    ) -> "TableSnapshot":
+        return TableSnapshot(
+            table=self._table,
+            rest_client=self._rest_client,
+            jsonPredicateHints=jsonPredicateHints,
+            limit=limit,
+            version=version,
+            timestamp=timestamp,
+            use_delta_format=use_delta_format,
+        )
+
+    def metadata(self, use_delta_format: bool = True) -> Metadata:
+        return _get_table_metadata(self._rest_client, self._table, use_delta_format).metadata
+
+    def protocol(self, use_delta_format: bool = True) -> Protocol:
+        return _get_table_metadata(self._rest_client, self._table, use_delta_format).protocol
+
+    def version(self, starting_timestamp: Optional[str] = None) -> int:
+        return self._rest_client.query_table_version(
+            self._table, starting_timestamp
+        ).delta_table_version
+
+    def to_pandas(self, convert_in_batches: bool = False) -> pd.DataFrame:
+        return self.snapshot().to_pandas(convert_in_batches=convert_in_batches)
+
+    def to_arrow(self) -> pa.Table:
+        return self.snapshot().to_arrow()
+
+    def to_record_batches(self) -> Iterator[pa.RecordBatch]:
+        return self.snapshot().to_record_batches()
+
+    def to_record_batch_reader(self) -> pa.RecordBatchReader:
+        return self.snapshot().to_record_batch_reader()
+
+    def to_spark(self) -> "PySparkDataFrame":  # noqa: F821
+        return self.snapshot().to_spark()
 
 
 def _validate_url(url: str, delta_sharing_profile: Optional[DeltaSharingProfile] = None) -> None:
@@ -432,3 +593,8 @@ class SharingClient:
                 return list(chain(*(self.list_tables(schema) for schema in schemas)))
             else:
                 raise e
+
+    def table(self, table: Union[str, Table]) -> DeltaSharingTable:
+        if isinstance(table, str):
+            table = _parse_table_name(table)
+        return DeltaSharingTable(table, self._rest_client)
