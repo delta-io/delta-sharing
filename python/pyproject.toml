@@ -7,7 +7,7 @@ name = "delta-sharing"
 dynamic = ["version"]                                                                                                                                                          
 description = "Python Connector for Delta Sharing"
 readme = "README.md"                                                                                                                                                           
-license = "Apache-2.0"                                    
+license = {text = "Apache-2.0"}
 requires-python = ">=3.8"
 authors = [
     {name = "The Delta Lake Project Authors", email = "delta-users@googlegroups.com"},
@@ -52,4 +52,23 @@ version = {attr = "delta_sharing.version.__version__"}
                                                                                                                                                                                  
 [tool.setuptools.packages.find]
 include = ["delta_sharing"]
+
+[dependency-groups]
+dev = [
+    "aiohttp<=3.13.3",
+    "black==24.3.0",
+    "build>=1.0,<2.0",
+    "flake8<=7.3.0",
+    "fsspec>=0.7.4,<=2026.2.0",
+    "jwcrypto>=1.5.6,<=1.5.6",
+    "maturin<=1.12.6",
+    "mypy==0.981",
+    "numpy<2.0",
+    "pandas==2.0.3",
+    "pyarrow==16.1.0",
+    "pytest<=9.0.2",
+    "requests<=2.32.5",
+    "types-requests<=2.32.0.20260311",
+    "yarl>=1.6.0,<=1.23.0",
+]
 
