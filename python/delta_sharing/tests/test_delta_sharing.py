@@ -310,6 +310,48 @@ def test_delta_sharing_snapshot_to_record_batch_reader(
     }
 
 
+def test_delta_sharing_snapshot_to_spark(profile: DeltaSharingProfile, monkeypatch: pytest.MonkeyPatch):
+    expected = object()
+    captured = {}
+
+    def fake_load_as_spark(url, version=None, timestamp=None, delta_sharing_profile=None):
+        captured["url"] = url
+        captured["version"] = version
+        captured["timestamp"] = timestamp
+        captured["delta_sharing_profile"] = delta_sharing_profile
+        return expected
+
+    monkeypatch.setattr("delta_sharing.delta_sharing.load_as_spark", fake_load_as_spark)
+
+    client = SharingClient(profile)
+    result = client.table("share.schema.table").snapshot(
+        version=2, timestamp="2024-01-01T00:00:00Z"
+    ).to_spark()
+
+    assert result is expected
+    assert captured == {
+        "url": "share.schema.table",
+        "version": 2,
+        "timestamp": "2024-01-01T00:00:00Z",
+        "delta_sharing_profile": profile,
+    }
+
+
+@pytest.mark.parametrize(
+    "snapshot_kwargs,unsupported",
+    [
+        pytest.param({"limit": 10}, "limit", id="limit"),
+        pytest.param({"jsonPredicateHints": '{"op":"equal"}'}, "jsonPredicateHints", id="predicate"),
+        pytest.param({"use_delta_format": False}, "use_delta_format", id="format"),
+    ],
+)
+def test_delta_sharing_snapshot_to_spark_rejects_unsupported_options(
+    profile: DeltaSharingProfile, snapshot_kwargs: dict, unsupported: str
+):
+    with pytest.raises(ValueError, match=unsupported):
+        SharingClient(profile).table("share.schema.table").snapshot(**snapshot_kwargs).to_spark()
+
+
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
     "fragments,starting_timestamp,error,expected_version",
