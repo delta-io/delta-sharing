@@ -208,9 +208,8 @@ def test_delta_sharing_table_snapshot_to_pandas(
             timestamp="2024-01-01T00:00:00Z",
             jsonPredicateHints='{"op":"equal"}',
             use_delta_format=False,
-            convert_in_batches=True,
         )
-        .to_pandas()
+        .to_pandas(convert_in_batches=True)
     )
 
     pd.testing.assert_frame_equal(result, expected)

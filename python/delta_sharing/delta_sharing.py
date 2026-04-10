@@ -166,7 +166,6 @@ class TableSnapshot:
         version: Optional[int] = None,
         timestamp: Optional[str] = None,
         use_delta_format: Optional[bool] = None,
-        convert_in_batches: bool = False,
     ):
         self._table = table
         self._rest_client = rest_client
@@ -175,9 +174,8 @@ class TableSnapshot:
         self._version = version
         self._timestamp = timestamp
         self._use_delta_format = use_delta_format
-        self._convert_in_batches = convert_in_batches
 
-    def _reader(self) -> DeltaSharingReader:
+    def _reader(self, convert_in_batches: bool = False) -> DeltaSharingReader:
         return DeltaSharingReader(
             table=self._table,
             rest_client=self._rest_client,
@@ -186,11 +184,11 @@ class TableSnapshot:
             version=self._version,
             timestamp=self._timestamp,
             use_delta_format=self._use_delta_format,
-            convert_in_batches=self._convert_in_batches,
+            convert_in_batches=convert_in_batches,
         )
 
-    def to_pandas(self) -> pd.DataFrame:
-        return self._reader().to_pandas()
+    def to_pandas(self, convert_in_batches: bool = False) -> pd.DataFrame:
+        return self._reader(convert_in_batches=convert_in_batches).to_pandas()
 
 
 class DeltaSharingTable:
@@ -210,7 +208,6 @@ class DeltaSharingTable:
         version: Optional[int] = None,
         timestamp: Optional[str] = None,
         use_delta_format: Optional[bool] = None,
-        convert_in_batches: bool = False,
     ) -> "TableSnapshot":
         return TableSnapshot(
             table=self._table,
@@ -220,7 +217,6 @@ class DeltaSharingTable:
             version=version,
             timestamp=timestamp,
             use_delta_format=use_delta_format,
-            convert_in_batches=convert_in_batches,
         )
 
     def metadata(self, use_delta_format: bool = True) -> Metadata:
@@ -234,8 +230,8 @@ class DeltaSharingTable:
             self._table, starting_timestamp
         ).delta_table_version
 
-    def to_pandas(self) -> pd.DataFrame:
-        return self.snapshot().to_pandas()
+    def to_pandas(self, convert_in_batches: bool = False) -> pd.DataFrame:
+        return self.snapshot().to_pandas(convert_in_batches=convert_in_batches)
 
 
 def _validate_url(url: str, delta_sharing_profile: Optional[DeltaSharingProfile] = None) -> None:
