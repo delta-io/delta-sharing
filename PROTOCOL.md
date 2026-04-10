@@ -3045,8 +3045,10 @@ The server can:
 
 ## File ID Hash Header
 
-The `fileidhash` HTTP request header allows the client to request a specific hash algorithm for generating
-file `id` values in the response. This is a standalone HTTP header, not part of `delta-sharing-capabilities`.
+The `fileidhash` HTTP request header allows the client to select how file `id` values are derived in the
+response. Each supported value names a **scheme** aligned with the `responseFormat` (`parquet` or `delta`). For a given scheme, the server must derive `id` deterministically from the file so the same logical file always receives the same `id` across requests; the exact encoding is implementation-defined but must be consistent for that scheme on a given server.
+
+This is a standalone HTTP header, not part of `delta-sharing-capabilities`.
 
 This header can be used in the request for [Query Table](#read-data-from-a-table) and
 [Query Table Changes](#read-change-data-feed-from-a-table).
@@ -3055,15 +3057,14 @@ This header can be used in the request for [Query Table](#read-data-from-a-table
 
 Value | Description
 -|-
-`md5` | File IDs are the MD5 hex digest of the file path (32 lowercase hex characters).
-`sha256` | File IDs are the SHA-256 hex digest of the file path (64 lowercase hex characters).
+`parquet` | File `id` values use the Parquet-aligned scheme: a stable, deterministic encoding of the file (encoding details are implementation-defined).
+`delta` | File `id` values use the Delta-aligned scheme: a stable, deterministic encoding of the file (encoding details are implementation-defined).
 
 The value is case-insensitive. The server must return HTTP 400 if an unsupported value is provided.
 
-### Default Behavior
+### Delta response format and structured streaming
 
-When the header is absent, the server continues to use its existing algorithm for generating file IDs.
-No change in behavior is required.
+The `fileidhash` header matters most when the response uses the **Delta** format. A structured streaming query needs to **migrate** from the Parquet to the Delta response format when the shared table turns on **advanced Delta reader features** that the Parquet format cannot handle, for example Deletion Vectors. In Spark, that migration can be handled automatically for streaming when [`spark.sql.delta.sharing.streamingAutoResolveResponseFormat`](https://github.com/delta-io/delta/blob/194e707e64b8aadca2fd1b06ec35a641741d90d0/spark/src/main/scala/org/apache/spark/sql/delta/sources/DeltaSQLConf.scala#L3020) is enabled. Sending a consistent `fileidhash` across those requests preserves **data integrity**.
 
 ### Response Header
 
@@ -3077,7 +3078,7 @@ not include `fileidhash` in the response (the client does not validate the respo
 
 When a client sends the `fileidhash` header, it should verify that the server echoes the same value in
 the response. If the response header is missing or has a different value, the client should treat
-this as an error (the server may not support the feature or may have used a different algorithm).
+this as an error (the server may not support the feature or may have used a different file ID scheme).
 
 
 ## API Response Actions
@@ -3194,7 +3195,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
-id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The algorithm used to generate this value can be controlled via the [`fileidhash`](#file-id-hash-header) request header. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The file ID scheme (`parquet` or `delta`, see [`fileidhash`](#file-id-hash-header)) can be selected via that request header. | Required
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 stats | String | Contains statistics (e.g., count, min/max values for columns) about the data in this file. This field may be missing. A file may or may not have stats. This is a serialized JSON string which can be deserialized to a [Statistics Struct](#per-file-statistics). A client can decide whether to use stats or drop it. | Optional
@@ -3225,7 +3226,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
-id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The algorithm used to generate this value can be controlled via the [`fileidhash`](#file-id-hash-header) request header. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The file ID scheme (`parquet` or `delta`, see [`fileidhash`](#file-id-hash-header)) can be selected via that request header. | Required
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
@@ -3256,7 +3257,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
-id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The algorithm used to generate this value can be controlled via the [`fileidhash`](#file-id-hash-header) request header. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The file ID scheme (`parquet` or `delta`, see [`fileidhash`](#file-id-hash-header)) can be selected via that request header. | Required
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
@@ -3285,7 +3286,7 @@ Example (for illustration purposes; each JSON object must be a single line in th
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 url | String | An https url that a client can use to read the file directly. The same file in different responses may have different urls. | Required
-id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The algorithm used to generate this value can be controlled via the [`fileidhash`](#file-id-hash-header) request header. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The file ID scheme (`parquet` or `delta`, see [`fileidhash`](#file-id-hash-header)) can be selected via that request header. | Required
 partitionValues | Map<String, String> | A map from partition column to value for this file. See [Partition Value Serialization](#partition-value-serialization) for how to parse the partition values. When the table doesn’t have partition columns, this will be an **empty** map. | Required
 size | Long | The size of this file in bytes. | Required
 timestamp | Long | The timestamp of the file in milliseconds from epoch. | Required
@@ -3681,7 +3682,7 @@ or [Add CDC File](https://github.com/delta-io/delta/blob/master/PROTOCOL.md#add-
 
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
-id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The algorithm used to generate this value can be controlled via the [`fileidhash`](#file-id-hash-header) request header. | Required
+id | String | A unique string for the file in a table. The same file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. The file ID scheme (`parquet` or `delta`, see [`fileidhash`](#file-id-hash-header)) can be selected via that request header. | Required
 deletionVectorFileId | String | A unique string for the deletion vector file in a table. The same deletion vector file is guaranteed to have the same id across multiple requests. A client may cache the file content and use this id as a key to decide whether to use the cached file content. | Optional
 version | Long | The table version of the file, returned when querying a table data with a version or timestamp parameter. | Optional
 timestamp | Long | The unix timestamp corresponding to the table version of the file, in milliseconds, returned when querying a table data with a version or timestamp parameter. | Optional
