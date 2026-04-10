@@ -31,7 +31,8 @@ print(client.list_all_tables())
 # Create a first-class table handle.
 table = client.table(table_fqn)
 
-# Configure a scan and fetch 10 rows from a table as a Pandas DataFrame.
+# Fetch 10 rows from a table and convert it to a Pandas DataFrame. This can be used to read sample
+# data from a table that cannot fit in the memory.
 print(
     "########### Loading 10 rows from delta_sharing.default.owid-covid-data as a Pandas DataFrame with client.table(...).snapshot(...).to_pandas #############"
 )
@@ -41,7 +42,8 @@ data = table.snapshot(limit=10).to_pandas()
 print("########### Show the fetched 10 rows #############")
 print(data)
 
-# Materialize the full table as a Pandas DataFrame.
+# Load a table as a Pandas DataFrame. This can be used to process tables that can fit in the
+# memory.
 print(
     "########### Loading delta_sharing.default.owid-covid-data as a Pandas DataFrame with client.table(...).to_pandas #############"
 )
