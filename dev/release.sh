@@ -12,7 +12,7 @@ git clean -fdx
 # Clean existing artifacts
 build/sbt clean
 cd python
-python3 setup.py clean --all
+rm -rf build dist
 rm -rf delta_sharing.egg-info dist
 cd ..
 
@@ -33,7 +33,7 @@ git checkout v$VERSION
 
 # Generate Python artifacts
 cd python/
-python3 setup.py sdist bdist_wheel
+python3 -m build
 cd ..
 
 # Generate the pre-built server package and sign files

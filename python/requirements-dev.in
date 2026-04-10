@@ -19,3 +19,6 @@ black==24.3.0
 
 # Test
 pytest<=9.0.2
+
+# Build
+build>=1.0,<2.0 

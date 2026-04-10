@@ -6,7 +6,7 @@ pushd "$(dirname "$0")/.."
 
 # Clean existing artifacts
 pushd python
-python3 setup.py clean --all
+rm -rf build dist 
 rm -rf delta_sharing.egg-info dist
 popd
 
@@ -25,7 +25,7 @@ git tag "py-v$VERSION"
 
 # Generate Python artifacts
 pushd python
-python3 setup.py sdist bdist_wheel
+python3 -m build 
 popd
 
 echo "=== Generated all release artifacts ==="
