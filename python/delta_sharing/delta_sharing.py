@@ -227,6 +227,31 @@ class TableSnapshot:
     def to_record_batch_reader(self) -> pa.RecordBatchReader:
         return self._reader().to_record_batch_reader()
 
+    def _table_name(self) -> str:
+        return f"{self._table.share}.{self._table.schema}.{self._table.name}"
+
+    def to_spark(self) -> "PySparkDataFrame":  # noqa: F821
+        unsupported_options = []
+        if self._limit is not None:
+            unsupported_options.append("limit")
+        if self._jsonPredicateHints is not None:
+            unsupported_options.append("jsonPredicateHints")
+        if self._use_delta_format is not None:
+            unsupported_options.append("use_delta_format")
+
+        if unsupported_options:
+            unsupported = ", ".join(unsupported_options)
+            raise ValueError(
+                f"TableSnapshot.to_spark does not support snapshot options: {unsupported}"
+            )
+
+        return load_as_spark(
+            self._table_name(),
+            version=self._version,
+            timestamp=self._timestamp,
+            delta_sharing_profile=self._rest_client._profile,
+        )
+
 
 class DeltaSharingTable:
     def __init__(self, table: Table, rest_client: DataSharingRestClient):
@@ -278,6 +303,9 @@ class DeltaSharingTable:
 
     def to_record_batch_reader(self) -> pa.RecordBatchReader:
         return self.snapshot().to_record_batch_reader()
+
+    def to_spark(self) -> "PySparkDataFrame":  # noqa: F821
+        return self.snapshot().to_spark()
 
 
 def _validate_url(url: str, delta_sharing_profile: Optional[DeltaSharingProfile] = None) -> None:
