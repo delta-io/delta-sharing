@@ -129,7 +129,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          python -m pip install --require-hashes -r python/requirements-dev.txt
+          python -m pip install --require-hashes -r python/requirements-dev.lock
           cd python/delta-kernel-rust-sharing-wrapper
           maturin develop
       - name: Build Server

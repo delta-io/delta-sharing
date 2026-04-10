@@ -4,8 +4,6 @@
 #
 #    pip-compile --generate-hashes --output-file=requirements-dev.lock requirements-dev.txt
 #
---index-url https://pypi-proxy.dev.databricks.com/simple
---trusted-host pypi-proxy.dev.databricks.com
 
 aiohappyeyeballs==2.6.1 \
     --hash=sha256:c3f9d0113123803ccadfdf3f0faa505bc78e6a72d1cc4806cbd719826e943558 \
