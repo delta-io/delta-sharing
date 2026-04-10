@@ -15,7 +15,7 @@
 #
 
 from delta_sharing.delta_sharing import (
-    DeltaSharingSnapshot,
+    TableSnapshot,
     DeltaSharingTable,
     SharingClient,
     load_as_pandas,
@@ -30,7 +30,7 @@ from delta_sharing.version import __version__
 __all__ = [
     "SharingClient",
     "DeltaSharingTable",
-    "DeltaSharingSnapshot",
+    "TableSnapshot",
     "Share",
     "Schema",
     "Table",

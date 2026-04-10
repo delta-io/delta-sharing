@@ -23,6 +23,7 @@ from delta_sharing.delta_sharing import (
     DeltaSharingTable,
     DeltaSharingProfile,
     SharingClient,
+    TableSnapshot,
     get_table_metadata,
     get_table_protocol,
     get_table_version,
@@ -177,6 +178,7 @@ def test_sharing_client_table(profile: DeltaSharingProfile):
     table = Table(name="table2", share="share2", schema="schema2")
     table_from_object = sharing_client.table(table)
     assert table_from_object.table == table
+    assert isinstance(table_from_string.snapshot(), TableSnapshot)
 
 
 def test_delta_sharing_table_snapshot_to_pandas(
@@ -904,6 +906,22 @@ def test_load_as_pandas_legacy_and_table_handle_match(
     )
 
     pd.testing.assert_frame_equal(legacy_pdf, table_pdf)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_table_snapshot_to_pandas_on_real_table(profile: DeltaSharingProfile):
+    expected = pd.DataFrame(
+        {
+            "eventTime": [
+                pd.Timestamp("2021-04-28 06:32:22.421"),
+                pd.Timestamp("2021-04-28 06:32:02.070"),
+            ],
+            "date": [date(2021, 4, 28), date(2021, 4, 28)],
+        }
+    )
+
+    pdf = SharingClient(profile).table("share1.default.table1").snapshot(limit=2).to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected)
 
 
 # We will test predicates with the table share8.default.cdf_table_with_partition

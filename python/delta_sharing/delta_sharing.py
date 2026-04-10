@@ -155,7 +155,7 @@ def load_as_pandas(
     ).to_pandas()
 
 
-class DeltaSharingSnapshot:
+class TableSnapshot:
     def __init__(
         self,
         table: Table,
@@ -211,8 +211,8 @@ class DeltaSharingTable:
         timestamp: Optional[str] = None,
         use_delta_format: Optional[bool] = None,
         convert_in_batches: bool = False,
-    ) -> "DeltaSharingSnapshot":
-        return DeltaSharingSnapshot(
+    ) -> "TableSnapshot":
+        return TableSnapshot(
             table=self._table,
             rest_client=self._rest_client,
             jsonPredicateHints=jsonPredicateHints,
