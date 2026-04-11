@@ -12,8 +12,7 @@ git clean -fdx
 # Clean existing artifacts
 build/sbt clean
 cd python
-rm -rf build dist
-rm -rf delta_sharing.egg-info dist
+rm -rf build dist delta_sharing.egg-info
 cd ..
 
 printf "Please type the release version: "
@@ -33,7 +32,7 @@ git checkout v$VERSION
 
 # Generate Python artifacts
 cd python/
-python3 -m build
+uv build
 cd ..
 
 # Generate the pre-built server package and sign files
