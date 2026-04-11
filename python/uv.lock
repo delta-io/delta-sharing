@@ -650,7 +650,8 @@ name = "black"
 version = "24.3.0"
 source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
 dependencies = [
-    { name = "click" },
+    { name = "click", version = "8.1.8", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "click", version = "8.3.1", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "mypy-extensions" },
     { name = "packaging" },
     { name = "pathspec", version = "0.12.1", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version < '3.9'" },
@@ -1074,12 +1075,35 @@ wheels = [
 name = "click"
 version = "8.1.8"
 source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+resolution-markers = [
+    "python_full_version == '3.9.*'",
+    "python_full_version >= '3.8.1' and python_full_version < '3.9'",
+    "python_full_version < '3.8.1'",
+]
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "colorama", marker = "python_full_version < '3.10' and sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b9/2e/0090cbf739cee7d23781ad4b89a9894a41538e4fcf4c31dcdd705b78eb8b/click-8.1.8.tar.gz", hash = "sha256:ed53c9d8990d83c2a27deae68e4ee337473f6330c040a31d4225c9574d16096a", size = 226593, upload-time = "2024-12-21T18:38:44.339Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7e/d4/7ebdbd03970677812aac39c869717059dbb71a4cfc033ca6e5221787892c/click-8.1.8-py3-none-any.whl", hash = "sha256:63c132bbbed01578a06712a2d1f497bb62d9c1c0d329b7903a866228027263b2", size = 98188, upload-time = "2024-12-21T18:38:41.666Z" },
+]
+
+[[package]]
+name = "click"
+version = "8.3.1"
+source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version == '3.13.*'",
+    "python_full_version >= '3.11' and python_full_version < '3.13'",
+    "python_full_version == '3.10.*'",
+]
+dependencies = [
+    { name = "colorama", marker = "python_full_version >= '3.10' and sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3d/fa/656b739db8587d7b5dfa22e22ed02566950fbfbcdc20311993483657a5c0/click-8.3.1.tar.gz", hash = "sha256:12ff4785d337a1bb490bb7e9c2b1ee5da3112e94a8622f26a6c77f5d2fc6842a", size = 295065, upload-time = "2025-11-15T20:45:42.706Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/98/78/01c019cdb5d6498122777c1a43056ebb3ebfeef2076d9d026bfe15583b2b/click-8.3.1-py3-none-any.whl", hash = "sha256:981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6", size = 108274, upload-time = "2025-11-15T20:45:41.139Z" },
 ]
 
 [[package]]
@@ -1224,35 +1248,20 @@ s3 = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "aiohttp", version = "3.10.11", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version < '3.9'" },
-    { name = "aiohttp", version = "3.13.3", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "black" },
     { name = "flake8", version = "5.0.4", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version < '3.8.1'" },
     { name = "flake8", version = "7.1.2", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version >= '3.8.1' and python_full_version < '3.9'" },
     { name = "flake8", version = "7.3.0", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version >= '3.9'" },
-    { name = "fsspec", version = "2025.3.0", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version < '3.9'" },
-    { name = "fsspec", version = "2025.10.0", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version == '3.9.*'" },
-    { name = "fsspec", version = "2026.2.0", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version >= '3.10'" },
-    { name = "jwcrypto" },
     { name = "maturin" },
     { name = "mypy" },
-    { name = "numpy", version = "1.24.4", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version < '3.9'" },
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "packaging" },
-    { name = "pandas" },
-    { name = "pyarrow" },
     { name = "pytest", version = "8.3.5", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version < '3.9'" },
     { name = "pytest", version = "8.4.2", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version == '3.9.*'" },
     { name = "pytest", version = "9.0.2", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version >= '3.10'" },
-    { name = "requests", version = "2.32.4", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version < '3.9'" },
-    { name = "requests", version = "2.32.5", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "setuptools", version = "75.3.4", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version < '3.9'" },
     { name = "setuptools", version = "82.0.1", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "types-requests", version = "2.31.0.6", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version < '3.10'" },
     { name = "types-requests", version = "2.32.0.20250602", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version >= '3.10'" },
-    { name = "yarl", version = "1.15.2", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version < '3.9'" },
-    { name = "yarl", version = "1.22.0", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version == '3.9.*'" },
-    { name = "yarl", version = "1.23.0", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version >= '3.10'" },
 ]
 
 [package.metadata]
@@ -1276,22 +1285,14 @@ provides-extras = ["s3", "abfs", "adl", "gcs", "gs"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "aiohttp", specifier = "<=3.13.3" },
     { name = "black", specifier = "==24.3.0" },
     { name = "flake8", specifier = "<=7.3.0" },
-    { name = "fsspec", specifier = ">=0.7.4,<=2026.2.0" },
-    { name = "jwcrypto", specifier = ">=1.5.6,<=1.5.6" },
     { name = "maturin", specifier = "<=1.12.6" },
     { name = "mypy", specifier = "==0.981" },
-    { name = "numpy", specifier = "<2.0" },
     { name = "packaging" },
-    { name = "pandas", specifier = "==2.0.3" },
-    { name = "pyarrow", specifier = "==16.1.0" },
     { name = "pytest", specifier = "<=9.0.2" },
-    { name = "requests", specifier = "<=2.32.5" },
     { name = "setuptools", specifier = ">=64" },
     { name = "types-requests", specifier = "<=2.32.0.20260311" },
-    { name = "yarl", specifier = ">=1.6.0,<=1.23.0" },
 ]
 
 [[package]]

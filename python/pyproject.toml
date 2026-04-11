@@ -56,23 +56,14 @@ include = ["delta_sharing"]
 [tool.uv]
 exclude-newer = "2026-03-19T00:00:00Z"
 
-[dependency-groups]
-dev = [
-    "aiohttp<=3.13.3",
-    "black==24.3.0",
-    "flake8<=7.3.0",
-    "fsspec>=0.7.4,<=2026.2.0",
-    "jwcrypto>=1.5.6,<=1.5.6",
-    "maturin<=1.12.6",
+[dependency-groups]                                                                                                                                                            
+dev = [                                                   
     "mypy==0.981",
-    "numpy<2.0",
-    "pandas==2.0.3",
-    "pyarrow==16.1.0",
-    "pytest<=9.0.2",
-    "requests<=2.32.5",
+    "flake8<=7.3.0",                                                                                                                                                           
+    "black==24.3.0",
+    "pytest<=9.0.2",                                                                                                                                                           
+    "maturin<=1.12.6",                                                                                                                                                         
     "types-requests<=2.32.0.20260311",
-    "yarl>=1.6.0,<=1.23.0",
-    "setuptools>=64",
-    "packaging",
-]
-
+    "setuptools>=64",                                                                                                                                                          
+    "packaging",                                                                                                                                                               
+]     
