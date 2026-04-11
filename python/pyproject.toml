@@ -71,5 +71,6 @@ dev = [
     "types-requests<=2.32.0.20260311",
     "yarl>=1.6.0,<=1.23.0",
     "setuptools>=64",
+    "packaging",
 ]
 
