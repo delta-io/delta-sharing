@@ -34,8 +34,8 @@ function satisfies_min_version {
     local expected_version="$2"
     echo "$(
         "$PYTHON_EXECUTABLE" << EOM
-from setuptools.extern.packaging import version
-print(version.parse('$provided_version') >= version.parse('$expected_version'))
+from packaging.version import Version
+print(Version('$provided_version') >= Version('$expected_version'))
 EOM
     )"
 }
@@ -131,9 +131,7 @@ flake8 checks failed."
     fi
 
     echo "starting $FLAKE8_BUILD test..."
-    FLAKE8_REPORT=$( ($FLAKE8_BUILD . --count --select=E901,E999,F821,F822,F823,F401,F405 \
-                     --exclude="docs/build/html/reference/api/*.py","build" \
-                     --max-line-length=100 --show-source --statistics) 2>&1)
+    FLAKE8_REPORT=$( ($FLAKE8_BUILD delta_sharing --count --select=E901,E999,F821,F822,F823,F401,F405 --max-line-length=100 --show-source --statistics) 2>&1)    
     FLAKE8_STATUS=$?
 
     if [ "$FLAKE8_STATUS" -ne 0 ]; then
@@ -247,7 +245,7 @@ SPARK_ROOT_DIR="$(dirname "${SCRIPT_DIR}")"
 
 pushd "$SPARK_ROOT_DIR" &> /dev/null
 
-PYTHON_SOURCE="$(find . -name "*.py")"
+PYTHON_SOURCE="$(find . -name "*.py" -not -path "./.venv/*")"
 
 compile_python_test "$PYTHON_SOURCE"
 black_test
