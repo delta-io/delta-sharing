@@ -247,7 +247,7 @@ SPARK_ROOT_DIR="$(dirname "${SCRIPT_DIR}")"
 
 pushd "$SPARK_ROOT_DIR" &> /dev/null
 
-PYTHON_SOURCE="$(find delta_sharing -name "*.py")"  
+PYTHON_SOURCE="$(find . -name "*.py" -not -path "./.venv/*")"
 
 compile_python_test "$PYTHON_SOURCE"
 black_test
