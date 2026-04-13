@@ -22,12 +22,6 @@ jobs:
         python-version: [3.8]
         arch: [x86_64, arm64]
         exclude:
-          - os: ubuntu-latest
-            arch: arm64
-          - os: ubuntu-24.04
-            arch: arm64
-          - os: ubuntu-22.04
-            arch: arm64
           - os: windows-latest
             arch: arm64
 
