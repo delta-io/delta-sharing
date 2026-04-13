@@ -1275,7 +1275,7 @@ requires-dist = [
     { name = "gcsfs", marker = "extra == 'gcs'" },
     { name = "gcsfs", marker = "extra == 'gs'" },
     { name = "jwcrypto", specifier = ">=1.5.6,<2.0" },
-    { name = "pandas", specifier = ">=2.0.3,<=3.0.1" },
+    { name = "pandas", specifier = ">=2.0.3,<3.0.0" },
     { name = "pyarrow", specifier = ">=16.1.0,<=23.0.1" },
     { name = "requests", specifier = ">=2.20.0,<=2.32.5" },
     { name = "s3fs", marker = "extra == 's3'" },
