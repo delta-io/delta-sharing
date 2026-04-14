@@ -10,8 +10,8 @@
 build.sbt            @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88 
 
 # Python dependency specifications
-python/requirements-dev.txt                                  @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
-python/setup.py                                              @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
+python/pyproject.toml                                        @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
+python/uv.lock                                              @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 python/delta-kernel-rust-sharing-wrapper/Cargo.toml          @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 python/delta-kernel-rust-sharing-wrapper/pyproject.toml      @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 
