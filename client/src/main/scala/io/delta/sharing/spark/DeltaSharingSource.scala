@@ -145,14 +145,6 @@ case class DeltaSharingSource(
   // GLOBAL variable which should be protected by synchronized
   private var minUrlExpirationTimestamp: Option[Long] = None
 
-  // Whether this query is running in Trigger.AvailableNow mode.
-  // TODO: If SupportsConcurrentExecution is added, these need @volatile or synchronization.
-  private var isTriggerAvailableNow: Boolean = false
-
-  // The server version captured at query start for Trigger.AvailableNow. All processing is capped
-  // at this version. Not persisted -- re-captured fresh on every query start.
-  private var frozenServerVersionForAvailableNow: Long = -1
-
   private var lastGetVersionTimestamp: Long = -1
   private var latestTableVersion: Long = -1
 
@@ -215,15 +207,6 @@ case class DeltaSharingSource(
   // Check the latest table version from the delta sharing server through the client.getTableVersion
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
   // rpcs to avoid traffic jam on the delta sharing server.
-  override def prepareForTriggerAvailableNow(): Unit = {
-    // Call getOrUpdateLatestTableVersion BEFORE setting isTriggerAvailableNow, so the guard
-    // inside getOrUpdateLatestTableVersion doesn't short-circuit and we get a real RPC.
-    frozenServerVersionForAvailableNow = getOrUpdateLatestTableVersion
-    isTriggerAvailableNow = true
-    logInfo(s"Prepared for Trigger.AvailableNow with frozenServerVersionForAvailableNow=" +
-      s"$frozenServerVersionForAvailableNow," + getTableInfoForLogging)
-  }
-
   private def getOrUpdateLatestTableVersion: Long = {
     if (isTriggerAvailableNow) {
       return frozenServerVersionForAvailableNow
