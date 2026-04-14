@@ -72,3 +72,32 @@ Use your real name (sorry, no pseudonyms or anonymous contributions.)
 ```
 
 If you set your `user.name` and `user.email` git configs, you can sign your commit automatically with git commit -s.
+
+# Development
+
+## Python
+
+This project uses [uv](https://docs.astral.sh/uv/) for Python dependency management.
+
+### Setup
+
+```bash
+cd python
+uv sync
+uv run maturin develop --manifest-path delta-kernel-rust-sharing-wrapper/Cargo.toml
+
+Running tests
+
+cd python
+uv run dev/lint-python
+uv run dev/pytest
+
+Regenerating uv.lock
+
+After updating dependencies in pyproject.toml:
+
+cd python
+uv lock
+
+Note: The lock file may contain references to an internal PyPI proxy. External contributors should regenerate the lock file in their own environment.
+```
