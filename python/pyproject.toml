@@ -56,14 +56,14 @@ include = ["delta_sharing"]
 [tool.uv]
 exclude-newer = "2026-03-19T00:00:00Z"
 
-[dependency-groups]                                                                                                                                                            
-dev = [                                                   
+[dependency-groups]
+dev = [
     "mypy==0.981",
-    "flake8<=7.3.0",                                                                                                                                                           
+    "flake8<=7.3.0",
     "black==24.3.0",
-    "pytest<=9.0.2",                                                                                                                                                           
-    "maturin<=1.12.6",                                                                                                                                                         
+    "pytest<=9.0.2",
+    "maturin<=1.12.6",
     "types-requests<=2.32.0.20260311",
-    "setuptools>=64",                                                                                                                                                          
-    "packaging",                                                                                                                                                               
-]     
+    "setuptools>=64",
+    "packaging",
+]
