@@ -155,6 +155,27 @@ case class DeltaSharingSource(
 
   private var lastGetVersionTimestamp: Long = -1
   private var latestTableVersion: Long = -1
+
+  // AvailableNow trigger support.
+  private var isTriggerAvailableNow: Boolean = false
+  private var frozenServerVersionForAvailableNow: Long = -1
+
+  /**
+   * Capture the server version once at query start. All subsequent calls to
+   * getOrUpdateLatestTableVersion return this frozen value, which in turn caps
+   * endingVersionForQuery in maybeGetFileChanges. No additional guard inside
+   * maybeGetFileChanges is needed (unlike DeltaFormatSharingSource's
+   * needNewFilesFromServer): that source has an intermediate local delta log
+   * which must be explicitly stopped from growing past the frozen version;
+   * here there is no such buffer -- sortedFetchedFiles is populated directly
+   * from the server RPC whose version ceiling is already frozen.
+   */
+  override def prepareForTriggerAvailableNow(): Unit = {
+    frozenServerVersionForAvailableNow = getOrUpdateLatestTableVersion
+    isTriggerAvailableNow = true
+    logInfo(s"AvailableNow: frozen server version at $frozenServerVersionForAvailableNow," +
+      getTableInfoForLogging)
+  }
   // minimum 10 seconds
   private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = {
     val intervalSeconds = ConfUtils.MINIMUM_TABLE_VERSION_INTERVAL_SECONDS.max(

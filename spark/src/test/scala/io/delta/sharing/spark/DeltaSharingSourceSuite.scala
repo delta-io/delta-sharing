@@ -443,6 +443,164 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
+  /**
+   * Test Trigger.AvailableNow
+   */
+  integrationTest("Trigger.AvailableNow - success") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion()
+        .load().writeStream.format("parquet")
+        .trigger(Trigger.AvailableNow())
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        assert(progress.length === 1)
+        progress.foreach { p =>
+          assert(p.numInputRows === 4)
+        }
+      } finally {
+        query.stop()
+      }
+    }
+  }
+
+  integrationTest("Trigger.AvailableNow with maxFilesPerTrigger - success") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().writeStream.format("parquet")
+        .trigger(Trigger.AvailableNow())
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+
+      try {
+        query.processAllAvailable()
+        val progress = query.recentProgress.filter(_.numInputRows != 0)
+        // 4 source files -> 4 micro-batches of 1 row each
+        assert(progress.length === 4)
+        progress.foreach { p =>
+          assert(p.numInputRows === 1)
+        }
+      } finally {
+        query.stop()
+      }
+
+      val expected = Seq(
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("3", 3, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-02-02")),
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+    }
+  }
+
+  integrationTest("Trigger.AvailableNow with maxFilesPerTrigger - checkpoint file counts") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      val query = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().writeStream.format("parquet")
+        .trigger(Trigger.AvailableNow())
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+
+      try {
+        query.processAllAvailable()
+      } finally {
+        query.stop()
+      }
+
+      // Exclude Hadoop .N.crc sidecar files; count only the numeric batch files.
+      def countBatchFiles(sub: String): Int =
+        new java.io.File(checkpointDir, sub)
+          .listFiles(f => !f.isDirectory && !f.getName.startsWith(".")).length
+      // 4 source files -> 4 micro-batches; AvailableNow must terminate with one
+      // offset and one commit file per batch (no extra server fetches beyond the
+      // frozen version).
+      assert(countBatchFiles("offsets") === 4)
+      assert(countBatchFiles("commits") === 4)
+    }
+  }
+
+  integrationTest("Trigger.AvailableNow restart from checkpoint - no duplicate rows") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      // First run: processes all data up to the frozen server version, then self-terminates.
+      val query = withStreamReaderAtVersion()
+        .load().writeStream.format("parquet")
+        .trigger(Trigger.AvailableNow())
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+        assert(query.recentProgress.filter(_.numInputRows != 0).length === 1)
+      } finally {
+        query.stop()
+      }
+
+      // Second run: table unchanged; checkpoint offset already at frozen version;
+      // no rows should be re-emitted.
+      val query2 = withStreamReaderAtVersion()
+        .load().writeStream.format("parquet")
+        .trigger(Trigger.AvailableNow())
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query2.processAllAvailable()
+        assert(query2.recentProgress.filter(_.numInputRows != 0).length === 0,
+          "AvailableNow should not re-emit rows already committed in a prior run")
+      } finally {
+        query2.stop()
+      }
+    }
+  }
+
+  integrationTest("Trigger.AvailableNow restart handles mid-stream crash") {
+    withTempDirs { (checkpointDir, outputDir) =>
+      // Run to completion to establish a full checkpoint.
+      val query = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().writeStream.format("parquet")
+        .trigger(Trigger.AvailableNow())
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query.processAllAvailable()
+      } finally {
+        query.stop()
+      }
+
+      // Simulate a crash: delete commits/0 so the engine believes batch 0 was
+      // never committed to the sink and re-runs it on the next start.
+      // FileStreamSink.addBatch skips batches already in its own sink log, so
+      // the re-run does not produce duplicate rows in the output.
+      new java.io.File(checkpointDir, "commits/0").delete()
+
+      val query2 = withStreamReaderAtVersion()
+        .option("maxFilesPerTrigger", "1")
+        .load().writeStream.format("parquet")
+        .trigger(Trigger.AvailableNow())
+        .option("checkpointLocation", checkpointDir.getCanonicalPath)
+        .start(outputDir.getCanonicalPath)
+      try {
+        query2.processAllAvailable()
+      } finally {
+        query2.stop()
+      }
+
+      // All 4 rows must be present with no data loss or duplication.
+      val expected = Seq(
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("3", 3, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-02-02")),
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
+    }
+  }
+
   integrationTest("restart from checkpoint - success") {
     withTempDirs { (checkpointDir, outputDir) =>
       val query = withStreamReaderAtVersion()
@@ -581,134 +739,6 @@ class DeltaSharingSourceSuite extends QueryTest
       }
     } finally {
       query.stop()
-    }
-  }
-
-  // Tests for Trigger.AvailableNow with native SupportsTriggerAvailableNow implementation.
-
-  private def runAvailableNowQuery(
-      reader: DataStreamReader,
-      checkpointDir: java.io.File,
-      outputDir: java.io.File,
-      outputFormat: String = "parquet"): Unit = {
-    val query = reader
-      .load().writeStream.format(outputFormat)
-      .option("checkpointLocation", checkpointDir.getCanonicalPath)
-      .trigger(Trigger.AvailableNow())
-      .start(outputDir.getCanonicalPath)
-    try {
-      query.processAllAvailable()
-    } finally {
-      query.stop()
-    }
-  }
-
-  integrationTest("Trigger.AvailableNow - basic flow processes all data and terminates") {
-    withTempDirs { (checkpointDir, outputDir) =>
-      runAvailableNowQuery(
-        withStreamReaderAtVersion(),
-        checkpointDir,
-        outputDir
-      )
-
-      // All data from the shared table should be processed.
-      val result = spark.read.format("parquet").load(outputDir.getCanonicalPath)
-      assert(result.count() > 0, "Expected data to be processed")
-    }
-  }
-
-  integrationTest("Trigger.AvailableNow - restart resumes from checkpoint") {
-    withTempDirs { (checkpointDir, outputDir) =>
-      // First run: process all available data.
-      runAvailableNowQuery(
-        withStreamReaderAtVersion(),
-        checkpointDir,
-        outputDir
-      )
-
-      val countAfterFirstRun =
-        spark.read.format("parquet").load(outputDir.getCanonicalPath).count()
-      assert(countAfterFirstRun > 0, "Expected data from first run")
-
-      // Second run: same checkpoint, no new data. Should terminate immediately
-      // without producing duplicates.
-      runAvailableNowQuery(
-        withStreamReaderAtVersion(),
-        checkpointDir,
-        outputDir
-      )
-
-      val countAfterSecondRun =
-        spark.read.format("parquet").load(outputDir.getCanonicalPath).count()
-      assert(countAfterSecondRun === countAfterFirstRun,
-        s"Expected no new data on restart, but got $countAfterSecondRun vs $countAfterFirstRun")
-    }
-  }
-
-  integrationTest("Trigger.AvailableNow - terminates when no new data") {
-    withTempDirs { (checkpointDir, outputDir) =>
-      // First run to establish checkpoint.
-      runAvailableNowQuery(
-        withStreamReaderAtVersion(),
-        checkpointDir,
-        outputDir
-      )
-
-      val firstCount =
-        spark.read.format("parquet").load(outputDir.getCanonicalPath).count()
-
-      // Second run: no new data on server. Query should terminate without error.
-      runAvailableNowQuery(
-        withStreamReaderAtVersion(),
-        checkpointDir,
-        outputDir
-      )
-
-      val secondCount =
-        spark.read.format("parquet").load(outputDir.getCanonicalPath).count()
-      assert(firstCount === secondCount, "No new data should be processed")
-    }
-  }
-
-  integrationTest("Trigger.AvailableNow - with maxFilesPerTrigger produces multiple batches") {
-    withTempDirs { (checkpointDir, outputDir) =>
-      val query = withStreamReaderAtVersion()
-        .option("maxFilesPerTrigger", "1")
-        .load().writeStream.format("parquet")
-        .option("checkpointLocation", checkpointDir.getCanonicalPath)
-        .trigger(Trigger.AvailableNow())
-        .start(outputDir.getCanonicalPath)
-
-      try {
-        query.processAllAvailable()
-        // With maxFilesPerTrigger=1, there should be multiple batches
-        // (one per file). Verify query completed and processed data.
-        val progress = query.recentProgress.filter(_.numInputRows != 0)
-        assert(progress.length >= 1, "Expected at least one batch with data")
-      } finally {
-        query.stop()
-      }
-
-      val result = spark.read.format("parquet").load(outputDir.getCanonicalPath)
-      assert(result.count() > 0, "Expected data to be processed across multiple batches")
-    }
-  }
-
-  integrationTest("Trigger.ProcessingTime is not affected by AvailableNow changes") {
-    withTempDirs { (checkpointDir, outputDir) =>
-      // Default trigger (ProcessingTime) should still work.
-      val query = withStreamReaderAtVersion()
-        .load().writeStream.format("parquet")
-        .option("checkpointLocation", checkpointDir.getCanonicalPath)
-        .start(outputDir.getCanonicalPath)
-      try {
-        query.processAllAvailable()
-      } finally {
-        query.stop()
-      }
-
-      val result = spark.read.format("parquet").load(outputDir.getCanonicalPath)
-      assert(result.count() > 0, "Expected data with ProcessingTime trigger")
     }
   }
 }
