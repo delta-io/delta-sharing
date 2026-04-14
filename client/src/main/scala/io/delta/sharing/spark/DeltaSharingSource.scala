@@ -313,13 +313,6 @@ case class DeltaSharingSource(
     }
 
     val currentLatestVersion = getOrUpdateLatestTableVersion
-    // In AvailableNow mode, stop fetching once we've reached the frozen version.
-    // Using >= defensively; in practice the fetched version should only equal the frozen version
-    // since endingVersionForQuery is capped at frozenServerVersionForAvailableNow.
-    if (isTriggerAvailableNow && fromVersion > frozenServerVersionForAvailableNow) {
-      return
-    }
-
     if (fromVersion > currentLatestVersion) {
       // If true, it means that there's no new data from the delta sharing server.
       return
