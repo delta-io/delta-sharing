@@ -115,3 +115,6 @@ spark-warehouse/
 
 # For venv
 *.venv
+
+# For direnv
+.envrc
