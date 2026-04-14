@@ -464,6 +464,14 @@ class DeltaSharingSourceSuite extends QueryTest
       } finally {
         query.stop()
       }
+
+      val expected = Seq(
+        Row("2", 2, sqlDate("2020-01-01")),
+        Row("3", 3, sqlDate("2020-01-01")),
+        Row("2", 2, sqlDate("2020-02-02")),
+        Row("1", 1, sqlDate("2020-01-01"))
+      )
+      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
     }
   }
 
