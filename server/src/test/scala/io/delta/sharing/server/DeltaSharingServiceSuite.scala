@@ -728,7 +728,7 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
-  integrationTest("queryTable file id signed with requested fileidhash (md5 and sha256)") {
+  integrationTest("queryTable file id signed with requested fileidhash (parquet and delta)") {
     val p =
       s"""
          |{
@@ -738,28 +738,28 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
          |}
          |""".stripMargin
     val url = requestPath("/shares/share1/schemas/default/tables/table1/query")
-    val (responseMd5, fileIdHashHeaderMd5) = readNDJsonWithFileIdHashHeader(
-      url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_PARQUET, requestFileIdHash = Some("md5"))
-    val (responseSha256, fileIdHashHeaderSha256) = readNDJsonWithFileIdHashHeader(
-      url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_PARQUET, requestFileIdHash = Some("sha256"))
-    assert(fileIdHashHeaderMd5.contains("md5"), s"Expected fileidhash response header 'md5', got $fileIdHashHeaderMd5")
-    assert(fileIdHashHeaderSha256.contains("sha256"), s"Expected fileidhash response header 'sha256', got $fileIdHashHeaderSha256")
-    val fileIdsMd5 = extractFileIdsFromQueryResponse(responseMd5)
-    val fileIdsSha256 = extractFileIdsFromQueryResponse(responseSha256)
-    assert(fileIdsMd5.nonEmpty && fileIdsSha256.nonEmpty)
-    assert(fileIdsMd5.size == fileIdsSha256.size)
-    fileIdsMd5.foreach { id =>
-      assert(id.length == 32, s"MD5 file id should be 32 hex chars: $id")
-      assert(id.matches("[0-9a-f]+"), s"MD5 file id should be hex: $id")
+    val (responseParquet, fileIdHashHeaderParquet) = readNDJsonWithFileIdHashHeader(
+      url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_PARQUET, requestFileIdHash = Some("parquet"))
+    val (responseDelta, fileIdHashHeaderDelta) = readNDJsonWithFileIdHashHeader(
+      url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_PARQUET, requestFileIdHash = Some("delta"))
+    assert(fileIdHashHeaderParquet.contains("parquet"), s"Expected fileidhash response header 'parquet', got $fileIdHashHeaderParquet")
+    assert(fileIdHashHeaderDelta.contains("delta"), s"Expected fileidhash response header 'delta', got $fileIdHashHeaderDelta")
+    val fileIdsParquet = extractFileIdsFromQueryResponse(responseParquet)
+    val fileIdsDelta = extractFileIdsFromQueryResponse(responseDelta)
+    assert(fileIdsParquet.nonEmpty && fileIdsDelta.nonEmpty)
+    assert(fileIdsParquet.size == fileIdsDelta.size)
+    fileIdsParquet.foreach { id =>
+      assert(id.length == 32, s"parquet fileidhash should produce 32 hex char (MD5) ids: $id")
+      assert(id.matches("[0-9a-f]+"), s"parquet file id should be hex: $id")
     }
-    fileIdsSha256.foreach { id =>
-      assert(id.length == 64, s"SHA256 file id should be 64 hex chars: $id")
-      assert(id.matches("[0-9a-f]+"), s"SHA256 file id should be hex: $id")
+    fileIdsDelta.foreach { id =>
+      assert(id.length == 64, s"delta fileidhash should produce 64 hex char (SHA-256) ids: $id")
+      assert(id.matches("[0-9a-f]+"), s"delta file id should be hex: $id")
     }
-    assert(fileIdsMd5 != fileIdsSha256, "file ids should differ between md5 and sha256")
+    assert(fileIdsParquet != fileIdsDelta, "file ids should differ between parquet and delta fileidhash")
   }
 
-  integrationTest("queryTable fileidhash defaults: parquet=md5, delta=sha256") {
+  integrationTest("queryTable fileidhash defaults: parquet format uses parquet ids, delta format uses delta ids") {
     val p =
       s"""
          |{
@@ -772,33 +772,33 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
     val defaultParquetIds = extractFileIdsFromQueryResponse(
       readNDJson(url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_PARQUET))
-    val explicitMd5Ids = extractFileIdsFromQueryResponse(
+    val explicitParquetIds = extractFileIdsFromQueryResponse(
       readNDJson(url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_PARQUET,
-        requestFileIdHash = Some("md5")))
+        requestFileIdHash = Some("parquet")))
     assert(defaultParquetIds.nonEmpty)
     defaultParquetIds.foreach { id =>
-      assert(id.length == 32, s"Parquet default should produce 32-char md5 IDs: $id")
+      assert(id.length == 32, s"Parquet response default should produce 32-char (MD5) IDs: $id")
     }
-    assert(defaultParquetIds == explicitMd5Ids,
-      "Parquet default file IDs should match explicit md5 file IDs")
+    assert(defaultParquetIds == explicitParquetIds,
+      "Parquet default file IDs should match explicit parquet fileidhash file IDs")
 
     val defaultDeltaIds = extractFileIdsFromQueryResponse(
       readNDJson(url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_DELTA))
-    val explicitSha256Ids = extractFileIdsFromQueryResponse(
+    val explicitDeltaIds = extractFileIdsFromQueryResponse(
       readNDJson(url, Some("POST"), Some(p), Some(2), RESPONSE_FORMAT_DELTA,
-        requestFileIdHash = Some("sha256")))
+        requestFileIdHash = Some("delta")))
     assert(defaultDeltaIds.nonEmpty)
     defaultDeltaIds.foreach { id =>
-      assert(id.length == 64, s"Delta default should produce 64-char sha256 IDs: $id")
+      assert(id.length == 64, s"Delta response default should produce 64-char (SHA-256) IDs: $id")
     }
-    assert(defaultDeltaIds == explicitSha256Ids,
-      "Delta default file IDs should match explicit sha256 file IDs")
+    assert(defaultDeltaIds == explicitDeltaIds,
+      "Delta default file IDs should match explicit delta fileidhash file IDs")
   }
 
   integrationTest("queryTable rejects unsupported fileidhash value with 400") {
     val queryBody = """{"predicateHints": []}"""
     val url = requestPath("/shares/share1/schemas/default/tables/table1/query")
-    Seq("sha512", "SHA3-256", "none", "blake2b").foreach { invalid =>
+    Seq("sha512", "SHA3-256", "none", "blake2b", "md5", "sha256").foreach { invalid =>
       assertHttpError(
         url = url,
         method = "POST",
@@ -3180,26 +3180,26 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
-  integrationTest("queryCDF file id signed with requested fileidhash (md5 and sha256)") {
+  integrationTest("queryCDF file id signed with requested fileidhash (parquet and delta)") {
     val baseUrl = requestPath(
       s"/shares/share8/schemas/default/tables/cdf_table_cdf_enabled/changes?startingVersion=0&endingVersion=3")
-    val responseMd5 = readNDJson(baseUrl, Some("GET"), None, Some(0), RESPONSE_FORMAT_PARQUET,
-      requestFileIdHash = Some("md5"))
-    val responseSha256 = readNDJson(baseUrl, Some("GET"), None, Some(0), RESPONSE_FORMAT_PARQUET,
-      requestFileIdHash = Some("sha256"))
-    val fileIdsMd5 = extractFileIdsFromQueryResponse(responseMd5)
-    val fileIdsSha256 = extractFileIdsFromQueryResponse(responseSha256)
-    assert(fileIdsMd5.nonEmpty && fileIdsSha256.nonEmpty)
-    assert(fileIdsMd5.size == fileIdsSha256.size)
-    fileIdsMd5.foreach { id =>
-      assert(id.length == 32, s"MD5 file id should be 32 hex chars: $id")
-      assert(id.matches("[0-9a-f]+"), s"MD5 file id should be hex: $id")
+    val responseParquet = readNDJson(baseUrl, Some("GET"), None, Some(0), RESPONSE_FORMAT_PARQUET,
+      requestFileIdHash = Some("parquet"))
+    val responseDelta = readNDJson(baseUrl, Some("GET"), None, Some(0), RESPONSE_FORMAT_PARQUET,
+      requestFileIdHash = Some("delta"))
+    val fileIdsParquet = extractFileIdsFromQueryResponse(responseParquet)
+    val fileIdsDelta = extractFileIdsFromQueryResponse(responseDelta)
+    assert(fileIdsParquet.nonEmpty && fileIdsDelta.nonEmpty)
+    assert(fileIdsParquet.size == fileIdsDelta.size)
+    fileIdsParquet.foreach { id =>
+      assert(id.length == 32, s"parquet fileidhash should produce 32 hex chars: $id")
+      assert(id.matches("[0-9a-f]+"), s"parquet file id should be hex: $id")
     }
-    fileIdsSha256.foreach { id =>
-      assert(id.length == 64, s"SHA256 file id should be 64 hex chars: $id")
-      assert(id.matches("[0-9a-f]+"), s"SHA256 file id should be hex: $id")
+    fileIdsDelta.foreach { id =>
+      assert(id.length == 64, s"delta fileidhash should produce 64 hex chars: $id")
+      assert(id.matches("[0-9a-f]+"), s"delta file id should be hex: $id")
     }
-    assert(fileIdsMd5 != fileIdsSha256, "file ids should differ between md5 and sha256")
+    assert(fileIdsParquet != fileIdsDelta, "file ids should differ between parquet and delta fileidhash")
   }
 
   integrationTest("cdf_table_cdf_enabled_changes - paginated query table changes") {

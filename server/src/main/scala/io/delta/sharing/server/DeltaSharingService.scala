@@ -635,7 +635,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
     )
   }
 
-  /** Returns validated fileidhash request header (md5 or sha256, lowercase) or None. */
+  /** Returns validated fileidhash request header (parquet or delta, lowercase) or None. */
   private def getRequestFileIdHash(req: HttpRequest): Option[String] = {
     // scalastyle:off caselocale
     Option(req.headers().get(FILEIDHASH_HEADER)).map { raw =>
@@ -748,7 +748,7 @@ object DeltaSharingService {
   val DELTA_TABLE_METADATA_CONTENT_TYPE = "application/x-ndjson; charset=utf-8"
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
   val FILEIDHASH_HEADER = "fileidhash"
-  val FILEIDHASH_VALID_VALUES = Set("md5", "sha256")
+  val FILEIDHASH_VALID_VALUES = Set("parquet", "delta")
   val DELTA_SHARING_RESPONSE_FORMAT = "responseformat"
   val DELTA_SHARING_CAPABILITIES_ASYNC_QUERY = "asyncquery"
   val DELTA_SHARING_INCLUDE_END_STREAM_ACTION = "includeendstreamaction"
