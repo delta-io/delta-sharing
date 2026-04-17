@@ -2109,20 +2109,20 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}"""
           ),
           capabilitiesMap = Map.empty,
-          fileIdHash = Some("md5")
+          fileIdHash = Some("parquet")
         )
       }
     }
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
-      val files = client.getFiles(table, Nil, None, None, None, None, None, Some("md5"))
+      val files = client.getFiles(table, Nil, None, None, None, None, None, Some("parquet"))
       assert(files.version == 1L)
     } finally {
       client.close()
     }
   }
 
-  test("fileIdHash - getFiles case-insensitive verification (client sends MD5, server echoes md5)") {
+  test("fileIdHash - getFiles case-insensitive verification (client sends PARQUET, server echoes parquet)") {
     val client = new DeltaSharingRestClient(
       profileProvider = new TestProfileProvider(false),
       responseFormat = RESPONSE_FORMAT_DELTA
@@ -2141,13 +2141,13 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{}","partitionColumns":[]}}"""
           ),
           capabilitiesMap = Map.empty,
-          fileIdHash = Some("md5")
+          fileIdHash = Some("parquet")
         )
       }
     }
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
-      val files = client.getFiles(table, Nil, None, None, None, None, None, Some("MD5"))
+      val files = client.getFiles(table, Nil, None, None, None, None, None, Some("PARQUET"))
       assert(files.version == 1L)
     } finally {
       client.close()
@@ -2180,7 +2180,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
       val e = intercept[IllegalStateException] {
-        client.getFiles(table, Nil, None, None, None, None, None, Some("md5"))
+        client.getFiles(table, Nil, None, None, None, None, None, Some("parquet"))
       }
       assert(e.getMessage.contains("fileidhash"))
       assert(e.getMessage.contains("did not return"))
@@ -2208,18 +2208,18 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             """{"metaData":{"id":"test-id","format":{"provider":"parquet"},"schemaString":"{}","partitionColumns":[]}}"""
           ),
           capabilitiesMap = Map.empty,
-          fileIdHash = Some("sha256")
+          fileIdHash = Some("delta")
         )
       }
     }
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
       val e = intercept[IllegalStateException] {
-        client.getFiles(table, Nil, None, None, None, None, None, Some("md5"))
+        client.getFiles(table, Nil, None, None, None, None, None, Some("parquet"))
       }
       assert(e.getMessage.contains("fileidhash"))
-      assert(e.getMessage.contains("sha256"))
-      assert(e.getMessage.contains("md5"))
+      assert(e.getMessage.contains("delta"))
+      assert(e.getMessage.contains("parquet"))
     } finally {
       client.close()
     }
@@ -2237,8 +2237,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       }
       assert(e.getMessage.contains("fileidhash"))
       assert(e.getMessage.contains("must be one of"))
-      assert(e.getMessage.contains("md5"))
-      assert(e.getMessage.contains("sha256"))
+      assert(e.getMessage.contains("parquet"))
+      assert(e.getMessage.contains("delta"))
     } finally {
       client.close()
     }
@@ -2270,7 +2270,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
-      val files = client.getFiles(table, Nil, None, None, None, None, None, Some("md5"))
+      val files = client.getFiles(table, Nil, None, None, None, None, None, Some("parquet"))
       assert(files.version == 1L)
     } finally {
       client.close()
