@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, ubuntu-24.04, ubuntu-22.04, macos-latest, windows-latest]
-        python-version: [3.8]
+        python-version: ["3.10"]
         arch: [x86_64, arm64]
         exclude:
           - os: ubuntu-latest

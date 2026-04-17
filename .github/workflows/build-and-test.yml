@@ -103,7 +103,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.10", "3.11"]
     env:
       SPARK_LOCAL_IP: localhost
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/google_service_account_key.json
