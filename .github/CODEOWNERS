@@ -1,0 +1,17 @@
+# CODEOWNERS — require maintainer review for security-sensitive paths
+#
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Dependabot and GitHub config
+/.github/            @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
+
+# Build scripts (SBT launcher, linting)
+/build/              @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
+build.sbt            @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88 
+
+# Python dependency specifications
+python/requirements-dev.txt                                  @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
+python/setup.py                                              @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
+python/delta-kernel-rust-sharing-wrapper/Cargo.toml          @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
+python/delta-kernel-rust-sharing-wrapper/pyproject.toml      @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
+
