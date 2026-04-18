@@ -26,8 +26,8 @@ dependencies = [
     "pandas>=2.0.3,<3.0.0",
     "pyarrow>=16.1.0,<=23.0.1",
     "fsspec>=0.7.4,<=2026.2.0",
-    "requests>=2.20.0,<=2.32.5",
-    "aiohttp>=3.0.0,<=3.13.3",
+    "requests>=2.20.0,<=2.33.0",
+    "aiohttp>=3.0.0,<=3.13.4",
     "yarl>=1.6.0,<=1.23.0",
     "jwcrypto>=1.5.6,<2.0",
 ]
@@ -56,10 +56,10 @@ exclude-newer = "2026-03-19T00:00:00Z"
 [dependency-groups]
 dev = [
     "mypy==0.981",
-    "flake8<=7.3.0",
-    "black==24.3.0",
-    "pytest<=9.0.2",
-    "maturin<=1.12.6",
+    "flake8<=7.3.0",                                                                                                                                                           
+    "black==26.3.1",
+    "pytest<=9.0.3",                                                                                                                                                           
+    "maturin<=1.12.6",                                                                                                                                                         
     "types-requests<=2.32.0.20260311",
     "setuptools>=64",
     "packaging",
