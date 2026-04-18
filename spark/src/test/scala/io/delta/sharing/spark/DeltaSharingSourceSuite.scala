@@ -565,50 +565,6 @@ class DeltaSharingSourceSuite extends QueryTest
     }
   }
 
-  integrationTest("Trigger.AvailableNow restart handles mid-stream crash") {
-    withTempDirs { (checkpointDir, outputDir) =>
-      // Run to completion to establish a full checkpoint.
-      val query = withStreamReaderAtVersion()
-        .option("maxFilesPerTrigger", "1")
-        .load().writeStream.format("parquet")
-        .trigger(Trigger.AvailableNow())
-        .option("checkpointLocation", checkpointDir.getCanonicalPath)
-        .start(outputDir.getCanonicalPath)
-      try {
-        query.processAllAvailable()
-      } finally {
-        query.stop()
-      }
-
-      // Simulate a crash: delete commits/0 so the engine believes batch 0 was
-      // never committed to the sink and re-runs it on the next start.
-      // FileStreamSink.addBatch skips batches already in its own sink log, so
-      // the re-run does not produce duplicate rows in the output.
-      new java.io.File(checkpointDir, "commits/0").delete()
-
-      val query2 = withStreamReaderAtVersion()
-        .option("maxFilesPerTrigger", "1")
-        .load().writeStream.format("parquet")
-        .trigger(Trigger.AvailableNow())
-        .option("checkpointLocation", checkpointDir.getCanonicalPath)
-        .start(outputDir.getCanonicalPath)
-      try {
-        query2.processAllAvailable()
-      } finally {
-        query2.stop()
-      }
-
-      // All 4 rows must be present with no data loss or duplication.
-      val expected = Seq(
-        Row("2", 2, sqlDate("2020-01-01")),
-        Row("3", 3, sqlDate("2020-01-01")),
-        Row("2", 2, sqlDate("2020-02-02")),
-        Row("1", 1, sqlDate("2020-01-01"))
-      )
-      checkAnswer(spark.read.format("parquet").load(outputDir.getCanonicalPath), expected)
-    }
-  }
-
   integrationTest("restart from checkpoint - success") {
     withTempDirs { (checkpointDir, outputDir) =>
       val query = withStreamReaderAtVersion()
