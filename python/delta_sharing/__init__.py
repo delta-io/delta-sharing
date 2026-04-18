@@ -20,7 +20,6 @@ from delta_sharing.delta_sharing import load_table_changes_as_pandas, load_table
 from delta_sharing.protocol import Share, Schema, Table
 from delta_sharing.version import __version__
 
-
 __all__ = [
     "SharingClient",
     "Share",
