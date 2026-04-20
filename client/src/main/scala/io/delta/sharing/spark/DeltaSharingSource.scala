@@ -155,12 +155,16 @@ case class DeltaSharingSource(
   /**
    * Capture the server version once at query start. All subsequent calls to
    * getOrUpdateLatestTableVersion return this frozen value, which in turn caps
-   * endingVersionForQuery in maybeGetFileChanges. No additional guard inside
-   * maybeGetFileChanges is needed (unlike DeltaFormatSharingSource's
-   * needNewFilesFromServer): that source has an intermediate local delta log
-   * which must be explicitly stopped from growing past the frozen version;
-   * here there is no such buffer -- sortedFetchedFiles is populated directly
-   * from the server RPC whose version ceiling is already frozen.
+   * endingVersionForQuery in maybeGetFileChanges. Once all files up to the
+   * frozen version have been consumed, getBatch returns no new data and the
+   * AvailableNow engine terminates the query.
+   *
+   * No additional guard inside maybeGetFileChanges is needed (unlike
+   * DeltaFormatSharingSource's needNewFilesFromServer): that source has an
+   * intermediate local delta log which must be explicitly stopped from growing
+   * past the frozen version; here there is no such buffer -- sortedFetchedFiles
+   * is populated directly from the server RPC whose version ceiling is already
+   * frozen.
    */
   override def prepareForTriggerAvailableNow(): Unit = {
     frozenServerVersionForAvailableNow = getOrUpdateLatestTableVersion
