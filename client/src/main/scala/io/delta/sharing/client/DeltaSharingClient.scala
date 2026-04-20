@@ -116,7 +116,8 @@ case class ParsedDeltaSharingTablePath(
  * @param lines all lines in the response.
  * @param capabilitiesMap Map parsed from the value of delta-sharing-capabilities in the
  *                        response header
- * @param fileIdHash The value of the fileidhash response header, if present (e.g. md5 or sha256).
+ * @param fileIdHash The fileidhash response header value, if present
+ *                   (e.g. parquet or delta).
  */
 case class ParsedDeltaSharingResponse(
     version: Long,
@@ -1432,9 +1433,9 @@ object DeltaSharingRestClient extends Logging {
   val DELTA_SHARING_CAPABILITIES_HEADER = "delta-sharing-capabilities"
   val RESPONSE_TABLE_VERSION_HEADER_KEY = "Delta-Table-Version"
   val FILEIDHASH_HEADER = "fileidhash"
-  val FILEIDHASH_MD5 = "md5"
-  val FILEIDHASH_SHA256 = "sha256"
-  val FILEIDHASH_VALID_VALUES = Set(FILEIDHASH_MD5, FILEIDHASH_SHA256)
+  val FILEIDHASH_PARQUET = "parquet"
+  val FILEIDHASH_DELTA = "delta"
+  val FILEIDHASH_VALID_VALUES = Set(FILEIDHASH_PARQUET, FILEIDHASH_DELTA)
   val RESPONSE_FORMAT = "responseformat"
   val READER_FEATURES = "readerfeatures"
   val DELTA_SHARING_CAPABILITIES_ASYNC_READ = "asyncquery"
