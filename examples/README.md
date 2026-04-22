@@ -3,8 +3,10 @@ In this folder there are examples taken from the delta.io/delta-sharing quicksta
 The profile file from the open, example Delta Sharing Server is downloaded and located in this folder.
 
 ### Prerequisites
-* For Python examples, Python3.6+, Delta-Sharing Python Connector, PySpark need to be installed, see [the project docs](https://github.com/delta-io/delta-sharing) for details.
+* For Python examples, Python3.6+, Delta-Sharing Python Connector, and any example-specific dependencies need to be installed, see [the project docs](https://github.com/delta-io/delta-sharing) for details.
+* `./python/quickstart_arrow.py` also requires `duckdb` to be installed.
 
 ### Instructions
 * To run the example of PySpark in Python run `spark-submit --packages io.delta:delta-sharing-spark_2.12:0.6.2 ./python/quickstart_spark.py`
 * To run the example of pandas DataFrame in Python run `python3 ./python/quickstart_pandas.py`
+* To run the example of Arrow and DuckDB in Python run `python3 ./python/quickstart_arrow.py`
