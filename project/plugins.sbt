@@ -22,7 +22,7 @@ resolvers += "Typesafe Repository" at "https://repo.typesafe.com/typesafe/releas
 // Removed: dl.bintray.com shut down 2021 — potential domain takeover risk
 // Typesafe plugins are available via the Typesafe Repository resolver above
 
-addSbtPlugin("com.github.gseitz" % "sbt-release" % "1.0.13")
+addSbtPlugin("com.github.sbt" % "sbt-release" % "1.1.0")
 
 addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "3.11.3")
 
