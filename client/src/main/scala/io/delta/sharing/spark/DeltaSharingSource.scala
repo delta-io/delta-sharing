@@ -121,6 +121,33 @@ case class DeltaSharingSource(
   // This is checked before creating DeltaSharingSource
   assert(schema.nonEmpty, "schema cannot be empty in DeltaSharingSource.")
 
+  private var isTriggerAvailableNow = false
+
+  private var isLastOffsetForTriggerAvailableNowInitialized = false
+
+  private var lastOffsetForTriggerAvailableNow: Option[DeltaSharingSourceOffset] = None
+
+  override def prepareForTriggerAvailableNow(): Unit = {
+    logInfo(s"The streaming query reports to use Trigger.AvailableNow")
+    isTriggerAvailableNow = true
+  }
+
+  private def initForTriggerAvailableNowIfNeeded(): Unit = {
+    if (isTriggerAvailableNow && !isLastOffsetForTriggerAvailableNowInitialized) {
+      isLastOffsetForTriggerAvailableNowInitialized = true
+      initLastOffsetForTriggerAvailableNow()
+    }
+  }
+
+  private def initLastOffsetForTriggerAvailableNow(): Unit = {
+    val offset = latestOffsetInternal(ReadLimit.allAvailable())
+    if (offset != null) {
+      lastOffsetForTriggerAvailableNow = Some(DeltaSharingSourceOffset(tableId, offset))
+      logInfo("lastOffset for Trigger.AvailableNow has set to " +
+        s"${lastOffsetForTriggerAvailableNow.get.json}")
+    }
+  }
+
   /** A check on the source table that skips commits that contain removes from the set of files. */
   private val skipChangeCommits = options.skipChangeCommits
 
@@ -318,6 +345,13 @@ case class DeltaSharingSource(
       getTableFileChanges(fromVersion, fromIndex, isStartingVersion, endingVersionForQuery)
     } else {
       getCDFFileChanges(fromVersion, fromIndex, endingVersionForQuery)
+    }
+
+    lastOffsetForTriggerAvailableNow.foreach { bound =>
+      sortedFetchedFiles = sortedFetchedFiles.filter {
+        case IndexedFile(version, index, _, _, _, _, _) =>
+          version < bound.tableVersion || (version == bound.tableVersion && index <= bound.index)
+      }
     }
   }
 
@@ -1053,6 +1087,11 @@ case class DeltaSharingSource(
   }
 
   override def latestOffset(startOffset: streaming.Offset, limit: ReadLimit): streaming.Offset = {
+    initForTriggerAvailableNowIfNeeded()
+    latestOffsetInternal(limit)
+  }
+
+  private def latestOffsetInternal(limit: ReadLimit): streaming.Offset = {
     val limits = AdmissionLimits(limit)
 
     val currentOffset = if (previousOffset == null) {
@@ -1073,6 +1112,8 @@ case class DeltaSharingSource(
     logInfo(s"getBatch with startOffsetOption($startOffsetOption) and end($end)," +
       getTableInfoForLogging)
     val endOffset = DeltaSharingSourceOffset(tableId, end)
+
+    initForTriggerAvailableNowIfNeeded()
 
     val (startVersion, startIndex, isStartingVersion, startSourceVersion) = if (
       startOffsetOption.isEmpty) {
