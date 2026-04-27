@@ -613,8 +613,9 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     ) {
       val tablePath = testProfileFile.getCanonicalPath + "#share_azure.default.table_wasb"
 
-      // Note: This test requires server-side support for async queries that take longer than timeout
-      // In a real scenario, this would timeout if the server keeps returning queryStatus
+      // Note: This test requires server-side support for async queries that take longer
+      // than timeout In a real scenario, this would timeout if the server keeps returning
+      // queryStatus
       val ex = intercept[IllegalStateException] {
         spark.read.format("deltaSharing").load(tablePath).collect()
       }
