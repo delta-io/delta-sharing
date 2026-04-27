@@ -192,6 +192,10 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
   private val rand = new scala.util.Random()
 
+  // Map to track poll count per queryId for testing async query behavior
+  private val queryPollCounters =
+    new java.util.concurrent.ConcurrentHashMap[String, java.util.concurrent.atomic.AtomicInteger]()
+
   private val sharedTableManager = new SharedTableManager(serverConfig)
 
   private val deltaSharedTableLoader = new DeltaSharedTableLoader(serverConfig)
@@ -375,22 +379,42 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       throw new DeltaSharingIllegalArgumentException("expected error")
     }
 
-    // simulate async query with 50% chance of return
-    // asynchronously for a specific table
-    // client should be able to handle both cases and for server
-    // test please use other table names.
-    if(rand.nextInt(100) > 50 && table == "table2" && !request.pageToken.isDefined) {
+    // Track poll count for this queryId and return results after 5 polls
+    val pollCounter = queryPollCounters.computeIfAbsent(
+      queryId, _ => new java.util.concurrent.atomic.AtomicInteger(0))
+    val pollCount = pollCounter.incrementAndGet()
+
+    // Special handling for query ID change mid-query test
+    val returnedQueryId = if (table.endsWith("_change_query_id_to_be_null")) {
+      // Return null query ID to test client error handling
+      null
+    } else if (table.endsWith("_change_query_id")) {
+      // Change query ID on the 2nd poll to simulate server-side query ID change
+      s"${queryId}_modified"
+    } else {
+      queryId
+    }
+
+    // Keep returning pending status until we've been polled more than 5 times
+    if(pollCount <= 3 && !request.pageToken.isDefined) {
         streamingOutput(
           Some(0),
           "parquet",
           Seq(
-            SingleAction(queryStatus = QueryStatus(queryId))
+            SingleAction(queryStatus = QueryStatus(returnedQueryId))
           )
         )
       } else {
 
+      // Test case: Use a bad table name to trigger error during loadTable (on 2nd poll)
+      val tableToLoad = if (table.endsWith("_bad_table") && pollCount == 2) {
+        "nonexistent_bad_table"
+      } else {
+        table
+      }
+
       // we are reusing the table here to simulate a view query result
-      val tableConfig = sharedTableManager.getTable(share, schema, table)
+      val tableConfig = sharedTableManager.getTable(share, schema, tableToLoad)
       val capabilitiesMap = getDeltaSharingCapabilitiesMap(
         req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER))
       val responseFormatSet = getResponseFormatSet(capabilitiesMap)
@@ -482,7 +506,10 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 
     val requestFileIdHash = getRequestFileIdHash(req)
     if(getAsyncQuery(capabilitiesMap)) {
-      val queryId = s"${share}_${schema}_${table}"
+      // Generate unique queryId and initialize poll counter
+      val queryId = s"${share}_${schema}_${table}_${System.currentTimeMillis()}_" +
+        s"${java.util.UUID.randomUUID().toString}"
+      queryPollCounters.put(queryId, new java.util.concurrent.atomic.AtomicInteger(0))
 
       streamingOutput(
         Some(0),
