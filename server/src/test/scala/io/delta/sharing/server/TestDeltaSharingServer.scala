@@ -41,9 +41,9 @@ object TestDeltaSharingServer {
       println("serverConfigPath=" + serverConfigPath)
       println("serverConfig=" + serverConfig)
       val server = DeltaSharingService.start(serverConfig)
-      // Run at most 420 seconds and exit. This is to ensure we can exit even if the parent process
+      // Run at most 900 seconds and exit. This is to ensure we can exit even if the parent process
       // hits any error.
-      Thread.sleep(420000)
+      Thread.sleep(900000)
       server.stop()
     } else {
       throw new IllegalArgumentException("Cannot find AWS_ACCESS_KEY_ID in sys.env")
