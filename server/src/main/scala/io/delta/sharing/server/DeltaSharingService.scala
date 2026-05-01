@@ -395,7 +395,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       queryId
     }
 
-    // Keep returning pending status until we've been polled more than 5 times
+    // Keep returning pending status until we've been polled more than 4 times
     if(pollCount <= 3 && !request.pageToken.isDefined) {
         streamingOutput(
           Some(0),
