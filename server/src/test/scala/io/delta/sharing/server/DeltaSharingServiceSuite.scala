@@ -878,16 +878,21 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
 
   integrationTest("table1 async query get status") {
     Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
-      val response = readNDJson(
-        requestPath("/shares/share1/schemas/default/tables/table1/queries/1234"),
-        method = Some("POST"),
-        Some("""{"maxFiles": 1}"""),
-        expectedTableVersion = None,
-        responseFormat,
-        asyncQuery = "true"
-      )
+      var lines: Array[String] = Array.empty
 
-      val lines = response.split("\n")
+      do {
+        val response = readNDJson(
+          requestPath("/shares/share1/schemas/default/tables/table1/queries/1234"),
+          method = Some("POST"),
+          Some("""{"maxFiles": 1}"""),
+          expectedTableVersion = None,
+          responseFormat,
+          asyncQuery = "true"
+        )
+
+        lines = response.split("\n")
+      } while (lines.length == 1)
+
       assert(lines.length == 4)
     }
   }
