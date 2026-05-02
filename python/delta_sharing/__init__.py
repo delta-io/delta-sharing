@@ -14,7 +14,14 @@
 # limitations under the License.
 #
 
-from delta_sharing.delta_sharing import SharingClient, load_as_pandas, load_as_spark
+from delta_sharing.delta_sharing import (
+    TableSnapshot,
+    DeltaSharingTable,
+    SharingClient,
+    load_as_arrow,
+    load_as_pandas,
+    load_as_spark,
+)
 from delta_sharing.delta_sharing import get_table_metadata, get_table_protocol, get_table_version
 from delta_sharing.delta_sharing import load_table_changes_as_pandas, load_table_changes_as_spark
 from delta_sharing.protocol import Share, Schema, Table
@@ -22,6 +29,8 @@ from delta_sharing.version import __version__
 
 __all__ = [
     "SharingClient",
+    "DeltaSharingTable",
+    "TableSnapshot",
     "Share",
     "Schema",
     "Table",
@@ -29,6 +38,7 @@ __all__ = [
     "get_table_protocol",
     "get_table_version",
     "load_as_pandas",
+    "load_as_arrow",
     "load_as_spark",
     "load_table_changes_as_pandas",
     "load_table_changes_as_spark",
