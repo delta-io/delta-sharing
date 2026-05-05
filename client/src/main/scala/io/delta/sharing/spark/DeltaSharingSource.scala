@@ -26,7 +26,7 @@ import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, Row, SparkSession}
 import org.apache.spark.sql.connector.read.streaming
-import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl}
+import org.apache.spark.sql.connector.read.streaming.{ReadAllAvailable, ReadLimit, ReadMaxFiles, SupportsAdmissionControl, SupportsTriggerAvailableNow}
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.types.StructType
@@ -95,6 +95,7 @@ case class DeltaSharingSource(
   deltaLog: RemoteDeltaLog,
   options: DeltaSharingOptions) extends Source
   with SupportsAdmissionControl
+  with SupportsTriggerAvailableNow
   with Logging {
 
   // This is to ensure that the request sent from the client contains the http header for streaming.
@@ -146,6 +147,31 @@ case class DeltaSharingSource(
 
   private var lastGetVersionTimestamp: Long = -1
   private var latestTableVersion: Long = -1
+
+  // AvailableNow trigger support.
+  private var isTriggerAvailableNow: Boolean = false
+  private var frozenServerVersionForAvailableNow: Long = -1
+
+  /**
+   * Capture the server version once at query start. All subsequent calls to
+   * getOrUpdateLatestTableVersion return this frozen value, which in turn caps
+   * endingVersionForQuery in maybeGetFileChanges. Once all files up to the
+   * frozen version have been consumed, getBatch returns no new data and the
+   * AvailableNow engine terminates the query.
+   *
+   * No additional guard inside maybeGetFileChanges is needed (unlike
+   * DeltaFormatSharingSource's needNewFilesFromServer): that source has an
+   * intermediate local delta log which must be explicitly stopped from growing
+   * past the frozen version; here there is no such buffer -- sortedFetchedFiles
+   * is populated directly from the server RPC whose version ceiling is already
+   * frozen.
+   */
+  override def prepareForTriggerAvailableNow(): Unit = {
+    frozenServerVersionForAvailableNow = getOrUpdateLatestTableVersion
+    isTriggerAvailableNow = true
+    logInfo(s"AvailableNow: frozen server version at $frozenServerVersionForAvailableNow," +
+      getTableInfoForLogging)
+  }
   // minimum 10 seconds
   private val QUERY_TABLE_VERSION_INTERVAL_MILLIS = {
     val intervalSeconds = ConfUtils.MINIMUM_TABLE_VERSION_INTERVAL_SECONDS.max(
@@ -186,6 +212,9 @@ case class DeltaSharingSource(
   // RPC. Adding a minimum interval of QUERY_TABLE_VERSION_INTERVAL_MILLIS between two consecutive
   // rpcs to avoid traffic jam on the delta sharing server.
   private def getOrUpdateLatestTableVersion: Long = {
+    if (isTriggerAvailableNow) {
+      return frozenServerVersionForAvailableNow
+    }
     val currentTimeMillis = System.currentTimeMillis()
     if (lastGetVersionTimestamp == -1 ||
       (currentTimeMillis - lastGetVersionTimestamp) >= QUERY_TABLE_VERSION_INTERVAL_MILLIS) {

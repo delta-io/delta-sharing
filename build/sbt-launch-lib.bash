@@ -41,9 +41,12 @@ acquire_sbt_jar () {
   SBT_VERSION=`awk -F "=" '/sbt\.version/ {print $2}' ./project/build.properties`
   # DEFAULT_ARTIFACT_REPOSITORY env variable can be used to only fetch
   # artifacts from internal repos only.
+  # MAVEN_PROXY_URL is a fallback for the sbt-launch JAR when using ./build/sbt (see delta-io/delta#6501).
   # Ex:
   #   DEFAULT_ARTIFACT_REPOSITORY=https://artifacts.internal.com/libs-release/
-  URL1=${DEFAULT_ARTIFACT_REPOSITORY:-https://repo1.maven.org/maven2/}org/scala-sbt/sbt-launch/${SBT_VERSION}/sbt-launch-${SBT_VERSION}.jar
+  BASE_REPO=${DEFAULT_ARTIFACT_REPOSITORY:-${MAVEN_PROXY_URL:-https://repo1.maven.org/maven2/}}
+  URL1=${BASE_REPO}org/scala-sbt/sbt-launch/${SBT_VERSION}/sbt-launch-${SBT_VERSION}.jar
+  SHA_URL=${BASE_REPO}org/scala-sbt/sbt-launch/${SBT_VERSION}/sbt-launch-${SBT_VERSION}.jar.sha1
   JAR=build/sbt-launch-${SBT_VERSION}.jar
 
   sbt_jar=$JAR
@@ -54,15 +57,33 @@ acquire_sbt_jar () {
     # Download
     printf "Attempting to fetch sbt\n"
     JAR_DL="${JAR}.part"
+    SHA_DL="${JAR}.sha1"
     if [ $(command -v curl) ]; then
       curl --fail --location --silent ${URL1} > "${JAR_DL}" &&\
-        mv "${JAR_DL}" "${JAR}"
+        curl --fail --location --silent ${SHA_URL} > "${SHA_DL}"
     elif [ $(command -v wget) ]; then
       wget --quiet ${URL1} -O "${JAR_DL}" &&\
-        mv "${JAR_DL}" "${JAR}"
+        wget --quiet ${SHA_URL} -O "${SHA_DL}"
     else
       printf "You do not have curl or wget installed, please install sbt manually from https://www.scala-sbt.org/\n"
       exit -1
+    fi
+    # Verify checksum before accepting the downloaded JAR
+    if [ -f "${JAR_DL}" ] && [ -f "${SHA_DL}" ]; then
+      EXPECTED_SHA=$(cat "${SHA_DL}" | awk '{print $1}')
+      ACTUAL_SHA=$(sha1sum "${JAR_DL}" | awk '{print $1}')
+      if [ "${EXPECTED_SHA}" = "${ACTUAL_SHA}" ]; then
+        mv "${JAR_DL}" "${JAR}"
+        rm -f "${SHA_DL}"
+      else
+        printf "SHA1 checksum verification failed for sbt-launch JAR!\n"
+        printf "  Expected: ${EXPECTED_SHA}\n"
+        printf "  Actual:   ${ACTUAL_SHA}\n"
+        rm -f "${JAR_DL}" "${SHA_DL}"
+        exit 1
+      fi
+    else
+      rm -f "${JAR_DL}" "${SHA_DL}"
     fi
     fi
     if [ ! -f "${JAR}" ]; then

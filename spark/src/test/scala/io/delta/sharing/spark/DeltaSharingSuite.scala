@@ -603,6 +603,112 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       .collect()
     assert(TestDeltaSharingClient.limits === Seq(1L))
   }
+
+  integrationTest("async query timeout") {
+    // Test that async query times out when it exceeds the specified timeout
+    withSQLConf(
+      "spark.delta.sharing.network.useAsyncQuery" -> "true",
+      "spark.delta.sharing.network.asyncQueryTimeout" -> "1", // 1ms timeout
+      "spark.delta.sharing.network.asyncQueryPollIntervalMillis" -> "100"
+    ) {
+      val tablePath = testProfileFile.getCanonicalPath + "#share_azure.default.table_wasb"
+
+      // Note: This test requires server-side support for async queries that take longer
+      // than timeout In a real scenario, this would timeout if the server keeps returning
+      // queryStatus
+      val ex = intercept[IllegalStateException] {
+        spark.read.format("deltaSharing").load(tablePath).collect()
+      }
+      assert(ex.getMessage.contains("Query is timed out after") ||
+             ex.getMessage.contains("1000 ms"))
+    }
+  }
+
+  integrationTest("async query initial query table errors") {
+    // Test error conditions in the initial query table request (DeltaSharingClient.scala:L650)
+    withSQLConf("spark.delta.sharing.network.useAsyncQuery" -> "true") {
+      val tablePath = testProfileFile.getCanonicalPath + "#share1.default.nonexistent_table"
+
+      // Test 1: Invalid table should throw UnexpectedHttpStatus
+      val ex1 = intercept[io.delta.sharing.client.util.UnexpectedHttpStatus] {
+        spark.read.format("deltaSharing").load(tablePath).collect()
+      }
+      assert(ex1.getMessage.contains("404") || ex1.getMessage.contains("Not Found"))
+    }
+  }
+
+  integrationTest("async query polling errors") {
+    // Test error conditions during polling (DeltaSharingClient.scala:L1099)
+    withSQLConf(
+      "spark.delta.sharing.network.useAsyncQuery" -> "true",
+      "spark.delta.sharing.network.asyncQueryPollIntervalMillis" -> "100"
+    ) {
+      // Test 1: Inconsistent queryId in polling response
+      // Server will change the queryId mid-query for tables ending with "_change_query_id"
+      val tablePath1 = testProfileFile.getCanonicalPath +
+        "#share_azure.default.table_wasb_change_query_id"
+      val ex1 = intercept[IllegalStateException] {
+        spark.read.format("deltaSharing").load(tablePath1).collect()
+      }
+      assert(ex1.getMessage.contains("QueryId is not consistent") ||
+             ex1.getMessage.contains("query"))
+
+      // Test 2: Missing queryId when query is still pending
+      // Server will return null queryId for tables ending with "_change_query_id_to_be_null"
+      val tablePath2 = testProfileFile.getCanonicalPath +
+        "#share_azure.default.table_wasb_change_query_id_to_be_null"
+      val ex2 = intercept[IllegalStateException] {
+        spark.read.format("deltaSharing").load(tablePath2).collect()
+      }
+      assert(ex2.getMessage.contains("QueryId is not returned") ||
+             ex2.getMessage.contains("null"))
+    }
+  }
+
+  integrationTest("async query handles load table failures") {
+    withSQLConf(
+      "spark.delta.sharing.network.useAsyncQuery" -> "true",
+      "spark.delta.sharing.network.asyncQueryPollIntervalMillis" -> "100"
+    ) {
+      // Test: Server encounters error loading table after polling
+      // Server will try to load a non-existent table on the 2nd poll for tables ending with
+      // "_bad_table", which will cause loadTable to fail
+      val tablePath3 = testProfileFile.getCanonicalPath +
+        "#share_azure.default.table_wasb_bad_table"
+      val ex3 = intercept[io.delta.sharing.client.util.UnexpectedHttpStatus] {
+        spark.read.format("deltaSharing").load(tablePath3).collect()
+      }
+      assert(ex3.getMessage.contains("404") || ex3.getMessage.contains("400") ||
+             ex3.getMessage.contains("does not exist"))
+    }
+  }
+
+  integrationTest("async query error handling in initial response") {
+    // Test various error conditions that can occur in getNDJsonWithAsync
+    withSQLConf("spark.delta.sharing.network.useAsyncQuery" -> "true") {
+      // Test 1: Invalid version parameter
+      val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
+      val ex1 = intercept[io.delta.sharing.client.util.UnexpectedHttpStatus] {
+        spark.read
+          .format("deltaSharing")
+          .option("versionAsOf", "999999") // Non-existent version
+          .load(tablePath)
+          .collect()
+      }
+      assert(ex1.getMessage.contains("400") || ex1.getMessage.contains("404"))
+
+      // Test 2: Invalid timestamp parameter
+      val ex2 = intercept[io.delta.sharing.client.util.UnexpectedHttpStatus] {
+        spark.read
+          .format("deltaSharing")
+          .option("timestampAsOf", "1970-01-01 00:00:00")
+          .load(tablePath)
+          .collect()
+      }
+      assert(ex2.getMessage.contains("400") ||
+             ex2.getMessage.contains("The provided timestamp"))
+    }
+  }
 }
 
 class DeltaSharingWithParquetIOCacheEnabledSuite extends DeltaSharingSuite {

@@ -69,17 +69,17 @@ object DeltaSharingUtils {
   val RESPONSE_FORMAT_DELTA = "delta"
 
   /**
-   * Hash a file path to produce a file ID. When the client explicitly requests an algorithm
-   * via `fileIdHash`, that algorithm is used. Otherwise the default is sha256 for the delta
-   * response format and md5 for parquet (backward compatibility).
+   * Hash a file path to produce a file ID. When the client explicitly requests a scheme
+   * via `fileIdHash` (`parquet` or `delta`), that scheme is used. Otherwise the default
+   * matches the response format: `delta` uses SHA-256 of the path; `parquet` uses MD5.
    */
   def hashFileId(
       path: String,
       fileIdHash: Option[String],
       respondedFormat: String): String = {
     fileIdHash match {
-      case Some("sha256") => Hashing.sha256().hashString(path, UTF_8).toString
-      case Some("md5") => Hashing.md5().hashString(path, UTF_8).toString
+      case Some("delta") => Hashing.sha256().hashString(path, UTF_8).toString
+      case Some("parquet") => Hashing.md5().hashString(path, UTF_8).toString
       case _ =>
         if (respondedFormat == RESPONSE_FORMAT_DELTA) {
           Hashing.sha256().hashString(path, UTF_8).toString

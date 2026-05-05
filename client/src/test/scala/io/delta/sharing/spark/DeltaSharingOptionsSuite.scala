@@ -19,6 +19,8 @@ package io.delta.sharing.spark
 // scalastyle:off import.ordering.noEmptyLine
 import org.apache.spark.SparkFunSuite
 
+import io.delta.sharing.client.{BearerTokenDeltaSharingProfile, DeltaSharingOptionsProfileProvider, OAuthClientCredentialsDeltaSharingProfile}
+
 
 class DeltaSharingOptionsSuite extends SparkFunSuite {
 
@@ -93,7 +95,7 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
     // profile as opts
     var options = new DeltaSharingOptions(Map(
       "shareCredentialsVersion" -> "1",
-      "shareCredentialsType" -> "bearer_token",
+      "type" -> "bearer_token",
       "endpoint" -> "foo",
       "tokenEndpoint" -> "bar",
       "clientId" -> "abc",
@@ -121,7 +123,52 @@ class DeltaSharingOptionsSuite extends SparkFunSuite {
       DeltaSharingOptions.PROFILE_BEARER_TOKEN) == Some("bar"))
     assert(options.shareCredentialsOptions.get(
       DeltaSharingOptions.PROFILE_EXPIRATION_TIME) == Some("2022-01-01T02:00:00Z"))
+  }
 
+  test("shareCredentialsOptions round-trip produces bearer_token profile") {
+    val options = new DeltaSharingOptions(Map(
+      "shareCredentialsVersion" -> "1",
+      "type" -> "bearer_token",
+      "endpoint" -> "https://sharing.example.com",
+      "bearerToken" -> "tok123"
+    ))
+    val profile = new DeltaSharingOptionsProfileProvider(
+      options.shareCredentialsOptions).getProfile
+    assert(profile.isInstanceOf[BearerTokenDeltaSharingProfile])
+    assert(profile.endpoint == "https://sharing.example.com")
+    assert(profile.asInstanceOf[BearerTokenDeltaSharingProfile].bearerToken == "tok123")
+  }
+
+  test("shareCredentialsOptions round-trip produces oauth profile") {
+    val options = new DeltaSharingOptions(Map(
+      "shareCredentialsVersion" -> "2",
+      "type" -> "oauth_client_credentials",
+      "endpoint" -> "https://sharing.example.com",
+      "tokenEndpoint" -> "https://auth.example.com/token",
+      "clientId" -> "cid",
+      "clientSecret" -> "csecret",
+      "scope" -> "all"
+    ))
+    val profile = new DeltaSharingOptionsProfileProvider(
+      options.shareCredentialsOptions).getProfile
+    assert(profile.isInstanceOf[OAuthClientCredentialsDeltaSharingProfile])
+    val oauthProfile = profile.asInstanceOf[OAuthClientCredentialsDeltaSharingProfile]
+    assert(oauthProfile.endpoint == "https://sharing.example.com")
+    assert(oauthProfile.tokenEndpoint == "https://auth.example.com/token")
+    assert(oauthProfile.clientId == "cid")
+    assert(oauthProfile.clientSecret == "csecret")
+    assert(oauthProfile.scope == Some("all"))
+  }
+
+  test("shareCredentialsOptions defaults to bearer_token when type is omitted") {
+    val options = new DeltaSharingOptions(Map(
+      "shareCredentialsVersion" -> "1",
+      "endpoint" -> "https://sharing.example.com",
+      "bearerToken" -> "tok123"
+    ))
+    val profile = new DeltaSharingOptionsProfileProvider(
+      options.shareCredentialsOptions).getProfile
+    assert(profile.isInstanceOf[BearerTokenDeltaSharingProfile])
   }
 
   test("Parse cdfOptions map successfully") {
