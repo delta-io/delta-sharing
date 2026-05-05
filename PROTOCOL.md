@@ -3062,17 +3062,10 @@ Value | Description
 
 The value is case-insensitive. The server must return HTTP 400 if an unsupported value is provided.
 
-### Delta response format and structured streaming
-
-The `fileidhash` header matters most when the response uses the **Delta** format. A structured streaming query needs to **migrate** from the Parquet to the Delta response format when the shared table turns on **advanced Delta reader features** that the Parquet format cannot handle, for example Deletion Vectors. In Spark, that migration can be handled automatically for streaming when [`spark.sql.delta.sharing.streamingAutoResolveResponseFormat`](https://github.com/delta-io/delta/blob/194e707e64b8aadca2fd1b06ec35a641741d90d0/spark/src/main/scala/org/apache/spark/sql/delta/sources/DeltaSQLConf.scala#L3020) is enabled. Sending a consistent `fileidhash` across those requests preserves **data integrity**.
-
 ### Response Header
 
 When the client sends a valid `fileidhash` header, the server must echo the same header and value
 (normalized to lowercase) in the response. 
-
-When the client does not send the header, the server should
-not include `fileidhash` in the response (the client does not validate the response header in this case).
 
 ### Client Verification
 
