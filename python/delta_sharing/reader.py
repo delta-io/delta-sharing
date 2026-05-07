@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 from collections import defaultdict
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence
 from urllib.parse import urlparse
 from json import loads, dump
 from urllib.request import getproxies
@@ -106,53 +106,8 @@ class DeltaSharingReader:
 
         Returns: a pandas df
         """
-        self._rest_client.set_delta_format_header()
-        response = self._rest_client.list_files_in_table(
-            self._table,
-            predicateHints=self._predicateHints,
-            jsonPredicateHints=self._jsonPredicateHints,
-            limitHint=self._limit,
-            version=self._version,
-            timestamp=self._timestamp,
-        )
-
-        lines = response.lines
-        # Create a temporary directory using the tempfile module
         temp_dir = tempfile.TemporaryDirectory()
-        table_path = self.__write_temp_delta_log_snapshot(temp_dir.name, lines)
-        num_files = len(lines)
-
-        # Invoke delta-kernel-rust to return the pandas dataframe
-        interface = delta_kernel_rust_sharing_wrapper.PythonInterface(table_path)
-        table = delta_kernel_rust_sharing_wrapper.Table(table_path)
-        snapshot = table.snapshot(interface)
-        scan = delta_kernel_rust_sharing_wrapper.ScanBuilder(snapshot).build()
-
-        # The table is empty so use the schema to return an empty table with correct col names
-        if num_files == 0:
-            schema = scan.execute(interface).schema
-            return pd.DataFrame(columns=schema.names)
-
-        batches = scan.execute(interface)
-        if self._convert_in_batches:
-            pdfs = [batch.to_pandas(self_destruct=True) for batch in batches]
-            print(f"Received {len(pdfs)} batches of data.")
-            result = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
-        else:
-            result = pa.Table.from_batches(batches).to_pandas(self_destruct=True)
-
-        # Apply residual limit that was not handled from server pushdown
-        result = result.head(self._limit)
-
-        # Delete the temp folder explicitly and remove the delta format from header
-        temp_dir.cleanup()
-        self._rest_client.remove_delta_format_header()
-
-        return result
-
-    def __record_batches_kernel(self) -> Tuple[pa.Schema, Iterator[pa.RecordBatch]]:
         self._rest_client.set_delta_format_header()
-        temp_dir = tempfile.TemporaryDirectory()
         try:
             response = self._rest_client.list_files_in_table(
                 self._table,
@@ -162,63 +117,36 @@ class DeltaSharingReader:
                 version=self._version,
                 timestamp=self._timestamp,
             )
-            table_path = self.__write_temp_delta_log_snapshot(temp_dir.name, response.lines)
+
+            lines = response.lines
+            table_path = self.__write_temp_delta_log_snapshot(temp_dir.name, lines)
+            num_files = len(lines)
+
+            # Invoke delta-kernel-rust to return the pandas dataframe
             interface = delta_kernel_rust_sharing_wrapper.PythonInterface(table_path)
             table = delta_kernel_rust_sharing_wrapper.Table(table_path)
             snapshot = table.snapshot(interface)
             scan = delta_kernel_rust_sharing_wrapper.ScanBuilder(snapshot).build()
-            scan_result = scan.execute(interface)
-        except Exception:
+
+            # The table is empty so use the schema to return an empty table with correct col names
+            if num_files == 0:
+                schema = scan.execute(interface).schema
+                return pd.DataFrame(columns=schema.names)
+
+            batches = scan.execute(interface)
+            if self._convert_in_batches:
+                pdfs = [batch.to_pandas(self_destruct=True) for batch in batches]
+                print(f"Received {len(pdfs)} batches of data.")
+                result = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+            else:
+                result = pa.Table.from_batches(batches).to_pandas(self_destruct=True)
+
+            # Apply residual limit that was not handled from server pushdown
+            return result.head(self._limit)
+        finally:
+            # Delete the temp folder explicitly and remove the delta format from header
             temp_dir.cleanup()
             self._rest_client.remove_delta_format_header()
-            raise
-
-        def iterator() -> Iterator[pa.RecordBatch]:
-            left = self._limit
-            try:
-                for batch in scan_result:
-                    if left is not None and left == 0:
-                        return
-                    if left is not None and batch.num_rows > left:
-                        batch = batch.slice(0, left)
-                    yield batch
-                    if left is not None:
-                        left -= batch.num_rows
-            finally:
-                temp_dir.cleanup()
-                self._rest_client.remove_delta_format_header()
-
-        return scan_result.schema, iterator()
-
-    @staticmethod
-    def _record_batches_to_pandas(
-        schema: pa.Schema,
-        batches: Iterator[pa.RecordBatch],
-        convert_in_batches: bool,
-    ) -> pd.DataFrame:
-        if convert_in_batches:
-            pdfs = [
-                batch.to_pandas(
-                    date_as_object=True,
-                    use_threads=False,
-                    split_blocks=False,
-                    self_destruct=True,
-                )
-                for batch in batches
-            ]
-            if len(pdfs) == 0:
-                return pd.DataFrame(columns=schema.names)
-            return pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
-
-        batch_list = list(batches)
-        if len(batch_list) == 0:
-            return pd.DataFrame(columns=schema.names)
-        return pa.Table.from_batches(batch_list, schema=schema).to_pandas(
-            date_as_object=True,
-            use_threads=False,
-            split_blocks=False,
-            self_destruct=True,
-        )
 
     def to_pandas(self) -> pd.DataFrame:
         response_format = ""
@@ -284,64 +212,6 @@ class DeltaSharingReader:
             col_map[col.lower()] = col
 
         return merged[[col_map[field["name"].lower()] for field in schema_json["fields"]]]
-
-    def to_arrow(self) -> pa.Table:
-        schema, batches = self._to_arrow_stream()
-        return pa.Table.from_batches(list(batches), schema=schema)
-
-    def to_record_batches(self) -> Iterator[pa.RecordBatch]:
-        _, batches = self._to_arrow_stream()
-        return batches
-
-    def to_record_batch_reader(self) -> pa.RecordBatchReader:
-        schema, batches = self._to_arrow_stream()
-        return pa.RecordBatchReader.from_batches(schema, batches)
-
-    def _to_arrow_stream(self) -> Tuple[pa.Schema, Iterator[pa.RecordBatch]]:
-        response_format = ""
-        if self._use_delta_format is None:
-            response_format = self._rest_client.autoresolve_query_format(self._table)
-        elif self._use_delta_format:
-            response_format = DataSharingRestClient.DELTA_FORMAT
-
-        if response_format == DataSharingRestClient.DELTA_FORMAT:
-            return self.__record_batches_kernel()
-
-        response = self._rest_client.list_files_in_table(
-            self._table,
-            predicateHints=self._predicateHints,
-            jsonPredicateHints=self._jsonPredicateHints,
-            limitHint=self._limit,
-            version=self._version,
-            timestamp=self._timestamp,
-        )
-
-        schema_json = loads(response.metadata.schema_string)
-        schema = DeltaSharingReader._to_arrow_schema(schema_json)
-
-        if len(response.add_files) == 0 or self._limit == 0:
-            return schema, iter(())
-
-        converters = to_converters(schema_json)
-
-        def iterator() -> Iterator[pa.RecordBatch]:
-            left = self._limit
-            for file in response.add_files:
-                file_limit = left
-                for batch in DeltaSharingReader._to_record_batches(
-                    file, schema_json, converters, file_limit
-                ):
-                    yield batch
-                    if left is not None:
-                        left -= batch.num_rows
-                        assert left >= 0, (
-                            "'_to_record_batches' returned too many rows. "
-                            f"Required: {left}, returned: {batch.num_rows}"
-                        )
-                        if left == 0:
-                            return
-
-        return schema, iterator()
 
     def __write_temp_delta_log_snapshot(self, temp_dir: str, lines: List[str]) -> str:
         delta_log_dir_name = temp_dir
@@ -429,55 +299,55 @@ class DeltaSharingReader:
                 last_checkpoint_file.close()
 
     def __table_changes_to_pandas_kernel(self, cdfOptions: CdfOptions) -> pd.DataFrame:
-        self._rest_client.set_delta_format_header(for_cdf=True)
-        response = self._rest_client.list_table_changes(self._table, cdfOptions)
-        lines = response.lines
-
-        # first line is protocol
-        protocol_json = loads(lines.pop(0))
-        delta_protocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
-        start_version = cdfOptions.starting_version
-
-        min_version = start_version if start_version is not None else (10**20 - 1)
-        max_version = 0
-        version_to_actions = defaultdict(list)
-        version_to_metadata = {}
-        version_to_timestamp = {}
-
-        # Construct map from version to actions that took place in that version
-        line_count = 1
-        for line in lines:
-            line_count += 1
-            line_json = loads(line)
-            if "file" in line_json:
-                file = line_json["file"]
-                action = file["deltaSingleAction"]
-                version = file["version"]
-                min_version = min(min_version, version)
-                max_version = max(max_version, version)
-                version_to_timestamp[version] = file["timestamp"]
-                version_to_actions[version].append(action)
-            elif "metaData" in line_json:
-                metadata = line_json["metaData"]
-                delta_metadata = {"metaData": metadata["deltaMetadata"]}
-                version = metadata["version"]
-                min_version = min(min_version, version)
-                max_version = max(max_version, version)
-                version_to_metadata[version] = delta_metadata
-            else:
-                raise Exception(f"Invalid JSON object:\n{line}\nIs neither metadata nor file.")
-
-        num_versions_with_action = len(version_to_actions)
-        print(
-            f"table_changes stats: min_version={min_version}, "
-            f"max_version={max_version}, "
-            f"num_versions_with_action={num_versions_with_action}, "
-            f"num_versions_with_metadata={len(version_to_metadata)}, "
-            f"lines_in_response={line_count}, "
-        )
         # Create a temporary directory using the tempfile module
         temp_dir = tempfile.TemporaryDirectory()
+        self._rest_client.set_delta_format_header(for_cdf=True)
         try:
+            response = self._rest_client.list_table_changes(self._table, cdfOptions)
+            lines = response.lines
+
+            # first line is protocol
+            protocol_json = loads(lines.pop(0))
+            delta_protocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
+            start_version = cdfOptions.starting_version
+
+            min_version = start_version if start_version is not None else (10**20 - 1)
+            max_version = 0
+            version_to_actions = defaultdict(list)
+            version_to_metadata = {}
+            version_to_timestamp = {}
+
+            # Construct map from version to actions that took place in that version
+            line_count = 1
+            for line in lines:
+                line_count += 1
+                line_json = loads(line)
+                if "file" in line_json:
+                    file = line_json["file"]
+                    action = file["deltaSingleAction"]
+                    version = file["version"]
+                    min_version = min(min_version, version)
+                    max_version = max(max_version, version)
+                    version_to_timestamp[version] = file["timestamp"]
+                    version_to_actions[version].append(action)
+                elif "metaData" in line_json:
+                    metadata = line_json["metaData"]
+                    delta_metadata = {"metaData": metadata["deltaMetadata"]}
+                    version = metadata["version"]
+                    min_version = min(min_version, version)
+                    max_version = max(max_version, version)
+                    version_to_metadata[version] = delta_metadata
+                else:
+                    raise Exception(f"Invalid JSON object:\n{line}\nIs neither metadata nor file.")
+
+            num_versions_with_action = len(version_to_actions)
+            print(
+                f"table_changes stats: min_version={min_version}, "
+                f"max_version={max_version}, "
+                f"num_versions_with_action={num_versions_with_action}, "
+                f"num_versions_with_metadata={len(version_to_metadata)}, "
+                f"lines_in_response={line_count}, "
+            )
             delta_log_dir_name = temp_dir.name
             table_path = "file:///" + delta_log_dir_name
 
@@ -643,158 +513,6 @@ class DeltaSharingReader:
                 assert DeltaSharingReader._commit_timestamp_col_name() not in pdf.columns
                 pdf[DeltaSharingReader._commit_timestamp_col_name()] = action.timestamp
         return pdf
-
-    @staticmethod
-    def _to_record_batches(
-        action: FileAction,
-        schema_json: dict,
-        converters: Dict[str, Callable[[str], Any]],
-        limit: Optional[int],
-        for_cdf: bool = False,
-    ) -> Iterator[pa.RecordBatch]:
-        url = urlparse(action.url)
-        if "storage.googleapis.com" in (url.netloc.lower()):
-            import delta_sharing._yarl_patch  # noqa: F401
-
-        protocol = url.scheme
-        proxy = getproxies()
-        if len(proxy) != 0:
-            filesystem = fsspec.filesystem(protocol, client_kwargs={"trust_env": True})
-        else:
-            filesystem = fsspec.filesystem(protocol)
-
-        pa_dataset = dataset(source=action.url, format="parquet", filesystem=filesystem)
-        scanner = pa_dataset.scanner()
-        rows_read = 0
-
-        for batch in scanner.to_batches():
-            if limit is not None and rows_read == limit:
-                return
-
-            if limit is not None and rows_read + batch.num_rows > limit:
-                batch = batch.slice(0, limit - rows_read)
-
-            yield DeltaSharingReader._normalize_record_batch(
-                batch, action, schema_json, converters, for_cdf
-            )
-            rows_read += batch.num_rows
-
-    @staticmethod
-    def _empty_arrow_table(schema_json: dict) -> pa.Table:
-        return pa.Table.from_batches([], schema=DeltaSharingReader._to_arrow_schema(schema_json))
-
-    @staticmethod
-    def _to_arrow_schema(schema_json: dict) -> pa.Schema:
-        return pa.schema(
-            [
-                pa.field(field["name"], DeltaSharingReader._to_arrow_type(field["type"]))
-                for field in schema_json["fields"]
-            ]
-        )
-
-    @staticmethod
-    def _normalize_record_batch(
-        batch: pa.RecordBatch,
-        action: FileAction,
-        schema_json: dict,
-        converters: Dict[str, Callable[[str], Any]],
-        for_cdf: bool = False,
-    ) -> pa.RecordBatch:
-        columns = []
-        names = []
-        lower_to_index = {name.lower(): index for index, name in enumerate(batch.schema.names)}
-        num_rows = batch.num_rows
-
-        for field in schema_json["fields"]:
-            field_name = field["name"]
-            lower_name = field_name.lower()
-            names.append(field_name)
-            field_type = DeltaSharingReader._to_arrow_type(field["type"])
-
-            if lower_name in lower_to_index:
-                column = batch.column(lower_to_index[lower_name])
-                if column.type != field_type:
-                    column = column.cast(field_type)
-                columns.append(column)
-                continue
-
-            if for_cdf:
-                if field_name == DeltaSharingReader._change_type_col_name():
-                    if isinstance(action, AddCdcFile):
-                        raise ValueError("Missing _change_type column in change data feed file")
-                    columns.append(
-                        pa.array([action.get_change_type_col_value()] * num_rows, type=field_type)
-                    )
-                    continue
-                if field_name == DeltaSharingReader._commit_version_col_name():
-                    columns.append(
-                        pa.array([action.version] * num_rows, type=field_type)
-                        if action.version is not None
-                        else pa.nulls(num_rows, type=field_type)
-                    )
-                    continue
-                if field_name == DeltaSharingReader._commit_timestamp_col_name():
-                    columns.append(
-                        pa.array([action.timestamp] * num_rows, type=field_type)
-                        if action.timestamp is not None
-                        else pa.nulls(num_rows, type=field_type)
-                    )
-                    continue
-
-            if field_name in action.partition_values:
-                converter = converters[field_name]
-                if converter is None:
-                    raise ValueError("Cannot partition on binary or complex columns")
-                value = converter(action.partition_values[field_name])
-                columns.append(pa.array([value] * num_rows, type=field_type))
-            else:
-                columns.append(pa.nulls(num_rows, type=field_type))
-
-        return pa.RecordBatch.from_arrays(columns, names=names)
-
-    @staticmethod
-    def _to_arrow_type(schema_type):
-        if schema_type == "boolean":
-            return pa.bool_()
-        elif schema_type == "byte":
-            return pa.int8()
-        elif schema_type == "short":
-            return pa.int16()
-        elif schema_type == "integer":
-            return pa.int32()
-        elif schema_type == "long":
-            return pa.int64()
-        elif schema_type == "float":
-            return pa.float32()
-        elif schema_type == "double":
-            return pa.float64()
-        elif isinstance(schema_type, str) and schema_type.startswith("decimal("):
-            precision, scale = schema_type[len("decimal(") : -1].split(",")
-            return pa.decimal128(int(precision), int(scale))
-        elif schema_type == "string":
-            return pa.string()
-        elif schema_type == "date":
-            return pa.date32()
-        elif schema_type == "timestamp":
-            return pa.timestamp("ns")
-        elif schema_type == "binary":
-            return pa.binary()
-        elif isinstance(schema_type, dict) and schema_type["type"] == "array":
-            return pa.list_(DeltaSharingReader._to_arrow_type(schema_type["elementType"]))
-        elif isinstance(schema_type, dict) and schema_type["type"] == "struct":
-            return pa.struct(
-                [
-                    pa.field(field["name"], DeltaSharingReader._to_arrow_type(field["type"]))
-                    for field in schema_type["fields"]
-                ]
-            )
-        elif isinstance(schema_type, dict) and schema_type["type"] == "map":
-            return pa.map_(
-                DeltaSharingReader._to_arrow_type(schema_type["keyType"]),
-                DeltaSharingReader._to_arrow_type(schema_type["valueType"]),
-            )
-
-        raise ValueError(f"Could not parse datatype: {schema_type}")
 
     # The names of special delta columns for cdf.
 
