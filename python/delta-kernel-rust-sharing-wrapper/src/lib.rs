@@ -6,7 +6,7 @@ use arrow::pyarrow::PyArrowType;
 use arrow::record_batch::{RecordBatch, RecordBatchIterator, RecordBatchReader};
 
 use delta_kernel::engine::arrow_conversion::TryIntoArrow;
-use delta_kernel::engine::default::DefaultEngine;
+use delta_kernel::engine::default::DefaultEngineBuilder;
 use delta_kernel::table_changes::scan::{
     TableChangesScan as KernelTableChangesScan,
     TableChangesScanBuilder as KernelTableChangesScanBuilder,
@@ -196,7 +196,7 @@ impl PythonInterface {
         let (object_store, _path) = object_store::parse_url(&url)
             .map_err(|e| KernelError::InvalidTableLocation(format!("FIXME {e}")))?;
         let object_store: Arc<_> = object_store.into();
-        let engine = DefaultEngine::new(object_store);
+        let engine = DefaultEngineBuilder::new(object_store).build();
         Ok(PythonInterface(Arc::new(engine)))
     }
 }
