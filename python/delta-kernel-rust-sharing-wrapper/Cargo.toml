@@ -13,7 +13,6 @@ crate-type = ["cdylib"]
 arrow = { version = "57", features = ["pyarrow"] }
 object_store = "0.12.4"
 delta_kernel = { version = "0.22.0", features = ["default-engine-rustls", "arrow-57"]}
-openssl = { version = "0.10", features = ["vendored"] }
 url = "2"
 
 [dependencies.pyo3]
