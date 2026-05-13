@@ -144,3 +144,120 @@ jobs:
           cd python
           uv run dev/lint-python
           uv run dev/pytest
+
+  python-release-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - name: Install Python and uv
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
+        with:
+          python-version: "3.10"
+      - name: Install twine
+        run: uv tool install twine
+      - name: Build delta-sharing package
+        run: |
+          cd python
+          uv build
+      - name: Build delta-kernel-rust-sharing-wrapper distribution
+        uses: PyO3/maturin-action@86b9d133d34bc1b40018696f782949dac11bd380  # v1.49.4
+        with:
+          command: build
+          maturin-version: v1.12.6
+          manylinux: 2014
+          # maturin-action's default for manylinux2014 is the floating
+          # quay.io/pypa/manylinux2014_x86_64:latest image.
+          container: quay.io/pypa/manylinux2014_x86_64:2026.04.25-0@sha256:79abced054d8add673e4885d9598e1adc56260989b83aec0922e4cd6eb3ef066
+          working-directory: python
+          # The manylinux2014 container has perl but omits some core modules
+          # that vendored OpenSSL's Configure script requires.
+          before-script-linux: yum install -y perl-core
+          args: >-
+            --manifest-path delta-kernel-rust-sharing-wrapper/Cargo.toml
+            --release
+            --sdist
+            -i python3.10
+      - name: Check built distributions
+        run: |
+          cd python
+          uv run twine check --strict dist/*
+          uv run twine check --strict delta-kernel-rust-sharing-wrapper/target/wheels/*
+      - name: Upload distributions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: python-release-distributions
+          path: |
+            python/dist/*
+            python/delta-kernel-rust-sharing-wrapper/target/wheels/*
+          if-no-files-found: error
+
+  # Install the wheels built by python-release-build on an older Ubuntu image
+  # so we catch glibc / shared-library regressions that ubuntu-24.04 would
+  # otherwise hide.
+  python-release-test:
+    needs: python-release-build
+    runs-on: ubuntu-22.04
+    env:
+      SPARK_LOCAL_IP: localhost
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/google_service_account_key.json
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - name: Cache Scala, SBT
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: |
+            ~/.sbt
+            ~/.ivy2
+            ~/.cache/coursier
+          key: build-and-test-python-release-test
+      - name: Install Java 8
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9  # v4.8.0
+        with:
+          distribution: 'zulu'
+          java-version: '8'
+      - name: Install Python and uv
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
+        with:
+          python-version: "3.10"
+      - name: Download built wheels
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: python-release-distributions
+          path: built-wheels/
+      - name: Install built wheels into a fresh venv
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          uv venv /tmp/release-venv --python 3.10
+          # actions/upload-artifact@v4 collapses the LCA, so paths inside the
+          # artifact start at `dist/` and `delta-kernel-rust-sharing-wrapper/`,
+          # not `python/dist/` and `python/delta-kernel-rust-sharing-wrapper/`.
+          uv pip install --python /tmp/release-venv/bin/python \
+            built-wheels/delta-kernel-rust-sharing-wrapper/target/wheels/*.whl \
+            built-wheels/dist/*.whl \
+            pytest
+          # The published wheel intentionally excludes delta_sharing.tests, but
+          # the test files import from `delta_sharing.tests.conftest`. Copy the
+          # tests subpackage into the installed location so the import works.
+          site_packages=$(/tmp/release-venv/bin/python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
+          cp -r python/delta_sharing/tests "$site_packages/delta_sharing/tests"
+          # Rename the source package so it does not shadow the installed wheel
+          # when pytest runs from python/ (cwd is needed for the sbt server fixture).
+          mv python/delta_sharing python/delta_sharing.src
+      - name: Build Server
+        run: ./build/sbt package
+      - name: Run tests against installed wheels
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AZURE_TEST_ACCOUNT_KEY: ${{ secrets.AZURE_TEST_ACCOUNT_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+        run: |
+          cd python
+          /tmp/release-venv/bin/python -m pytest \
+            --verbose --showlocals --color=yes \
+            --doctest-modules --pyargs delta_sharing \
+            --ignore-glob='*/_yarl_patch.py' \
+            -o log_cli=true -s
