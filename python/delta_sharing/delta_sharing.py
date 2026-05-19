@@ -200,6 +200,7 @@ class TableSnapshot:
         if self._jsonPredicateHints is not None:
             unsupported_options.append("jsonPredicateHints")
         if self._use_delta_format is not None:
+            # TODO: Support use_delta_format once load_as_spark can pass it through.
             unsupported_options.append("use_delta_format")
 
         if unsupported_options:
@@ -265,6 +266,7 @@ class TableChanges:
 
     def to_spark(self) -> "PySparkDataFrame":  # noqa: F821
         if self._use_delta_format is not None:
+            # TODO: Support use_delta_format once load_table_changes_as_spark can pass it through.
             raise ValueError(
                 "TableChanges.to_spark does not support table changes options: " "use_delta_format"
             )
