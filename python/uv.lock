@@ -15,7 +15,7 @@ exclude-newer = "2026-03-19T00:00:00Z"
 [[package]]
 name = "adlfs"
 version = "2026.2.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "azure-core" },
     { name = "azure-datalake-store" },
@@ -31,7 +31,7 @@ wheels = [
 [[package]]
 name = "aiobotocore"
 version = "3.3.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "aioitertools" },
@@ -50,7 +50,7 @@ wheels = [
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/26/30/f84a107a9c4331c14b2b586036f40965c128aa4fee4dda5d3d51cb14ad54/aiohappyeyeballs-2.6.1.tar.gz", hash = "sha256:c3f9d0113123803ccadfdf3f0faa505bc78e6a72d1cc4806cbd719826e943558", size = 22760, upload-time = "2025-03-12T01:42:48.764Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0f/15/5bf3b99495fb160b63f95972b81750f18f7f4e02ad051373b669d17d44f2/aiohappyeyeballs-2.6.1-py3-none-any.whl", hash = "sha256:f349ba8f4b75cb25c99c5c2d84e997e485204d2902a9597802b0371f09331fb8", size = 15265, upload-time = "2025-03-12T01:42:47.083Z" },
@@ -59,7 +59,7 @@ wheels = [
 [[package]]
 name = "aiohttp"
 version = "3.13.3"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "aiohappyeyeballs" },
     { name = "aiosignal" },
@@ -179,7 +179,7 @@ wheels = [
 [[package]]
 name = "aioitertools"
 version = "0.13.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/fd/3c/53c4a17a05fb9ea2313ee1777ff53f5e001aefd5cc85aa2f4c2d982e1e38/aioitertools-0.13.0.tar.gz", hash = "sha256:620bd241acc0bbb9ec819f1ab215866871b4bbd1f73836a55f799200ee86950c", size = 19322, upload-time = "2025-11-06T22:17:07.609Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/10/a1/510b0a7fadc6f43a6ce50152e69dbd86415240835868bb0bd9b5b88b1e06/aioitertools-0.13.0-py3-none-any.whl", hash = "sha256:0be0292b856f08dfac90e31f4739432f4cb6d7520ab9eb73e143f4f2fa5259be", size = 24182, upload-time = "2025-11-06T22:17:06.502Z" },
@@ -188,7 +188,7 @@ wheels = [
 [[package]]
 name = "aiosignal"
 version = "1.4.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "frozenlist" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'" },
@@ -201,7 +201,7 @@ wheels = [
 [[package]]
 name = "async-timeout"
 version = "5.0.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a5/ae/136395dfbfe00dfc94da3f3e136d0b13f394cba8f4841120e34226265780/async_timeout-5.0.1.tar.gz", hash = "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3", size = 9274, upload-time = "2024-11-06T16:41:39.6Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fe/ba/e2081de779ca30d473f21f5b30e0e737c438205440784c7dfc81efc2b029/async_timeout-5.0.1-py3-none-any.whl", hash = "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c", size = 6233, upload-time = "2024-11-06T16:41:37.9Z" },
@@ -210,7 +210,7 @@ wheels = [
 [[package]]
 name = "attrs"
 version = "25.4.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/6b/5c/685e6633917e101e5dcb62b9dd76946cbb57c26e133bae9e0cd36033c0a9/attrs-25.4.0.tar.gz", hash = "sha256:16d5969b87f0859ef33a48b35d55ac1be6e42ae49d5e853b597db70c35c57e11", size = 934251, upload-time = "2025-10-06T13:54:44.725Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl", hash = "sha256:adcf7e2a1fb3b36ac48d97835bb6d8ade15b8dcce26aba8bf1d14847b57a3373", size = 67615, upload-time = "2025-10-06T13:54:43.17Z" },
@@ -219,7 +219,7 @@ wheels = [
 [[package]]
 name = "azure-core"
 version = "1.38.3"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "requests" },
     { name = "typing-extensions" },
@@ -237,7 +237,7 @@ aio = [
 [[package]]
 name = "azure-datalake-store"
 version = "0.0.53"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "cffi" },
     { name = "msal" },
@@ -251,7 +251,7 @@ wheels = [
 [[package]]
 name = "azure-identity"
 version = "1.25.3"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "azure-core" },
     { name = "cryptography" },
@@ -267,7 +267,7 @@ wheels = [
 [[package]]
 name = "azure-storage-blob"
 version = "12.28.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "azure-core" },
     { name = "cryptography" },
@@ -287,7 +287,7 @@ aio = [
 [[package]]
 name = "black"
 version = "26.3.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "click" },
     { name = "mypy-extensions" },
@@ -331,7 +331,7 @@ wheels = [
 [[package]]
 name = "botocore"
 version = "1.42.70"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "jmespath" },
     { name = "python-dateutil" },
@@ -345,7 +345,7 @@ wheels = [
 [[package]]
 name = "certifi"
 version = "2026.2.25"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/af/2d/7bf41579a8986e348fa033a31cdd0e4121114f6bce2457e8876010b092dd/certifi-2026.2.25.tar.gz", hash = "sha256:e887ab5cee78ea814d3472169153c2d12cd43b14bd03329a39a9c6e2e80bfba7", size = 155029, upload-time = "2026-02-25T02:54:17.342Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9a/3c/c17fb3ca2d9c3acff52e30b309f538586f9f5b9c9cf454f3845fc9af4881/certifi-2026.2.25-py3-none-any.whl", hash = "sha256:027692e4402ad994f1c42e52a4997a9763c646b73e4096e4d5d6db8af1d6f0fa", size = 153684, upload-time = "2026-02-25T02:54:15.766Z" },
@@ -354,7 +354,7 @@ wheels = [
 [[package]]
 name = "cffi"
 version = "2.0.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "pycparser", marker = "implementation_name != 'PyPy'" },
 ]
@@ -436,7 +436,7 @@ wheels = [
 [[package]]
 name = "charset-normalizer"
 version = "3.4.6"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/7b/60/e3bec1881450851b087e301bedc3daa9377a4d45f1c26aa90b0b235e38aa/charset_normalizer-3.4.6.tar.gz", hash = "sha256:1ae6b62897110aa7c79ea2f5dd38d1abca6db663687c0b1ad9aed6f6bae3d9d6", size = 143363, upload-time = "2026-03-15T18:53:25.478Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e6/8c/2c56124c6dc53a774d435f985b5973bc592f42d437be58c0c92d65ae7296/charset_normalizer-3.4.6-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:2e1d8ca8611099001949d1cdfaefc510cf0f212484fe7c565f735b68c78c3c95", size = 298751, upload-time = "2026-03-15T18:50:00.003Z" },
@@ -541,7 +541,7 @@ wheels = [
 [[package]]
 name = "click"
 version = "8.3.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
@@ -553,7 +553,7 @@ wheels = [
 [[package]]
 name = "colorama"
 version = "0.4.6"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93a6792e2acffb9d9d5cb0a5cfd8802644b7b1c9a02e4/colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44", size = 27697, upload-time = "2022-10-25T02:36:22.414Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335, upload-time = "2022-10-25T02:36:20.889Z" },
@@ -562,7 +562,7 @@ wheels = [
 [[package]]
 name = "cryptography"
 version = "46.0.5"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "cffi", marker = "platform_python_implementation != 'PyPy'" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
@@ -622,7 +622,7 @@ wheels = [
 [[package]]
 name = "decorator"
 version = "5.2.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/43/fa/6d96a0978d19e17b68d634497769987b16c8f4cd0a7a05048bec693caa6b/decorator-5.2.1.tar.gz", hash = "sha256:65f266143752f734b0a7cc83c46f4618af75b8c5911b00ccb61d0ac9b6da0360", size = 56711, upload-time = "2025-02-24T04:41:34.073Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4e/8c/f3147f5c4b73e7550fe5f9352eaa956ae838d5c51eb58e7a25b9f3e2643b/decorator-5.2.1-py3-none-any.whl", hash = "sha256:d316bb415a2d9e2d2b3abcc4084c6502fc09240e292cd76a76afc106a1c8e04a", size = 9190, upload-time = "2025-02-24T04:41:32.565Z" },
@@ -630,16 +630,8 @@ wheels = [
 
 [[package]]
 name = "delta-kernel-rust-sharing-wrapper"
-version = "0.3.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ca/78/020111f3a5b60fa9265d5f5ed44e632e376f256de8f6da70fdcd9238f693/delta_kernel_rust_sharing_wrapper-0.3.1.tar.gz", hash = "sha256:d7cc3160f9d58de4419b27339bcc9bf8ef84f1a91383aa66322b6f20f3f1ca9f", size = 21775, upload-time = "2025-12-05T02:16:21.149Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/56/aeebc475c00f5ca7f7165e869be1d8139df09857745b82e50a0551b93836/delta_kernel_rust_sharing_wrapper-0.3.1-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:f3c8851904e0b8942d563f6b110e3a10930209ac77a17dc12e2761798a5df36f", size = 9367497, upload-time = "2025-12-05T02:16:29.363Z" },
-    { url = "https://files.pythonhosted.org/packages/17/d4/d8f7f01855d992c426e6914135a4ded32849d3f21acd927ef5a8303dc96b/delta_kernel_rust_sharing_wrapper-0.3.1-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:cc7e018ff750748ae4c4d243c1570fb9e237f41deb0f56f237c039603c464698", size = 8888955, upload-time = "2025-12-05T02:16:31.271Z" },
-    { url = "https://files.pythonhosted.org/packages/dc/1a/7c5dd6b1ff8514bfd5a20e44c61f854d5176b7d3c328fc5c5c8fea8278ef/delta_kernel_rust_sharing_wrapper-0.3.1-cp38-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:0e310547b5f0363e03654a19e35d44584a70fb9b8f68862e7171dbd09b36655a", size = 10061258, upload-time = "2025-12-05T02:16:33.741Z" },
-    { url = "https://files.pythonhosted.org/packages/bd/b7/40f78f841c77d7765f60955eec66953b14fbc84ca7dbbf338698bbf0c4e9/delta_kernel_rust_sharing_wrapper-0.3.1-cp38-abi3-manylinux_2_39_x86_64.whl", hash = "sha256:baa3e3cf33f2c648c07d58a2860bb7740254ed3148ee3d42a676b866b7cdc231", size = 10072123, upload-time = "2025-12-05T02:16:36.056Z" },
-    { url = "https://files.pythonhosted.org/packages/6e/aa/2c110179240c27035180753e16e261239e54eaffa2b09b84cc9b7d709eb6/delta_kernel_rust_sharing_wrapper-0.3.1-cp38-abi3-win_amd64.whl", hash = "sha256:5326f3d05e7209f8773e55ec480f34c0485ec7af4ae3feb73339cdd583fd27ec", size = 8745790, upload-time = "2025-12-05T02:16:37.85Z" },
-]
+version = "0.3.2"
+source = { directory = "delta-kernel-rust-sharing-wrapper" }
 
 [[package]]
 name = "delta-sharing"
@@ -689,7 +681,7 @@ requires-dist = [
     { name = "adlfs", marker = "extra == 'abfs'" },
     { name = "adlfs", marker = "extra == 'adl'" },
     { name = "aiohttp", specifier = ">=3.0.0,<=3.13.4" },
-    { name = "delta-kernel-rust-sharing-wrapper", specifier = ">=0.3.1,<1.0" },
+    { name = "delta-kernel-rust-sharing-wrapper", directory = "delta-kernel-rust-sharing-wrapper" },
     { name = "fsspec", specifier = ">=0.7.4,<=2026.2.0" },
     { name = "gcsfs", marker = "extra == 'gcs'" },
     { name = "gcsfs", marker = "extra == 'gs'" },
@@ -717,7 +709,7 @@ dev = [
 [[package]]
 name = "exceptiongroup"
 version = "1.3.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
@@ -729,7 +721,7 @@ wheels = [
 [[package]]
 name = "flake8"
 version = "7.3.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "mccabe" },
     { name = "pycodestyle" },
@@ -743,7 +735,7 @@ wheels = [
 [[package]]
 name = "frozenlist"
 version = "1.8.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/2d/f5/c831fac6cc817d26fd54c7eaccd04ef7e0288806943f7cc5bbf69f3ac1f0/frozenlist-1.8.0.tar.gz", hash = "sha256:3ede829ed8d842f6cd48fc7081d7a41001a56f1f38603f9d49bf3020d59a31ad", size = 45875, upload-time = "2025-10-06T05:38:17.865Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/83/4a/557715d5047da48d54e659203b9335be7bfaafda2c3f627b7c47e0b3aaf3/frozenlist-1.8.0-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:b37f6d31b3dcea7deb5e9696e529a6aa4a898adc33db82da12e4c60a7c4d2011", size = 86230, upload-time = "2025-10-06T05:35:23.699Z" },
@@ -864,7 +856,7 @@ wheels = [
 [[package]]
 name = "fsspec"
 version = "2026.2.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/51/7c/f60c259dcbf4f0c47cc4ddb8f7720d2dcdc8888c8e5ad84c73ea4531cc5b/fsspec-2026.2.0.tar.gz", hash = "sha256:6544e34b16869f5aacd5b90bdf1a71acb37792ea3ddf6125ee69a22a53fb8bff", size = 313441, upload-time = "2026-02-05T21:50:53.743Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e6/ab/fb21f4c939bb440104cc2b396d3be1d9b7a9fd3c6c2a53d98c45b3d7c954/fsspec-2026.2.0-py3-none-any.whl", hash = "sha256:98de475b5cb3bd66bedd5c4679e87b4fdfe1a3bf4d707b151b3c07e58c9a2437", size = 202505, upload-time = "2026-02-05T21:50:51.819Z" },
@@ -873,7 +865,7 @@ wheels = [
 [[package]]
 name = "gcsfs"
 version = "2026.2.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "decorator" },
@@ -892,7 +884,7 @@ wheels = [
 [[package]]
 name = "google-api-core"
 version = "2.30.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "google-auth" },
     { name = "googleapis-common-protos" },
@@ -914,7 +906,7 @@ grpc = [
 [[package]]
 name = "google-auth"
 version = "2.49.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "pyasn1-modules" },
@@ -927,7 +919,7 @@ wheels = [
 [[package]]
 name = "google-auth-oauthlib"
 version = "1.3.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "google-auth" },
     { name = "requests-oauthlib" },
@@ -940,7 +932,7 @@ wheels = [
 [[package]]
 name = "google-cloud-core"
 version = "2.5.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "google-api-core" },
     { name = "google-auth" },
@@ -953,7 +945,7 @@ wheels = [
 [[package]]
 name = "google-cloud-storage"
 version = "3.10.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "google-api-core" },
     { name = "google-auth" },
@@ -970,7 +962,7 @@ wheels = [
 [[package]]
 name = "google-cloud-storage-control"
 version = "1.10.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "google-api-core", extra = ["grpc"] },
     { name = "google-auth" },
@@ -987,7 +979,7 @@ wheels = [
 [[package]]
 name = "google-crc32c"
 version = "1.8.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/03/41/4b9c02f99e4c5fb477122cd5437403b552873f014616ac1d19ac8221a58d/google_crc32c-1.8.0.tar.gz", hash = "sha256:a428e25fb7691024de47fecfbff7ff957214da51eddded0da0ae0e0f03a2cf79", size = 14192, upload-time = "2025-12-16T00:35:25.142Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/95/ac/6f7bc93886a823ab545948c2dd48143027b2355ad1944c7cf852b338dc91/google_crc32c-1.8.0-cp310-cp310-macosx_12_0_arm64.whl", hash = "sha256:0470b8c3d73b5f4e3300165498e4cf25221c7eb37f1159e221d1825b6df8a7ff", size = 31296, upload-time = "2025-12-16T00:19:07.261Z" },
@@ -1022,7 +1014,7 @@ wheels = [
 [[package]]
 name = "google-resumable-media"
 version = "2.8.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "google-crc32c" },
 ]
@@ -1034,7 +1026,7 @@ wheels = [
 [[package]]
 name = "googleapis-common-protos"
 version = "1.73.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "protobuf" },
 ]
@@ -1051,7 +1043,7 @@ grpc = [
 [[package]]
 name = "grpc-google-iam-v1"
 version = "0.14.3"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "googleapis-common-protos", extra = ["grpc"] },
     { name = "grpcio" },
@@ -1065,7 +1057,7 @@ wheels = [
 [[package]]
 name = "grpcio"
 version = "1.78.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
@@ -1126,7 +1118,7 @@ wheels = [
 [[package]]
 name = "grpcio-status"
 version = "1.78.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "googleapis-common-protos" },
     { name = "grpcio" },
@@ -1140,7 +1132,7 @@ wheels = [
 [[package]]
 name = "idna"
 version = "3.11"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/6f/6d/0703ccc57f3a7233505399edb88de3cbd678da106337b9fcde432b65ed60/idna-3.11.tar.gz", hash = "sha256:795dafcc9c04ed0c1fb032c2aa73654d8e8c5023a7df64a53f39190ada629902", size = 194582, upload-time = "2025-10-12T14:55:20.501Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0e/61/66938bbb5fc52dbdf84594873d5b51fb1f7c7794e9c0f5bd885f30bc507b/idna-3.11-py3-none-any.whl", hash = "sha256:771a87f49d9defaf64091e6e6fe9c18d4833f140bd19464795bc32d966ca37ea", size = 71008, upload-time = "2025-10-12T14:55:18.883Z" },
@@ -1149,7 +1141,7 @@ wheels = [
 [[package]]
 name = "iniconfig"
 version = "2.3.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc35312d08ba8bf51fdd999c576889fc2c24cb97f4f10/iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730", size = 20503, upload-time = "2025-10-18T21:55:43.219Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
@@ -1158,7 +1150,7 @@ wheels = [
 [[package]]
 name = "isodate"
 version = "0.7.2"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/54/4d/e940025e2ce31a8ce1202635910747e5a87cc3a6a6bb2d00973375014749/isodate-0.7.2.tar.gz", hash = "sha256:4cd1aa0f43ca76f4a6c6c0292a85f40b35ec2e43e315b59f06e6d32171a953e6", size = 29705, upload-time = "2024-10-08T23:04:11.5Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/15/aa/0aca39a37d3c7eb941ba736ede56d689e7be91cab5d9ca846bde3999eba6/isodate-0.7.2-py3-none-any.whl", hash = "sha256:28009937d8031054830160fce6d409ed342816b543597cece116d966c6d99e15", size = 22320, upload-time = "2024-10-08T23:04:09.501Z" },
@@ -1167,7 +1159,7 @@ wheels = [
 [[package]]
 name = "jmespath"
 version = "1.1.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d3/59/322338183ecda247fb5d1763a6cbe46eff7222eaeebafd9fa65d4bf5cb11/jmespath-1.1.0.tar.gz", hash = "sha256:472c87d80f36026ae83c6ddd0f1d05d4e510134ed462851fd5f754c8c3cbb88d", size = 27377, upload-time = "2026-01-22T16:35:26.279Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/14/2f/967ba146e6d58cf6a652da73885f52fc68001525b4197effc174321d70b4/jmespath-1.1.0-py3-none-any.whl", hash = "sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64", size = 20419, upload-time = "2026-01-22T16:35:24.919Z" },
@@ -1176,7 +1168,7 @@ wheels = [
 [[package]]
 name = "jwcrypto"
 version = "1.5.6"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "typing-extensions" },
@@ -1189,7 +1181,7 @@ wheels = [
 [[package]]
 name = "maturin"
 version = "1.12.6"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
@@ -1213,7 +1205,7 @@ wheels = [
 [[package]]
 name = "mccabe"
 version = "0.7.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e7/ff/0ffefdcac38932a54d2b5eed4e0ba8a408f215002cd178ad1df0f2806ff8/mccabe-0.7.0.tar.gz", hash = "sha256:348e0240c33b60bbdf4e523192ef919f28cb2c3d7d5c7794f74009290f236325", size = 9658, upload-time = "2022-01-24T01:14:51.113Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/27/1a/1f68f9ba0c207934b35b86a8ca3aad8395a3d6dd7921c0686e23853ff5a9/mccabe-0.7.0-py2.py3-none-any.whl", hash = "sha256:6c2d30ab6be0e4a46919781807b4f0d834ebdd6c6e3dca0bda5a15f863427b6e", size = 7350, upload-time = "2022-01-24T01:14:49.62Z" },
@@ -1222,7 +1214,7 @@ wheels = [
 [[package]]
 name = "msal"
 version = "1.35.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "pyjwt", extra = ["crypto"] },
@@ -1236,7 +1228,7 @@ wheels = [
 [[package]]
 name = "msal-extensions"
 version = "1.3.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "msal" },
 ]
@@ -1248,7 +1240,7 @@ wheels = [
 [[package]]
 name = "multidict"
 version = "6.7.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
@@ -1386,7 +1378,7 @@ wheels = [
 [[package]]
 name = "mypy"
 version = "0.981"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "mypy-extensions" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
@@ -1406,7 +1398,7 @@ wheels = [
 [[package]]
 name = "mypy-extensions"
 version = "1.1.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a2/6e/371856a3fb9d31ca8dac321cda606860fa4548858c0cc45d9d1d4ca2628b/mypy_extensions-1.1.0.tar.gz", hash = "sha256:52e68efc3284861e772bbcd66823fde5ae21fd2fdb51c62a211403730b916558", size = 6343, upload-time = "2025-04-22T14:54:24.164Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505", size = 4963, upload-time = "2025-04-22T14:54:22.983Z" },
@@ -1415,7 +1407,7 @@ wheels = [
 [[package]]
 name = "numpy"
 version = "2.2.6"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 resolution-markers = [
     "python_full_version < '3.11'",
 ]
@@ -1480,7 +1472,7 @@ wheels = [
 [[package]]
 name = "numpy"
 version = "2.4.3"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 resolution-markers = [
     "python_full_version >= '3.14'",
     "python_full_version == '3.13.*'",
@@ -1565,7 +1557,7 @@ wheels = [
 [[package]]
 name = "oauthlib"
 version = "3.3.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0b/5f/19930f824ffeb0ad4372da4812c50edbd1434f678c90c2733e1188edfc63/oauthlib-3.3.1.tar.gz", hash = "sha256:0f0f8aa759826a193cf66c12ea1af1637f87b9b4622d46e866952bb022e538c9", size = 185918, upload-time = "2025-06-19T22:48:08.269Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/be/9c/92789c596b8df838baa98fa71844d84283302f7604ed565dafe5a6b5041a/oauthlib-3.3.1-py3-none-any.whl", hash = "sha256:88119c938d2b8fb88561af5f6ee0eec8cc8d552b7bb1f712743136eb7523b7a1", size = 160065, upload-time = "2025-06-19T22:48:06.508Z" },
@@ -1574,7 +1566,7 @@ wheels = [
 [[package]]
 name = "packaging"
 version = "26.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/65/ee/299d360cdc32edc7d2cf530f3accf79c4fca01e96ffc950d8a52213bd8e4/packaging-26.0.tar.gz", hash = "sha256:00243ae351a257117b6a241061796684b084ed1c516a08c48a3f7e147a9d80b4", size = 143416, upload-time = "2026-01-21T20:50:39.064Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/b9/c538f279a4e237a006a2c98387d081e9eb060d203d8ed34467cc0f0b9b53/packaging-26.0-py3-none-any.whl", hash = "sha256:b36f1fef9334a5588b4166f8bcd26a14e521f2b55e6b9de3aaa80d3ff7a37529", size = 74366, upload-time = "2026-01-21T20:50:37.788Z" },
@@ -1583,10 +1575,10 @@ wheels = [
 [[package]]
 name = "pandas"
 version = "2.3.3"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "numpy", version = "2.4.3", source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.3", source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "python-dateutil" },
     { name = "pytz" },
     { name = "tzdata" },
@@ -1645,7 +1637,7 @@ wheels = [
 [[package]]
 name = "pathspec"
 version = "1.0.4"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/fa/36/e27608899f9b8d4dff0617b2d9ab17ca5608956ca44461ac14ac48b44015/pathspec-1.0.4.tar.gz", hash = "sha256:0210e2ae8a21a9137c0d470578cb0e595af87edaa6ebf12ff176f14a02e0e645", size = 131200, upload-time = "2026-01-27T03:59:46.938Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/3c/2c197d226f9ea224a9ab8d197933f9da0ae0aac5b6e0f884e2b8d9c8e9f7/pathspec-1.0.4-py3-none-any.whl", hash = "sha256:fb6ae2fd4e7c921a165808a552060e722767cfa526f99ca5156ed2ce45a5c723", size = 55206, upload-time = "2026-01-27T03:59:45.137Z" },
@@ -1654,7 +1646,7 @@ wheels = [
 [[package]]
 name = "platformdirs"
 version = "4.9.4"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/19/56/8d4c30c8a1d07013911a8fdbd8f89440ef9f08d07a1b50ab8ca8be5a20f9/platformdirs-4.9.4.tar.gz", hash = "sha256:1ec356301b7dc906d83f371c8f487070e99d3ccf9e501686456394622a01a934", size = 28737, upload-time = "2026-03-05T18:34:13.271Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/63/d7/97f7e3a6abb67d8080dd406fd4df842c2be0efaf712d1c899c32a075027c/platformdirs-4.9.4-py3-none-any.whl", hash = "sha256:68a9a4619a666ea6439f2ff250c12a853cd1cbd5158d258bd824a7df6be2f868", size = 21216, upload-time = "2026-03-05T18:34:12.172Z" },
@@ -1663,7 +1655,7 @@ wheels = [
 [[package]]
 name = "pluggy"
 version = "1.6.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
@@ -1672,7 +1664,7 @@ wheels = [
 [[package]]
 name = "propcache"
 version = "0.4.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/9e/da/e9fc233cf63743258bff22b3dfa7ea5baef7b5bc324af47a0ad89b8ffc6f/propcache-0.4.1.tar.gz", hash = "sha256:f48107a8c637e80362555f37ecf49abe20370e557cc4ab374f04ec4423c97c3d", size = 46442, upload-time = "2025-10-08T19:49:02.291Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3c/0e/934b541323035566a9af292dba85a195f7b78179114f2c6ebb24551118a9/propcache-0.4.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:7c2d1fa3201efaf55d730400d945b5b3ab6e672e100ba0f9a409d950ab25d7db", size = 79534, upload-time = "2025-10-08T19:46:02.083Z" },
@@ -1786,7 +1778,7 @@ wheels = [
 [[package]]
 name = "proto-plus"
 version = "1.27.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "protobuf" },
 ]
@@ -1798,7 +1790,7 @@ wheels = [
 [[package]]
 name = "protobuf"
 version = "6.33.6"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/66/70/e908e9c5e52ef7c3a6c7902c9dfbb34c7e29c25d2f81ade3856445fd5c94/protobuf-6.33.6.tar.gz", hash = "sha256:a6768d25248312c297558af96a9f9c929e8c4cee0659cb07e780731095f38135", size = 444531, upload-time = "2026-03-18T19:05:00.988Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fc/9f/2f509339e89cfa6f6a4c4ff50438db9ca488dec341f7e454adad60150b00/protobuf-6.33.6-cp310-abi3-win32.whl", hash = "sha256:7d29d9b65f8afef196f8334e80d6bc1d5d4adedb449971fefd3723824e6e77d3", size = 425739, upload-time = "2026-03-18T19:04:48.373Z" },
@@ -1813,7 +1805,7 @@ wheels = [
 [[package]]
 name = "pyarrow"
 version = "23.0.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/88/22/134986a4cc224d593c1afde5494d18ff629393d74cc2eddb176669f234a4/pyarrow-23.0.1.tar.gz", hash = "sha256:b8c5873e33440b2bc2f4a79d2b47017a89c5a24116c055625e6f2ee50523f019", size = 1167336, upload-time = "2026-02-16T10:14:12.39Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bc/a8/24e5dc6855f50a62936ceb004e6e9645e4219a8065f304145d7fb8a79d5d/pyarrow-23.0.1-cp310-cp310-macosx_12_0_arm64.whl", hash = "sha256:3fab8f82571844eb3c460f90a75583801d14ca0cc32b1acc8c361650e006fd56", size = 34307390, upload-time = "2026-02-16T10:08:08.654Z" },
@@ -1870,7 +1862,7 @@ wheels = [
 [[package]]
 name = "pyasn1"
 version = "0.6.3"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5c/5f/6583902b6f79b399c9c40674ac384fd9cd77805f9e6205075f828ef11fb2/pyasn1-0.6.3.tar.gz", hash = "sha256:697a8ecd6d98891189184ca1fa05d1bb00e2f84b5977c481452050549c8a72cf", size = 148685, upload-time = "2026-03-17T01:06:53.382Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5d/a0/7d793dce3fa811fe047d6ae2431c672364b462850c6235ae306c0efd025f/pyasn1-0.6.3-py3-none-any.whl", hash = "sha256:a80184d120f0864a52a073acc6fc642847d0be408e7c7252f31390c0f4eadcde", size = 83997, upload-time = "2026-03-17T01:06:52.036Z" },
@@ -1879,7 +1871,7 @@ wheels = [
 [[package]]
 name = "pyasn1-modules"
 version = "0.4.2"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "pyasn1" },
 ]
@@ -1891,7 +1883,7 @@ wheels = [
 [[package]]
 name = "pycodestyle"
 version = "2.14.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/11/e0/abfd2a0d2efe47670df87f3e3a0e2edda42f055053c85361f19c0e2c1ca8/pycodestyle-2.14.0.tar.gz", hash = "sha256:c4b5b517d278089ff9d0abdec919cd97262a3367449ea1c8b49b91529167b783", size = 39472, upload-time = "2025-06-20T18:49:48.75Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d7/27/a58ddaf8c588a3ef080db9d0b7e0b97215cee3a45df74f3a94dbbf5c893a/pycodestyle-2.14.0-py2.py3-none-any.whl", hash = "sha256:dd6bf7cb4ee77f8e016f9c8e74a35ddd9f67e1d5fd4184d86c3b98e07099f42d", size = 31594, upload-time = "2025-06-20T18:49:47.491Z" },
@@ -1900,7 +1892,7 @@ wheels = [
 [[package]]
 name = "pycparser"
 version = "3.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/1b/7d/92392ff7815c21062bea51aa7b87d45576f649f16458d78b7cf94b9ab2e6/pycparser-3.0.tar.gz", hash = "sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29", size = 103492, upload-time = "2026-01-21T14:26:51.89Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0c/c3/44f3fbbfa403ea2a7c779186dc20772604442dde72947e7d01069cbe98e3/pycparser-3.0-py3-none-any.whl", hash = "sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992", size = 48172, upload-time = "2026-01-21T14:26:50.693Z" },
@@ -1909,7 +1901,7 @@ wheels = [
 [[package]]
 name = "pyflakes"
 version = "3.4.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/45/dc/fd034dc20b4b264b3d015808458391acbf9df40b1e54750ef175d39180b1/pyflakes-3.4.0.tar.gz", hash = "sha256:b24f96fafb7d2ab0ec5075b7350b3d2d2218eab42003821c06344973d3ea2f58", size = 64669, upload-time = "2025-06-20T18:45:27.834Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c2/2f/81d580a0fb83baeb066698975cb14a618bdbed7720678566f1b046a95fe8/pyflakes-3.4.0-py2.py3-none-any.whl", hash = "sha256:f742a7dbd0d9cb9ea41e9a24a918996e8170c799fa528688d40dd582c8265f4f", size = 63551, upload-time = "2025-06-20T18:45:26.937Z" },
@@ -1918,7 +1910,7 @@ wheels = [
 [[package]]
 name = "pygments"
 version = "2.19.2"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b0/77/a5b8c569bf593b0140bde72ea885a803b82086995367bf2037de0159d924/pygments-2.19.2.tar.gz", hash = "sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887", size = 4968631, upload-time = "2025-06-21T13:39:12.283Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/21/705964c7812476f378728bdf590ca4b771ec72385c533964653c68e86bdc/pygments-2.19.2-py3-none-any.whl", hash = "sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b", size = 1225217, upload-time = "2025-06-21T13:39:07.939Z" },
@@ -1927,7 +1919,7 @@ wheels = [
 [[package]]
 name = "pyjwt"
 version = "2.12.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
@@ -1944,7 +1936,7 @@ crypto = [
 [[package]]
 name = "pytest"
 version = "9.0.2"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
@@ -1962,7 +1954,7 @@ wheels = [
 [[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "six" },
 ]
@@ -1974,7 +1966,7 @@ wheels = [
 [[package]]
 name = "pytokens"
 version = "0.4.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b6/34/b4e015b99031667a7b960f888889c5bd34ef585c85e1cb56a594b92836ac/pytokens-0.4.1.tar.gz", hash = "sha256:292052fe80923aae2260c073f822ceba21f3872ced9a68bb7953b348e561179a", size = 23015, upload-time = "2026-01-30T01:03:45.924Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/42/24/f206113e05cb8ef51b3850e7ef88f20da6f4bf932190ceb48bd3da103e10/pytokens-0.4.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:2a44ed93ea23415c54f3face3b65ef2b844d96aeb3455b8a69b3df6beab6acc5", size = 161522, upload-time = "2026-01-30T01:02:50.393Z" },
@@ -2013,7 +2005,7 @@ wheels = [
 [[package]]
 name = "pytz"
 version = "2026.1.post1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/56/db/b8721d71d945e6a8ac63c0fc900b2067181dbb50805958d4d4661cf7d277/pytz-2026.1.post1.tar.gz", hash = "sha256:3378dde6a0c3d26719182142c56e60c7f9af7e968076f31aae569d72a0358ee1", size = 321088, upload-time = "2026-03-03T07:47:50.683Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/10/99/781fe0c827be2742bcc775efefccb3b048a3a9c6ce9aec0cbf4a101677e5/pytz-2026.1.post1-py2.py3-none-any.whl", hash = "sha256:f2fd16142fda348286a75e1a524be810bb05d444e5a081f37f7affc635035f7a", size = 510489, upload-time = "2026-03-03T07:47:49.167Z" },
@@ -2022,7 +2014,7 @@ wheels = [
 [[package]]
 name = "requests"
 version = "2.32.5"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "certifi" },
     { name = "charset-normalizer" },
@@ -2037,7 +2029,7 @@ wheels = [
 [[package]]
 name = "requests-oauthlib"
 version = "2.0.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "oauthlib" },
     { name = "requests" },
@@ -2050,7 +2042,7 @@ wheels = [
 [[package]]
 name = "s3fs"
 version = "2026.2.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "aiobotocore" },
     { name = "aiohttp" },
@@ -2064,7 +2056,7 @@ wheels = [
 [[package]]
 name = "setuptools"
 version = "82.0.1"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/4f/db/cfac1baf10650ab4d1c111714410d2fbb77ac5a616db26775db562c8fab2/setuptools-82.0.1.tar.gz", hash = "sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9", size = 1152316, upload-time = "2026-03-09T12:47:17.221Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb", size = 1006223, upload-time = "2026-03-09T12:47:15.026Z" },
@@ -2073,7 +2065,7 @@ wheels = [
 [[package]]
 name = "six"
 version = "1.17.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
@@ -2082,7 +2074,7 @@ wheels = [
 [[package]]
 name = "tomli"
 version = "2.4.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/82/30/31573e9457673ab10aa432461bee537ce6cef177667deca369efb79df071/tomli-2.4.0.tar.gz", hash = "sha256:aa89c3f6c277dd275d8e243ad24f3b5e701491a860d5121f2cdd399fbb31fc9c", size = 17477, upload-time = "2026-01-11T11:22:38.165Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3c/d9/3dc2289e1f3b32eb19b9785b6a006b28ee99acb37d1d47f78d4c10e28bf8/tomli-2.4.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:b5ef256a3fd497d4973c11bf142e9ed78b150d36f5773f1ca6088c230ffc5867", size = 153663, upload-time = "2026-01-11T11:21:45.27Z" },
@@ -2136,7 +2128,7 @@ wheels = [
 [[package]]
 name = "types-requests"
 version = "2.32.0.20250602"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "urllib3" },
 ]
@@ -2148,7 +2140,7 @@ wheels = [
 [[package]]
 name = "typing-extensions"
 version = "4.15.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/72/94/1a15dd82efb362ac84269196e94cf00f187f7ed21c242792a923cdb1c61f/typing_extensions-4.15.0.tar.gz", hash = "sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466", size = 109391, upload-time = "2025-08-25T13:49:26.313Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/18/67/36e9267722cc04a6b9f15c7f3441c2363321a3ea07da7ae0c0707beb2a9c/typing_extensions-4.15.0-py3-none-any.whl", hash = "sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548", size = 44614, upload-time = "2025-08-25T13:49:24.86Z" },
@@ -2157,7 +2149,7 @@ wheels = [
 [[package]]
 name = "tzdata"
 version = "2025.3"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5e/a7/c202b344c5ca7daf398f3b8a477eeb205cf3b6f32e7ec3a6bac0629ca975/tzdata-2025.3.tar.gz", hash = "sha256:de39c2ca5dc7b0344f2eba86f49d614019d29f060fc4ebc8a417896a620b56a7", size = 196772, upload-time = "2025-12-13T17:45:35.667Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/b0/003792df09decd6849a5e39c28b513c06e84436a54440380862b5aeff25d/tzdata-2025.3-py2.py3-none-any.whl", hash = "sha256:06a47e5700f3081aab02b2e513160914ff0694bce9947d6b76ebd6bf57cfc5d1", size = 348521, upload-time = "2025-12-13T17:45:33.889Z" },
@@ -2166,7 +2158,7 @@ wheels = [
 [[package]]
 name = "urllib3"
 version = "2.6.3"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c7/24/5f1b3bdffd70275f6661c76461e25f024d5a38a46f04aaca912426a2b1d3/urllib3-2.6.3.tar.gz", hash = "sha256:1b62b6884944a57dbe321509ab94fd4d3b307075e0c2eae991ac71ee15ad38ed", size = 435556, upload-time = "2026-01-07T16:24:43.925Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/39/08/aaaad47bc4e9dc8c725e68f9d04865dbcb2052843ff09c97b08904852d84/urllib3-2.6.3-py3-none-any.whl", hash = "sha256:bf272323e553dfb2e87d9bfd225ca7b0f467b919d7bbd355436d3fd37cb0acd4", size = 131584, upload-time = "2026-01-07T16:24:42.685Z" },
@@ -2175,7 +2167,7 @@ wheels = [
 [[package]]
 name = "wrapt"
 version = "2.1.2"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/2e/64/925f213fdcbb9baeb1530449ac71a4d57fc361c053d06bf78d0c5c7cd80c/wrapt-2.1.2.tar.gz", hash = "sha256:3996a67eecc2c68fd47b4e3c564405a5777367adfd9b8abb58387b63ee83b21e", size = 81678, upload-time = "2026-03-06T02:53:25.134Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/da/d2/387594fb592d027366645f3d7cc9b4d7ca7be93845fbaba6d835a912ef3c/wrapt-2.1.2-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:4b7a86d99a14f76facb269dc148590c01aaf47584071809a70da30555228158c", size = 60669, upload-time = "2026-03-06T02:52:40.671Z" },
@@ -2261,7 +2253,7 @@ wheels = [
 [[package]]
 name = "yarl"
 version = "1.23.0"
-source = { registry = "https://pypi-proxy.dev.databricks.com/simple" }
+source = { registry = "https://pypi-proxy.cloud.databricks.com/simple" }
 dependencies = [
     { name = "idna" },
     { name = "multidict" },
