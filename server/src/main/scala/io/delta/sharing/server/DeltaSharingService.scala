@@ -406,8 +406,9 @@ class DeltaSharingService(serverConfig: ServerConfig) {
         )
       } else {
 
-      // Test case: Use a bad table name to trigger error during loadTable (on 2nd poll)
-      val tableToLoad = if (table.endsWith("_bad_table") && pollCount == 2) {
+      // Test case: Use a bad table name to trigger error during loadTable (on 4th poll,
+      // which is the first poll that exits the pending loop).
+      val tableToLoad = if (table.endsWith("_bad_table") && pollCount == 4) {
         "nonexistent_bad_table"
       } else {
         table
