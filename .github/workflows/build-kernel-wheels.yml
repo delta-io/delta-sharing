@@ -39,14 +39,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
-        # workaround to install delta-kernel-rust-sharing-wrapper before running uv sync
-        # this allows uv sync to work even if the delta-kernel-rust-sharing-wrapper version
-        # specified in pyproject.toml has not been released to pypi
+      - name: Install maturin
         run: |
           cd python
-          uv venv
-          uv pip install --group dev
+          uv sync --frozen --only-group dev
+        shell: bash
 
       - name: Build wheel (x86_64 macOS)
         if: matrix.os == 'macos-latest' && matrix.arch == 'x86_64'

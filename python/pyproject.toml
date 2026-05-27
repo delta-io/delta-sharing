@@ -54,7 +54,7 @@ include = ["delta_sharing"]
 exclude-newer = "2026-03-19T00:00:00Z"
 
 [tool.uv.sources]
-delta-kernel-rust-sharing-wrapper = { path = "delta-kernel-rust-sharing-wrapper/target/wheels/delta_kernel_rust_sharing_wrapper-0.3.2-cp310-abi3-linux_x86_64.whl" }
+delta-kernel-rust-sharing-wrapper = { path = "delta-kernel-rust-sharing-wrapper" }
 
 [dependency-groups]
 dev = [
