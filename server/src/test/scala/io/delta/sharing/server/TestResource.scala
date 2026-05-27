@@ -195,6 +195,22 @@ object TestResource {
                 s"abfss://${Azure.container}@${Azure.accountName}.dfs.core.windows.net/delta-sharing-test/table1",
                 "00000000-0000-0000-0000-000000000094",
                 historyShared = true
+              ),
+              // Tables for async query error-handling integration tests.
+              TableConfig(
+                "table_wasb_change_query_id",
+                s"wasbs://${Azure.container}@${Azure.accountName}.blob.core.windows.net/delta-sharing-test/table1",
+                "00000000-0000-0000-0000-0000000000a1"
+              ),
+              TableConfig(
+                "table_wasb_change_query_id_to_be_null",
+                s"wasbs://${Azure.container}@${Azure.accountName}.blob.core.windows.net/delta-sharing-test/table1",
+                "00000000-0000-0000-0000-0000000000a2"
+              ),
+              TableConfig(
+                "table_wasb_bad_table",
+                s"wasbs://${Azure.container}@${Azure.accountName}.blob.core.windows.net/delta-sharing-test/table1",
+                "00000000-0000-0000-0000-0000000000a3"
               )
             )
           )
