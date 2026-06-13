@@ -106,49 +106,47 @@ class DeltaSharingReader:
 
         Returns: a pandas df
         """
-        self._rest_client.set_delta_format_header()
-        response = self._rest_client.list_files_in_table(
-            self._table,
-            predicateHints=self._predicateHints,
-            jsonPredicateHints=self._jsonPredicateHints,
-            limitHint=self._limit,
-            version=self._version,
-            timestamp=self._timestamp,
-        )
-
-        lines = response.lines
-        # Create a temporary directory using the tempfile module
         temp_dir = tempfile.TemporaryDirectory()
-        table_path = self.__write_temp_delta_log_snapshot(temp_dir.name, lines)
-        num_files = len(lines)
+        self._rest_client.set_delta_format_header()
+        try:
+            response = self._rest_client.list_files_in_table(
+                self._table,
+                predicateHints=self._predicateHints,
+                jsonPredicateHints=self._jsonPredicateHints,
+                limitHint=self._limit,
+                version=self._version,
+                timestamp=self._timestamp,
+            )
 
-        # Invoke delta-kernel-rust to return the pandas dataframe
-        interface = delta_kernel_rust_sharing_wrapper.PythonInterface(table_path)
-        table = delta_kernel_rust_sharing_wrapper.Table(table_path)
-        snapshot = table.snapshot(interface)
-        scan = delta_kernel_rust_sharing_wrapper.ScanBuilder(snapshot).build()
+            lines = response.lines
+            table_path = self.__write_temp_delta_log_snapshot(temp_dir.name, lines)
+            num_files = len(lines)
 
-        # The table is empty so use the schema to return an empty table with correct col names
-        if num_files == 0:
-            schema = scan.execute(interface).schema
-            return pd.DataFrame(columns=schema.names)
+            # Invoke delta-kernel-rust to return the pandas dataframe
+            interface = delta_kernel_rust_sharing_wrapper.PythonInterface(table_path)
+            table = delta_kernel_rust_sharing_wrapper.Table(table_path)
+            snapshot = table.snapshot(interface)
+            scan = delta_kernel_rust_sharing_wrapper.ScanBuilder(snapshot).build()
 
-        batches = scan.execute(interface)
-        if self._convert_in_batches:
-            pdfs = [batch.to_pandas(self_destruct=True) for batch in batches]
-            print(f"Received {len(pdfs)} batches of data.")
-            result = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
-        else:
-            result = pa.Table.from_batches(batches).to_pandas(self_destruct=True)
+            # The table is empty so use the schema to return an empty table with correct col names
+            if num_files == 0:
+                schema = scan.execute(interface).schema
+                return pd.DataFrame(columns=schema.names)
 
-        # Apply residual limit that was not handled from server pushdown
-        result = result.head(self._limit)
+            batches = scan.execute(interface)
+            if self._convert_in_batches:
+                pdfs = [batch.to_pandas(self_destruct=True) for batch in batches]
+                print(f"Received {len(pdfs)} batches of data.")
+                result = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+            else:
+                result = pa.Table.from_batches(batches).to_pandas(self_destruct=True)
 
-        # Delete the temp folder explicitly and remove the delta format from header
-        temp_dir.cleanup()
-        self._rest_client.remove_delta_format_header()
-
-        return result
+            # Apply residual limit that was not handled from server pushdown
+            return result.head(self._limit)
+        finally:
+            # Delete the temp folder explicitly and remove the delta format from header
+            temp_dir.cleanup()
+            self._rest_client.remove_delta_format_header()
 
     def to_pandas(self) -> pd.DataFrame:
         response_format = ""
@@ -301,55 +299,55 @@ class DeltaSharingReader:
                 last_checkpoint_file.close()
 
     def __table_changes_to_pandas_kernel(self, cdfOptions: CdfOptions) -> pd.DataFrame:
-        self._rest_client.set_delta_format_header(for_cdf=True)
-        response = self._rest_client.list_table_changes(self._table, cdfOptions)
-        lines = response.lines
-
-        # first line is protocol
-        protocol_json = loads(lines.pop(0))
-        delta_protocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
-        start_version = cdfOptions.starting_version
-
-        min_version = start_version if start_version is not None else (10**20 - 1)
-        max_version = 0
-        version_to_actions = defaultdict(list)
-        version_to_metadata = {}
-        version_to_timestamp = {}
-
-        # Construct map from version to actions that took place in that version
-        line_count = 1
-        for line in lines:
-            line_count += 1
-            line_json = loads(line)
-            if "file" in line_json:
-                file = line_json["file"]
-                action = file["deltaSingleAction"]
-                version = file["version"]
-                min_version = min(min_version, version)
-                max_version = max(max_version, version)
-                version_to_timestamp[version] = file["timestamp"]
-                version_to_actions[version].append(action)
-            elif "metaData" in line_json:
-                metadata = line_json["metaData"]
-                delta_metadata = {"metaData": metadata["deltaMetadata"]}
-                version = metadata["version"]
-                min_version = min(min_version, version)
-                max_version = max(max_version, version)
-                version_to_metadata[version] = delta_metadata
-            else:
-                raise Exception(f"Invalid JSON object:\n{line}\nIs neither metadata nor file.")
-
-        num_versions_with_action = len(version_to_actions)
-        print(
-            f"table_changes stats: min_version={min_version}, "
-            f"max_version={max_version}, "
-            f"num_versions_with_action={num_versions_with_action}, "
-            f"num_versions_with_metadata={len(version_to_metadata)}, "
-            f"lines_in_response={line_count}, "
-        )
         # Create a temporary directory using the tempfile module
         temp_dir = tempfile.TemporaryDirectory()
+        self._rest_client.set_delta_format_header(for_cdf=True)
         try:
+            response = self._rest_client.list_table_changes(self._table, cdfOptions)
+            lines = response.lines
+
+            # first line is protocol
+            protocol_json = loads(lines.pop(0))
+            delta_protocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
+            start_version = cdfOptions.starting_version
+
+            min_version = start_version if start_version is not None else (10**20 - 1)
+            max_version = 0
+            version_to_actions = defaultdict(list)
+            version_to_metadata = {}
+            version_to_timestamp = {}
+
+            # Construct map from version to actions that took place in that version
+            line_count = 1
+            for line in lines:
+                line_count += 1
+                line_json = loads(line)
+                if "file" in line_json:
+                    file = line_json["file"]
+                    action = file["deltaSingleAction"]
+                    version = file["version"]
+                    min_version = min(min_version, version)
+                    max_version = max(max_version, version)
+                    version_to_timestamp[version] = file["timestamp"]
+                    version_to_actions[version].append(action)
+                elif "metaData" in line_json:
+                    metadata = line_json["metaData"]
+                    delta_metadata = {"metaData": metadata["deltaMetadata"]}
+                    version = metadata["version"]
+                    min_version = min(min_version, version)
+                    max_version = max(max_version, version)
+                    version_to_metadata[version] = delta_metadata
+                else:
+                    raise Exception(f"Invalid JSON object:\n{line}\nIs neither metadata nor file.")
+
+            num_versions_with_action = len(version_to_actions)
+            print(
+                f"table_changes stats: min_version={min_version}, "
+                f"max_version={max_version}, "
+                f"num_versions_with_action={num_versions_with_action}, "
+                f"num_versions_with_metadata={len(version_to_metadata)}, "
+                f"lines_in_response={line_count}, "
+            )
             delta_log_dir_name = temp_dir.name
             table_path = "file:///" + delta_log_dir_name
 

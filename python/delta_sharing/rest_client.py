@@ -306,28 +306,29 @@ class DataSharingRestClient:
         """
         self.set_sharing_capabilities_header()
 
-        with self._get_internal(
-            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
-            return_headers=True,
-        ) as values:
+        try:
+            with self._get_internal(
+                f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
+                return_headers=True,
+            ) as values:
+                headers = values[0]
+                # it's a bug in the server if it doesn't return delta-table-version in the header
+                if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
+                    raise LookupError("Missing delta-table-version header")
+                if DataSharingRestClient.CAPABILITIES_HEADER not in headers:
+                    return DataSharingRestClient.PARQUET_FORMAT
+
+                # the response_format will either be responseformat=delta or responseformat=parquet
+                response_format = headers[DataSharingRestClient.CAPABILITIES_HEADER]
+
+                # we now parse it to get either "delta" or "parquet"
+                if DataSharingRestClient.DELTA_FORMAT in response_format:
+                    return DataSharingRestClient.DELTA_FORMAT
+                else:
+                    return DataSharingRestClient.PARQUET_FORMAT
+        finally:
             # removing the client-reader-features that were set to avoid diverging standard codepath
             self.remove_sharing_capabilities_header()
-
-            headers = values[0]
-            # it's a bug in the server if it doesn't return delta-table-version in the header
-            if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
-                raise LookupError("Missing delta-table-version header")
-            if DataSharingRestClient.CAPABILITIES_HEADER not in headers:
-                return DataSharingRestClient.PARQUET_FORMAT
-
-            # the response_format will either be responseformat=delta or responseformat=parquet
-            response_format = headers[DataSharingRestClient.CAPABILITIES_HEADER]
-
-            # we now parse it to get either "delta" or "parquet"
-            if DataSharingRestClient.DELTA_FORMAT in response_format:
-                return DataSharingRestClient.DELTA_FORMAT
-            else:
-                return DataSharingRestClient.PARQUET_FORMAT
 
     @retry_with_exponential_backoff
     def query_table_version(

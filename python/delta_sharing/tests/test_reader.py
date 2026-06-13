@@ -31,6 +31,42 @@ from delta_sharing.rest_client import (
 from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
 
+def test_to_pandas_delta_format_removes_header_after_failure():
+    class RestClientMock:
+        delta_format_removed = False
+
+        def set_delta_format_header(self, for_cdf=False):
+            return
+
+        def list_files_in_table(
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
+            limitHint: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[int] = None,
+        ) -> ListFilesInTableResponse:
+            assert table == Table("table_name", "share_name", "schema_name")
+            raise RuntimeError("list files failed")
+
+        def remove_delta_format_header(self):
+            self.delta_format_removed = True
+
+    rest_client = RestClientMock()
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"),
+        rest_client,
+        use_delta_format=True,
+    )
+
+    with pytest.raises(RuntimeError, match="list files failed"):
+        reader.to_pandas()
+
+    assert rest_client.delta_format_removed
+
+
 def test_to_pandas_non_partitioned(tmp_path):
     pdf1 = pd.DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
     pdf2 = pd.DataFrame({"a": [4, 5, 6], "b": ["d", "e", "f"]})

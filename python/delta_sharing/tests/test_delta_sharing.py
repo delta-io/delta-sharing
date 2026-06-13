@@ -20,8 +20,11 @@ import pandas as pd
 import pytest
 
 from delta_sharing.delta_sharing import (
+    DeltaSharingTable,
     DeltaSharingProfile,
     SharingClient,
+    TableChanges,
+    TableSnapshot,
     get_table_metadata,
     get_table_protocol,
     get_table_version,
@@ -30,12 +33,24 @@ from delta_sharing.delta_sharing import (
     load_table_changes_as_spark,
     load_table_changes_as_pandas,
     _parse_url,
+    _parse_table_name,
     _validate_url,
 )
-from delta_sharing.protocol import Format, Metadata, Protocol, Schema, Share, Table
+from delta_sharing.protocol import (
+    AddFile,
+    CdfOptions,
+    Format,
+    Metadata,
+    Protocol,
+    Schema,
+    Share,
+    Table,
+)
 from delta_sharing.rest_client import (
     DataSharingRestClient,
     ListAllTablesResponse,
+    ListFilesInTableResponse,
+    ListTableChangesResponse,
     retry_with_exponential_backoff,
 )
 from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
@@ -164,6 +179,216 @@ def test_list_all_tables_with_fallback(profile: DeltaSharingProfile):
     sharing_client._rest_client = TestDataSharingRestClient()
     tables = sharing_client.list_all_tables()
     _verify_all_tables_result(tables)
+
+
+def test_parse_table_name():
+    assert _parse_table_name("share.schema.table") == Table(
+        name="table", share="share", schema="schema"
+    )
+
+
+def test_sharing_client_table(profile: DeltaSharingProfile):
+    sharing_client = SharingClient(profile)
+
+    table_from_string = sharing_client.table("share.schema.table")
+    assert isinstance(table_from_string, DeltaSharingTable)
+    assert table_from_string.table == Table(name="table", share="share", schema="schema")
+
+    table = Table(name="table2", share="share2", schema="schema2")
+    table_from_object = sharing_client.table(table)
+    assert table_from_object.table == table
+    assert isinstance(table_from_string.snapshot(), TableSnapshot)
+    assert isinstance(table_from_string.changes(starting_version=0), TableChanges)
+
+
+def test_delta_sharing_table_snapshot_to_pandas(tmp_path):
+    expected = pd.DataFrame({"value": [1, 2], "label": ["a", "b"]})
+    parquet_path = tmp_path / "snapshot.parquet"
+    expected.to_parquet(parquet_path)
+    captured = {}
+
+    class RestClientMock:
+        def list_files_in_table(
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
+            limitHint: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[str] = None,
+        ) -> ListFilesInTableResponse:
+            captured["table"] = table
+            captured["predicateHints"] = predicateHints
+            captured["jsonPredicateHints"] = jsonPredicateHints
+            captured["limit"] = limitHint
+            captured["version"] = version
+            captured["timestamp"] = timestamp
+
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"value","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"label","nullable":true,"type":"string"}'
+                    '],"type":"struct"}'
+                )
+            )
+            return ListFilesInTableResponse(
+                delta_table_version=1,
+                protocol=None,
+                metadata=metadata,
+                add_files=[
+                    AddFile(
+                        url=str(parquet_path),
+                        id="snapshot",
+                        partition_values={},
+                        size=0,
+                        stats="",
+                    )
+                ],
+                lines=[],
+            )
+
+    table = DeltaSharingTable(
+        Table(name="table", share="share", schema="schema"),
+        RestClientMock(),
+    )
+    result = table.snapshot(
+        limit=10,
+        version=2,
+        timestamp="2024-01-01T00:00:00Z",
+        jsonPredicateHints='{"op":"equal"}',
+        use_delta_format=False,
+    ).to_pandas(convert_in_batches=True)
+
+    pd.testing.assert_frame_equal(result, expected)
+    assert captured == {
+        "table": Table(name="table", share="share", schema="schema"),
+        "predicateHints": None,
+        "jsonPredicateHints": '{"op":"equal"}',
+        "limit": 10,
+        "version": 2,
+        "timestamp": "2024-01-01T00:00:00Z",
+    }
+
+
+def test_delta_sharing_table_changes_to_pandas(tmp_path):
+    source = pd.DataFrame({"value": [1, 2], "label": ["a", "b"]})
+    parquet_path = tmp_path / "table_changes.parquet"
+    source.to_parquet(parquet_path)
+    captured = {}
+
+    class RestClientMock:
+        def list_table_changes(
+            self, table: Table, cdfOptions: CdfOptions
+        ) -> ListTableChangesResponse:
+            captured["table"] = table
+            captured["cdfOptions"] = cdfOptions
+
+            metadata = Metadata(
+                schema_string=(
+                    '{"fields":['
+                    '{"metadata":{},"name":"value","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"label","nullable":true,"type":"string"}'
+                    '],"type":"struct"}'
+                )
+            )
+            return ListTableChangesResponse(
+                protocol=None,
+                metadata=metadata,
+                actions=[
+                    AddFile(
+                        url=str(parquet_path),
+                        id="table_changes",
+                        partition_values={},
+                        size=0,
+                        stats="",
+                        timestamp=12345,
+                        version=2,
+                    )
+                ],
+                lines=[],
+            )
+
+    table = DeltaSharingTable(
+        Table(name="table", share="share", schema="schema"),
+        RestClientMock(),
+    )
+    result = table.changes(
+        starting_version=1,
+        ending_version=2,
+        starting_timestamp="2024-01-01T00:00:00Z",
+        ending_timestamp="2024-01-02T00:00:00Z",
+        use_delta_format=False,
+    ).to_pandas(convert_in_batches=True)
+
+    expected = source.copy()
+    expected["_change_type"] = "insert"
+    expected["_commit_version"] = 2
+    expected["_commit_timestamp"] = 12345
+    pd.testing.assert_frame_equal(result, expected)
+    assert captured == {
+        "table": Table(name="table", share="share", schema="schema"),
+        "cdfOptions": CdfOptions(
+            starting_version=1,
+            ending_version=2,
+            starting_timestamp="2024-01-01T00:00:00Z",
+            ending_timestamp="2024-01-02T00:00:00Z",
+            include_historical_metadata=False,
+        ),
+    }
+
+
+def test_delta_sharing_table_metadata_removes_capabilities_header_after_failure():
+    class RestClientMock:
+        capabilities_removed = False
+
+        def set_sharing_capabilities_header(self):
+            return
+
+        def query_table_metadata(self, table: Table):
+            assert table == Table(name="table", share="share", schema="schema")
+            raise RuntimeError("metadata failed")
+
+        def remove_sharing_capabilities_header(self):
+            self.capabilities_removed = True
+
+    rest_client = RestClientMock()
+    table = DeltaSharingTable(Table(name="table", share="share", schema="schema"), rest_client)
+
+    with pytest.raises(RuntimeError, match="metadata failed"):
+        table.metadata()
+
+    assert rest_client.capabilities_removed
+
+
+@pytest.mark.parametrize(
+    "snapshot_kwargs,unsupported",
+    [
+        pytest.param({"limit": 10}, "limit", id="limit"),
+        pytest.param(
+            {"jsonPredicateHints": '{"op":"equal"}'}, "jsonPredicateHints", id="predicate"
+        ),
+        pytest.param({"use_delta_format": False}, "use_delta_format", id="format"),
+    ],
+)
+def test_delta_sharing_snapshot_to_spark_rejects_unsupported_options(
+    profile: DeltaSharingProfile, snapshot_kwargs: dict, unsupported: str
+):
+    with pytest.raises(ValueError, match=unsupported):
+        SharingClient(profile).table("share.schema.table").snapshot(**snapshot_kwargs).to_spark()
+
+
+def test_delta_sharing_table_changes_to_spark_rejects_unsupported_options(
+    profile: DeltaSharingProfile,
+):
+    with pytest.raises(ValueError, match="use_delta_format"):
+        (
+            SharingClient(profile)
+            .table("share.schema.table")
+            .changes(starting_version=0, use_delta_format=True)
+            .to_spark()
+        )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -826,6 +1051,42 @@ def test_load_as_pandas_success_client_delta_kernel_enabled_with_normal_table(
 ):
     pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None, None, True)
     expected["eventTime"] = expected["eventTime"].astype("datetime64[us, UTC]")
+    pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize("use_delta_format", [None, True, False])
+def test_load_as_pandas_legacy_and_table_handle_match(
+    profile_path: str, profile: DeltaSharingProfile, use_delta_format: Optional[bool]
+):
+    fragments = "share1.default.table1"
+    limit = 2
+
+    legacy_pdf = load_as_pandas(
+        f"{profile_path}#{fragments}", limit=limit, use_delta_format=use_delta_format
+    )
+
+    client = SharingClient(profile)
+    table_pdf = (
+        client.table(fragments).snapshot(limit=limit, use_delta_format=use_delta_format).to_pandas()
+    )
+
+    pd.testing.assert_frame_equal(legacy_pdf, table_pdf)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_table_snapshot_to_pandas_on_real_table(profile: DeltaSharingProfile):
+    expected = pd.DataFrame(
+        {
+            "eventTime": [
+                pd.Timestamp("2021-04-28 06:32:22.421"),
+                pd.Timestamp("2021-04-28 06:32:02.070"),
+            ],
+            "date": [date(2021, 4, 28), date(2021, 4, 28)],
+        }
+    )
+
+    pdf = SharingClient(profile).table("share1.default.table1").snapshot(limit=2).to_pandas()
     pd.testing.assert_frame_equal(pdf, expected)
 
 
@@ -1538,6 +1799,7 @@ def test_parse_url():
 )
 def test_load_as_spark(
     profile_path: str,
+    profile: DeltaSharingProfile,
     fragments: str,
     version: Optional[int],
     timestamp: Optional[str],
@@ -1559,11 +1821,29 @@ def test_load_as_spark(
         if error is None:
             expected_df = spark.createDataFrame(expected_data, expected_schema_str)
             actual_df = load_as_spark(f"{profile_path}#{fragments}", version, timestamp)
+            actual_snapshot_df = (
+                SharingClient(profile)
+                .table(fragments)
+                .snapshot(version=version, timestamp=timestamp)
+            ).to_spark()
             assert expected_df.schema == actual_df.schema
             assert expected_df.collect() == actual_df.collect()
+            assert expected_df.schema == actual_snapshot_df.schema
+            assert expected_df.collect() == actual_snapshot_df.collect()
         else:
             try:
                 load_as_spark(f"{profile_path}#{fragments}", version, timestamp).collect()
+                assert False
+            except Exception as e:
+                assert error in str(e)
+            try:
+                (
+                    SharingClient(profile)
+                    .table(fragments)
+                    .snapshot(version=version, timestamp=timestamp)
+                    .to_spark()
+                    .collect()
+                )
                 assert False
             except Exception as e:
                 assert error in str(e)
@@ -1572,6 +1852,10 @@ def test_load_as_spark(
             ImportError, match="Unable to import pyspark. `load_as_spark` requires PySpark."
         ):
             load_as_spark("not-used")
+        with pytest.raises(
+            ImportError, match="Unable to import pyspark. `load_as_spark` requires PySpark."
+        ):
+            SharingClient(profile).table("share.schema.table").to_spark()
 
 
 def test_validate_url():
@@ -1653,6 +1937,7 @@ def test_validate_url():
 )
 def test_load_table_changes_as_spark(
     profile_path: str,
+    profile: DeltaSharingProfile,
     fragments: str,
     starting_version: Optional[int],
     ending_version: Optional[int],
@@ -1683,8 +1968,21 @@ def test_load_table_changes_as_spark(
                 starting_timestamp=starting_timestamp,
                 ending_timestamp=ending_timestamp,
             )
+            actual_table_changes_df = (
+                SharingClient(profile)
+                .table(fragments)
+                .changes(
+                    starting_version=starting_version,
+                    ending_version=ending_version,
+                    starting_timestamp=starting_timestamp,
+                    ending_timestamp=ending_timestamp,
+                )
+                .to_spark()
+            )
             assert expected_df.schema == actual_df.schema
             assert expected_df.collect() == actual_df.collect()
+            assert expected_df.schema == actual_table_changes_df.schema
+            assert expected_df.collect() == actual_table_changes_df.collect()
         else:
             try:
                 load_table_changes_as_spark(
@@ -1697,6 +1995,21 @@ def test_load_table_changes_as_spark(
             except Exception as e:
                 assert isinstance(e, HTTPError)
                 assert error in str(e)
+            try:
+                (
+                    SharingClient(profile)
+                    .table(fragments)
+                    .changes(
+                        starting_version=starting_version,
+                        ending_version=ending_version,
+                        starting_timestamp=starting_timestamp,
+                        ending_timestamp=ending_timestamp,
+                    )
+                    .to_spark()
+                )
+            except Exception as e:
+                assert isinstance(e, HTTPError)
+                assert error in str(e)
 
     except ImportError:
         with pytest.raises(
@@ -1704,6 +2017,13 @@ def test_load_table_changes_as_spark(
             match="Unable to import pyspark. `load_table_changes_as_spark` requires" + " PySpark.",
         ):
             load_table_changes_as_spark("not-used")
+        with pytest.raises(
+            ImportError,
+            match="Unable to import pyspark. `load_table_changes_as_spark` requires" + " PySpark.",
+        ):
+            SharingClient(profile).table("share.schema.table").changes(
+                starting_version=0
+            ).to_spark()
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)

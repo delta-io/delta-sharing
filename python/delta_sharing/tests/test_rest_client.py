@@ -355,6 +355,33 @@ def test_autoresolve_query_format(
         assert resolved_format == expected_format
 
 
+def test_autoresolve_query_format_removes_capabilities_header_after_failure(
+    rest_client: DataSharingRestClient,
+):
+    class FailingContext:
+        def __enter__(self):
+            raise RuntimeError("metadata failed")
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FailingRestClient(DataSharingRestClient):
+        def __init__(self):
+            super().__init__(rest_client._profile)
+
+        def _get_internal(self, *args, **kwargs):
+            return FailingContext()
+
+    failing_client = FailingRestClient()
+
+    with pytest.raises(RuntimeError, match="metadata failed"):
+        failing_client.autoresolve_query_format(
+            Table(name="table_name", share="share_name", schema="schema_name")
+        )
+
+    assert DataSharingRestClient.CAPABILITIES_HEADER not in failing_client._session.headers
+
+
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_query_existed_table_version(rest_client: DataSharingRestClient):
     response = rest_client.query_table_version(
