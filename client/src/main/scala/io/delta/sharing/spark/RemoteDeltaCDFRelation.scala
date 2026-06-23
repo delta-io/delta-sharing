@@ -48,36 +48,38 @@ case class RemoteDeltaCDFRelation(
   override def buildScan(
       requiredColumns: Array[String],
       filters: Array[Filter]): RDD[Row] = {
-    val deltaTabelFiles = client.getCDFFiles(table, cdfOptions, false, None)
+    client.getProfileProvider.wrapCDFBuildScan {
+      val deltaTabelFiles = client.getCDFFiles(table, cdfOptions, false, None)
 
-    DeltaSharingCDFReader.changesToDF(
-      new RemoteDeltaFileIndexParams(
-        spark,
-        snapshotToUse,
-        client.getProfileProvider,
-        Some(QueryUtils.getQueryParamsHashId(cdfOptions))
-      ),
-      requiredColumns,
-      deltaTabelFiles.addFiles,
-      deltaTabelFiles.cdfFiles,
-      deltaTabelFiles.removeFiles,
-      DeltaTableUtils.addCdcSchema(deltaTabelFiles.metadata.schemaString),
-      false,
-      _ => {
-        val d = client.getCDFFiles(table, cdfOptions, false, None)
-        TableRefreshResult(
-          DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
-          DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles),
-          None
-        )
-      },
-      System.currentTimeMillis(),
-      DeltaSharingCDFReader.getMinUrlExpiration(
+      DeltaSharingCDFReader.changesToDF(
+        new RemoteDeltaFileIndexParams(
+          spark,
+          snapshotToUse,
+          client.getProfileProvider,
+          Some(QueryUtils.getQueryParamsHashId(cdfOptions))
+        ),
+        requiredColumns,
         deltaTabelFiles.addFiles,
         deltaTabelFiles.cdfFiles,
-        deltaTabelFiles.removeFiles
-      )
-    ).rdd
+        deltaTabelFiles.removeFiles,
+        DeltaTableUtils.addCdcSchema(deltaTabelFiles.metadata.schemaString),
+        false,
+        _ => {
+          val d = client.getCDFFiles(table, cdfOptions, false, None)
+          TableRefreshResult(
+            DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
+            DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles),
+            None
+          )
+        },
+        System.currentTimeMillis(),
+        DeltaSharingCDFReader.getMinUrlExpiration(
+          deltaTabelFiles.addFiles,
+          deltaTabelFiles.cdfFiles,
+          deltaTabelFiles.removeFiles
+        )
+      ).rdd
+    }
   }
 }
 

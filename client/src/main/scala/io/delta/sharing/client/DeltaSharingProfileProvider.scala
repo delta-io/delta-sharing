@@ -185,6 +185,11 @@ trait DeltaSharingProfileProvider {
 
   // Returns true if this is an MST (Multi-Statement Transaction) query
   def isMSTQuery(): Boolean = false
+
+  // Wraps the body of the CDF `buildScan` implementation in [[RemoteDeltaCDFRelation]]. The
+  // default implementation runs the scan as-is. Implementations may override this to execute the
+  // scan within a custom context (for example, a permission or attribution context).
+  def wrapCDFBuildScan[T](body: => T): T = body
 }
 
 /**
