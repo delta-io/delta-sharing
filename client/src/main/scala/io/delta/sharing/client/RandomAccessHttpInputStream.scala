@@ -64,7 +64,8 @@ private[sharing] class RandomAccessHttpInputStream(
     stats: FileSystem.Statistics,
     numRetries: Int,
     maxRetryDuration: Long = Long.MaxValue,
-    logPreSignedUrlAccess: Boolean = false) extends FSInputStream with Logging {
+    logPreSignedUrlAccess: Boolean = false,
+    retryStreamReadOnError: Boolean = false) extends FSInputStream with Logging {
 
   private var closed = false
   private var pos = 0L
@@ -100,19 +101,26 @@ private[sharing] class RandomAccessHttpInputStream(
   }
 
   override def read(): Int = synchronized {
-    assertNotClosed()
-    if (currentStream == null) {
-      reopen(pos)
-    }
-    val byte = try {
-      currentStream.read()
-    } catch {
-      case e: Exception =>
-        if (logPreSignedUrlAccess) {
-          logInfo(s"Error reading from stream - uri: $uri, position: $pos, " +
-            s"error: ${e.getMessage}")
-        }
-        throw e
+    val byte = doStreamRead {
+      assertNotClosed()
+      if (currentStream == null) {
+        reopen(pos)
+      }
+      try {
+        currentStream.read()
+      } catch {
+        case e: Exception =>
+          if (logPreSignedUrlAccess) {
+            logInfo(s"Error reading from stream - uri: $uri, position: $pos, " +
+              s"error: ${e.getMessage}")
+          }
+          if (retryStreamReadOnError) {
+            // Drop the broken stream so the next retry attempt opens a fresh connection
+            // at the still-unchanged `pos`.
+            abortCurrentStream()
+          }
+          throw e
+      }
     }
     if (byte >= 0) {
       pos += 1
@@ -131,19 +139,26 @@ private[sharing] class RandomAccessHttpInputStream(
   }
 
   override def read(buf: Array[Byte], off: Int, len: Int): Int = synchronized {
-    assertNotClosed()
-    if (currentStream == null) {
-      reopen(pos)
-    }
-    val byteRead = try {
-      currentStream.read(buf, off, len)
-    } catch {
-      case e: Exception =>
-        if (logPreSignedUrlAccess) {
-          logInfo(s"Error reading from stream - uri: $uri, position: $pos, offset: $off, " +
-            s"length: $len, error: ${e.getMessage}")
-        }
-        throw e
+    val byteRead = doStreamRead {
+      assertNotClosed()
+      if (currentStream == null) {
+        reopen(pos)
+      }
+      try {
+        currentStream.read(buf, off, len)
+      } catch {
+        case e: Exception =>
+          if (logPreSignedUrlAccess) {
+            logInfo(s"Error reading from stream - uri: $uri, position: $pos, offset: $off, " +
+              s"length: $len, error: ${e.getMessage}")
+          }
+          if (retryStreamReadOnError) {
+            // Drop the broken stream so the next retry attempt opens a fresh connection
+            // at the still-unchanged `pos`.
+            abortCurrentStream()
+          }
+          throw e
+      }
     }
     if (byteRead > 0) {
       pos += byteRead
@@ -152,6 +167,24 @@ private[sharing] class RandomAccessHttpInputStream(
       stats.incrementBytesRead(byteRead)
     }
     byteRead
+  }
+
+  /**
+   * Wraps a single underlying-stream read in `RetryUtils.runWithExponentialBackoff` when
+   * `retryStreamReadOnError` is enabled. The read is logically idempotent: `pos` is only
+   * advanced on a successful read, so re-issuing the byte-range request from the unchanged
+   * `pos` yields the bytes the caller still needs. The caller is responsible for aborting the
+   * broken `currentStream` (so that the next attempt reopens a fresh connection at `pos`)
+   * before letting the exception propagate.
+   */
+  private def doStreamRead(readOp: => Int): Int = {
+    if (retryStreamReadOnError) {
+      RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
+        readOp
+      }
+    } else {
+      readOp
+    }
   }
 
   private def reopen(pos: Long): Unit = {

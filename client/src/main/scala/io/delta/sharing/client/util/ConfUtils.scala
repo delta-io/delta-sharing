@@ -111,6 +111,13 @@ object ConfUtils {
   val LOG_PRESIGNED_URL_ACCESS_CONF = "spark.delta.sharing.client.logPreSignedUrlAccess.enabled"
   val LOG_PRESIGNED_URL_ACCESS_DEFAULT = false
 
+  // When enabled, retry transient failures of the underlying HTTP stream `read` calls in
+  // `RandomAccessHttpInputStream`. The position in the stream is only advanced after a
+  // successful read, so re-issuing the byte-range request from the unchanged position yields
+  // the bytes the caller still needs.
+  val STREAM_READ_RETRY_ENABLED_CONF = "spark.delta.sharing.client.streamReadRetry.enabled"
+  val STREAM_READ_RETRY_ENABLED_DEFAULT = false
+
   val OPTIONS_PROFILE_PROVIDER_ENABLED_CONF = "spark.delta.sharing.profile.optionsProvider.enabled"
   val OPTIONS_PROFILE_PROVIDER_ENABLED_DEFAULT = true
 
@@ -343,6 +350,15 @@ object ConfUtils {
   def logPreSignedUrlAccessEnabled(conf: SQLConf): Boolean = {
     conf.getConfString(
       LOG_PRESIGNED_URL_ACCESS_CONF, LOG_PRESIGNED_URL_ACCESS_DEFAULT.toString).toBoolean
+  }
+
+  def streamReadRetryEnabled(conf: Configuration): Boolean = {
+    conf.getBoolean(STREAM_READ_RETRY_ENABLED_CONF, STREAM_READ_RETRY_ENABLED_DEFAULT)
+  }
+
+  def streamReadRetryEnabled(conf: SQLConf): Boolean = {
+    conf.getConfString(
+      STREAM_READ_RETRY_ENABLED_CONF, STREAM_READ_RETRY_ENABLED_DEFAULT.toString).toBoolean
   }
 
   def optionsProfileProviderEnabled(conf: Configuration): Boolean = {
