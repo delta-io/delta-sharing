@@ -37,7 +37,8 @@ class RetryUtilsSuite extends SparkFunSuite {
     assert(shouldRetry(new java.net.SocketTimeoutException))
     assert(!shouldRetry(new RuntimeException))
     assert(shouldRetry(new MissingEndStreamActionException("missing")))
-    assert(!shouldRetry(new DeltaSharingServerException("error", Some(403))))
+    assert(shouldRetry(new UnexpectedHttpStatus("error", 403)))
+    assert(shouldRetry(new DeltaSharingServerException("error", Some(403))))
     assert(shouldRetry(new DeltaSharingServerException("error", Some(429))))
     assert(!shouldRetry(new DeltaSharingServerException("error", None)))
     assert(shouldRetry(new DeltaSharingServerException("error", Some(503))))
@@ -69,6 +70,45 @@ class RetryUtilsSuite extends SparkFunSuite {
       }
     }
     assert(sleeps == Seq())
+    RetryUtils.sleeper = (sleepMs: Long) => Thread.sleep(sleepMs)
+  }
+
+  test("runWithExponentialBackoff retries on 403 and succeeds on later attempt") {
+    val sleeps = new ArrayBuffer[Long]()
+    RetryUtils.sleeper = (sleepMs: Long) => sleeps += sleepMs
+
+    // A realistic Azure 403 message as thrown from RandomAccessHttpInputStream when an Azure
+    // pre-signed URL transiently returns AuthorizationFailure.
+    val azure403Message =
+      "HTTP request failed with status: HTTP/1.1 403 This request is not authorized to perform " +
+        "this operation. {\"error\":{\"code\":\"AuthorizationFailure\",\"message\":\"This " +
+        "request is not authorized to perform this operation.\"}}, while accessing URI of " +
+        "shared table file"
+
+    // Throw 403 twice then succeed on the third attempt.
+    var attempts = 0
+    val result = runWithExponentialBackoff(5) {
+      attempts += 1
+      if (attempts < 3) {
+        throw new UnexpectedHttpStatus(azure403Message, 403)
+      }
+      "ok"
+    }
+    assert(result == "ok")
+    assert(attempts == 3)
+    assert(sleeps == Seq(1000, 2000))
+
+    // Exhaust retries on a persistent 403 and ensure the final exception is propagated.
+    sleeps.clear()
+    val ex = intercept[UnexpectedHttpStatus] {
+      runWithExponentialBackoff(3) {
+        throw new UnexpectedHttpStatus(azure403Message, 403)
+      }
+    }
+    assert(ex.statusCode == 403)
+    // Run 4 times should sleep 3 times
+    assert(sleeps == Seq(1000, 2000, 4000))
+
     RetryUtils.sleeper = (sleepMs: Long) => Thread.sleep(sleepMs)
   }
 

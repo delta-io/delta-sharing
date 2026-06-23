@@ -68,7 +68,11 @@ private[sharing] object RetryUtils extends Logging {
   def shouldRetry(t: Throwable): Boolean = {
     t match {
       case DeltaSharingExceptionWithErrorCode(Some(statusCode)) =>
-        if (statusCode == 429) { // Too Many Requests
+        if (statusCode == 403) {
+          // Azure can intermittently return 403 AuthorizationFailure on pre-signed URLs;
+          // retrying sometimes helps mitigate this.
+          true
+        } else if (statusCode == 429) { // Too Many Requests
           true
         } else if (statusCode >= 500 && statusCode < 600) { // Internal Error
           true
