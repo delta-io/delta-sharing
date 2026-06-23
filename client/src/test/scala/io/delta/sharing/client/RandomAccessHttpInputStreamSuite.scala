@@ -17,7 +17,7 @@
 package io.delta.sharing.client
 
 import java.io.{ByteArrayInputStream, InputStream}
-import java.net.SocketTimeoutException
+import java.net.{SocketException, SocketTimeoutException}
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -151,6 +151,62 @@ class RandomAccessHttpInputStreamSuite extends SparkFunSuite with MockitoSugar {
     // Stream was opened exactly once; the read failure was propagated without retry.
     assert(callCount.get() == 1)
     assert(stream.getPos == 0L)
+  }
+
+  test("read(buf, off, len) recovers after partial bytes followed by connection reset") {
+    val data = "hello-world-this-is-a-longer-payload".getBytes(StandardCharsets.UTF_8)
+    val splitAt = 10
+    val callCount = new AtomicInteger(0)
+    // First underlying stream serves `data[0, splitAt)` then throws SocketException
+    // ("Connection reset") on the next read. Second stream serves the remainder.
+    val client = createPartialContentClient { () =>
+      val attempt = callCount.getAndIncrement()
+      if (attempt == 0) {
+        val backing = new ByteArrayInputStream(data, 0, splitAt)
+        new InputStream {
+          override def read(): Int = {
+            val b = backing.read()
+            if (b == -1) throw new SocketException("Connection reset")
+            b
+          }
+          override def read(b: Array[Byte], off: Int, len: Int): Int = {
+            val n = backing.read(b, off, len)
+            if (n == -1) throw new SocketException("Connection reset")
+            n
+          }
+        }
+      } else {
+        new ByteArrayInputStream(data, splitAt, data.length - splitAt)
+      }
+    }
+
+    val stream = new RandomAccessHttpInputStream(
+      client,
+      createMockFetcher("test.uri"),
+      data.length.toLong,
+      new FileSystem.Statistics("idbfs"),
+      numRetries = 3,
+      maxRetryDuration = Long.MaxValue,
+      logPreSignedUrlAccess = false,
+      retryStreamReadOnError = true
+    )
+
+    val buf = new Array[Byte](data.length)
+    withInstantRetrySleep {
+      var totalRead = 0
+      while (totalRead < data.length) {
+        val n = stream.read(buf, totalRead, data.length - totalRead)
+        assert(n > 0, s"read returned $n after $totalRead bytes")
+        totalRead += n
+      }
+      assert(totalRead == data.length)
+    }
+    assert(new String(buf, StandardCharsets.UTF_8) ==
+      new String(data, StandardCharsets.UTF_8))
+    assert(stream.getPos == data.length.toLong)
+    // Exactly two underlying streams opened: original (delivered prefix then errored)
+    // and the post-retry stream (delivered the remainder from the advanced pos).
+    assert(callCount.get() == 2)
   }
 
   test("read() (single byte) retries on transient stream errors when enabled") {
