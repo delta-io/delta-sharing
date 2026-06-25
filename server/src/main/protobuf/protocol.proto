@@ -89,13 +89,6 @@ message QueryTableRequest {
     // The columns to be returned in the response for view query.
     // If not specified, all columns will be returned.
     repeated string requested_columns = 15;
-
-    // Whether to include historical Protocol actions seen in the delta log when serving a
-    // streaming version-range query (startingVersion is set). When true, intermediate Protocol
-    // actions in the log range are inlined alongside the file actions for protocol /
-    // reader-feature compatibility checks. Only effective for responses with
-    // responseformat=delta; ignored for parquet responses.
-    optional bool includeHistoricalProtocol = 16;
 }
 
 message GetQueryInfoRequest {

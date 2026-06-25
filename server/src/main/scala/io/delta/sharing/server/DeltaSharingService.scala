@@ -456,6 +456,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("share") share: String,
       @Param("schema") schema: String,
       @Param("table") table: String,
+      @Param("includeHistoricalProtocol") @Nullable includeHistoricalProtocol: String,
       request: QueryTableRequest): HttpResponse = processRequest {
     val capabilitiesMap = getDeltaSharingCapabilitiesMap(
       req.headers().get(DELTA_SHARING_CAPABILITIES_HEADER)
@@ -568,7 +569,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           clientReaderFeaturesSet = clientReaderFeaturesSet,
           includeEndStreamAction = includeEndStreamAction,
           fileIdHash = requestFileIdHash,
-          includeHistoricalProtocol = request.includeHistoricalProtocol.getOrElse(false))
+          includeHistoricalProtocol = Try(includeHistoricalProtocol.toBoolean).getOrElse(false))
       } else {
         deltaSharedTableLoader.loadTable(tableConfig, useKernel = false).query(
           includeFiles = true,
@@ -587,7 +588,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           clientReaderFeaturesSet = Set.empty[String],
           includeEndStreamAction = includeEndStreamAction,
           fileIdHash = requestFileIdHash,
-          includeHistoricalProtocol = request.includeHistoricalProtocol.getOrElse(false))
+          includeHistoricalProtocol = Try(includeHistoricalProtocol.toBoolean).getOrElse(false))
       }
 
       if (queryResult.version < tableConfig.startVersion) {

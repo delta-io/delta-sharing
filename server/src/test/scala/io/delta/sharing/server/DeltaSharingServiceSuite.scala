@@ -3038,19 +3038,22 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     "/query and does not add additional Protocol actions when the table has no historical " +
     "Protocol changes") {
     // The streaming_notnull_to_null table only has Metadata changes across versions, no Protocol
-    // upgrades. Requesting includeHistoricalProtocol=true on the streaming /query path should be
-    // accepted by the server and produce the same five actions as the baseline streaming query
-    // (Protocol, Metadata@v0, AddFile@v1, historical Metadata@v2, AddFile@v2) with no extra
-    // Protocol entries injected.
+    // upgrades. Requesting includeHistoricalProtocol=true on the streaming /query path (as a URL
+    // query string parameter, mirroring how getEncodedCDFParams encodes it on /changes) should
+    // be accepted by the server and produce the same five actions as the baseline streaming
+    // query (Protocol, Metadata@v0, AddFile@v1, historical Metadata@v2, AddFile@v2) with no
+    // extra Protocol entries injected.
     val p =
       s"""
          |{
-         | "startingVersion": 0,
-         | "includeHistoricalProtocol": true
+         | "startingVersion": 0
          |}
          |""".stripMargin
     val response = readNDJson(
-      requestPath("/shares/share8/schemas/default/tables/streaming_notnull_to_null/query"),
+      requestPath(
+        "/shares/share8/schemas/default/tables/streaming_notnull_to_null/query" +
+          "?includeHistoricalProtocol=true"
+      ),
       Some("POST"),
       Some(p),
       Some(0)
