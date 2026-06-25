@@ -2352,13 +2352,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  // Captures the POSTed QueryTableRequest body so we can assert what the streaming getFiles
-  // overload sends on the wire. Returns a minimal delta-format ndjson body so the call succeeds.
-  private class PostBodyCapturingRestClient(profileProvider: TestProfileProvider)
+  // Captures the URL passed to getNDJsonPost so we can assert the URL query string the streaming
+  // getFiles overload builds. Returns a minimal delta-format ndjson body so the call succeeds.
+  private class PostUrlCapturingRestClient(profileProvider: TestProfileProvider)
     extends DeltaSharingRestClient(
       profileProvider = profileProvider,
       responseFormat = RESPONSE_FORMAT_DELTA
     ) {
+    var capturedTarget: String = _
     var capturedBodyJson: String = _
 
     override def getNDJsonPost[T: Manifest](
@@ -2367,6 +2368,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         setIncludeEndStreamAction: Boolean,
         requestFileIdHash: Option[String]
     ): ParsedDeltaSharingResponse = {
+      capturedTarget = target
       capturedBodyJson = JsonUtils.toJson(data)
       ParsedDeltaSharingResponse(
         version = 0L,
@@ -2381,8 +2383,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  test("getFiles(startingVersion, ...) - includeHistoricalProtocol=true is added to request body") {
-    val client = new PostBodyCapturingRestClient(new TestProfileProvider(false))
+  test("getFiles(startingVersion, ...) - includeHistoricalProtocol=true sends URL param to server") {
+    val client = new PostUrlCapturingRestClient(new TestProfileProvider(false))
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
       client.getFiles(
@@ -2392,10 +2394,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         fileIdHash = None,
         includeHistoricalProtocol = true
       )
-      assert(client.capturedBodyJson != null)
+      assert(client.capturedTarget != null)
       assert(
-        client.capturedBodyJson.contains("\"includeHistoricalProtocol\":true"),
-        s"expected request body to contain includeHistoricalProtocol=true, got: " +
+        client.capturedTarget.contains("includeHistoricalProtocol=true"),
+        s"expected URL to contain includeHistoricalProtocol=true, got: ${client.capturedTarget}"
+      )
+      // The flag should ride on the URL, not the request body.
+      assert(
+        !client.capturedBodyJson.contains("includeHistoricalProtocol"),
+        s"expected request body not to mention includeHistoricalProtocol, got: " +
           client.capturedBodyJson
       )
     } finally {
@@ -2404,7 +2411,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   test("getFiles(startingVersion, ...) - includeHistoricalProtocol is absent by default") {
-    val client = new PostBodyCapturingRestClient(new TestProfileProvider(false))
+    val client = new PostUrlCapturingRestClient(new TestProfileProvider(false))
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
       client.getFiles(
@@ -2413,7 +2420,11 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         endingVersion = Some(5L),
         fileIdHash = None
       )
-      assert(client.capturedBodyJson != null)
+      assert(client.capturedTarget != null)
+      assert(
+        !client.capturedTarget.contains("includeHistoricalProtocol"),
+        s"expected URL not to contain includeHistoricalProtocol, got: ${client.capturedTarget}"
+      )
       assert(
         !client.capturedBodyJson.contains("includeHistoricalProtocol"),
         s"expected request body not to mention includeHistoricalProtocol, got: " +

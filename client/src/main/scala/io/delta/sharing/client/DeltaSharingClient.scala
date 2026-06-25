@@ -161,8 +161,7 @@ private[sharing] case class QueryTableRequest(
   pageToken: Option[String],
   includeRefreshToken: Option[Boolean],
   refreshToken: Option[String],
-  idempotency_key: Option[String],
-  includeHistoricalProtocol: Option[Boolean] = None
+  idempotency_key: Option[String]
 ) extends NextPageRequest {
   override def clone(
         maxFiles: Option[Int],
@@ -553,8 +552,10 @@ class DeltaSharingRestClient(
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
+    val queryString = if (includeHistoricalProtocol) "?includeHistoricalProtocol=true" else ""
     val target = getTargetUrl(
-      s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
+      s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query" +
+        queryString)
     val request: QueryTableRequest = QueryTableRequest(
       predicateHints = Nil,
       limitHint = None,
@@ -567,8 +568,7 @@ class DeltaSharingRestClient(
       pageToken = None,
       includeRefreshToken = None,
       refreshToken = None,
-      idempotency_key = None,
-      includeHistoricalProtocol = if (includeHistoricalProtocol) Some(true) else None
+      idempotency_key = None
     )
 
     val (version, respondedFormat, lines, responseFileIdHash) = if (queryTablePaginationEnabled) {
