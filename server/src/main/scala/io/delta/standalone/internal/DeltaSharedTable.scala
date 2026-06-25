@@ -40,7 +40,7 @@ import scala.util.control.NonFatal
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
 import io.delta.sharing.server.{model, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, DeltaSharingUtils, ErrorStrings, QueryResult}
-import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, JsonUtils, PreSignedUrl, S3FileSigner, WasbFileSigner}
+import io.delta.sharing.server.common.{AbfsFileSigner, CloudFileSigner, GCSFileSigner, JsonUtils, PreSignedUrl, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
 
@@ -92,7 +92,11 @@ class DeltaSharedTable(
     }
   }
 
-  private val fileSigner = withClassLoader {
+  private val fileSigner: CloudFileSigner = withClassLoader { newFileSigner() }
+
+  // Extracted so tests can override with a no-op signer when running against a local Delta log.
+  // Production behavior is unchanged: the same per-FS dispatch as before.
+  protected def newFileSigner(): CloudFileSigner = {
     val tablePath = new Path(tableConfig.getLocation)
     val fs = tablePath.getFileSystem(conf)
     fs match {
