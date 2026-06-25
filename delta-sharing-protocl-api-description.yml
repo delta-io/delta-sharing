@@ -478,6 +478,12 @@ paths:
           description: 'If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible.'
           schema:
             type: boolean
+        - in: query
+          name: includeHistoricalProtocol
+          required: false
+          description: 'If set to true, return historical Protocol actions seen in the delta log so the streaming client can check whether the table is still read compatible (e.g. when a new reader feature is enabled mid-stream). Only effective for responses with responseformat=delta; ignored for responseformat=parquet responses.'
+          schema:
+            type: boolean
       responses:
         '400':
           $ref: "#/components/responses/400"

@@ -618,6 +618,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       @Param("startingTimestamp") @Nullable startingTimestamp: String,
       @Param("endingTimestamp") @Nullable endingTimestamp: String,
       @Param("includeHistoricalMetadata") @Nullable includeHistoricalMetadata: String,
+      @Param("includeHistoricalProtocol") @Nullable includeHistoricalProtocol: String,
       @Param("maxFiles") @Nullable maxFiles: java.lang.Integer,
       @Param("pageToken") @Nullable pageToken: String
   ): HttpResponse = processRequest {
@@ -650,7 +651,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
       Option(pageToken),
       responseFormatSet = responseFormatSet,
       includeEndStreamAction = includeEndStreamAction,
-      fileIdHash = fileIdHash
+      fileIdHash = fileIdHash,
+      includeHistoricalProtocol = Try(includeHistoricalProtocol.toBoolean).getOrElse(false)
     )
     logger.info(s"Took ${System.currentTimeMillis - start} ms to load the table cdf " +
       s"and sign ${queryResult.actions.length - 2} urls for table $share/$schema/$table")

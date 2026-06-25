@@ -26,6 +26,7 @@ import io.delta.standalone.internal.actions.{
   AddFile,
   CommitInfo,
   Metadata,
+  Protocol,
   RemoveFile
 }
 import io.delta.standalone.internal.exception.DeltaErrors
@@ -184,12 +185,18 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
    *                      starting and ending versions.
    * @param includeHistoricalMetadata if true, it need to include metadata for schema compatibility
    *                                  check. Otherwise, no need to include metadata.
+   * @param includeHistoricalProtocol if true, include intermediate Protocol actions seen in the
+   *                                  delta log for protocol/reader-feature compatibility checks.
+   *                                  Callers should only set this when the response will be
+   *                                  serialized in the delta format, because the parquet response
+   *                                  has no representation for additional Protocol actions.
    */
   def queryCDF(
     start: Long,
     end: Long,
     latestVersion: Long,
-    includeHistoricalMetadata: Boolean): Seq[CDCDataSpec] = {
+    includeHistoricalMetadata: Boolean,
+    includeHistoricalProtocol: Boolean = false): Seq[CDCDataSpec] = {
     if (start > latestVersion) {
       throw DeltaCDFErrors.startVersionAfterLatestVersion(start, latestVersion)
     }
@@ -255,6 +262,8 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
               selectedActions.append(c)
             case m: Metadata if (includeHistoricalMetadata && v > start) =>
               selectedActions.append(m)
+            case p: Protocol if (includeHistoricalProtocol && v > start) =>
+              selectedActions.append(p)
             case _ => ()
           }
         } else {
@@ -264,6 +273,8 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
             actions.foreach {
               case m: Metadata if (includeHistoricalMetadata && v > start) =>
                 selectedActions.append(m)
+              case p: Protocol if (includeHistoricalProtocol && v > start) =>
+                selectedActions.append(p)
               case _ => ()
             }
           } else {
@@ -276,6 +287,8 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
                 selectedActions.append(r)
               case m: Metadata if (includeHistoricalMetadata && v > start) =>
                 selectedActions.append(m)
+              case p: Protocol if (includeHistoricalProtocol && v > start) =>
+                selectedActions.append(p)
               case _ => ()
             }
           }
