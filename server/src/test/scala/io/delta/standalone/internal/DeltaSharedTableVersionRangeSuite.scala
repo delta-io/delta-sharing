@@ -137,7 +137,8 @@ class DeltaSharedTableVersionRangeSuite extends FunSuite with DeltaSharedTableTe
 
       // Only the head Protocol; v=2 fails the `v > startingVersion` gate. Snapshot is
       // pinned at v=2, so head carries Protocol(1,4).
-      assert(protocols.size == 1, s"expected single head Protocol when start=upgrade, got $protocols")
+      assert(protocols.size == 1,
+        s"expected single head Protocol when start=upgrade, got $protocols")
       val head = protocols.head
       assert(head.version == 2L,
         s"head Protocol.version should equal startingVersion (2), got ${head.version}")

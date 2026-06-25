@@ -20,15 +20,15 @@ import java.io.File
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
 
+import io.delta.standalone.internal.actions.{Action, AddFile, Metadata, Protocol}
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
 
-import io.delta.sharing.server.common.{CloudFileSigner, JsonUtils, PreSignedUrl}
-import io.delta.sharing.server.config.TableConfig
 // Aliases to avoid the standalone-side `DeltaResponseSingleAction` in
 // `io.delta.standalone.internal.model` shadowing the server-side wire types.
 import io.delta.sharing.server.{model => serverModel}
-import io.delta.standalone.internal.actions.{Action, AddFile, Metadata, Protocol}
+import io.delta.sharing.server.common.{CloudFileSigner, JsonUtils, PreSignedUrl}
+import io.delta.sharing.server.config.TableConfig
 
 /**
  * Shared scaffolding for unit tests that exercise [[DeltaSharedTable]] against a

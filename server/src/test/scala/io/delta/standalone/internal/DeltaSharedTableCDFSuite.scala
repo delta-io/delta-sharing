@@ -52,7 +52,8 @@ class DeltaSharedTableCDFSuite extends FunSuite with DeltaSharedTableTestBase {
       // Exactly one Protocol: the head, stamped with the snapshot version (= 4).
       assert(protocols.size == 1, s"expected single head Protocol, got $protocols")
       val head = protocols.head
-      assert(head.version == 4L, s"head Protocol.version must be the latest version, got ${head.version}")
+      assert(head.version == 4L,
+        s"head Protocol.version must be the latest version, got ${head.version}")
       assert(head.deltaProtocol.minReaderVersion == 1)
       assert(head.deltaProtocol.minWriterVersion == 4)
     } finally {
@@ -112,7 +113,8 @@ class DeltaSharedTableCDFSuite extends FunSuite with DeltaSharedTableTestBase {
       val protocols = protocolsOf(roundTripActions(result.actions))
 
       // Only the head Protocol; v=2 fails the `v > start` gate.
-      assert(protocols.size == 1, s"expected single head Protocol when start=upgrade, got $protocols")
+      assert(protocols.size == 1,
+        s"expected single head Protocol when start=upgrade, got $protocols")
       assert(protocols.head.version == 4L)
       assert(protocols.head.deltaProtocol.minWriterVersion == 4)
     } finally {
