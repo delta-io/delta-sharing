@@ -563,7 +563,7 @@ class DeltaSharedTable(
       responseFormat: String,
       includeEndStreamAction: Boolean,
       fileIdHash: Option[String] = None,
-      includeHistoricalProtocol: Boolean = false
+      emitHistoricalProtocol: Boolean = false
     ): Seq[Object] = {
     // For subsequent page calls, instead of using the current latestVersion, use latestVersion in
     // the pageToken (which is equal to the latestVersion when the first page call is received),
@@ -670,7 +670,7 @@ class DeltaSharedTable(
             numSignedFiles += 1
           case (p: Protocol, _) =>
             assertProtocolRead(p)
-            if (includeHistoricalProtocol && v > startingVersion) {
+            if (emitHistoricalProtocol && v > startingVersion) {
               actions.append(getResponseProtocol(p, Some(v), responseFormat))
             }
           case (m: Metadata, _) =>
