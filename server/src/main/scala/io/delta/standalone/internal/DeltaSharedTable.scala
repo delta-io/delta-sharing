@@ -163,9 +163,8 @@ class DeltaSharedTable(
 
   // Construct the protocol class to be returned in the response based on the responseFormat.
   // `version` is the delta log version this Protocol applies to. Callers set it for the
-  // delta-format streaming and CDF responses that emit historical Protocol actions (so the
-  // recipient knows which version each Protocol action belongs to, mirroring how
-  // `getResponseMetadata` stamps historical Metadata actions). It is ignored on the parquet
+  // delta-format streaming and CDF responses that emit historical Protocol actions, so the
+  // recipient knows which version each Protocol action belongs to. It is ignored on the parquet
   // branch, which has no representation for a Protocol version and only ever emits a single head
   // Protocol.
   private def getResponseProtocol(
