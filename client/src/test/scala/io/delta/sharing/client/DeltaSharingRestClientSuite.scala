@@ -2351,4 +2351,76 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       client.close()
     }
   }
+
+  // Captures the POSTed QueryTableRequest body so we can assert what the streaming getFiles
+  // overload sends on the wire. Returns a minimal delta-format ndjson body so the call succeeds.
+  private class PostBodyCapturingRestClient(profileProvider: TestProfileProvider)
+    extends DeltaSharingRestClient(
+      profileProvider = profileProvider,
+      responseFormat = RESPONSE_FORMAT_DELTA
+    ) {
+    var capturedBodyJson: String = _
+
+    override def getNDJsonPost[T: Manifest](
+        target: String,
+        data: T,
+        setIncludeEndStreamAction: Boolean,
+        requestFileIdHash: Option[String]
+    ): ParsedDeltaSharingResponse = {
+      capturedBodyJson = JsonUtils.toJson(data)
+      ParsedDeltaSharingResponse(
+        version = 0L,
+        respondedFormat = RESPONSE_FORMAT_DELTA,
+        lines = Seq(
+          """{"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":2}}}""",
+          """{"metaData":{"deltaMetadata":{"id":"id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}}"""
+        ),
+        capabilitiesMap = Map.empty,
+        fileIdHash = None
+      )
+    }
+  }
+
+  test("getFiles(startingVersion, ...) - includeHistoricalProtocol=true is added to request body") {
+    val client = new PostBodyCapturingRestClient(new TestProfileProvider(false))
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      client.getFiles(
+        table,
+        startingVersion = 0L,
+        endingVersion = Some(5L),
+        fileIdHash = None,
+        includeHistoricalProtocol = true
+      )
+      assert(client.capturedBodyJson != null)
+      assert(
+        client.capturedBodyJson.contains("\"includeHistoricalProtocol\":true"),
+        s"expected request body to contain includeHistoricalProtocol=true, got: " +
+          client.capturedBodyJson
+      )
+    } finally {
+      client.close()
+    }
+  }
+
+  test("getFiles(startingVersion, ...) - includeHistoricalProtocol is absent by default") {
+    val client = new PostBodyCapturingRestClient(new TestProfileProvider(false))
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      client.getFiles(
+        table,
+        startingVersion = 0L,
+        endingVersion = Some(5L),
+        fileIdHash = None
+      )
+      assert(client.capturedBodyJson != null)
+      assert(
+        !client.capturedBodyJson.contains("includeHistoricalProtocol"),
+        s"expected request body not to mention includeHistoricalProtocol, got: " +
+          client.capturedBodyJson
+      )
+    } finally {
+      client.close()
+    }
+  }
 }

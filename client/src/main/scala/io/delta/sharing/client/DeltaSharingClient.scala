@@ -83,7 +83,8 @@ trait DeltaSharingClient {
     table: Table,
     startingVersion: Long,
     endingVersion: Option[Long],
-    fileIdHash: Option[String]): DeltaTableFiles
+    fileIdHash: Option[String],
+    includeHistoricalProtocol: Boolean = false): DeltaTableFiles
 
   def getCDFFiles(
       table: Table,
@@ -160,7 +161,8 @@ private[sharing] case class QueryTableRequest(
   pageToken: Option[String],
   includeRefreshToken: Option[Boolean],
   refreshToken: Option[String],
-  idempotency_key: Option[String]
+  idempotency_key: Option[String],
+  includeHistoricalProtocol: Option[Boolean] = None
 ) extends NextPageRequest {
   override def clone(
         maxFiles: Option[Int],
@@ -545,7 +547,8 @@ class DeltaSharingRestClient(
       table: Table,
       startingVersion: Long,
       endingVersion: Option[Long],
-      fileIdHash: Option[String]): DeltaTableFiles = {
+      fileIdHash: Option[String],
+      includeHistoricalProtocol: Boolean = false): DeltaTableFiles = {
     val start = System.currentTimeMillis()
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
@@ -564,7 +567,8 @@ class DeltaSharingRestClient(
       pageToken = None,
       includeRefreshToken = None,
       refreshToken = None,
-      idempotency_key = None
+      idempotency_key = None,
+      includeHistoricalProtocol = if (includeHistoricalProtocol) Some(true) else None
     )
 
     val (version, respondedFormat, lines, responseFileIdHash) = if (queryTablePaginationEnabled) {

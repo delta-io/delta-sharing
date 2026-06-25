@@ -163,7 +163,8 @@ class TestDeltaSharingClient(
       table: Table,
       startingVersion: Long,
       endingVersion: Option[Long],
-      fileIdHash: Option[String]): DeltaTableFiles = {
+      fileIdHash: Option[String],
+      includeHistoricalProtocol: Boolean = false): DeltaTableFiles = {
     // This is not used anywhere.
     DeltaTableFiles(
       0, Protocol(0), metadata, Nil, Nil, Nil, Nil, respondedFormat = RESPONSE_FORMAT_PARQUET
