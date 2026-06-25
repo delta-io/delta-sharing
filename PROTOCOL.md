@@ -1576,7 +1576,7 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
 <td>URL</td>
 <td>
 
-`{prefix}/shares/{share}/schemas/{schema}/tables/{table}/metadata[?version={version}|&timestamp={timestamp}]`
+`{prefix}/shares/{share}/schemas/{schema}/tables/{table}/metadata`
 
 </td>
 </tr>
