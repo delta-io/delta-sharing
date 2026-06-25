@@ -89,7 +89,8 @@ trait DeltaSharingClient {
       table: Table,
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean,
-      fileIdHash: Option[String]): DeltaTableFiles
+      fileIdHash: Option[String],
+      includeHistoricalProtocol: Boolean = false): DeltaTableFiles
 
   def generateTemporaryTableCredential(
     table: Table,
@@ -737,12 +738,14 @@ class DeltaSharingRestClient(
       table: Table,
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean,
-      fileIdHash: Option[String]): DeltaTableFiles = {
+      fileIdHash: Option[String],
+      includeHistoricalProtocol: Boolean = false): DeltaTableFiles = {
     val start = System.currentTimeMillis()
     val encodedShare = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchema = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTable = URLEncoder.encode(table.name, "UTF-8")
-    val encodedParams = getEncodedCDFParams(cdfOptions, includeHistoricalMetadata)
+    val encodedParams = getEncodedCDFParams(
+      cdfOptions, includeHistoricalMetadata, includeHistoricalProtocol)
 
     val target = getTargetUrl(
       s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
@@ -964,12 +967,11 @@ class DeltaSharingRestClient(
 
   private def getEncodedCDFParams(
       cdfOptions: Map[String, String],
-      includeHistoricalMetadata: Boolean): String = {
-    val paramMap = cdfOptions ++ (if (includeHistoricalMetadata) {
-      Map("includeHistoricalMetadata" -> "true")
-    } else {
-      Map.empty
-    })
+      includeHistoricalMetadata: Boolean,
+      includeHistoricalProtocol: Boolean = false): String = {
+    val paramMap = cdfOptions ++
+      (if (includeHistoricalMetadata) Map("includeHistoricalMetadata" -> "true") else Map.empty) ++
+      (if (includeHistoricalProtocol) Map("includeHistoricalProtocol" -> "true") else Map.empty)
     paramMap.map {
       case (cdfKey, cdfValue) => s"$cdfKey=${URLEncoder.encode(cdfValue)}"
     }.mkString("&")

@@ -2279,4 +2279,76 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       client.close()
     }
   }
+
+  // Captures the URL passed to getNDJson so we can assert the URL query string the client built
+  // for getCDFFiles. Returns a minimal delta-format ndjson body so the call succeeds.
+  private class UrlCapturingRestClient(profileProvider: TestProfileProvider)
+    extends DeltaSharingRestClient(
+      profileProvider = profileProvider,
+      responseFormat = RESPONSE_FORMAT_DELTA
+    ) {
+    var capturedTarget: String = _
+
+    override def getNDJson(
+        target: String,
+        requireVersion: Boolean,
+        setIncludeEndStreamAction: Boolean,
+        requestFileIdHash: Option[String] = None): ParsedDeltaSharingResponse = {
+      capturedTarget = target
+      ParsedDeltaSharingResponse(
+        version = 0L,
+        respondedFormat = RESPONSE_FORMAT_DELTA,
+        lines = Seq(
+          """{"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":2}}}""",
+          """{"metaData":{"deltaMetadata":{"id":"id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}}"""
+        ),
+        capabilitiesMap = Map.empty,
+        fileIdHash = None
+      )
+    }
+  }
+
+  test("getCDFFiles - includeHistoricalProtocol=true sends URL param to server") {
+    val client = new UrlCapturingRestClient(new TestProfileProvider(false))
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      client.getCDFFiles(
+        table,
+        cdfOptions = Map("startingVersion" -> "0"),
+        includeHistoricalMetadata = false,
+        fileIdHash = None,
+        includeHistoricalProtocol = true
+      )
+      assert(
+        client.capturedTarget != null && client.capturedTarget.contains("includeHistoricalProtocol=true"),
+        s"expected URL to contain includeHistoricalProtocol=true, got: ${client.capturedTarget}"
+      )
+    } finally {
+      client.close()
+    }
+  }
+
+  test("getCDFFiles - includeHistoricalProtocol is absent by default") {
+    val client = new UrlCapturingRestClient(new TestProfileProvider(false))
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      client.getCDFFiles(
+        table,
+        cdfOptions = Map("startingVersion" -> "0"),
+        includeHistoricalMetadata = true,
+        fileIdHash = None
+      )
+      assert(client.capturedTarget != null)
+      assert(
+        !client.capturedTarget.contains("includeHistoricalProtocol"),
+        s"expected URL not to contain includeHistoricalProtocol, got: ${client.capturedTarget}"
+      )
+      assert(
+        client.capturedTarget.contains("includeHistoricalMetadata=true"),
+        s"expected URL to contain includeHistoricalMetadata=true, got: ${client.capturedTarget}"
+      )
+    } finally {
+      client.close()
+    }
+  }
 }

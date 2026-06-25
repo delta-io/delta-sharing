@@ -2349,7 +2349,8 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
  **startingTimestamp** (type: String, optional): The starting timestamp of the query, a string in the [Timestamp Format](#timestamp-format), which will be converted to a version created greater or equal to this timestamp. <br>
  **endingVersion** (type: Long, optional): The ending version of the query, inclusive. <br>
  **endingTimestamp** (type: String, optional): The ending timestamp of the query, a string in the [Timestamp Format](#timestamp-format), which will be converted to a version created earlier than or at the timestamp. <br>
- **includeHistoricalMetadata** (type: Boolean, optional): If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible.</td>
+ **includeHistoricalMetadata** (type: Boolean, optional): If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible. <br>
+ **includeHistoricalProtocol** (type: Boolean, optional): If set to true, return historical [Protocol](#protocol-in-delta-format) actions seen in the delta log so the streaming client can check whether the table is still read compatible (e.g. when a new reader feature is enabled mid-stream). This only affects responses with `responseformat=delta`; for `responseformat=parquet` responses the flag is ignored and no additional Protocol actions are emitted.</td>
 </tr>
 </table>
 
@@ -2391,6 +2392,7 @@ When `responseformat=delta`, a sequence of JSON strings delimited by newline. Ea
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
 - The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [Files](#file-in-delta-format) of the change data feed.
   - Historical [Metadata](#metadata) will be returned if includeHistoricalMetadata is set to true.
+  - Historical [Protocol](#protocol-in-delta-format) actions will be returned if includeHistoricalProtocol is set to true. This is only supported for the delta response format.
   - The ordering of the lines doesn't matter.
 
 </td>

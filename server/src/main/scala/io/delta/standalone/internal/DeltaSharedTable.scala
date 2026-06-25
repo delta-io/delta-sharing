@@ -58,7 +58,8 @@ private case class QueryParamChecksum(
     predicateHints: Seq[String],
     jsonPredicateHints: Option[String],
     limitHint: Option[Long],
-    includeHistoricalMetadata: Option[Boolean])
+    includeHistoricalMetadata: Option[Boolean],
+    includeHistoricalProtocol: Option[Boolean] = None)
 
 
 
@@ -672,7 +673,8 @@ class DeltaSharedTable(
       pageToken: Option[String],
       responseFormatSet: Set[String] = Set(DeltaSharedTable.RESPONSE_FORMAT_PARQUET),
       includeEndStreamAction: Boolean,
-      fileIdHash: Option[String] = None
+      fileIdHash: Option[String] = None,
+      includeHistoricalProtocol: Boolean = false
   ): QueryResult = withClassLoader {
     // Step 1: validate pageToken if it's specified
     lazy val queryParamChecksum = computeChecksum(
@@ -686,7 +688,8 @@ class DeltaSharedTable(
         predicateHints = Nil,
         jsonPredicateHints = None,
         limitHint = None,
-        includeHistoricalMetadata = Some(includeHistoricalMetadata)
+        includeHistoricalMetadata = Some(includeHistoricalMetadata),
+        includeHistoricalProtocol = Some(includeHistoricalProtocol)
       )
     )
     val pageTokenOpt = pageToken.map(decodeAndValidatePageToken(_, queryParamChecksum))
@@ -745,11 +748,16 @@ class DeltaSharedTable(
     // - Versions that are processed in previous pages can be skipped.
     // - Versions that are committed after the first page call should be ignored, especially
     //   when the endingVersion is not specified and resolved to latestVersion.
+    // Historical Protocol actions only have a representation in the delta format response.
+    // Suppress them for parquet responses to keep the wire shape backwards compatible.
+    val emitHistoricalProtocol =
+      includeHistoricalProtocol && responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA
     val changes = cdcReader.queryCDF(
       pageTokenOpt.map(_.getStartingVersion).getOrElse(start),
       pageTokenOpt.map(_.getEndingVersion).getOrElse(end).min(latestVersion),
       latestVersion,
-      includeHistoricalMetadata
+      includeHistoricalMetadata,
+      emitHistoricalProtocol
     )
     changes.foreach { cdcDataSpec =>
       val v = cdcDataSpec.version
@@ -760,6 +768,8 @@ class DeltaSharedTable(
         indexedActions = indexedActions.drop(pageTokenOpt.get.getStartingActionIndex)
       }
       indexedActions.foreach {
+        case (p: Protocol, _) =>
+          actions.append(getResponseProtocol(p, responseFormat))
         case (m: Metadata, _) =>
           actions.append(
             getResponseMetadata(

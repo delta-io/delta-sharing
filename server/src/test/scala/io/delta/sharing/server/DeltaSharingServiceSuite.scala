@@ -3585,6 +3585,40 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     assert(actions(3).add != null)
   }
 
+  integrationTest("streaming_notnull_to_null - includeHistoricalProtocol=true is accepted and does " +
+    "not add additional Protocol actions when the table has no historical Protocol changes") {
+    // The streaming_notnull_to_null table only has Metadata changes across versions, no Protocol
+    // upgrades. Requesting includeHistoricalProtocol=true should be accepted by the server and
+    // produce the exact same response as if the flag were not set (one Protocol + one Metadata
+    // + the two AddFile actions).
+    val response = readNDJson(
+      requestPath(
+        "/shares/share8/schemas/default/tables/streaming_notnull_to_null/changes" +
+          "?startingVersion=0&includeHistoricalProtocol=true"
+      ),
+      Some("GET"),
+      None,
+      Some(0)
+    )
+    val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
+    assert(actions.size == 4)
+    val expectedProtocol = Protocol(minReaderVersion = 1)
+    // Exactly one Protocol action (the head of the response), no historical Protocol entries
+    // injected for this table.
+    assert(actions.count(_.protocol != null) == 1)
+    assert(expectedProtocol == actions(0).protocol)
+    val expectedMetadata = Metadata(
+      id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
+      format = Format(),
+      schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+      configuration = Map("enableChangeDataFeed" -> "true"),
+      partitionColumns = Nil,
+      version = 3)
+    assert(expectedMetadata == actions(1).metaData)
+    assert(actions(2).add != null)
+    assert(actions(3).add != null)
+  }
+
   integrationTest("streaming_notnull_to_null - paginated query with additional metadata not returned") {
     // additional metadata not returned when includeHistoricalMetadata is not set
     val expectedProtocol = Protocol(minReaderVersion = 1)

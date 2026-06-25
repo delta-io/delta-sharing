@@ -57,7 +57,8 @@ trait DeltaSharedTableProtocol {
       pageToken: Option[String],
       responseFormatSet: Set[String] = Set("parquet"),
       includeEndStreamAction: Boolean,
-      fileIdHash: Option[String] = None): QueryResult
+      fileIdHash: Option[String] = None,
+      includeHistoricalProtocol: Boolean = false): QueryResult
 
   def validateTable(inputFullHistoryShared: Boolean): Unit = {}
 
