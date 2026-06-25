@@ -2281,11 +2281,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   // Captures the URL passed to getNDJson so we can assert the URL query string the client built
-  // for getCDFFiles. Returns a minimal delta-format ndjson body so the call succeeds.
-  private class UrlCapturingRestClient(profileProvider: TestProfileProvider)
+  // for getCDFFiles. Returns a minimal ndjson body in the format the client is configured for
+  // so the call succeeds end-to-end.
+  private class UrlCapturingRestClient(
+      profileProvider: TestProfileProvider,
+      responseFormat: String = RESPONSE_FORMAT_DELTA)
     extends DeltaSharingRestClient(
       profileProvider = profileProvider,
-      responseFormat = RESPONSE_FORMAT_DELTA
+      responseFormat = responseFormat
     ) {
     var capturedTarget: String = _
 
@@ -2295,13 +2298,23 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         setIncludeEndStreamAction: Boolean,
         requestFileIdHash: Option[String] = None): ParsedDeltaSharingResponse = {
       capturedTarget = target
+      val (respondedFormat, lines) = if (responseFormat == RESPONSE_FORMAT_DELTA) {
+        (RESPONSE_FORMAT_DELTA, Seq(
+          """{"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":2}}}""",
+          """{"metaData":{"deltaMetadata":{"id":"id","format":{"provider":"parquet"},""" +
+            """"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}}"""
+        ))
+      } else {
+        (RESPONSE_FORMAT_PARQUET, Seq(
+          """{"protocol":{"minReaderVersion":1}}""",
+          """{"metaData":{"id":"id","format":{"provider":"parquet"},""" +
+            """"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}"""
+        ))
+      }
       ParsedDeltaSharingResponse(
         version = 0L,
-        respondedFormat = RESPONSE_FORMAT_DELTA,
-        lines = Seq(
-          """{"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":2}}}""",
-          """{"metaData":{"deltaMetadata":{"id":"id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}}"""
-        ),
+        respondedFormat = respondedFormat,
+        lines = lines,
         capabilitiesMap = Map.empty,
         fileIdHash = None
       )
@@ -2353,11 +2366,14 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   // Captures the URL passed to getNDJsonPost so we can assert the URL query string the streaming
-  // getFiles overload builds. Returns a minimal delta-format ndjson body so the call succeeds.
-  private class PostUrlCapturingRestClient(profileProvider: TestProfileProvider)
+  // getFiles overload builds. Returns a minimal ndjson body in the format the client is configured
+  // for so the call succeeds end-to-end.
+  private class PostUrlCapturingRestClient(
+      profileProvider: TestProfileProvider,
+      responseFormat: String = RESPONSE_FORMAT_DELTA)
     extends DeltaSharingRestClient(
       profileProvider = profileProvider,
-      responseFormat = RESPONSE_FORMAT_DELTA
+      responseFormat = responseFormat
     ) {
     var capturedTarget: String = _
     var capturedBodyJson: String = _
@@ -2370,13 +2386,23 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     ): ParsedDeltaSharingResponse = {
       capturedTarget = target
       capturedBodyJson = JsonUtils.toJson(data)
+      val (respondedFormat, lines) = if (responseFormat == RESPONSE_FORMAT_DELTA) {
+        (RESPONSE_FORMAT_DELTA, Seq(
+          """{"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":2}}}""",
+          """{"metaData":{"deltaMetadata":{"id":"id","format":{"provider":"parquet"},""" +
+            """"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}}"""
+        ))
+      } else {
+        (RESPONSE_FORMAT_PARQUET, Seq(
+          """{"protocol":{"minReaderVersion":1}}""",
+          """{"metaData":{"id":"id","format":{"provider":"parquet"},""" +
+            """"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}"""
+        ))
+      }
       ParsedDeltaSharingResponse(
         version = 0L,
-        respondedFormat = RESPONSE_FORMAT_DELTA,
-        lines = Seq(
-          """{"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":2}}}""",
-          """{"metaData":{"deltaMetadata":{"id":"id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[]}","partitionColumns":[]}}}"""
-        ),
+        respondedFormat = respondedFormat,
+        lines = lines,
         capabilitiesMap = Map.empty,
         fileIdHash = None
       )
@@ -2429,6 +2455,90 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         !client.capturedBodyJson.contains("includeHistoricalProtocol"),
         s"expected request body not to mention includeHistoricalProtocol, got: " +
           client.capturedBodyJson
+      )
+    } finally {
+      client.close()
+    }
+  }
+
+  // Parquet-only clients have no way to interpret inlined historical Protocol actions (the wire
+  // format doesn't carry them), so the client must suppress the URL param even when the caller
+  // sets `includeHistoricalProtocol = true`, to keep parquet-format requests unchanged.
+  test("getCDFFiles - includeHistoricalProtocol is suppressed when responseFormat=parquet " +
+      "even if caller asks for it") {
+    val client = new UrlCapturingRestClient(
+      new TestProfileProvider(false), responseFormat = RESPONSE_FORMAT_PARQUET)
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      client.getCDFFiles(
+        table,
+        cdfOptions = Map("startingVersion" -> "0"),
+        includeHistoricalMetadata = false,
+        fileIdHash = None,
+        includeHistoricalProtocol = true
+      )
+      assert(client.capturedTarget != null)
+      assert(
+        !client.capturedTarget.contains("includeHistoricalProtocol"),
+        s"expected URL not to contain includeHistoricalProtocol for parquet-only client, " +
+          s"got: ${client.capturedTarget}"
+      )
+    } finally {
+      client.close()
+    }
+  }
+
+  test("getFiles(startingVersion, ...) - includeHistoricalProtocol is suppressed when " +
+      "responseFormat=parquet even if caller asks for it") {
+    val client = new PostUrlCapturingRestClient(
+      new TestProfileProvider(false), responseFormat = RESPONSE_FORMAT_PARQUET)
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      client.getFiles(
+        table,
+        startingVersion = 0L,
+        endingVersion = Some(5L),
+        fileIdHash = None,
+        includeHistoricalProtocol = true
+      )
+      assert(client.capturedTarget != null)
+      assert(
+        !client.capturedTarget.contains("includeHistoricalProtocol"),
+        s"expected URL not to contain includeHistoricalProtocol for parquet-only client, " +
+          s"got: ${client.capturedTarget}"
+      )
+      assert(
+        !client.capturedBodyJson.contains("includeHistoricalProtocol"),
+        s"expected request body not to mention includeHistoricalProtocol, got: " +
+          client.capturedBodyJson
+      )
+    } finally {
+      client.close()
+    }
+  }
+
+  // When the client is configured for both parquet *and* delta (e.g. responseFormat=parquet,delta
+  // for negotiation), the caller's `includeHistoricalProtocol=true` should still be forwarded
+  // because the server can pick the delta-format response and inline historical Protocol actions.
+  test("getCDFFiles - includeHistoricalProtocol is forwarded when responseFormat includes delta " +
+      "alongside parquet") {
+    val client = new UrlCapturingRestClient(
+      new TestProfileProvider(false),
+      responseFormat = s"$RESPONSE_FORMAT_PARQUET,$RESPONSE_FORMAT_DELTA")
+    try {
+      val table = Table(name = "t", schema = "s", share = "sh")
+      client.getCDFFiles(
+        table,
+        cdfOptions = Map("startingVersion" -> "0"),
+        includeHistoricalMetadata = false,
+        fileIdHash = None,
+        includeHistoricalProtocol = true
+      )
+      assert(
+        client.capturedTarget != null &&
+          client.capturedTarget.contains("includeHistoricalProtocol=true"),
+        s"expected URL to contain includeHistoricalProtocol=true when delta is in " +
+          s"responseFormat, got: ${client.capturedTarget}"
       )
     } finally {
       client.close()

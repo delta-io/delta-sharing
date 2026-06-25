@@ -552,7 +552,16 @@ class DeltaSharingRestClient(
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
-    val queryString = if (includeHistoricalProtocol) "?includeHistoricalProtocol=true" else ""
+    // `includeHistoricalProtocol` only has a meaningful representation in the delta-format
+    // response (parquet-format responses don't carry inlined Protocol actions), so only send
+    // the URL param when both the caller opted in and the client is configured to accept
+    // delta responses. This keeps the wire shape backwards compatible for parquet-only callers.
+    val queryString = if (
+      includeHistoricalProtocol && responseFormatSet.contains(RESPONSE_FORMAT_DELTA)) {
+      "?includeHistoricalProtocol=true"
+    } else {
+      ""
+    }
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query" +
         queryString)
@@ -973,9 +982,18 @@ class DeltaSharingRestClient(
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean,
       includeHistoricalProtocol: Boolean = false): String = {
+    // `includeHistoricalProtocol` only has a meaningful representation in the delta-format
+    // response, so only forward it to the server when the client is configured to accept
+    // delta responses. Parquet-only callers continue to omit the flag entirely.
+    val sendIncludeHistoricalProtocol =
+      includeHistoricalProtocol && responseFormatSet.contains(RESPONSE_FORMAT_DELTA)
     val paramMap = cdfOptions ++
       (if (includeHistoricalMetadata) Map("includeHistoricalMetadata" -> "true") else Map.empty) ++
-      (if (includeHistoricalProtocol) Map("includeHistoricalProtocol" -> "true") else Map.empty)
+      (if (sendIncludeHistoricalProtocol) {
+        Map("includeHistoricalProtocol" -> "true")
+      } else {
+        Map.empty
+      })
     paramMap.map {
       case (cdfKey, cdfValue) => s"$cdfKey=${URLEncoder.encode(cdfValue)}"
     }.mkString("&")
