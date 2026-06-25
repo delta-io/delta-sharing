@@ -2461,9 +2461,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  // Parquet-only clients have no way to interpret inlined historical Protocol actions (the wire
-  // format doesn't carry them), so the client must suppress the URL param even when the caller
-  // sets `includeHistoricalProtocol = true`, to keep parquet-format requests unchanged.
+  // For parquet-only clients the flag is a no-op on the server (the parquet response returns
+  // the same single Protocol regardless), so the client must suppress the URL param even when
+  // the caller sets `includeHistoricalProtocol = true` to keep parquet-format requests unchanged.
   test("getCDFFiles - includeHistoricalProtocol is suppressed when responseFormat=parquet " +
       "even if caller asks for it") {
     val client = new UrlCapturingRestClient(
