@@ -3626,23 +3626,12 @@ Example (for illustration purposes; each JSON object must be a single line in th
 ```json
 {
   "protocol": {
-    "deltaProtocol": {
-      "minReaderVersion": 3,
-      "minWriterVersion": 7
-    }
-  }
-}
-```
-
-When `includeHistoricalProtocol=true` is requested on a streaming or CDF query, each Protocol carries the delta log version it corresponds to:
-
-```json
-{
-  "protocol": {
     "version": 5,
     "deltaProtocol": {
       "minReaderVersion": 3,
-      "minWriterVersion": 7
+      "minWriterVersion": 7,
+      "readerFeatures": ["columnMapping"],
+      "writerFeatures": ["columnMapping", "identityColumns"]
     }
   }
 }
