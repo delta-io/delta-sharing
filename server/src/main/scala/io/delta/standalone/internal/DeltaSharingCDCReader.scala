@@ -187,12 +187,6 @@ class DeltaSharingCDCReader(val deltaLog: DeltaLogImpl, val conf: Configuration)
    *                                  check. Otherwise, no need to include metadata.
    * @param emitHistoricalProtocol if true, include intermediate Protocol actions seen in the
    *                               delta log for protocol/reader-feature compatibility checks.
-   *                               Callers should only set this when the response will be
-   *                               serialized in the delta format, because the parquet response
-   *                               has no representation for additional Protocol actions
-   *                               (the caller is expected to AND the user-facing
-   *                               `includeHistoricalProtocol` flag with that format check
-   *                               before passing it down here).
    */
   def queryCDF(
     start: Long,
