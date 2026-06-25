@@ -34,7 +34,7 @@ class DeltaSharedTableCDFSuite extends FunSuite with DeltaSharedTableTestBase {
 
   private val responseFormatDelta = Set("delta")
 
-  test("queryCDF: head Protocol carries the snapshot version and no historical Protocols " +
+  test("queryCDF: head Protocol carries no version and no historical Protocols are emitted " +
       "when includeHistoricalProtocol=false") {
     val tableDir = buildProtocolEvolutionTable()
     try {
@@ -49,11 +49,13 @@ class DeltaSharedTableCDFSuite extends FunSuite with DeltaSharedTableTestBase {
         includeHistoricalProtocol = false)
       val protocols = protocolsOf(roundTripActions(result.actions))
 
-      // Exactly one Protocol: the head, stamped with the snapshot version (= 4).
+      // Exactly one Protocol: the head. When the client doesn't opt in via
+      // `includeHistoricalProtocol`, the head Protocol carries no `version` field so the
+      // pre-existing delta-format wire shape is preserved for legacy clients.
       assert(protocols.size == 1, s"expected single head Protocol, got $protocols")
       val head = protocols.head
-      assert(head.version == 4L,
-        s"head Protocol.version must be the latest version, got ${head.version}")
+      assert(head.version == null,
+        s"head Protocol.version must be omitted when flag is off, got ${head.version}")
       assert(head.deltaProtocol.minReaderVersion == 1)
       assert(head.deltaProtocol.minWriterVersion == 4)
     } finally {
@@ -61,8 +63,8 @@ class DeltaSharedTableCDFSuite extends FunSuite with DeltaSharedTableTestBase {
     }
   }
 
-  test("queryCDF: includeHistoricalProtocol=true emits head + intermediate Protocol@v=2 " +
-      "each stamped with its delta log version") {
+  test("queryCDF: includeHistoricalProtocol=true emits head (stamped with snapshot version) " +
+      "+ intermediate Protocol@v=2 each stamped with its delta log version") {
     val tableDir = buildProtocolEvolutionTable()
     try {
       val table = buildSharedTable(tableDir)

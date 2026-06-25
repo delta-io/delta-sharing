@@ -61,8 +61,8 @@ class DeltaSharedTableVersionRangeSuite extends FunSuite with DeltaSharedTableTe
       includeHistoricalProtocol = includeHistoricalProtocol).actions
   }
 
-  test("query[startingVersion]: head Protocol carries the startingVersion stamp and no " +
-      "historical Protocols when includeHistoricalProtocol=false") {
+  test("query[startingVersion]: head Protocol carries no version and no historical " +
+      "Protocols are emitted when includeHistoricalProtocol=false") {
     val tableDir = buildProtocolEvolutionTable()
     try {
       val table = buildSharedTable(tableDir)
@@ -74,13 +74,14 @@ class DeltaSharedTableVersionRangeSuite extends FunSuite with DeltaSharedTableTe
       val protocols = protocolsOf(roundTripActions(rawActions))
 
       // Exactly one Protocol: the head. In the streaming `query` path the snapshot is
-      // pinned at `startingVersion`, so the head Protocol is whatever Protocol the
-      // table had at v=startingVersion (= v=0 here, i.e. Protocol(1,2)), and the
-      // `version` stamp is the startingVersion.
+      // pinned at `startingVersion`, so the head Protocol reflects whatever Protocol
+      // the table had at v=startingVersion (= v=0 here, i.e. Protocol(1,2)). When the
+      // client doesn't opt in via `includeHistoricalProtocol`, the head carries no
+      // `version` field so the pre-existing delta-format wire shape is preserved.
       assert(protocols.size == 1, s"expected single head Protocol, got $protocols")
       val head = protocols.head
-      assert(head.version == 0L,
-        s"head Protocol.version should equal startingVersion (0), got ${head.version}")
+      assert(head.version == null,
+        s"head Protocol.version must be omitted when flag is off, got ${head.version}")
       assert(head.deltaProtocol.minReaderVersion == 1)
       assert(head.deltaProtocol.minWriterVersion == 2)
     } finally {

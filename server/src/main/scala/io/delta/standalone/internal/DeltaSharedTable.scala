@@ -427,8 +427,12 @@ class DeltaSharedTable(
     // Suppress them for parquet responses to keep the wire shape backwards compatible.
     val emitHistoricalProtocol =
       includeHistoricalProtocol && responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA
+    // Stamp the head Protocol with a `version` only when the client opted into historical
+    // Protocol inlining; existing clients that don't set the flag continue to receive a head
+    // Protocol with no `version` field, preserving the previous delta-format wire shape.
+    val headProtocolVersion = if (emitHistoricalProtocol) startingVersion else None
     val actions = Seq(
-      getResponseProtocol(snapshot.protocolScala, startingVersion, responseFormat),
+      getResponseProtocol(snapshot.protocolScala, headProtocolVersion, responseFormat),
       getResponseMetadata(snapshot.metadataScala, startingVersion, responseFormat)
     ) ++ {
       if (startingVersion.isDefined) {
@@ -745,8 +749,12 @@ class DeltaSharedTable(
     // Suppress them for parquet responses to keep the wire shape backwards compatible.
     val emitHistoricalProtocol =
       includeHistoricalProtocol && responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA
+    // Stamp the head Protocol with a `version` only when the client opted into historical
+    // Protocol inlining; existing clients that don't set the flag continue to receive a head
+    // Protocol with no `version` field, preserving the previous delta-format wire shape.
+    val headProtocolVersion = if (emitHistoricalProtocol) Some(snapshot.version) else None
     actions.append(
-      getResponseProtocol(snapshot.protocolScala, Some(snapshot.version), responseFormat))
+      getResponseProtocol(snapshot.protocolScala, headProtocolVersion, responseFormat))
     actions.append(
       getResponseMetadata(
         snapshot.metadataScala,

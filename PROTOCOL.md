@@ -3619,7 +3619,7 @@ A wrapper of a [delta protocol](https://github.com/delta-io/delta/blob/master/PR
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 deltaProtocol | Delta Protocol | Need to be parsed by a delta library as a delta protocol. | Required
-version | Long | The table version this Protocol corresponds to. Returned on streaming [Read Data from a Table](#read-data-from-a-table) and [Read Change Data Feed from a Table](#read-change-data-feed-from-a-table) responses, identifying the delta log version of each [Protocol](#protocol-in-delta-format) action (the head Protocol, and any historical Protocol actions inlined when [includeHistoricalProtocol](#read-change-data-feed-from-a-table) is set to true). | Optional
+version | Long | The table version this Protocol corresponds to. Populated only on streaming [Read Data from a Table](#read-data-from-a-table) and [Read Change Data Feed from a Table](#read-change-data-feed-from-a-table) responses when [includeHistoricalProtocol](#read-change-data-feed-from-a-table) is set to true, identifying the delta log version of each [Protocol](#protocol-in-delta-format) action (both the head Protocol and any historical Protocol actions inlined into the response). Omitted otherwise to keep the delta-format wire shape backwards compatible for clients that do not opt in. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
