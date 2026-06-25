@@ -419,17 +419,12 @@ class DeltaSharedTable(
     } else {
       DeltaSharedTable.RESPONSE_FORMAT_DELTA
     }
-    // Historical Protocol actions only have a representation in the delta format response, so we
-    // suppress emission (and the corresponding head Protocol version stamping) for parquet
-    // responses to keep their wire shape backwards compatible.
+    // Historical Protocol actions only have a representation in the delta format response.
+    // Suppress them for parquet responses to keep the wire shape backwards compatible.
     val emitHistoricalProtocol =
       includeHistoricalProtocol && responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA
-    // Stamp the head Protocol with its delta-log version only when the client opted into
-    // includeHistoricalProtocol, so the wire shape of existing streaming responses (where the
-    // flag is not set) is preserved.
-    val headProtocolVersion = if (emitHistoricalProtocol) startingVersion else None
     val actions = Seq(
-      getResponseProtocol(snapshot.protocolScala, headProtocolVersion, responseFormat),
+      getResponseProtocol(snapshot.protocolScala, startingVersion, responseFormat),
       getResponseMetadata(snapshot.metadataScala, startingVersion, responseFormat)
     ) ++ {
       if (startingVersion.isDefined) {
@@ -742,17 +737,12 @@ class DeltaSharedTable(
     } else {
       DeltaSharedTable.RESPONSE_FORMAT_DELTA
     }
-    // Historical Protocol actions only have a representation in the delta format response, so we
-    // suppress emission (and the corresponding head Protocol version stamping) for parquet
-    // responses to keep their wire shape backwards compatible.
+    // Historical Protocol actions only have a representation in the delta format response.
+    // Suppress them for parquet responses to keep the wire shape backwards compatible.
     val emitHistoricalProtocol =
       includeHistoricalProtocol && responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA
-    // Stamp the head Protocol with its delta-log version only when the client opted into
-    // includeHistoricalProtocol, so the wire shape of existing CDF responses (where the flag is
-    // not set) is preserved.
-    val headProtocolVersion = if (emitHistoricalProtocol) Some(snapshot.version) else None
     actions.append(
-      getResponseProtocol(snapshot.protocolScala, headProtocolVersion, responseFormat))
+      getResponseProtocol(snapshot.protocolScala, Some(snapshot.version), responseFormat))
     actions.append(
       getResponseMetadata(
         snapshot.metadataScala,
