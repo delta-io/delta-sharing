@@ -567,7 +567,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           responseFormatSet = responseFormatSet,
           clientReaderFeaturesSet = clientReaderFeaturesSet,
           includeEndStreamAction = includeEndStreamAction,
-          fileIdHash = requestFileIdHash)
+          fileIdHash = requestFileIdHash,
+          includeHistoricalProtocol = request.includeHistoricalProtocol.getOrElse(false))
       } else {
         deltaSharedTableLoader.loadTable(tableConfig, useKernel = false).query(
           includeFiles = true,
@@ -585,7 +586,8 @@ class DeltaSharingService(serverConfig: ServerConfig) {
           responseFormatSet = responseFormatSet,
           clientReaderFeaturesSet = Set.empty[String],
           includeEndStreamAction = includeEndStreamAction,
-          fileIdHash = requestFileIdHash)
+          fileIdHash = requestFileIdHash,
+          includeHistoricalProtocol = request.includeHistoricalProtocol.getOrElse(false))
       }
 
       if (queryResult.version < tableConfig.startVersion) {

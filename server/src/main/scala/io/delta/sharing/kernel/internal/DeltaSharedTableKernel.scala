@@ -273,7 +273,8 @@ class DeltaSharedTableKernel(
       responseFormatSet: Set[String],
       clientReaderFeaturesSet: Set[String],
       includeEndStreamQuery: Boolean,
-      fileIdHash: Option[String] = None): QueryResult = withClassLoader {
+      fileIdHash: Option[String] = None,
+      includeHistoricalProtocol: Boolean = false): QueryResult = withClassLoader {
 
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(

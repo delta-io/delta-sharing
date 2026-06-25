@@ -338,7 +338,8 @@ class DeltaSharedTable(
       responseFormatSet: Set[String],
       clientReaderFeaturesSet: Set[String],
       includeEndStreamAction: Boolean,
-      fileIdHash: Option[String] = None): QueryResult = withClassLoader {
+      fileIdHash: Option[String] = None,
+      includeHistoricalProtocol: Boolean = false): QueryResult = withClassLoader {
     // scalastyle:on argcount
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
@@ -358,7 +359,8 @@ class DeltaSharedTable(
         predicateHints = predicateHints,
         jsonPredicateHints = jsonPredicateHints,
         limitHint = limitHint,
-        includeHistoricalMetadata = None
+        includeHistoricalMetadata = None,
+        includeHistoricalProtocol = if (includeHistoricalProtocol) Some(true) else None
       )
     )
     val pageTokenOpt = pageToken.map(decodeAndValidatePageToken(_, queryParamChecksum))
@@ -415,6 +417,10 @@ class DeltaSharedTable(
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
+        // Historical Protocol actions only have a representation in the delta format response.
+        // Suppress them for parquet responses to keep the wire shape backwards compatible.
+        val emitHistoricalProtocol =
+          includeHistoricalProtocol && responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA
         queryDataChangeSinceStartVersion(
           startingVersion.get,
           endingVersion,
@@ -423,7 +429,8 @@ class DeltaSharedTable(
           queryParamChecksum,
           responseFormat,
           includeEndStreamAction,
-          fileIdHash
+          fileIdHash,
+          emitHistoricalProtocol
         )
       } else if (includeFiles) {
         val ts = if (isVersionQuery) {
@@ -538,7 +545,8 @@ class DeltaSharedTable(
       queryParamChecksum: String,
       responseFormat: String,
       includeEndStreamAction: Boolean,
-      fileIdHash: Option[String] = None
+      fileIdHash: Option[String] = None,
+      includeHistoricalProtocol: Boolean = false
     ): Seq[Object] = {
     // For subsequent page calls, instead of using the current latestVersion, use latestVersion in
     // the pageToken (which is equal to the latestVersion when the first page call is received),
@@ -645,6 +653,9 @@ class DeltaSharedTable(
             numSignedFiles += 1
           case (p: Protocol, _) =>
             assertProtocolRead(p)
+            if (includeHistoricalProtocol && v > startingVersion) {
+              actions.append(getResponseProtocol(p, responseFormat))
+            }
           case (m: Metadata, _) =>
             if (v > startingVersion) {
               actions.append(

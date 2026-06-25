@@ -48,7 +48,8 @@ trait DeltaSharedTableProtocol {
       responseFormatSet: Set[String],
       clientReaderFeaturesSet: Set[String],
       includeEndStreamAction: Boolean,
-      fileIdHash: Option[String] = None): QueryResult
+      fileIdHash: Option[String] = None,
+      includeHistoricalProtocol: Boolean = false): QueryResult
 
   def queryCDF(
       cdfOptions: Map[String, String],

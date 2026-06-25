@@ -2133,6 +2133,8 @@ The request body should be a JSON string containing the following optional field
 - **endingVersion** (type: Long, optional): an optional version number, only used if startingVersion is set. If set, the server can use it as a hint to avoid returning data change files after `endingVersion`. This is not enforcement. Hence, when sending the `endingVersion` parameter, the client should still handle the case that it may receive files after `endingVersion`.
   - The combination of `statingVersion` and `endingVersion` can be used as query window for delta sharing streaming rpcs.
 
+- **includeHistoricalProtocol** (type: Boolean, optional): only used when `startingVersion` is set. If true, the server inlines historical [Protocol](#protocol-in-delta-format) actions seen in the delta log (for versions strictly after `startingVersion`) so the streaming client can check whether the table is still read compatible (e.g. when a new reader feature is enabled mid-stream). This only affects responses with `responseformat=delta`; for `responseformat=parquet` responses the flag is ignored and no additional Protocol actions are emitted.
+
 When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
 #### Example for snapshot query
