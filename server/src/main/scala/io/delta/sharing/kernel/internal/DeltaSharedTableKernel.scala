@@ -611,7 +611,7 @@ class DeltaSharedTableKernel(
         )
       ).wrap
     } else {
-      Protocol(minReaderVersion = p.getMinReaderVersion, version = version).wrap
+      Protocol(p.getMinReaderVersion).wrap
     }
   }
 

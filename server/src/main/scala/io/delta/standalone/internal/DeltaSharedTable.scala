@@ -162,20 +162,21 @@ class DeltaSharedTable(
   }
 
   // Construct the protocol class to be returned in the response based on the responseFormat.
-  // `version` is the delta log version this Protocol applies to. It is set for streaming and CDF
-  // responses (so the recipient knows which version each Protocol action belongs to, mirroring how
-  // `getResponseMetadata` stamps historical Metadata actions), and left as null for snapshot /
-  // version-as-of queries where the response version is already exposed via the
-  // `Delta-Table-Version` response header.
+  // `version` is the delta log version this Protocol applies to. Callers set it for the
+  // delta-format streaming and CDF responses that emit historical Protocol actions (so the
+  // recipient knows which version each Protocol action belongs to, mirroring how
+  // `getResponseMetadata` stamps historical Metadata actions). It is ignored on the parquet
+  // branch, which has no representation for a Protocol version and only ever emits a single head
+  // Protocol.
   private def getResponseProtocol(
       p: Protocol,
       version: Option[Long],
       responseFormat: String): Object = {
-    val v: java.lang.Long = if (version.isDefined) version.get else null
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
+      val v: java.lang.Long = if (version.isDefined) version.get else null
       DeltaResponseProtocol(version = v, deltaProtocol = p).wrap
     } else {
-      model.Protocol(minReaderVersion = p.minReaderVersion, version = v).wrap
+      model.Protocol(p.minReaderVersion).wrap
     }
   }
 
