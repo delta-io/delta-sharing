@@ -312,7 +312,7 @@ class DeltaSharedTableKernel(
       snapshot.protocol.getMinReaderVersion
     )
 
-    val protocol = getResponseProtocol(snapshot.protocol, respondedFormat)
+    val protocol = getResponseProtocol(snapshot.protocol, version = null, respondedFormat)
 
     val metadata = getResponseMetadata(snapshot.metadata, version = null, respondedFormat)
     var actions = Seq(
@@ -588,6 +588,7 @@ class DeltaSharedTableKernel(
 
   private def getResponseProtocol(
       p: KernelProtocol,
+      version: java.lang.Long,
       respondedFormat: String): Object = {
     if (respondedFormat == DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
       val readerFeatures = if (p.getReaderFeatures.isEmpty) {
@@ -601,6 +602,7 @@ class DeltaSharedTableKernel(
         Some(p.getWriterFeatures.asScala.toSet)
       }
       DeltaFormatResponseProtocol(
+        version = version,
         deltaProtocol = DeltaProtocol(
           minReaderVersion = p.getMinReaderVersion,
           minWriterVersion = p.getMinWriterVersion,
@@ -609,7 +611,7 @@ class DeltaSharedTableKernel(
         )
       ).wrap
     } else {
-      Protocol(p.getMinReaderVersion).wrap
+      Protocol(minReaderVersion = p.getMinReaderVersion, version = version).wrap
     }
   }
 

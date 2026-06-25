@@ -1877,7 +1877,7 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
 <td>Query Parameters</td>
 <td>
 
-**includeHistoricalProtocol** (type: Boolean, optional): only meaningful when `startingVersion` is set in the request body. If true, the server inlines historical [Protocol](#protocol-in-delta-format) actions seen in the delta log (for versions strictly after `startingVersion`) so the streaming client can check whether the table is still read compatible (e.g. when a new reader feature is enabled mid-stream). This only affects responses with `responseformat=delta`; for `responseformat=parquet` responses the flag is ignored and no additional Protocol actions are emitted.
+**includeHistoricalProtocol** (type: Boolean, optional): only meaningful when `startingVersion` is set in the request body. If true, the server inlines historical [Protocol](#protocol-in-delta-format) actions seen in the delta log (for versions strictly after `startingVersion`) so the streaming client can check whether the table is still read compatible (e.g. when a new reader feature is enabled mid-stream). The head [Protocol](#protocol-in-delta-format) and every historical [Protocol](#protocol-in-delta-format) action carry a `version` field identifying the delta log version they correspond to (the head Protocol is stamped with `startingVersion`). This only affects responses with `responseformat=delta`; for `responseformat=parquet` responses the flag is ignored, no additional Protocol actions are emitted, and the head Protocol is not stamped with a version.
 </td>
 </tr>
 <tr>
@@ -2357,7 +2357,7 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
  **endingVersion** (type: Long, optional): The ending version of the query, inclusive. <br>
  **endingTimestamp** (type: String, optional): The ending timestamp of the query, a string in the [Timestamp Format](#timestamp-format), which will be converted to a version created earlier than or at the timestamp. <br>
  **includeHistoricalMetadata** (type: Boolean, optional): If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible. <br>
- **includeHistoricalProtocol** (type: Boolean, optional): If set to true, return historical [Protocol](#protocol-in-delta-format) actions seen in the delta log so the streaming client can check whether the table is still read compatible (e.g. when a new reader feature is enabled mid-stream). This only affects responses with `responseformat=delta`; for `responseformat=parquet` responses the flag is ignored and no additional Protocol actions are emitted.</td>
+ **includeHistoricalProtocol** (type: Boolean, optional): If set to true, return historical [Protocol](#protocol-in-delta-format) actions seen in the delta log so the streaming client can check whether the table is still read compatible (e.g. when a new reader feature is enabled mid-stream). The head [Protocol](#protocol-in-delta-format) and every historical [Protocol](#protocol-in-delta-format) action carry a `version` field identifying the delta log version they correspond to (the head Protocol is stamped with the snapshot version used for the head of the CDF response). This only affects responses with `responseformat=delta`; for `responseformat=parquet` responses the flag is ignored, no additional Protocol actions are emitted, and the head Protocol is not stamped with a version.</td>
 </tr>
 </table>
 
@@ -3619,12 +3619,27 @@ A wrapper of a [delta protocol](https://github.com/delta-io/delta/blob/master/PR
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 deltaProtocol | Delta Protocol | Need to be parsed by a delta library as a delta protocol. | Required
+version | Long | The table version this Protocol corresponds to. Returned when [includeHistoricalProtocol](#read-change-data-feed-from-a-table) is set to true on a CDF query or streaming [Read Data from a Table](#read-data-from-a-table) query; it identifies the delta log version of each [Protocol](#protocol-in-delta-format) action (including the head Protocol and any historical Protocol actions that follow). Omitted in all other responses. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
 ```json
 {
   "protocol": {
+    "deltaProtocol": {
+      "minReaderVersion": 3,
+      "minWriterVersion": 7
+    }
+  }
+}
+```
+
+When `includeHistoricalProtocol=true` is requested on a streaming or CDF query, each Protocol carries the delta log version it corresponds to:
+
+```json
+{
+  "protocol": {
+    "version": 5,
     "deltaProtocol": {
       "minReaderVersion": 3,
       "minWriterVersion": 7

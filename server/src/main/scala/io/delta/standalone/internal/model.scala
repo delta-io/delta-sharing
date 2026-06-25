@@ -65,8 +65,13 @@ sealed trait DeltaResponseAction {
 
 /**
  * DeltaResponseProtocol which is part of the delta Protocol.
+ *   Adds 1 delta sharing related field: version, set by callers when the recipient needs to know
+ *   the delta log version this Protocol applies to (e.g. streaming or CDF responses, including
+ *   historical Protocol actions inlined when `includeHistoricalProtocol = true`).
  */
-case class DeltaResponseProtocol(deltaProtocol: DeltaProtocol) extends DeltaResponseAction {
+case class DeltaResponseProtocol(
+    version: java.lang.Long = null,
+    deltaProtocol: DeltaProtocol) extends DeltaResponseAction {
   override def wrap: DeltaResponseSingleAction = DeltaResponseSingleAction(protocol = this)
 }
 

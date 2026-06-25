@@ -3063,7 +3063,9 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     // Exactly one Protocol action (the head of the response), no historical Protocol entries
     // injected for this table.
     assert(actions.count(_.protocol != null) == 1)
-    val expectedProtocol = Protocol(minReaderVersion = 1)
+    // The head Protocol is stamped with the startingVersion (0) when
+    // includeHistoricalProtocol=true is requested, mirroring how the head Metadata is stamped.
+    val expectedProtocol = Protocol(minReaderVersion = 1, version = 0)
     assert(expectedProtocol == actions(0).protocol)
     val expectedInitialMetadata = Metadata(
       id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
@@ -3653,7 +3655,10 @@ class DeltaSharingServiceSuite extends FunSuite with BeforeAndAfterAll {
     )
     val actions = response.split("\n").map(JsonUtils.fromJson[SingleAction](_))
     assert(actions.size == 4)
-    val expectedProtocol = Protocol(minReaderVersion = 1)
+    // The head Protocol is stamped with the snapshot.version (3 here, since includeHistoricalMetadata
+    // is not set so the CDF response uses snapshot.version = latestVersion) when
+    // includeHistoricalProtocol=true is requested, mirroring how the head Metadata is stamped.
+    val expectedProtocol = Protocol(minReaderVersion = 1, version = 3)
     // Exactly one Protocol action (the head of the response), no historical Protocol entries
     // injected for this table.
     assert(actions.count(_.protocol != null) == 1)

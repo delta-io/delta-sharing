@@ -112,7 +112,9 @@ sealed trait Action {
   def wrap: SingleAction
 }
 
-case class Protocol(minReaderVersion: Int) extends Action {
+case class Protocol(
+    minReaderVersion: Int,
+    version: java.lang.Long = null) extends Action {
   override def wrap: SingleAction = SingleAction(protocol = this)
 }
 
@@ -243,8 +245,13 @@ sealed trait DeltaResponseAction {
 
 /**
  * DeltaFormatResponseProtocol which is part of the delta Protocol.
+ *   Adds 1 delta sharing related field: version, set by callers when the recipient needs to know
+ *   the delta log version this Protocol applies to (e.g. streaming or CDF responses, including
+ *   historical Protocol actions inlined when `includeHistoricalProtocol = true`).
  */
-case class DeltaFormatResponseProtocol(deltaProtocol: DeltaProtocol) extends DeltaResponseAction {
+case class DeltaFormatResponseProtocol(
+    version: java.lang.Long = null,
+    deltaProtocol: DeltaProtocol) extends DeltaResponseAction {
   override def wrap: DeltaResponseSingleAction = DeltaResponseSingleAction(protocol = this)
 }
 

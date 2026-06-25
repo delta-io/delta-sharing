@@ -162,11 +162,20 @@ class DeltaSharedTable(
   }
 
   // Construct the protocol class to be returned in the response based on the responseFormat.
-  private def getResponseProtocol(p: Protocol, responseFormat: String): Object = {
+  // `version` is the delta log version this Protocol applies to. It is set for streaming and CDF
+  // responses (so the recipient knows which version each Protocol action belongs to, mirroring how
+  // `getResponseMetadata` stamps historical Metadata actions), and left as null for snapshot /
+  // version-as-of queries where the response version is already exposed via the
+  // `Delta-Table-Version` response header.
+  private def getResponseProtocol(
+      p: Protocol,
+      version: Option[Long],
+      responseFormat: String): Object = {
+    val v: java.lang.Long = if (version.isDefined) version.get else null
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
-      DeltaResponseProtocol(deltaProtocol = p).wrap
+      DeltaResponseProtocol(version = v, deltaProtocol = p).wrap
     } else {
-      model.Protocol(p.minReaderVersion).wrap
+      model.Protocol(minReaderVersion = p.minReaderVersion, version = v).wrap
     }
   }
 
@@ -410,17 +419,22 @@ class DeltaSharedTable(
     } else {
       DeltaSharedTable.RESPONSE_FORMAT_DELTA
     }
+    // Historical Protocol actions only have a representation in the delta format response, so we
+    // suppress emission (and the corresponding head Protocol version stamping) for parquet
+    // responses to keep their wire shape backwards compatible.
+    val emitHistoricalProtocol =
+      includeHistoricalProtocol && responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA
+    // Stamp the head Protocol with its delta-log version only when the client opted into
+    // includeHistoricalProtocol, so the wire shape of existing streaming responses (where the
+    // flag is not set) is preserved.
+    val headProtocolVersion = if (emitHistoricalProtocol) startingVersion else None
     val actions = Seq(
-      getResponseProtocol(snapshot.protocolScala, responseFormat),
+      getResponseProtocol(snapshot.protocolScala, headProtocolVersion, responseFormat),
       getResponseMetadata(snapshot.metadataScala, startingVersion, responseFormat)
     ) ++ {
       if (startingVersion.isDefined) {
         // Only read changes up to snapshot.version, and ignore changes that are committed during
         // queryDataChangeSinceStartVersion.
-        // Historical Protocol actions only have a representation in the delta format response.
-        // Suppress them for parquet responses to keep the wire shape backwards compatible.
-        val emitHistoricalProtocol =
-          includeHistoricalProtocol && responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA
         queryDataChangeSinceStartVersion(
           startingVersion.get,
           endingVersion,
@@ -654,7 +668,7 @@ class DeltaSharedTable(
           case (p: Protocol, _) =>
             assertProtocolRead(p)
             if (includeHistoricalProtocol && v > startingVersion) {
-              actions.append(getResponseProtocol(p, responseFormat))
+              actions.append(getResponseProtocol(p, Some(v), responseFormat))
             }
           case (m: Metadata, _) =>
             if (v > startingVersion) {
@@ -728,7 +742,17 @@ class DeltaSharedTable(
     } else {
       DeltaSharedTable.RESPONSE_FORMAT_DELTA
     }
-    actions.append(getResponseProtocol(snapshot.protocolScala, responseFormat))
+    // Historical Protocol actions only have a representation in the delta format response, so we
+    // suppress emission (and the corresponding head Protocol version stamping) for parquet
+    // responses to keep their wire shape backwards compatible.
+    val emitHistoricalProtocol =
+      includeHistoricalProtocol && responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA
+    // Stamp the head Protocol with its delta-log version only when the client opted into
+    // includeHistoricalProtocol, so the wire shape of existing CDF responses (where the flag is
+    // not set) is preserved.
+    val headProtocolVersion = if (emitHistoricalProtocol) Some(snapshot.version) else None
+    actions.append(
+      getResponseProtocol(snapshot.protocolScala, headProtocolVersion, responseFormat))
     actions.append(
       getResponseMetadata(
         snapshot.metadataScala,
@@ -759,10 +783,6 @@ class DeltaSharedTable(
     // - Versions that are processed in previous pages can be skipped.
     // - Versions that are committed after the first page call should be ignored, especially
     //   when the endingVersion is not specified and resolved to latestVersion.
-    // Historical Protocol actions only have a representation in the delta format response.
-    // Suppress them for parquet responses to keep the wire shape backwards compatible.
-    val emitHistoricalProtocol =
-      includeHistoricalProtocol && responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA
     val changes = cdcReader.queryCDF(
       pageTokenOpt.map(_.getStartingVersion).getOrElse(start),
       pageTokenOpt.map(_.getEndingVersion).getOrElse(end).min(latestVersion),
@@ -780,7 +800,7 @@ class DeltaSharedTable(
       }
       indexedActions.foreach {
         case (p: Protocol, _) =>
-          actions.append(getResponseProtocol(p, responseFormat))
+          actions.append(getResponseProtocol(p, Some(v), responseFormat))
         case (m: Metadata, _) =>
           actions.append(
             getResponseMetadata(
