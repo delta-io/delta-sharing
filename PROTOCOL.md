@@ -1591,6 +1591,17 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
 **{table}**: The table name to query. It's case-insensitive.
 </td>
 </tr>
+<tr>
+<td>Query Parameters</td>
+<td>
+
+**{version}** (type: Long, optional): an optional version number. If set, will return the table metadata as of the specified version of the table. This is only supported on tables with history sharing enabled.
+
+**{timestamp}** (type: String, optional): an optional timestamp string in the [Timestamp Format](#timestamp-format). If set, will return the table metadata as of the table version corresponding to the specified timestamp. This is only supported on tables with history sharing enabled.
+
+`version` and `timestamp` are mutually exclusive; at most one of them may be provided in a single request. When neither is set, the server returns the metadata of the latest table version.
+</td>
+</tr>
 </table>
 
 <details open>
