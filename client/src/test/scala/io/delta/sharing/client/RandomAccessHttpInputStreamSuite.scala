@@ -238,4 +238,37 @@ class RandomAccessHttpInputStreamSuite extends SparkFunSuite with MockitoSugar {
     assert(callCount.get() == 2)
     assert(stream.getPos == 1L)
   }
+
+  test("persistent failures use a single retry loop (no nested (n+1)^2 blowup)") {
+    val numRetries = 3
+    val executeCount = new AtomicInteger(0)
+    val client = mock[HttpClient]
+    // Always fail the underlying HTTP request with a retryable transient error. Because the
+    // read path calls `reopen(retry = false)`, only the outer `doStreamRead` loop retries.
+    when(client.execute(any())).thenAnswer { _ =>
+      executeCount.incrementAndGet()
+      throw new SocketTimeoutException("persistent failure")
+    }
+    val stream = new RandomAccessHttpInputStream(
+      client,
+      createMockFetcher("test.uri"),
+      1024L,
+      new FileSystem.Statistics("idbfs"),
+      numRetries = numRetries,
+      maxRetryDuration = Long.MaxValue,
+      logPreSignedUrlAccess = false,
+      retryStreamReadOnError = true
+    )
+
+    val buf = new Array[Byte](16)
+    withInstantRetrySleep {
+      intercept[SocketTimeoutException] {
+        stream.read(buf, 0, buf.length)
+      }
+    }
+    // A single retry loop: each outer attempt does one (non-retrying) reopen, so total HTTP
+    // attempts are exactly `numRetries + 1` (4), not the `(numRetries + 1)^2 = 16` blowup.
+    assert(executeCount.get() == numRetries + 1,
+      s"Expected ${numRetries + 1} HTTP attempts, got ${executeCount.get()}")
+  }
 }

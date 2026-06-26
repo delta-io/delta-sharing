@@ -44,7 +44,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FileSystem, FSExceptionMessages, FSInputStream}
-import org.apache.http.HttpStatus
+import org.apache.http.{HttpEntity, HttpStatus}
 import org.apache.http.client.HttpClient
 import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
 import org.apache.http.conn.EofSensorInputStream
@@ -115,7 +115,7 @@ private[sharing] class RandomAccessHttpInputStream(
               s"error: ${e.getMessage}")
           }
           if (retryStreamReadOnError) {
-            // Drop the broken stream so the next retry attempt opens a fresh connection
+            // Drop the broken stream so the retry attempt opens a fresh connection
             // at the still-unchanged `pos`.
             abortCurrentStream()
           }
@@ -153,7 +153,7 @@ private[sharing] class RandomAccessHttpInputStream(
               s"length: $len, error: ${e.getMessage}")
           }
           if (retryStreamReadOnError) {
-            // Drop the broken stream so the next retry attempt opens a fresh connection
+            // Drop the broken stream so the retry attempt opens a fresh connection
             // at the still-unchanged `pos`.
             abortCurrentStream()
           }
@@ -170,16 +170,18 @@ private[sharing] class RandomAccessHttpInputStream(
   }
 
   /**
-   * Wraps a single underlying-stream read in `RetryUtils.runWithExponentialBackoff` when
-   * `retryStreamReadOnError` is enabled. The read is logically idempotent: `pos` is only
-   * advanced on a successful read, so re-issuing the byte-range request from the unchanged
-   * `pos` yields the bytes the caller still needs. The caller is responsible for aborting the
-   * broken `currentStream` (so that the next attempt reopens a fresh connection at `pos`)
-   * before letting the exception propagate.
+   * When `retryStreamReadOnError` is enabled, retries a failed stream read. The read is
+   * idempotent because `pos` only advances on success, and the caller aborts the broken
+   * stream so the retry reopens a fresh connection at `pos`. The short `retrySleepInterval`
+   * keeps a concurrent `close()` from blocking on the monitor during the retry sleep.
    */
   private def doStreamRead(readOp: => Int): Int = {
     if (retryStreamReadOnError) {
-      RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
+      RetryUtils.runWithExponentialBackoff(
+        numRetries,
+        maxRetryDuration,
+        retrySleepInterval = 500L
+      ) {
         readOp
       }
     } else {
@@ -215,11 +217,7 @@ private[sharing] class RandomAccessHttpInputStream(
         None
       }
 
-      val entity = RetryUtils.runWithExponentialBackoff(
-        numRetries,
-        maxRetryDuration,
-        onError = errorLogger
-      ) {
+      def openRequest(): HttpEntity = {
         val httpRequest = createHttpRequest(pos)
         val response = client.execute(httpRequest)
         val status = response.getStatusLine()
@@ -260,6 +258,26 @@ private[sharing] class RandomAccessHttpInputStream(
             s"requestId: $requestId, headers: [$headers]")
         }
         entity
+      }
+
+      val entity = if (retryStreamReadOnError) {
+        // The outer `doStreamRead` retry covers reopen failures, so make a single attempt
+        // here to avoid nesting two retry loops.
+        try {
+          openRequest()
+        } catch {
+          case e: Exception =>
+            errorLogger.foreach(_(e))
+            throw e
+        }
+      } else {
+        RetryUtils.runWithExponentialBackoff(
+          numRetries,
+          maxRetryDuration,
+          onError = errorLogger
+        ) {
+          openRequest()
+        }
       }
       currentStream = entity.getContent()
       this.pos = pos
