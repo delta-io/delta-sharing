@@ -2365,9 +2365,10 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  // Captures the URL passed to getNDJsonPost so we can assert the URL query string the streaming
-  // getFiles overload builds. Returns a minimal ndjson body in the format the client is configured
-  // for so the call succeeds end-to-end.
+  // Captures both the target URL and the serialized POST body for the streaming `getFiles`
+  // overload so tests can assert on whichever transport (URL vs body) a given parameter rides
+  // on. Returns a minimal ndjson body in the format the client is configured for so the call
+  // succeeds end-to-end.
   private class PostUrlCapturingRestClient(
       profileProvider: TestProfileProvider,
       responseFormat: String = RESPONSE_FORMAT_DELTA)
@@ -2409,7 +2410,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  test("getFiles(startingVersion, ...) - includeHistoricalProtocol=true sends URL param to server") {
+  test("getFiles(startingVersion, ...) - includeHistoricalProtocol=true is added to request body") {
     val client = new PostUrlCapturingRestClient(new TestProfileProvider(false))
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
@@ -2420,16 +2421,16 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         fileIdHash = None,
         includeHistoricalProtocol = true
       )
-      assert(client.capturedTarget != null)
+      assert(client.capturedBodyJson != null)
       assert(
-        client.capturedTarget.contains("includeHistoricalProtocol=true"),
-        s"expected URL to contain includeHistoricalProtocol=true, got: ${client.capturedTarget}"
-      )
-      // The flag should ride on the URL, not the request body.
-      assert(
-        !client.capturedBodyJson.contains("includeHistoricalProtocol"),
-        s"expected request body not to mention includeHistoricalProtocol, got: " +
+        client.capturedBodyJson.contains("\"includeHistoricalProtocol\":true"),
+        s"expected request body to contain includeHistoricalProtocol=true, got: " +
           client.capturedBodyJson
+      )
+      // The flag rides on the body for the streaming /query endpoint, not the URL.
+      assert(
+        !client.capturedTarget.contains("includeHistoricalProtocol"),
+        s"expected URL not to mention includeHistoricalProtocol, got: ${client.capturedTarget}"
       )
     } finally {
       client.close()
@@ -2446,15 +2447,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         endingVersion = Some(5L),
         fileIdHash = None
       )
-      assert(client.capturedTarget != null)
-      assert(
-        !client.capturedTarget.contains("includeHistoricalProtocol"),
-        s"expected URL not to contain includeHistoricalProtocol, got: ${client.capturedTarget}"
-      )
+      assert(client.capturedBodyJson != null)
       assert(
         !client.capturedBodyJson.contains("includeHistoricalProtocol"),
         s"expected request body not to mention includeHistoricalProtocol, got: " +
           client.capturedBodyJson
+      )
+      assert(
+        !client.capturedTarget.contains("includeHistoricalProtocol"),
+        s"expected URL not to mention includeHistoricalProtocol, got: ${client.capturedTarget}"
       )
     } finally {
       client.close()
@@ -2462,8 +2463,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   // For parquet-only clients the flag is a no-op on the server (the parquet response returns
-  // the same single Protocol regardless), so the client must suppress the URL param even when
-  // the caller sets `includeHistoricalProtocol = true` to keep parquet-format requests unchanged.
+  // the same single Protocol regardless), so the client must suppress the flag (whether it's
+  // carried in the URL on `/changes` or in the request body on `/query`) even when the caller
+  // sets `includeHistoricalProtocol = true`, to keep parquet-format requests unchanged.
   test("getCDFFiles - includeHistoricalProtocol is suppressed when responseFormat=parquet " +
       "even if caller asks for it") {
     val client = new UrlCapturingRestClient(
@@ -2501,16 +2503,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         fileIdHash = None,
         includeHistoricalProtocol = true
       )
-      assert(client.capturedTarget != null)
-      assert(
-        !client.capturedTarget.contains("includeHistoricalProtocol"),
-        s"expected URL not to contain includeHistoricalProtocol for parquet-only client, " +
-          s"got: ${client.capturedTarget}"
-      )
+      assert(client.capturedBodyJson != null)
       assert(
         !client.capturedBodyJson.contains("includeHistoricalProtocol"),
-        s"expected request body not to mention includeHistoricalProtocol, got: " +
-          client.capturedBodyJson
+        s"expected request body not to mention includeHistoricalProtocol for parquet-only " +
+          s"client, got: ${client.capturedBodyJson}"
+      )
+      assert(
+        !client.capturedTarget.contains("includeHistoricalProtocol"),
+        s"expected URL not to mention includeHistoricalProtocol, got: ${client.capturedTarget}"
       )
     } finally {
       client.close()

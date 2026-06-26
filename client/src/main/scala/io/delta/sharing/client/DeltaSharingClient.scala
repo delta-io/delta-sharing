@@ -161,7 +161,8 @@ private[sharing] case class QueryTableRequest(
   pageToken: Option[String],
   includeRefreshToken: Option[Boolean],
   refreshToken: Option[String],
-  idempotency_key: Option[String]
+  idempotency_key: Option[String],
+  includeHistoricalProtocol: Option[Boolean] = None
 ) extends NextPageRequest {
   override def clone(
         maxFiles: Option[Int],
@@ -552,18 +553,14 @@ class DeltaSharingRestClient(
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
-    // `includeHistoricalProtocol` only affects delta-format responses; parquet responses
-    // return the same single Protocol regardless of the flag, so only send the URL param
-    // when the client is configured to accept delta responses.
-    val queryString = if (
-      includeHistoricalProtocol && responseFormatSet.contains(RESPONSE_FORMAT_DELTA)) {
-      "?includeHistoricalProtocol=true"
-    } else {
-      ""
-    }
     val target = getTargetUrl(
-      s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query" +
-        queryString)
+      s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
+    // `includeHistoricalProtocol` only affects delta-format responses; parquet responses
+    // return the same single Protocol regardless of the flag, so only set the request body
+    // field when the client is configured to accept delta responses. Otherwise leave it as
+    // `None` so the serialized POST body is byte-identical to today's parquet-only request.
+    val sendIncludeHistoricalProtocol =
+      includeHistoricalProtocol && responseFormatSet.contains(RESPONSE_FORMAT_DELTA)
     val request: QueryTableRequest = QueryTableRequest(
       predicateHints = Nil,
       limitHint = None,
@@ -576,7 +573,8 @@ class DeltaSharingRestClient(
       pageToken = None,
       includeRefreshToken = None,
       refreshToken = None,
-      idempotency_key = None
+      idempotency_key = None,
+      includeHistoricalProtocol = if (sendIncludeHistoricalProtocol) Some(true) else None
     )
 
     val (version, respondedFormat, lines, responseFileIdHash) = if (queryTablePaginationEnabled) {
