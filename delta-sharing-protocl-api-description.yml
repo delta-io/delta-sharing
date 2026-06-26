@@ -374,31 +374,7 @@ paths:
       tags:
         - tables
         - official
-      parameters:
-        - in: path
-          name: share
-          required: true
-          description: 'Named share for finding the named schema'
-          schema:
-            type: string
-        - in: path
-          name: schema
-          required: true
-          description: 'Named schema for finding the named table'
-          schema:
-            type: string
-        - in: path
-          name: table
-          required: true
-          description: 'Named table'
-          schema:
-            type: string
-        - in: query
-          name: includeHistoricalProtocol
-          required: false
-          description: 'Only meaningful when startingVersion is set in the request body. If true, the server inlines historical Protocol actions seen in the delta log (for versions strictly after startingVersion) so the streaming client can check whether the table is still read compatible (e.g. when a new reader feature is enabled mid-stream). Only effective for responses with responseformat=delta; ignored for responseformat=parquet responses.'
-          schema:
-            type: boolean
+      parameters: *tableParameters
       requestBody:
         required: true
         content:
@@ -715,6 +691,16 @@ components:
             endingVersion. This is not enforcement. Hence, when sending the endingVersion
             parameter, the client should still handle the case that it may receive files
             after endingVersion.
+        includeHistoricalProtocol:
+          type: boolean
+          example: true
+          description: |
+            an optional boolean, only used if startingVersion is set. If true, the
+            server inlines historical Protocol actions seen in the delta log (for
+            versions strictly after startingVersion) so the streaming client can check
+            whether the table is still read compatible (e.g. when a new reader feature
+            is enabled mid-stream). Only effective for responses with
+            responseformat=delta; ignored for responseformat=parquet responses.
 
     TableQueryResponse:
       type: string
