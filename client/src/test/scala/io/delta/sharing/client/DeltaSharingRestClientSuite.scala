@@ -2205,7 +2205,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   test("getCDFFiles - includeHistoricalProtocol=true sends URL param to server") {
-    val client = new UrlCapturingRestClient(new TestProfileProvider(false))
+    val client = new UrlCapturingRestClient(new TestProfileProvider)
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
       client.getCDFFiles(
@@ -2225,7 +2225,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   test("getCDFFiles - includeHistoricalProtocol is absent by default") {
-    val client = new UrlCapturingRestClient(new TestProfileProvider(false))
+    val client = new UrlCapturingRestClient(new TestProfileProvider)
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
       client.getCDFFiles(
@@ -2294,7 +2294,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   test("getFiles(startingVersion, ...) - includeHistoricalProtocol=true is added to request body") {
-    val client = new PostUrlCapturingRestClient(new TestProfileProvider(false))
+    val client = new PostUrlCapturingRestClient(new TestProfileProvider)
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
       client.getFiles(
@@ -2321,7 +2321,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   test("getFiles(startingVersion, ...) - includeHistoricalProtocol is absent by default") {
-    val client = new PostUrlCapturingRestClient(new TestProfileProvider(false))
+    val client = new PostUrlCapturingRestClient(new TestProfileProvider)
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
       client.getFiles(
@@ -2352,7 +2352,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   test("getCDFFiles - includeHistoricalProtocol is suppressed when responseFormat=parquet " +
       "even if caller asks for it") {
     val client = new UrlCapturingRestClient(
-      new TestProfileProvider(false), responseFormat = RESPONSE_FORMAT_PARQUET)
+      new TestProfileProvider, responseFormat = RESPONSE_FORMAT_PARQUET)
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
       client.getCDFFiles(
@@ -2376,7 +2376,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   test("getFiles(startingVersion, ...) - includeHistoricalProtocol is suppressed when " +
       "responseFormat=parquet even if caller asks for it") {
     val client = new PostUrlCapturingRestClient(
-      new TestProfileProvider(false), responseFormat = RESPONSE_FORMAT_PARQUET)
+      new TestProfileProvider, responseFormat = RESPONSE_FORMAT_PARQUET)
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
       client.getFiles(
@@ -2407,7 +2407,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   test("getCDFFiles - includeHistoricalProtocol is forwarded when responseFormat includes delta " +
       "alongside parquet") {
     val client = new UrlCapturingRestClient(
-      new TestProfileProvider(false),
+      new TestProfileProvider,
       responseFormat = s"$RESPONSE_FORMAT_PARQUET,$RESPONSE_FORMAT_DELTA")
     try {
       val table = Table(name = "t", schema = "s", share = "sh")
