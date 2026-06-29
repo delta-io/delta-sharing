@@ -287,4 +287,16 @@ class ConfUtilsSuite extends SparkFunSuite {
       skipFileIdHashVerification(newSqlConf(Map(SKIP_FILE_ID_HASH_VERIFICATION_CONF -> "false")))
         == false)
   }
+
+  test("streamReadRetryEnabled") {
+    assert(streamReadRetryEnabled(newConf()) == STREAM_READ_RETRY_ENABLED_DEFAULT)
+    assert(streamReadRetryEnabled(newConf(Map(STREAM_READ_RETRY_ENABLED_CONF -> "true"))) == true)
+    assert(streamReadRetryEnabled(newConf(Map(STREAM_READ_RETRY_ENABLED_CONF -> "false"))) == false)
+
+    assert(streamReadRetryEnabled(newSqlConf()) == STREAM_READ_RETRY_ENABLED_DEFAULT)
+    assert(
+      streamReadRetryEnabled(newSqlConf(Map(STREAM_READ_RETRY_ENABLED_CONF -> "true"))) == true)
+    assert(
+      streamReadRetryEnabled(newSqlConf(Map(STREAM_READ_RETRY_ENABLED_CONF -> "false"))) == false)
+  }
 }

@@ -44,7 +44,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FileSystem, FSExceptionMessages, FSInputStream}
-import org.apache.http.HttpStatus
+import org.apache.http.{HttpEntity, HttpStatus}
 import org.apache.http.client.HttpClient
 import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
 import org.apache.http.conn.EofSensorInputStream
@@ -63,7 +63,8 @@ private[sharing] class RandomAccessHttpInputStream(
     contentLength: Long,
     stats: FileSystem.Statistics,
     numRetries: Int,
-    maxRetryDuration: Long = Long.MaxValue) extends FSInputStream with Logging {
+    maxRetryDuration: Long = Long.MaxValue,
+    retryStreamReadOnError: Boolean = false) extends FSInputStream with Logging {
 
   private var closed = false
   private var pos = 0L
@@ -99,11 +100,23 @@ private[sharing] class RandomAccessHttpInputStream(
   }
 
   override def read(): Int = synchronized {
-    assertNotClosed()
-    if (currentStream == null) {
-      reopen(pos)
+    val byte = doStreamRead {
+      assertNotClosed()
+      if (currentStream == null) {
+        reopen(pos)
+      }
+      try {
+        currentStream.read()
+      } catch {
+        case e: Exception =>
+          if (retryStreamReadOnError) {
+            // Drop the broken stream so the retry attempt opens a fresh connection
+            // at the still-unchanged `pos`.
+            abortCurrentStream()
+          }
+          throw e
+      }
     }
-    val byte = currentStream.read()
     if (byte >= 0) {
       pos += 1
     }
@@ -121,11 +134,23 @@ private[sharing] class RandomAccessHttpInputStream(
   }
 
   override def read(buf: Array[Byte], off: Int, len: Int): Int = synchronized {
-    assertNotClosed()
-    if (currentStream == null) {
-      reopen(pos)
+    val byteRead = doStreamRead {
+      assertNotClosed()
+      if (currentStream == null) {
+        reopen(pos)
+      }
+      try {
+        currentStream.read(buf, off, len)
+      } catch {
+        case e: Exception =>
+          if (retryStreamReadOnError) {
+            // Drop the broken stream so the retry attempt opens a fresh connection
+            // at the still-unchanged `pos`.
+            abortCurrentStream()
+          }
+          throw e
+      }
     }
-    val byteRead = currentStream.read(buf, off, len)
     if (byteRead > 0) {
       pos += byteRead
     }
@@ -133,6 +158,26 @@ private[sharing] class RandomAccessHttpInputStream(
       stats.incrementBytesRead(byteRead)
     }
     byteRead
+  }
+
+  /**
+   * When `retryStreamReadOnError` is enabled, retries a failed stream read. The read is
+   * idempotent because `pos` only advances on success, and the caller aborts the broken
+   * stream so the retry reopens a fresh connection at `pos`. The short `retrySleepInterval`
+   * keeps a concurrent `close()` from blocking on the monitor during the retry sleep.
+   */
+  private def doStreamRead(readOp: => Int): Int = {
+    if (retryStreamReadOnError) {
+      RetryUtils.runWithExponentialBackoff(
+        numRetries,
+        maxRetryDuration,
+        retrySleepInterval = 500L
+      ) {
+        readOp
+      }
+    } else {
+      readOp
+    }
   }
 
   private def reopen(pos: Long): Unit = {
@@ -147,7 +192,7 @@ private[sharing] class RandomAccessHttpInputStream(
     } else {
       logDebug(s"Opening file $uri at pos $pos")
 
-      val entity = RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
+      def openRequest(): HttpEntity = {
         val httpRequest = createHttpRequest(pos)
         val response = client.execute(httpRequest)
         val status = response.getStatusLine()
@@ -172,6 +217,16 @@ private[sharing] class RandomAccessHttpInputStream(
             statusCode)
         }
         entity
+      }
+
+      val entity = if (retryStreamReadOnError) {
+        // The outer `doStreamRead` retry covers reopen failures, so make a single attempt
+        // here to avoid nesting two retry loops.
+        openRequest()
+      } else {
+        RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration) {
+          openRequest()
+        }
       }
       currentStream = entity.getContent()
       this.pos = pos
