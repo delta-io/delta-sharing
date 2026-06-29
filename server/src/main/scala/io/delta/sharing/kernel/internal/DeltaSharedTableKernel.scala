@@ -273,7 +273,8 @@ class DeltaSharedTableKernel(
       responseFormatSet: Set[String],
       clientReaderFeaturesSet: Set[String],
       includeEndStreamQuery: Boolean,
-      fileIdHash: Option[String] = None): QueryResult = withClassLoader {
+      fileIdHash: Option[String] = None,
+      includeHistoricalProtocol: Boolean = false): QueryResult = withClassLoader {
 
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
       throw new DeltaSharingIllegalArgumentException(
@@ -311,7 +312,7 @@ class DeltaSharedTableKernel(
       snapshot.protocol.getMinReaderVersion
     )
 
-    val protocol = getResponseProtocol(snapshot.protocol, respondedFormat)
+    val protocol = getResponseProtocol(snapshot.protocol, version = null, respondedFormat)
 
     val metadata = getResponseMetadata(snapshot.metadata, version = null, respondedFormat)
     var actions = Seq(
@@ -387,7 +388,8 @@ class DeltaSharedTableKernel(
       pageToken: Option[String],
       responseFormatSet: Set[String] = Set("parquet"),
       includeEndStreamAction: Boolean,
-      fileIdHash: Option[String] = None): QueryResult = {
+      fileIdHash: Option[String] = None,
+      includeHistoricalProtocol: Boolean = false): QueryResult = {
 
     throw new DeltaSharingUnsupportedOperationException("not implemented yet")
   }
@@ -586,6 +588,7 @@ class DeltaSharedTableKernel(
 
   private def getResponseProtocol(
       p: KernelProtocol,
+      version: java.lang.Long,
       respondedFormat: String): Object = {
     if (respondedFormat == DeltaSharedTableKernel.RESPONSE_FORMAT_DELTA) {
       val readerFeatures = if (p.getReaderFeatures.isEmpty) {
@@ -599,6 +602,7 @@ class DeltaSharedTableKernel(
         Some(p.getWriterFeatures.asScala.toSet)
       }
       DeltaFormatResponseProtocol(
+        version = version,
         deltaProtocol = DeltaProtocol(
           minReaderVersion = p.getMinReaderVersion,
           minWriterVersion = p.getMinWriterVersion,

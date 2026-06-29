@@ -40,7 +40,7 @@ import scala.util.control.NonFatal
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion}
 
 import io.delta.sharing.server.{model, DeltaSharedTableProtocol, DeltaSharingIllegalArgumentException, DeltaSharingUnsupportedOperationException, DeltaSharingUtils, ErrorStrings, QueryResult}
-import io.delta.sharing.server.common.{AbfsFileSigner, GCSFileSigner, JsonUtils, PreSignedUrl, S3FileSigner, WasbFileSigner}
+import io.delta.sharing.server.common.{AbfsFileSigner, CloudFileSigner, GCSFileSigner, JsonUtils, PreSignedUrl, S3FileSigner, WasbFileSigner}
 import io.delta.sharing.server.config.TableConfig
 import io.delta.sharing.server.protocol.{QueryTablePageToken, RefreshToken}
 
@@ -58,7 +58,8 @@ private case class QueryParamChecksum(
     predicateHints: Seq[String],
     jsonPredicateHints: Option[String],
     limitHint: Option[Long],
-    includeHistoricalMetadata: Option[Boolean])
+    includeHistoricalMetadata: Option[Boolean],
+    includeHistoricalProtocol: Option[Boolean] = None)
 
 
 
@@ -91,7 +92,11 @@ class DeltaSharedTable(
     }
   }
 
-  private val fileSigner = withClassLoader {
+  private val fileSigner: CloudFileSigner = withClassLoader { newFileSigner() }
+
+  // Extracted so tests can override with a no-op signer when running against a local Delta log.
+  // Production behavior is unchanged: the same per-FS dispatch as before.
+  protected def newFileSigner(): CloudFileSigner = {
     val tablePath = new Path(tableConfig.getLocation)
     val fs = tablePath.getFileSystem(conf)
     fs match {
@@ -161,9 +166,18 @@ class DeltaSharedTable(
   }
 
   // Construct the protocol class to be returned in the response based on the responseFormat.
-  private def getResponseProtocol(p: Protocol, responseFormat: String): Object = {
+  // `version` is the delta log version this Protocol applies to. Callers set it for the
+  // delta-format streaming and CDF responses that emit historical Protocol actions, so the
+  // recipient knows which version each Protocol action belongs to. It is ignored on the parquet
+  // branch, which has no representation for a Protocol version and only ever emits a single head
+  // Protocol.
+  private def getResponseProtocol(
+      p: Protocol,
+      version: Option[Long],
+      responseFormat: String): Object = {
     if (responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA) {
-      DeltaResponseProtocol(deltaProtocol = p).wrap
+      val v: java.lang.Long = if (version.isDefined) version.get else null
+      DeltaResponseProtocol(version = v, deltaProtocol = p).wrap
     } else {
       model.Protocol(p.minReaderVersion).wrap
     }
@@ -337,7 +351,8 @@ class DeltaSharedTable(
       responseFormatSet: Set[String],
       clientReaderFeaturesSet: Set[String],
       includeEndStreamAction: Boolean,
-      fileIdHash: Option[String] = None): QueryResult = withClassLoader {
+      fileIdHash: Option[String] = None,
+      includeHistoricalProtocol: Boolean = false): QueryResult = withClassLoader {
     // scalastyle:on argcount
     // TODO Support `limitHint`
     if (Seq(version, timestamp, startingVersion).filter(_.isDefined).size >= 2) {
@@ -357,7 +372,8 @@ class DeltaSharedTable(
         predicateHints = predicateHints,
         jsonPredicateHints = jsonPredicateHints,
         limitHint = limitHint,
-        includeHistoricalMetadata = None
+        includeHistoricalMetadata = None,
+        includeHistoricalProtocol = if (includeHistoricalProtocol) Some(true) else None
       )
     )
     val pageTokenOpt = pageToken.map(decodeAndValidatePageToken(_, queryParamChecksum))
@@ -407,8 +423,16 @@ class DeltaSharedTable(
     } else {
       DeltaSharedTable.RESPONSE_FORMAT_DELTA
     }
+    // Historical Protocol actions only have a representation in the delta format response.
+    // Suppress them for parquet responses to keep the wire shape backwards compatible.
+    val emitHistoricalProtocol =
+      includeHistoricalProtocol && responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA
+    // Stamp the head Protocol with a `version` only when the client opted into historical
+    // Protocol inlining; existing clients that don't set the flag continue to receive a head
+    // Protocol with no `version` field, preserving the previous delta-format wire shape.
+    val headProtocolVersion = if (emitHistoricalProtocol) startingVersion else None
     val actions = Seq(
-      getResponseProtocol(snapshot.protocolScala, responseFormat),
+      getResponseProtocol(snapshot.protocolScala, headProtocolVersion, responseFormat),
       getResponseMetadata(snapshot.metadataScala, startingVersion, responseFormat)
     ) ++ {
       if (startingVersion.isDefined) {
@@ -422,7 +446,8 @@ class DeltaSharedTable(
           queryParamChecksum,
           responseFormat,
           includeEndStreamAction,
-          fileIdHash
+          fileIdHash,
+          emitHistoricalProtocol
         )
       } else if (includeFiles) {
         val ts = if (isVersionQuery) {
@@ -537,7 +562,8 @@ class DeltaSharedTable(
       queryParamChecksum: String,
       responseFormat: String,
       includeEndStreamAction: Boolean,
-      fileIdHash: Option[String] = None
+      fileIdHash: Option[String] = None,
+      emitHistoricalProtocol: Boolean = false
     ): Seq[Object] = {
     // For subsequent page calls, instead of using the current latestVersion, use latestVersion in
     // the pageToken (which is equal to the latestVersion when the first page call is received),
@@ -644,6 +670,9 @@ class DeltaSharedTable(
             numSignedFiles += 1
           case (p: Protocol, _) =>
             assertProtocolRead(p)
+            if (emitHistoricalProtocol && v > startingVersion) {
+              actions.append(getResponseProtocol(p, Some(v), responseFormat))
+            }
           case (m: Metadata, _) =>
             if (v > startingVersion) {
               actions.append(
@@ -672,7 +701,8 @@ class DeltaSharedTable(
       pageToken: Option[String],
       responseFormatSet: Set[String] = Set(DeltaSharedTable.RESPONSE_FORMAT_PARQUET),
       includeEndStreamAction: Boolean,
-      fileIdHash: Option[String] = None
+      fileIdHash: Option[String] = None,
+      includeHistoricalProtocol: Boolean = false
   ): QueryResult = withClassLoader {
     // Step 1: validate pageToken if it's specified
     lazy val queryParamChecksum = computeChecksum(
@@ -686,7 +716,8 @@ class DeltaSharedTable(
         predicateHints = Nil,
         jsonPredicateHints = None,
         limitHint = None,
-        includeHistoricalMetadata = Some(includeHistoricalMetadata)
+        includeHistoricalMetadata = Some(includeHistoricalMetadata),
+        includeHistoricalProtocol = Some(includeHistoricalProtocol)
       )
     )
     val pageTokenOpt = pageToken.map(decodeAndValidatePageToken(_, queryParamChecksum))
@@ -714,7 +745,16 @@ class DeltaSharedTable(
     } else {
       DeltaSharedTable.RESPONSE_FORMAT_DELTA
     }
-    actions.append(getResponseProtocol(snapshot.protocolScala, responseFormat))
+    // Historical Protocol actions only have a representation in the delta format response.
+    // Suppress them for parquet responses to keep the wire shape backwards compatible.
+    val emitHistoricalProtocol =
+      includeHistoricalProtocol && responseFormat == DeltaSharedTable.RESPONSE_FORMAT_DELTA
+    // Stamp the head Protocol with a `version` only when the client opted into historical
+    // Protocol inlining; existing clients that don't set the flag continue to receive a head
+    // Protocol with no `version` field, preserving the previous delta-format wire shape.
+    val headProtocolVersion = if (emitHistoricalProtocol) Some(snapshot.version) else None
+    actions.append(
+      getResponseProtocol(snapshot.protocolScala, headProtocolVersion, responseFormat))
     actions.append(
       getResponseMetadata(
         snapshot.metadataScala,
@@ -749,7 +789,8 @@ class DeltaSharedTable(
       pageTokenOpt.map(_.getStartingVersion).getOrElse(start),
       pageTokenOpt.map(_.getEndingVersion).getOrElse(end).min(latestVersion),
       latestVersion,
-      includeHistoricalMetadata
+      includeHistoricalMetadata,
+      emitHistoricalProtocol
     )
     changes.foreach { cdcDataSpec =>
       val v = cdcDataSpec.version
@@ -760,6 +801,8 @@ class DeltaSharedTable(
         indexedActions = indexedActions.drop(pageTokenOpt.get.getStartingActionIndex)
       }
       indexedActions.foreach {
+        case (p: Protocol, _) =>
+          actions.append(getResponseProtocol(p, Some(v), responseFormat))
         case (m: Metadata, _) =>
           actions.append(
             getResponseMetadata(

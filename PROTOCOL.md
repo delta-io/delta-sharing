@@ -2144,6 +2144,8 @@ The request body should be a JSON string containing the following optional field
 - **endingVersion** (type: Long, optional): an optional version number, only used if startingVersion is set. If set, the server can use it as a hint to avoid returning data change files after `endingVersion`. This is not enforcement. Hence, when sending the `endingVersion` parameter, the client should still handle the case that it may receive files after `endingVersion`.
   - The combination of `statingVersion` and `endingVersion` can be used as query window for delta sharing streaming rpcs.
 
+- **includeHistoricalProtocol** (type: Boolean, optional): only used when `startingVersion` is set. If true, the server inlines historical [Protocol](#protocol-in-delta-format) actions seen in the delta log (for versions strictly after `startingVersion`) so the streaming client can check whether the table is still read compatible (e.g. when a new reader feature is enabled mid-stream). This only affects responses with `responseformat=delta`; for `responseformat=parquet` responses the flag is ignored and no additional Protocol actions are emitted.
+
 When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
 #### Example for snapshot query
@@ -2360,7 +2362,8 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
  **startingTimestamp** (type: String, optional): The starting timestamp of the query, a string in the [Timestamp Format](#timestamp-format), which will be converted to a version created greater or equal to this timestamp. <br>
  **endingVersion** (type: Long, optional): The ending version of the query, inclusive. <br>
  **endingTimestamp** (type: String, optional): The ending timestamp of the query, a string in the [Timestamp Format](#timestamp-format), which will be converted to a version created earlier than or at the timestamp. <br>
- **includeHistoricalMetadata** (type: Boolean, optional): If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible.</td>
+ **includeHistoricalMetadata** (type: Boolean, optional): If set to true, return the historical metadata if seen in the delta log. This is for the streaming client to check if the table schema is still read compatible. <br>
+ **includeHistoricalProtocol** (type: Boolean, optional): If set to true, return historical [Protocol](#protocol-in-delta-format) actions seen in the delta log so the streaming client can check whether the table is still read compatible (e.g. when a new reader feature is enabled mid-stream). This only affects responses with `responseformat=delta`; for `responseformat=parquet` responses the flag is ignored and no additional Protocol actions are emitted.</td>
 </tr>
 </table>
 
@@ -2402,6 +2405,7 @@ When `responseformat=delta`, a sequence of JSON strings delimited by newline. Ea
 - The second line is [a JSON wrapper object](#json-wrapper-object-in-each-line-in-delta) containing the delta [Metadata](#metadata-in-delta-format) object.
 - The rest of the lines are [JSON wrapper objects](#json-wrapper-object-in-each-line) for [Files](#file-in-delta-format) of the change data feed.
   - Historical [Metadata](#metadata) will be returned if includeHistoricalMetadata is set to true.
+  - Historical [Protocol](#protocol-in-delta-format) actions will be returned if includeHistoricalProtocol is set to true. This is only supported for the delta response format.
   - The ordering of the lines doesn't matter.
 
 </td>
@@ -3621,15 +3625,19 @@ A wrapper of a [delta protocol](https://github.com/delta-io/delta/blob/master/PR
 Field Name | Data Type | Description | Optional/Required
 -|-|-|-
 deltaProtocol | Delta Protocol | Need to be parsed by a delta library as a delta protocol. | Required
+version | Long | The table version this Protocol corresponds to. Populated only on streaming [Read Data from a Table](#read-data-from-a-table) and [Read Change Data Feed from a Table](#read-change-data-feed-from-a-table) responses when [includeHistoricalProtocol](#read-change-data-feed-from-a-table) is set to true, identifying the delta log version of each [Protocol](#protocol-in-delta-format) action (both the head Protocol and any historical Protocol actions inlined into the response). Omitted otherwise to keep the delta-format wire shape backwards compatible for clients that do not opt in. | Optional
 
 Example (for illustration purposes; each JSON object must be a single line in the response):
 
 ```json
 {
   "protocol": {
+    "version": 5,
     "deltaProtocol": {
       "minReaderVersion": 3,
-      "minWriterVersion": 7
+      "minWriterVersion": 7,
+      "readerFeatures": ["columnMapping"],
+      "writerFeatures": ["columnMapping", "identityColumns"]
     }
   }
 }
