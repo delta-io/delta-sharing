@@ -960,7 +960,7 @@ class DeltaSharingRestClient(
     }.mkString("&")
   }
 
-  private def getNDJson(
+  private[sharing] def getNDJson(
       target: String,
       requireVersion: Boolean,
       setIncludeEndStreamAction: Boolean,
