@@ -83,13 +83,15 @@ trait DeltaSharingClient {
     table: Table,
     startingVersion: Long,
     endingVersion: Option[Long],
-    fileIdHash: Option[String]): DeltaTableFiles
+    fileIdHash: Option[String],
+    includeHistoricalProtocol: Boolean = false): DeltaTableFiles
 
   def getCDFFiles(
       table: Table,
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean,
-      fileIdHash: Option[String]): DeltaTableFiles
+      fileIdHash: Option[String],
+      includeHistoricalProtocol: Boolean = false): DeltaTableFiles
 
   def generateTemporaryTableCredential(
     table: Table,
@@ -159,7 +161,8 @@ private[sharing] case class QueryTableRequest(
   pageToken: Option[String],
   includeRefreshToken: Option[Boolean],
   refreshToken: Option[String],
-  idempotency_key: Option[String]
+  idempotency_key: Option[String],
+  includeHistoricalProtocol: Option[Boolean] = None
 ) extends NextPageRequest {
   override def clone(
         maxFiles: Option[Int],
@@ -510,13 +513,20 @@ class DeltaSharingRestClient(
       table: Table,
       startingVersion: Long,
       endingVersion: Option[Long],
-      fileIdHash: Option[String]): DeltaTableFiles = {
+      fileIdHash: Option[String],
+      includeHistoricalProtocol: Boolean = false): DeltaTableFiles = {
     val start = System.currentTimeMillis()
     val encodedShareName = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchemaName = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTableName = URLEncoder.encode(table.name, "UTF-8")
     val target = getTargetUrl(
       s"/shares/$encodedShareName/schemas/$encodedSchemaName/tables/$encodedTableName/query")
+    // `includeHistoricalProtocol` only affects delta-format responses; parquet responses
+    // return the same single Protocol regardless of the flag, so only set the request body
+    // field when the client is configured to accept delta responses. Otherwise leave it as
+    // `None` so the serialized POST body is byte-identical to today's parquet-only request.
+    val sendIncludeHistoricalProtocol =
+      includeHistoricalProtocol && responseFormatSet.contains(RESPONSE_FORMAT_DELTA)
     val request: QueryTableRequest = QueryTableRequest(
       predicateHints = Nil,
       limitHint = None,
@@ -529,7 +539,8 @@ class DeltaSharingRestClient(
       pageToken = None,
       includeRefreshToken = None,
       refreshToken = None,
-      idempotency_key = None
+      idempotency_key = None,
+      includeHistoricalProtocol = if (sendIncludeHistoricalProtocol) Some(true) else None
     )
 
     val (version, respondedFormat, lines, responseFileIdHash) = if (queryTablePaginationEnabled) {
@@ -701,12 +712,14 @@ class DeltaSharingRestClient(
       table: Table,
       cdfOptions: Map[String, String],
       includeHistoricalMetadata: Boolean,
-      fileIdHash: Option[String]): DeltaTableFiles = {
+      fileIdHash: Option[String],
+      includeHistoricalProtocol: Boolean = false): DeltaTableFiles = {
     val start = System.currentTimeMillis()
     val encodedShare = URLEncoder.encode(table.share, "UTF-8")
     val encodedSchema = URLEncoder.encode(table.schema, "UTF-8")
     val encodedTable = URLEncoder.encode(table.name, "UTF-8")
-    val encodedParams = getEncodedCDFParams(cdfOptions, includeHistoricalMetadata)
+    val encodedParams = getEncodedCDFParams(
+      cdfOptions, includeHistoricalMetadata, includeHistoricalProtocol)
 
     val target = getTargetUrl(
       s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
@@ -928,18 +941,26 @@ class DeltaSharingRestClient(
 
   private def getEncodedCDFParams(
       cdfOptions: Map[String, String],
-      includeHistoricalMetadata: Boolean): String = {
-    val paramMap = cdfOptions ++ (if (includeHistoricalMetadata) {
-      Map("includeHistoricalMetadata" -> "true")
-    } else {
-      Map.empty
-    })
+      includeHistoricalMetadata: Boolean,
+      includeHistoricalProtocol: Boolean = false): String = {
+    // `includeHistoricalProtocol` only affects delta-format responses; parquet responses
+    // return the same single Protocol regardless of the flag, so only forward it when the
+    // client is configured to accept delta responses.
+    val sendIncludeHistoricalProtocol =
+      includeHistoricalProtocol && responseFormatSet.contains(RESPONSE_FORMAT_DELTA)
+    val paramMap = cdfOptions ++
+      (if (includeHistoricalMetadata) Map("includeHistoricalMetadata" -> "true") else Map.empty) ++
+      (if (sendIncludeHistoricalProtocol) {
+        Map("includeHistoricalProtocol" -> "true")
+      } else {
+        Map.empty
+      })
     paramMap.map {
       case (cdfKey, cdfValue) => s"$cdfKey=${URLEncoder.encode(cdfValue)}"
     }.mkString("&")
   }
 
-  private def getNDJson(
+  private[sharing] def getNDJson(
       target: String,
       requireVersion: Boolean,
       setIncludeEndStreamAction: Boolean,
