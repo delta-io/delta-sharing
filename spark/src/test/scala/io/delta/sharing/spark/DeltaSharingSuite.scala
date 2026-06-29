@@ -582,26 +582,27 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   }
 
   integrationTest("spark read limit") {
-    val spark = SparkSession.active
-    spark.sessionState.conf.setConfString("spark.delta.sharing.client.class",
-      classOf[TestDeltaSharingClient].getName)
-    spark.sessionState.conf.setConfString("spark.delta.sharing.profile.provider.class",
-      "io.delta.sharing.client.DeltaSharingFileProfileProvider")
-    TestDeltaSharingClient.clear
+    withSQLConf(
+      "spark.delta.sharing.client.class" -> classOf[TestDeltaSharingClient].getName,
+      "spark.delta.sharing.profile.provider.class" ->
+        "io.delta.sharing.client.DeltaSharingFileProfileProvider"
+    ) {
+      TestDeltaSharingClient.clear
 
-    val tablePath = testProfileFile.getCanonicalPath + "#share1.default.table1"
-    spark.read
-      .format("deltaSharing")
-      .load(tablePath)
-      .collect()
-    assert(TestDeltaSharingClient.limits === Seq.empty)
+      val tablePath = testProfileFile.getCanonicalPath + "#share1.default.table1"
+      spark.read
+        .format("deltaSharing")
+        .load(tablePath)
+        .collect()
+      assert(TestDeltaSharingClient.limits === Seq.empty)
 
-    spark.read
-      .format("deltaSharing")
-      .load(tablePath)
-      .limit(1)
-      .collect()
-    assert(TestDeltaSharingClient.limits === Seq(1L))
+      spark.read
+        .format("deltaSharing")
+        .load(tablePath)
+        .limit(1)
+        .collect()
+      assert(TestDeltaSharingClient.limits === Seq(1L))
+    }
   }
 
   integrationTest("async query timeout") {
@@ -609,7 +610,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     withSQLConf(
       "spark.delta.sharing.network.useAsyncQuery" -> "true",
       "spark.delta.sharing.network.asyncQueryTimeout" -> "1", // 1ms timeout
-      "spark.delta.sharing.network.asyncQueryPollIntervalMillis" -> "100"
+      "spark.delta.sharing.network.asyncQueryRetryInterval" -> "100"
     ) {
       val tablePath = testProfileFile.getCanonicalPath + "#share_azure.default.table_wasb"
 
@@ -641,7 +642,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
     // Test error conditions during polling (DeltaSharingClient.scala:L1099)
     withSQLConf(
       "spark.delta.sharing.network.useAsyncQuery" -> "true",
-      "spark.delta.sharing.network.asyncQueryPollIntervalMillis" -> "100"
+      "spark.delta.sharing.network.asyncQueryRetryInterval" -> "100"
     ) {
       // Test 1: Inconsistent queryId in polling response
       // Server will change the queryId mid-query for tables ending with "_change_query_id"
@@ -668,7 +669,7 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   integrationTest("async query handles load table failures") {
     withSQLConf(
       "spark.delta.sharing.network.useAsyncQuery" -> "true",
-      "spark.delta.sharing.network.asyncQueryPollIntervalMillis" -> "100"
+      "spark.delta.sharing.network.asyncQueryRetryInterval" -> "100"
     ) {
       // Test: Server encounters error loading table after polling
       // Server will try to load a non-existent table on the 2nd poll for tables ending with
