@@ -49,6 +49,8 @@ def _get_dummy_column(schema_type):
         return pd.Series([pd.Timestamp(0).date()])
     elif schema_type == "timestamp":
         return pd.Series([pd.Timestamp(0)], dtype=np.dtype("datetime64[ns]"))
+    elif schema_type == "timestamp_ntz":
+        return pd.Series([pd.Timestamp(0)], dtype=np.dtype("datetime64[ns]"))
     elif schema_type == "binary":
         return pd.Series([0], dtype=np.dtype("O"))
     elif isinstance(schema_type, dict) and schema_type["type"] in ("array", "struct", "map"):
@@ -108,6 +110,8 @@ def to_converter(schema_type) -> Callable[[str], Any]:
     elif schema_type == "date":
         return lambda x: None if (x is None or x == "") else pd.Timestamp(x).date()
     elif schema_type == "timestamp":
+        return lambda x: pd.NaT if (x is None or x == "") else pd.Timestamp(x)
+    elif schema_type == "timestamp_ntz":
         return lambda x: pd.NaT if (x is None or x == "") else pd.Timestamp(x)
     elif schema_type == "binary":
         return None  # partition on binary column not supported
