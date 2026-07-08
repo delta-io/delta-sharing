@@ -62,34 +62,45 @@ object OpConverter {
   // Converts a set of SQL expression trees into a json predicate op.
   // We perform an implicit And across the input set at the top level.
   //
-  // The method throws an exception if the conversion fails, and callers
-  // should skip filtering in that case.
+  // If partialFilterEnabled is true, unsupported sub-expressions are replaced with UnsupportedOp,
+  // allowing the rest of the predicate tree to still be used for pruning.
+  // If false (default), throws IllegalArgumentException on any unsupported expression.
   @throws[IllegalArgumentException]
-  def convert(expressions: Seq[SqlExpression]): Option[BaseOp] = {
-    expressions.map(convertOne(_)) match {
+  def convert(
+      expressions: Seq[SqlExpression],
+      partialFilterEnabled: Boolean = false): Option[BaseOp] = {
+    expressions.map(convertOne(_, partialFilterEnabled)) match {
       case Seq() => None
       case Seq(child) => Some(child)
       case children => Some(AndOp(children.toList))
     }
   }
 
-  // Converts one SQL expression type into its corresponding Json predicate op type.
-  //
-  // Descends down the SQL expression tree and constucts the Json predicate tree
-  // using a post-order DFS strategy.
-  //
-  // Throws an exception if conversion fails.
-  private def convertOne(expr: SqlExpression): BaseOp = {
-    // Try converting to a leaf op first, and it that fails try converting to
+  // Converts one SQL expression, returning UnsupportedOp for any unsupported sub-expression
+  // when partialFilterEnabled is true, or throwing IllegalArgumentException when false.
+  private def convertOne(expr: SqlExpression, partialFilterEnabled: Boolean): BaseOp = {
+    if (partialFilterEnabled) {
+      try { convertOneInternal(expr, partialFilterEnabled) }
+      catch { case _: IllegalArgumentException => UnsupportedOp() }
+    } else {
+      convertOneInternal(expr, partialFilterEnabled)
+    }
+  }
+
+  // Descends down the SQL expression tree and constructs the Json predicate tree
+  // using a post-order DFS strategy. Throws IllegalArgumentException for unsupported
+  // expressions.
+  private def convertOneInternal(expr: SqlExpression, partialFilterEnabled: Boolean): BaseOp = {
+    // Try converting to a leaf op first, and if that fails try converting to
     // a non-leaf op.
     maybeConvertAsLeaf(expr).getOrElse(expr match {
       // Convert boolean logic operators.
       case SqlAnd(left, right) =>
-        AndOp(Seq(convertOne(left), convertOne(right)))
+        AndOp(Seq(convertOne(left, partialFilterEnabled), convertOne(right, partialFilterEnabled)))
       case SqlOr(left, right) =>
-        OrOp(Seq(convertOne(left), convertOne(right)))
+        OrOp(Seq(convertOne(left, partialFilterEnabled), convertOne(right, partialFilterEnabled)))
       case SqlNot(child) =>
-        NotOp(Seq(convertOne(child)))
+        NotOp(Seq(convertOne(child, partialFilterEnabled)))
 
       // Convert comparison operators.
       case SqlEqualTo(left, right) =>
@@ -114,8 +125,7 @@ object OpConverter {
         // Limit the number of predicates in the op to avoid pathological cases.
         if (list.size > kMaxSqlInOpSizeLimit) {
           throw new IllegalArgumentException(
-            "The In predicate exceeds max limit of " + kMaxSqlInOpSizeLimit
-          )
+            "The In predicate exceeds max limit of " + kMaxSqlInOpSizeLimit)
         }
         val leafOp = convertAsLeaf(value)
         list.map(e => EqualOp(Seq(leafOp, convertAsLeaf(e)))) match {
@@ -142,7 +152,7 @@ object OpConverter {
 
       // Unsupported expressions.
       case _ =>
-        throw new IllegalArgumentException("Unsupported expression during conversion " + expr)
+        throw new IllegalArgumentException("Unsupported expression during conversion: " + expr)
     })
   }
 
