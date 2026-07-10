@@ -16,6 +16,7 @@
     - [Read Data from a Table](#read-data-from-a-table)
       - [Request Body](#request-body)
     - [Read Change Data Feed from a Table](#read-change-data-feed-from-a-table)
+    - [Get Query Info](#get-query-info)
   - [Delta Sharing Capabilities Header](#delta-sharing-capabilities-header)
   - [File ID Hash Header](#file-id-hash-header)
   - [API Response Actions in Parquet Format](#api-response-actions-in-parquet-format)
@@ -1863,6 +1864,10 @@ Optional: `Content-Type: application/json; charset=utf-8`
 Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`, see
 [Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details.
 
+Optional: `delta-sharing-capabilities: asyncquery=true` to run the query asynchronously and receive a
+`queryId` to poll with [Get Query Info](#get-query-info), see
+[asyncQuery](#asyncquery) for details.
+
 </td>
 </tr>
 <tr>
@@ -2146,6 +2151,8 @@ The request body should be a JSON string containing the following optional field
 
 - **includeHistoricalProtocol** (type: Boolean, optional): only used when `startingVersion` is set. If true, the server inlines historical [Protocol](#protocol-in-delta-format) actions seen in the delta log (for versions strictly after `startingVersion`) so the streaming client can check whether the table is still read compatible (e.g. when a new reader feature is enabled mid-stream). This only affects responses with `responseformat=delta`; for `responseformat=parquet` responses the flag is ignored and no additional Protocol actions are emitted.
 
+- **idempotencyKey** (type: String, optional): only used for asynchronous queries (when the client sets `asyncquery=true` in the [Delta Sharing Capabilities Header](#asyncquery)). It is a client-generated key that the server uses to deduplicate retried query submissions, so that retrying a submission maps to the same `queryId` instead of starting a duplicate query. See [Get Query Info](#get-query-info).
+
 When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
 #### Example for snapshot query
@@ -2297,6 +2304,45 @@ delta-table-version: 1
     "size": 573,
     "timestamp": 1652142000000,
     "version": 2
+  }
+}
+```
+
+#### Example for asynchronous query
+
+When the client sets `asyncquery=true` in the [Delta Sharing Capabilities Header](#asyncquery) and the
+server supports it, the server does not block until the response is computed. Instead it returns a single
+JSON line containing a [QueryStatus](#get-query-info) object with the `queryId`, and echoes
+`asyncquery=true` in the response header. The client then polls [Get Query Info](#get-query-info)
+with the `queryId`.
+
+`POST {prefix}/shares/share_name/schemas/schema_name/tables/table_name/query`
+
+```
+delta-sharing-capabilities: asyncquery=true
+```
+
+```json
+{
+  "predicateHints": [
+    "date >= '2021-01-01'"
+  ],
+  "limitHint": 1000,
+  "idempotencyKey": "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+}
+```
+
+```
+HTTP/2 200 
+content-type: application/x-ndjson; charset=utf-8
+delta-sharing-capabilities: asyncquery=true
+```
+
+```json
+{
+  "queryStatus": {
+    "queryId": "6d3a1f1e-9b2c-4c8a-8e1f-2f5b7a9c0d11",
+    "status": "PENDING"
   }
 }
 ```
@@ -2633,6 +2679,319 @@ content-type: application/x-ndjson; charset=utf-8
     "size": 573,
     "timestamp": 1652142000000,
     "version": 2
+  }
+}
+```
+
+### Get Query Info
+
+This is the API for clients to poll the status of an asynchronous [Query Table](#read-data-from-a-table)
+request and, once the query has succeeded, retrieve its response. It is used together with the
+[asyncQuery](#asyncquery) capability: when a client submits a query with `asyncquery=true`, the server
+returns a `queryId`, and the client calls this API with that `queryId` until the query completes.
+
+<table>
+<tr>
+<th>HTTP Request</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Method</td>
+<td>
+
+`POST`
+
+</td>
+</tr>
+<tr>
+<td>Headers</td>
+<td>
+
+`Authorization: Bearer {token}`
+
+Optional: `Content-Type: application/json; charset=utf-8`
+
+Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=deletionvectors`, see
+[Delta Sharing Capabilities Header](#delta-sharing-capabilities-header) for details.
+
+</td>
+</tr>
+<tr>
+<td>URL</td>
+<td>
+
+`{prefix}/queries/{queryId}`
+
+</td>
+</tr>
+<tr>
+<td>URL Parameters</td>
+<td>
+
+**{queryId}**: The identifier returned in the [QueryStatus](#get-query-info) object of the asynchronous
+[Query Table](#read-data-from-a-table) response.
+</td>
+</tr>
+<tr>
+<td>Body (an example)</td>
+<td>
+
+```json
+{
+  "maxFiles": 1000,
+  "pageToken": "string"
+}
+```
+
+- **maxFiles** (type: Int32, optional): the maximum number of files to return in one page. This is a hint;
+  the server may return fewer. When more files are available, the response contains a `nextPageToken`.
+- **pageToken** (type: String, optional): the page token used to retrieve the subsequent page of a
+  succeeded query's response.
+</td>
+</tr>
+</table>
+
+<details open>
+<summary><b>200: The query result was successfully returned.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Headers</td>
+<td>
+
+`Content-Type: application/x-ndjson; charset=utf-8`
+
+`Delta-Table-Version: {version}` (only present once the query has succeeded)
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+The response is a sequence of JSON strings delimited by newline.
+
+While the query is still being computed, the response is a single line containing a `queryStatus` object:
+
+```json
+{
+  "queryStatus": {
+    "queryId": "6d3a1f1e-9b2c-4c8a-8e1f-2f5b7a9c0d11",
+    "status": "PENDING"
+  }
+}
+```
+
+The `status` field takes one of the following values:
+- **PENDING**: the query has been accepted and is being computed; results are not yet available.
+- **FAILED**: the query failed. The `queryStatus` object also carries an error message.
+
+The client should keep polling while the status is `PENDING`.
+
+Once the query has succeeded, the response no longer contains a `queryStatus` line at all. Instead the
+response body is exactly the same as a synchronous [Query Table](#read-data-from-a-table) response: the
+first line is the [Protocol](#protocol) (or [Protocol in Delta Format](#protocol-in-delta-format)), the
+second line is the [Metadata](#metadata) (or [Metadata in Delta Format](#metadata-in-delta-format)), and
+the remaining lines are the [files](#file) (or [files in delta format](#file-in-delta-format)) / [data
+change files](#data-change-files). Pagination behaves the same as [Query Table](#read-data-from-a-table):
+when more files are available, an [EndStreamAction](#endstreamaction) containing a `nextPageToken` is
+returned, which the client passes back in `pageToken` to fetch the next page.
+
+When the status is `FAILED`, the response is a single `queryStatus` line describing the failure.
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>400: The request is malformed.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>401: The request is unauthenticated. The bearer token is missing or incorrect.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>404: The requested resource does not exist. The queryId is unknown or has expired.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>500: The request is not handled correctly due to a server error.</b></summary>
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+
+#### Example
+
+`POST {prefix}/queries/6d3a1f1e-9b2c-4c8a-8e1f-2f5b7a9c0d11`
+
+```json
+{
+  "maxFiles": 1000
+}
+```
+
+While the query is still being computed:
+
+```
+HTTP/2 200 
+content-type: application/x-ndjson; charset=utf-8
+```
+
+```json
+{
+  "queryStatus": {
+    "queryId": "6d3a1f1e-9b2c-4c8a-8e1f-2f5b7a9c0d11",
+    "status": "PENDING"
+  }
+}
+```
+
+After the query has succeeded:
+
+```
+HTTP/2 200 
+content-type: application/x-ndjson; charset=utf-8
+delta-table-version: 123
+```
+
+```json
+{
+  "protocol": {
+    "minReaderVersion": 1
+  }
+}
+{
+  "metaData": {
+    "id": "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+    "format": {
+      "provider": "parquet"
+    },
+    "schemaString": "{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}",
+    "partitionColumns": [
+      "date"
+    ]
+  }
+}
+{
+  "file": {
+    "url": "https://<s3-bucket-name>.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?...",
+    "id": "8b0086f2-7b27-4935-ac5a-8ed6215a6640",
+    "partitionValues": {
+      "date": "2021-04-28"
+    },
+    "size": 573,
+    "stats": "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}"
   }
 }
 ```
@@ -3056,6 +3415,53 @@ The server can:
 *: Here are the cases where the server may send back EndStreamAction at the end: 
 1) For snapshot queries, the server may send back an EndStreamAction containing the refreshToken, used to refresh the presigned url, see more details [here](https://github.com/delta-io/delta-sharing/issues/383).
 2) For paginated requests, the server may send back and EndStreamAction containing the nextPageToken
+
+### asyncQuery
+The key is `asyncquery` and the value is `true` or `false`, i.e. `asyncquery=true`.
+
+`asyncquery` indicates that the client is able to run a [Query Table](#read-data-from-a-table) request
+asynchronously. Instead of blocking until the server has computed the full response, the client submits
+the query, receives a `queryId`, and then polls the [Get Query Info](#get-query-info) API with that
+`queryId` until the query completes and the file actions are returned. This is useful for long running
+queries where a single synchronous response could exceed request timeouts.
+
+This capability can be used in the request for [Query Table](#read-data-from-a-table). It is only
+honored by a server that also advertises `asyncquery` in the `delta-sharing-capabilities` response
+header; a server that does not recognize the capability ignores it and serves the query synchronously.
+
+**Compatibility**
+
+<table>
+<tr>
+<th>Client/Server</th>
+<th>Server that doesn't recognize the capability</th>
+<th>Server that recognizes the capability</th>
+</tr>
+<tr>
+<th>Client that doesn't set asyncquery=true</th>
+<td colspan="2">The query is served synchronously. The server computes the response and returns the
+[Protocol](#protocol), [Metadata](#metadata), and file actions in a single response, and does not return a
+`queryId`.</td>
+</tr>
+<tr>
+<th>Client that sets asyncquery=true</th>
+<td>The capability is ignored by the server, and the query is served synchronously in a single response.
+The client must be prepared to handle a synchronous response (i.e. no `queryId` line).
+</td>
+<td>
+The server sets `asyncquery=true` in the response header and serves the query asynchronously. The server
+responds with a single JSON line containing a [QueryStatus](#get-query-info) object that carries the
+`queryId`. The client then polls the [Get Query Info](#get-query-info) API with that `queryId` to
+retrieve the query status and, once the query has succeeded, the [Protocol](#protocol), [Metadata](#metadata),
+and file actions.
+</td>
+</tr>
+</table>
+
+When submitting an asynchronous query, the client should include an idempotency key
+(`idempotencyKey`) in the [Query Table](#read-data-from-a-table) request body. The server uses this key to
+deduplicate retried submissions so that a client that retries a submission (for example after a network
+error) is mapped to the same `queryId` rather than starting a duplicate query.
 
 
 ## File ID Hash Header
