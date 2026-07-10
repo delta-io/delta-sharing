@@ -18,6 +18,7 @@ package io.delta.sharing.filters
 
 import scala.collection.mutable.ListBuffer
 
+import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.expressions.{
   And => SqlAnd,
   Attribute => SqlAttribute,
@@ -54,7 +55,7 @@ import org.apache.spark.sql.types.{
 // We support this conversion for a subset of SQL expressions, and will
 // throw an exception if the SQL expression cannot be converted. The caller
 // should skip filtering in such cases.
-object OpConverter {
+object OpConverter extends Logging {
 
   // Limit the number of predicates we allow in the IN op to avoid pathological cases.
   val kMaxSqlInOpSizeLimit = 20
@@ -81,7 +82,10 @@ object OpConverter {
   private def convertOne(expr: SqlExpression, partialFilterEnabled: Boolean): BaseOp = {
     if (partialFilterEnabled) {
       try { convertOneInternal(expr, partialFilterEnabled) }
-      catch { case _: IllegalArgumentException => UnsupportedOp() }
+      catch { case e: IllegalArgumentException =>
+        logWarning("Unsupported sub-expression replaced with UnsupportedOp: " + e.getMessage)
+        UnsupportedOp()
+      }
     } else {
       convertOneInternal(expr, partialFilterEnabled)
     }
