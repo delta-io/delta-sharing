@@ -34,7 +34,7 @@ import io.delta.sharing.client.model.{
   RemoveFile
 }
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils}
-import io.delta.sharing.filters.{AndOp, BaseOp, OpConverter}
+import io.delta.sharing.filters.{AndOp, BaseOp, OpConverter, UnsupportedOpPruner}
 import io.delta.sharing.spark.util.QueryUtils
 
 /*
@@ -146,9 +146,12 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
       return None
     }
 
+    val partialFilterEnabled =
+      ConfUtils.jsonPredicatePartialFilterEnabled(params.spark.sessionState.conf)
+
     // Convert the partition filters.
     val partitionOp = try {
-      OpConverter.convert(partitionFilters)
+      OpConverter.convert(partitionFilters, partialFilterEnabled)
     } catch {
       case e: Exception =>
         log.error("Error while converting partition filters: " + e)
@@ -159,7 +162,7 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
     val dataOp = try {
       if (ConfUtils.jsonPredicatesV2Enabled(params.spark.sessionState.conf)) {
         log.info("Converting data filters")
-        OpConverter.convert(dataFilters)
+        OpConverter.convert(dataFilters, partialFilterEnabled)
       } else {
         None
       }
@@ -177,10 +180,25 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
     } else {
       dataOp
     }
-    log.info("Using combined predicate: " + combinedOp)
 
-    if (combinedOp.isDefined) {
-      Some(JsonUtils.toJson[BaseOp](combinedOp.get))
+    // If partial filtering is enabled, prune UnsupportedOp nodes before serializing so the
+    // server only receives well-known op types. AND children are dropped safely; OR/NOT branches
+    // containing unsupported nodes are dropped entirely.
+    val finalOp = if (partialFilterEnabled) {
+      combinedOp.flatMap { op =>
+        val (pruned, hadUnsupported) = UnsupportedOpPruner.prune(op)
+        if (hadUnsupported) {
+          log.info(s"Predicate tree contained unsupported expressions; pruned: $op -> $pruned")
+        }
+        pruned
+      }
+    } else {
+      combinedOp
+    }
+    log.info("Using combined predicate: " + finalOp)
+
+    if (finalOp.isDefined) {
+      Some(JsonUtils.toJson[BaseOp](finalOp.get))
     } else {
       None
     }
