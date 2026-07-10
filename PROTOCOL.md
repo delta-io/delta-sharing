@@ -2729,7 +2729,8 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
 <td>
 
 **{queryId}**: The identifier returned in the [QueryStatus](#get-query-info) object of the asynchronous
-[Query Table](#read-data-from-a-table) response.
+[Query Table](#read-data-from-a-table) response. `queryId` is an opaque, server-generated string; it is
+not required to be a UUID, and clients must not assume any particular format when handling it.
 </td>
 </tr>
 <tr>
