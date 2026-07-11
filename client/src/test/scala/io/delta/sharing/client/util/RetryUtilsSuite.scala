@@ -47,6 +47,11 @@ class RetryUtilsSuite extends SparkFunSuite {
     assert(shouldRetry(new java.net.SocketException("CONNECTION RESET")))
     assert(!shouldRetry(new java.net.SocketException("Some other socket error")))
     assert(!shouldRetry(new java.net.SocketException(null: String)))
+    // BindException (transient local ephemeral-port exhaustion) is always retried, even though it
+    // extends SocketException and its message does not contain "connection reset".
+    assert(shouldRetry(new java.net.BindException("Cannot assign requested address")))
+    assert(shouldRetry(new java.net.BindException("Address already in use")))
+    assert(shouldRetry(new java.net.BindException(null: String)))
   }
 
   test("runWithExponentialBackoff") {
