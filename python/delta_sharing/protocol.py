@@ -15,6 +15,7 @@
 #
 from dataclasses import dataclass, field
 from json import loads
+import os
 from pathlib import Path
 from typing import ClassVar, Dict, IO, List, Optional, Sequence, Union, TypedDict
 
@@ -153,6 +154,31 @@ class DeltaSharingProfile:
                 f"The current release supports version {DeltaSharingProfile.CURRENT} and below. "
                 "Please upgrade to a newer release."
             )
+
+    @staticmethod
+    def from_env(
+        version_env: str = "DSHARING_VERSION",
+        token_env: str = "DSHARING_TOKEN",
+        endpoint_env: str = "DSHARING_ENDPOINT",
+        expiration_env: str = "DSHARING_EXPTIME",
+    ) -> "DeltaSharingProfile":
+        version = os.environ.get(version_env)
+        token = os.environ.get(token_env)
+        endpoint = os.environ.get(endpoint_env)
+        expiration = os.environ.get(expiration_env)
+
+        if version is None or token is None or endpoint is None:
+            raise ValueError("Missing required environment variables for Delta Sharing profile.")
+
+        if endpoint.endswith("/"):
+            endpoint = endpoint[:-1]
+
+        return DeltaSharingProfile(
+            share_credentials_version=int(version),
+            endpoint=endpoint,
+            bearer_token=token,
+            expiration_time=expiration,
+        )
 
 
 @dataclass(frozen=True)
