@@ -2152,6 +2152,8 @@ The request body should be a JSON string containing the following optional field
 - **includeHistoricalProtocol** (type: Boolean, optional): only used when `startingVersion` is set. If true, the server inlines historical [Protocol](#protocol-in-delta-format) actions seen in the delta log (for versions strictly after `startingVersion`) so the streaming client can check whether the table is still read compatible (e.g. when a new reader feature is enabled mid-stream). This only affects responses with `responseformat=delta`; for `responseformat=parquet` responses the flag is ignored and no additional Protocol actions are emitted.
 
 - **idempotencyKey** (type: String, optional): only used for asynchronous queries (when the client sets `asyncquery=true` in the [Delta Sharing Capabilities Header](#asyncquery)). It is a client-generated key that the server uses to deduplicate retried query submissions, so that retrying a submission maps to the same `queryId` instead of starting a duplicate query. See [Get Query Info](#get-query-info).
+  - The key only needs to be unique for the requesting client's submissions to a given table (share/schema/table); it is not required to be globally unique across all clients, and does not need to be a UUID. A client that generates a UUID (or any other string with sufficiently low collision probability) for each logical query and reuses the same value across retries of that query satisfies this requirement.
+  - The server is only expected to deduplicate submissions bearing the same idempotency key that also target the same table and carry the same request parameters (predicates, version, etc.); reusing a key across different tables or with different parameters is undefined behavior and the server may either reject the request or start a new query.
 
 When `predicateHints` and `limitHint` are both present, the server should apply `predicateHints` first then `limitHint`. As these two parameters are hints rather than enforcement, the client must always apply `predicateHints` and `limitHint` on the response returned by the server if it wishes to filter and limit the returned data. An empty JSON object (`{}`) should be provided when these two parameters are missing.
 
@@ -3424,7 +3426,8 @@ The key is `asyncquery` and the value is `true` or `false`, i.e. `asyncquery=tru
 asynchronously. Instead of blocking until the server has computed the full response, the client submits
 the query, receives a `queryId`, and then polls the [Get Query Info](#get-query-info) API with that
 `queryId` until the query completes and the file actions are returned. This is useful for long running
-queries where a single synchronous response could exceed request timeouts.
+queries, such as those on tables with a large number of data files, where a single synchronous response
+could exceed request timeouts.
 
 This capability can be used in the request for [Query Table](#read-data-from-a-table). It is only
 honored by a server that also advertises `asyncquery` in the `delta-sharing-capabilities` response
