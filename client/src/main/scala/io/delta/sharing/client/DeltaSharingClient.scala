@@ -41,7 +41,7 @@ import org.apache.spark.sql.SparkSession
 import io.delta.sharing.client.auth.{AuthConfig, AuthCredentialProviderFactory}
 import io.delta.sharing.client.model._
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
-import io.delta.sharing.spark.{DeltaSharingServerException, MissingEndStreamActionException}
+import io.delta.sharing.spark.{DeltaSharingConnectionException, DeltaSharingServerException, MissingEndStreamActionException}
 
 /** An interface to fetch Delta metadata from remote server. */
 trait DeltaSharingClient {
@@ -1340,12 +1340,56 @@ class DeltaSharingRestClient(
   ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
     // Reset dsQueryId before calling RetryUtils, and before prepareHeaders.
     dsQueryId = Some(UUID.randomUUID().toString().split('-').head)
+    try {
+      getResponseWithRetries(
+        httpRequest,
+        allowNoContent,
+        fetchAsOneString,
+        setIncludeEndStreamAction,
+        requestFileIdHash)
+    } catch {
+      // A failure to establish the outbound connection to the sharing server (e.g. local
+      // ephemeral-port exhaustion, connection refused, or unresolvable host) surfaces here as a
+      // raw low-level exception after retries are exhausted. Rethrow it with a legible, actionable
+      // message so callers see a clear network error rather than an opaque internal error.
+      case e: java.io.IOException if isConnectionEstablishmentError(e) =>
+        val endpoint = profileProvider.getProfile.endpoint
+        throw new DeltaSharingConnectionException(
+          s"Could not connect to the Delta Sharing server endpoint $endpoint" +
+            s"$getDsQueryIdForLogging Please check your network egress/connectivity and that the " +
+            s"endpoint is reachable. Underlying error: ${e.getMessage}",
+          e)
+    }
+  }
+
+  // Whether the throwable represents a failure to establish the outbound connection to the sharing
+  // server (as opposed to a failure that occurred after a connection/response was obtained).
+  private def isConnectionEstablishmentError(t: Throwable): Boolean = t match {
+    case _: java.net.BindException | _: java.net.ConnectException |
+        _: java.net.UnknownHostException | _: java.net.NoRouteToHostException => true
+    case _ => false
+  }
+
+  // Execute the http request against the sharing server. Extracted into its own method so tests
+  // can inject connection-establishment failures without a live server.
+  private[client] def executeHttpRequest(
+      host: HttpHost,
+      httpRequest: HttpRequestBase): org.apache.http.client.methods.CloseableHttpResponse = {
+    client.execute(host, httpRequest, HttpClientContext.create())
+  }
+
+  private def getResponseWithRetries(
+      httpRequest: HttpRequestBase,
+      allowNoContent: Boolean,
+      fetchAsOneString: Boolean,
+      setIncludeEndStreamAction: Boolean,
+      requestFileIdHash: Option[String]
+  ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
     RetryUtils.runWithExponentialBackoff(numRetries, maxRetryDuration, retrySleepInterval) {
       val profile = profileProvider.getProfile
-      val response = client.execute(
+      val response = executeHttpRequest(
         getHttpHost(profile.endpoint),
-        prepareHeaders(httpRequest, setIncludeEndStreamAction, requestFileIdHash),
-        HttpClientContext.create()
+        prepareHeaders(httpRequest, setIncludeEndStreamAction, requestFileIdHash)
       )
       try {
         val status = response.getStatusLine()

@@ -43,7 +43,7 @@ import io.delta.sharing.client.model.{
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.client.util.JsonUtils
 import io.delta.sharing.client.util.UnexpectedHttpStatus
-import io.delta.sharing.spark.{DeltaSharingOptions, DeltaSharingServerException, MissingEndStreamActionException, RemoteDeltaLog}
+import io.delta.sharing.spark.{DeltaSharingConnectionException, DeltaSharingOptions, DeltaSharingServerException, MissingEndStreamActionException, RemoteDeltaLog}
 
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
@@ -2541,6 +2541,73 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         s"expected URL to contain includeHistoricalProtocol=true when delta is in " +
           s"responseFormat, got: ${client.capturedTarget}"
       )
+    } finally {
+      client.close()
+    }
+  }
+
+  test("getResponse wraps connection-establishment failures in " +
+      "DeltaSharingConnectionException") {
+    // Each of these is thrown while establishing the outbound connection to the sharing server,
+    // before any HTTP response is received. They should be rethrown as a legible connection error
+    // rather than propagating as an opaque low-level exception.
+    val connectionErrors = Seq(
+      new java.net.BindException("Cannot assign requested address"),
+      new java.net.ConnectException("Connection refused"),
+      new java.net.UnknownHostException("no-such-host"),
+      new java.net.NoRouteToHostException("no route")
+    )
+
+    connectionErrors.foreach { thrown =>
+      // numRetries = 0 so the failure is surfaced immediately without any retry sleeps.
+      val client = new DeltaSharingRestClient(
+        profileProvider = new TestProfileProvider,
+        numRetries = 0,
+        sslTrustAll = true
+      ) {
+        override private[client] def executeHttpRequest(
+            host: org.apache.http.HttpHost,
+            httpRequest: HttpRequestBase)
+          : org.apache.http.client.methods.CloseableHttpResponse = {
+          throw thrown
+        }
+      }
+
+      try {
+        val e = intercept[DeltaSharingConnectionException] {
+          client.getResponse(new HttpGet("http://localhost:12345/test"))
+        }
+        assert(e.getMessage.contains("Could not connect to the Delta Sharing server endpoint"))
+        assert(e.getMessage.contains("http://localhost:12345"))
+        // The original low-level exception is preserved as the cause.
+        assert(e.getCause eq thrown)
+      } finally {
+        client.close()
+      }
+    }
+  }
+
+  test("getResponse does not wrap non-connection failures") {
+    // A failure that is not a connection-establishment error should propagate unchanged.
+    val thrown = new RuntimeException("boom")
+    val client = new DeltaSharingRestClient(
+      profileProvider = new TestProfileProvider,
+      numRetries = 0,
+      sslTrustAll = true
+    ) {
+      override private[client] def executeHttpRequest(
+          host: org.apache.http.HttpHost,
+          httpRequest: HttpRequestBase)
+        : org.apache.http.client.methods.CloseableHttpResponse = {
+        throw thrown
+      }
+    }
+
+    try {
+      val e = intercept[RuntimeException] {
+        client.getResponse(new HttpGet("http://localhost:12345/test"))
+      }
+      assert(e eq thrown)
     } finally {
       client.close()
     }
