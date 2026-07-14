@@ -77,6 +77,10 @@ private[sharing] object RetryUtils extends Logging {
         }
       case _: MissingEndStreamActionException => true
       case _: java.net.SocketTimeoutException => true
+      // BindException (e.g. "Cannot assign requested address" / "Address already in use") is
+      // usually caused by transient local ephemeral-port exhaustion, which is worth retrying.
+      // It extends SocketException, so this case must precede the SocketException case below.
+      case _: java.net.BindException => true
       case e: java.net.SocketException =>
         // Retry on connection reset errors
         if (e.getMessage != null &&
