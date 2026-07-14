@@ -33,6 +33,12 @@ class MissingEndStreamActionException(message: String) extends IllegalStateExcep
 class DeltaSharingServerException(message: String, statusCodeOpt: Option[Int])
   extends DeltaSharingExceptionWithErrorCode(message, statusCodeOpt)
 
+// Thrown when the client fails to establish a network connection to the Delta Sharing server
+// endpoint (e.g. java.net.BindException / java.net.ConnectException), before any HTTP response is
+// received. This surfaces a legible, actionable message instead of the raw low-level exception.
+class DeltaSharingConnectionException(message: String, cause: Throwable)
+  extends IllegalStateException(message, cause)
+
 object DeltaSharingErrors {
   def nonExistentDeltaSharingTable(tableId: String): Throwable = {
     new IllegalStateException(s"Delta sharing table ${tableId} doesn't exist. " +
