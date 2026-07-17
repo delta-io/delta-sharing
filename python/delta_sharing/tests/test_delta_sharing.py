@@ -32,6 +32,7 @@ from delta_sharing.delta_sharing import (
     load_as_arrow,
     load_as_pandas,
     load_as_spark,
+    load_table_changes_as_arrow,
     load_table_changes_as_spark,
     load_table_changes_as_pandas,
     _parse_url,
@@ -1108,6 +1109,11 @@ def test_table_changes_arrow_matches_pandas_on_real_table(
         starting_version=starting_version,
         ending_version=ending_version,
     )
+    legacy_arrow = load_table_changes_as_arrow(
+        f"{profile_path}#{fragments}",
+        starting_version=starting_version,
+        ending_version=ending_version,
+    )
     changes = (
         SharingClient(profile)
         .table(fragments)
@@ -1119,6 +1125,7 @@ def test_table_changes_arrow_matches_pandas_on_real_table(
     arrow_table = changes.to_arrow()
 
     pd.testing.assert_frame_equal(arrow_table.to_pandas(), expected_pdf)
+    assert legacy_arrow.equals(arrow_table)
     assert pa.Table.from_batches(list(changes.to_record_batches())).equals(arrow_table)
     assert changes.to_record_batch_reader().read_all().equals(arrow_table)
 

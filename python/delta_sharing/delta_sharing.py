@@ -612,6 +612,47 @@ def load_table_changes_as_pandas(
     )
 
 
+def load_table_changes_as_arrow(
+    url: str,
+    starting_version: Optional[int] = None,
+    ending_version: Optional[int] = None,
+    starting_timestamp: Optional[str] = None,
+    ending_timestamp: Optional[str] = None,
+    use_delta_format: Optional[bool] = None,
+) -> pa.Table:
+    """
+    Load the table changes of a shared table as a PyArrow Table using the given url.
+    Either starting_version or starting_timestamp needs to be provided. Only one starting and
+    ending parameter is accepted by the server. If the end parameter is not provided, the API
+    uses the latest table version. The parameter range is inclusive.
+
+    :param url: a url under the format "<profile>#<share>.<schema>.<table>".
+    :param starting_version: The starting version of table changes.
+    :param ending_version: The ending version of table changes.
+    :param starting_timestamp: The starting timestamp of table changes.
+    :param ending_timestamp: The ending timestamp of table changes.
+    :param use_delta_format: Whether to use delta format or parquet format. Default is parquet.
+    :return: A PyArrow Table representing the shared table changes.
+    """
+    profile_json, share, schema, table = _parse_url(url)
+    profile = DeltaSharingProfile.read_from_file(profile_json)
+    return DeltaSharingReader(
+        table=Table(name=table, share=share, schema=schema),
+        rest_client=DataSharingRestClient(profile),
+        use_delta_format=use_delta_format,
+    ).table_changes_to_arrow(
+        CdfOptions(
+            starting_version=starting_version,
+            ending_version=ending_version,
+            starting_timestamp=starting_timestamp,
+            ending_timestamp=ending_timestamp,
+            # when using delta format, we need to get metadata changes and
+            # handle them properly when replaying the delta log
+            include_historical_metadata=use_delta_format,
+        )
+    )
+
+
 class SharingClient:
     """
     A Delta Sharing client to query shares/schemas/tables from a Delta Sharing Server.
