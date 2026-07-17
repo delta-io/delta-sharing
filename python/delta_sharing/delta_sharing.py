@@ -311,6 +311,15 @@ class TableChanges:
             self._cdf_options()
         )
 
+    def to_arrow(self) -> pa.Table:
+        return self._reader().table_changes_to_arrow(self._cdf_options())
+
+    def to_record_batches(self) -> Iterator[pa.RecordBatch]:
+        return self._reader().table_changes_to_record_batches(self._cdf_options())
+
+    def to_record_batch_reader(self) -> pa.RecordBatchReader:
+        return self._reader().table_changes_to_record_batch_reader(self._cdf_options())
+
     def to_spark(self) -> "PySparkDataFrame":  # noqa: F821
         if self._use_delta_format is not None:
             # TODO: Support use_delta_format once load_table_changes_as_spark can pass it through.

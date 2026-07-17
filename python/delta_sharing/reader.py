@@ -385,13 +385,15 @@ class DeltaSharingReader:
                 last_checkpoint_file.write(last_checkpoint_content)
                 last_checkpoint_file.close()
 
-    def __table_changes_to_pandas_kernel(self, cdfOptions: CdfOptions) -> pd.DataFrame:
-        # Create a temporary directory using the tempfile module
+    def __table_changes_scan_kernel(self, cdfOptions: CdfOptions, log_stats: bool = False):
         temp_dir = tempfile.TemporaryDirectory()
-        self._rest_client.set_delta_format_header(for_cdf=True)
         try:
-            response = self._rest_client.list_table_changes(self._table, cdfOptions)
-            lines = response.lines
+            self._rest_client.set_delta_format_header(for_cdf=True)
+            try:
+                response = self._rest_client.list_table_changes(self._table, cdfOptions)
+            finally:
+                self._rest_client.remove_delta_format_header()
+            lines = list(response.lines)
 
             # first line is protocol
             protocol_json = loads(lines.pop(0))
@@ -428,13 +430,14 @@ class DeltaSharingReader:
                     raise Exception(f"Invalid JSON object:\n{line}\nIs neither metadata nor file.")
 
             num_versions_with_action = len(version_to_actions)
-            print(
-                f"table_changes stats: min_version={min_version}, "
-                f"max_version={max_version}, "
-                f"num_versions_with_action={num_versions_with_action}, "
-                f"num_versions_with_metadata={len(version_to_metadata)}, "
-                f"lines_in_response={line_count}, "
-            )
+            if log_stats:
+                print(
+                    f"table_changes stats: min_version={min_version}, "
+                    f"max_version={max_version}, "
+                    f"num_versions_with_action={num_versions_with_action}, "
+                    f"num_versions_with_metadata={len(version_to_metadata)}, "
+                    f"lines_in_response={line_count}, "
+                )
             delta_log_dir_name = temp_dir.name
             table_path = "file:///" + delta_log_dir_name
 
@@ -451,14 +454,22 @@ class DeltaSharingReader:
                 version_to_timestamp,
             )
 
-            # Invoke delta-kernel-rust to return the pandas dataframe
+            # Invoke delta-kernel-rust to execute the scan.
             interface = delta_kernel_rust_sharing_wrapper.PythonInterface(table_path)
             table = delta_kernel_rust_sharing_wrapper.Table(table_path)
             scan = delta_kernel_rust_sharing_wrapper.TableChangesScanBuilder(
                 table, interface, min_version, max_version
             ).build()
+            return temp_dir, scan.execute(interface), num_versions_with_action
+        except Exception:
+            temp_dir.cleanup()
+            raise
 
-            scan_result = scan.execute(interface)
+    def __table_changes_to_pandas_kernel(self, cdfOptions: CdfOptions) -> pd.DataFrame:
+        temp_dir, scan_result, num_versions_with_action = self.__table_changes_scan_kernel(
+            cdfOptions, log_stats=True
+        )
+        try:
             if num_versions_with_action == 0:
                 schema = scan_result.schema
                 result = pd.DataFrame(columns=schema.names)
@@ -468,11 +479,51 @@ class DeltaSharingReader:
             else:
                 result = pa.Table.from_batches(scan_result).to_pandas(self_destruct=True)
         finally:
-            # Delete the temp folder explicitly and remove the delta format from header
+            # Delete the temp folder explicitly.
             temp_dir.cleanup()
-            self._rest_client.remove_delta_format_header()
 
         return result
+
+    def __table_changes_record_batches_kernel(
+        self, cdfOptions: CdfOptions
+    ) -> Tuple[pa.Schema, Iterator[pa.RecordBatch]]:
+        temp_dir, scan_result, _ = self.__table_changes_scan_kernel(cdfOptions)
+
+        def iterator() -> Iterator[pa.RecordBatch]:
+            try:
+                for batch in scan_result:
+                    yield batch
+            finally:
+                temp_dir.cleanup()
+
+        return scan_result.schema, iterator()
+
+    def _table_changes_to_arrow_stream(
+        self, cdfOptions: CdfOptions
+    ) -> Tuple[pa.Schema, Iterator[pa.RecordBatch]]:
+        if self._use_delta_format:
+            return self.__table_changes_record_batches_kernel(cdfOptions)
+
+        response = self._rest_client.list_table_changes(self._table, cdfOptions)
+
+        schema_json = loads(response.metadata.schema_string)
+        schema_with_cdf = self._add_special_cdf_schema(schema_json)
+        schema = to_arrow_schema(schema_with_cdf)
+
+        if len(response.actions) == 0:
+            return schema, iter(())
+
+        def iterator() -> Iterator[pa.RecordBatch]:
+            for action in response.actions:
+                for batch in DeltaSharingReader._to_record_batches(
+                    action,
+                    schema_with_cdf,
+                    None,
+                    for_cdf=True,
+                ):
+                    yield batch
+
+        return schema, iterator()
 
     def table_changes_to_pandas(self, cdfOptions: CdfOptions) -> pd.DataFrame:
         # Only use delta format if explicitly specified
@@ -502,6 +553,26 @@ class DeltaSharingReader:
             col_map[col.lower()] = col
 
         return merged[[col_map[field["name"].lower()] for field in schema_with_cdf["fields"]]]
+
+    def table_changes_to_arrow(self, cdfOptions: CdfOptions) -> pa.Table:
+        schema, batches = self._table_changes_to_arrow_stream(cdfOptions)
+        return pa.Table.from_batches(list(batches), schema=schema)
+
+    def table_changes_to_record_batches(self, cdfOptions: CdfOptions) -> Iterator[pa.RecordBatch]:
+        """
+        Batches are produced lazily; consume the iterator fully (or close it) so
+        that temporary resources backing the stream are released promptly.
+        """
+        _, batches = self._table_changes_to_arrow_stream(cdfOptions)
+        return batches
+
+    def table_changes_to_record_batch_reader(self, cdfOptions: CdfOptions) -> pa.RecordBatchReader:
+        """
+        Batches are produced lazily; read the reader fully (or close it) so that
+        temporary resources backing the stream are released promptly.
+        """
+        schema, batches = self._table_changes_to_arrow_stream(cdfOptions)
+        return pa.RecordBatchReader.from_batches(schema, batches)
 
     def _copy(
         self,
@@ -595,6 +666,7 @@ class DeltaSharingReader:
         action: FileAction,
         schema_json: dict,
         limit: Optional[int],
+        for_cdf: bool = False,
     ) -> Iterator[pa.RecordBatch]:
         filesystem = DeltaSharingReader._parquet_filesystem(action.url)
         pa_dataset = dataset(source=action.url, format="parquet", filesystem=filesystem)
@@ -608,7 +680,7 @@ class DeltaSharingReader:
             if limit is not None and rows_read + batch.num_rows > limit:
                 batch = batch.slice(0, limit - rows_read)
 
-            yield DeltaSharingReader._normalize_record_batch(batch, action, schema_json)
+            yield DeltaSharingReader._normalize_record_batch(batch, action, schema_json, for_cdf)
             rows_read += batch.num_rows
 
     @staticmethod
@@ -631,6 +703,7 @@ class DeltaSharingReader:
         batch: pa.RecordBatch,
         action: FileAction,
         schema_json: dict,
+        for_cdf: bool = False,
     ) -> pa.RecordBatch:
         columns = []
         names = []
@@ -649,6 +722,29 @@ class DeltaSharingReader:
                     column = column.cast(field_type)
                 columns.append(column)
                 continue
+
+            if for_cdf:
+                if field_name == DeltaSharingReader._change_type_col_name():
+                    if isinstance(action, AddCdcFile):
+                        raise ValueError("Missing _change_type column in change data feed file")
+                    columns.append(
+                        pa.array([action.get_change_type_col_value()] * num_rows, type=field_type)
+                    )
+                    continue
+                if field_name == DeltaSharingReader._commit_version_col_name():
+                    columns.append(
+                        pa.array([action.version] * num_rows, type=field_type)
+                        if action.version is not None
+                        else pa.nulls(num_rows, type=field_type)
+                    )
+                    continue
+                if field_name == DeltaSharingReader._commit_timestamp_col_name():
+                    columns.append(
+                        pa.array([action.timestamp] * num_rows, type=field_type)
+                        if action.timestamp is not None
+                        else pa.nulls(num_rows, type=field_type)
+                    )
+                    continue
 
             if field_name in action.partition_values:
                 schema_type = field["type"]
@@ -684,8 +780,8 @@ class DeltaSharingReader:
 
     @staticmethod
     def _add_special_cdf_schema(schema_json: dict) -> dict:
-        fields = schema_json["fields"]
+        fields = list(schema_json["fields"])
         fields.append({"name": DeltaSharingReader._change_type_col_name(), "type": "string"})
         fields.append({"name": DeltaSharingReader._commit_version_col_name(), "type": "long"})
         fields.append({"name": DeltaSharingReader._commit_timestamp_col_name(), "type": "long"})
-        return schema_json
+        return {**schema_json, "fields": fields}
