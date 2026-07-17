@@ -192,16 +192,7 @@ class DeltaSharingReader:
             return self.__to_pandas_kernel()
 
         # Otherwise use the standard approach
-        response = self._rest_client.list_files_in_table(
-            self._table,
-            predicateHints=self._predicateHints,
-            jsonPredicateHints=self._jsonPredicateHints,
-            limitHint=self._limit,
-            version=self._version,
-            timestamp=self._timestamp,
-        )
-
-        schema_json = loads(response.metadata.schema_string)
+        response, schema_json = self._list_files()
 
         if len(response.add_files) == 0 or self._limit == 0:
             return get_empty_table(schema_json)
@@ -273,7 +264,9 @@ class DeltaSharingReader:
         if response_format == DataSharingRestClient.DELTA_FORMAT:
             return self.__record_batches_kernel()
 
-        response, schema_json, schema, converters = self._list_files_for_arrow()
+        response, schema_json = self._list_files()
+        schema = to_arrow_schema(schema_json)
+        converters = to_converters(schema_json)
 
         if len(response.add_files) == 0 or self._limit == 0:
             return schema, iter(())
@@ -298,7 +291,7 @@ class DeltaSharingReader:
 
         return schema, iterator()
 
-    def _list_files_for_arrow(self):
+    def _list_files(self):
         response = self._rest_client.list_files_in_table(
             self._table,
             predicateHints=self._predicateHints,
@@ -308,12 +301,7 @@ class DeltaSharingReader:
             timestamp=self._timestamp,
         )
         schema_json = loads(response.metadata.schema_string)
-        return (
-            response,
-            schema_json,
-            to_arrow_schema(schema_json),
-            to_converters(schema_json),
-        )
+        return response, schema_json
 
     def __write_temp_delta_log_snapshot(self, temp_dir: str, lines: List[str]) -> str:
         delta_log_dir_name = temp_dir
