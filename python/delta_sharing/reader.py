@@ -266,7 +266,6 @@ class DeltaSharingReader:
 
         response, schema_json = self._list_files()
         schema = to_arrow_schema(schema_json)
-        converters = to_converters(schema_json)
 
         if len(response.add_files) == 0 or self._limit == 0:
             return schema, iter(())
@@ -275,9 +274,7 @@ class DeltaSharingReader:
             left = self._limit
             for file in response.add_files:
                 file_limit = left
-                for batch in DeltaSharingReader._to_record_batches(
-                    file, schema_json, converters, file_limit
-                ):
+                for batch in DeltaSharingReader._to_record_batches(file, schema_json, file_limit):
                     yield batch
                     if left is not None:
                         left -= batch.num_rows
@@ -597,7 +594,6 @@ class DeltaSharingReader:
     def _to_record_batches(
         action: FileAction,
         schema_json: dict,
-        converters: Dict[str, Callable[[str], Any]],
         limit: Optional[int],
     ) -> Iterator[pa.RecordBatch]:
         filesystem = DeltaSharingReader._parquet_filesystem(action.url)
@@ -612,7 +608,7 @@ class DeltaSharingReader:
             if limit is not None and rows_read + batch.num_rows > limit:
                 batch = batch.slice(0, limit - rows_read)
 
-            yield DeltaSharingReader._normalize_record_batch(batch, action, schema_json, converters)
+            yield DeltaSharingReader._normalize_record_batch(batch, action, schema_json)
             rows_read += batch.num_rows
 
     @staticmethod
@@ -635,7 +631,6 @@ class DeltaSharingReader:
         batch: pa.RecordBatch,
         action: FileAction,
         schema_json: dict,
-        converters: Dict[str, Callable[[str], Any]],
     ) -> pa.RecordBatch:
         columns = []
         names = []
@@ -656,11 +651,18 @@ class DeltaSharingReader:
                 continue
 
             if field_name in action.partition_values:
-                converter = converters[field_name]
-                if converter is None:
+                schema_type = field["type"]
+                if schema_type == "binary" or isinstance(schema_type, dict):
                     raise ValueError("Cannot partition on binary or complex columns")
-                value = converter(action.partition_values[field_name])
-                columns.append(pa.array([value] * num_rows, type=field_type))
+                value = action.partition_values[field_name]
+                if value is None or value == "":
+                    columns.append(pa.nulls(num_rows, type=field_type))
+                    continue
+
+                values = pa.array([value] * num_rows)
+                if schema_type == "timestamp":
+                    values = values.cast(pa.timestamp("us"))
+                columns.append(values.cast(field_type))
             else:
                 columns.append(pa.nulls(num_rows, type=field_type))
 
