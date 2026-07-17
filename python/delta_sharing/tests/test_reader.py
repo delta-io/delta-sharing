@@ -43,34 +43,6 @@ _TEST_TABLE = Table("table_name", "share_name", "schema_name")
 _SCHEMA_A = (
     '{"type":"struct","fields":[' '{"metadata":{},"name":"a","nullable":true,"type":"long"}]}'
 )
-_SCHEMA_AB = (
-    '{"fields":['
-    '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
-    '{"metadata":{},"name":"b","nullable":true,"type":"string"}'
-    '],"type":"struct"}'
-)
-
-
-def _add_file(path, file_id, partition_values=None, timestamp=None, version=None):
-    return AddFile(
-        url=str(path),
-        id=file_id,
-        partition_values=partition_values or {},
-        size=0,
-        stats="",
-        timestamp=timestamp,
-        version=version,
-    )
-
-
-def _list_files_response(add_files, schema_string=_SCHEMA_AB, lines=None):
-    return ListFilesInTableResponse(
-        delta_table_version=1,
-        protocol=None,
-        metadata=Metadata(schema_string=schema_string),
-        add_files=add_files,
-        lines=[] if lines is None else lines,
-    )
 
 
 class _ListFilesRestClient:
@@ -91,43 +63,8 @@ class _ListFilesRestClient:
         return self._response
 
 
-def test_to_pandas_delta_format_removes_header_after_failure():
-    class RestClientMock:
-        delta_format_removed = False
-
-        def set_delta_format_header(self, for_cdf=False):
-            return
-
-        def list_files_in_table(
-            self,
-            table: Table,
-            *,
-            predicateHints: Optional[Sequence[str]] = None,
-            jsonPredicateHints: Optional[str] = None,
-            limitHint: Optional[int] = None,
-            version: Optional[int] = None,
-            timestamp: Optional[int] = None,
-        ) -> ListFilesInTableResponse:
-            assert table == Table("table_name", "share_name", "schema_name")
-            raise RuntimeError("list files failed")
-
-        def remove_delta_format_header(self):
-            self.delta_format_removed = True
-
-    rest_client = RestClientMock()
-    reader = DeltaSharingReader(
-        Table("table_name", "share_name", "schema_name"),
-        rest_client,
-        use_delta_format=True,
-    )
-
-    with pytest.raises(RuntimeError, match="list files failed"):
-        reader.to_pandas()
-
-    assert rest_client.delta_format_removed
-
-
-def test_to_record_batches_delta_format_removes_header_after_failure():
+@pytest.mark.parametrize("materializer", ["to_pandas", "to_record_batches"])
+def test_delta_format_removes_header_after_failure(materializer):
     class RestClientMock:
         delta_format_removed = False
 
@@ -158,7 +95,7 @@ def test_to_record_batches_delta_format_removes_header_after_failure():
     )
 
     with pytest.raises(RuntimeError, match="list files failed"):
-        reader.to_record_batches()
+        getattr(reader, materializer)()
 
     assert rest_client.delta_format_removed
 
@@ -286,108 +223,53 @@ def test_to_record_batches_delta_format_applies_limit(tmp_path):
 
 
 def test_to_arrow_naive_timestamps_normalized_to_utc(tmp_path):
-    pdf = pd.DataFrame({"ts": pd.to_datetime(["2024-01-01", "2024-01-02"])})
+    pdf1 = pd.DataFrame({"a": [1, 2], "ts": pd.to_datetime(["2024-01-01", "2024-01-02"])})
+    pdf2 = pd.DataFrame({"a": [3, 4]})
     schema_string = (
-        '{"fields":[{"metadata":{},"name":"ts","nullable":true,"type":"timestamp"}],'
+        '{"fields":['
+        '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
+        '{"metadata":{},"name":"ts","nullable":true,"type":"timestamp"}'
+        "],"
         '"type":"struct"}'
     )
 
-    pdf.to_parquet(tmp_path / "pdf.parquet")
+    pdf1.to_parquet(tmp_path / "pdf1.parquet")
+    pdf2.to_parquet(tmp_path / "pdf2.parquet")
+
+    response = ListFilesInTableResponse(
+        delta_table_version=1,
+        protocol=None,
+        metadata=Metadata(schema_string=schema_string),
+        add_files=[
+            AddFile(
+                url=str(tmp_path / "pdf1.parquet"),
+                id="pdf1",
+                partition_values={},
+                size=0,
+                stats="",
+            ),
+            AddFile(
+                url=str(tmp_path / "pdf2.parquet"),
+                id="pdf2",
+                partition_values={"ts": "2024-01-03"},
+                size=0,
+                stats="",
+            ),
+        ],
+        lines=[],
+    )
 
     reader = DeltaSharingReader(
         _TEST_TABLE,
-        _ListFilesRestClient(
-            _list_files_response([_add_file(tmp_path / "pdf.parquet", "pdf")], schema_string)
-        ),
+        _ListFilesRestClient(response),
         use_delta_format=False,
     )
     result = reader.to_arrow()
 
     assert result.schema.field("ts").type == pa.timestamp("us", tz="UTC")
-    assert result.column("ts").to_pylist() == list(pdf["ts"].dt.tz_localize("UTC"))
-
-
-def test_to_record_batches_partitioned(tmp_path):
-    pdf1 = pd.DataFrame({"a": [1, 2, 3]})
-    pdf2 = pd.DataFrame({"a": [4, 5, 6]})
-
-    pdf1.to_parquet(tmp_path / "pdf1.parquet")
-    pdf2.to_parquet(tmp_path / "pdf2.parquet")
-    response = _list_files_response(
-        [
-            _add_file(tmp_path / "pdf1.parquet", "pdf1", {"b": "x"}),
-            _add_file(tmp_path / "pdf2.parquet", "pdf2", {"b": "y"}),
-        ]
-    )
-
-    reader = DeltaSharingReader(
-        _TEST_TABLE,
-        _ListFilesRestClient(response),
-        limit=4,
-        use_delta_format=False,
-    )
-    batches = list(reader.to_record_batches())
-    result = pa.Table.from_batches(batches)
-
-    expected1 = pdf1.copy()
-    expected1["b"] = "x"
-    expected2 = pdf2.copy()
-    expected2["b"] = "y"
-    expected = pa.Table.from_pandas(
-        pd.concat([expected1, expected2]).reset_index(drop=True).head(4),
-        preserve_index=False,
-    )
-
-    assert [batch.num_rows for batch in batches] == [3, 1]
-    assert result.equals(expected)
-
-    reader = DeltaSharingReader(
-        _TEST_TABLE,
-        _ListFilesRestClient(response),
-        use_delta_format=False,
-    )
-    assert (
-        reader.to_record_batch_reader()
-        .read_all()
-        .equals(
-            pa.Table.from_pandas(
-                pd.concat([expected1, expected2]).reset_index(drop=True),
-                preserve_index=False,
-            )
-        )
-    )
-
-
-def test_to_record_batches_preserves_schema_order_with_partition_column(tmp_path):
-    pdf = pd.DataFrame({"a": [1, 2], "c": ["x", "y"]})
-    pdf.to_parquet(tmp_path / "data.parquet")
-    schema_string = (
-        '{"fields":['
-        '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
-        '{"metadata":{},"name":"b","nullable":true,"type":"string"},'
-        '{"metadata":{},"name":"c","nullable":true,"type":"string"}'
-        '],"type":"struct"}'
-    )
-
-    reader = DeltaSharingReader(
-        _TEST_TABLE,
-        _ListFilesRestClient(
-            _list_files_response(
-                [_add_file(tmp_path / "data.parquet", "data", {"b": "partition"})],
-                schema_string,
-            )
-        ),
-        use_delta_format=False,
-    )
-
-    result = pa.Table.from_batches(list(reader.to_record_batches()))
-
-    assert result.schema.names == ["a", "b", "c"]
-    assert result.to_pydict() == {
-        "a": [1, 2],
-        "b": ["partition", "partition"],
-        "c": ["x", "y"],
-    }
+    assert result.column("ts").to_pylist() == list(pdf1["ts"].dt.tz_localize("UTC")) + [
+        pd.Timestamp("2024-01-03", tz="UTC")
+    ] * len(pdf2)
 
 
 def test_to_pandas_non_partitioned(tmp_path):
@@ -547,10 +429,9 @@ def test_to_pandas_partitioned(tmp_path):
     expected = pd.concat([expected1, expected2]).reset_index(drop=True)
 
     pd.testing.assert_frame_equal(pdf, expected)
-    assert reader.to_arrow().to_pydict() == {
-        "A": [1, 2, 3, 4, 5, 6],
-        "B": ["x", "x", "x", "y", "y", "y"],
-    }
+    pd.testing.assert_frame_equal(
+        reader.to_arrow().to_pandas(), expected.rename(columns={"a": "A"})
+    )
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
@@ -583,8 +464,9 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
                 schema_string=(
                     '{"fields":['
                     '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
+                    '{"metadata":{},"name":"c","nullable":true,"type":"date"},'
                     '{"metadata":{},"name":"b","nullable":true,"type":"string"},'
-                    '{"metadata":{},"name":"c","nullable":true,"type":"date"}'
+                    '{"metadata":{},"name":"d","nullable":true,"type":"integer"}'
                     '],"type":"struct"}'
                 )
             )
@@ -592,14 +474,14 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
                 AddFile(
                     url=str(tmp_path / "pdf1.parquet"),
                     id="pdf1",
-                    partition_values={"c": "2021-01-01"},
+                    partition_values={"c": "2021-01-01", "d": "1"},
                     size=0,
                     stats="",
                 ),
                 AddFile(
                     url=str(tmp_path / "pdf2.parquet"),
                     id="pdf2",
-                    partition_values={"c": "2021-01-02"},
+                    partition_values={"c": "2021-01-02", "d": "2"},
                     size=0,
                     stats="",
                 ),
@@ -620,16 +502,26 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
 
     expected1 = pdf1.copy()
     expected1["c"] = date(2021, 1, 1)
+    expected1["d"] = np.int32(1)
     expected2 = pdf2.copy()
     expected2["c"] = date(2021, 1, 2)
-    expected = pd.concat([expected1, expected2])[["a", "b", "c"]].reset_index(drop=True)
+    expected2["d"] = np.int32(2)
+    expected = pd.concat([expected1, expected2])[["a", "c", "b", "d"]].reset_index(drop=True)
 
     pd.testing.assert_frame_equal(pdf, expected)
-    assert reader.to_arrow().to_pydict() == {
-        "a": [1, 2, 3, 4, 5, 6],
-        "b": [None, None, None, "d", "e", "f"],
-        "c": [date(2021, 1, 1)] * 3 + [date(2021, 1, 2)] * 3,
-    }
+    arrow_table = reader.to_arrow()
+    expected_arrow = expected.copy()
+    expected_arrow["a"] = expected_arrow["a"].astype("int64")
+    expected_arrow["b"] = expected_arrow["b"].where(expected_arrow["b"].notna(), None)
+    pd.testing.assert_frame_equal(arrow_table.to_pandas(), expected_arrow)
+    assert arrow_table.schema == pa.schema(
+        [
+            pa.field("a", pa.int64()),
+            pa.field("c", pa.date32()),
+            pa.field("b", pa.string()),
+            pa.field("d", pa.int32()),
+        ]
+    )
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
@@ -714,6 +606,7 @@ def test_to_pandas_large_table_batch_convert(tmp_path):
     )
     pdf = reader.to_pandas()
     pd.testing.assert_frame_equal(pdf, expected_300k)
+    pd.testing.assert_frame_equal(reader.to_arrow().to_pandas(), expected_300k, check_dtype=False)
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
