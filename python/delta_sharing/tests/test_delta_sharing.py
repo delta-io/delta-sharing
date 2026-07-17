@@ -321,19 +321,24 @@ def test_delta_sharing_table_changes_to_pandas(tmp_path):
         Table(name="table", share="share", schema="schema"),
         RestClientMock(),
     )
-    result = table.changes(
+    changes = table.changes(
         starting_version=1,
         ending_version=2,
         starting_timestamp="2024-01-01T00:00:00Z",
         ending_timestamp="2024-01-02T00:00:00Z",
         use_delta_format=False,
-    ).to_pandas(convert_in_batches=True)
+    )
+    result = changes.to_pandas(convert_in_batches=True)
 
     expected = source.copy()
     expected["_change_type"] = "insert"
     expected["_commit_version"] = 2
     expected["_commit_timestamp"] = 12345
     pd.testing.assert_frame_equal(result, expected)
+    arrow_table = changes.to_arrow()
+    pd.testing.assert_frame_equal(arrow_table.to_pandas(), expected)
+    assert pa.Table.from_batches(list(changes.to_record_batches())).equals(arrow_table)
+    assert changes.to_record_batch_reader().read_all().equals(arrow_table)
     assert captured == {
         "table": Table(name="table", share="share", schema="schema"),
         "cdfOptions": CdfOptions(
@@ -1088,6 +1093,34 @@ def test_load_as_pandas_legacy_and_table_handle_match(
 
     assert legacy_table.equals(table_arrow)
     pd.testing.assert_frame_equal(legacy_table.to_pandas(), legacy_pdf)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_table_changes_arrow_matches_pandas_on_real_table(
+    profile_path: str, profile: DeltaSharingProfile
+):
+    fragments = "share8.default.cdf_table_cdf_enabled"
+    starting_version = 0
+    ending_version = 3
+
+    expected_pdf = load_table_changes_as_pandas(
+        f"{profile_path}#{fragments}",
+        starting_version=starting_version,
+        ending_version=ending_version,
+    )
+    changes = (
+        SharingClient(profile)
+        .table(fragments)
+        .changes(
+            starting_version=starting_version,
+            ending_version=ending_version,
+        )
+    )
+    arrow_table = changes.to_arrow()
+
+    pd.testing.assert_frame_equal(arrow_table.to_pandas(), expected_pdf)
+    assert pa.Table.from_batches(list(changes.to_record_batches())).equals(arrow_table)
+    assert changes.to_record_batch_reader().read_all().equals(arrow_table)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
