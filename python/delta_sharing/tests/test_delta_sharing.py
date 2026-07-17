@@ -1097,40 +1097,6 @@ def test_load_as_pandas_legacy_and_table_handle_match(
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_table_changes_arrow_matches_pandas_on_real_table(
-    profile_path: str, profile: DeltaSharingProfile
-):
-    fragments = "share8.default.cdf_table_cdf_enabled"
-    starting_version = 0
-    ending_version = 3
-
-    expected_pdf = load_table_changes_as_pandas(
-        f"{profile_path}#{fragments}",
-        starting_version=starting_version,
-        ending_version=ending_version,
-    )
-    legacy_arrow = load_table_changes_as_arrow(
-        f"{profile_path}#{fragments}",
-        starting_version=starting_version,
-        ending_version=ending_version,
-    )
-    changes = (
-        SharingClient(profile)
-        .table(fragments)
-        .changes(
-            starting_version=starting_version,
-            ending_version=ending_version,
-        )
-    )
-    arrow_table = changes.to_arrow()
-
-    pd.testing.assert_frame_equal(arrow_table.to_pandas(), expected_pdf)
-    assert legacy_arrow.equals(arrow_table)
-    assert pa.Table.from_batches(list(changes.to_record_batches())).equals(arrow_table)
-    assert changes.to_record_batch_reader().read_all().equals(arrow_table)
-
-
-@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_table_snapshot_to_pandas_on_real_table(profile: DeltaSharingProfile):
     expected = pd.DataFrame(
         {
@@ -1417,6 +1383,7 @@ def test_load_as_pandas_exception_client_delta_kernel_disabled_with_delta_table(
 )
 def test_load_table_changes(
     profile_path: str,
+    profile: DeltaSharingProfile,
     fragments: str,
     starting_version: Optional[int],
     ending_version: Optional[int],
@@ -1434,6 +1401,26 @@ def test_load_table_changes(
             ending_timestamp,
         )
         pd.testing.assert_frame_equal(pdf, expected)
+        arrow_table = load_table_changes_as_arrow(
+            f"{profile_path}#{fragments}",
+            starting_version,
+            ending_version,
+            starting_timestamp,
+            ending_timestamp,
+        )
+        pd.testing.assert_frame_equal(arrow_table.to_pandas(), expected)
+        table_arrow = (
+            SharingClient(profile)
+            .table(fragments)
+            .changes(
+                starting_version=starting_version,
+                ending_version=ending_version,
+                starting_timestamp=starting_timestamp,
+                ending_timestamp=ending_timestamp,
+            )
+            .to_arrow()
+        )
+        assert table_arrow.equals(arrow_table)
     else:
         try:
             load_table_changes_as_pandas(
@@ -1563,6 +1550,15 @@ def test_load_table_changes_kernel(
             ending_timestamp,
             use_delta_format=True,
         )
+        arrow_pdf = load_table_changes_as_arrow(
+            f"{profile_path}#{fragments}",
+            starting_version,
+            ending_version,
+            starting_timestamp,
+            ending_timestamp,
+            use_delta_format=True,
+        ).to_pandas()
+        pd.testing.assert_frame_equal(arrow_pdf, pdf)
         if len(pdf) > 0:
             pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
         pd.testing.assert_frame_equal(pdf, expected)
