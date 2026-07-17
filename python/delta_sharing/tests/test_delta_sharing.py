@@ -17,6 +17,7 @@ from datetime import date, datetime
 from typing import Optional, Sequence
 
 import pandas as pd
+import pyarrow as pa
 import pytest
 
 from delta_sharing.delta_sharing import (
@@ -28,6 +29,7 @@ from delta_sharing.delta_sharing import (
     get_table_metadata,
     get_table_protocol,
     get_table_version,
+    load_as_arrow,
     load_as_pandas,
     load_as_spark,
     load_table_changes_as_spark,
@@ -270,6 +272,49 @@ def test_delta_sharing_table_snapshot_to_pandas(tmp_path):
         "version": 2,
         "timestamp": "2024-01-01T00:00:00Z",
     }
+
+
+def test_delta_sharing_table_snapshot_to_arrow():
+    class RestClientMock:
+        def list_files_in_table(
+            self,
+            table: Table,
+            *,
+            predicateHints: Optional[Sequence[str]] = None,
+            jsonPredicateHints: Optional[str] = None,
+            limitHint: Optional[int] = None,
+            version: Optional[int] = None,
+            timestamp: Optional[str] = None,
+        ) -> ListFilesInTableResponse:
+            assert table == Table(name="table", share="share", schema="schema")
+            return ListFilesInTableResponse(
+                delta_table_version=1,
+                protocol=None,
+                metadata=Metadata(
+                    schema_string=(
+                        '{"fields":['
+                        '{"metadata":{},"name":"value","nullable":true,"type":"long"},'
+                        '{"metadata":{},"name":"label","nullable":true,"type":"string"}'
+                        '],"type":"struct"}'
+                    )
+                ),
+                add_files=[],
+                lines=[],
+            )
+
+    table = DeltaSharingTable(
+        Table(name="table", share="share", schema="schema"),
+        RestClientMock(),
+    )
+    snapshot = table.snapshot(use_delta_format=False)
+    expected = pa.Table.from_arrays(
+        [pa.array([], type=pa.int64()), pa.array([], type=pa.string())],
+        names=["value", "label"],
+    )
+
+    assert snapshot.to_arrow().equals(expected)
+    assert list(snapshot.to_record_batches()) == []
+    assert snapshot.to_record_batch_reader().read_all().equals(expected)
 
 
 def test_delta_sharing_table_changes_to_pandas(tmp_path):
@@ -1072,6 +1117,26 @@ def test_load_as_pandas_legacy_and_table_handle_match(
     )
 
     pd.testing.assert_frame_equal(legacy_pdf, table_pdf)
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize("use_delta_format", [None, True, False])
+def test_load_as_arrow_legacy_and_table_handle_match(
+    profile_path: str, profile: DeltaSharingProfile, use_delta_format: Optional[bool]
+):
+    fragments = "share1.default.table1"
+    limit = 2
+
+    legacy_table = load_as_arrow(
+        f"{profile_path}#{fragments}", limit=limit, use_delta_format=use_delta_format
+    )
+
+    client = SharingClient(profile)
+    table_arrow = (
+        client.table(fragments).snapshot(limit=limit, use_delta_format=use_delta_format).to_arrow()
+    )
+
+    assert legacy_table.equals(table_arrow)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
