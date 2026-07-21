@@ -1050,13 +1050,17 @@ def test_load_snapshot_success_empty_dv_and_cm(
         )
     ],
 )
-def test_load_as_pandas_success_timestampntz(
+def test_load_snapshot_success_timestampntz(
     profile_path: str, fragments: str, expected: pd.DataFrame
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}")
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url)
     expected["time"] = expected["time"].values.astype("datetime64[us]")
     expected["id"] = expected["id"].astype("int32")
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = load_as_arrow(url)
+    assert arrow_table.schema.field("time").type == pa.timestamp("us")
+    _assert_arrow_matches_pandas(pdf, arrow_table)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -1080,16 +1084,20 @@ def test_load_as_pandas_success_timestampntz(
         )
     ],
 )
-def test_load_as_pandas_success_client_delta_kernel_enabled_with_normal_table(
+def test_load_snapshot_success_client_delta_kernel_enabled_with_normal_table(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None, None, True)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, limit, version, use_delta_format=True)
     expected["eventTime"] = expected["eventTime"].astype("datetime64[us, UTC]")
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = load_as_arrow(url, limit, version, use_delta_format=True)
+    assert arrow_table.schema.field("eventTime").type == pa.timestamp("us", tz="UTC")
+    _assert_arrow_matches_pandas(pdf, arrow_table)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
