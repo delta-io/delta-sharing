@@ -63,6 +63,25 @@ class _ListFilesRestClient:
         return self._response
 
 
+def _assert_snapshot_materializers(
+    reader: DeltaSharingReader,
+    expected: pd.DataFrame,
+    *,
+    expected_arrow_pdf: Optional[pd.DataFrame] = None,
+    check_arrow_dtype: bool = True,
+) -> pa.Table:
+    pdf = reader.to_pandas()
+    pd.testing.assert_frame_equal(pdf, expected)
+
+    arrow_table = reader.to_arrow()
+    pd.testing.assert_frame_equal(
+        arrow_table.to_pandas(),
+        pdf if expected_arrow_pdf is None else expected_arrow_pdf,
+        check_dtype=check_arrow_dtype,
+    )
+    return arrow_table
+
+
 @pytest.mark.parametrize("materializer", ["to_pandas", "to_record_batches"])
 def test_delta_format_removes_header_after_failure(materializer):
     class RestClientMock:
@@ -334,10 +353,8 @@ def test_snapshot_non_partitioned(tmp_path):
             return "parquet"
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
-    pdf = reader.to_pandas()
     expected = pd.concat([pdf1, pdf2]).reset_index(drop=True)
-    pd.testing.assert_frame_equal(pdf, expected)
-    pd.testing.assert_frame_equal(reader.to_arrow().to_pandas(), expected)
+    _assert_snapshot_materializers(reader, expected)
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
@@ -350,18 +367,16 @@ def test_snapshot_non_partitioned(tmp_path):
         RestClientMock(),
         jsonPredicateHints="dummy_hints",
     )
-    pdf = reader.to_pandas()
     expected = pd.concat([pdf1]).reset_index(drop=True)
-    pd.testing.assert_frame_equal(pdf, expected)
+    _assert_snapshot_materializers(reader, expected)
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"),
         RestClientMock(),
         predicateHints="dummy_hints",
     )
-    pdf = reader.to_pandas()
     expected = pd.concat([pdf2]).reset_index(drop=True)
-    pd.testing.assert_frame_equal(pdf, expected)
+    _assert_snapshot_materializers(reader, expected)
 
 
 def test_snapshot_partitioned(tmp_path):
@@ -420,7 +435,6 @@ def test_snapshot_partitioned(tmp_path):
             return "parquet"
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
-    pdf = reader.to_pandas()
 
     expected1 = pdf1.copy()
     expected1["B"] = "x"
@@ -428,9 +442,10 @@ def test_snapshot_partitioned(tmp_path):
     expected2["B"] = "y"
     expected = pd.concat([expected1, expected2]).reset_index(drop=True)
 
-    pd.testing.assert_frame_equal(pdf, expected)
-    pd.testing.assert_frame_equal(
-        reader.to_arrow().to_pandas(), expected.rename(columns={"a": "A"})
+    _assert_snapshot_materializers(
+        reader,
+        expected,
+        expected_arrow_pdf=expected.rename(columns={"a": "A"}),
     )
 
     reader = DeltaSharingReader(
@@ -498,7 +513,6 @@ def test_snapshot_partitioned_different_schemas(tmp_path):
             return "parquet"
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
-    pdf = reader.to_pandas()
 
     expected1 = pdf1.copy()
     expected1["c"] = date(2021, 1, 1)
@@ -507,13 +521,15 @@ def test_snapshot_partitioned_different_schemas(tmp_path):
     expected2["c"] = date(2021, 1, 2)
     expected2["d"] = np.int32(2)
     expected = pd.concat([expected1, expected2])[["a", "c", "b", "d"]].reset_index(drop=True)
+    expected["b"] = expected["b"].astype(object).where(expected["b"].notna(), None)
 
-    pd.testing.assert_frame_equal(pdf, expected)
-    arrow_table = reader.to_arrow()
-    expected_arrow = expected.copy()
-    expected_arrow["a"] = expected_arrow["a"].astype("int64")
-    expected_arrow["b"] = expected_arrow["b"].where(expected_arrow["b"].notna(), None)
-    pd.testing.assert_frame_equal(arrow_table.to_pandas(), expected_arrow)
+    expected_arrow_pdf = expected.copy()
+    expected_arrow_pdf["a"] = expected_arrow_pdf["a"].astype("int64")
+    arrow_table = _assert_snapshot_materializers(
+        reader,
+        expected,
+        expected_arrow_pdf=expected_arrow_pdf,
+    )
     assert arrow_table.schema == pa.schema(
         [
             pa.field("a", pa.int64()),
@@ -531,8 +547,12 @@ def test_snapshot_partitioned_different_schemas(tmp_path):
 
 
 def test_snapshot_large_table(tmp_path):
-    pdf1 = pd.DataFrame(np.random.randint(0, 100, size=(200000, 4)), columns=list("abcd"))
-    pdf2 = pd.DataFrame(np.random.randint(0, 100, size=(200000, 4)), columns=list("abcd"))
+    pdf1 = pd.DataFrame(
+        np.random.randint(0, 100, size=(200000, 4), dtype=np.int32), columns=list("abcd")
+    )
+    pdf2 = pd.DataFrame(
+        np.random.randint(0, 100, size=(200000, 4), dtype=np.int32), columns=list("abcd")
+    )
 
     pdf1.to_parquet(tmp_path / "pdf1.parquet")
     pdf2.to_parquet(tmp_path / "pdf2.parquet")
@@ -592,21 +612,17 @@ def test_snapshot_large_table(tmp_path):
     expected_300k = pd.concat([pdf1, pdf2.head(100000)]).reset_index(drop=True)
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
-    pdf = reader.to_pandas()
-    pd.testing.assert_frame_equal(pdf, expected)
+    _assert_snapshot_materializers(reader, expected)
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), limit=100000
     )
-    pdf = reader.to_pandas()
-    pd.testing.assert_frame_equal(pdf, expected_100k)
+    _assert_snapshot_materializers(reader, expected_100k)
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), limit=300000
     )
-    pdf = reader.to_pandas()
-    pd.testing.assert_frame_equal(pdf, expected_300k)
-    pd.testing.assert_frame_equal(reader.to_arrow().to_pandas(), expected_300k, check_dtype=False)
+    _assert_snapshot_materializers(reader, expected_300k)
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
@@ -685,22 +701,19 @@ def test_snapshot_empty(rest_client: DataSharingRestClient):
         def autoresolve_query_format(self, table: Table):
             return "parquet"
 
-    reader = DeltaSharingReader(
-        Table("table_name", "share_name", "schema_name"), RestClientMock()  # type: ignore
-    )
-    pdf = reader.to_pandas()
-
     reader = DeltaSharingReader(Table(name="table7", share="share1", schema="default"), rest_client)
     expected = reader.to_pandas().iloc[0:0]
 
-    pd.testing.assert_frame_equal(pdf, expected)
-
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock()  # type: ignore
     )
-    arrow_table = reader.to_arrow()
+    arrow_table = _assert_snapshot_materializers(
+        reader,
+        expected,
+        check_arrow_dtype=False,
+    )
     assert arrow_table.num_rows == 0
-    assert arrow_table.schema.names == list(pdf.columns)
+    assert arrow_table.schema.names == list(expected.columns)
 
 
 def test_table_changes_to_pandas_non_partitioned(tmp_path):
