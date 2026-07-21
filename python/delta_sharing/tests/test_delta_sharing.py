@@ -1298,19 +1298,23 @@ def test_load_snapshot_with_json_predicates(
         ),
     ],
 )
-def test_load_as_pandas_exception(
+@pytest.mark.parametrize(
+    "load_snapshot",
+    [
+        pytest.param(load_as_pandas, id="pandas"),
+        pytest.param(load_as_arrow, id="arrow"),
+    ],
+)
+def test_load_snapshot_exception(
     profile_path: str,
     fragments: str,
     version: Optional[int],
     timestamp: Optional[str],
     error: Optional[str],
+    load_snapshot,
 ):
-    try:
-        load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp)
-        assert False
-    except Exception as e:
-        assert isinstance(e, HTTPError)
-        assert error in str(e)
+    with pytest.raises(HTTPError, match=error):
+        load_snapshot(f"{profile_path}#{fragments}", version=version, timestamp=timestamp)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -1326,18 +1330,28 @@ def test_load_as_pandas_exception(
         ),
     ],
 )
-def test_load_as_pandas_exception_client_delta_kernel_disabled_with_delta_table(
+@pytest.mark.parametrize(
+    "load_snapshot",
+    [
+        pytest.param(load_as_pandas, id="pandas"),
+        pytest.param(load_as_arrow, id="arrow"),
+    ],
+)
+def test_load_snapshot_exception_client_delta_kernel_disabled_with_delta_table(
     profile_path: str,
     fragments: str,
     version: Optional[int],
     timestamp: Optional[str],
     error: Optional[str],
+    load_snapshot,
 ):
-    try:
-        load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp, None, False)
-        assert False
-    except Exception as e:
-        assert error in str(e)
+    with pytest.raises(Exception, match=error):
+        load_snapshot(
+            f"{profile_path}#{fragments}",
+            version=version,
+            timestamp=timestamp,
+            use_delta_format=False,
+        )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
