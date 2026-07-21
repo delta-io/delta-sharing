@@ -871,16 +871,18 @@ def test_load_snapshot_success(
         ),
     ],
 )
-def test_load_as_pandas_success_dv(
+def test_load_snapshot_success_dv(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, limit, version, None)
     expected["timestamp"] = expected["timestamp"].astype("datetime64[us, UTC]")
     pd.testing.assert_frame_equal(pdf, expected)
+    _assert_arrow_matches_pandas(pdf, load_as_arrow(url, limit, version, None))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -948,16 +950,18 @@ def test_load_as_pandas_success_dv(
         ),
     ],
 )
-def test_load_as_pandas_success_cm(
+def test_load_snapshot_success_cm(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, limit, version, None)
     expected["eventTime"] = expected["eventTime"].astype("datetime64[us, UTC]")
     pd.testing.assert_frame_equal(pdf, expected)
+    _assert_arrow_matches_pandas(pdf, load_as_arrow(url, limit, version, None))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -979,21 +983,26 @@ def test_load_as_pandas_success_cm(
         )
     ],
 )
-def test_load_as_pandas_success_dv_and_cm(
+def test_load_snapshot_success_dv_and_cm(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, limit, version, None)
     expected["rand"] = expected["rand"].astype("int32")
     expected["partition_col"] = expected["partition_col"].astype("int32")
     pd.testing.assert_frame_equal(pdf, expected)
+    _assert_arrow_matches_pandas(pdf, load_as_arrow(url, limit, version, None))
 
     # Test client specifying explicit delta format
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None, None, True)
-    pd.testing.assert_frame_equal(pdf, expected)
+    pdf_delta = load_as_pandas(url, limit, version, use_delta_format=True)
+    pd.testing.assert_frame_equal(pdf_delta, expected)
+    _assert_arrow_matches_pandas(
+        pdf_delta, load_as_arrow(url, limit, version, use_delta_format=True)
+    )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -1009,15 +1018,17 @@ def test_load_as_pandas_success_dv_and_cm(
         )
     ],
 )
-def test_load_as_pandas_success_empty_dv_and_cm(
+def test_load_snapshot_success_empty_dv_and_cm(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, limit, version, None)
     pd.testing.assert_frame_equal(pdf, expected)
+    _assert_arrow_matches_pandas(pdf, load_as_arrow(url, limit, version, None))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
