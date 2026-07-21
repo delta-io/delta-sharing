@@ -61,6 +61,24 @@ from requests.models import Response
 from requests.exceptions import HTTPError
 
 
+def _normalize_snapshot_pdf_for_comparison(pdf: pd.DataFrame) -> pd.DataFrame:
+    normalized = pdf.copy()
+    for column in normalized.columns:
+        if isinstance(normalized[column].dtype, pd.DatetimeTZDtype):
+            normalized[column] = normalized[column].dt.tz_convert("UTC").dt.tz_localize(None)
+    return normalized
+
+
+def _assert_arrow_matches_pandas(pdf: pd.DataFrame, arrow_table: pa.Table) -> None:
+    # Arrow follows logical Delta dtypes and uses UTC-aware Delta timestamps, while
+    # the legacy pandas path may preserve parquet dtypes and naive UTC timestamps.
+    pd.testing.assert_frame_equal(
+        _normalize_snapshot_pdf_for_comparison(arrow_table.to_pandas()),
+        _normalize_snapshot_pdf_for_comparison(pdf),
+        check_dtype=False,
+    )
+
+
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_shares(sharing_client: SharingClient):
     shares = sharing_client.list_shares()
@@ -741,15 +759,17 @@ def test_get_table_protocol(profile_path: str):
         ),
     ],
 )
-def test_load_as_pandas_success(
+def test_load_snapshot_success(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, limit, version, None)
     pd.testing.assert_frame_equal(pdf, expected)
+    _assert_arrow_matches_pandas(pdf, load_as_arrow(url, limit, version, None))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -1087,11 +1107,11 @@ def test_snapshot_legacy_and_table_handle_materializers_match(
     )
 
     assert legacy_table.equals(table_arrow)
-    pd.testing.assert_frame_equal(legacy_table.to_pandas(), legacy_pdf)
+    _assert_arrow_matches_pandas(legacy_pdf, legacy_table)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_table_snapshot_to_pandas_on_real_table(profile: DeltaSharingProfile):
+def test_table_snapshot_materializers_on_real_table(profile: DeltaSharingProfile):
     expected = pd.DataFrame(
         {
             "eventTime": [
@@ -1102,8 +1122,13 @@ def test_table_snapshot_to_pandas_on_real_table(profile: DeltaSharingProfile):
         }
     )
 
-    pdf = SharingClient(profile).table("share1.default.table1").snapshot(limit=2).to_pandas()
+    snapshot = SharingClient(profile).table("share1.default.table1").snapshot(limit=2)
+    pdf = snapshot.to_pandas()
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = snapshot.to_arrow()
+    _assert_arrow_matches_pandas(pdf, arrow_table)
+    assert pa.Table.from_batches(list(snapshot.to_record_batches())).equals(arrow_table)
+    assert snapshot.to_record_batch_reader().read_all().equals(arrow_table)
 
 
 # We will test predicates with the table share8.default.cdf_table_with_partition
