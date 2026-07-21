@@ -2093,10 +2093,11 @@ def test_load_table_changes_as_spark(
     "fragments",
     [pytest.param("share8.default.12k_rows")],
 )
-def test_load_as_pandas_delta_batch_convert(
+def test_load_snapshot_delta_batch_convert(
     profile_path: str,
     fragments: str,
 ):
+    url = f"{profile_path}#{fragments}"
     ids = list(range(12000))
     expected = pd.DataFrame(
         {
@@ -2109,21 +2110,19 @@ def test_load_as_pandas_delta_batch_convert(
     expected["time"] = expected["time"].astype("datetime64[us, UTC]")
 
     pdf = (
-        load_as_pandas(
-            f"{profile_path}#{fragments}", use_delta_format=True, convert_in_batches=True
-        )
+        load_as_pandas(url, use_delta_format=True, convert_in_batches=True)
         .sort_values(by="id")
         .reset_index(drop=True)
     )
     pd.testing.assert_frame_equal(pdf, expected)
-    pdf = load_as_pandas(
-        f"{profile_path}#{fragments}", use_delta_format=True, convert_in_batches=True, limit=500
-    )
-    assert len(pdf) == 500
-    pdf = load_as_pandas(
-        f"{profile_path}#{fragments}", use_delta_format=True, convert_in_batches=True, limit=3000
-    )
-    assert len(pdf) == 3000
+    arrow_table = load_as_arrow(url, use_delta_format=True).sort_by([("id", "ascending")])
+    _assert_arrow_matches_pandas(pdf, arrow_table)
+
+    for limit in (500, 3000):
+        pdf = load_as_pandas(url, use_delta_format=True, convert_in_batches=True, limit=limit)
+        assert len(pdf) == limit
+        arrow_table = load_as_arrow(url, use_delta_format=True, limit=limit)
+        assert arrow_table.num_rows == limit
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
