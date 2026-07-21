@@ -66,14 +66,28 @@ def _normalize_snapshot_pdf_for_comparison(pdf: pd.DataFrame) -> pd.DataFrame:
     for column in normalized.columns:
         if isinstance(normalized[column].dtype, pd.DatetimeTZDtype):
             normalized[column] = normalized[column].dt.tz_convert("UTC").dt.tz_localize(None)
+        if normalized[column].isna().any():
+            # Treat pandas None and Arrow-derived NaN as the same Delta null.
+            normalized[column] = (
+                normalized[column].astype(object).where(normalized[column].notna(), None)
+            )
     return normalized
 
 
-def _assert_arrow_matches_pandas(pdf: pd.DataFrame, arrow_table: pa.Table) -> None:
+def _assert_arrow_matches_pandas(
+    pdf: pd.DataFrame,
+    arrow_table: pa.Table,
+    *,
+    sort_by: Optional[Sequence[str]] = None,
+) -> None:
     # Arrow follows logical Delta dtypes and uses UTC-aware Delta timestamps, while
     # the legacy pandas path may preserve parquet dtypes and naive UTC timestamps.
+    arrow_pdf = arrow_table.to_pandas()
+    if sort_by is not None:
+        pdf = pdf.sort_values(by=sort_by).reset_index(drop=True)
+        arrow_pdf = arrow_pdf.sort_values(by=sort_by).reset_index(drop=True)
     pd.testing.assert_frame_equal(
-        _normalize_snapshot_pdf_for_comparison(arrow_table.to_pandas()),
+        _normalize_snapshot_pdf_for_comparison(arrow_pdf),
         _normalize_snapshot_pdf_for_comparison(pdf),
         check_dtype=False,
     )
@@ -2305,17 +2319,27 @@ def test_add_column_non_partitioned(
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", version=version, use_delta_format=False)
+    url = f"{profile_path}#{fragments}"
+    sort_by = ["c1"]
+    pdf = load_as_pandas(url, version=version, use_delta_format=False)
     # sort to eliminate row order inconsistencies
-    pdf = pdf.sort_values(by="c1").reset_index(drop=True)
+    pdf = pdf.sort_values(by=sort_by).reset_index(drop=True)
     # check_dtype=False to deal with minor type discrepancies like float32 vs float64
     pd.testing.assert_frame_equal(pdf, expected, check_dtype=False)
-
-    pdf_delta = load_as_pandas(
-        f"{profile_path}#{fragments}", version=version, use_delta_format=True
+    _assert_arrow_matches_pandas(
+        pdf,
+        load_as_arrow(url, version=version, use_delta_format=False),
+        sort_by=sort_by,
     )
-    pdf_delta = pdf_delta.sort_values(by="c1").reset_index(drop=True)
+
+    pdf_delta = load_as_pandas(url, version=version, use_delta_format=True)
+    pdf_delta = pdf_delta.sort_values(by=sort_by).reset_index(drop=True)
     pd.testing.assert_frame_equal(pdf_delta, expected, check_dtype=False)
+    _assert_arrow_matches_pandas(
+        pdf_delta,
+        load_as_arrow(url, version=version, use_delta_format=True),
+        sort_by=sort_by,
+    )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -2449,17 +2473,27 @@ def test_add_column_partitioned(
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", version=version, use_delta_format=False)
+    url = f"{profile_path}#{fragments}"
+    sort_by = ["p1", "p2", "c1"]
+    pdf = load_as_pandas(url, version=version, use_delta_format=False)
     # sort to eliminate row order inconsistencies
-    pdf = pdf.sort_values(by=["p1", "p2", "c1"]).reset_index(drop=True)
+    pdf = pdf.sort_values(by=sort_by).reset_index(drop=True)
     # check_dtype=False to deal with minor type discrepancies like float32 vs float64
     pd.testing.assert_frame_equal(pdf, expected, check_dtype=False)
-
-    pdf_delta = load_as_pandas(
-        f"{profile_path}#{fragments}", version=version, use_delta_format=True
+    _assert_arrow_matches_pandas(
+        pdf,
+        load_as_arrow(url, version=version, use_delta_format=False),
+        sort_by=sort_by,
     )
-    pdf_delta = pdf_delta.sort_values(by=["p1", "p2", "c1"]).reset_index(drop=True)
+
+    pdf_delta = load_as_pandas(url, version=version, use_delta_format=True)
+    pdf_delta = pdf_delta.sort_values(by=sort_by).reset_index(drop=True)
     pd.testing.assert_frame_equal(pdf_delta, expected, check_dtype=False)
+    _assert_arrow_matches_pandas(
+        pdf_delta,
+        load_as_arrow(url, version=version, use_delta_format=True),
+        sort_by=sort_by,
+    )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
