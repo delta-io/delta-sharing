@@ -203,7 +203,7 @@ def test_sharing_client_table(profile: DeltaSharingProfile):
     assert isinstance(table_from_string.changes(starting_version=0), TableChanges)
 
 
-def test_delta_sharing_table_snapshot_to_pandas(tmp_path):
+def test_delta_sharing_table_snapshot_materializers(tmp_path):
     expected = pd.DataFrame({"value": [1, 2], "label": ["a", "b"]})
     parquet_path = tmp_path / "snapshot.parquet"
     expected.to_parquet(parquet_path)
@@ -1063,7 +1063,7 @@ def test_load_as_pandas_success_client_delta_kernel_enabled_with_normal_table(
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize("use_delta_format", [None, True, False])
-def test_load_as_pandas_legacy_and_table_handle_match(
+def test_snapshot_legacy_and_table_handle_materializers_match(
     profile_path: str, profile: DeltaSharingProfile, use_delta_format: Optional[bool]
 ):
     fragments = "share1.default.table1"

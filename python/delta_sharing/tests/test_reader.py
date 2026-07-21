@@ -272,7 +272,7 @@ def test_to_arrow_naive_timestamps_normalized_to_utc(tmp_path):
     ] * len(pdf2)
 
 
-def test_to_pandas_non_partitioned(tmp_path):
+def test_snapshot_non_partitioned(tmp_path):
     pdf1 = pd.DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
     pdf2 = pd.DataFrame({"a": [4, 5, 6], "b": ["d", "e", "f"]})
 
@@ -364,7 +364,7 @@ def test_to_pandas_non_partitioned(tmp_path):
     pd.testing.assert_frame_equal(pdf, expected)
 
 
-def test_to_pandas_partitioned(tmp_path):
+def test_snapshot_partitioned(tmp_path):
     pdf1 = pd.DataFrame({"a": [1, 2, 3]})
     pdf2 = pd.DataFrame({"a": [4, 5, 6]})
 
@@ -440,7 +440,7 @@ def test_to_pandas_partitioned(tmp_path):
     pd.testing.assert_frame_equal(pdf, expected)
 
 
-def test_to_pandas_partitioned_different_schemas(tmp_path):
+def test_snapshot_partitioned_different_schemas(tmp_path):
     pdf1 = pd.DataFrame({"a": [1, 2, 3]})
     pdf2 = pd.DataFrame({"a": [4.0, 5.0, 6.0], "b": ["d", "e", "f"]})
 
@@ -530,7 +530,7 @@ def test_to_pandas_partitioned_different_schemas(tmp_path):
     pd.testing.assert_frame_equal(pdf, expected)
 
 
-def test_to_pandas_large_table_batch_convert(tmp_path):
+def test_snapshot_large_table(tmp_path):
     pdf1 = pd.DataFrame(np.random.randint(0, 100, size=(200000, 4)), columns=list("abcd"))
     pdf2 = pd.DataFrame(np.random.randint(0, 100, size=(200000, 4)), columns=list("abcd"))
 
@@ -634,7 +634,7 @@ def test_to_pandas_large_table_batch_convert(tmp_path):
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_to_pandas_empty(rest_client: DataSharingRestClient):
+def test_snapshot_empty(rest_client: DataSharingRestClient):
     class RestClientMock:
         def list_files_in_table(
             self,
