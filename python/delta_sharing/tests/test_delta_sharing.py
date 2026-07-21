@@ -1241,11 +1241,13 @@ def test_table_snapshot_materializers_on_real_table(profile: DeltaSharingProfile
         ),
     ],
 )
-def test_load_as_pandas_with_json_predicates(
+def test_load_snapshot_with_json_predicates(
     profile_path: str, fragments: str, jsonPredicateHints: Optional[str], expected: pd.DataFrame
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", None, None, None, jsonPredicateHints)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, jsonPredicateHints=jsonPredicateHints)
     pd.testing.assert_frame_equal(pdf, expected)
+    _assert_arrow_matches_pandas(pdf, load_as_arrow(url, jsonPredicateHints=jsonPredicateHints))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
