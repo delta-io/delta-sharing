@@ -25,6 +25,7 @@ import org.apache.spark.sql.catalyst.expressions.{
   EqualNullSafe => SqlEqualNullSafe,
   EqualTo => SqlEqualTo,
   Expression => SqlExpression,
+  GetStructField,
   GreaterThan => SqlGreaterThan,
   GreaterThanOrEqual => SqlGreaterThanOrEqual,
   In => SqlIn,
@@ -45,6 +46,8 @@ import org.apache.spark.sql.types.{
   IntegerType => SqlIntegerType,
   LongType => SqlLongType,
   StringType => SqlStringType,
+  StructField,
+  StructType,
   TimestampType => SqlTimestampType
 }
 
@@ -345,6 +348,7 @@ class OpConverterSuite extends SparkFunSuite {
       // Make sure we stay within bounds for out of bound checks.
       tooManyVals = tooManyVals :+ (i + 5)
     }
+    // With partialFilterEnabled=false (default), these throw.
     assert(intercept[IllegalArgumentException] {
       convert(tooManyVals)
     }.getMessage.contains("The In predicate exceeds max limit"))
@@ -352,5 +356,158 @@ class OpConverterSuite extends SparkFunSuite {
     assert(intercept[IllegalArgumentException] {
       convert(Seq.empty)
     }.getMessage.contains("The In predicate must have at least one entry"))
+
+    // With partialFilterEnabled=true, they produce UnsupportedOp instead.
+    assert(OpConverter.convert(
+      Seq(SqlIn(SqlAttributeReference("x", SqlIntegerType)(),
+        tooManyVals.map(v => SqlLiteral(v, SqlIntegerType)))),
+      partialFilterEnabled = true).get.isInstanceOf[UnsupportedOp])
+
+    assert(OpConverter.convert(
+      Seq(SqlIn(SqlAttributeReference("x", SqlIntegerType)(), Seq.empty)),
+      partialFilterEnabled = true).get.isInstanceOf[UnsupportedOp])
+  }
+
+  test("unsupported leaf in comparison produces UnsupportedOp when partialFilterEnabled") {
+    // convertAsLeaf throws; convertOneOrUnsupported catches and returns UnsupportedOp.
+    val c2Type = StructType(Seq(StructField("f1", SqlIntegerType)))
+    val sqlF1 = GetStructField(SqlAttributeReference("c2", c2Type)(), 0, Some("f1"))
+    val sqlEq = SqlEqualTo(sqlF1, SqlLiteral(5, SqlIntegerType))
+
+    val op = OpConverter.convert(Seq(sqlEq), partialFilterEnabled = true).get
+    assert(op.isInstanceOf[UnsupportedOp])
+  }
+
+  test("unsupported expression throws when partialFilterEnabled is false") {
+    val c2Type = StructType(Seq(StructField("f1", SqlIntegerType)))
+    val sqlC2 = SqlAttributeReference("c2", c2Type)()
+    val sqlF1 = GetStructField(sqlC2, 0, Some("f1"))
+    val sqlEq = SqlEqualTo(sqlF1, SqlLiteral(5, SqlIntegerType))
+
+    intercept[IllegalArgumentException] {
+      OpConverter.convert(Seq(sqlEq), partialFilterEnabled = false)
+    }
+  }
+
+  test("AND with unsupported child prunes based on supported child when partialFilterEnabled") {
+    val sqlC1 = SqlAttributeReference("c1", SqlIntegerType)()
+    val supportedEq = SqlEqualTo(sqlC1, SqlLiteral(1, SqlIntegerType))
+
+    val c2Type = StructType(Seq(StructField("f1", SqlIntegerType)))
+    val sqlC2 = SqlAttributeReference("c2", c2Type)()
+    val sqlF1 = GetStructField(sqlC2, 0, Some("f1"))
+    val unsupportedEq = SqlEqualTo(sqlF1, SqlLiteral(5, SqlIntegerType))
+
+    val sqlAnd = SqlAnd(supportedEq, unsupportedEq)
+    val op = OpConverter.convert(Seq(sqlAnd), partialFilterEnabled = true).get.asInstanceOf[AndOp]
+
+    // AND tree is preserved: one EqualOp child and one UnsupportedOp child.
+    assert(op.children(0).isInstanceOf[EqualOp])
+    assert(op.children(1).isInstanceOf[UnsupportedOp])
+
+    // AND prunes when the supported predicate is false (c1 != 1).
+    assert(op.evalExpectBoolean(EvalContext(Map("c1" -> "2"))) == false)
+    // AND is conservative when the supported predicate is true (c1 == 1).
+    assert(op.evalExpectBoolean(EvalContext(Map("c1" -> "1"))) == true)
+  }
+
+  test("OR with unsupported child produces OrOp(EqualOp, UnsupportedOp) when partialFilter") {
+    val sqlC1 = SqlAttributeReference("c1", SqlIntegerType)()
+    val supportedEq = SqlEqualTo(sqlC1, SqlLiteral(1, SqlIntegerType))
+
+    val c2Type = StructType(Seq(StructField("f1", SqlIntegerType)))
+    val sqlF1 = GetStructField(SqlAttributeReference("c2", c2Type)(), 0, Some("f1"))
+    val unsupportedEq = SqlEqualTo(sqlF1, SqlLiteral(5, SqlIntegerType))
+
+    val op = OpConverter.convert(
+      Seq(SqlOr(supportedEq, unsupportedEq)), partialFilterEnabled = true).get.asInstanceOf[OrOp]
+    assert(op.children(0).isInstanceOf[EqualOp])
+    assert(op.children(1).isInstanceOf[UnsupportedOp])
+  }
+
+  test("NOT with unsupported child produces NotOp(UnsupportedOp) when partialFilterEnabled") {
+    val c2Type = StructType(Seq(StructField("f1", SqlIntegerType)))
+    val sqlF1 = GetStructField(SqlAttributeReference("c2", c2Type)(), 0, Some("f1"))
+    val unsupportedEq = SqlEqualTo(sqlF1, SqlLiteral(5, SqlIntegerType))
+
+    val op = OpConverter.convert(
+      Seq(SqlNot(unsupportedEq)), partialFilterEnabled = true).get.asInstanceOf[NotOp]
+    assert(op.children(0).isInstanceOf[UnsupportedOp])
+  }
+
+  test("IsNull with unsupported leaf produces UnsupportedOp when partialFilterEnabled") {
+    val c2Type = StructType(Seq(StructField("f1", SqlIntegerType)))
+    val sqlF1 = GetStructField(SqlAttributeReference("c2", c2Type)(), 0, Some("f1"))
+
+    val op = OpConverter.convert(Seq(SqlIsNull(sqlF1)), partialFilterEnabled = true).get
+    assert(op.isInstanceOf[UnsupportedOp])
+  }
+
+  test("IsNotNull with unsupported leaf produces UnsupportedOp when partialFilterEnabled") {
+    val c2Type = StructType(Seq(StructField("f1", SqlIntegerType)))
+    val sqlF1 = GetStructField(SqlAttributeReference("c2", c2Type)(), 0, Some("f1"))
+
+    val op = OpConverter.convert(Seq(SqlIsNotNull(sqlF1)), partialFilterEnabled = true).get
+    assert(op.isInstanceOf[UnsupportedOp])
+  }
+
+  test("EqualNullSafe with unsupported leaf produces UnsupportedOp when partialFilterEnabled") {
+    val c2Type = StructType(Seq(StructField("f1", SqlIntegerType)))
+    val sqlF1 = GetStructField(SqlAttributeReference("c2", c2Type)(), 0, Some("f1"))
+
+    val op = OpConverter.convert(
+      Seq(SqlEqualNullSafe(sqlF1, SqlLiteral(5, SqlIntegerType))),
+      partialFilterEnabled = true).get
+    assert(op.isInstanceOf[UnsupportedOp])
+  }
+
+  test("convert then prune end-to-end: AND(supported, unsupported) -> supported only") {
+    // Simulates the full client-side flow: convert with partialFilterEnabled, then prune.
+    val sqlC1 = SqlAttributeReference("c1", SqlIntegerType)()
+    val supportedEq = SqlEqualTo(sqlC1, SqlLiteral(1, SqlIntegerType))
+
+    val c2Type = StructType(Seq(StructField("f1", SqlIntegerType)))
+    val sqlF1 = GetStructField(SqlAttributeReference("c2", c2Type)(), 0, Some("f1"))
+    val unsupportedEq = SqlEqualTo(sqlF1, SqlLiteral(5, SqlIntegerType))
+
+    val converted = OpConverter.convert(
+      Seq(SqlAnd(supportedEq, unsupportedEq)), partialFilterEnabled = true).get
+    val (pruned, hadUnsupported) = UnsupportedOpPruner.prune(converted)
+
+    assert(hadUnsupported == true)
+    // After pruning, only the supported EqualOp remains -- safe to send to server.
+    assert(pruned.get.isInstanceOf[EqualOp])
+  }
+
+  test("convert then prune end-to-end: OR(supported, unsupported) -> None") {
+    val sqlC1 = SqlAttributeReference("c1", SqlIntegerType)()
+    val supportedEq = SqlEqualTo(sqlC1, SqlLiteral(1, SqlIntegerType))
+
+    val c2Type = StructType(Seq(StructField("f1", SqlIntegerType)))
+    val sqlF1 = GetStructField(SqlAttributeReference("c2", c2Type)(), 0, Some("f1"))
+    val unsupportedEq = SqlEqualTo(sqlF1, SqlLiteral(5, SqlIntegerType))
+
+    val converted = OpConverter.convert(
+      Seq(SqlOr(supportedEq, unsupportedEq)), partialFilterEnabled = true).get
+    val (pruned, hadUnsupported) = UnsupportedOpPruner.prune(converted)
+
+    assert(hadUnsupported == true)
+    // OR with unsupported child must be dropped entirely -- cannot safely prune.
+    assert(pruned.isEmpty)
+  }
+
+  test("convertOneOrUnsupported catch path: unsupported expr nested in AND via exception") {
+    // An expression that is not a known leaf and not a known compound op hits the wildcard
+    // case _ => unsupportedOrThrow. With partialFilterEnabled=true this goes through
+    // convertOneOrUnsupported's try/catch path when called from boolean operators.
+    val c2Type = StructType(Seq(StructField("f1", SqlIntegerType)))
+    val sqlF1 = GetStructField(SqlAttributeReference("c2", c2Type)(), 0, Some("f1"))
+    // Wrap in AND so convertOneOrUnsupported is called on the unsupported child.
+    val sqlC1 = SqlAttributeReference("c1", SqlIntegerType)()
+    val supportedEq = SqlEqualTo(sqlC1, SqlLiteral(1, SqlIntegerType))
+    val sqlAnd = SqlAnd(supportedEq, sqlF1)  // sqlF1 alone is not a known compound op
+
+    val op = OpConverter.convert(Seq(sqlAnd), partialFilterEnabled = true).get.asInstanceOf[AndOp]
+    assert(op.children(1).isInstanceOf[UnsupportedOp])
   }
 }

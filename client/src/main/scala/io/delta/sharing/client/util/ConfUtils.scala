@@ -70,6 +70,10 @@ object ConfUtils {
   val JSON_PREDICATE_V2_CONF = "spark.delta.sharing.jsonPredicateV2Hints.enabled"
   val JSON_PREDICATE_V2_DEFAULT = "true"
 
+  val JSON_PREDICATE_PARTIAL_FILTER_CONF =
+    "spark.delta.sharing.jsonPredicateHints.partialFilter.enabled"
+  val JSON_PREDICATE_PARTIAL_FILTER_DEFAULT = "false"
+
   val QUERY_PAGINATION_ENABLED_CONF = "spark.delta.sharing.queryPagination.enabled"
   val QUERY_PAGINATION_ENABLED_DEFAULT = "false"
 
@@ -265,6 +269,11 @@ object ConfUtils {
 
   def jsonPredicatesV2Enabled(conf: SQLConf): Boolean = {
     conf.getConfString(JSON_PREDICATE_V2_CONF, JSON_PREDICATE_V2_DEFAULT).toBoolean
+  }
+
+  def jsonPredicatePartialFilterEnabled(conf: SQLConf): Boolean = {
+    conf.getConfString(
+      JSON_PREDICATE_PARTIAL_FILTER_CONF, JSON_PREDICATE_PARTIAL_FILTER_DEFAULT).toBoolean
   }
 
   def queryTablePaginationEnabled(conf: SQLConf): Boolean = {

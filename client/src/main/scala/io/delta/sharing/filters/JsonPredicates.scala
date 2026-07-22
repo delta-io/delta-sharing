@@ -303,6 +303,20 @@ case class NotOp(val children: Seq[BaseOp]) extends NonLeafOp with UnaryOp {
   override def eval(ctx: EvalContext): Any = !children(0).evalExpectBoolean(ctx)
 }
 
+/**
+ * Represents an unsupported operation that cannot be evaluated.
+ *
+ * Emitted by OpConverter when a sub-expression cannot be converted
+ * (e.g. nested struct field access). Evaluates conservatively to true so that
+ * compound predicates containing it can still prune based on their other children.
+ */
+case class UnsupportedOp() extends BaseOp {
+  override def validate(forV2: Boolean = false): Unit = {}
+
+  override def eval(ctx: EvalContext): Any = true
+}
+
+
 // A helper for evaluating opertions.
 object EvalHelper {
 
