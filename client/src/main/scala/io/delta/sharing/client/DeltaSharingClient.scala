@@ -43,7 +43,7 @@ import org.apache.spark.sql.SparkSession
 
 import io.delta.sharing.client.model._
 import io.delta.sharing.client.util.{ConfUtils, JsonUtils, RetryUtils, UnexpectedHttpStatus}
-import io.delta.sharing.spark.{DeltaSharingServerException, MissingEndStreamActionException}
+import io.delta.sharing.spark.{DeltaSharingConnectionException, DeltaSharingServerException, MissingEndStreamActionException}
 
 /** An interface to fetch Delta metadata from remote server. */
 trait DeltaSharingClient {
@@ -1263,19 +1263,23 @@ class DeltaSharingRestClient(
             }
           } catch {
             case e: org.apache.http.ConnectionClosedException =>
-              logError(s"Request to delta sharing server failed$getDsQueryIdForLogging " +
-                s"due to ${e}.")
+              // The response body was truncated: the server closed the connection before the full
+              // response body was delivered. Log the tail we received for debugging.
               // takeRight(3) is safe even if the lineBuffer is empty or has fewer than 3 lines.
               val linesToLog = lineBuffer.takeRight(3).mkString("\n")
-              logError("Last 3 lines:" + linesToLog)
+              logError("Connection closed before the full response body was delivered. " +
+                "Last 3 lines:" + linesToLog)
 
-              val error = s"Request to delta sharing server failed$getDsQueryIdForLogging " +
-                s"due to ${e.getMessage}."
-              if (lineBuffer.nonEmpty) {
-                val lastIndex = lineBuffer.length - 1
-                lineBuffer(lastIndex) = (error + lineBuffer(lastIndex)).replace(' ', '_')
-              } else {
-                lineBuffer += error.replace(' ', '_')
+              // The status line are received before the body is read, so the status may already
+              // be non-OK when the body truncates. If so, fall through to the UnexpectedHttpStatus
+              // handling below: it carries the status code and preserves retry semantics.
+              // Only re-throw as a connection error when the status was OK.
+              val statusCode = status.getStatusCode
+              if (statusCode == HttpStatus.SC_OK ||
+                (allowNoContent && statusCode == HttpStatus.SC_NO_CONTENT)) {
+                val error = s"Request to delta sharing server failed$getDsQueryIdForLogging " +
+                  s"due to ${e.getMessage}. This is likely caused by request timeout."
+                throw new DeltaSharingConnectionException(error, e)
               }
               lineBuffer.toList
           } finally {

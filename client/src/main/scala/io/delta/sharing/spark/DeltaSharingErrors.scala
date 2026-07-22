@@ -33,6 +33,14 @@ class MissingEndStreamActionException(message: String) extends IllegalStateExcep
 class DeltaSharingServerException(message: String, statusCodeOpt: Option[Int])
   extends DeltaSharingExceptionWithErrorCode(message, statusCodeOpt)
 
+// Thrown when a network-level failure prevents the client from receiving a complete response from
+// the Delta Sharing server, e.g. the response body is truncated mid-stream
+// (org.apache.http.ConnectionClosedException) before the full body arrives. This surfaces a
+// legible, actionable message (including the query id for logging) instead of the raw low-level
+// exception.
+class DeltaSharingConnectionException(message: String, cause: Throwable)
+  extends IllegalStateException(message, cause)
+
 object DeltaSharingErrors {
   def nonExistentDeltaSharingTable(tableId: String): Throwable = {
     new IllegalStateException(s"Delta sharing table ${tableId} doesn't exist. " +
