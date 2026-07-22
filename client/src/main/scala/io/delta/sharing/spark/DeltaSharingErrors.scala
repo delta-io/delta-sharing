@@ -33,9 +33,14 @@ class MissingEndStreamActionException(message: String) extends IllegalStateExcep
 class DeltaSharingServerException(message: String, statusCodeOpt: Option[Int])
   extends DeltaSharingExceptionWithErrorCode(message, statusCodeOpt)
 
-// Thrown when the client fails to establish a network connection to the Delta Sharing server
-// endpoint (e.g. java.net.BindException / java.net.ConnectException), before any HTTP response is
-// received. This surfaces a legible, actionable message instead of the raw low-level exception.
+// Thrown when a network-level failure prevents the client from receiving a complete response from
+// the Delta Sharing server. This covers two cases:
+//   1. Failure to establish the outbound connection to the endpoint (e.g. java.net.BindException /
+//      java.net.ConnectException), before any HTTP response is received.
+//   2. The response body is truncated mid-stream (org.apache.http.ConnectionClosedException) before
+//      the full body arrives.
+// In both cases this surfaces a legible, actionable message (including the query id for logging)
+// instead of the raw low-level exception.
 class DeltaSharingConnectionException(message: String, cause: Throwable)
   extends IllegalStateException(message, cause)
 
