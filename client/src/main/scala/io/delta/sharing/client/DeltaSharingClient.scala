@@ -1625,7 +1625,9 @@ object DeltaSharingRestClient extends Logging {
       }
     }
 
-    val tableSplits = tablePath.split("\\.", -1)
+    val tableSplits = splitTablePath(tablePath).getOrElse {
+      throw new IllegalArgumentException(s"path $path is not valid")
+    }
     if (tableSplits.length != 3) {
       throw new IllegalArgumentException(s"path $path is not valid")
     }
@@ -1639,6 +1641,67 @@ object DeltaSharingRestClient extends Logging {
       schema = tableSplits(1),
       table = tableSplits(2)
     )
+  }
+
+  /**
+   * Split a `share.schema.table` identifier on unquoted dots. Each part may be quoted with
+   * backticks so that its name can contain dots, matching how Delta/Spark quotes identifiers:
+   * the part is wrapped in backticks and any backtick inside it is escaped by doubling it.
+   * The returned parts have their surrounding backticks stripped and doubled backticks unescaped.
+   *
+   * Returns None if the identifier is malformed (an unterminated quote, or a quoted part with
+   * unexpected characters outside its backticks); the caller turns this into the same
+   * "path is not valid" error used for the unquoted case. Unquoted input is split exactly like
+   * `split("\\.", -1)`, so existing behavior is preserved.
+   */
+  private def splitTablePath(tablePath: String): Option[Seq[String]] = {
+    val parts = scala.collection.mutable.ArrayBuffer.empty[String]
+    val current = new StringBuilder
+    // Tracks the state of the part currently being read: whether we are inside a backtick-quoted
+    // region, and whether a closing backtick has been seen (after which only a dot may follow).
+    var inQuotes = false
+    var quotedClosed = false
+    var i = 0
+    val len = tablePath.length
+    while (i < len) {
+      val c = tablePath.charAt(i)
+      if (inQuotes) {
+        if (c == '`') {
+          if (i + 1 < len && tablePath.charAt(i + 1) == '`') {
+            // An escaped backtick inside the quoted name.
+            current.append('`')
+            i += 1
+          } else {
+            inQuotes = false
+            quotedClosed = true
+          }
+        } else {
+          current.append(c)
+        }
+      } else if (c == '.') {
+        parts += current.toString
+        current.setLength(0)
+        quotedClosed = false
+      } else if (c == '`') {
+        // A backtick may only open a quote at the start of a part.
+        if (current.nonEmpty || quotedClosed) {
+          return None
+        }
+        inQuotes = true
+      } else if (quotedClosed) {
+        // Non-dot characters are not allowed after a closing backtick, e.g. `a`b.
+        return None
+      } else {
+        current.append(c)
+      }
+      i += 1
+    }
+    if (inQuotes) {
+      // Unterminated quote, e.g. `a.b.c.
+      return None
+    }
+    parts += current.toString
+    Some(parts.toSeq)
   }
 
   private def tryParseEndStreamAction(line: String): EndStreamAction = {

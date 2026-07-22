@@ -105,6 +105,35 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     intercept[IllegalArgumentException] {
       DeltaSharingRestClient.parsePath("foo#a.b.c.", emptyShareCredentialsOptions)
     }
+
+    // Backtick-quoted share/schema/table names may contain dots (issue #646). The surrounding
+    // backticks are stripped and doubled backticks are unescaped.
+    assert(
+      DeltaSharingRestClient.parsePath("file:///foo/bar#`a.b`.`c.d`.`e.f`", emptyShareCredentialsOptions) ==
+      ParsedDeltaSharingTablePath("file:///foo/bar", "a.b", "c.d", "e.f"))
+    assert(
+      DeltaSharingRestClient.parsePath("`a.b`.`c.d`.`e.f`", testShareCredentialsOptions) ==
+      ParsedDeltaSharingTablePath("", "a.b", "c.d", "e.f"))
+    // Quoted and unquoted parts can be mixed.
+    assert(
+      DeltaSharingRestClient.parsePath("file:///foo/bar#`my.share`.schema.table", emptyShareCredentialsOptions) ==
+      ParsedDeltaSharingTablePath("file:///foo/bar", "my.share", "schema", "table"))
+    // A backtick inside a quoted name is escaped by doubling it.
+    assert(
+      DeltaSharingRestClient.parsePath("file:///foo/bar#`a``b`.c.d", emptyShareCredentialsOptions) ==
+      ParsedDeltaSharingTablePath("file:///foo/bar", "a`b", "c", "d"))
+    // An unterminated quote is not a valid path.
+    intercept[IllegalArgumentException] {
+      DeltaSharingRestClient.parsePath("file:///foo/bar#`a.b.c", emptyShareCredentialsOptions)
+    }
+    // Characters outside a closing backtick are not a valid path.
+    intercept[IllegalArgumentException] {
+      DeltaSharingRestClient.parsePath("file:///foo/bar#`a`x.b.c", emptyShareCredentialsOptions)
+    }
+    // A quoted empty name is still empty and therefore invalid.
+    intercept[IllegalArgumentException] {
+      DeltaSharingRestClient.parsePath("file:///foo/bar#``.b.c", emptyShareCredentialsOptions)
+    }
   }
 
   test("parsePath with optionsProfileProvider disabled") {
