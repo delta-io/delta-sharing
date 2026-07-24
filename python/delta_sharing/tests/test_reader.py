@@ -16,7 +16,7 @@
 import pytest
 
 from datetime import date
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Tuple
 
 import pandas as pd
 import numpy as np
@@ -69,7 +69,7 @@ def _assert_snapshot_materializers(
     *,
     expected_arrow_pdf: Optional[pd.DataFrame] = None,
     check_arrow_dtype: bool = True,
-) -> pa.Table:
+) -> Tuple[pd.DataFrame, pa.Table]:
     pdf = reader.to_pandas()
     pd.testing.assert_frame_equal(pdf, expected)
 
@@ -79,7 +79,7 @@ def _assert_snapshot_materializers(
         pdf if expected_arrow_pdf is None else expected_arrow_pdf,
         check_dtype=check_arrow_dtype,
     )
-    return arrow_table
+    return pdf, arrow_table
 
 
 @pytest.mark.parametrize("materializer", ["to_pandas", "to_record_batches"])
@@ -525,7 +525,7 @@ def test_snapshot_partitioned_different_schemas(tmp_path):
 
     expected_arrow_pdf = expected.copy()
     expected_arrow_pdf["a"] = expected_arrow_pdf["a"].astype("int64")
-    arrow_table = _assert_snapshot_materializers(
+    _, arrow_table = _assert_snapshot_materializers(
         reader,
         expected,
         expected_arrow_pdf=expected_arrow_pdf,
@@ -707,7 +707,7 @@ def test_snapshot_empty(rest_client: DataSharingRestClient):
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock()  # type: ignore
     )
-    arrow_table = _assert_snapshot_materializers(
+    _, arrow_table = _assert_snapshot_materializers(
         reader,
         expected,
         check_arrow_dtype=False,
