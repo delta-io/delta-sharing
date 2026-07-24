@@ -286,6 +286,8 @@ class DeltaSharingReader:
             left = self._limit
             for index, file in enumerate(response.add_files):
                 file_limit = left
+                # Reuse the first dataset opened above to resolve column casing;
+                # each remaining file needs its own dataset for batch scanning.
                 pa_dataset = (
                     first_dataset if index == 0 else DeltaSharingReader._parquet_dataset(file.url)
                 )
