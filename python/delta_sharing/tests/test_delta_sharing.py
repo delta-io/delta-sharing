@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 from datetime import date, datetime
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Tuple
 
 import pandas as pd
 import pyarrow as pa
@@ -79,7 +79,7 @@ def _assert_arrow_matches_pandas(
     arrow_table: pa.Table,
     *,
     sort_by: Optional[Sequence[str]] = None,
-) -> None:
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     # Arrow follows logical Delta dtypes and uses UTC-aware Delta timestamps, while
     # the legacy pandas path may preserve parquet dtypes and naive UTC timestamps.
     arrow_pdf = arrow_table.to_pandas()
@@ -91,6 +91,7 @@ def _assert_arrow_matches_pandas(
         _normalize_snapshot_pdf_for_comparison(pdf),
         check_dtype=False,
     )
+    return pdf, arrow_pdf
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -2336,24 +2337,21 @@ def test_add_column_non_partitioned(
     url = f"{profile_path}#{fragments}"
     sort_by = ["c1"]
     pdf = load_as_pandas(url, version=version, use_delta_format=False)
-    # sort to eliminate row order inconsistencies
-    pdf = pdf.sort_values(by=sort_by).reset_index(drop=True)
-    # check_dtype=False to deal with minor type discrepancies like float32 vs float64
-    pd.testing.assert_frame_equal(pdf, expected, check_dtype=False)
-    _assert_arrow_matches_pandas(
+    pdf, _ = _assert_arrow_matches_pandas(
         pdf,
         load_as_arrow(url, version=version, use_delta_format=False),
         sort_by=sort_by,
     )
+    # check_dtype=False to deal with minor type discrepancies like float32 vs float64
+    pd.testing.assert_frame_equal(pdf, expected, check_dtype=False)
 
     pdf_delta = load_as_pandas(url, version=version, use_delta_format=True)
-    pdf_delta = pdf_delta.sort_values(by=sort_by).reset_index(drop=True)
-    pd.testing.assert_frame_equal(pdf_delta, expected, check_dtype=False)
-    _assert_arrow_matches_pandas(
+    pdf_delta, _ = _assert_arrow_matches_pandas(
         pdf_delta,
         load_as_arrow(url, version=version, use_delta_format=True),
         sort_by=sort_by,
     )
+    pd.testing.assert_frame_equal(pdf_delta, expected, check_dtype=False)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -2490,24 +2488,21 @@ def test_add_column_partitioned(
     url = f"{profile_path}#{fragments}"
     sort_by = ["p1", "p2", "c1"]
     pdf = load_as_pandas(url, version=version, use_delta_format=False)
-    # sort to eliminate row order inconsistencies
-    pdf = pdf.sort_values(by=sort_by).reset_index(drop=True)
-    # check_dtype=False to deal with minor type discrepancies like float32 vs float64
-    pd.testing.assert_frame_equal(pdf, expected, check_dtype=False)
-    _assert_arrow_matches_pandas(
+    pdf, _ = _assert_arrow_matches_pandas(
         pdf,
         load_as_arrow(url, version=version, use_delta_format=False),
         sort_by=sort_by,
     )
+    # check_dtype=False to deal with minor type discrepancies like float32 vs float64
+    pd.testing.assert_frame_equal(pdf, expected, check_dtype=False)
 
     pdf_delta = load_as_pandas(url, version=version, use_delta_format=True)
-    pdf_delta = pdf_delta.sort_values(by=sort_by).reset_index(drop=True)
-    pd.testing.assert_frame_equal(pdf_delta, expected, check_dtype=False)
-    _assert_arrow_matches_pandas(
+    pdf_delta, _ = _assert_arrow_matches_pandas(
         pdf_delta,
         load_as_arrow(url, version=version, use_delta_format=True),
         sort_by=sort_by,
     )
+    pd.testing.assert_frame_equal(pdf_delta, expected, check_dtype=False)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
