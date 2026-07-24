@@ -442,11 +442,9 @@ def test_snapshot_partitioned(tmp_path):
     expected2["B"] = "y"
     expected = pd.concat([expected1, expected2]).reset_index(drop=True)
 
-    _assert_snapshot_materializers(
-        reader,
-        expected,
-        expected_arrow_pdf=expected.rename(columns={"a": "A"}),
-    )
+    _, arrow_table = _assert_snapshot_materializers(reader, expected)
+    assert pa.Table.from_batches(list(reader.to_record_batches())).equals(arrow_table)
+    assert reader.to_record_batch_reader().read_all().equals(arrow_table)
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True

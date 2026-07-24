@@ -270,11 +270,32 @@ class DeltaSharingReader:
         if len(response.add_files) == 0 or self._limit == 0:
             return schema, iter(())
 
+        first_dataset = DeltaSharingReader._parquet_dataset(response.add_files[0].url)
+        physical_names = {name.lower(): name for name in first_dataset.schema.names}
+        # Match pandas column naming: preserve physical Parquet casing for data
+        # columns, while columns synthesized from Delta metadata (such as
+        # partition columns) retain their Delta schema casing.
+        schema = pa.schema(
+            [
+                field.with_name(physical_names.get(field.name.lower(), field.name))
+                for field in schema
+            ]
+        )
+
         def iterator() -> Iterator[pa.RecordBatch]:
             left = self._limit
-            for file in response.add_files:
+            for index, file in enumerate(response.add_files):
                 file_limit = left
-                for batch in DeltaSharingReader._to_record_batches(file, schema_json, file_limit):
+                pa_dataset = (
+                    first_dataset if index == 0 else DeltaSharingReader._parquet_dataset(file.url)
+                )
+                for batch in DeltaSharingReader._to_record_batches(
+                    pa_dataset,
+                    file,
+                    schema_json,
+                    schema.names,
+                    file_limit,
+                ):
                     yield batch
                     if left is not None:
                         left -= batch.num_rows
@@ -592,12 +613,12 @@ class DeltaSharingReader:
 
     @staticmethod
     def _to_record_batches(
+        pa_dataset,
         action: FileAction,
         schema_json: dict,
+        output_names: List[str],
         limit: Optional[int],
     ) -> Iterator[pa.RecordBatch]:
-        filesystem = DeltaSharingReader._parquet_filesystem(action.url)
-        pa_dataset = dataset(source=action.url, format="parquet", filesystem=filesystem)
         scanner = pa_dataset.scanner()
         rows_read = 0
 
@@ -608,8 +629,18 @@ class DeltaSharingReader:
             if limit is not None and rows_read + batch.num_rows > limit:
                 batch = batch.slice(0, limit - rows_read)
 
-            yield DeltaSharingReader._normalize_record_batch(batch, action, schema_json)
+            yield DeltaSharingReader._normalize_record_batch(
+                batch,
+                action,
+                schema_json,
+                output_names,
+            )
             rows_read += batch.num_rows
+
+    @staticmethod
+    def _parquet_dataset(action_url: str):
+        filesystem = DeltaSharingReader._parquet_filesystem(action_url)
+        return dataset(source=action_url, format="parquet", filesystem=filesystem)
 
     @staticmethod
     def _parquet_filesystem(action_url: str):
@@ -631,16 +662,17 @@ class DeltaSharingReader:
         batch: pa.RecordBatch,
         action: FileAction,
         schema_json: dict,
+        output_names: List[str],
     ) -> pa.RecordBatch:
         columns = []
         names = []
         lower_to_index = {name.lower(): index for index, name in enumerate(batch.schema.names)}
         num_rows = batch.num_rows
 
-        for field in schema_json["fields"]:
+        for field, output_name in zip(schema_json["fields"], output_names):
             field_name = field["name"]
             lower_name = field_name.lower()
-            names.append(field_name)
+            names.append(output_name)
             field_type = to_arrow_type(field["type"])
 
             if lower_name in lower_to_index:
