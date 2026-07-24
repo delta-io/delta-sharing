@@ -170,7 +170,7 @@ def load_as_arrow(
     :param url: a url under the format "<profile>#<share>.<schema>.<table>"
     :param limit: a non-negative int. Load only the ``limit`` rows if the parameter is specified.
       Use this optional parameter to explore the shared table without loading the entire table to
-      the memory.
+      memory.
     :param version: an optional non-negative int. Load the snapshot of table at version
     :param timestamp: an optional string. Load the snapshot of table at version corresponding
       to the timestamp.
