@@ -14,9 +14,10 @@
 # limitations under the License.
 #
 from datetime import date, datetime
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Tuple
 
 import pandas as pd
+import pyarrow as pa
 import pytest
 
 from delta_sharing.delta_sharing import (
@@ -28,6 +29,7 @@ from delta_sharing.delta_sharing import (
     get_table_metadata,
     get_table_protocol,
     get_table_version,
+    load_as_arrow,
     load_as_pandas,
     load_as_spark,
     load_table_changes_as_spark,
@@ -57,6 +59,39 @@ from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
 from requests.models import Response
 from requests.exceptions import HTTPError
+
+
+def _normalize_snapshot_pdf_for_comparison(pdf: pd.DataFrame) -> pd.DataFrame:
+    normalized = pdf.copy()
+    for column in normalized.columns:
+        if isinstance(normalized[column].dtype, pd.DatetimeTZDtype):
+            normalized[column] = normalized[column].dt.tz_convert("UTC").dt.tz_localize(None)
+        if normalized[column].isna().any():
+            # Treat pandas None and Arrow-derived NaN as the same Delta null.
+            normalized[column] = (
+                normalized[column].astype(object).where(normalized[column].notna(), None)
+            )
+    return normalized
+
+
+def _assert_arrow_matches_pandas(
+    pdf: pd.DataFrame,
+    arrow_table: pa.Table,
+    *,
+    sort_by: Optional[Sequence[str]] = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    # Arrow follows logical Delta dtypes and uses UTC-aware Delta timestamps, while
+    # the legacy pandas path may preserve parquet dtypes and naive UTC timestamps.
+    arrow_pdf = arrow_table.to_pandas()
+    if sort_by is not None:
+        pdf = pdf.sort_values(by=sort_by).reset_index(drop=True)
+        arrow_pdf = arrow_pdf.sort_values(by=sort_by).reset_index(drop=True)
+    pd.testing.assert_frame_equal(
+        _normalize_snapshot_pdf_for_comparison(arrow_pdf),
+        _normalize_snapshot_pdf_for_comparison(pdf),
+        check_dtype=False,
+    )
+    return pdf, arrow_pdf
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -201,7 +236,7 @@ def test_sharing_client_table(profile: DeltaSharingProfile):
     assert isinstance(table_from_string.changes(starting_version=0), TableChanges)
 
 
-def test_delta_sharing_table_snapshot_to_pandas(tmp_path):
+def test_delta_sharing_table_snapshot_materializers(tmp_path):
     expected = pd.DataFrame({"value": [1, 2], "label": ["a", "b"]})
     parquet_path = tmp_path / "snapshot.parquet"
     expected.to_parquet(parquet_path)
@@ -253,15 +288,20 @@ def test_delta_sharing_table_snapshot_to_pandas(tmp_path):
         Table(name="table", share="share", schema="schema"),
         RestClientMock(),
     )
-    result = table.snapshot(
+    snapshot = table.snapshot(
         limit=10,
         version=2,
         timestamp="2024-01-01T00:00:00Z",
         jsonPredicateHints='{"op":"equal"}',
         use_delta_format=False,
-    ).to_pandas(convert_in_batches=True)
+    )
+    result = snapshot.to_pandas(convert_in_batches=True)
 
     pd.testing.assert_frame_equal(result, expected)
+    arrow_table = snapshot.to_arrow()
+    pd.testing.assert_frame_equal(arrow_table.to_pandas(), expected)
+    assert pa.Table.from_batches(list(snapshot.to_record_batches())).equals(arrow_table)
+    assert snapshot.to_record_batch_reader().read_all().equals(arrow_table)
     assert captured == {
         "table": Table(name="table", share="share", schema="schema"),
         "predicateHints": None,
@@ -734,15 +774,17 @@ def test_get_table_protocol(profile_path: str):
         ),
     ],
 )
-def test_load_as_pandas_success(
+def test_load_snapshot_success(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, limit, version, None)
     pd.testing.assert_frame_equal(pdf, expected)
+    _assert_arrow_matches_pandas(pdf, load_as_arrow(url, limit, version, None))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -844,16 +886,18 @@ def test_load_as_pandas_success(
         ),
     ],
 )
-def test_load_as_pandas_success_dv(
+def test_load_snapshot_success_dv(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, limit, version, None)
     expected["timestamp"] = expected["timestamp"].astype("datetime64[us, UTC]")
     pd.testing.assert_frame_equal(pdf, expected)
+    _assert_arrow_matches_pandas(pdf, load_as_arrow(url, limit, version, None))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -921,16 +965,18 @@ def test_load_as_pandas_success_dv(
         ),
     ],
 )
-def test_load_as_pandas_success_cm(
+def test_load_snapshot_success_cm(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, limit, version, None)
     expected["eventTime"] = expected["eventTime"].astype("datetime64[us, UTC]")
     pd.testing.assert_frame_equal(pdf, expected)
+    _assert_arrow_matches_pandas(pdf, load_as_arrow(url, limit, version, None))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -952,21 +998,26 @@ def test_load_as_pandas_success_cm(
         )
     ],
 )
-def test_load_as_pandas_success_dv_and_cm(
+def test_load_snapshot_success_dv_and_cm(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, limit, version, None)
     expected["rand"] = expected["rand"].astype("int32")
     expected["partition_col"] = expected["partition_col"].astype("int32")
     pd.testing.assert_frame_equal(pdf, expected)
+    _assert_arrow_matches_pandas(pdf, load_as_arrow(url, limit, version, None))
 
     # Test client specifying explicit delta format
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None, None, True)
-    pd.testing.assert_frame_equal(pdf, expected)
+    pdf_delta = load_as_pandas(url, limit, version, use_delta_format=True)
+    pd.testing.assert_frame_equal(pdf_delta, expected)
+    _assert_arrow_matches_pandas(
+        pdf_delta, load_as_arrow(url, limit, version, use_delta_format=True)
+    )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -982,15 +1033,17 @@ def test_load_as_pandas_success_dv_and_cm(
         )
     ],
 )
-def test_load_as_pandas_success_empty_dv_and_cm(
+def test_load_snapshot_success_empty_dv_and_cm(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, limit, version, None)
     pd.testing.assert_frame_equal(pdf, expected)
+    _assert_arrow_matches_pandas(pdf, load_as_arrow(url, limit, version, None))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -1012,13 +1065,17 @@ def test_load_as_pandas_success_empty_dv_and_cm(
         )
     ],
 )
-def test_load_as_pandas_success_timestampntz(
+def test_load_snapshot_success_timestampntz(
     profile_path: str, fragments: str, expected: pd.DataFrame
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}")
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url)
     expected["time"] = expected["time"].values.astype("datetime64[us]")
     expected["id"] = expected["id"].astype("int32")
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = load_as_arrow(url)
+    assert arrow_table.schema.field("time").type == pa.timestamp("us")
+    _assert_arrow_matches_pandas(pdf, arrow_table)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -1042,21 +1099,25 @@ def test_load_as_pandas_success_timestampntz(
         )
     ],
 )
-def test_load_as_pandas_success_client_delta_kernel_enabled_with_normal_table(
+def test_load_snapshot_success_client_delta_kernel_enabled_with_normal_table(
     profile_path: str,
     fragments: str,
     limit: Optional[int],
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", limit, version, None, None, True)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, limit, version, use_delta_format=True)
     expected["eventTime"] = expected["eventTime"].astype("datetime64[us, UTC]")
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = load_as_arrow(url, limit, version, use_delta_format=True)
+    assert arrow_table.schema.field("eventTime").type == pa.timestamp("us", tz="UTC")
+    _assert_arrow_matches_pandas(pdf, arrow_table)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize("use_delta_format", [None, True, False])
-def test_load_as_pandas_legacy_and_table_handle_match(
+def test_snapshot_legacy_and_table_handle_materializers_match(
     profile_path: str, profile: DeltaSharingProfile, use_delta_format: Optional[bool]
 ):
     fragments = "share1.default.table1"
@@ -1072,10 +1133,19 @@ def test_load_as_pandas_legacy_and_table_handle_match(
     )
 
     pd.testing.assert_frame_equal(legacy_pdf, table_pdf)
+    legacy_table = load_as_arrow(
+        f"{profile_path}#{fragments}", limit=limit, use_delta_format=use_delta_format
+    )
+    table_arrow = (
+        client.table(fragments).snapshot(limit=limit, use_delta_format=use_delta_format).to_arrow()
+    )
+
+    assert legacy_table.equals(table_arrow)
+    _assert_arrow_matches_pandas(legacy_pdf, legacy_table)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
-def test_table_snapshot_to_pandas_on_real_table(profile: DeltaSharingProfile):
+def test_table_snapshot_materializers_on_real_table(profile: DeltaSharingProfile):
     expected = pd.DataFrame(
         {
             "eventTime": [
@@ -1086,8 +1156,13 @@ def test_table_snapshot_to_pandas_on_real_table(profile: DeltaSharingProfile):
         }
     )
 
-    pdf = SharingClient(profile).table("share1.default.table1").snapshot(limit=2).to_pandas()
+    snapshot = SharingClient(profile).table("share1.default.table1").snapshot(limit=2)
+    pdf = snapshot.to_pandas()
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = snapshot.to_arrow()
+    _assert_arrow_matches_pandas(pdf, arrow_table)
+    assert pa.Table.from_batches(list(snapshot.to_record_batches())).equals(arrow_table)
+    assert snapshot.to_record_batch_reader().read_all().equals(arrow_table)
 
 
 # We will test predicates with the table share8.default.cdf_table_with_partition
@@ -1181,11 +1256,13 @@ def test_table_snapshot_to_pandas_on_real_table(profile: DeltaSharingProfile):
         ),
     ],
 )
-def test_load_as_pandas_with_json_predicates(
+def test_load_snapshot_with_json_predicates(
     profile_path: str, fragments: str, jsonPredicateHints: Optional[str], expected: pd.DataFrame
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", None, None, None, jsonPredicateHints)
+    url = f"{profile_path}#{fragments}"
+    pdf = load_as_pandas(url, jsonPredicateHints=jsonPredicateHints)
     pd.testing.assert_frame_equal(pdf, expected)
+    _assert_arrow_matches_pandas(pdf, load_as_arrow(url, jsonPredicateHints=jsonPredicateHints))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -1222,19 +1299,23 @@ def test_load_as_pandas_with_json_predicates(
         ),
     ],
 )
-def test_load_as_pandas_exception(
+@pytest.mark.parametrize(
+    "load_snapshot",
+    [
+        pytest.param(load_as_pandas, id="pandas"),
+        pytest.param(load_as_arrow, id="arrow"),
+    ],
+)
+def test_load_snapshot_exception(
     profile_path: str,
     fragments: str,
     version: Optional[int],
     timestamp: Optional[str],
     error: Optional[str],
+    load_snapshot,
 ):
-    try:
-        load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp)
-        assert False
-    except Exception as e:
-        assert isinstance(e, HTTPError)
-        assert error in str(e)
+    with pytest.raises(HTTPError, match=error):
+        load_snapshot(f"{profile_path}#{fragments}", version=version, timestamp=timestamp)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -1250,18 +1331,28 @@ def test_load_as_pandas_exception(
         ),
     ],
 )
-def test_load_as_pandas_exception_client_delta_kernel_disabled_with_delta_table(
+@pytest.mark.parametrize(
+    "load_snapshot",
+    [
+        pytest.param(load_as_pandas, id="pandas"),
+        pytest.param(load_as_arrow, id="arrow"),
+    ],
+)
+def test_load_snapshot_exception_client_delta_kernel_disabled_with_delta_table(
     profile_path: str,
     fragments: str,
     version: Optional[int],
     timestamp: Optional[str],
     error: Optional[str],
+    load_snapshot,
 ):
-    try:
-        load_as_pandas(f"{profile_path}#{fragments}", None, version, timestamp, None, False)
-        assert False
-    except Exception as e:
-        assert error in str(e)
+    with pytest.raises(Exception, match=error):
+        load_snapshot(
+            f"{profile_path}#{fragments}",
+            version=version,
+            timestamp=timestamp,
+            use_delta_format=False,
+        )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -2031,10 +2122,11 @@ def test_load_table_changes_as_spark(
     "fragments",
     [pytest.param("share8.default.12k_rows")],
 )
-def test_load_as_pandas_delta_batch_convert(
+def test_load_snapshot_delta_batch_convert(
     profile_path: str,
     fragments: str,
 ):
+    url = f"{profile_path}#{fragments}"
     ids = list(range(12000))
     expected = pd.DataFrame(
         {
@@ -2047,21 +2139,19 @@ def test_load_as_pandas_delta_batch_convert(
     expected["time"] = expected["time"].astype("datetime64[us, UTC]")
 
     pdf = (
-        load_as_pandas(
-            f"{profile_path}#{fragments}", use_delta_format=True, convert_in_batches=True
-        )
+        load_as_pandas(url, use_delta_format=True, convert_in_batches=True)
         .sort_values(by="id")
         .reset_index(drop=True)
     )
     pd.testing.assert_frame_equal(pdf, expected)
-    pdf = load_as_pandas(
-        f"{profile_path}#{fragments}", use_delta_format=True, convert_in_batches=True, limit=500
-    )
-    assert len(pdf) == 500
-    pdf = load_as_pandas(
-        f"{profile_path}#{fragments}", use_delta_format=True, convert_in_batches=True, limit=3000
-    )
-    assert len(pdf) == 3000
+    arrow_table = load_as_arrow(url, use_delta_format=True).sort_by([("id", "ascending")])
+    _assert_arrow_matches_pandas(pdf, arrow_table)
+
+    for limit in (500, 3000):
+        pdf = load_as_pandas(url, use_delta_format=True, convert_in_batches=True, limit=limit)
+        assert len(pdf) == limit
+        arrow_table = load_as_arrow(url, use_delta_format=True, limit=limit)
+        assert arrow_table.num_rows == limit
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -2244,16 +2334,23 @@ def test_add_column_non_partitioned(
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", version=version, use_delta_format=False)
-    # sort to eliminate row order inconsistencies
-    pdf = pdf.sort_values(by="c1").reset_index(drop=True)
+    url = f"{profile_path}#{fragments}"
+    sort_by = ["c1"]
+    pdf = load_as_pandas(url, version=version, use_delta_format=False)
+    pdf, _ = _assert_arrow_matches_pandas(
+        pdf,
+        load_as_arrow(url, version=version, use_delta_format=False),
+        sort_by=sort_by,
+    )
     # check_dtype=False to deal with minor type discrepancies like float32 vs float64
     pd.testing.assert_frame_equal(pdf, expected, check_dtype=False)
 
-    pdf_delta = load_as_pandas(
-        f"{profile_path}#{fragments}", version=version, use_delta_format=True
+    pdf_delta = load_as_pandas(url, version=version, use_delta_format=True)
+    pdf_delta, _ = _assert_arrow_matches_pandas(
+        pdf_delta,
+        load_as_arrow(url, version=version, use_delta_format=True),
+        sort_by=sort_by,
     )
-    pdf_delta = pdf_delta.sort_values(by="c1").reset_index(drop=True)
     pd.testing.assert_frame_equal(pdf_delta, expected, check_dtype=False)
 
 
@@ -2388,16 +2485,23 @@ def test_add_column_partitioned(
     version: Optional[int],
     expected: pd.DataFrame,
 ):
-    pdf = load_as_pandas(f"{profile_path}#{fragments}", version=version, use_delta_format=False)
-    # sort to eliminate row order inconsistencies
-    pdf = pdf.sort_values(by=["p1", "p2", "c1"]).reset_index(drop=True)
+    url = f"{profile_path}#{fragments}"
+    sort_by = ["p1", "p2", "c1"]
+    pdf = load_as_pandas(url, version=version, use_delta_format=False)
+    pdf, _ = _assert_arrow_matches_pandas(
+        pdf,
+        load_as_arrow(url, version=version, use_delta_format=False),
+        sort_by=sort_by,
+    )
     # check_dtype=False to deal with minor type discrepancies like float32 vs float64
     pd.testing.assert_frame_equal(pdf, expected, check_dtype=False)
 
-    pdf_delta = load_as_pandas(
-        f"{profile_path}#{fragments}", version=version, use_delta_format=True
+    pdf_delta = load_as_pandas(url, version=version, use_delta_format=True)
+    pdf_delta, _ = _assert_arrow_matches_pandas(
+        pdf_delta,
+        load_as_arrow(url, version=version, use_delta_format=True),
+        sort_by=sort_by,
     )
-    pdf_delta = pdf_delta.sort_values(by=["p1", "p2", "c1"]).reset_index(drop=True)
     pd.testing.assert_frame_equal(pdf_delta, expected, check_dtype=False)
 
 
