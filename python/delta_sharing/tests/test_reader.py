@@ -716,7 +716,7 @@ def test_snapshot_empty(rest_client: DataSharingRestClient):
     assert arrow_table.schema.names == list(expected.columns)
 
 
-def test_table_changes_to_pandas_non_partitioned(tmp_path):
+def test_table_changes_non_partitioned(tmp_path):
     # Create basic data frame.
     pdf1 = pd.DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
     pdf2 = pd.DataFrame({"a": [4, 5, 6], "b": ["d", "e", "f"]})
@@ -828,7 +828,7 @@ def test_table_changes_to_pandas_non_partitioned(tmp_path):
     pd.testing.assert_frame_equal(pdf, expected)
 
 
-def test_table_changes_to_pandas_partitioned(tmp_path):
+def test_table_changes_partitioned(tmp_path):
     pdf1 = pd.DataFrame({"a": [1, 2, 3]})
     pdf2 = pd.DataFrame({"a": [4, 5, 6]})
 

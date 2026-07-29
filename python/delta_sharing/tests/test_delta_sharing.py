@@ -313,7 +313,7 @@ def test_delta_sharing_table_snapshot_materializers(tmp_path):
     }
 
 
-def test_delta_sharing_table_changes_to_pandas(tmp_path):
+def test_delta_sharing_table_changes_materializers(tmp_path):
     source = pd.DataFrame({"value": [1, 2], "label": ["a", "b"]})
     parquet_path = tmp_path / "table_changes.parquet"
     source.to_parquet(parquet_path)
@@ -1483,7 +1483,7 @@ def test_load_table_changes(
             starting_timestamp,
             ending_timestamp,
         )
-        pd.testing.assert_frame_equal(arrow_table.to_pandas(), expected)
+        _assert_arrow_matches_pandas(pdf, arrow_table)
         table_arrow = (
             SharingClient(profile)
             .table(fragments)
@@ -1497,7 +1497,7 @@ def test_load_table_changes(
         )
         assert table_arrow.equals(arrow_table)
     else:
-        try:
+        with pytest.raises(HTTPError, match=error):
             load_table_changes_as_pandas(
                 f"{profile_path}#{fragments}",
                 starting_version,
@@ -1505,10 +1505,14 @@ def test_load_table_changes(
                 starting_timestamp,
                 ending_timestamp,
             )
-            assert False
-        except Exception as e:
-            assert isinstance(e, HTTPError)
-            assert error in str(e)
+        with pytest.raises(HTTPError, match=error):
+            load_table_changes_as_arrow(
+                f"{profile_path}#{fragments}",
+                starting_version,
+                ending_version,
+                starting_timestamp,
+                ending_timestamp,
+            )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -1625,31 +1629,37 @@ def test_load_table_changes_kernel(
             ending_timestamp,
             use_delta_format=True,
         )
-        arrow_pdf = load_table_changes_as_arrow(
+        arrow_table = load_table_changes_as_arrow(
             f"{profile_path}#{fragments}",
             starting_version,
             ending_version,
             starting_timestamp,
             ending_timestamp,
             use_delta_format=True,
-        ).to_pandas()
-        pd.testing.assert_frame_equal(arrow_pdf, pdf)
+        )
+        _assert_arrow_matches_pandas(pdf, arrow_table)
         if len(pdf) > 0:
             pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
         pd.testing.assert_frame_equal(pdf, expected)
     else:
-        try:
+        with pytest.raises(HTTPError, match=error):
             load_table_changes_as_pandas(
                 f"{profile_path}#{fragments}",
                 starting_version,
                 ending_version,
                 starting_timestamp,
                 ending_timestamp,
+                use_delta_format=True,
             )
-            assert False
-        except Exception as e:
-            assert isinstance(e, HTTPError)
-            assert error in str(e)
+        with pytest.raises(HTTPError, match=error):
+            load_table_changes_as_arrow(
+                f"{profile_path}#{fragments}",
+                starting_version,
+                ending_version,
+                starting_timestamp,
+                ending_timestamp,
+                use_delta_format=True,
+            )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)

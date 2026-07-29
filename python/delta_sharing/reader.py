@@ -386,6 +386,11 @@ class DeltaSharingReader:
                 last_checkpoint_file.close()
 
     def __table_changes_scan_kernel(self, cdfOptions: CdfOptions, log_stats: bool = False):
+        """
+        Build a delta-kernel CDF scan. The caller owns the returned temp dir and
+        must keep it alive until the scan result is fully consumed. The final
+        item is the number of versions containing file actions.
+        """
         temp_dir = tempfile.TemporaryDirectory()
         try:
             self._rest_client.set_delta_format_header(for_cdf=True)
