@@ -20,9 +20,10 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pytest
 
-from delta_sharing.converter import to_converter, get_empty_table
+from delta_sharing.converter import get_empty_table, to_arrow_schema, to_converter
 
 
 def test_to_converter_boolean():
@@ -86,3 +87,73 @@ def test_get_empty_table():
     assert pdf.columns.values.size == 2
     assert pdf.columns.values[0] == "a"
     assert pdf.columns.values[1] == "b"
+
+
+def test_to_arrow_schema():
+    schema_json = {
+        "type": "struct",
+        "fields": [
+            {"name": "boolean", "type": "boolean"},
+            {"name": "byte", "type": "byte"},
+            {"name": "short", "type": "short"},
+            {"name": "integer", "type": "integer"},
+            {"name": "long", "type": "long"},
+            {"name": "float", "type": "float"},
+            {"name": "double", "type": "double"},
+            {"name": "decimal", "type": "decimal(5,2)"},
+            {"name": "string", "type": "string"},
+            {"name": "date", "type": "date"},
+            {"name": "timestamp", "type": "timestamp"},
+            {"name": "binary", "type": "binary"},
+            {
+                "name": "array",
+                "type": {"type": "array", "elementType": "string"},
+            },
+            {
+                "name": "struct",
+                "type": {
+                    "type": "struct",
+                    "fields": [
+                        {"name": "nested_string", "type": "string"},
+                        {"name": "nested_integer", "type": "integer"},
+                    ],
+                },
+            },
+            {
+                "name": "map",
+                "type": {
+                    "type": "map",
+                    "keyType": "string",
+                    "valueType": "integer",
+                },
+            },
+        ],
+    }
+
+    assert to_arrow_schema(schema_json) == pa.schema(
+        [
+            pa.field("boolean", pa.bool_()),
+            pa.field("byte", pa.int8()),
+            pa.field("short", pa.int16()),
+            pa.field("integer", pa.int32()),
+            pa.field("long", pa.int64()),
+            pa.field("float", pa.float32()),
+            pa.field("double", pa.float64()),
+            pa.field("decimal", pa.decimal128(5, 2)),
+            pa.field("string", pa.string()),
+            pa.field("date", pa.date32()),
+            pa.field("timestamp", pa.timestamp("us", tz="UTC")),
+            pa.field("binary", pa.binary()),
+            pa.field("array", pa.list_(pa.string())),
+            pa.field(
+                "struct",
+                pa.struct(
+                    [
+                        pa.field("nested_string", pa.string()),
+                        pa.field("nested_integer", pa.int32()),
+                    ]
+                ),
+            ),
+            pa.field("map", pa.map_(pa.string(), pa.int32())),
+        ]
+    )

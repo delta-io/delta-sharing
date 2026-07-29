@@ -18,6 +18,7 @@ from typing import Any, Callable, Dict
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 
 
 def _get_dummy_column(schema_type):
@@ -113,5 +114,59 @@ def to_converter(schema_type) -> Callable[[str], Any]:
         return None  # partition on binary column not supported
     elif isinstance(schema_type, dict) and schema_type["type"] in ("array", "struct", "map"):
         return None  # partition on complex column not supported
+
+    raise ValueError(f"Could not parse datatype: {schema_type}")
+
+
+def to_arrow_schema(schema_json: dict) -> pa.Schema:
+    assert schema_json["type"] == "struct"
+
+    return pa.schema(
+        [pa.field(field["name"], to_arrow_type(field["type"])) for field in schema_json["fields"]]
+    )
+
+
+def to_arrow_type(schema_type):
+    if schema_type == "boolean":
+        return pa.bool_()
+    elif schema_type == "byte":
+        return pa.int8()
+    elif schema_type == "short":
+        return pa.int16()
+    elif schema_type == "integer":
+        return pa.int32()
+    elif schema_type == "long":
+        return pa.int64()
+    elif schema_type == "float":
+        return pa.float32()
+    elif schema_type == "double":
+        return pa.float64()
+    elif isinstance(schema_type, str) and schema_type.startswith("decimal("):
+        precision, scale = schema_type[len("decimal(") : -1].split(",")
+        return pa.decimal128(int(precision), int(scale))
+    elif schema_type == "string":
+        return pa.string()
+    elif schema_type == "date":
+        return pa.date32()
+    elif schema_type == "timestamp":
+        # Delta `timestamp` is microsecond precision, adjusted to UTC. Using the
+        # same type here keeps the parquet and delta-kernel paths consistent.
+        return pa.timestamp("us", tz="UTC")
+    elif schema_type == "binary":
+        return pa.binary()
+    elif isinstance(schema_type, dict) and schema_type["type"] == "array":
+        return pa.list_(to_arrow_type(schema_type["elementType"]))
+    elif isinstance(schema_type, dict) and schema_type["type"] == "struct":
+        return pa.struct(
+            [
+                pa.field(field["name"], to_arrow_type(field["type"]))
+                for field in schema_type["fields"]
+            ]
+        )
+    elif isinstance(schema_type, dict) and schema_type["type"] == "map":
+        return pa.map_(
+            to_arrow_type(schema_type["keyType"]),
+            to_arrow_type(schema_type["valueType"]),
+        )
 
     raise ValueError(f"Could not parse datatype: {schema_type}")
