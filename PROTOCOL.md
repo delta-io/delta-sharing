@@ -2344,7 +2344,7 @@ delta-sharing-capabilities: asyncquery=true
 {
   "queryStatus": {
     "queryId": "6d3a1f1e-9b2c-4c8a-8e1f-2f5b7a9c0d11",
-    "status": "PENDING"
+    "status": "pending"
   }
 }
 ```
@@ -2722,7 +2722,7 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
 <td>URL</td>
 <td>
 
-`{prefix}/queries/{queryId}`
+`{prefix}/shares/{share}/schemas/{schema}/tables/{table}/queries/{queryId}`
 
 </td>
 </tr>
@@ -2730,6 +2730,9 @@ Optional: `delta-sharing-capabilities: responseformat=delta;readerfeatures=delet
 <td>URL Parameters</td>
 <td>
 
+**{share}**: The share name to query. It's case-insensitive.<br>
+**{schema}**: The schema name to query. It's case-insensitive.<br>
+**{table}**: The table name to query. It's case-insensitive.<br>
 **{queryId}**: The identifier returned in the [QueryStatus](#get-query-info) object of the asynchronous
 [Query Table](#read-data-from-a-table) response. `queryId` is an opaque, server-generated string; it is
 not required to be a UUID, and clients must not assume any particular format when handling it.
@@ -2784,16 +2787,16 @@ While the query is still being computed, the response is a single line containin
 {
   "queryStatus": {
     "queryId": "6d3a1f1e-9b2c-4c8a-8e1f-2f5b7a9c0d11",
-    "status": "PENDING"
+    "status": "pending"
   }
 }
 ```
 
 The `status` field takes one of the following values:
-- **PENDING**: the query has been accepted and is being computed; results are not yet available.
-- **FAILED**: the query failed. The `queryStatus` object also carries an error message.
+- **pending**: the query has been accepted and is being computed; results are not yet available.
+- **failed**: the query failed. The `queryStatus` object also carries an error message.
 
-The client should keep polling while the status is `PENDING`.
+The client should keep polling while the status is `pending`.
 
 Once the query has succeeded, the response no longer contains a `queryStatus` line at all. Instead the
 response body is exactly the same as a synchronous [Query Table](#read-data-from-a-table) response: the
@@ -2804,7 +2807,7 @@ change files](#data-change-files). Pagination behaves the same as [Query Table](
 when more files are available, an [EndStreamAction](#endstreamaction) containing a `nextPageToken` is
 returned, which the client passes back in `pageToken` to fetch the next page.
 
-When the status is `FAILED`, the response is a single `queryStatus` line describing the failure.
+When the status is `failed`, the response is a single `queryStatus` line describing the failure.
 
 </td>
 </tr>
@@ -2936,7 +2939,7 @@ When the status is `FAILED`, the response is a single `queryStatus` line describ
 
 #### Example
 
-`POST {prefix}/queries/6d3a1f1e-9b2c-4c8a-8e1f-2f5b7a9c0d11`
+`POST {prefix}/shares/share_name/schemas/schema_name/tables/table_name/queries/6d3a1f1e-9b2c-4c8a-8e1f-2f5b7a9c0d11`
 
 ```json
 {
@@ -2955,7 +2958,7 @@ content-type: application/x-ndjson; charset=utf-8
 {
   "queryStatus": {
     "queryId": "6d3a1f1e-9b2c-4c8a-8e1f-2f5b7a9c0d11",
-    "status": "PENDING"
+    "status": "pending"
   }
 }
 ```
