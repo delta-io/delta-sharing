@@ -17,6 +17,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Optional
+import re
 import requests
 import base64
 import json
@@ -79,10 +80,29 @@ class BearerTokenAuthProvider(AuthCredentialProvider):
         if self.expiration_time is None:
             return False
         try:
-            expiration_time_as_timestamp = datetime.fromisoformat(self.expiration_time)
-            return expiration_time_as_timestamp < datetime.now()
+            expiration_time_as_timestamp = self._parse_expiration_time(self.expiration_time)
         except ValueError:
             return False
+        return expiration_time_as_timestamp < datetime.now(timezone.utc)
+
+    @staticmethod
+    def _parse_expiration_time(expiration_time: str) -> datetime:
+        # The profile "expirationTime" is an ISO-8601 timestamp, e.g.
+        # "2021-11-12T00:12:29.0Z". datetime.fromisoformat does not accept the
+        # "Z" UTC designator or sub-millisecond fractions before Python 3.11, so
+        # normalize both before parsing. A timestamp with no offset is treated as
+        # UTC so the result is always timezone-aware and safe to compare.
+        normalized = expiration_time
+        if normalized.endswith("Z"):
+            normalized = normalized[:-1] + "+00:00"
+        match = re.search(r"\.(\d+)", normalized)
+        if match:
+            fraction = (match.group(1) + "000000")[:6]
+            normalized = f"{normalized[:match.start()]}.{fraction}{normalized[match.end():]}"
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
 
     def get_expiration_time(self) -> Optional[str]:
         return self.expiration_time
