@@ -17,6 +17,7 @@
 package io.delta.sharing.server.common
 
 import java.net.URI
+import java.nio.charset.StandardCharsets.UTF_8
 import java.util.Date
 import java.util.concurrent.TimeUnit.SECONDS
 
@@ -27,7 +28,8 @@ import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
-import com.microsoft.azure.storage.{CloudStorageAccount, SharedAccessProtocols, StorageCredentialsSharedAccessSignature}
+import com.microsoft.azure.storage.{CloudStorageAccount, SharedAccessProtocols,
+  StorageCredentialsSharedAccessSignature}
 import com.microsoft.azure.storage.blob.{SharedAccessBlobPermissions, SharedAccessBlobPolicy}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
@@ -37,6 +39,8 @@ import org.apache.hadoop.fs.azurebfs.services.AuthType
 import org.apache.hadoop.fs.s3a.DefaultS3ClientFactory
 import org.apache.hadoop.fs.s3a.S3ClientFactory.S3ClientCreationParameters
 import org.apache.hadoop.util.ReflectionUtils
+
+import io.delta.sharing.server.credential.azure.AzureCredentialVendor
 
 /**
  * @param url The signed url.
@@ -203,17 +207,119 @@ object AbfsFileSigner {
     val abfsConfiguration = abfsStore.getAbfsConfiguration
     val accountName = abfsConfiguration.accountConf("dummy").stripPrefix("dummy.")
     val authType = abfsConfiguration.getAuthType(accountName)
-    if (authType != AuthType.SharedKey) {
-      throw new UnsupportedOperationException(s"unsupported auth type: $authType")
-    }
-    val accountKey = abfsConfiguration.getStorageAccountKey
     val container = authorityParts(abfsStore, uri)(0)
-    new AzureFileSigner(
-      accountName,
-      accountKey,
-      container,
-      preSignedUrlTimeoutSeconds,
-      getRelativePath(abfsStore, _))
+    authType match {
+      case AuthType.SharedKey =>
+        val accountKey = abfsConfiguration.getStorageAccountKey
+        new AzureFileSigner(
+          accountName,
+          accountKey,
+          container,
+          preSignedUrlTimeoutSeconds,
+          getRelativePath(abfsStore, _))
+      case AuthType.OAuth =>
+        // Fetch managed identity token via IMDS and use REST-based
+        // User Delegation SAS generation (avoids Azure SDK HTTP
+        // pipeline which requires Jackson 2.9+).
+        val conf = fs.getConf
+        val uamiClientId =
+          AzureCredentialVendor.getManagedIdentityClientId(conf)
+        val splits = accountName.split("\\.", 3)
+        if (splits.length != 3) {
+          throw new IllegalArgumentException(
+            s"Incorrect account name: $accountName")
+        }
+        val rawAccountName = splits(0)
+        val endpointSuffix = splits(2)
+        new AbfsUserDelegationFileSigner(
+          rawAccountName,
+          endpointSuffix,
+          container,
+          uamiClientId,
+          preSignedUrlTimeoutSeconds,
+          getRelativePath(abfsStore, _))
+      case _ =>
+        throw new UnsupportedOperationException(
+          s"unsupported auth type: $authType")
+    }
+  }
+}
+
+/**
+ * Signs ABFS file URLs using User Delegation SAS for
+ * OAuth-authenticated filesystems (e.g. managed identity).
+ * Uses REST calls to fetch the delegation key (cached 50 min)
+ * and computes the SAS locally via HMAC-SHA256.
+ *
+ * TODO: migrate to Azure Storage SDK when Jackson is upgraded
+ * (see delta-io/delta#5598).
+ */
+class AbfsUserDelegationFileSigner(
+    rawAccountName: String,
+    endpointSuffix: String,
+    container: String,
+    uamiClientId: Option[String],
+    preSignedUrlTimeoutSeconds: Long,
+    objectKeyExtractor: Path => String) extends CloudFileSigner {
+
+  private val blobEndpoint =
+    s"https://$rawAccountName.blob.$endpointSuffix"
+
+  // Cache delegation key to avoid a REST call per file.
+  // Keys are valid 1 hour; refresh after 50 min.
+  private val KEY_REFRESH_MINUTES = 50
+  @volatile private var cachedToken: String = _
+  @volatile private var cachedKey:
+    AzureUserDelegationSasGenerator.UserDelegationKeyInfo = _
+  @volatile private var cachedKeyRefreshAt:
+    java.time.OffsetDateTime = _
+
+  private def ensureKey(): (
+      String,
+      AzureUserDelegationSasGenerator.UserDelegationKeyInfo) = {
+    val now = java.time.OffsetDateTime.now()
+    if (cachedKey == null || now.isAfter(cachedKeyRefreshAt)) {
+      synchronized {
+        val nowInner = java.time.OffsetDateTime.now()
+        if (cachedKey == null ||
+            nowInner.isAfter(cachedKeyRefreshAt)) {
+          val (token, _) = AzureUserDelegationSasGenerator
+            .getManagedIdentityToken(uamiClientId)
+          val keyExpiry = nowInner.plusHours(1)
+          cachedToken = token
+          cachedKey = AzureUserDelegationSasGenerator
+            .getUserDelegationKey(
+              rawAccountName, endpointSuffix,
+              token, nowInner, keyExpiry)
+          cachedKeyRefreshAt =
+            nowInner.plusMinutes(KEY_REFRESH_MINUTES)
+        }
+      }
+    }
+    (cachedToken, cachedKey)
+  }
+
+  override def sign(path: Path): PreSignedUrl = {
+    val objectKey = objectKeyExtractor(path)
+    assert(objectKey.nonEmpty, s"cannot get object key from $path")
+    val now = java.time.OffsetDateTime.now()
+    val (_, key) = ensureKey()
+    val sasExpiry = now.plusSeconds(preSignedUrlTimeoutSeconds)
+    val sasToken = AzureUserDelegationSasGenerator
+      .computeUserDelegationSas(
+        rawAccountName, container, key, "r",
+        now, sasExpiry)
+    // Encode each path segment individually. URLEncoder
+    // would encode / as %2F which is a different blob path.
+    val encodedKey = objectKey.split("/").map(seg =>
+      java.net.URLEncoder.encode(seg, UTF_8.name)
+    ).mkString("/")
+    val blobUrl = s"$blobEndpoint/$container/$encodedKey"
+    PreSignedUrl(
+      s"$blobUrl?$sasToken",
+      System.currentTimeMillis() +
+        SECONDS.toMillis(preSignedUrlTimeoutSeconds)
+    )
   }
 }
 

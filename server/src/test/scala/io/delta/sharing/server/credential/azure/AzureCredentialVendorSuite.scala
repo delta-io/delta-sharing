@@ -93,4 +93,88 @@ class AzureCredentialVendorSuite extends FunSuite {
     val result = AzureCredentialVendor.getAadConfig(conf, account)
     assert(result == Some(("tenant-abc", "cid", "csecret")))
   }
+
+  // --- Managed identity config tests ---
+
+  test("getAuthType returns None when not configured") {
+    val conf = new Configuration()
+    assert(AzureCredentialVendor.getAuthType(conf).isEmpty)
+  }
+
+  test("getAuthType returns managed_identity") {
+    val conf = new Configuration()
+    conf.set(AzureCredentialVendor.CONF_AUTH_TYPE, "managed_identity")
+    assert(AzureCredentialVendor.getAuthType(conf) == Some("managed_identity"))
+  }
+
+  test("getAuthType returns client_credentials") {
+    val conf = new Configuration()
+    conf.set(AzureCredentialVendor.CONF_AUTH_TYPE, "client_credentials")
+    assert(AzureCredentialVendor.getAuthType(conf) == Some("client_credentials"))
+  }
+
+  test("getAuthType returns shared_key") {
+    val conf = new Configuration()
+    conf.set(AzureCredentialVendor.CONF_AUTH_TYPE, "shared_key")
+    assert(AzureCredentialVendor.getAuthType(conf) == Some("shared_key"))
+  }
+
+  test("getAuthType trims whitespace") {
+    val conf = new Configuration()
+    conf.set(AzureCredentialVendor.CONF_AUTH_TYPE, "  managed_identity  ")
+    assert(AzureCredentialVendor.getAuthType(conf) == Some("managed_identity"))
+  }
+
+  test("getAuthType returns None for empty string") {
+    val conf = new Configuration()
+    conf.set(AzureCredentialVendor.CONF_AUTH_TYPE, "")
+    assert(AzureCredentialVendor.getAuthType(conf).isEmpty)
+  }
+
+  test("getManagedIdentityClientId returns None when not configured") {
+    val conf = new Configuration()
+    assert(AzureCredentialVendor.getManagedIdentityClientId(conf).isEmpty)
+  }
+
+  test("getManagedIdentityClientId returns UAMI client ID") {
+    val conf = new Configuration()
+    conf.set(AzureCredentialVendor.CONF_MANAGED_IDENTITY_CLIENT_ID, "uami-client-id-123")
+    assert(AzureCredentialVendor.getManagedIdentityClientId(conf) == Some("uami-client-id-123"))
+  }
+
+  test("getManagedIdentityClientId trims whitespace") {
+    val conf = new Configuration()
+    conf.set(AzureCredentialVendor.CONF_MANAGED_IDENTITY_CLIENT_ID, "  uami-123  ")
+    assert(AzureCredentialVendor.getManagedIdentityClientId(conf) == Some("uami-123"))
+  }
+
+  test("vendAzureCredential throws for unknown auth type") {
+    val conf = new Configuration()
+    conf.set(AzureCredentialVendor.CONF_AUTH_TYPE, "invalid_type")
+    val vendor = new AzureCredentialVendor(conf)
+    val context = io.delta.sharing.server.credential.CredentialContext.create(
+      new URI("abfss://container@account.dfs.core.windows.net/path"),
+      Set(io.delta.sharing.server.credential.Privilege.SELECT)
+    )
+    val e = intercept[IllegalArgumentException] {
+      vendor.vendAzureCredential(context, 3600)
+    }
+    assert(e.getMessage.contains("Unknown delta.sharing.azure.auth.type"))
+    assert(e.getMessage.contains("invalid_type"))
+  }
+
+  test("vendAzureCredential throws for client_credentials without config") {
+    val conf = new Configuration()
+    conf.set(AzureCredentialVendor.CONF_AUTH_TYPE, "client_credentials")
+    val vendor = new AzureCredentialVendor(conf)
+    val context = io.delta.sharing.server.credential.CredentialContext.create(
+      new URI("abfss://container@account.dfs.core.windows.net/path"),
+      Set(io.delta.sharing.server.credential.Privilege.SELECT)
+    )
+    val e = intercept[RuntimeException] {
+      vendor.vendAzureCredential(context, 3600)
+    }
+    assert(e.getMessage.contains("client_credentials"))
+    assert(e.getMessage.contains("tenant/client/secret configuration is missing"))
+  }
 }
