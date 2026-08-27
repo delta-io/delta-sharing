@@ -646,7 +646,10 @@ class DeltaSharingRestClient(
             10
           )
           throw new IllegalStateException(
-            s"Unexpected Line:${line}" + getDsQueryIdForLogging)
+            s"Unexpected Line:${line}. " +
+            "Expected parquet streaming lines: protocol, metadata, then " +
+            "add, remove, or metadata actions only." +
+            getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
@@ -826,7 +829,10 @@ class DeltaSharingRestClient(
         case _ =>
           logFirstKLines(lines, s"getCDFFiles(cdfOptions:$cdfOptions)", 10)
           throw new IllegalStateException(
-            s"Unexpected Line:${line}," + getDsQueryIdForLogging)
+            s"Unexpected Line:${line}. " +
+            "Expected parquet CDF lines: protocol, metadata, then " +
+            "cdc, add, remove, or metadata actions only." +
+            getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
