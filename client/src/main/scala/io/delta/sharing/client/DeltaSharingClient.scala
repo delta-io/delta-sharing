@@ -820,8 +820,10 @@ class DeltaSharingRestClient(
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => throw new IllegalStateException(
-          s"Unexpected Line:${line}," + getDsQueryIdForLogging)
+        case _ =>
+          logFirstKLines(lines, s"getCDFFiles(cdfOptions:$cdfOptions)", 10)
+          throw new IllegalStateException(
+            s"Unexpected Line:${line}," + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
