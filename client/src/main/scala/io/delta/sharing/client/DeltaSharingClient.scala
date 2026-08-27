@@ -530,6 +530,7 @@ class DeltaSharingRestClient(
       if (action.file != null) {
         files.append(action.file)
       } else {
+        logFirstKLines(lines, "getFiles", 10)
         throw new IllegalStateException(s"Unexpected Line:${line}" + getDsQueryIdForLogging)
       }
     }
