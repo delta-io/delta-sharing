@@ -530,7 +530,11 @@ class DeltaSharingRestClient(
       if (action.file != null) {
         files.append(action.file)
       } else {
-        logFirstKLines(lines, "getFiles", 10)
+        logFirstKLines(
+          lines,
+          s"getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf)",
+          10
+        )
         throw new IllegalStateException(s"Unexpected Line:${line}" + getDsQueryIdForLogging)
       }
     }
@@ -633,7 +637,11 @@ class DeltaSharingRestClient(
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
         case _ =>
-          logFirstKLines(lines, "getFiles", 10)
+          logFirstKLines(
+            lines,
+            s"getFiles(startingVersion:$startingVersion, endingVersion:$endingVersion)",
+            10
+          )
           throw new IllegalStateException(
             s"Unexpected Line:${line}" + getDsQueryIdForLogging)
       }
