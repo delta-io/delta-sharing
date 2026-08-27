@@ -535,7 +535,10 @@ class DeltaSharingRestClient(
           s"getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf)",
           10
         )
-        throw new IllegalStateException(s"Unexpected Line:${line}" + getDsQueryIdForLogging)
+        throw new IllegalStateException(
+          s"Unexpected Line:${line}. " +
+          "Expected parquet snapshot lines: protocol, metadata, then file actions only." +
+          getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
