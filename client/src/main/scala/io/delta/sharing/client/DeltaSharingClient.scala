@@ -538,8 +538,8 @@ class DeltaSharingRestClient(
           target
         )
         throw new IllegalStateException(
-          s"Unexpected Line:${line}. Expected file actions only." +
-            s" targetUrl $target" + getDsQueryIdForLogging)
+          s"Unexpected Line:${line}. From the 3rd line expect file actions only. " +
+            s"targetUrl $target" + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
@@ -648,8 +648,9 @@ class DeltaSharingRestClient(
             target
           )
           throw new IllegalStateException(
-            s"Unexpected Line:${line}. Expected add, remove, or metadata actions only." +
-              s" targetUrl $target" + getDsQueryIdForLogging)
+            s"Unexpected Line:${line}. " +
+              "From the 3rd line expect add, remove, or metadata actions only. " +
+              s"targetUrl $target" + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
@@ -829,8 +830,9 @@ class DeltaSharingRestClient(
         case _ =>
           logFirstKLines(lines, s"getCDFFiles(cdfOptions:$cdfOptions)", 10, target)
           throw new IllegalStateException(
-            s"Unexpected Line:${line}. Expected cdc, add, remove, or metadata actions only." +
-              s" targetUrl $target" + getDsQueryIdForLogging)
+            s"Unexpected Line:${line}. " +
+              "From the 3rd line expect cdc, add, remove, or metadata actions only. " +
+              s"targetUrl $target" + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
