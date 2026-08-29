@@ -501,6 +501,84 @@ The server is using `hadoop-azure` to read Azure Data Lake Storage Gen2. We supp
 ```
 `YOUR-ACCOUNT-NAME` is your Azure storage account and `YOUR-ACCOUNT-KEY` is your account key.
 
+#### Using Managed Identity (Azure VM)
+
+When running the Delta Sharing server on an Azure VM (or other Azure compute with managed identity support such as AKS or App Service), you can authenticate to ADLS Gen2 using [managed identities for Azure resources](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview) instead of storing account keys or client secrets.
+
+**Prerequisites:**
+- The VM must have a System-Assigned Managed Identity (SAMI) enabled, or a User-Assigned Managed Identity (UAMI) attached.
+- The identity must be granted the following RBAC roles on the storage account:
+  - `Storage Blob Data Reader` — for reading delta table data
+  - `Storage Blob Delegator` — for generating User Delegation SAS tokens for clients
+
+**System-Assigned Managed Identity (SAMI):**
+
+Note: This configuration only works when the VM has a single managed identity (SAMI only). If the VM also has User-Assigned Managed Identities attached, you must use the UAMI configuration below and specify the client ID explicitly, even if you intend to use the SAMI — otherwise Azure cannot determine which identity to use.
+
+```xml
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>fs.azure.account.auth.type.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
+    <value>OAuth</value>
+  </property>
+  <property>
+    <name>fs.azure.account.oauth.provider.type.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
+    <value>org.apache.hadoop.fs.azurebfs.oauth2.MsiTokenProvider</value>
+  </property>
+  <property>
+    <name>fs.azure.account.oauth2.msi.tenant.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
+    <value>YOUR-TENANT-ID</value>
+  </property>
+  <property>
+    <name>fs.azure.account.oauth2.client.id.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
+    <value>YOUR-SAMI-APP-ID</value>
+  </property>
+  <property>
+    <name>delta.sharing.azure.auth.type</name>
+    <value>managed_identity</value>
+  </property>
+</configuration>
+```
+
+`YOUR-TENANT-ID` is your Azure AD tenant ID and `YOUR-SAMI-APP-ID` is the Application (client) ID of the VM's system-assigned managed identity (found in the Azure Portal under VM > Identity > System assigned > Object ID link > Application ID).
+
+**User-Assigned Managed Identity (UAMI):**
+
+```xml
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>fs.azure.account.auth.type.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
+    <value>OAuth</value>
+  </property>
+  <property>
+    <name>fs.azure.account.oauth.provider.type.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
+    <value>org.apache.hadoop.fs.azurebfs.oauth2.MsiTokenProvider</value>
+  </property>
+  <property>
+    <name>fs.azure.account.oauth2.msi.tenant.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
+    <value>YOUR-TENANT-ID</value>
+  </property>
+  <property>
+    <name>fs.azure.account.oauth2.client.id.YOUR-ACCOUNT-NAME.dfs.core.windows.net</name>
+    <value>YOUR-UAMI-CLIENT-ID</value>
+  </property>
+  <property>
+    <name>delta.sharing.azure.auth.type</name>
+    <value>managed_identity</value>
+  </property>
+  <property>
+    <name>delta.sharing.azure.managed.identity.client.id</name>
+    <value>YOUR-UAMI-CLIENT-ID</value>
+  </property>
+</configuration>
+```
+
+Replace `YOUR-ACCOUNT-NAME` with your storage account name and `YOUR-UAMI-CLIENT-ID` with the client ID of your User-Assigned Managed Identity.
+
 ### Google Cloud Storage
 
 We support using [Service Account](https://cloud.google.com/iam/docs/service-accounts) to read Google Cloud Storage. You can find more details in [GCP Authentication Doc](https://cloud.google.com/docs/authentication/getting-started).

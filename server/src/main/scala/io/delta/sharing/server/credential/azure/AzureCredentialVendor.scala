@@ -42,9 +42,15 @@ object AzureCredentialVendor {
   val CONF_TENANT_ID = "delta.sharing.azure.tenant.id"
   val CONF_CLIENT_ID = "delta.sharing.azure.client.id"
   val CONF_CLIENT_SECRET = "delta.sharing.azure.client.secret"
+  val CONF_AUTH_TYPE = "delta.sharing.azure.auth.type"
+  val CONF_MANAGED_IDENTITY_CLIENT_ID = "delta.sharing.azure.managed.identity.client.id"
   val HADOOP_OAUTH_CLIENT_ID = "fs.azure.account.oauth2.client.id"
   val HADOOP_OAUTH_CLIENT_SECRET = "fs.azure.account.oauth2.client.secret"
   val HADOOP_OAUTH_CLIENT_ENDPOINT = "fs.azure.account.oauth2.client.endpoint"
+
+  val AUTH_TYPE_MANAGED_IDENTITY = "managed_identity"
+  val AUTH_TYPE_CLIENT_CREDENTIALS = "client_credentials"
+  val AUTH_TYPE_SHARED_KEY = "shared_key"
 
   def parseLocation(uri: URI): AzureLocationParts = {
     val host = Option(uri.getHost).getOrElse("")
@@ -94,58 +100,153 @@ object AzureCredentialVendor {
     val idx = parts.indexWhere(_.contains("microsoftonline.com"))
     if (idx >= 0 && idx + 1 < parts.length) Some(parts(idx + 1)) else None
   }
+
+  def getAuthType(conf: Configuration): Option[String] =
+    Option(conf.get(CONF_AUTH_TYPE)).map(_.trim).filter(_.nonEmpty)
+
+  def getManagedIdentityClientId(conf: Configuration): Option[String] =
+    Option(conf.get(CONF_MANAGED_IDENTITY_CLIENT_ID)).map(_.trim).filter(_.nonEmpty)
+
+  /**
+   * Fetch an AAD token via the Azure IMDS managed identity endpoint.
+   * Uses direct HTTP (like getAadToken for client_credentials) to avoid
+   * the Azure SDK HTTP pipeline which requires Jackson 2.9+
+   * (incompatible with the delta-standalone Jackson 2.6.x pin).
+   * @param clientId optional UAMI client ID; if None, uses system-assigned.
+   * @return (accessToken, expiryMillis)
+   */
+  def getManagedIdentityToken(
+      clientId: Option[String]): (String, Long) = {
+    AzureUserDelegationSasGenerator.getManagedIdentityToken(clientId)
+  }
 }
 
 /**
  * Vends Azure User Delegation SAS or account-key SAS for the context location.
  * Mirrors Unity Catalog's AzureCredentialVendor + DatalakeCredentialGenerator.
+ *
+ * Supports three authentication modes configured via `delta.sharing.azure.auth.type`:
+ * `managed_identity` (SAMI/UAMI), `client_credentials` (service principal), or
+ * `shared_key` (account key). If not set, auto-detects existing behavior.
  */
 class AzureCredentialVendor(conf: Configuration) {
 
   def vendAzureCredential(context: CredentialContext, validitySeconds: Long): Credentials = {
     val location = context.locations.head
     val parts = AzureCredentialVendor.parseLocation(location)
-    val accountKey = AzureNativeFileSystemStore.getAccountKeyFromConfiguration(
-      parts.accountNameFull, conf)
-    val aadConfig = AzureCredentialVendor.getAadConfig(conf, parts.accountNameFull)
     val expirationTime = System.currentTimeMillis() + SECONDS.toMillis(validitySeconds)
-    val sasToken = aadConfig match {
-      case Some((tenantId, clientId, clientSecret)) =>
-        try {
-          AzureUserDelegationSasGenerator.generateUserDelegationSas(
-            parts.accountShort,
-            parts.endpointSuffix,
-            parts.container,
-            tenantId,
-            clientId,
-            clientSecret,
-            validitySeconds
-          )
-        } catch {
-          case e: Exception =>
-            throw new RuntimeException(
-              "Failed to generate Azure User Delegation SAS (check AAD config and RBAC). " +
-                "Ensure the app has Storage Blob Data Contributor or generateUserDelegationKey.", e)
-        }
+    val authType = AzureCredentialVendor.getAuthType(conf)
+
+    val sasToken = authType match {
+      case Some(AzureCredentialVendor.AUTH_TYPE_MANAGED_IDENTITY) =>
+        vendWithManagedIdentity(parts, validitySeconds)
+      case Some(AzureCredentialVendor.AUTH_TYPE_CLIENT_CREDENTIALS) =>
+        vendWithClientCredentials(parts, validitySeconds)
+      case Some(AzureCredentialVendor.AUTH_TYPE_SHARED_KEY) =>
+        vendWithSharedKey(parts, expirationTime)
+      case Some(other) =>
+        throw new IllegalArgumentException(
+          s"Unknown delta.sharing.azure.auth.type: '$other'. " +
+            "Supported values: managed_identity, client_credentials, shared_key.")
       case None =>
-        val connectionString = Seq(
-          "DefaultEndpointsProtocol=https",
-          s"AccountName=${parts.accountShort}",
-          s"AccountKey=$accountKey",
-          s"EndpointSuffix=${parts.endpointSuffix}"
-        ).mkString(";")
-        val account = CloudStorageAccount.parse(connectionString)
-        val blobClient = account.createCloudBlobClient()
-        val policy = new SharedAccessBlobPolicy()
-        policy.setPermissions(java.util.EnumSet.of(SharedAccessBlobPermissions.READ))
-        policy.setSharedAccessExpiryTime(new Date(expirationTime))
-        val containerRef = blobClient.getContainerReference(parts.container)
-        containerRef.generateSharedAccessSignature(policy, null)
+        // Auto-detect: try client_credentials, then fall back to shared_key
+        val aadConfig = AzureCredentialVendor.getAadConfig(conf, parts.accountNameFull)
+        aadConfig match {
+          case Some((tenantId, clientId, clientSecret)) =>
+            vendWithClientCredentialsParams(
+              parts, tenantId, clientId, clientSecret, validitySeconds)
+          case None =>
+            vendWithSharedKey(parts, expirationTime)
+        }
     }
     Credentials(
       location = location.toString,
       azureUserDelegationSas = AzureUserDelegationSas(sasToken = sasToken),
       expirationTime = expirationTime
     )
+  }
+
+  private def vendWithManagedIdentity(
+      parts: AzureLocationParts,
+      validitySeconds: Long): String = {
+    try {
+      val uamiClientId =
+        AzureCredentialVendor.getManagedIdentityClientId(conf)
+      val (accessToken, _) =
+        AzureCredentialVendor.getManagedIdentityToken(uamiClientId)
+      AzureUserDelegationSasGenerator
+        .generateUserDelegationSasFromToken(
+          parts.accountShort,
+          parts.endpointSuffix,
+          parts.container,
+          accessToken,
+          validitySeconds
+        )
+    } catch {
+      case e: Exception =>
+        throw new RuntimeException(
+          "Failed to generate Azure User Delegation SAS via managed identity. " +
+            "Ensure the VM has a managed identity assigned and it has " +
+            "Storage Blob Data Reader + Storage Blob Delegator RBAC roles.", e)
+    }
+  }
+
+  private def vendWithClientCredentials(
+      parts: AzureLocationParts,
+      validitySeconds: Long): String = {
+    val aadConfig = AzureCredentialVendor.getAadConfig(conf, parts.accountNameFull)
+    aadConfig match {
+      case Some((tenantId, clientId, clientSecret)) =>
+        vendWithClientCredentialsParams(parts, tenantId, clientId, clientSecret, validitySeconds)
+      case None =>
+        throw new RuntimeException(
+          "delta.sharing.azure.auth.type is set to 'client_credentials' but " +
+            "tenant/client/secret configuration is missing. Set delta.sharing.azure.tenant.id, " +
+            "delta.sharing.azure.client.id, and delta.sharing.azure.client.secret.")
+    }
+  }
+
+  private def vendWithClientCredentialsParams(
+      parts: AzureLocationParts,
+      tenantId: String,
+      clientId: String,
+      clientSecret: String,
+      validitySeconds: Long): String = {
+    try {
+      AzureUserDelegationSasGenerator.generateUserDelegationSas(
+        parts.accountShort,
+        parts.endpointSuffix,
+        parts.container,
+        tenantId,
+        clientId,
+        clientSecret,
+        validitySeconds
+      )
+    } catch {
+      case e: Exception =>
+        throw new RuntimeException(
+          "Failed to generate Azure User Delegation SAS (check AAD config and RBAC). " +
+            "Ensure the app has Storage Blob Data Contributor or generateUserDelegationKey.", e)
+    }
+  }
+
+  private def vendWithSharedKey(
+      parts: AzureLocationParts,
+      expirationTime: Long): String = {
+    val accountKey = AzureNativeFileSystemStore.getAccountKeyFromConfiguration(
+      parts.accountNameFull, conf)
+    val connectionString = Seq(
+      "DefaultEndpointsProtocol=https",
+      s"AccountName=${parts.accountShort}",
+      s"AccountKey=$accountKey",
+      s"EndpointSuffix=${parts.endpointSuffix}"
+    ).mkString(";")
+    val account = CloudStorageAccount.parse(connectionString)
+    val blobClient = account.createCloudBlobClient()
+    val policy = new SharedAccessBlobPolicy()
+    policy.setPermissions(java.util.EnumSet.of(SharedAccessBlobPermissions.READ))
+    policy.setSharedAccessExpiryTime(new Date(expirationTime))
+    val containerRef = blobClient.getContainerReference(parts.container)
+    containerRef.generateSharedAccessSignature(policy, null)
   }
 }
