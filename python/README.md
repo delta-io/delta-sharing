@@ -9,6 +9,9 @@ This is the Python client library for Delta Sharing, which lets you load shared 
 1. Install using `pip install delta-sharing`.
     a. On some environments, you may also need to [install Rust](https://www.rust-lang.org/tools/install). This is because the `delta-sharing` package depends on the `delta-kernel-rust-sharing-wrapper` package, which does not have a pre-built Python wheel for all environments. As a result, pip will have to build `delta-kernel-rust-sharing-wrapper` from source.
 2. To use the Python Connector, see [the project docs](https://github.com/delta-io/delta-sharing) for details.
+   If you need to load credentials from environment variables (e.g., CI), you can build a profile
+   with `delta_sharing.protocol.DeltaSharingProfile.from_env()` using
+   `DSHARING_VERSION`, `DSHARING_TOKEN`, `DSHARING_ENDPOINT`, and optional `DSHARING_EXPTIME`.
 
 ## Documentation
 
