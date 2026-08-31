@@ -370,10 +370,11 @@ val df = spark.readStream.format("deltaSharing")
 <td>R</td>
 <td>
 
-[zacdav-db/delta-sharing-r](https://github.com/zacdav-db/delta-sharing-r)
+[zacdav-db/delta-sharing-r](https://github.com/zacdav-db/delta-sharing-r)<br>
+[Documentation](https://zacdav-db.github.io/delta-sharing-r/)
 </td>
 <td>Released</td>
-<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot</td>
+<td>QueryTableVersion<br>QueryTableMetadata<br>QueryTableLatestSnapshot<br>QueryTableChanges(CDF)<br>Time Travel Queries<br>Query Changes between Versions<br>Delta Format Queries<br>Deletion Vectors<br>Column Mapping<br>Limit and Predicate Hints</td>
 </tr>
 <tr>
 <td>Google Spreadsheet</td>
