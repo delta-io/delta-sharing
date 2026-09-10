@@ -23,14 +23,20 @@ import scala.collection.mutable.ListBuffer
 import org.apache.spark.delta.sharing.{CachedTableManager, TableRefreshResult}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, DeltaSharingScanUtils, Row, SparkSession, SQLContext}
-import org.apache.spark.sql.execution.LogicalRDD
 import org.apache.spark.sql.execution.datasources.{HadoopFsRelation, LogicalRelation}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources.{BaseRelation, Filter, PrunedFilteredScan}
 import org.apache.spark.sql.types.StructType
 
-import io.delta.sharing.client.DeltaSharingClient
-import io.delta.sharing.client.model.{AddCDCFile, AddFileForCDF, RemoveFile, Table => DeltaSharingTable}
+import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingRestClient}
+import io.delta.sharing.client.model.{
+  AddCDCFile,
+  AddFile,
+  AddFileForCDF,
+  DeltaTableFiles,
+  RemoveFile,
+  Table => DeltaSharingTable
+}
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.util.QueryUtils
 
@@ -41,27 +47,64 @@ case class RemoteDeltaCDFRelation(
     table: DeltaSharingTable,
     cdfOptions: Map[String, String]) extends BaseRelation with PrunedFilteredScan {
 
-  override def schema: StructType = DeltaTableUtils.addCdcSchema(snapshotToUse.schema)
+  private var prefetchedDeltaTableFiles: Option[DeltaTableFiles] = None
+
+  private lazy val deltaTableFiles = prefetchedDeltaTableFiles.getOrElse(
+    client.getCDFFiles(table, cdfOptions, false, None))
+
+  private def usePrefetchedFiles(files: DeltaTableFiles): this.type = {
+    require(prefetchedDeltaTableFiles.isEmpty, "Prefetched CDF files have already been supplied")
+    prefetchedDeltaTableFiles = Some(files)
+    this
+  }
+
+  private lazy val baseSchema = {
+    if (deltaTableFiles.isVersionlessCDF) {
+      DeltaTableUtils.toSchema(deltaTableFiles.metadata.schemaString)
+    } else {
+      snapshotToUse.schema
+    }
+  }
+
+  private[sharing] lazy val fileIndexParams = {
+    val partitionSchemaOverride = if (deltaTableFiles.isVersionlessCDF) {
+      Some(new StructType(
+        deltaTableFiles.metadata.partitionColumns.map(column => baseSchema(column)).toArray))
+    } else {
+      None
+    }
+    new RemoteDeltaFileIndexParams(
+      spark,
+      snapshotToUse,
+      client.getProfileProvider,
+      Some(QueryUtils.getQueryParamsHashId(cdfOptions)),
+      partitionSchemaOverride = partitionSchemaOverride)
+  }
+
+  override lazy val schema: StructType = {
+    if (deltaTableFiles.isVersionlessCDF) {
+      baseSchema
+    } else {
+      DeltaTableUtils.addCdcSchema(baseSchema)
+    }
+  }
 
   override def sqlContext: SQLContext = spark.sqlContext
 
   override def buildScan(
       requiredColumns: Array[String],
       filters: Array[Filter]): RDD[Row] = {
-    val deltaTabelFiles = client.getCDFFiles(table, cdfOptions, false, None)
+    if (deltaTableFiles.isVersionlessCDF) {
+      return scanVersionlessFiles(requiredColumns).rdd
+    }
 
     DeltaSharingCDFReader.changesToDF(
-      new RemoteDeltaFileIndexParams(
-        spark,
-        snapshotToUse,
-        client.getProfileProvider,
-        Some(QueryUtils.getQueryParamsHashId(cdfOptions))
-      ),
+      fileIndexParams,
       requiredColumns,
-      deltaTabelFiles.addFiles,
-      deltaTabelFiles.cdfFiles,
-      deltaTabelFiles.removeFiles,
-      DeltaTableUtils.addCdcSchema(deltaTabelFiles.metadata.schemaString),
+      deltaTableFiles.addFiles,
+      deltaTableFiles.cdfFiles,
+      deltaTableFiles.removeFiles,
+      schema,
       false,
       _ => {
         val d = client.getCDFFiles(table, cdfOptions, false, None)
@@ -73,15 +116,84 @@ case class RemoteDeltaCDFRelation(
       },
       System.currentTimeMillis(),
       DeltaSharingCDFReader.getMinUrlExpiration(
-        deltaTabelFiles.addFiles,
-        deltaTabelFiles.cdfFiles,
-        deltaTabelFiles.removeFiles
+        deltaTableFiles.addFiles,
+        deltaTableFiles.cdfFiles,
+        deltaTableFiles.removeFiles
       )
     ).rdd
+  }
+
+  private def scanVersionlessFiles(requiredColumns: Array[String]): DataFrame = {
+    val fileIndex = RemoteDeltaBatchFileIndex(fileIndexParams, deltaTableFiles.files)
+    val tablePathWithParams =
+      if (ConfUtils.sparkParquetIOCacheEnabled(spark.sessionState.conf)) {
+        QueryUtils.getTablePathWithIdSuffix(
+          fileIndexParams.path.toString, fileIndexParams.queryParamsHashId.get)
+      } else {
+        fileIndexParams.path.toString
+      }
+
+    CachedTableManager.INSTANCE.register(
+      tablePathWithParams,
+      DeltaSharingCDFReader.getIdToUrl(deltaTableFiles.files),
+      Seq(new WeakReference[AnyRef](fileIndex)),
+      fileIndexParams.profileProvider,
+      _ => {
+        val refreshedFiles = client.getCDFFiles(table, cdfOptions, false, None)
+        TableRefreshResult(
+          DeltaSharingCDFReader.getIdToUrl(refreshedFiles.files),
+          DeltaSharingCDFReader.getMinUrlExpiration(refreshedFiles.files),
+          None)
+      },
+      DeltaSharingCDFReader.getMinUrlExpiration(deltaTableFiles.files).getOrElse(
+        System.currentTimeMillis() + CachedTableManager.INSTANCE.preSignedUrlExpirationMs),
+      None)
+
+    val relation = HadoopFsRelation(
+      fileIndex,
+      partitionSchema = fileIndex.partitionSchema,
+      dataSchema = schema,
+      bucketSpec = None,
+      snapshotToUse.fileFormat,
+      Map.empty)(spark)
+    DeltaSharingScanUtils.ofRows(spark, LogicalRelation(relation))
+      .select(requiredColumns.map(c => col(DeltaSharingCDFReader.quoteIdentifier(c))): _*)
+  }
+}
+
+object RemoteDeltaCDFRelation {
+  private[sharing] def fromPrefetchedFiles(
+      spark: SparkSession,
+      snapshotToUse: RemoteSnapshot,
+      client: DeltaSharingClient,
+      table: DeltaSharingTable,
+      cdfOptions: Map[String, String],
+      files: DeltaTableFiles): RemoteDeltaCDFRelation = {
+    require(files.isVersionlessCDF, "Prefetched CDF files must be versionless")
+    require(
+      files.respondedFormat == DeltaSharingRestClient.RESPONSE_FORMAT_DELTA,
+      "Prefetched versionless CDF files must use Delta format")
+    RemoteDeltaCDFRelation(spark, snapshotToUse, client, table, cdfOptions)
+      .usePrefetchedFiles(files)
   }
 }
 
 object DeltaSharingCDFReader {
+  def getIdToUrl(files: Seq[AddFile]): Map[String, String] = {
+    files.map(file => file.id -> file.url).toMap
+  }
+
+  def getMinUrlExpiration(files: Seq[AddFile]): Option[Long] = {
+    val minUrlExpiration = files
+      .flatMap(file => Option(file.expirationTimestamp).map(_.longValue()))
+      .reduceOption(_ min _)
+    if (CachedTableManager.INSTANCE.isValidUrlExpirationTime(minUrlExpiration)) {
+      minUrlExpiration
+    } else {
+      None
+    }
+  }
+
   def changesToDF(
       params: RemoteDeltaFileIndexParams,
       requiredColumns: Array[String],
@@ -190,7 +302,7 @@ object DeltaSharingCDFReader {
     minUrlExpiration
   }
 
-  private def quoteIdentifier(part: String): String = s"`${part.replace("`", "``")}`"
+  private[sharing] def quoteIdentifier(part: String): String = s"`${part.replace("`", "``")}`"
 
   /**
    * Build a dataframe from the specified file index. We can't use a DataFrame scan directly on the
