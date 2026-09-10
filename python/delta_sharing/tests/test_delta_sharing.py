@@ -1485,6 +1485,50 @@ def test_load_table_changes(
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+@pytest.mark.parametrize("use_delta_format", [False, True], ids=["parquet", "delta"])
+def test_load_view_changes(
+    view_profile_path: str,
+    use_delta_format: bool,
+):
+    def load_changes(object_name: str) -> pd.DataFrame:
+        return load_table_changes_as_pandas(
+            f"{view_profile_path}#view_share.default.{object_name}",
+            starting_timestamp="2022-05-09T00:00:00Z",
+            ending_timestamp="2022-05-11T00:00:00Z",
+            use_delta_format=use_delta_format,
+        )
+
+    view_changes = load_changes("view")
+    pd.testing.assert_frame_equal(
+        view_changes,
+        pd.DataFrame(
+            {
+                "value": ["first", "second"],
+                "_change_type": ["insert", "delete"],
+                "_commit_timestamp": pd.to_datetime(
+                    ["2022-05-10T00:00:00", "2022-05-10T00:00:00"]
+                ),
+            }
+        ),
+    )
+    assert "_commit_version" not in view_changes.columns
+
+    # The control table receives the same client capability but must retain commit versions.
+    table_changes = load_changes("table")
+    pd.testing.assert_frame_equal(
+        table_changes,
+        pd.DataFrame(
+            {
+                "value": ["first", "second"],
+                "_change_type": ["insert", "delete"],
+                "_commit_version": [1, 1],
+                "_commit_timestamp": [1652140800000, 1652140800000],
+            }
+        ),
+    )
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
     "fragments,starting_version,ending_version,starting_timestamp,ending_timestamp,error,expected",
     [

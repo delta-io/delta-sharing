@@ -17,12 +17,13 @@
 package io.delta.sharing.spark
 
 import java.io.EOFException
+import java.sql.Timestamp
 
 import scala.util.Random
 
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql.{QueryTest, Row, SparkSession}
+import org.apache.spark.sql.{DataFrame, QueryTest, Row, SparkSession}
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{DateType, StringType, StructField, StructType, TimestampType}
@@ -420,6 +421,43 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       checkAnswer(df, Nil)
     }
     assert (result2.getMessage.contains("Please use a timestamp less"))
+  }
+
+  Seq("parquet", "delta").foreach { responseFormat =>
+    integrationTest(s"view CDF with $responseFormat response format") {
+      val sharingOptions = Map(
+        "endpoint" -> "http://localhost:12346/delta-sharing",
+        "bearerToken" -> "token",
+        "shareCredentialsVersion" -> "1")
+
+      def loadChanges(objectName: String): DataFrame = {
+        spark.read.format("deltaSharing")
+          .options(sharingOptions)
+          .option("responseFormat", responseFormat)
+          .option("readChangeFeed", "true")
+          .option("startingTimestamp", "2022-05-09T00:00:00Z")
+          .option("endingTimestamp", "2022-05-11T00:00:00Z")
+          .load(s"view_share.default.$objectName")
+      }
+
+      val viewChanges = loadChanges("view")
+      assert(viewChanges.columns.sameElements(
+        Array("value", "_change_type", "_commit_timestamp")))
+      val commitTimestamp = new Timestamp(1652140800000L)
+      checkAnswer(viewChanges, Seq(
+        Row("first", "insert", commitTimestamp),
+        Row("second", "delete", commitTimestamp)))
+
+      if (responseFormat == "parquet") {
+        // The control table receives the same client capability but must retain commit versions.
+        val tableChanges = loadChanges("table")
+        assert(tableChanges.columns.sameElements(
+          Array("value", "_commit_version", "_commit_timestamp", "_change_type")))
+        checkAnswer(tableChanges, Seq(
+          Row("first", 1L, 1652140800000L, "insert"),
+          Row("second", 1L, 1652140800000L, "delete")))
+      }
+    }
   }
 
   integrationTest("table_changes: cdf_table_with_vacuum") {

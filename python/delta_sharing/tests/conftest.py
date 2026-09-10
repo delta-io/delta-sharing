@@ -36,6 +36,20 @@ def profile_path() -> str:
 
 
 @pytest.fixture
+def view_profile_path(tmp_path: Path) -> str:
+    profile = tmp_path / "view.share"
+    profile.write_text(
+        """{
+  "shareCredentialsVersion": 1,
+  "endpoint": "http://localhost:12346/delta-sharing",
+  "bearerToken": "token"
+}
+"""
+    )
+    return str(profile)
+
+
+@pytest.fixture
 def profile(profile_path) -> DeltaSharingProfile:
     return DeltaSharingProfile.read_from_file(profile_path)
 
