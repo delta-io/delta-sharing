@@ -16,6 +16,8 @@
 import pytest
 
 from datetime import date
+from pathlib import Path
+import tempfile
 from typing import Optional, Sequence, Tuple
 
 import pandas as pd
@@ -716,7 +718,7 @@ def test_snapshot_empty(rest_client: DataSharingRestClient):
     assert arrow_table.schema.names == list(expected.columns)
 
 
-def test_table_changes_to_pandas_non_partitioned(tmp_path):
+def test_table_changes_non_partitioned(tmp_path):
     # Create basic data frame.
     pdf1 = pd.DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
     pdf2 = pd.DataFrame({"a": [4, 5, 6], "b": ["d", "e", "f"]})
@@ -819,6 +821,7 @@ def test_table_changes_to_pandas_non_partitioned(tmp_path):
 
     expected = pd.concat([pdf1, pdf2, pdf3, pdf4]).reset_index(drop=True)
     pd.testing.assert_frame_equal(pdf, expected)
+    pd.testing.assert_frame_equal(reader.table_changes_to_arrow(CdfOptions()).to_pandas(), expected)
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
@@ -827,7 +830,7 @@ def test_table_changes_to_pandas_non_partitioned(tmp_path):
     pd.testing.assert_frame_equal(pdf, expected)
 
 
-def test_table_changes_to_pandas_partitioned(tmp_path):
+def test_table_changes_partitioned(tmp_path):
     pdf1 = pd.DataFrame({"a": [1, 2, 3]})
     pdf2 = pd.DataFrame({"a": [4, 5, 6]})
 
@@ -899,6 +902,8 @@ def test_table_changes_to_pandas_partitioned(tmp_path):
         ]
     ]
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = reader.table_changes_to_record_batch_reader(CdfOptions()).read_all()
+    pd.testing.assert_frame_equal(arrow_table.to_pandas(), expected)
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
@@ -939,12 +944,164 @@ def test_table_changes_empty(tmp_path):
 
     pdf = reader.table_changes_to_pandas(CdfOptions())
     validate_pdf(pdf)
+    validate_pdf(reader.table_changes_to_arrow(CdfOptions()).to_pandas())
+    batches = reader.table_changes_to_record_batches(CdfOptions())
+    assert list(batches) == []
+    batches.close()
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
     )
     pdf = reader.table_changes_to_pandas(CdfOptions())
     validate_pdf(pdf)
+
+
+def test_add_special_cdf_schema_does_not_mutate_input():
+    schema_json = {
+        "type": "struct",
+        "fields": [
+            {"metadata": {}, "name": "a", "nullable": True, "type": "long"},
+            {"metadata": {}, "name": "b", "nullable": True, "type": "string"},
+        ],
+    }
+    original_fields = list(schema_json["fields"])
+
+    schema_with_cdf = DeltaSharingReader._add_special_cdf_schema(schema_json)
+
+    assert schema_json["fields"] == original_fields
+    assert schema_with_cdf["fields"] == original_fields + [
+        {"name": DeltaSharingReader._change_type_col_name(), "type": "string"},
+        {"name": DeltaSharingReader._commit_version_col_name(), "type": "long"},
+        {"name": DeltaSharingReader._commit_timestamp_col_name(), "type": "long"},
+    ]
+
+
+def test_table_changes_to_record_batches_delta_format_removes_header_after_failure():
+    class RestClientMock:
+        delta_format_removed = False
+
+        def set_delta_format_header(self, for_cdf=False):
+            assert for_cdf
+
+        def list_table_changes(
+            self, table: Table, cdfOptions: CdfOptions
+        ) -> ListTableChangesResponse:
+            assert table == _TEST_TABLE
+            raise RuntimeError("list changes failed")
+
+        def remove_delta_format_header(self):
+            self.delta_format_removed = True
+
+    rest_client = RestClientMock()
+    reader = DeltaSharingReader(
+        _TEST_TABLE,
+        rest_client,
+        use_delta_format=True,
+    )
+
+    with pytest.raises(RuntimeError, match="list changes failed"):
+        reader.table_changes_to_record_batches(CdfOptions())
+
+    assert rest_client.delta_format_removed
+
+
+@pytest.mark.parametrize("stream_type", ["iterator", "reader", "c_stream"])
+@pytest.mark.parametrize("stage", ["unstarted", "partial", "exhausted"])
+def test_table_changes_delta_format_stream_lifecycle(tmp_path, monkeypatch, stream_type, stage):
+    parquet_file = tmp_path / "change.parquet"
+    pd.DataFrame({"a": [1]}).to_parquet(parquet_file)
+
+    escaped_schema_string = _SCHEMA_A.replace('"', '\\"')
+    lines = [
+        # CDF scans require a protocol whose writer features include changeDataFeed.
+        (
+            '{"protocol":{"deltaProtocol":{'
+            '"minReaderVersion":3,'
+            '"minWriterVersion":7,'
+            '"readerFeatures":[],'
+            '"writerFeatures":["changeDataFeed"]'
+            "}}}"
+        ),
+        (
+            '{"metaData":{'
+            '"version":0,'
+            '"deltaMetadata":{'
+            '"id":"id",'
+            '"format":{"provider":"parquet","options":{}},'
+            f'"schemaString":"{escaped_schema_string}",'
+            '"partitionColumns":[],'
+            '"configuration":{"delta.enableChangeDataFeed":"true"}'
+            "}}}"
+        ),
+        (
+            '{"file":{'
+            '"id":"change",'
+            '"version":0,'
+            '"timestamp":1000,'
+            '"deltaSingleAction":{'
+            '"add":{'
+            f'"path":"{parquet_file}",'
+            '"partitionValues":{},'
+            '"modificationTime":1000,'
+            '"dataChange":true,'
+            '"size":0'
+            "}}}}"
+        ),
+    ]
+
+    class RestClientMock:
+        delta_format_removed = False
+
+        def set_delta_format_header(self, for_cdf=False):
+            assert for_cdf
+
+        def list_table_changes(
+            self, table: Table, cdfOptions: CdfOptions
+        ) -> ListTableChangesResponse:
+            assert table == _TEST_TABLE
+            return ListTableChangesResponse(
+                protocol=None, metadata=None, actions=None, lines=list(lines)
+            )
+
+        def remove_delta_format_header(self):
+            self.delta_format_removed = True
+
+    rest_client = RestClientMock()
+    reader = DeltaSharingReader(
+        _TEST_TABLE,
+        rest_client,
+        use_delta_format=True,
+    )
+
+    temp_paths = []
+    temporary_directory = tempfile.TemporaryDirectory
+
+    def track_temp_dir():
+        directory = temporary_directory(dir=tmp_path)
+        temp_paths.append(Path(directory.name))
+        return directory
+
+    monkeypatch.setattr("delta_sharing.reader.tempfile.TemporaryDirectory", track_temp_dir)
+    if stream_type == "iterator":
+        stream = reader.table_changes_to_record_batches(CdfOptions())
+    else:
+        stream = reader.table_changes_to_record_batch_reader(CdfOptions())
+        if stream_type == "c_stream":
+            stream = pa.RecordBatchReader.from_stream(stream)
+
+    assert rest_client.delta_format_removed
+    assert len(temp_paths) == 1 and temp_paths[0].exists()
+    if stage != "unstarted":
+        batches = [next(stream)] if stage == "partial" else list(stream)
+        result = pa.Table.from_batches(batches)
+        assert result.column("a").to_pylist() == [1]
+        assert result.column(DeltaSharingReader._change_type_col_name()).to_pylist() == ["insert"]
+        if stage == "exhausted":
+            assert not temp_paths[0].exists()
+    stream.close()
+    stream.close()
+    # Retain the closed stream to verify cleanup does not depend on its destruction.
+    assert not temp_paths[0].exists()
 
 
 def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
