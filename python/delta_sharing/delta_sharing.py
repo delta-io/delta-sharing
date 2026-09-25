@@ -123,6 +123,7 @@ def load_as_pandas(
     jsonPredicateHints: Optional[str] = None,
     use_delta_format: Optional[bool] = None,
     convert_in_batches: bool = False,
+    access_mode: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     Load the shared table using the given url as a pandas DataFrame.
@@ -140,6 +141,10 @@ def load_as_pandas(
       rather than one file at a time. This may reduce memory consumption at the cost of taking
       longer or downloading more data, with parquet format queries being more likely to see
       improvements.
+    :param access_mode: How to read the table's data. ``"dir"`` uses directory-based access (the
+      server issues temporary cloud credentials and the connector reads the delta log and data files
+      directly from object storage); ``"url"`` (the default behavior) uses pre-signed file URLs. When
+      not set, falls back to the ``DELTA_SHARING_ACCESS_MODE`` env var, else URL-based access.
     :return: A pandas DataFrame representing the shared table.
     """
     profile_json, share, schema, table = _parse_url(url)
@@ -153,6 +158,7 @@ def load_as_pandas(
         timestamp=timestamp,
         use_delta_format=use_delta_format,
         convert_in_batches=convert_in_batches,
+        access_mode=access_mode,
     ).to_pandas()
 
 
@@ -204,6 +210,7 @@ class TableSnapshot:
         version: Optional[int] = None,
         timestamp: Optional[str] = None,
         use_delta_format: Optional[bool] = None,
+        access_mode: Optional[str] = None,
     ):
         self._table = table
         self._rest_client = rest_client
@@ -212,6 +219,7 @@ class TableSnapshot:
         self._version = version
         self._timestamp = timestamp
         self._use_delta_format = use_delta_format
+        self._access_mode = access_mode
 
     def _reader(self, convert_in_batches: bool = False) -> DeltaSharingReader:
         return DeltaSharingReader(
@@ -223,6 +231,7 @@ class TableSnapshot:
             timestamp=self._timestamp,
             use_delta_format=self._use_delta_format,
             convert_in_batches=convert_in_batches,
+            access_mode=self._access_mode,
         )
 
     def to_pandas(self, convert_in_batches: bool = False) -> pd.DataFrame:
@@ -249,6 +258,9 @@ class TableSnapshot:
         if self._use_delta_format is not None:
             # TODO: Support use_delta_format once load_as_spark can pass it through.
             unsupported_options.append("use_delta_format")
+        if self._access_mode is not None:
+            # Directory-based access is implemented only for the pandas reader for now.
+            unsupported_options.append("access_mode")
 
         if unsupported_options:
             unsupported = ", ".join(unsupported_options)
@@ -345,6 +357,7 @@ class DeltaSharingTable:
         version: Optional[int] = None,
         timestamp: Optional[str] = None,
         use_delta_format: Optional[bool] = None,
+        access_mode: Optional[str] = None,
     ) -> "TableSnapshot":
         return TableSnapshot(
             table=self._table,
@@ -354,6 +367,7 @@ class DeltaSharingTable:
             version=version,
             timestamp=timestamp,
             use_delta_format=use_delta_format,
+            access_mode=access_mode,
         )
 
     def changes(
@@ -386,8 +400,12 @@ class DeltaSharingTable:
             self._table, starting_timestamp
         ).delta_table_version
 
-    def to_pandas(self, convert_in_batches: bool = False) -> pd.DataFrame:
-        return self.snapshot().to_pandas(convert_in_batches=convert_in_batches)
+    def to_pandas(
+        self, convert_in_batches: bool = False, access_mode: Optional[str] = None
+    ) -> pd.DataFrame:
+        return self.snapshot(access_mode=access_mode).to_pandas(
+            convert_in_batches=convert_in_batches
+        )
 
     def to_arrow(self) -> pa.Table:
         return self.snapshot().to_arrow()

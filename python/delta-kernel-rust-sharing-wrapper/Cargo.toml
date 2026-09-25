@@ -11,7 +11,9 @@ crate-type = ["cdylib"]
 
 [dependencies]
 arrow = { version = "57", features = ["pyarrow"] }
-object_store = "0.12.4"
+# `gcp`/`aws`/`azure` are enabled explicitly so the cloud builders (e.g. GoogleCloudStorageBuilder)
+# are available for directory-based access, not just the string-keyed `parse_url_opts` path.
+object_store = { version = "0.12.4", features = ["aws", "azure", "gcp"] }
 delta_kernel = { version = "0.22.0", features = ["default-engine-rustls", "arrow-57"]}
 url = "2"
 

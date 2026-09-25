@@ -21,14 +21,23 @@ from urllib.request import getproxies
 
 import delta_kernel_rust_sharing_wrapper
 import fsspec
+import logging
 import os
 import pandas as pd
 import pyarrow as pa
 import tempfile
+import time
 from pyarrow.dataset import dataset
 from pyarrow.parquet import ParquetFile
 
 from delta_sharing.converter import get_empty_table, to_arrow_schema, to_arrow_type, to_converters
+from delta_sharing.credentials import (
+    DIR_ACCESS_MODE,
+    TemporaryTableCredentialsProvider,
+    choose_access_mode,
+    is_dir_readable_scheme,
+    to_object_store_options,
+)
 from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, Table
 from delta_sharing.rest_client import DataSharingRestClient
 from delta_sharing.fake_checkpoint import get_fake_checkpoint_byte_array
@@ -47,6 +56,7 @@ class DeltaSharingReader:
         timestamp: Optional[str] = None,
         use_delta_format: Optional[bool] = None,
         convert_in_batches: bool = False,
+        access_mode: Optional[str] = None,
     ):
         self._table = table
         self._rest_client = rest_client
@@ -64,6 +74,8 @@ class DeltaSharingReader:
         self._timestamp = timestamp
         self._use_delta_format = use_delta_format
         self._convert_in_batches = convert_in_batches
+        self._access_mode = access_mode
+        self._dir_credentials_provider_cache: Optional[TemporaryTableCredentialsProvider] = None
 
     @property
     def table(self) -> Table:
@@ -178,7 +190,89 @@ class DeltaSharingReader:
 
         return scan_result.schema, iterator()
 
+    def _resolve_access_mode(self) -> Optional[str]:
+        """The caller's access-mode preference, falling back to the DELTA_SHARING_ACCESS_MODE env
+        var, or None (auto / URL-based) when neither is set."""
+        if self._access_mode is not None:
+            return self._access_mode.lower()
+        env = os.environ.get("DELTA_SHARING_ACCESS_MODE")
+        return env.lower() if env else None
+
+    def _dir_credentials_provider(self) -> TemporaryTableCredentialsProvider:
+        if self._dir_credentials_provider_cache is None:
+            self._dir_credentials_provider_cache = TemporaryTableCredentialsProvider(
+                self._rest_client, self._table
+            )
+        return self._dir_credentials_provider_cache
+
+    def __to_pandas_dir_negotiated(self) -> pd.DataFrame:
+        """Read the table via directory-based access after confirming the server offers it.
+
+        Raises a descriptive error (rather than silently downgrading) when 'dir' was explicitly
+        requested but cannot be served, per the protocol's Access Modes compatibility table.
+        """
+        # Directory-based access is delta-format only, and tables with advanced reader features
+        # (e.g. deletion vectors) reject a parquet-format metadata query, so request delta caps.
+        self._rest_client.set_sharing_capabilities_header()
+        try:
+            metadata = self._rest_client.query_table_metadata(self._table).metadata
+        finally:
+            self._rest_client.remove_sharing_capabilities_header()
+        location = metadata.location
+        if metadata.auxiliary_locations:
+            # The table's files span locations beyond `location`; dir access reads only `location`
+            # and would return incomplete results, so require the URL path for these tables.
+            raise NotImplementedError(
+                "Directory-based access does not yet support tables with auxiliary storage "
+                "locations; use access_mode='url'."
+            )
+        version_requested = self._version is not None or self._timestamp is not None
+        choose_access_mode(
+            DIR_ACCESS_MODE,
+            metadata.access_modes,
+            location,
+            version_requested=version_requested,
+            location_readable=is_dir_readable_scheme(location),
+        )
+        return self.__to_pandas_dir(location)
+
+    def __to_pandas_dir(self, location: str) -> pd.DataFrame:
+        """Read a Delta table directly from object storage using temporary cloud credentials.
+
+        Unlike the URL-based kernel path, no per-file pre-signed URLs are fetched and no temporary
+        delta log is materialized: the server issues prefix-scoped credentials and delta-kernel reads
+        the real delta log and data files from `location` via the cloud storage API.
+        """
+        creds = self._dir_credentials_provider().get(location)
+        storage_options = to_object_store_options(creds, location)
+        table_location = creds.location or location
+
+        interface = delta_kernel_rust_sharing_wrapper.PythonInterface(
+            table_location, storage_options
+        )
+        table = delta_kernel_rust_sharing_wrapper.Table(table_location)
+        snapshot = table.snapshot(interface)
+        scan = delta_kernel_rust_sharing_wrapper.ScanBuilder(snapshot).build()
+
+        reader = scan.execute(interface)
+        schema = reader.schema
+        if self._convert_in_batches:
+            pdfs = [batch.to_pandas(self_destruct=True) for batch in reader]
+            if not pdfs:
+                return pd.DataFrame(columns=schema.names)
+            result = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+        else:
+            result = pa.Table.from_batches(list(reader), schema).to_pandas(self_destruct=True)
+
+        if self._limit is not None:
+            return result.head(self._limit)
+        return result
+
     def to_pandas(self) -> pd.DataFrame:
+        # Opt-in directory-based access (access_mode="dir" or DELTA_SHARING_ACCESS_MODE=dir).
+        if self._resolve_access_mode() == DIR_ACCESS_MODE:
+            return self.__to_pandas_dir_negotiated()
+
         response_format = ""
         # If client does not specify which format to use, autoresolve it.
         # Otherwise use the specified format.
@@ -475,6 +569,12 @@ class DeltaSharingReader:
         return result
 
     def table_changes_to_pandas(self, cdfOptions: CdfOptions) -> pd.DataFrame:
+        if self._resolve_access_mode() == DIR_ACCESS_MODE:
+            raise NotImplementedError(
+                "Directory-based access (access_mode='dir') is not yet supported for table changes "
+                "(CDF); use the default URL-based access."
+            )
+
         # Only use delta format if explicitly specified
         if self._use_delta_format:
             return self.__table_changes_to_pandas_kernel(cdfOptions)
@@ -521,6 +621,41 @@ class DeltaSharingReader:
             timestamp=timestamp,
         )
 
+    _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+    _RETRYABLE_MARKERS = (
+        "slowdown",
+        "service unavailable",
+        "too many requests",
+        "reduce your request rate",
+        "connection reset",
+        "connection aborted",
+        "timed out",
+    )
+
+    @staticmethod
+    def _is_transient_error(error: Exception) -> bool:
+        # aiohttp ClientResponseError exposes `.status`; requests HTTPError exposes `.response`.
+        status = getattr(error, "status", None)
+        if status is None:
+            status = getattr(getattr(error, "response", None), "status_code", None)
+        if status in DeltaSharingReader._RETRYABLE_STATUS:
+            return True
+        message = str(error).lower()
+        return any(marker in message for marker in DeltaSharingReader._RETRYABLE_MARKERS)
+
+    @staticmethod
+    def _read_file_with_retry(read_fn, num_retries: int = 5, initial_sleep_ms: int = 250):
+        sleep_ms = initial_sleep_ms
+        for attempt in range(num_retries + 1):
+            try:
+                return read_fn()
+            except Exception as e:
+                if attempt >= num_retries or not DeltaSharingReader._is_transient_error(e):
+                    raise
+                logging.warning(f"Retrying file read in {sleep_ms}ms after transient error: {e}")
+                time.sleep(sleep_ms / 1000)
+                sleep_ms *= 2
+
     @staticmethod
     def _to_pandas(
         action: FileAction,
@@ -530,34 +665,38 @@ class DeltaSharingReader:
         convert_in_batches: bool,
     ) -> pd.DataFrame:
         filesystem = DeltaSharingReader._parquet_filesystem(action.url)
-        pa_file = ParquetFile(action.url, filesystem=filesystem)
 
-        if convert_in_batches:
-            pdfs = []
-            rows_read = 0
-            for batch in pa_file.iter_batches():
-                rows_read += len(batch)
-                pdfs.append(
-                    batch.to_pandas(
-                        date_as_object=True,
-                        use_threads=False,
-                        split_blocks=False,
-                        self_destruct=True,
+        def read_file() -> pd.DataFrame:
+            # Pre-signed cloud URLs can return transient 429/5xx (e.g. S3 throttling when a query
+            # spans many files); fsspec's http reader does not retry, so wrap the whole read.
+            if convert_in_batches:
+                pa_file = ParquetFile(action.url, filesystem=filesystem)
+                pdfs = []
+                rows_read = 0
+                for batch in pa_file.iter_batches():
+                    rows_read += len(batch)
+                    pdfs.append(
+                        batch.to_pandas(
+                            date_as_object=True,
+                            use_threads=False,
+                            split_blocks=False,
+                            self_destruct=True,
+                        )
                     )
-                )
-                if limit is not None and rows_read >= limit:
-                    break
+                    if limit is not None and rows_read >= limit:
+                        break
 
-            print(f"Received {len(pdfs)} batches of data.")
-            pdf = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
-            if limit is not None:
-                pdf = pdf.head(limit)
-        else:
+                print(f"Received {len(pdfs)} batches of data.")
+                out = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+                return out.head(limit) if limit is not None else out
+
             pa_dataset = dataset(source=action.url, format="parquet", filesystem=filesystem)
             pa_table = pa_dataset.head(limit) if limit is not None else pa_dataset.to_table()
-            pdf = pa_table.to_pandas(
+            return pa_table.to_pandas(
                 date_as_object=True, use_threads=False, split_blocks=False, self_destruct=True
             )
+
+        pdf = DeltaSharingReader._read_file_with_retry(read_file)
 
         lowered_cols = set()
         for col in pdf.columns:

@@ -249,6 +249,11 @@ class Metadata:
     size: Optional[int] = None
     num_files: Optional[int] = None
     created_time: Optional[int] = None
+    # Directory-based access fields (see PROTOCOL.md "Access Modes"). `location` is the table root
+    # where the delta log lives; `access_modes` lists the modes the server supports ("url"/"dir").
+    location: Optional[str] = None
+    auxiliary_locations: Optional[Sequence[str]] = None
+    access_modes: Optional[Sequence[str]] = None
 
     @staticmethod
     def from_json(json) -> "Metadata":
@@ -269,6 +274,10 @@ class Metadata:
                 size=json.get("size", None),
                 num_files=json.get("numFiles", None),
                 created_time=delta_metadata.get("createdTime", None),
+                # Sharing-level fields sit alongside `deltaMetadata`, not inside it.
+                location=json.get("location", None),
+                auxiliary_locations=json.get("auxiliaryLocations", None),
+                access_modes=json.get("accessModes", None),
             )
         else:
             configuration = json.get("configuration", {})
@@ -283,6 +292,9 @@ class Metadata:
                 version=json.get("version", None),
                 size=json.get("size", None),
                 num_files=json.get("numFiles", None),
+                location=json.get("location", None),
+                auxiliary_locations=json.get("auxiliaryLocations", None),
+                access_modes=json.get("accessModes", None),
             )
 
 
@@ -374,3 +386,124 @@ class CdfOptions:
     starting_timestamp: Optional[str] = None
     ending_timestamp: Optional[str] = None
     include_historical_metadata: Optional[bool] = None
+
+
+@dataclass(frozen=True)
+class AwsTempCredentials:
+    access_key_id: str
+    secret_access_key: str
+    session_token: str
+
+    @staticmethod
+    def from_json(json) -> "AwsTempCredentials":
+        if isinstance(json, (str, bytes, bytearray)):
+            json = loads(json)
+        return AwsTempCredentials(
+            access_key_id=json["accessKeyId"],
+            secret_access_key=json["secretAccessKey"],
+            session_token=json["sessionToken"],
+        )
+
+    def __repr__(self) -> str:
+        return (
+            "AwsTempCredentials(access_key_id='***', "
+            "secret_access_key='***', session_token='***')"
+        )
+
+
+@dataclass(frozen=True)
+class AzureUserDelegationSas:
+    sas_token: str
+
+    @staticmethod
+    def from_json(json) -> "AzureUserDelegationSas":
+        if isinstance(json, (str, bytes, bytearray)):
+            json = loads(json)
+        return AzureUserDelegationSas(sas_token=json["sasToken"])
+
+    def __repr__(self) -> str:
+        return "AzureUserDelegationSas(sas_token='***')"
+
+
+@dataclass(frozen=True)
+class GcpOauthToken:
+    oauth_token: str
+
+    @staticmethod
+    def from_json(json) -> "GcpOauthToken":
+        if isinstance(json, (str, bytes, bytearray)):
+            json = loads(json)
+        return GcpOauthToken(oauth_token=json["oauthToken"])
+
+    def __repr__(self) -> str:
+        return "GcpOauthToken(oauth_token='***')"
+
+
+@dataclass(frozen=True)
+class R2Credentials:
+    access_key_id: str
+    secret_access_key: str
+    session_token: str
+
+    @staticmethod
+    def from_json(json) -> "R2Credentials":
+        if isinstance(json, (str, bytes, bytearray)):
+            json = loads(json)
+        return R2Credentials(
+            access_key_id=json["accessKeyId"],
+            secret_access_key=json["secretAccessKey"],
+            session_token=json["sessionToken"],
+        )
+
+    def __repr__(self) -> str:
+        return "R2Credentials(access_key_id='***', " "secret_access_key='***', session_token='***')"
+
+
+@dataclass(frozen=True)
+class TemporaryTableCredentials:
+    """Short-lived, prefix-scoped cloud credentials for directory-based table access.
+
+    Returned by the ``temporary-table-credentials`` endpoint. Exactly one of the cloud-specific
+    credential fields is populated. The credentials are short-lived: callers must respect
+    ``expiration_time`` (epoch milliseconds) and refresh before it elapses. ``location`` is the
+    storage prefix the credentials grant read access to.
+    """
+
+    location: Optional[str] = None
+    expiration_time: Optional[int] = None
+    aws_temp_credentials: Optional[AwsTempCredentials] = None
+    azure_user_delegation_sas: Optional[AzureUserDelegationSas] = None
+    gcp_oauth_token: Optional[GcpOauthToken] = None
+    r2_credentials: Optional[R2Credentials] = None
+
+    @staticmethod
+    def from_json(json) -> "TemporaryTableCredentials":
+        if isinstance(json, (str, bytes, bytearray)):
+            json = loads(json)
+        # The endpoint nests the payload under "credentials"; tolerate either shape.
+        creds = json.get("credentials", json)
+        aws = creds.get("awsTempCredentials")
+        azure = creds.get("azureUserDelegationSas")
+        gcp = creds.get("gcpOauthToken")
+        r2 = creds.get("r2Credentials")
+        return TemporaryTableCredentials(
+            location=creds.get("location"),
+            expiration_time=creds.get("expirationTime"),
+            aws_temp_credentials=AwsTempCredentials.from_json(aws) if aws else None,
+            azure_user_delegation_sas=AzureUserDelegationSas.from_json(azure) if azure else None,
+            gcp_oauth_token=GcpOauthToken.from_json(gcp) if gcp else None,
+            r2_credentials=R2Credentials.from_json(r2) if r2 else None,
+        )
+
+    def __repr__(self) -> str:
+        kinds = {
+            "aws": self.aws_temp_credentials,
+            "azure": self.azure_user_delegation_sas,
+            "gcp": self.gcp_oauth_token,
+            "r2": self.r2_credentials,
+        }
+        kind = next((name for name, value in kinds.items() if value is not None), None)
+        return (
+            f"TemporaryTableCredentials(location={self.location!r}, "
+            f"expiration_time={self.expiration_time}, credentials=<{kind} redacted>)"
+        )

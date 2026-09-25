@@ -36,6 +36,7 @@ from delta_sharing.protocol import (
     Share,
     Schema,
     Table,
+    TemporaryTableCredentials,
 )
 
 from delta_sharing._internal_auth import AuthCredentialProviderFactory
@@ -455,6 +456,27 @@ class DataSharingRestClient:
                     actions=actions,
                     lines=None,
                 )
+
+    @retry_with_exponential_backoff
+    def get_temporary_table_credentials(
+        self, table: Table, location: Optional[str] = None
+    ) -> TemporaryTableCredentials:
+        """Generate temporary, prefix-scoped cloud credentials for directory-based access.
+
+        :param table: the shared table.
+        :param location: the storage location to scope credentials to. Defaults to the table's main
+          location when omitted; pass an auxiliary location to read files stored outside the root.
+        """
+        data: Dict = {}
+        if location is not None:
+            data["location"] = location
+
+        with self._post_internal(
+            f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}"
+            "/temporary-table-credentials",
+            data=data,
+        ) as lines:
+            return TemporaryTableCredentials.from_json(next(lines))
 
     def close(self):
         self._session.close()

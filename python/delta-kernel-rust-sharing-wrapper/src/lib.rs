@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use arrow::datatypes::SchemaRef as ArrowSchemaRef;
@@ -15,10 +16,60 @@ use delta_kernel::Error as KernelError;
 use delta_kernel::{engine::arrow_data::ArrowEngineData, schema::StructType};
 use delta_kernel::{DeltaResult, Engine};
 
+use object_store::gcp::{GcpCredential, GoogleCloudStorageBuilder};
+use object_store::{ObjectStore, StaticCredentialProvider};
+
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use url::Url;
+
+// Synthetic storage option recognized only by this wrapper. `object_store`'s string-keyed
+// `parse_url_opts` has no key for a raw GCS OAuth bearer token, so the Python connector passes the
+// token under this key and we build the GCS store directly with a credential provider.
+const GCS_BEARER_TOKEN_OPTION: &str = "google_bearer_token";
+
+/// Build an object store for `url`, honoring `storage_options` when present.
+///
+/// GCS is special-cased: a raw OAuth bearer token (passed under `google_bearer_token`) cannot be
+/// expressed through `parse_url_opts`, so we construct the store with a static credential provider.
+fn build_object_store(
+    url: &Url,
+    storage_options: Option<HashMap<String, String>>,
+) -> Result<Arc<dyn ObjectStore>, object_store::Error> {
+    match storage_options {
+        Some(options) => {
+            if matches!(url.scheme(), "gs" | "gcs") {
+                if let Some(bearer) = options.get(GCS_BEARER_TOKEN_OPTION) {
+                    return build_gcs_with_bearer_token(url, bearer);
+                }
+            }
+            let (object_store, _path) = object_store::parse_url_opts(url, options)?;
+            Ok(object_store.into())
+        }
+        None => {
+            let (object_store, _path) = object_store::parse_url(url)?;
+            Ok(object_store.into())
+        }
+    }
+}
+
+fn build_gcs_with_bearer_token(
+    url: &Url,
+    bearer: &str,
+) -> Result<Arc<dyn ObjectStore>, object_store::Error> {
+    let credential = Arc::new(StaticCredentialProvider::new(GcpCredential {
+        bearer: bearer.to_string(),
+    }));
+    // For gs://bucket/path the bucket is the URL host. build() surfaces a clear error if it is
+    // missing, so no manual validation is needed here.
+    let mut builder = GoogleCloudStorageBuilder::new().with_credentials(credential);
+    if let Some(bucket) = url.host_str() {
+        builder = builder.with_bucket_name(bucket);
+    }
+    let store = builder.build()?;
+    Ok(Arc::new(store))
+}
 
 struct PyKernelError(KernelError);
 
@@ -190,12 +241,25 @@ struct PythonInterface(Arc<dyn Engine + Send>);
 
 #[pymethods]
 impl PythonInterface {
+    /// Build an engine that reads from `location`.
+    ///
+    /// `storage_options`, when provided, carries the cloud credentials and configuration used to read
+    /// a table directly from object storage (Delta Sharing directory-based access). Most keys are the
+    /// standard `object_store` configuration keys (e.g. `access_key_id`, `secret_access_key`, `token`,
+    /// `endpoint`, `region`, `account_name`, `azure_storage_sas_token`); a raw GCS OAuth bearer token
+    /// is passed under the wrapper-specific `google_bearer_token` key. When omitted, the store is
+    /// built from the URL alone, which is what URL-based access (pre-signed file URLs read from a
+    /// local temporary log) relies on.
     #[new]
-    fn new(location: &str) -> DeltaPyResult<Self> {
+    #[pyo3(signature = (location, storage_options=None))]
+    fn new(
+        location: &str,
+        storage_options: Option<HashMap<String, String>>,
+    ) -> DeltaPyResult<Self> {
         let url = Url::parse(location).map_err(KernelError::InvalidUrl)?;
-        let (object_store, _path) = object_store::parse_url(&url)
-            .map_err(|e| KernelError::InvalidTableLocation(format!("FIXME {e}")))?;
-        let object_store: Arc<_> = object_store.into();
+        let object_store = build_object_store(&url, storage_options).map_err(|e| {
+            KernelError::InvalidTableLocation(format!("Failed to parse table location {url}: {e}"))
+        })?;
         let engine = DefaultEngineBuilder::new(object_store).build();
         Ok(PythonInterface(Arc::new(engine)))
     }

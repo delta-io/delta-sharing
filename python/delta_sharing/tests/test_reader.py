@@ -35,6 +35,7 @@ from delta_sharing.reader import DeltaSharingReader
 from delta_sharing.rest_client import (
     ListFilesInTableResponse,
     ListTableChangesResponse,
+    QueryTableMetadataResponse,
     DataSharingRestClient,
 )
 from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
@@ -1109,3 +1110,103 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
     expected = pd.concat([pdf1, pdf2, pdf3, pdf4]).reset_index(drop=True)
 
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+def test_is_transient_error():
+    class _AioErr(Exception):
+        def __init__(self, status):
+            super().__init__(f"status {status}")
+            self.status = status
+
+    class _Resp:
+        def __init__(self, status_code):
+            self.status_code = status_code
+
+    class _ReqErr(Exception):
+        def __init__(self, status_code):
+            super().__init__(f"http {status_code}")
+            self.response = _Resp(status_code)
+
+    assert DeltaSharingReader._is_transient_error(_AioErr(503)) is True
+    assert DeltaSharingReader._is_transient_error(_AioErr(429)) is True
+    assert DeltaSharingReader._is_transient_error(_ReqErr(500)) is True
+    assert DeltaSharingReader._is_transient_error(_AioErr(404)) is False
+    # Falls back to message sniffing when no status is attached.
+    assert DeltaSharingReader._is_transient_error(Exception("SlowDown: reduce your request rate"))
+    assert DeltaSharingReader._is_transient_error(Exception("Connection reset by peer"))
+    assert DeltaSharingReader._is_transient_error(Exception("totally fine")) is False
+
+
+def test_read_file_with_retry_succeeds_after_transient(monkeypatch):
+    import delta_sharing.reader as reader_module
+
+    monkeypatch.setattr(reader_module.time, "sleep", lambda _s: None)
+    calls = {"n": 0}
+
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] < 3:
+            err = Exception("503 Service Unavailable")
+            raise err
+        return "ok"
+
+    assert DeltaSharingReader._read_file_with_retry(flaky, num_retries=5) == "ok"
+    assert calls["n"] == 3
+
+
+def test_read_file_with_retry_reraises_non_transient(monkeypatch):
+    import delta_sharing.reader as reader_module
+
+    monkeypatch.setattr(reader_module.time, "sleep", lambda _s: None)
+    calls = {"n": 0}
+
+    def boom():
+        calls["n"] += 1
+        raise ValueError("permanent failure")
+
+    with pytest.raises(ValueError, match="permanent failure"):
+        DeltaSharingReader._read_file_with_retry(boom, num_retries=5)
+    assert calls["n"] == 1
+
+
+def test_read_file_with_retry_exhausts_and_reraises(monkeypatch):
+    import delta_sharing.reader as reader_module
+
+    monkeypatch.setattr(reader_module.time, "sleep", lambda _s: None)
+    calls = {"n": 0}
+
+    def always_503():
+        calls["n"] += 1
+        raise Exception("503 Service Unavailable")
+
+    with pytest.raises(Exception, match="503"):
+        DeltaSharingReader._read_file_with_retry(always_503, num_retries=2)
+    assert calls["n"] == 3
+
+
+def test_dir_access_rejects_tables_with_auxiliary_locations():
+    class RestClientMock:
+        def set_sharing_capabilities_header(self):
+            pass
+
+        def remove_sharing_capabilities_header(self):
+            pass
+
+        def query_table_metadata(self, table):
+            return QueryTableMetadataResponse(
+                delta_table_version=1,
+                protocol=Protocol(1),
+                metadata=Metadata(
+                    location="s3://bucket/table",
+                    access_modes=["url", "dir"],
+                    auxiliary_locations=["s3://bucket/aux"],
+                ),
+            )
+
+    reader = DeltaSharingReader(
+        Table("table_name", "share_name", "schema_name"),
+        RestClientMock(),
+        access_mode="dir",
+    )
+    with pytest.raises(NotImplementedError, match="auxiliary"):
+        reader.to_pandas()

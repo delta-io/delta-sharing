@@ -102,6 +102,11 @@ delta_sharing.load_as_pandas(table_url)
 # Load a table as a Pandas DataFrame explicitly using Delta Format
 delta_sharing.load_as_pandas(table_url, use_delta_format=True)
 
+# Load a table as a Pandas DataFrame using directory-based ("dir") access, reading the data
+# directly from cloud object storage with short-lived cloud credentials. See "Directory-based
+# access" below for when this is available.
+delta_sharing.load_as_pandas(table_url, access_mode="dir")
+
 # Load a table as a Pandas DataFrame, using batch conversion to potentially reduce memory usage.
 delta_sharing.load_as_pandas(table_url, convert_in_batches=True)
 
@@ -136,6 +141,38 @@ delta_sharing.load_table_changes_as_spark(table_url, starting_version=0, ending_
   
 
 You can try this by running our [examples](examples/README.md) with the open, example Delta Sharing Server.
+
+### Directory-based access
+
+By default the connector reads a shared table through short-lived, pre-signed file URLs ("url"
+access). When the sharing server advertises it, the connector can instead use **directory-based
+("dir") access**: the server returns short-lived cloud credentials (via the
+`temporary-table-credentials` endpoint) and a storage location, and the connector reads the table's
+files directly from cloud object storage using [delta-kernel](https://github.com/delta-io/delta-kernel-rs).
+
+```python
+# Default: pre-signed URL access (unchanged).
+delta_sharing.load_as_pandas(table_url)
+
+# Opt in to directory-based access (errors if the server does not offer it for this table).
+delta_sharing.load_as_pandas(table_url, access_mode="dir")
+
+# Explicit URL access.
+delta_sharing.load_as_pandas(table_url, access_mode="url")
+```
+
+Notes:
+- `access_mode` accepts `"url"`, `"dir"`, or `None`. The default (`None` / unset) uses URL access;
+  directory-based access is opt-in via `access_mode="dir"` or the `DELTA_SHARING_ACCESS_MODE=dir`
+  environment variable.
+- Whether `"dir"` is available is decided by the server per table (reported in the table metadata
+  `accessModes`). It is not offered when the share is served through a network gateway.
+- Supported clouds for direct reads: AWS S3 (and S3-compatible Cloudflare R2), Azure (ABFS/WASB), and
+  Google Cloud Storage.
+- `access_mode="dir"` does not yet support version/timestamp time travel; use `access_mode="url"` for
+  those queries.
+- Directory-based access fetches temporary credentials once at the start of a read; a single read
+  that runs longer than the credential lifetime is not yet refreshed mid-read.
 
 ### Details on Profile Paths
 
