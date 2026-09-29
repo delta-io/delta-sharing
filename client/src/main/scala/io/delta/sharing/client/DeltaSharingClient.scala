@@ -499,12 +499,14 @@ class DeltaSharingRestClient(
     logInfo(
       s"Fetched files for table ${getFullTableName(table)}, predicate $predicates, limit $limit, " +
       s"versionAsOf $versionAsOf, timestampAsOf $timestampAsOf, " +
-      s"jsonPredicateHints $jsonPredicateHints, refreshToken $refreshToken, " +
+      s"jsonPredicateHints $jsonPredicateHints, " +
       s"idempotency_key $idempotency_key\n" +
       s"Response: version $version, respondedFormat $respondedFormat, lines ${lines.size}, " +
-      s"refreshTokenOpt $refreshTokenOpt, " +
       s"time cost ${(System.currentTimeMillis() - startTime) / 1000.0}s." + getDsQueryIdForLogging
     )
+    
+    // Only log the refresh token at debug level
+    logDebug(s"Refresh token received: $refreshTokenOpt")
 
     // Validate that the response version matches the requested version for MST queries
     require(
