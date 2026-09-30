@@ -53,7 +53,8 @@ private[sharing] case class DeltaTableFiles(
     additionalMetadatas: Seq[Metadata] = Nil,
     lines: Seq[String] = Nil,
     refreshToken: Option[String] = None,
-    respondedFormat: String)
+    respondedFormat: String,
+    isVersionlessCDF: Boolean = false)
 
 private[sharing] case class Share(name: String)
 

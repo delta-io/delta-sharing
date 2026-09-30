@@ -36,7 +36,15 @@ import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingRestClient}
-import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, DeltaTableMetadata, Metadata, Protocol, Table => DeltaSharingTable}
+import io.delta.sharing.client.model.{
+  AddFile,
+  CDFColumnInfo,
+  DeltaTableFiles,
+  DeltaTableMetadata,
+  Metadata,
+  Protocol,
+  Table => DeltaSharingTable
+}
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 import io.delta.sharing.spark.util.{QueryUtils, SchemaUtils}
@@ -80,17 +88,33 @@ private[sharing] class RemoteDeltaLog(
       versionAsOf: Option[Long],
       timestampAsOf: Option[String],
       cdfOptions: Map[String, String]): BaseRelation = {
+    createRelation(versionAsOf, timestampAsOf, cdfOptions, prefetchedFiles = None)
+  }
+
+  private[sharing] def createRelation(
+      versionAsOf: Option[Long],
+      timestampAsOf: Option[String],
+      cdfOptions: Map[String, String],
+      prefetchedFiles: DeltaTableFiles): BaseRelation = {
+    createRelation(versionAsOf, timestampAsOf, cdfOptions, Some(prefetchedFiles))
+  }
+
+  private def createRelation(
+      versionAsOf: Option[Long],
+      timestampAsOf: Option[String],
+      cdfOptions: Map[String, String],
+      prefetchedFiles: Option[DeltaTableFiles]): BaseRelation = {
     val spark = SparkSession.active
     val snapshotToUse = snapshot(versionAsOf, timestampAsOf)
     if (!cdfOptions.isEmpty) {
-      return RemoteDeltaCDFRelation(
-        spark,
-        snapshotToUse,
-        client,
-        table,
-        cdfOptions
-      )
+      return prefetchedFiles.map { files =>
+        RemoteDeltaCDFRelation.fromPrefetchedFiles(
+          spark, snapshotToUse, client, table, cdfOptions, files)
+      }.getOrElse {
+        RemoteDeltaCDFRelation(spark, snapshotToUse, client, table, cdfOptions)
+      }
     }
+    require(prefetchedFiles.isEmpty, "Prefetched CDF files require CDF options")
 
     val params = new RemoteDeltaFileIndexParams(spark, snapshotToUse, client.getProfileProvider)
     val fileIndex = new RemoteDeltaSnapshotFileIndex(params, None)
@@ -154,6 +178,30 @@ private[sharing] object RemoteDeltaLog {
     val client = DeltaSharingRestClient(
       parsedPath.profileFile, shareCredentialsOptions, forStreaming, responseFormat,
       readerFeatures = "", callerOrg = callerOrg)
+    create(path, shareCredentialsOptions, client, initDeltaTableMetadata)
+  }
+
+  private[sharing] def apply(
+      path: String,
+      shareCredentialsOptions: Map[String, String],
+      client: DeltaSharingClient): RemoteDeltaLog = {
+    create(path, shareCredentialsOptions, client, initDeltaTableMetadata = None)
+  }
+
+  private[sharing] def apply(
+      path: String,
+      shareCredentialsOptions: Map[String, String],
+      client: DeltaSharingClient,
+      initDeltaTableMetadata: Option[DeltaTableMetadata]): RemoteDeltaLog = {
+    create(path, shareCredentialsOptions, client, initDeltaTableMetadata)
+  }
+
+  private def create(
+      path: String,
+      shareCredentialsOptions: Map[String, String],
+      client: DeltaSharingClient,
+      initDeltaTableMetadata: Option[DeltaTableMetadata]): RemoteDeltaLog = {
+    val parsedPath = DeltaSharingRestClient.parsePath(path, shareCredentialsOptions)
     val deltaSharingTable = DeltaSharingTable(
       name = parsedPath.table,
       schema = parsedPath.schema,

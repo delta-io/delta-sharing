@@ -30,7 +30,17 @@ import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types._
 
 import io.delta.sharing.client.{DeltaSharingFileSystem, DeltaSharingRestClient}
-import io.delta.sharing.client.model.Table
+import io.delta.sharing.client.model.{
+  AddCDCFile,
+  AddFile,
+  AddFileForCDF,
+  DeltaTableFiles,
+  Format,
+  Metadata,
+  Protocol,
+  RemoveFile,
+  Table
+}
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.util.QueryUtils
 
@@ -829,6 +839,139 @@ class RemoteDeltaLogSuite extends SparkFunSuite with SharedSparkSession {
     assert(removeInputFileList.size == 2)
     assert(removeInputFileList(0) == "delta-sharing:/prefix.test/cdf_rem1/400")
     assert(removeInputFileList(1) == "delta-sharing:/prefix.test/cdf_rem2/420")
+  }
+
+  test("versionless CDF scans native add files and can reuse a prefetched response") {
+    val viewMetadata = Metadata(
+      id = "view-id",
+      format = Format(),
+      schemaString =
+        """{"type":"struct","fields":[{"name":"value","type":"string","nullable":true,""" +
+          """"metadata":{}},{"name":"part","type":"string","nullable":true,"metadata":{}},""" +
+          """{"name":"_change_type","type":"string","nullable":true,"metadata":{}},""" +
+          """{"name":"_commit_timestamp","type":"timestamp","nullable":true,"metadata":{}}]}""",
+      partitionColumns = Seq("part"))
+    val viewFiles = DeltaTableFiles(
+      version = 0L,
+      protocol = Protocol(1),
+      metadata = viewMetadata,
+      files = Seq(
+        AddFile(
+          "add-a.parquet", "add-a", Map("part" -> "a"), 10L,
+          version = 99L, timestamp = 9999L),
+        AddFile(
+          "add-z.parquet", "add-z", Map("part" -> "z"), 11L,
+          version = 99L, timestamp = 9999L)),
+      respondedFormat = DeltaSharingRestClient.RESPONSE_FORMAT_DELTA,
+      isVersionlessCDF = true)
+    var getCDFFilesCalls = 0
+    val client = new TestDeltaSharingClient() {
+      override def getCDFFiles(
+          table: Table,
+          cdfOptions: Map[String, String],
+          includeHistoricalMetadata: Boolean,
+          fileIdHash: Option[String],
+          includeHistoricalProtocol: Boolean = false): DeltaTableFiles = {
+        getCDFFilesCalls += 1
+        viewFiles
+      }
+    }
+    client.clear()
+    val snapshot = new RemoteSnapshot(new Path("view"), client, Table("view", "schema", "share"))
+    val cdfOptions = Map(
+      DeltaSharingOptions.CDF_START_TIMESTAMP -> "2026-01-01T00:00:00Z")
+    val relation = RemoteDeltaCDFRelation.fromPrefetchedFiles(
+      SparkSession.active,
+      snapshot,
+      client,
+      Table("view", "schema", "share"),
+      cdfOptions,
+      viewFiles)
+
+    assert(relation.schema == StructType(Array(
+      StructField("value", StringType),
+      StructField("part", StringType),
+      StructField("_change_type", StringType),
+      StructField("_commit_timestamp", TimestampType))))
+    assert(!relation.schema.fieldNames.contains("_commit_version"))
+
+    val params = relation.fileIndexParams
+    val addIndex = RemoteDeltaBatchFileIndex(params, viewFiles.files)
+    assert(addIndex.partitionSchema.fieldNames.sameElements(Array("part")))
+    assert(addIndex.sizeInBytes == 21L)
+    val partFilter = SqlEqualTo(
+      SqlAttributeReference("part", StringType)(),
+      SqlLiteral.create("a", StringType))
+    val filteredAddFiles = addIndex.listFiles(Seq(partFilter), Nil)
+    assert(filteredAddFiles.size == 1)
+    assert(filteredAddFiles.head.files.size == 1)
+    assert(filteredAddFiles.head.files.head.getPath.toString.endsWith("/add-a/10"))
+    relation.buildScan(relation.schema.fieldNames, Array.empty)
+    assert(getCDFFilesCalls == 0)
+
+    val regularRelation = RemoteDeltaCDFRelation(
+      SparkSession.active,
+      snapshot,
+      client,
+      Table("view", "schema", "share"),
+      cdfOptions)
+    assert(regularRelation.productArity == 5)
+    regularRelation.schema
+    regularRelation.buildScan(regularRelation.schema.fieldNames, Array.empty)
+    assert(getCDFFilesCalls == 1)
+    assert(TestDeltaSharingClient.numMetadataCalled == 0)
+  }
+
+  test("RemoteDeltaLog reuses a supplied client and prefetched versionless CDF response") {
+    val profileFile = Files.createTempFile("delta-test", ".share").toFile
+    FileUtils.writeStringToFile(profileFile,
+      s"""{
+         |  "shareCredentialsVersion": 1,
+         |  "endpoint": "https://localhost:12345/delta-sharing",
+         |  "bearerToken": "mock"
+         |}""".stripMargin, UTF_8)
+    val tablePath = profileFile.getCanonicalPath + "#share.schema.view"
+    val viewMetadata = Metadata(
+      id = "view-id",
+      format = Format(),
+      schemaString =
+        """{"type":"struct","fields":[{"name":"value","type":"string","nullable":true,""" +
+          """"metadata":{}},{"name":"_change_type","type":"string","nullable":true,""" +
+          """"metadata":{}},{"name":"_commit_timestamp","type":"timestamp","nullable":true,""" +
+          """"metadata":{}}]}""",
+      partitionColumns = Nil)
+    val viewFiles = DeltaTableFiles(
+      version = 0L,
+      protocol = Protocol(1),
+      metadata = viewMetadata,
+      files = Nil,
+      respondedFormat = DeltaSharingRestClient.RESPONSE_FORMAT_DELTA,
+      isVersionlessCDF = true)
+    var getCDFFilesCalls = 0
+    val client = new TestDeltaSharingClient() {
+      override def getCDFFiles(
+          table: Table,
+          cdfOptions: Map[String, String],
+          includeHistoricalMetadata: Boolean,
+          fileIdHash: Option[String],
+          includeHistoricalProtocol: Boolean = false): DeltaTableFiles = {
+        getCDFFilesCalls += 1
+        viewFiles
+      }
+    }
+
+    val deltaLog = RemoteDeltaLog(tablePath, Map.empty, client)
+    assert(deltaLog.client eq client)
+    assert(deltaLog.path.toString.startsWith(tablePath))
+    val relation = deltaLog.createRelation(
+      None,
+      None,
+      Map(DeltaSharingOptions.CDF_START_TIMESTAMP -> "2026-01-01T00:00:00Z"),
+      viewFiles)
+    relation.schema
+    relation.asInstanceOf[RemoteDeltaCDFRelation]
+      .buildScan(relation.schema.fieldNames, Array.empty)
+    assert(getCDFFilesCalls == 0)
   }
 
   test("Limit pushdown test") {
