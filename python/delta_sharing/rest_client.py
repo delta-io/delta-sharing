@@ -92,6 +92,7 @@ class ListTableChangesResponse:
     metadata: Metadata
     actions: Sequence[FileAction]
     lines: Sequence[str]
+    is_versionless_cdf: bool = False
 
 
 def retry_with_exponential_backoff(func):
@@ -146,6 +147,7 @@ class DataSharingRestClient:
     DELTA_SNAPSHOT_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping,timestampntz"
     DELTA_CDF_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping"
     CAPABILITIES_HEADER = "delta-sharing-capabilities"
+    VERSIONLESS_CDF = "versionlesscdf=true"
     DELTA_TABLE_VERSION_HEADER = "delta-table-version"
     DELTA_FORMAT = "delta"
     PARQUET_FORMAT = "parquet"
@@ -203,6 +205,55 @@ class DataSharingRestClient:
 
     def remove_delta_format_header(self):
         del self._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+
+    def _versionless_cdf_headers(self) -> Dict[str, str]:
+        capabilities = self._session.headers.get(DataSharingRestClient.CAPABILITIES_HEADER, "")
+        capabilities = ";".join(
+            capability
+            for capability in capabilities.split(";")
+            if capability and capability.partition("=")[0].strip().lower() != "versionlesscdf"
+        )
+        capabilities = ";".join(
+            capability
+            for capability in (capabilities, DataSharingRestClient.VERSIONLESS_CDF)
+            if capability
+        )
+        return {DataSharingRestClient.CAPABILITIES_HEADER: capabilities}
+
+    @staticmethod
+    def _response_has_versionless_cdf(headers) -> bool:
+        capabilities = headers.get(DataSharingRestClient.CAPABILITIES_HEADER, "")
+        return any(
+            capability.partition("=")[0].strip().lower() == "versionlesscdf"
+            and capability.partition("=")[2].strip().lower() == "true"
+            for capability in capabilities.split(";")
+        )
+
+    @staticmethod
+    def _response_uses_delta_format(headers) -> bool:
+        capabilities = headers.get(DataSharingRestClient.CAPABILITIES_HEADER, "")
+        return any(
+            capability.partition("=")[0].strip().lower() == "responseformat"
+            and "delta"
+            in {
+                value.strip().lower()
+                for value in capability.partition("=")[2].split(",")
+            }
+            for capability in capabilities.split(";")
+        )
+
+    @staticmethod
+    def _validate_cdf_actions(actions, is_versionless_cdf: bool):
+        if any(action is None for action in actions):
+            raise ValueError("CDF response contains an unknown file action")
+        if is_versionless_cdf:
+            if any(not isinstance(action, AddFile) for action in actions):
+                raise ValueError("View CDF responses must contain only add file actions")
+            return
+        if any(action.timestamp is None for action in actions):
+            raise ValueError("CDF file actions must include a timestamp")
+        if any(action.version is None for action in actions):
+            raise ValueError("Table CDF file actions must include a version")
 
     @retry_with_exponential_backoff
     def list_shares(
@@ -384,10 +435,7 @@ class DataSharingRestClient:
 
             lines = values[1]
 
-            if (
-                DataSharingRestClient.CAPABILITIES_HEADER in headers
-                and "responseformat=delta" in headers[DataSharingRestClient.CAPABILITIES_HEADER]
-            ):
+            if self._response_uses_delta_format(headers):
                 return ListFilesInTableResponse(
                     delta_table_version=int(
                         headers.get(DataSharingRestClient.DELTA_TABLE_VERSION_HEADER)
@@ -428,19 +476,49 @@ class DataSharingRestClient:
             params.append(f"includeHistoricalMetadata={cdfOptions.include_historical_metadata}")
         query_str += "&".join(params)
 
-        with self._get_internal(query_str, return_headers=True) as (headers, lines):
-            if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
-                raise LookupError("Missing delta-table-version header")
-
-            if (
-                DataSharingRestClient.CAPABILITIES_HEADER in headers
-                and "responseformat=delta" in headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        with self._get_internal(
+            query_str, return_headers=True, headers=self._versionless_cdf_headers()
+        ) as (headers, lines):
+            has_table_version = DataSharingRestClient.DELTA_TABLE_VERSION_HEADER in headers
+            is_versionless_cdf = self._response_has_versionless_cdf(headers)
+            if is_versionless_cdf and has_table_version:
+                raise LookupError("View CDF response must not include delta-table-version header")
+            if not is_versionless_cdf and not has_table_version:
+                raise LookupError(
+                    "Missing delta-table-version header and versionlesscdf=true response capability"
+                )
+            if is_versionless_cdf and (
+                cdfOptions.starting_version is not None or cdfOptions.ending_version is not None
             ):
+                raise ValueError(
+                    "View CDF queries only support starting_timestamp and ending_timestamp"
+                )
+
+            if self._response_uses_delta_format(headers):
+                delta_lines = list(lines)
+                if is_versionless_cdf:
+                    protocol_json = json.loads(delta_lines[0])
+                    metadata_json = json.loads(delta_lines[1])
+                    actions = []
+                    for line in delta_lines[2:]:
+                        action_json = json.loads(line)
+                        if "file" in action_json:
+                            actions.append(FileAction.from_delta_json(action_json["file"]))
+                        else:
+                            raise ValueError("Delta CDF response contains an unknown action")
+                    self._validate_cdf_actions(actions, is_versionless_cdf=True)
+                    return ListTableChangesResponse(
+                        protocol=Protocol.from_json(protocol_json["protocol"]),
+                        metadata=Metadata.from_json(metadata_json["metaData"]),
+                        actions=actions,
+                        lines=delta_lines,
+                        is_versionless_cdf=True,
+                    )
                 return ListTableChangesResponse(
                     protocol=None,
                     metadata=None,
                     actions=None,
-                    lines=list(lines),
+                    lines=delta_lines,
                 )
             else:
                 protocol_json = json.loads(next(lines))
@@ -448,12 +526,14 @@ class DataSharingRestClient:
                 actions: List[FileAction] = []
                 for line in lines:
                     actions.append(FileAction.from_json(json.loads(line)))
+                self._validate_cdf_actions(actions, is_versionless_cdf)
 
                 return ListTableChangesResponse(
                     protocol=Protocol.from_json(protocol_json["protocol"]),
                     metadata=Metadata.from_json(metadata_json["metaData"]),
                     actions=actions,
                     lines=None,
+                    is_versionless_cdf=is_versionless_cdf,
                 )
 
     def close(self):
@@ -464,9 +544,14 @@ class DataSharingRestClient:
         target: str,
         data: Optional[Dict[str, Any]] = None,
         return_headers: bool = False,
+        headers: Optional[Dict[str, str]] = None,
     ):
         return self._request_internal(
-            request=self._session.get, return_headers=return_headers, target=target, params=data
+            request=self._session.get,
+            return_headers=return_headers,
+            target=target,
+            params=data,
+            headers=headers,
         )
 
     def _post_internal(

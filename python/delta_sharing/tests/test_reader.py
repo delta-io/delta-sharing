@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
+
 import pytest
 
 from datetime import date
@@ -945,6 +947,103 @@ def test_table_changes_empty(tmp_path):
     )
     pdf = reader.table_changes_to_pandas(CdfOptions())
     validate_pdf(pdf)
+
+
+@pytest.mark.parametrize("use_delta_format", [False, True])
+def test_view_changes_to_pandas_omit_commit_version(tmp_path, use_delta_format):
+    change_timestamp = pd.Timestamp("2022-05-09T12:00:00")
+    change_file = tmp_path / "view-changes.parquet"
+    change_data = pd.DataFrame(
+        {
+            "a": [1, 2],
+            DeltaSharingReader._change_type_col_name(): ["insert", "delete"],
+            DeltaSharingReader._commit_timestamp_col_name(): [change_timestamp] * 2,
+        }
+    )
+    change_data.to_parquet(change_file)
+
+    schema_string = (
+        '{"fields":['
+        '{"metadata":{},"name":"a","nullable":true,"type":"long"},'
+        '{"metadata":{},"name":"_change_type","nullable":true,"type":"string"},'
+        '{"metadata":{},"name":"_commit_timestamp","nullable":true,"type":"timestamp"}'
+        '],"type":"struct"}'
+    )
+    metadata = Metadata(schema_string=schema_string)
+    add_file = AddFile(
+        url=str(change_file),
+        id="view-changes",
+        partition_values={},
+        size=change_file.stat().st_size,
+        timestamp=9999,
+        version=99,
+    )
+    delta_metadata = {
+        "id": "view-id",
+        "format": {"provider": "parquet", "options": {}},
+        "schemaString": schema_string,
+        "partitionColumns": [],
+        "configuration": {},
+    }
+    delta_lines = [
+        json.dumps(
+            {
+                "protocol": {
+                    "deltaProtocol": {"minReaderVersion": 1, "minWriterVersion": 2}
+                }
+            }
+        ),
+        json.dumps({"metaData": {"deltaMetadata": delta_metadata}}),
+        json.dumps(
+            {
+                "file": {
+                    "id": "view-changes",
+                    # These describe the materialized table, not the source CDF commit.
+                    "version": 99,
+                    "timestamp": 9999,
+                    "deltaSingleAction": {
+                        "add": {
+                            "path": str(change_file),
+                            "partitionValues": {},
+                            "size": change_file.stat().st_size,
+                            "modificationTime": 1234,
+                            "dataChange": True,
+                        }
+                    },
+                }
+            }
+        ),
+    ]
+
+    class RestClientMock:
+        def list_table_changes(self, table, cdfOptions):
+            assert cdfOptions.starting_timestamp == "2022-05-09T00:00:00Z"
+            return ListTableChangesResponse(
+                protocol=Protocol(1),
+                metadata=metadata,
+                actions=[add_file],
+                lines=list(delta_lines) if use_delta_format else None,
+                is_versionless_cdf=True,
+            )
+
+        def set_delta_format_header(self, for_cdf=False):
+            return
+
+        def remove_delta_format_header(self):
+            return
+
+    reader = DeltaSharingReader(
+        Table("view", "share", "schema"),
+        RestClientMock(),
+        use_delta_format=use_delta_format,
+    )
+    result = reader.table_changes_to_pandas(
+        CdfOptions(starting_timestamp="2022-05-09T00:00:00Z")
+    )
+
+    assert result.columns.tolist() == ["a", "_change_type", "_commit_timestamp"]
+    assert "_commit_version" not in result
+    assert result["_commit_timestamp"].tolist() == [change_timestamp, change_timestamp]
 
 
 def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):

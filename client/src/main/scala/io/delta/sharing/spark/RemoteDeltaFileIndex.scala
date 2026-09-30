@@ -51,8 +51,11 @@ private[sharing] case class RemoteDeltaFileIndexParams(
     spark: SparkSession,
     snapshotAtAnalysis: RemoteSnapshot,
     profileProvider: DeltaSharingProfileProvider,
-    queryParamsHashId: Option[String] = None) {
+    queryParamsHashId: Option[String] = None,
+    partitionSchemaOverride: Option[StructType] = None) {
   def path: Path = snapshotAtAnalysis.getTablePath
+  def partitionSchema: StructType =
+    partitionSchemaOverride.getOrElse(snapshotAtAnalysis.partitionSchema)
 }
 
 // A base class for all file indices for remote delta log.
@@ -62,7 +65,7 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
 
   override def sizeInBytes: Long = params.snapshotAtAnalysis.sizeInBytes
 
-  override def partitionSchema: StructType = params.snapshotAtAnalysis.partitionSchema
+  override def partitionSchema: StructType = params.partitionSchema
 
   override def rootPaths: Seq[Path] = params.path :: Nil
 
@@ -123,7 +126,7 @@ private[sharing] abstract class RemoteDeltaFileIndexBase(
 
   protected def getColumnFilter(partitionFilters: Seq[Expression]): Column = {
     val rewrittenFilters = DeltaTableUtils.rewritePartitionFilters(
-      params.snapshotAtAnalysis.partitionSchema,
+      params.partitionSchema,
       params.spark.sessionState.conf.resolver,
       partitionFilters,
       params.spark.sessionState.conf.sessionLocalTimeZone)
@@ -243,7 +246,7 @@ private[sharing] abstract class RemoteDeltaCDFFileIndexBase(
     extends RemoteDeltaFileIndexBase(params) {
 
   override def partitionSchema: StructType = {
-    DeltaTableUtils.updateSchema(params.snapshotAtAnalysis.partitionSchema, auxPartitionSchema)
+    DeltaTableUtils.updateSchema(params.partitionSchema, auxPartitionSchema)
   }
 
   override def inputFiles: Array[String] = {

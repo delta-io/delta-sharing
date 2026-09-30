@@ -300,7 +300,9 @@ class FileAction:
 
     @staticmethod
     def from_json(action_json) -> "FileAction":
-        if "add" in action_json:
+        if "file" in action_json:
+            return AddFile.from_json(action_json["file"])
+        elif "add" in action_json:
             return AddFile.from_json(action_json["add"])
         elif "cdf" in action_json:
             return AddCdcFile.from_json(action_json["cdf"])
@@ -308,6 +310,42 @@ class FileAction:
             return RemoveFile.from_json(action_json["remove"])
         else:
             return None
+
+    @staticmethod
+    def from_delta_json(file_json) -> "FileAction":
+        """Convert a Delta-format file wrapper into the connector's file action model."""
+        action_json = file_json["deltaSingleAction"]
+        common = {
+            "id": file_json["id"],
+            "timestamp": file_json.get("timestamp", None),
+            "version": file_json.get("version", None),
+        }
+        if "add" in action_json:
+            action = action_json["add"]
+            return AddFile(
+                url=action["path"],
+                partition_values=action.get("partitionValues") or {},
+                size=int(action["size"]),
+                stats=action.get("stats", None),
+                **common,
+            )
+        elif "cdf" in action_json or "cdc" in action_json:
+            action = action_json.get("cdf", action_json.get("cdc"))
+            return AddCdcFile(
+                url=action["path"],
+                partition_values=action.get("partitionValues") or {},
+                size=int(action["size"]),
+                **common,
+            )
+        elif "remove" in action_json:
+            action = action_json["remove"]
+            return RemoveFile(
+                url=action["path"],
+                partition_values=action.get("partitionValues") or {},
+                size=int(action.get("size") or 0),
+                **common,
+            )
+        raise ValueError("Delta file wrapper contains no add, cdc, or remove action")
 
 
 @dataclass(frozen=True)
@@ -343,8 +381,8 @@ class AddCdcFile(FileAction):
             id=json["id"],
             partition_values=json["partitionValues"],
             size=int(json["size"]),
-            timestamp=json["timestamp"],
-            version=json["version"],
+            timestamp=json.get("timestamp", None),
+            version=json.get("version", None),
         )
 
 
