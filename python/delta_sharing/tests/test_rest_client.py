@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from contextlib import contextmanager
+
 import pytest
 
 from requests.models import Response
@@ -93,6 +95,150 @@ def test_retry(rest_client: DataSharingRestClient):
     assert wrapper.fail_before_success()
     assert wrapper.sleeps == [100, 200, 400, 800]
     wrapper.sleeps.clear()
+
+
+@pytest.mark.parametrize("response_format", ["parquet", "delta"])
+def test_list_view_changes_as_add_files(rest_client, response_format):
+    metadata = (
+        '{"id":"view-id","format":{"provider":"parquet"},'
+        '"schemaString":"{\\"type\\":\\"struct\\",\\"fields\\":[]}",'
+        '"partitionColumns":[]}'
+    )
+    if response_format == "delta":
+        response_headers = {
+            DataSharingRestClient.CAPABILITIES_HEADER: "ResponseFormat=DELTA;VersionlessCDF=TRUE"
+        }
+        lines = [
+            '{"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":2}}}',
+            f'{{"metaData":{{"deltaMetadata":{metadata}}}}}',
+            '{"file":{"id":"change","version":99,"timestamp":9999,"deltaSingleAction":'
+            '{"add":{"path":"https://example.com/change.parquet",'
+            '"partitionValues":{},"size":10,"modificationTime":1234,'
+            '"dataChange":true}}}}',
+        ]
+        rest_client.set_delta_format_header(for_cdf=True)
+    else:
+        response_headers = {DataSharingRestClient.CAPABILITIES_HEADER: "versionlesscdf=true"}
+        lines = [
+            '{"protocol":{"minReaderVersion":1}}',
+            f'{{"metaData":{metadata}}}',
+            '{"file":{"url":"https://example.com/change.parquet","id":"change",'
+            '"partitionValues":{},"size":10,"timestamp":9999,"version":99}}',
+        ]
+
+    captured_headers = None
+
+    @contextmanager
+    def get_internal(_target, **kwargs):
+        nonlocal captured_headers
+        captured_headers = kwargs["headers"]
+        yield response_headers, iter(lines)
+
+    rest_client._get_internal = get_internal
+    response = rest_client.list_table_changes(
+        Table(name="view", share="share", schema="schema"),
+        CdfOptions(starting_timestamp="2026-01-01T00:00:00Z"),
+    )
+
+    assert "versionlesscdf=true" in captured_headers[DataSharingRestClient.CAPABILITIES_HEADER]
+    assert response.is_versionless_cdf
+    assert response.actions == [
+        AddFile(
+            url="https://example.com/change.parquet",
+            id="change",
+            partition_values={},
+            size=10,
+            timestamp=9999,
+            version=99,
+            stats=None,
+        )
+    ]
+
+
+def test_reject_versionless_cdf_response_without_versionless_cdf_capability(rest_client):
+    lines = [
+        '{"protocol":{"minReaderVersion":1}}',
+        '{"metaData":{"id":"view-id","format":{"provider":"parquet"},'
+        '"schemaString":"{\\"type\\":\\"struct\\",\\"fields\\":[]}",'
+        '"partitionColumns":[]}}',
+    ]
+
+    @contextmanager
+    def get_internal(_target, **_kwargs):
+        yield {}, iter(lines)
+
+    rest_client._get_internal = get_internal
+    with pytest.raises(
+        LookupError,
+        match="Missing delta-table-version header and versionlesscdf=true response capability",
+    ):
+        rest_client.list_table_changes(
+            Table(name="view", share="share", schema="schema"),
+            CdfOptions(starting_timestamp="2026-01-01T00:00:00Z"),
+        )
+
+
+def test_reject_version_bounds_for_view_cdf_response(rest_client):
+    lines = [
+        '{"protocol":{"minReaderVersion":1}}',
+        '{"metaData":{"id":"view-id","format":{"provider":"parquet"},'
+        '"schemaString":"{\\"type\\":\\"struct\\",\\"fields\\":[]}",'
+        '"partitionColumns":[]}}',
+    ]
+
+    @contextmanager
+    def get_internal(_target, **_kwargs):
+        yield {DataSharingRestClient.CAPABILITIES_HEADER: "versionlesscdf=true"}, iter(lines)
+
+    rest_client._get_internal = get_internal
+    with pytest.raises(
+        ValueError,
+        match="View CDF queries only support starting_timestamp and ending_timestamp",
+    ):
+        rest_client.list_table_changes(
+            Table(name="view", share="share", schema="schema"),
+            CdfOptions(starting_version=1),
+        )
+
+
+@pytest.mark.parametrize(
+    "response_headers,action,error",
+    [
+        (
+            {DataSharingRestClient.DELTA_TABLE_VERSION_HEADER: "1"},
+            '{"cdf":{"url":"https://example.com/change.parquet","id":"change",'
+            '"partitionValues":{},"size":10,"timestamp":1234}}',
+            "Table CDF file actions must include a version",
+        ),
+        (
+            {DataSharingRestClient.CAPABILITIES_HEADER: "versionlesscdf=true"},
+            '{"cdf":{"url":"https://example.com/change.parquet","id":"change",'
+            '"partitionValues":{},"size":10,"timestamp":1234}}',
+            "View CDF responses must contain only add file actions",
+        ),
+    ],
+)
+def test_reject_invalid_cdf_actions(
+    rest_client, response_headers, action, error
+):
+    lines = [
+        '{"protocol":{"minReaderVersion":1}}',
+        '{"metaData":{"id":"object-id","format":{"provider":"parquet"},'
+        '"schemaString":"{\\"type\\":\\"struct\\",\\"fields\\":[]}",'
+        '"partitionColumns":[]}}',
+        action,
+    ]
+
+    @contextmanager
+    def get_internal(_target, **_kwargs):
+        yield response_headers, iter(lines)
+
+    rest_client._get_internal = get_internal
+    with pytest.raises(ValueError, match=error):
+        rest_client.list_table_changes(
+            Table(name="object", share="share", schema="schema"),
+            CdfOptions(starting_timestamp="2026-01-01T00:00:00Z"),
+        )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
