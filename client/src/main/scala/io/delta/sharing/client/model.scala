@@ -42,6 +42,13 @@ private[sharing] case class DeltaTableMetadata(
     lines: Seq[String] = Nil,
     respondedFormat: String)
 
+/**
+ * @param version table version, or the placeholder 0L when isVersionlessCDF is true; the
+ *                placeholder does not represent a source commit version.
+ * @param lines raw Delta-format actions, interpreted by the Delta reader.
+ * @param isVersionlessCDF whether the response contains materialized CDF rows without source
+ *                        commit versions.
+ */
 private[sharing] case class DeltaTableFiles(
     version: Long,
     protocol: Protocol = null,
