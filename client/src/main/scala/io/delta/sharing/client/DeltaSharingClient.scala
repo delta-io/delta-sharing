@@ -833,7 +833,7 @@ class DeltaSharingRestClient(
       table = getFullTableName(table)
     )
 
-    // To ensure that it works with delta sharing server that doesn't support the requested format.
+    // A CDF response carries either a table version or the versionless capability.
     if (isVersionlessCDF && hasTableVersion) {
       throw new IllegalStateException(
         "View CDF response must not include Delta-Table-Version in the header" +
@@ -844,34 +844,16 @@ class DeltaSharingRestClient(
         "Cannot find Delta-Table-Version or versionlesscdf=true in the response header" +
           getDsQueryIdForLogging)
     }
-    if (isVersionlessCDF &&
-      (cdfOptions.contains("startingVersion") || cdfOptions.contains("endingVersion"))) {
-      throw new IllegalArgumentException(
-        "View CDF queries only support startingTimestamp and endingTimestamp" +
-          getDsQueryIdForLogging)
-    }
-    if (respondedFormat == RESPONSE_FORMAT_DELTA && !isVersionlessCDF) {
-      return DeltaTableFiles(version, lines = lines, respondedFormat = respondedFormat)
+    if (respondedFormat == RESPONSE_FORMAT_DELTA) {
+      return DeltaTableFiles(
+        version,
+        lines = lines,
+        respondedFormat = respondedFormat,
+        isVersionlessCDF = isVersionlessCDF)
     }
 
-    val (protocol, metadata, actionLines, isDeltaViewCDF) =
-      if (respondedFormat == RESPONSE_FORMAT_DELTA) {
-        val protocolNode = JsonUtils.readTree(lines(0)).get("protocol").get("deltaProtocol")
-        val metadataNode = JsonUtils.readTree(lines(1)).get("metaData").get("deltaMetadata")
-        (
-          JsonUtils.fromJson[Protocol](protocolNode.toString),
-          JsonUtils.fromJson[Metadata](metadataNode.toString),
-          lines.drop(2),
-          true
-        )
-      } else {
-        (
-          JsonUtils.fromJson[SingleAction](lines(0)).protocol,
-          JsonUtils.fromJson[SingleAction](lines(1)).metaData,
-          lines.drop(2),
-          false
-        )
-      }
+    val protocol = JsonUtils.fromJson[SingleAction](lines(0)).protocol
+    val metadata = JsonUtils.fromJson[SingleAction](lines(1)).metaData
     checkProtocol(protocol)
 
     val files = ArrayBuffer[AddFile]()
@@ -879,13 +861,8 @@ class DeltaSharingRestClient(
     val cdfFiles = ArrayBuffer[AddCDCFile]()
     val removeFiles = ArrayBuffer[RemoveFile]()
     val additionalMetadatas = ArrayBuffer[Metadata]()
-    actionLines.foreach { line =>
-      val action = if (isDeltaViewCDF) {
-        parseDeltaViewCDFAction(line)
-      } else {
-        JsonUtils.fromJson[SingleAction](line).unwrap
-      }
-      action match {
+    lines.drop(2).foreach { line =>
+      JsonUtils.fromJson[SingleAction](line).unwrap match {
         case f: AddFile if isVersionlessCDF => files.append(f)
         case c: AddCDCFile if !isVersionlessCDF => cdfFiles.append(c)
         case a: AddFileForCDF if !isVersionlessCDF => addFiles.append(a)
@@ -915,50 +892,6 @@ class DeltaSharingRestClient(
       respondedFormat = respondedFormat,
       isVersionlessCDF = isVersionlessCDF
     )
-  }
-
-  private[client] def parseDeltaViewCDFAction(line: String): Action = {
-    val root = JsonUtils.readTree(line)
-    if (root.has("metaData")) {
-      return JsonUtils.fromJson[Metadata](root.get("metaData").get("deltaMetadata").toString)
-    }
-    if (!root.has("file")) {
-      throw new IllegalStateException(
-        s"Unexpected Delta view CDF line:$line," + getDsQueryIdForLogging)
-    }
-
-    val file = root.get("file")
-    val deltaAction = file.get("deltaSingleAction")
-    val id = file.get("id").asText()
-    val version = Option(file.get("version"))
-      .filterNot(_.isNull).map(n => Long.box(n.asLong())).orNull
-    val timestamp = Option(file.get("timestamp"))
-      .filterNot(_.isNull).map(n => Long.box(n.asLong())).orNull
-    val expirationTimestamp = Option(file.get("expirationTimestamp"))
-      .filterNot(_.isNull).map(n => Long.box(n.asLong())).orNull
-
-    def partitionValues(action: com.fasterxml.jackson.databind.JsonNode): Map[String, String] = {
-      Option(action.get("partitionValues")).filterNot(_.isNull)
-        .map(node => JsonUtils.fromJson[Map[String, String]](node.toString))
-        .getOrElse(Map.empty)
-    }
-
-    if (deltaAction.has("add")) {
-      val add = deltaAction.get("add")
-      AddFile(
-        add.get("path").asText(),
-        id,
-        partitionValues(add),
-        add.get("size").asLong(),
-        stats = Option(add.get("stats")).filterNot(_.isNull).map(_.asText()).orNull,
-        version = version,
-        timestamp = timestamp,
-        expirationTimestamp = expirationTimestamp)
-    } else {
-      throw new IllegalStateException(
-        s"Delta view CDF file contains no add action:$line," +
-          getDsQueryIdForLogging)
-    }
   }
 
   // Send paginated queryTableChanges requests. Loop internally to fetch and concatenate all pages,
@@ -1440,10 +1373,14 @@ class DeltaSharingRestClient(
           + "overriden."
       )
     }
+    val isCDFRequest = httpRequest.getMethod == HttpGet.METHOD_NAME &&
+      Option(httpRequest.getURI.getRawPath).exists(
+        _.matches(".*/shares/[^/]+/schemas/[^/]+/tables/[^/]+/changes"))
     val headers = Map(
       HttpHeaders.USER_AGENT -> getUserAgent(),
       DELTA_SHARING_CAPABILITIES_HEADER -> constructDeltaSharingCapabilities(
-        setIncludeEndStreamAction
+        setIncludeEndStreamAction,
+        isCDFRequest = isCDFRequest
       )
     ) ++ customeHeaders ++ fileIdHashEntry.toIterable
     headers.foreach(header => httpRequest.setHeader(header._1, header._2))
@@ -1660,9 +1597,11 @@ class DeltaSharingRestClient(
   // The value for delta-sharing-capabilities header, semicolon separated capabilities.
   // Each capability is in the format of "key=value1,value2", values are separated by comma.
   // Example: "capability1=value1;capability2=value3,value4,value5"
-  private def constructDeltaSharingCapabilities(setIncludeEndStreamAction: Boolean): String = {
+  private def constructDeltaSharingCapabilities(
+      setIncludeEndStreamAction: Boolean,
+      isCDFRequest: Boolean): String = {
     var capabilities = Seq[String](s"${RESPONSE_FORMAT}=$responseFormat")
-    if (!forStreaming) {
+    if (!forStreaming && isCDFRequest) {
       capabilities = capabilities :+ s"$VERSIONLESS_CDF=true"
     }
     if (responseFormatSet.contains(RESPONSE_FORMAT_DELTA) && readerFeatures.nonEmpty) {
