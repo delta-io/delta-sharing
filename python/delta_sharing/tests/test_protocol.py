@@ -22,6 +22,7 @@ from delta_sharing.protocol import (
     AddFile,
     DeltaSharingProfile,
     Format,
+    FileAction,
     Metadata,
     Protocol,
     RemoveFile,
@@ -29,6 +30,28 @@ from delta_sharing.protocol import (
     Share,
     Table,
 )
+
+
+@pytest.mark.parametrize("wrapper_metadata", [False, True])
+def test_snapshot_add_file(wrapper_metadata):
+    file = {
+        "url": "https://example.com/cdf.parquet",
+        "id": "file-id",
+        "partitionValues": {},
+        "size": 10,
+    }
+    if wrapper_metadata:
+        file.update(timestamp=9999, version=99)
+    action = FileAction.from_json({"file": file})
+
+    assert action == AddFile(
+        url="https://example.com/cdf.parquet",
+        id="file-id",
+        partition_values={},
+        size=10,
+        timestamp=9999 if wrapper_metadata else None,
+        version=99 if wrapper_metadata else None,
+    )
 
 
 def test_share_profile(tmp_path):
