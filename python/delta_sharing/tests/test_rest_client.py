@@ -13,6 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from contextlib import contextmanager
+import json
+from urllib.parse import parse_qs, urlparse
+
 import pytest
 
 from requests.models import Response
@@ -93,6 +97,302 @@ def test_retry(rest_client: DataSharingRestClient):
     assert wrapper.fail_before_success()
     assert wrapper.sleeps == [100, 200, 400, 800]
     wrapper.sleeps.clear()
+
+
+def _view_cdf_lines(response_format, *, empty=False, wrapper_metadata=False):
+    metadata = {
+        "id": "view-id",
+        "format": {"provider": "parquet", "options": {}},
+        "schemaString": json.dumps(
+            {
+                "type": "struct",
+                "fields": [
+                    {"name": name, "type": data_type, "nullable": True, "metadata": {}}
+                    for name, data_type in [
+                        ("a", "long"),
+                        ("_change_type", "string"),
+                        ("_commit_timestamp", "timestamp"),
+                    ]
+                ],
+            }
+        ),
+        "partitionColumns": [],
+        "configuration": {},
+    }
+    file = {"id": "change"}
+    if wrapper_metadata:
+        file.update(version=99, timestamp=9999)
+    if response_format == "delta":
+        protocol = {
+            "deltaProtocol": {
+                "minReaderVersion": 3,
+                "minWriterVersion": 7,
+                "readerFeatures": ["deletionVectors"],
+                "writerFeatures": ["deletionVectors"],
+            }
+        }
+        metadata = {"deltaMetadata": metadata}
+        file["deltaSingleAction"] = {
+            "add": {
+                "path": "https://example.com/change.parquet",
+                "partitionValues": {},
+                "size": 10,
+                "modificationTime": 1234,
+                "dataChange": True,
+                "deletionVector": {
+                    "storageType": "i",
+                    "pathOrInlineDv": "inline-bitmap",
+                    "sizeInBytes": 4,
+                    "cardinality": 1,
+                },
+            }
+        }
+    else:
+        protocol = {"minReaderVersion": 1}
+        file.update(url="https://example.com/change.parquet", partitionValues={}, size=10)
+    actions = [{"protocol": protocol}, {"metaData": metadata}]
+    if not empty:
+        actions.append({"file": file})
+    return [json.dumps(action) for action in actions]
+
+
+@pytest.mark.parametrize("response_format", ["parquet", "delta"])
+@pytest.mark.parametrize("empty", [False, True])
+@pytest.mark.parametrize("wrapper_metadata", [False, True])
+def test_list_view_changes(rest_client, response_format, empty, wrapper_metadata):
+    lines = _view_cdf_lines(response_format, empty=empty, wrapper_metadata=wrapper_metadata)
+    captured_headers = None
+
+    @contextmanager
+    def get_internal(_target, **kwargs):
+        nonlocal captured_headers
+        captured_headers = kwargs["headers"]
+        capabilities = f"ResponseFormat={response_format.upper()};VersionlessCDF=TRUE"
+        yield {DataSharingRestClient.CAPABILITIES_HEADER: capabilities}, iter(lines)
+
+    rest_client._get_internal = get_internal
+    response = rest_client.list_table_changes(
+        Table(name="view", share="share", schema="schema"),
+        CdfOptions(starting_timestamp="2026-01-01T00:00:00Z"),
+    )
+
+    assert captured_headers[DataSharingRestClient.CAPABILITIES_HEADER] == "versionlesscdf=true"
+    assert response.is_versionless_cdf
+    if response_format == "delta":
+        assert response.lines == lines
+        assert response.protocol is None
+        assert response.metadata is None
+        assert response.actions is None
+    else:
+        assert response.lines is None
+        assert response.protocol == Protocol(1)
+        assert response.metadata.id == "view-id"
+        assert response.actions == (
+            []
+            if empty
+            else [
+                AddFile(
+                    url="https://example.com/change.parquet",
+                    id="change",
+                    partition_values={},
+                    size=10,
+                    timestamp=9999 if wrapper_metadata else None,
+                    version=99 if wrapper_metadata else None,
+                )
+            ]
+        )
+
+
+@pytest.mark.parametrize("empty", [False, True])
+def test_list_versioned_delta_changes_returns_raw_lines(rest_client, empty):
+    lines = _view_cdf_lines("delta", empty=empty, wrapper_metadata=True)
+
+    @contextmanager
+    def get_internal(_target, **_kwargs):
+        yield {
+            DataSharingRestClient.CAPABILITIES_HEADER: "responseformat=delta",
+            DataSharingRestClient.DELTA_TABLE_VERSION_HEADER: "99",
+        }, iter(lines)
+
+    rest_client._get_internal = get_internal
+    response = rest_client.list_table_changes(
+        Table(name="table", share="share", schema="schema"), CdfOptions(starting_version=1)
+    )
+
+    assert not response.is_versionless_cdf
+    assert response.lines == lines
+    assert response.protocol is None
+    assert response.metadata is None
+    assert response.actions is None
+
+
+@pytest.mark.parametrize("use_delta_format", [False, True])
+@pytest.mark.parametrize("retry", [False, True])
+def test_versionless_capability_is_scoped_to_changes(
+    rest_client, monkeypatch, use_delta_format, retry
+):
+    if use_delta_format:
+        rest_client.set_delta_format_header(for_cdf=True)
+    session_capabilities = rest_client._session.headers.get(
+        DataSharingRestClient.CAPABILITIES_HEADER
+    )
+    requests = []
+    sleeps = []
+    rest_client._sleeper = sleeps.append
+    response_format = "delta" if use_delta_format else "parquet"
+
+    def send(request, **_kwargs):
+        requests.append(request)
+        response = Response()
+        response._content_consumed = True
+        response.encoding = "utf-8"
+        response.status_code = 200
+        if urlparse(request.url).path.endswith("/changes"):
+            if retry and len(requests) == 1:
+                response.status_code = 503
+                response._content = b"{}"
+            else:
+                response.headers[DataSharingRestClient.CAPABILITIES_HEADER] = (
+                    f"responseformat={response_format};versionlesscdf=true"
+                )
+                response._content = "\n".join(_view_cdf_lines(response_format)).encode()
+        else:
+            response._content = b'{"items":[]}'
+        return response
+
+    monkeypatch.setattr(rest_client._session, "send", send)
+    rest_client.list_table_changes(
+        Table(name="view", share="share", schema="schema"),
+        CdfOptions(starting_timestamp="2026-01-01T00:00:00Z"),
+    )
+    assert len(requests) == (2 if retry else 1)
+    for request in requests:
+        capabilities = request.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        assert capabilities.split(";").count("versionlesscdf=true") == 1
+        if use_delta_format:
+            assert "responseformat=delta" in capabilities
+            assert DataSharingRestClient.DELTA_CDF_READER_FEATURES in capabilities
+    assert sleeps == ([100] if retry else [])
+    assert (
+        rest_client._session.headers.get(DataSharingRestClient.CAPABILITIES_HEADER)
+        == session_capabilities
+    )
+
+    rest_client.list_shares()
+    assert "versionlesscdf" not in requests[-1].headers.get(
+        DataSharingRestClient.CAPABILITIES_HEADER, ""
+    )
+    assert (
+        rest_client._session.headers.get(DataSharingRestClient.CAPABILITIES_HEADER)
+        == session_capabilities
+    )
+
+
+@pytest.mark.parametrize("bound", ["starting", "ending"])
+def test_view_version_bounds_are_validated_by_server(rest_client, monkeypatch, bound):
+    requests = []
+
+    def send(request, **_kwargs):
+        requests.append(request)
+        response = Response()
+        response.status_code = 400
+        response._content = b'{"message":"View CDF queries only support timestamp bounds"}'
+        return response
+
+    monkeypatch.setattr(rest_client._session, "send", send)
+    with pytest.raises(HTTPError, match="View CDF queries only support timestamp bounds"):
+        rest_client.list_table_changes(
+            Table(name="view", share="share", schema="schema"),
+            CdfOptions(**{f"{bound}_version": 1}),
+        )
+    assert len(requests) == 1
+    assert parse_qs(urlparse(requests[0].url).query)[f"{bound}Version"] == ["1"]
+
+
+@pytest.mark.parametrize("response_format", ["parquet", "delta"])
+@pytest.mark.parametrize("versionless", [False, True])
+def test_reject_inconsistent_cdf_version_headers(rest_client, response_format, versionless):
+    headers = {DataSharingRestClient.CAPABILITIES_HEADER: f"responseformat={response_format}"}
+    if versionless:
+        headers[DataSharingRestClient.CAPABILITIES_HEADER] += ";versionlesscdf=true"
+        headers[DataSharingRestClient.DELTA_TABLE_VERSION_HEADER] = "99"
+        error = "View CDF response must not include delta-table-version header"
+    else:
+        error = "Missing delta-table-version header and versionlesscdf=true response capability"
+
+    @contextmanager
+    def get_internal(_target, **_kwargs):
+        yield headers, iter(_view_cdf_lines(response_format))
+
+    rest_client._get_internal = get_internal
+    with pytest.raises(LookupError, match=error):
+        rest_client.list_table_changes(
+            Table(name="view", share="share", schema="schema"),
+            CdfOptions(starting_timestamp="2026-01-01T00:00:00Z"),
+        )
+
+
+@pytest.mark.parametrize(
+    "response_headers,action,error",
+    [
+        (
+            {DataSharingRestClient.DELTA_TABLE_VERSION_HEADER: "1"},
+            {
+                "cdf": {
+                    "url": "https://example.com/change.parquet",
+                    "id": "change",
+                    "partitionValues": {},
+                    "size": 10,
+                    "timestamp": 1234,
+                }
+            },
+            "Table CDF file actions must include a version",
+        ),
+        (
+            {DataSharingRestClient.DELTA_TABLE_VERSION_HEADER: "1"},
+            {
+                "add": {
+                    "url": "https://example.com/change.parquet",
+                    "id": "change",
+                    "partitionValues": {},
+                    "size": 10,
+                    "version": 1,
+                }
+            },
+            "CDF file actions must include a timestamp",
+        ),
+        (
+            {DataSharingRestClient.CAPABILITIES_HEADER: "versionlesscdf=true"},
+            {
+                "cdf": {
+                    "url": "https://example.com/change.parquet",
+                    "id": "change",
+                    "partitionValues": {},
+                    "size": 10,
+                }
+            },
+            "View CDF responses must contain only add file actions",
+        ),
+        (
+            {DataSharingRestClient.CAPABILITIES_HEADER: "versionlesscdf=true"},
+            {"unknown": {}},
+            "CDF response contains an unknown file action",
+        ),
+    ],
+)
+def test_reject_invalid_cdf_actions(rest_client, response_headers, action, error):
+    lines = _view_cdf_lines("parquet", empty=True) + [json.dumps(action)]
+
+    @contextmanager
+    def get_internal(_target, **_kwargs):
+        yield response_headers, iter(lines)
+
+    rest_client._get_internal = get_internal
+    with pytest.raises(ValueError, match=error):
+        rest_client.list_table_changes(
+            Table(name="object", share="share", schema="schema"),
+            CdfOptions(starting_timestamp="2026-01-01T00:00:00Z"),
+        )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)

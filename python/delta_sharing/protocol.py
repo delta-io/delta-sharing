@@ -300,7 +300,9 @@ class FileAction:
 
     @staticmethod
     def from_json(action_json) -> "FileAction":
-        if "add" in action_json:
+        if "file" in action_json:
+            return AddFile.from_json(action_json["file"])
+        elif "add" in action_json:
             return AddFile.from_json(action_json["add"])
         elif "cdf" in action_json:
             return AddCdcFile.from_json(action_json["cdf"])
@@ -343,8 +345,8 @@ class AddCdcFile(FileAction):
             id=json["id"],
             partition_values=json["partitionValues"],
             size=int(json["size"]),
-            timestamp=json["timestamp"],
-            version=json["version"],
+            timestamp=json.get("timestamp", None),
+            version=json.get("version", None),
         )
 
 
