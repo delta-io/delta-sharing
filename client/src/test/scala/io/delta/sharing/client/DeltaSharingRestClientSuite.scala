@@ -17,10 +17,11 @@
 package io.delta.sharing.client
 
 import java.sql.Timestamp
+import java.util.Locale
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.http.HttpHeaders
-import org.apache.http.client.methods.{HttpGet, HttpPost, HttpRequestBase}
+import org.apache.http.client.methods.{HttpGet, HttpHead, HttpPost, HttpRequestBase}
 
 import io.delta.sharing.client.model.{
   AddCDCFile,
@@ -49,6 +50,13 @@ import io.delta.sharing.spark.{DeltaSharingConnectionException, DeltaSharingOpti
 class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
 
   import DeltaSharingRestClient._
+
+  private val unitTestProfileProvider = new DeltaSharingProfileProvider {
+    override def getProfile: DeltaSharingProfile = BearerTokenDeltaSharingProfile(
+      shareCredentialsVersion = Some(1),
+      endpoint = "http://localhost",
+      bearerToken = "token")
+  }
 
   private var spark: org.apache.spark.sql.SparkSession = _
 
@@ -104,6 +112,281 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
     intercept[IllegalArgumentException] {
       DeltaSharingRestClient.parsePath("foo#a.b.c.", emptyShareCredentialsOptions)
+    }
+  }
+
+  private def versionlessCDFLines(responseFormat: String): Seq[String] = {
+    val metadata =
+      """{"id":"view-id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"_change_type\",\"type\":\"string\"},{\"name\":\"_commit_timestamp\",\"type\":\"timestamp\"}]}","partitionColumns":[]}"""
+    if (responseFormat == RESPONSE_FORMAT_DELTA) {
+      Seq(
+        """{"protocol":{"deltaProtocol":{"minReaderVersion":3,"minWriterVersion":7,"readerFeatures":["deletionVectors"],"writerFeatures":["deletionVectors"]}}}""",
+        s"""{"metaData":{"deltaMetadata":$metadata}}""",
+        """{"file":{"id":"change","deltaSingleAction":{"add":{"path":"https://example.com/change.parquet","partitionValues":{},"size":10,"modificationTime":0,"dataChange":true,"stats":"{\"numRecords\":2}","deletionVector":{"storageType":"p","pathOrInlineDv":"https://example.com/dv.bin","offset":0,"sizeInBytes":16,"cardinality":1}}}}}"""
+      )
+    } else {
+      Seq(
+        """{"protocol":{"minReaderVersion":1}}""",
+        s"""{"metaData":$metadata}""",
+        """{"file":{"url":"https://example.com/change.parquet","id":"change","partitionValues":{},"size":10,"stats":"{\"numRecords\":2}"}}"""
+      )
+    }
+  }
+
+  private def cdfResponse(
+      responseFormat: String,
+      lines: Seq[String],
+      isVersionlessCDF: Boolean = true,
+      hasTableVersion: Boolean = false,
+      version: Long = 0L): ParsedDeltaSharingResponse = {
+    ParsedDeltaSharingResponse(
+      version = version,
+      respondedFormat = responseFormat,
+      lines = lines,
+      capabilitiesMap = Map(RESPONSE_FORMAT -> responseFormat) ++
+        (if (isVersionlessCDF) Map(VERSIONLESS_CDF -> "true") else Map.empty))
+      .withTableVersionPresence(hasTableVersion)
+  }
+
+  private def withCDFResponses(
+      responseFormat: String,
+      responses: Seq[ParsedDeltaSharingResponse],
+      paginationEnabled: Boolean = false)(f: DeltaSharingRestClient => Unit): Unit = {
+    var requestIndex = 0
+    val client = new DeltaSharingRestClient(
+      profileProvider = unitTestProfileProvider,
+      responseFormat = responseFormat,
+      queryTablePaginationEnabled = paginationEnabled,
+      maxFilesPerReq = 1) {
+      override def getNDJson(
+          target: String,
+          requireVersion: Boolean,
+          setIncludeEndStreamAction: Boolean,
+          requestFileIdHash: Option[String] = None): ParsedDeltaSharingResponse = {
+        assert(!requireVersion)
+        val request = prepareHeaders(
+          new HttpGet(target), setIncludeEndStreamAction, requestFileIdHash)
+        assert(request.getFirstHeader(DELTA_SHARING_CAPABILITIES_HEADER).getValue
+          .contains(s"$VERSIONLESS_CDF=true"))
+        if (paginationEnabled) {
+          assert(target.contains("maxFiles=1"))
+          assert(target.contains("pageToken=next-page") == (requestIndex > 0))
+        }
+        val response = responses(requestIndex)
+        requestIndex += 1
+        response
+      }
+    }
+    try {
+      f(client)
+      assert(requestIndex == responses.size)
+    } finally {
+      client.close()
+    }
+  }
+
+  private def getViewCDF(client: DeltaSharingRestClient): DeltaTableFiles = {
+    client.getCDFFiles(
+      Table("view", "schema", "share"),
+      Map("startingTimestamp" -> "2026-01-01T00:00:00Z"),
+      includeHistoricalMetadata = false,
+      fileIdHash = None)
+  }
+
+  private def assertNoVersionedCDFActions(result: DeltaTableFiles): Unit = {
+    assert(result.addFiles.isEmpty)
+    assert(result.cdfFiles.isEmpty)
+    assert(result.removeFiles.isEmpty)
+    assert(result.additionalMetadatas.isEmpty)
+  }
+
+  test("advertise versionless CDF capability only for batch changes requests") {
+    val tableUrl = "http://localhost/shares/share/schemas/schema/tables/view"
+    val requests = Seq[(String, Boolean)](
+      s"$tableUrl/changes?startingTimestamp=2026-01-01T00%3A00%3A00Z" -> true,
+      s"$tableUrl/changes?maxFiles=1&pageToken=next-page" -> true,
+      "http://localhost/prefix/shares/a%2Fb/schemas/c%2Fd/tables/e%2Ff/changes" -> true,
+      "http://localhost/shares" -> false,
+      "http://localhost/shares/share/schemas/schema/tables" -> false,
+      tableUrl -> false,
+      s"$tableUrl/metadata" -> false,
+      s"$tableUrl/version" -> false,
+      s"$tableUrl/query" -> false,
+      s"$tableUrl/query?startingVersion=1" -> false,
+      "http://localhost/shares/share/schemas/schema/tables/changes" -> false,
+      "http://localhost/changes" -> false,
+      "http://localhost/query-status/token" -> false)
+    for {
+      forStreaming <- Seq(false, true)
+      responseFormat <- Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA)
+    } {
+      val client = new DeltaSharingRestClient(
+        unitTestProfileProvider, forStreaming = forStreaming, responseFormat = responseFormat)
+      try {
+        requests.foreach { case (url, isChangesRequest) =>
+          Seq[HttpRequestBase](new HttpGet(url), new HttpPost(url), new HttpHead(url))
+            .foreach { request =>
+              client.prepareHeaders(request, setIncludeEndStreamAction = false)
+              val capabilities = request.getFirstHeader(DELTA_SHARING_CAPABILITIES_HEADER).getValue
+              val expected = !forStreaming && isChangesRequest && request.getMethod == "GET"
+              assert(capabilities.toLowerCase(Locale.ROOT)
+                .contains(s"$VERSIONLESS_CDF=true") == expected,
+                s"${request.getMethod} $url (forStreaming=$forStreaming)")
+            }
+        }
+      } finally {
+        client.close()
+      }
+    }
+  }
+
+  test("parse versionless Parquet CDF responses without wrapper commit metadata") {
+    Seq(false, true).foreach { empty =>
+      val lines = versionlessCDFLines(RESPONSE_FORMAT_PARQUET).take(if (empty) 2 else 3)
+      withCDFResponses(RESPONSE_FORMAT_PARQUET,
+        Seq(cdfResponse(RESPONSE_FORMAT_PARQUET, lines))) { client =>
+        val result = getViewCDF(client)
+        assert(result.isVersionlessCDF)
+        assert(result.version == 0L)
+        assert(result.protocol == Protocol(1))
+        assert(result.metadata.id == "view-id")
+        val expectedFiles = if (empty) Nil else Seq(AddFile(
+          "https://example.com/change.parquet", "change", Map.empty, 10L,
+          stats = "{\"numRecords\":2}"))
+        assert(result.files == expectedFiles)
+        assert(result.lines.isEmpty)
+        assertNoVersionedCDFActions(result)
+      }
+    }
+  }
+
+  test("preserve raw versionless Delta CDF actions and reader features") {
+    Seq(false, true).foreach { empty =>
+      val lines = versionlessCDFLines(RESPONSE_FORMAT_DELTA).take(if (empty) 2 else 3)
+      withCDFResponses(RESPONSE_FORMAT_DELTA,
+        Seq(cdfResponse(RESPONSE_FORMAT_DELTA, lines))) { client =>
+        val result = getViewCDF(client)
+        assert(result.isVersionlessCDF)
+        assert(result.version == 0L)
+        assert(result.lines == lines)
+        assert(result.protocol == null)
+        assert(result.metadata == null)
+        assert(result.files.isEmpty)
+        assertNoVersionedCDFActions(result)
+      }
+    }
+  }
+
+  test("tolerate optional materialization metadata in versionless CDF file wrappers") {
+    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
+      val baseLines = versionlessCDFLines(responseFormat)
+      val file = baseLines.last.replace("\"id\":\"change\"",
+        "\"id\":\"change\",\"version\":99,\"timestamp\":9999")
+      val lines = baseLines.init :+ file
+      withCDFResponses(responseFormat, Seq(cdfResponse(responseFormat, lines))) { client =>
+        val result = getViewCDF(client)
+        assert(result.isVersionlessCDF)
+        assertNoVersionedCDFActions(result)
+        if (responseFormat == RESPONSE_FORMAT_DELTA) {
+          assert(result.lines == lines)
+          assert(result.files.isEmpty)
+        } else {
+          assert(result.files.head.version == 99L)
+          assert(result.files.head.timestamp == 9999L)
+        }
+      }
+    }
+  }
+
+  test("preserve raw versioned Delta CDF responses") {
+    val lines = versionlessCDFLines(RESPONSE_FORMAT_DELTA)
+    withCDFResponses(RESPONSE_FORMAT_DELTA, Seq(cdfResponse(
+      RESPONSE_FORMAT_DELTA, lines, isVersionlessCDF = false,
+      hasTableVersion = true, version = 123L))) { client =>
+      val result = getViewCDF(client)
+      assert(!result.isVersionlessCDF)
+      assert(result.version == 123L)
+      assert(result.lines == lines)
+      assert(result.protocol == null)
+      assert(result.metadata == null)
+      assert(result.files.isEmpty)
+      assertNoVersionedCDFActions(result)
+    }
+  }
+
+  test("parse paginated versionless CDF responses in both formats") {
+    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
+      val baseLines = versionlessCDFLines(responseFormat)
+      val files = Seq("first", "second").map(baseLines.last.replace("change", _))
+      val pages = files.zipWithIndex.map { case (file, index) =>
+        val nextPageToken = if (index == 0) "next-page" else null
+        val endStream = JsonUtils.toJson(EndStreamAction(null, nextPageToken, null).wrap)
+        cdfResponse(responseFormat, baseLines.take(2) ++ Seq(file, endStream))
+      }
+      withCDFResponses(responseFormat, pages, paginationEnabled = true) { client =>
+        val result = getViewCDF(client)
+        assert(result.isVersionlessCDF)
+        assert(result.version == 0L)
+        assertNoVersionedCDFActions(result)
+        if (responseFormat == RESPONSE_FORMAT_DELTA) {
+          assert(result.lines == baseLines.take(2) ++ files)
+          assert(result.protocol == null)
+          assert(result.metadata == null)
+          assert(result.files.isEmpty)
+        } else {
+          assert(result.files.map(_.id) == Seq("first", "second"))
+          assert(result.files.forall(file => file.version == null && file.timestamp == null))
+        }
+      }
+    }
+  }
+
+  test("reject inconsistent versionless CDF responses across pages") {
+    for {
+      responseFormat <- Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA)
+      mismatch <- Seq("capability", "header", "format", "protocol", "metadata", "version")
+    } {
+      val lines = versionlessCDFLines(responseFormat)
+      val endStream = JsonUtils.toJson(EndStreamAction(null, "next-page", null).wrap)
+      val firstPage = cdfResponse(responseFormat, lines :+ endStream)
+      val nextLines = mismatch match {
+        case "protocol" => lines.updated(0, lines.head.replace("minReaderVersion", "changedVersion"))
+        case "metadata" => lines.updated(1, lines(1).replace("view-id", "different-view"))
+        case _ => lines
+      }
+      val nextFormat = if (mismatch == "format") {
+        if (responseFormat == RESPONSE_FORMAT_PARQUET) RESPONSE_FORMAT_DELTA else RESPONSE_FORMAT_PARQUET
+      } else {
+        responseFormat
+      }
+      val nextPage = cdfResponse(
+        nextFormat, nextLines,
+        isVersionlessCDF = mismatch != "capability",
+        hasTableVersion = mismatch == "header",
+        version = if (mismatch == "version") 1L else 0L)
+      withCDFResponses(responseFormat, Seq(firstPage, nextPage), paginationEnabled = true) { client =>
+        val error = intercept[IllegalStateException] { getViewCDF(client) }
+        assert(error.getMessage.contains("inconsistent version/format/protocol/metadata"), mismatch)
+      }
+    }
+  }
+
+  test("reject missing or conflicting version headers for versionless CDF") {
+    for {
+      responseFormat <- Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA)
+      hasTableVersion <- Seq(false, true)
+    } {
+      val response = cdfResponse(responseFormat, versionlessCDFLines(responseFormat),
+        isVersionlessCDF = hasTableVersion, hasTableVersion = hasTableVersion)
+      withCDFResponses(responseFormat, Seq(response)) { client =>
+        val error = intercept[IllegalStateException] { getViewCDF(client) }
+        val expected = if (hasTableVersion) {
+          "View CDF response must not include Delta-Table-Version"
+        } else {
+          "Cannot find Delta-Table-Version or versionlesscdf=true"
+        }
+        assert(error.getMessage.contains(expected))
+      }
     }
   }
 
