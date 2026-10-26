@@ -16,10 +16,19 @@
 
 package io.delta.sharing.server.credential.azure
 
-import java.net.URI
+import java.net.{URI, URLDecoder}
+import java.nio.charset.StandardCharsets.UTF_8
+import java.time.OffsetDateTime
+import java.util.Base64
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
+import com.azure.storage.file.datalake.models.UserDelegationKey
 import org.apache.hadoop.conf.Configuration
 import org.scalatest.FunSuite
+
+import io.delta.sharing.server.common.AzureUserDelegationSasGenerator
+import io.delta.sharing.server.credential.{CloudCredentialVendor, CredentialContext, Privilege}
 
 class AzureCredentialVendorSuite extends FunSuite {
 
@@ -40,7 +49,7 @@ class AzureCredentialVendorSuite extends FunSuite {
     assert(parts.accountShort == "account")
     assert(parts.container == "container")
     assert(parts.pathPrefix == "foo/bar")
-    assert(parts.endpointSuffix == "blob.core.windows.net")
+    assert(parts.endpointSuffix == "core.windows.net")
   }
 
   test("parseLocation abfss path-only container") {
@@ -93,4 +102,97 @@ class AzureCredentialVendorSuite extends FunSuite {
     val result = AzureCredentialVendor.getAadConfig(conf, account)
     assert(result == Some(("tenant-abc", "cid", "csecret")))
   }
+
+  private val testKey = Base64.getEncoder.encodeToString(Array.fill[Byte](32)(1))
+
+  private def sasParameters(token: String): Map[String, String] = {
+    token.split("&").map { parameter =>
+      val pair = parameter.split("=", 2)
+      pair(0) -> URLDecoder.decode(pair(1), "UTF-8")
+    }.toMap
+  }
+
+  private def assertSignedPath(
+      parameters: Map[String, String],
+      path: String,
+      delegation: Boolean): Unit = {
+    val canonicalName = "/blob/account/container" + (if (path.isEmpty) "" else "/" + path)
+    val keyFields = if (delegation) {
+      Seq("skoid", "sktid", "skt", "ske", "sks", "skv", "saoid", "suoid", "scid")
+    } else {
+      Seq("si")
+    }
+    val fields = Seq("sp", "st", "se") ++ Seq("canonical") ++ keyFields ++
+      Seq("sip", "spr", "sv", "sr", "snapshot", "ses", "rscc", "rscd", "rsce", "rscl", "rsct")
+    val stringToSign = fields.map {
+      case "canonical" => canonicalName
+      case field => parameters.getOrElse(field, "")
+    }.mkString("\n")
+    val mac = Mac.getInstance("HmacSHA256")
+    mac.init(new SecretKeySpec(Base64.getDecoder.decode(testKey), "HmacSHA256"))
+    val expected = Base64.getEncoder.encodeToString(mac.doFinal(stringToSign.getBytes(UTF_8)))
+    assert(parameters("sig") == expected, s"Signature must bind the requested path: $path")
+    assert(parameters("sp") == "rl")
+    assert(parameters("spr") == "https")
+    assert(parameters("sr") == (if (path.isEmpty) "c" else "d"))
+    if (path.nonEmpty) {
+      assert(parameters("sdd") == path.split("/").length.toString)
+    }
+  }
+
+  test("account-key vending signs each table directory for ABFS and WASB locations") {
+    for {
+      scheme <- Seq("abfs", "abfss", "wasb", "wasbs")
+      path <- Seq("shared/table", "shared/table/", "shared/other", "shared/table%20name")
+    } {
+      val host = if (scheme.startsWith("abfs")) "dfs" else "blob"
+      val conf = new Configuration(false)
+      conf.set(s"fs.azure.account.key.account.$host.core.windows.net", testKey)
+      val location = new URI(s"$scheme://container@account.$host.core.windows.net/$path")
+      val context = CredentialContext.create(location, Set(Privilege.SELECT))
+      val credentials = new CloudCredentialVendor(conf).vendCredential(context, 3600)
+      assert(credentials.location == location.toString)
+      val parameters = sasParameters(credentials.azureUserDelegationSas.sasToken)
+      assertSignedPath(parameters, location.getPath.stripPrefix("/").stripSuffix("/"), false)
+    }
+  }
+
+  test("container-root vending signs only the requested container") {
+    val conf = new Configuration(false)
+    conf.set("fs.azure.account.key.account.dfs.core.windows.net", testKey)
+    val context = CredentialContext.create(
+      new URI("abfss://container@account.dfs.core.windows.net/"), Set(Privilege.SELECT))
+    val credentials = new CloudCredentialVendor(conf).vendCredential(context, 3600)
+    assertSignedPath(sasParameters(credentials.azureUserDelegationSas.sasToken), "", false)
+  }
+
+  test("user-delegation signing binds directory paths and depth without a live tenant") {
+    val start = OffsetDateTime.parse("2026-01-01T00:00:00Z")
+    val expiry = start.plusHours(1)
+    val key = new UserDelegationKey()
+      .setSignedObjectId("test-object-id")
+      .setSignedTenantId("test-tenant-id")
+      .setSignedStart(start)
+      .setSignedExpiry(expiry)
+      .setSignedService("b")
+      .setSignedVersion("2023-11-03")
+      .setValue(testKey)
+    for (path <- Seq("shared/table", "shared/other", "shared/table name", "")) {
+      val token = AzureUserDelegationSasGenerator.signUserDelegationSas(
+        "account", "container", path, key, expiry)
+      assertSignedPath(sasParameters(token), path, true)
+    }
+  }
+
+
+  test("ambiguous Azure directory paths are rejected before credentials are signed") {
+    for (path <- Seq("shared/../table", "shared/./table", "shared//table", "shared/%2e%2e/table",
+        "shared/table%5Cchild")) {
+      intercept[IllegalArgumentException] {
+        AzureCredentialVendor.parseLocation(
+          new URI(s"abfss://container@account.dfs.core.windows.net/$path"))
+      }
+    }
+  }
+
 }

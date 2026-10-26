@@ -17,11 +17,16 @@
 package io.delta.sharing.server.credential.azure
 
 import java.net.URI
-import java.util.Date
+import java.time.{Instant, ZoneOffset}
 import java.util.concurrent.TimeUnit.SECONDS
 
-import com.microsoft.azure.storage.{CloudStorageAccount, SharedAccessProtocols}
-import com.microsoft.azure.storage.blob.{SharedAccessBlobPermissions, SharedAccessBlobPolicy}
+import scala.util.control.NonFatal
+
+import com.azure.core.util.Context
+import com.azure.storage.common.StorageSharedKeyCredential
+import com.azure.storage.common.sas.SasProtocol
+import com.azure.storage.file.datalake.implementation.util.DataLakeSasImplUtil
+import com.azure.storage.file.datalake.sas.{DataLakeServiceSasSignatureValues, FileSystemSasPermission, PathSasPermission}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.azure.AzureNativeFileSystemStore
 
@@ -56,10 +61,17 @@ object AzureCredentialVendor {
       val segments = path.split("/", 2)
       (segments(0), if (segments.length > 1) segments(1) else "")
     }
+    val directory = pathPrefix.reverse.dropWhile(_ == '/').reverse
+    if (directory.nonEmpty && directory.split("/", -1).exists { segment =>
+        segment.isEmpty || segment == "." || segment == ".." || segment.contains("\\")
+      }) {
+      throw new IllegalArgumentException(
+        "Azure table location must have a canonical directory path")
+    }
     val (accountShort, endpointSuffix) = if (host.endsWith(".dfs.core.windows.net")) {
       (host.stripSuffix(".dfs.core.windows.net"), "core.windows.net")
     } else if (host.endsWith(".blob.core.windows.net")) {
-      (host.stripSuffix(".blob.core.windows.net"), "blob.core.windows.net")
+      (host.stripSuffix(".blob.core.windows.net"), "core.windows.net")
     } else {
       throw new IllegalArgumentException(s"Cannot parse Azure authority: $host")
     }
@@ -67,7 +79,7 @@ object AzureCredentialVendor {
       accountNameFull = host,
       accountShort = accountShort,
       container = container,
-      pathPrefix = pathPrefix,
+      pathPrefix = directory,
       endpointSuffix = endpointSuffix
     )
   }
@@ -105,8 +117,6 @@ class AzureCredentialVendor(conf: Configuration) {
   def vendAzureCredential(context: CredentialContext, validitySeconds: Long): Credentials = {
     val location = context.locations.head
     val parts = AzureCredentialVendor.parseLocation(location)
-    val accountKey = AzureNativeFileSystemStore.getAccountKeyFromConfiguration(
-      parts.accountNameFull, conf)
     val aadConfig = AzureCredentialVendor.getAadConfig(conf, parts.accountNameFull)
     val expirationTime = System.currentTimeMillis() + SECONDS.toMillis(validitySeconds)
     val sasToken = aadConfig match {
@@ -116,31 +126,37 @@ class AzureCredentialVendor(conf: Configuration) {
             parts.accountShort,
             parts.endpointSuffix,
             parts.container,
+            parts.pathPrefix,
             tenantId,
             clientId,
             clientSecret,
             validitySeconds
           )
         } catch {
-          case e: Exception =>
+          case NonFatal(e) =>
             throw new RuntimeException(
               "Failed to generate Azure User Delegation SAS (check AAD config and RBAC). " +
                 "Ensure the app has Storage Blob Data Contributor or generateUserDelegationKey.", e)
         }
       case None =>
-        val connectionString = Seq(
-          "DefaultEndpointsProtocol=https",
-          s"AccountName=${parts.accountShort}",
-          s"AccountKey=$accountKey",
-          s"EndpointSuffix=${parts.endpointSuffix}"
-        ).mkString(";")
-        val account = CloudStorageAccount.parse(connectionString)
-        val blobClient = account.createCloudBlobClient()
-        val policy = new SharedAccessBlobPolicy()
-        policy.setPermissions(java.util.EnumSet.of(SharedAccessBlobPermissions.READ))
-        policy.setSharedAccessExpiryTime(new Date(expirationTime))
-        val containerRef = blobClient.getContainerReference(parts.container)
-        containerRef.generateSharedAccessSignature(policy, null)
+        val accountKey = AzureNativeFileSystemStore.getAccountKeyFromConfiguration(
+          parts.accountNameFull, conf)
+        val credential = new StorageSharedKeyCredential(parts.accountShort, accountKey)
+        val expiry = Instant.ofEpochMilli(expirationTime).atOffset(ZoneOffset.UTC)
+        if (parts.pathPrefix.nonEmpty) {
+          val permissions = new PathSasPermission().setReadPermission(true).setListPermission(true)
+          val values = new DataLakeServiceSasSignatureValues(expiry, permissions)
+            .setProtocol(SasProtocol.HTTPS_ONLY)
+          new DataLakeSasImplUtil(values, parts.container, parts.pathPrefix, true)
+            .generateSas(credential, Context.NONE)
+        } else {
+          val permissions = new FileSystemSasPermission()
+            .setReadPermission(true).setListPermission(true)
+          val values = new DataLakeServiceSasSignatureValues(expiry, permissions)
+            .setProtocol(SasProtocol.HTTPS_ONLY)
+          new DataLakeSasImplUtil(values, parts.container, "", false)
+            .generateSas(credential, Context.NONE)
+        }
     }
     Credentials(
       location = location.toString,

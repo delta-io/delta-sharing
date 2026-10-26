@@ -24,11 +24,13 @@ import java.util.Scanner
 import java.util.concurrent.TimeUnit.SECONDS
 
 import com.azure.core.credential.{AccessToken, TokenCredential, TokenRequestContext}
-import com.azure.storage.blob.{BlobServiceClient, BlobServiceClientBuilder}
-import com.azure.storage.blob.sas.{BlobContainerSasPermission, BlobServiceSasSignatureValues}
+import com.azure.core.util.Context
+import com.azure.storage.blob.BlobServiceClientBuilder
+import com.azure.storage.common.sas.SasProtocol
+import com.azure.storage.file.datalake.implementation.util.DataLakeSasImplUtil
+import com.azure.storage.file.datalake.models.UserDelegationKey
+import com.azure.storage.file.datalake.sas.{DataLakeServiceSasSignatureValues, FileSystemSasPermission, PathSasPermission}
 import reactor.core.publisher.Mono
-
-import io.delta.sharing.server.common.JsonUtils
 
 /**
  * Generates Azure User Delegation SAS (AAD token -> User Delegation Key -> SAS).
@@ -91,10 +93,11 @@ object AzureUserDelegationSasGenerator {
   }
 
   /**
-   * Generate a container-scoped User Delegation SAS.
+   * Generate a directory-scoped User Delegation SAS (container-scoped for a container root).
    * @param accountName Storage account name (e.g. "mystorageaccount")
-   * @param endpointSuffix e.g. "core.windows.net" or "blob.core.windows.net"
+   * @param endpointSuffix e.g. "core.windows.net"
    * @param container Container name
+   * @param pathPrefix Table directory within the container; empty for the container root
    * @param tenantId Azure AD tenant ID
    * @param clientId Azure AD application (client) ID
    * @param clientSecret Azure AD client secret
@@ -105,6 +108,7 @@ object AzureUserDelegationSasGenerator {
       accountName: String,
       endpointSuffix: String,
       container: String,
+      pathPrefix: String,
       tenantId: String,
       clientId: String,
       clientSecret: String,
@@ -112,17 +116,43 @@ object AzureUserDelegationSasGenerator {
     val (accessToken, expiryMillis) = getAadToken(tenantId, clientId, clientSecret)
     val credential = new StaticTokenCredential(accessToken, expiryMillis)
     val endpoint = s"https://$accountName.blob.$endpointSuffix"
-    val blobServiceClient: BlobServiceClient = new BlobServiceClientBuilder()
+    val serviceClient = new BlobServiceClientBuilder()
       .endpoint(endpoint)
       .credential(credential)
       .buildClient()
     val now = OffsetDateTime.now()
-    val keyExpiry = now.plusHours(1)
-    val userDelegationKey = blobServiceClient.getUserDelegationKey(now, keyExpiry)
     val sasExpiry = now.plusSeconds(validitySeconds)
-    val permission = new BlobContainerSasPermission().setReadPermission(true)
-    val values = new BlobServiceSasSignatureValues(sasExpiry, permission)
-    val containerClient = blobServiceClient.getBlobContainerClient(container)
-    containerClient.generateUserDelegationSas(values, userDelegationKey)
+    val key = serviceClient.getUserDelegationKey(now, sasExpiry)
+    val userDelegationKey = new UserDelegationKey()
+      .setSignedObjectId(key.getSignedObjectId)
+      .setSignedTenantId(key.getSignedTenantId)
+      .setSignedStart(key.getSignedStart)
+      .setSignedExpiry(key.getSignedExpiry)
+      .setSignedService(key.getSignedService)
+      .setSignedVersion(key.getSignedVersion)
+      .setValue(key.getValue)
+    signUserDelegationSas(accountName, container, pathPrefix, userDelegationKey, sasExpiry)
+  }
+
+  private[server] def signUserDelegationSas(
+      accountName: String,
+      container: String,
+      pathPrefix: String,
+      userDelegationKey: UserDelegationKey,
+      expiry: OffsetDateTime): String = {
+    if (pathPrefix.nonEmpty) {
+      val permissions = new PathSasPermission().setReadPermission(true).setListPermission(true)
+      val values = new DataLakeServiceSasSignatureValues(expiry, permissions)
+        .setProtocol(SasProtocol.HTTPS_ONLY)
+      new DataLakeSasImplUtil(values, container, pathPrefix, true)
+        .generateUserDelegationSas(userDelegationKey, accountName, Context.NONE)
+    } else {
+      val permissions = new FileSystemSasPermission()
+        .setReadPermission(true).setListPermission(true)
+      val values = new DataLakeServiceSasSignatureValues(expiry, permissions)
+        .setProtocol(SasProtocol.HTTPS_ONLY)
+      new DataLakeSasImplUtil(values, container, "", false)
+        .generateUserDelegationSas(userDelegationKey, accountName, Context.NONE)
+    }
   }
 }
