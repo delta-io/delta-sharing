@@ -638,6 +638,7 @@ name = "delta-sharing"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
+    { name = "certifi" },
     { name = "delta-kernel-rust-sharing-wrapper" },
     { name = "fsspec" },
     { name = "jwcrypto" },
@@ -681,6 +682,7 @@ requires-dist = [
     { name = "adlfs", marker = "extra == 'abfs'" },
     { name = "adlfs", marker = "extra == 'adl'" },
     { name = "aiohttp", specifier = ">=3.0.0,<=3.13.4" },
+    { name = "certifi", specifier = ">=2026.10.19" },
     { name = "delta-kernel-rust-sharing-wrapper", directory = "delta-kernel-rust-sharing-wrapper" },
     { name = "fsspec", specifier = ">=0.7.4,<=2026.2.0" },
     { name = "gcsfs", marker = "extra == 'gcs'" },
