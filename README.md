@@ -460,18 +460,9 @@ export AWS_SECRET_ACCESS_KEY=my.secret.key
 
 You can find other approaches in [hadoop-aws doc](https://hadoop.apache.org/docs/r2.10.1/hadoop-aws/tools/hadoop-aws/index.html#S3A_Authentication_methods).
 
-### Directory-based credentials
-
-Temporary table credentials are scoped to the requested table directory. Azure directory
-credentials require an account with hierarchical namespace enabled (ADLS Gen2), including
-when the table uses a `wasb` or `wasbs` URI. Flat Azure Blob Storage supports file URL access;
-there is no fallback to container-scoped credentials for a table directory. A table located
-at the container root receives credentials for that container.
-
-GCS credentials are downscoped to the table prefix for object reads and listing. Tables at
-the bucket root receive bucket-scoped, read-only credentials, never the server's source token.
-
 ### Azure Blob Storage
+
+Directory-based table credentials require hierarchical namespace enabled (ADLS Gen2), including for tables using `wasb` or `wasbs` URIs.
 
 The server is using `hadoop-azure` to read Azure Blob Storage. Using Azure Blob Storage requires [configuration of credentials](https://hadoop.apache.org/docs/current/hadoop-azure/index.html#Configuring_Credentials). You can create a Hadoop configuration file named `core-site.xml` and add it to the server's `conf` directory. Then add the following content to the xml file:
 
