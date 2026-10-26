@@ -52,6 +52,7 @@ include = ["delta_sharing"]
 
 [tool.uv]
 exclude-newer = "2026-03-19T00:00:00Z"
+exclude-newer-package = { certifi = "2026-10-21T00:00:00Z" }
 
 [tool.uv.sources]
 delta-kernel-rust-sharing-wrapper = { path = "delta-kernel-rust-sharing-wrapper" }
