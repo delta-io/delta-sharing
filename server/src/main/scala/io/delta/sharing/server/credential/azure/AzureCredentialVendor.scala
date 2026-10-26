@@ -16,7 +16,7 @@
 
 package io.delta.sharing.server.credential.azure
 
-import java.net.URI
+import java.net.{HttpURLConnection, URI, URL}
 import java.time.{Instant, ZoneOffset}
 import java.util.concurrent.TimeUnit.SECONDS
 
@@ -112,7 +112,10 @@ object AzureCredentialVendor {
  * Vends Azure User Delegation SAS or account-key SAS for the context location.
  * Mirrors Unity Catalog's AzureCredentialVendor + DatalakeCredentialGenerator.
  */
-class AzureCredentialVendor(conf: Configuration) {
+class AzureCredentialVendor(
+    conf: Configuration,
+    connectionFactory: URL => HttpURLConnection =
+      AzureUserDelegationSasGenerator.openConnection _) {
 
   def vendAzureCredential(context: CredentialContext, validitySeconds: Long): Credentials = {
     val location = context.locations.head
@@ -130,7 +133,8 @@ class AzureCredentialVendor(conf: Configuration) {
             tenantId,
             clientId,
             clientSecret,
-            validitySeconds
+            validitySeconds,
+            connectionFactory
           )
         } catch {
           case NonFatal(e) =>
