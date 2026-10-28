@@ -116,8 +116,10 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   }
 
   private def versionlessCDFLines(responseFormat: String): Seq[String] = {
-    val metadata =
-      """{"id":"view-id","format":{"provider":"parquet"},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"_change_type\",\"type\":\"string\"},{\"name\":\"_commit_timestamp\",\"type\":\"timestamp\"}]}","partitionColumns":[]}"""
+    val metadata = JsonUtils.toJson(Metadata(
+      id = "view-id",
+      schemaString = """{"type":"struct","fields":[{"name":"id","type":"integer"},{"name":"_change_type","type":"string"},{"name":"_commit_timestamp","type":"timestamp"}]}""",
+      configuration = Map("delta.enableChangeDataFeed" -> "false")))
     if (responseFormat == RESPONSE_FORMAT_DELTA) {
       Seq(
         """{"protocol":{"deltaProtocol":{"minReaderVersion":3,"minWriterVersion":7,"readerFeatures":["deletionVectors"],"writerFeatures":["deletionVectors"]}}}""",
@@ -144,8 +146,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       respondedFormat = responseFormat,
       lines = lines,
       capabilitiesMap = Map(RESPONSE_FORMAT -> responseFormat) ++
-        (if (isVersionlessCDF) Map(VERSIONLESS_CDF -> "true") else Map.empty))
-      .withTableVersionPresence(hasTableVersion)
+        (if (isVersionlessCDF) Map(VERSIONLESS_CDF -> "true") else Map.empty),
+      hasTableVersion = hasTableVersion)
   }
 
   private def withCDFResponses(
@@ -200,22 +202,66 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     assert(result.additionalMetadatas.isEmpty)
   }
 
-  test("advertise versionless CDF capability only for batch changes requests") {
+  test("parsed responses distinguish missing versions from table version zero") {
+    val tableVersionZero = ParsedDeltaSharingResponse(
+      version = 0L,
+      respondedFormat = RESPONSE_FORMAT_PARQUET,
+      lines = Nil,
+      capabilitiesMap = Map.empty)
+    assert(tableVersionZero.hasTableVersion)
+    assert(tableVersionZero.copy(version = 123L).hasTableVersion)
+
+    val missingVersion = tableVersionZero.copy(hasTableVersion = false)
+    assert(missingVersion.version == 0L)
+    assert(missingVersion != tableVersionZero)
+    assert(!missingVersion.copy(lines = Seq("action")).hasTableVersion)
+
+    intercept[IllegalArgumentException] {
+      cdfResponse(RESPONSE_FORMAT_PARQUET, Nil, hasTableVersion = false, version = 1L)
+    }
+    intercept[IllegalArgumentException] {
+      missingVersion.copy(version = 1L)
+    }
+  }
+
+  test("parse missing and present table-version headers") {
+    Seq(None, Some(0L), Some(123L)).foreach { tableVersion =>
+      val client = new DeltaSharingRestClient(unitTestProfileProvider) {
+        override private[client] def getResponse(
+            httpRequest: HttpRequestBase,
+            allowNoContent: Boolean,
+            fetchAsOneString: Boolean,
+            setIncludeEndStreamAction: Boolean,
+            requestFileIdHash: Option[String]
+        ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
+          (tableVersion, Map.empty, Nil, None)
+        }
+      }
+      try {
+        val response = client.getNDJson("http://localhost",
+          requireVersion = false, setIncludeEndStreamAction = false)
+        assert(response.version == tableVersion.getOrElse(0L))
+        assert(response.hasTableVersion == tableVersion.isDefined)
+        if (tableVersion.isEmpty) {
+          intercept[IllegalStateException] {
+            client.getNDJson("http://localhost",
+              requireVersion = true, setIncludeEndStreamAction = false)
+          }
+        }
+      } finally {
+        client.close()
+      }
+    }
+  }
+
+  test("advertise versionless CDF capability on all batch requests") {
     val tableUrl = "http://localhost/shares/share/schemas/schema/tables/view"
-    val requests = Seq[(String, Boolean)](
-      s"$tableUrl/changes?startingTimestamp=2026-01-01T00%3A00%3A00Z" -> true,
-      s"$tableUrl/changes?maxFiles=1&pageToken=next-page" -> true,
-      "http://localhost/prefix/shares/a%2Fb/schemas/c%2Fd/tables/e%2Ff/changes" -> true,
-      "http://localhost/shares" -> false,
-      "http://localhost/shares/share/schemas/schema/tables" -> false,
-      tableUrl -> false,
-      s"$tableUrl/metadata" -> false,
-      s"$tableUrl/version" -> false,
-      s"$tableUrl/query" -> false,
-      s"$tableUrl/query?startingVersion=1" -> false,
-      "http://localhost/shares/share/schemas/schema/tables/changes" -> false,
-      "http://localhost/changes" -> false,
-      "http://localhost/query-status/token" -> false)
+    val requests = Seq(
+      "http://localhost/shares",
+      s"$tableUrl/metadata",
+      s"$tableUrl/query",
+      s"$tableUrl/changes?startingTimestamp=2026-01-01T00%3A00%3A00Z",
+      s"$tableUrl/changes?maxFiles=1&pageToken=next-page")
     for {
       forStreaming <- Seq(false, true)
       responseFormat <- Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA)
@@ -223,14 +269,13 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val client = new DeltaSharingRestClient(
         unitTestProfileProvider, forStreaming = forStreaming, responseFormat = responseFormat)
       try {
-        requests.foreach { case (url, isChangesRequest) =>
+        requests.foreach { url =>
           Seq[HttpRequestBase](new HttpGet(url), new HttpPost(url), new HttpHead(url))
             .foreach { request =>
               client.prepareHeaders(request, setIncludeEndStreamAction = false)
               val capabilities = request.getFirstHeader(DELTA_SHARING_CAPABILITIES_HEADER).getValue
-              val expected = !forStreaming && isChangesRequest && request.getMethod == "GET"
               assert(capabilities.toLowerCase(Locale.ROOT)
-                .contains(s"$VERSIONLESS_CDF=true") == expected,
+                .contains(s"$VERSIONLESS_CDF=true") == !forStreaming,
                 s"${request.getMethod} $url (forStreaming=$forStreaming)")
             }
         }
@@ -250,10 +295,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         assert(result.version == 0L)
         assert(result.protocol == Protocol(1))
         assert(result.metadata.id == "view-id")
+        assert(result.metadata.schemaString.contains("_change_type"))
+        assert(result.metadata.schemaString.contains("_commit_timestamp"))
+        assert(!result.metadata.schemaString.contains("_commit_version"))
+        assert(result.metadata.configuration("delta.enableChangeDataFeed") == "false")
         val expectedFiles = if (empty) Nil else Seq(AddFile(
           "https://example.com/change.parquet", "change", Map.empty, 10L,
           stats = "{\"numRecords\":2}"))
         assert(result.files == expectedFiles)
+        assert(result.files.forall(_.getPartitionValuesInDF().isEmpty))
         assert(result.lines.isEmpty)
         assertNoVersionedCDFActions(result)
       }
@@ -293,6 +343,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         } else {
           assert(result.files.head.version == 99L)
           assert(result.files.head.timestamp == 9999L)
+          assert(result.files.head.getPartitionValuesInDF().isEmpty)
         }
       }
     }
@@ -344,7 +395,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   test("reject inconsistent versionless CDF responses across pages") {
     for {
       responseFormat <- Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA)
-      mismatch <- Seq("capability", "header", "format", "protocol", "metadata", "version")
+      mismatch <- Seq("capability", "header", "format", "protocol", "metadata")
     } {
       val lines = versionlessCDFLines(responseFormat)
       val endStream = JsonUtils.toJson(EndStreamAction(null, "next-page", null).wrap)
@@ -362,11 +413,33 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val nextPage = cdfResponse(
         nextFormat, nextLines,
         isVersionlessCDF = mismatch != "capability",
-        hasTableVersion = mismatch == "header",
-        version = if (mismatch == "version") 1L else 0L)
+        hasTableVersion = mismatch == "header")
       withCDFResponses(responseFormat, Seq(firstPage, nextPage), paginationEnabled = true) { client =>
         val error = intercept[IllegalStateException] { getViewCDF(client) }
         assert(error.getMessage.contains("inconsistent version/format/protocol/metadata"), mismatch)
+      }
+    }
+  }
+
+  test("reject inconsistent table CDF versions across pages") {
+    Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA).foreach { responseFormat =>
+      val lines = versionlessCDFLines(responseFormat).take(2)
+      val firstPageEndStream = JsonUtils.toJson(EndStreamAction(null, "next-page", null).wrap)
+      val lastPageEndStream = JsonUtils.toJson(EndStreamAction(null, null, null).wrap)
+      val pages = Seq(
+        cdfResponse(responseFormat, lines :+ firstPageEndStream,
+          isVersionlessCDF = false, hasTableVersion = true, version = 123L),
+        cdfResponse(responseFormat, lines :+ lastPageEndStream,
+          isVersionlessCDF = false, hasTableVersion = true, version = 124L))
+      withCDFResponses(responseFormat, pages, paginationEnabled = true) { client =>
+        val error = intercept[IllegalStateException] {
+          client.getCDFFiles(
+            Table("table", "schema", "share"),
+            Map("startingVersion" -> "0"),
+            includeHistoricalMetadata = false,
+            fileIdHash = None)
+        }
+        assert(error.getMessage.contains("inconsistent version/format/protocol/metadata"))
       }
     }
   }
@@ -439,7 +512,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     spark.conf.set(ConfUtils.OPTIONS_PROFILE_PROVIDER_ENABLED_CONF, "true")
   }
 
-  integrationTest("Check headers") {
+  test("Check headers") {
     val httpRequest = new HttpGet("random_url")
 
     def checkUserAgent(request: HttpRequestBase, containsStreaming: Boolean): Unit = {
@@ -465,15 +538,24 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       }
     }
 
-    def checkDeltaSharingCapabilities(
-      request: HttpRequestBase,
+    def checkHeaders(
+      client: DeltaSharingRestClient,
       responseFormat: String,
       readerFeatures: String,
-      endStreamActionEnabled: Boolean): Unit = {
-      val expected = s"${RESPONSE_FORMAT}=$responseFormat$readerFeatures" +
-        getEndStreamActionHeader(endStreamActionEnabled)
-      val h = request.getFirstHeader(DELTA_SHARING_CAPABILITIES_HEADER)
-      assert(h.getValue == expected)
+      endStreamActionEnabled: Boolean,
+      forStreaming: Boolean): Unit = {
+      try {
+        val request = client.prepareHeaders(httpRequest,
+          setIncludeEndStreamAction = endStreamActionEnabled)
+        checkUserAgent(request, forStreaming)
+        val versionlessCDF = if (forStreaming) "" else s";$VERSIONLESS_CDF=true"
+        val expected = s"${RESPONSE_FORMAT}=$responseFormat$versionlessCDF$readerFeatures" +
+          getEndStreamActionHeader(endStreamActionEnabled)
+        val h = request.getFirstHeader(DELTA_SHARING_CAPABILITIES_HEADER)
+        assert(h.getValue == expected)
+      } finally {
+        client.close()
+      }
     }
 
     Seq(
@@ -482,38 +564,33 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       (false, true),
       (false, false)
     ).foreach { case (forStreaming, endStreamActionEnabled) =>
-      var client = new DeltaSharingRestClient(
-        testProfileProvider,
+      val parquetClient = new DeltaSharingRestClient(
+        unitTestProfileProvider,
         forStreaming = forStreaming,
         endStreamActionEnabled = endStreamActionEnabled,
         readerFeatures = "willBeIgnored")
-        .prepareHeaders(httpRequest, setIncludeEndStreamAction = endStreamActionEnabled)
-      checkUserAgent(client, forStreaming)
-      checkDeltaSharingCapabilities(client, "parquet", "", endStreamActionEnabled)
+      checkHeaders(parquetClient, "parquet", "", endStreamActionEnabled, forStreaming)
 
       val readerFeatures = "deletionVectors,columnMapping,timestampNTZ"
-      client = new DeltaSharingRestClient(
-        testProfileProvider,
+      val deltaClient = new DeltaSharingRestClient(
+        unitTestProfileProvider,
         forStreaming = forStreaming,
         endStreamActionEnabled = endStreamActionEnabled,
         responseFormat = RESPONSE_FORMAT_DELTA,
         readerFeatures = readerFeatures)
-        .prepareHeaders(httpRequest, setIncludeEndStreamAction = endStreamActionEnabled)
-      checkUserAgent(client, forStreaming)
-      checkDeltaSharingCapabilities(
-        client, "delta", s";$READER_FEATURES=$readerFeatures", endStreamActionEnabled
+      checkHeaders(
+        deltaClient, "delta", s";$READER_FEATURES=$readerFeatures", endStreamActionEnabled, forStreaming
       )
 
-      client = new DeltaSharingRestClient(
-        testProfileProvider,
+      val fallbackClient = new DeltaSharingRestClient(
+        unitTestProfileProvider,
         forStreaming = forStreaming,
         endStreamActionEnabled = endStreamActionEnabled,
         responseFormat = s"$RESPONSE_FORMAT_DELTA,$RESPONSE_FORMAT_PARQUET",
         readerFeatures = readerFeatures)
-        .prepareHeaders(httpRequest, setIncludeEndStreamAction = endStreamActionEnabled)
-      checkUserAgent(client, forStreaming)
-      checkDeltaSharingCapabilities(
-        client, s"delta,parquet", s";$READER_FEATURES=$readerFeatures", endStreamActionEnabled
+      checkHeaders(
+        fallbackClient, s"delta,parquet", s";$READER_FEATURES=$readerFeatures",
+        endStreamActionEnabled, forStreaming
       )
     }
   }
