@@ -22,11 +22,13 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
 ]
 dependencies = [
-    "delta-kernel-rust-sharing-wrapper>=0.3.2,<1.0",
+    "delta-kernel-rust-sharing-wrapper>=0.3.4,<1.0",
     "pandas>=2.0.3,<3.0.0",
     "pyarrow>=16.1.0,<=23.0.1",
     "fsspec>=0.7.4,<=2026.2.0",
     "requests>=2.20.0,<=2.33.0",
+    # requests trusts certifi's CA bundle; 2026.10.19 drops the compromised emSign ECC Root CA - G3.
+    "certifi>=2026.10.19",
     "aiohttp>=3.0.0,<=3.13.4",
     "yarl>=1.6.0,<=1.23.0",
     "jwcrypto>=1.5.6,<2.0",
@@ -51,7 +53,7 @@ version = {attr = "delta_sharing.version.__version__"}
 include = ["delta_sharing"]
 
 [tool.uv]
-exclude-newer = "2026-03-19T00:00:00Z"
+exclude-newer = "2026-10-21T00:00:00Z"
 
 [tool.uv.sources]
 delta-kernel-rust-sharing-wrapper = { path = "delta-kernel-rust-sharing-wrapper" }
