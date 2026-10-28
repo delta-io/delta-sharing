@@ -24,7 +24,7 @@ import logging
 import pprint
 
 import requests
-from requests.exceptions import HTTPError, ConnectionError
+from requests.exceptions import HTTPError, ConnectionError, Timeout
 
 from delta_sharing.protocol import (
     AddFile,
@@ -150,9 +150,10 @@ class DataSharingRestClient:
     DELTA_FORMAT = "delta"
     PARQUET_FORMAT = "parquet"
 
-    def __init__(self, profile: DeltaSharingProfile, num_retries=10):
+    def __init__(self, profile: DeltaSharingProfile, num_retries=10, request_timeout=None):
         self._profile = profile
         self._num_retries = num_retries
+        self._request_timeout = request_timeout
         self._sleeper = lambda sleep_ms: time.sleep(sleep_ms / 1000)
         self.__auth_session(profile)
 
@@ -489,7 +490,11 @@ class DataSharingRestClient:
     ):
         assert target.startswith("/"), "Targets should start with '/'"
         self._auth_credential_provider.add_auth_header(self._session)
-        response = request(f"{self._profile.endpoint}{target}", **kwargs)
+        response = request(
+            f"{self._profile.endpoint}{target}",
+            timeout=self._request_timeout,
+            **kwargs,
+        )
         try:
             response.raise_for_status()
             lines = response.iter_lines(decode_unicode=True)
@@ -521,6 +526,8 @@ class DataSharingRestClient:
             else:
                 return False
         elif isinstance(error, ConnectionError):  # Unable to connect to service
+            return True
+        elif isinstance(error, Timeout):  # Request timed out
             return True
         else:
             return False

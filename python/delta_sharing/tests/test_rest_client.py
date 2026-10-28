@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from unittest.mock import Mock
+
 import pytest
 
 from requests.models import Response
-from requests.exceptions import HTTPError, ConnectionError
+from requests.exceptions import HTTPError, ConnectionError, Timeout
 
 from delta_sharing.protocol import (
     AddCdcFile,
@@ -92,6 +94,58 @@ def test_retry(rest_client: DataSharingRestClient):
 
     assert wrapper.fail_before_success()
     assert wrapper.sleeps == [100, 200, 400, 800]
+    wrapper.sleeps.clear()
+
+
+def test_request_timeout(profile):
+    def make_response():
+        response = Mock()
+        response.status_code = 200
+        response.iter_lines.return_value = iter([])
+        return response
+
+    # default behavior: no timeout configured, None is propagated to requests
+    default_client = DataSharingRestClient(profile)
+    assert default_client._request_timeout is None
+    default_client._session.get = Mock(return_value=make_response())
+    with default_client._get_internal("/shares"):
+        pass
+    assert default_client._session.get.call_args.kwargs.get("timeout") is None
+
+    # configured timeout is propagated to the underlying request
+    timeout_client = DataSharingRestClient(profile, request_timeout=60)
+    timeout_client._session.get = Mock(return_value=make_response())
+    with timeout_client._get_internal("/shares"):
+        pass
+    assert timeout_client._session.get.call_args.kwargs.get("timeout") == 60
+
+    # requests.exceptions.Timeout propagates to the caller
+    timeout_client._session.get = Mock(side_effect=Timeout())
+    timeout_client._num_retries = 0
+    with pytest.raises(Timeout):
+        with timeout_client._get_internal("/shares"):
+            pass
+
+
+def test_retry_on_timeout(rest_client: DataSharingRestClient):
+    class TestWrapper(DataSharingRestClient):
+        def __init__(self):
+            super().__init__(rest_client._profile)
+            self.sleeps = []
+            self._sleeper = self.sleeps.append
+            self.timeout_error = Timeout()
+
+        @retry_with_exponential_backoff
+        def all_fail_timeout(self):
+            raise self.timeout_error
+
+    wrapper = TestWrapper()
+
+    try:
+        wrapper.all_fail_timeout()
+    except Exception as e:
+        assert isinstance(e, Timeout)
+    assert wrapper.sleeps == [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]
     wrapper.sleeps.clear()
 
 
