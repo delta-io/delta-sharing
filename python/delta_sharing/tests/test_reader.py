@@ -13,6 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from contextlib import contextmanager
+import json
+from urllib.parse import parse_qs, urlparse
+
 import pytest
 
 from datetime import date
@@ -945,6 +949,153 @@ def test_table_changes_empty(tmp_path):
     )
     pdf = reader.table_changes_to_pandas(CdfOptions())
     validate_pdf(pdf)
+
+
+@pytest.mark.parametrize("use_delta_format", [False, True])
+@pytest.mark.parametrize("empty", [False, True])
+@pytest.mark.parametrize("convert_in_batches", [False, True])
+@pytest.mark.parametrize("wrapper_metadata", [False, True])
+def test_view_changes_to_pandas_preserves_physical_cdf_columns(
+    tmp_path,
+    rest_client,
+    monkeypatch,
+    use_delta_format,
+    empty,
+    convert_in_batches,
+    wrapper_metadata,
+):
+    change_file = tmp_path / "view-changes.parquet"
+    change_data = pd.DataFrame(
+        {
+            "a": [1, 2, 3, 4],
+            "_change_type": ["insert", "delete", "update_preimage", "update_postimage"],
+            "_commit_timestamp": pd.to_datetime(["2022-05-09T12:00:00", "2022-05-09T13:00:00"] * 2),
+        }
+    )
+    column_types = [
+        ("a", "long"),
+        ("region", "string"),
+        ("_change_type", "string"),
+        ("_commit_timestamp", "timestamp"),
+    ]
+    physical_names = {name: f"physical-{i}" for i, (name, _) in enumerate(column_types, 1)}
+    if use_delta_format:
+        change_data.rename(columns=physical_names).to_parquet(change_file)
+        partition_values = {physical_names["region"]: "west"}
+    else:
+        change_data.to_parquet(change_file)
+        partition_values = {"region": "west"}
+    schema_string = json.dumps(
+        {
+            "type": "struct",
+            "fields": [
+                {
+                    "name": name,
+                    "type": data_type,
+                    "nullable": True,
+                    "metadata": (
+                        {
+                            "delta.columnMapping.id": i,
+                            "delta.columnMapping.physicalName": physical_names[name],
+                        }
+                        if use_delta_format
+                        else {}
+                    ),
+                }
+                for i, (name, data_type) in enumerate(column_types, 1)
+            ],
+        }
+    )
+    metadata = {
+        "id": "view-id",
+        "format": {"provider": "parquet", "options": {}},
+        "schemaString": schema_string,
+        "partitionColumns": ["region"],
+        "configuration": (
+            {
+                "delta.columnMapping.mode": "name",
+                "delta.columnMapping.maxColumnId": "4",
+            }
+            if use_delta_format
+            else {}
+        ),
+    }
+    file = {"id": "view-changes"}
+    if wrapper_metadata:
+        file.update(version=99, timestamp=9999)
+    if use_delta_format:
+        protocol = {
+            "deltaProtocol": {
+                "minReaderVersion": 3,
+                "minWriterVersion": 7,
+                "readerFeatures": ["columnMapping"],
+                "writerFeatures": ["columnMapping"],
+            }
+        }
+        metadata = {"deltaMetadata": metadata}
+        file["deltaSingleAction"] = {
+            "add": {
+                "path": str(change_file),
+                "partitionValues": partition_values,
+                "size": change_file.stat().st_size,
+                "modificationTime": 1234,
+                "dataChange": True,
+            }
+        }
+    else:
+        protocol = {"minReaderVersion": 1}
+        file.update(
+            url=str(change_file), partitionValues=partition_values, size=change_file.stat().st_size
+        )
+    actions = [{"protocol": protocol}, {"metaData": metadata}]
+    if not empty:
+        actions.append({"file": file})
+    lines = [json.dumps(action) for action in actions]
+    cdf_requests = []
+
+    @contextmanager
+    def get_internal(target, **kwargs):
+        assert urlparse(target).path == "/shares/share/schemas/schema/tables/view/changes"
+        assert parse_qs(urlparse(target).query) == {
+            "startingTimestamp": ["2022-05-09T00:00:00Z"],
+            "endingTimestamp": ["2022-05-10T00:00:00Z"],
+        }
+        assert (
+            "versionlesscdf=true"
+            in rest_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        )
+        cdf_requests.append(target)
+        response_format = "delta" if use_delta_format else "parquet"
+        capabilities = f"responseformat={response_format};versionlesscdf=true"
+        yield {DataSharingRestClient.CAPABILITIES_HEADER: capabilities}, iter(lines)
+
+    monkeypatch.setattr(rest_client, "_get_internal", get_internal)
+    reader = DeltaSharingReader(
+        Table("view", "share", "schema"),
+        rest_client,
+        use_delta_format=use_delta_format,
+        convert_in_batches=convert_in_batches,
+    )
+    result = reader.table_changes_to_pandas(
+        CdfOptions(
+            starting_timestamp="2022-05-09T00:00:00Z",
+            ending_timestamp="2022-05-10T00:00:00Z",
+        )
+    )
+
+    assert len(cdf_requests) == 1
+    assert (
+        rest_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        == DataSharingRestClient.VERSIONLESS_CDF
+    )
+    assert result.columns.tolist() == ["a", "region", "_change_type", "_commit_timestamp"]
+    assert "_commit_version" not in result
+    if empty:
+        assert result.empty
+    else:
+        expected = change_data.copy()
+        expected.insert(1, "region", "west")
+        pd.testing.assert_frame_equal(result, expected, check_dtype=False)
 
 
 def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
