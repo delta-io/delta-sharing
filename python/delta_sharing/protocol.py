@@ -345,8 +345,8 @@ class AddCdcFile(FileAction):
             id=json["id"],
             partition_values=json["partitionValues"],
             size=int(json["size"]),
-            timestamp=json.get("timestamp", None),
-            version=json.get("version", None),
+            timestamp=json["timestamp"],
+            version=json["version"],
         )
 
 

@@ -128,6 +128,7 @@ class DeltaSharingReader:
         try:
             lines = list(response_lines)
             table_path = self.__write_temp_delta_log_snapshot(temp_dir.name, lines)
+            # The first two lines contain protocol and metadata, not files.
             num_files = len(lines) - 2
 
             interface = delta_kernel_rust_sharing_wrapper.PythonInterface(table_path)
@@ -504,7 +505,7 @@ class DeltaSharingReader:
         output_schema = (
             schema_json
             if response.is_versionless_cdf
-            else self._add_special_cdf_schema(schema_json, include_commit_version=True)
+            else self._add_special_cdf_schema(schema_json)
         )
 
         if len(response.actions) == 0:
@@ -709,10 +710,9 @@ class DeltaSharingReader:
         return "_commit_version"
 
     @staticmethod
-    def _add_special_cdf_schema(schema_json: dict, include_commit_version: bool = True) -> dict:
+    def _add_special_cdf_schema(schema_json: dict) -> dict:
         fields = schema_json["fields"]
         fields.append({"name": DeltaSharingReader._change_type_col_name(), "type": "string"})
-        if include_commit_version:
-            fields.append({"name": DeltaSharingReader._commit_version_col_name(), "type": "long"})
+        fields.append({"name": DeltaSharingReader._commit_version_col_name(), "type": "long"})
         fields.append({"name": DeltaSharingReader._commit_timestamp_col_name(), "type": "long"})
         return schema_json
