@@ -113,25 +113,20 @@ case class ParsedDeltaSharingTablePath(
 /**
  * A case class containing the parsed response of a delta sharing rpc.
  *
- * @param version the table version of the shared table, or 0L when hasTableVersion is false.
+ * @param version the table version of the shared table, if present.
  * @param respondedFormat the sharing format (parquet or delta), used to parse the lines.
  * @param lines all lines in the response.
  * @param capabilitiesMap Map parsed from the value of delta-sharing-capabilities in the
  *                        response header
  * @param fileIdHash The fileidhash response header value, if present
  *                   (e.g. parquet or delta).
- * @param hasTableVersion whether the response included a table version header
  */
 case class ParsedDeltaSharingResponse(
-    version: Long,
+    version: Option[Long],
     respondedFormat: String,
     lines: Seq[String],
     capabilitiesMap: Map[String, String],
-    fileIdHash: Option[String] = None,
-    hasTableVersion: Boolean = true) {
-  require(hasTableVersion || version == 0L,
-    "version must be 0L when the table version header is absent")
-}
+    fileIdHash: Option[String] = None)
 
 private[sharing] trait PaginationResponse {
   def nextPageToken: Option[String]
@@ -383,20 +378,20 @@ class DeltaSharingRestClient(
     }
 
     logInfo(
-      s"Fetched metadata for table ${getFullTableName(table)}, version ${response.version} " +
+      s"Fetched metadata for table ${getFullTableName(table)}, version ${response.version.get} " +
         s"with response format ${response.respondedFormat}" + getDsQueryIdForLogging
     )
 
     // Validate that the response version matches the requested version for MST queries
     require(
-      !profileProvider.isMSTQuery() || versionAsOf.isEmpty || versionAsOf.get == response.version,
-      s"The returned table version ${response.version} does not match the requested " +
+      !profileProvider.isMSTQuery() || versionAsOf.isEmpty || versionAsOf == response.version,
+      s"The returned table version ${response.version.get} does not match the requested " +
         s"versionAsOf ${versionAsOf.get} in getMetadata" + getDsQueryIdForLogging
     )
 
     if (response.respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableMetadata(
-        response.version,
+        response.version.get,
         lines = response.lines,
         respondedFormat = response.respondedFormat
       )
@@ -406,7 +401,7 @@ class DeltaSharingRestClient(
     checkProtocol(protocol)
     val metadata = JsonUtils.fromJson[SingleAction](response.lines(1)).metaData
     DeltaTableMetadata(
-      response.version,
+      response.version.get,
       protocol,
       metadata,
       respondedFormat = response.respondedFormat
@@ -616,7 +611,7 @@ class DeltaSharingRestClient(
         s"files for table " + getFullTableName(table) +
         s" with [$startingVersion, $endingVersion]," + getDsQueryIdForLogging
       )
-      (response.version, response.respondedFormat, filteredLines, response.fileIdHash)
+      (response.version.get, response.respondedFormat, filteredLines, response.fileIdHash)
     }
 
     verifyFileIdHashResponse(
@@ -688,7 +683,7 @@ class DeltaSharingRestClient(
         setIncludeEndStreamAction = endStreamActionEnabled,
         requestFileIdHash = fileIdHash
       )
-      (response.version, response.respondedFormat, response.lines, None, response.fileIdHash)
+      (response.version.get, response.respondedFormat, response.lines, None, response.fileIdHash)
     }
 
     var (filteredLines, endStreamAction) = maybeExtractEndStreamAction(lines)
@@ -780,10 +775,9 @@ class DeltaSharingRestClient(
     val target = getTargetUrl(
       s"/shares/$encodedShare/schemas/$encodedSchema/tables/$encodedTable/changes?$encodedParams")
     val (
-      version,
+      versionOpt,
       respondedFormat,
       lines,
-      hasTableVersion,
       isVersionlessCDF,
       responseFileIdHash) =
       if (queryTablePaginationEnabled) {
@@ -809,7 +803,6 @@ class DeltaSharingRestClient(
           response.version,
           response.respondedFormat,
           filteredLines,
-          response.hasTableVersion,
           getRespondedVersionlessCDF(response.capabilitiesMap),
           response.fileIdHash)
       }
@@ -826,16 +819,17 @@ class DeltaSharingRestClient(
     )
 
     // A CDF response carries either a table version or the versionless capability.
-    if (isVersionlessCDF && hasTableVersion) {
+    if (isVersionlessCDF && versionOpt.isDefined) {
       throw new IllegalStateException(
         "View CDF response must not include Delta-Table-Version in the header" +
           getDsQueryIdForLogging)
     }
-    if (!isVersionlessCDF && !hasTableVersion) {
+    if (!isVersionlessCDF && versionOpt.isEmpty) {
       throw new IllegalStateException(
         "Cannot find Delta-Table-Version or versionlesscdf=true in the response header" +
           getDsQueryIdForLogging)
     }
+    val version = versionOpt.getOrElse(0L)
     if (respondedFormat == RESPONSE_FORMAT_DELTA) {
       return DeltaTableFiles(
         version,
@@ -861,14 +855,18 @@ class DeltaSharingRestClient(
         case r: RemoveFile if !isVersionlessCDF => removeFiles.append(r)
         case m: Metadata if !isVersionlessCDF => additionalMetadatas.append(m)
         case _ =>
-          logFirstKLines(lines, s"getCDFFiles(cdfOptions:$cdfOptions)", 10, target)
+          logFirstKLines(
+            lines,
+            s"getCDFFiles(cdfOptions:$cdfOptions, isVersionlessCDF:$isVersionlessCDF)",
+            10,
+            target)
           val expectedActions = if (isVersionlessCDF) {
-            "file"
+            "file actions after the initial protocol and metadata"
           } else {
-            "cdf, add, remove, or metadata"
+            "cdf, add, remove, or metadata actions"
           }
           throw new IllegalStateException(
-            s"Expecting $expectedActions actions but got ${line}. " +
+            s"Expecting $expectedActions but got ${line}. isVersionlessCDF=$isVersionlessCDF, " +
               s"targetUrl $target" + getDsQueryIdForLogging)
       }
     }
@@ -891,7 +889,7 @@ class DeltaSharingRestClient(
   private def getCDFFilesByPage(
       targetUrl: String,
       fileIdHash: Option[String] = None):
-      (Long, String, Seq[String], Boolean, Boolean, Option[String]) = {
+      (Option[Long], String, Seq[String], Boolean, Option[String]) = {
     val allLines = ArrayBuffer[String]()
     val start = System.currentTimeMillis()
     var numPages = 1
@@ -927,7 +925,7 @@ class DeltaSharingRestClient(
       val res = fetchNextPageFiles(
         targetUrl = updatedUrl,
         requestBody = None,
-        expectedVersion = if (response.hasTableVersion) Some(response.version) else None,
+        expectedVersion = response.version,
         expectedRespondedFormat = response.respondedFormat,
         expectedProtocol = protocol,
         expectedMetadata = metadata,
@@ -959,7 +957,6 @@ class DeltaSharingRestClient(
       response.version,
       response.respondedFormat,
       allLines.toSeq,
-      response.hasTableVersion,
       getRespondedVersionlessCDF(response.capabilitiesMap),
       response.fileIdHash)
   }
@@ -998,8 +995,7 @@ class DeltaSharingRestClient(
       s"of ${response.lines.size} lines," + getDsQueryIdForLogging)
 
     // Validate that version/format/protocol/metadata in the response don't change across pages
-    if (response.version != expectedVersion.getOrElse(0L) ||
-      response.hasTableVersion != expectedVersion.isDefined ||
+    if (response.version != expectedVersion ||
       getRespondedVersionlessCDF(response.capabilitiesMap) != expectedIsVersionlessCDF ||
       response.respondedFormat != expectedRespondedFormat ||
       response.lines.size < 2 ||
@@ -1078,20 +1074,16 @@ class DeltaSharingRestClient(
       requestFileIdHash = requestFileIdHash
     )
 
+    if (requireVersion && version.isEmpty) {
+      throw new IllegalStateException(s"Cannot find " +
+        s"${RESPONSE_TABLE_VERSION_HEADER_KEY} in the header" + getDsQueryIdForLogging)
+    }
     ParsedDeltaSharingResponse(
-      version = version.getOrElse {
-        if (requireVersion) {
-          throw new IllegalStateException(s"Cannot find " +
-            s"${RESPONSE_TABLE_VERSION_HEADER_KEY} in the header" + getDsQueryIdForLogging)
-        } else {
-          0L
-        }
-      },
+      version = version,
       respondedFormat = getRespondedFormat(capabilitiesMap),
       lines = lines,
       capabilitiesMap = capabilitiesMap,
-      fileIdHash = fileIdHash,
-      hasTableVersion = version.isDefined
+      fileIdHash = fileIdHash
     )
   }
 
@@ -1122,7 +1114,7 @@ class DeltaSharingRestClient(
       setIncludeEndStreamAction = false,
       requestFileIdHash = None
     )
-    (response.version, response.respondedFormat, response.lines)
+    (response.version.get, response.respondedFormat, response.lines)
   }
 
   /*
@@ -1172,7 +1164,7 @@ class DeltaSharingRestClient(
     // Check if the query is still pending
     var (lines, queryIdOpt, queryPending) = checkQueryPending(response.lines)
 
-    var version = response.version
+    var version = response.version.get
     var respondedFormat = response.respondedFormat
     val responseFileIdHash = response.fileIdHash
 
@@ -1222,11 +1214,11 @@ class DeltaSharingRestClient(
     )
 
     ParsedDeltaSharingResponse(
-      version = version.getOrElse {
+      version = Some(version.getOrElse {
         throw new IllegalStateException(
           "Cannot find Delta-Table-Version in the header" + getDsQueryIdForLogging
         )
-      },
+      }),
       respondedFormat = getRespondedFormat(capabilitiesMap),
       lines = lines,
       capabilitiesMap = capabilitiesMap,
