@@ -888,6 +888,22 @@ def test_add_cdc_file(json: str, expected: AddCdcFile):
     assert AddCdcFile.from_json(json) == expected
 
 
+@pytest.mark.parametrize("missing_field", ["timestamp", "version"])
+def test_add_cdc_file_requires_commit_metadata(missing_field):
+    action = {
+        "url": "https://localhost/path/to/file.parquet",
+        "id": "id",
+        "partitionValues": {},
+        "size": 120,
+        "timestamp": 1652110000000,
+        "version": 2,
+    }
+    del action[missing_field]
+
+    with pytest.raises(KeyError, match=missing_field):
+        FileAction.from_json({"cdf": action})
+
+
 @pytest.mark.parametrize(
     "json,expected",
     [

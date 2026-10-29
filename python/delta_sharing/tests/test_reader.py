@@ -1060,7 +1060,10 @@ def test_view_changes_to_pandas_preserves_physical_cdf_columns(
             "startingTimestamp": ["2022-05-09T00:00:00Z"],
             "endingTimestamp": ["2022-05-10T00:00:00Z"],
         }
-        assert "versionlesscdf=true" in kwargs["headers"][DataSharingRestClient.CAPABILITIES_HEADER]
+        assert (
+            "versionlesscdf=true"
+            in rest_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        )
         cdf_requests.append(target)
         response_format = "delta" if use_delta_format else "parquet"
         capabilities = f"responseformat={response_format};versionlesscdf=true"
@@ -1081,7 +1084,10 @@ def test_view_changes_to_pandas_preserves_physical_cdf_columns(
     )
 
     assert len(cdf_requests) == 1
-    assert DataSharingRestClient.CAPABILITIES_HEADER not in rest_client._session.headers
+    assert (
+        rest_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        == DataSharingRestClient.VERSIONLESS_CDF
+    )
     assert result.columns.tolist() == ["a", "region", "_change_type", "_commit_timestamp"]
     assert "_commit_version" not in result
     if empty:

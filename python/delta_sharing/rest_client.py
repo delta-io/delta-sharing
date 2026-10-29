@@ -165,6 +165,7 @@ class DataSharingRestClient:
                 "User-Agent": DataSharingRestClient.USER_AGENT,
             }
         )
+        self.__set_capabilities_header()
 
     def __auth_session(self, profile):
         self._session = requests.Session()
@@ -180,47 +181,24 @@ class DataSharingRestClient:
         else:
             return DataSharingRestClient.DELTA_SNAPSHOT_READER_FEATURES
 
+    def __set_capabilities_header(self, response_format=None, for_cdf=False):
+        capabilities = []
+        if response_format is not None:
+            capabilities.extend([response_format, self.__get_reader_features(for_cdf)])
+        capabilities.append(DataSharingRestClient.VERSIONLESS_CDF)
+        self._session.headers[DataSharingRestClient.CAPABILITIES_HEADER] = ";".join(capabilities)
+
     def set_sharing_capabilities_header(self):
-        delta_sharing_capabilities = (
-            DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT
-            + ";"
-            + self.__get_reader_features(False)
-        )
-        self._session.headers.update(
-            {
-                DataSharingRestClient.CAPABILITIES_HEADER: delta_sharing_capabilities,
-            }
-        )
+        self.__set_capabilities_header(DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT)
 
     def remove_sharing_capabilities_header(self):
-        del self._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        self.__set_capabilities_header()
 
     def set_delta_format_header(self, for_cdf=False):
-        delta_sharing_capabilities = (
-            DataSharingRestClient.DELTA_RESPONSE_FORMAT + ";" + self.__get_reader_features(for_cdf)
-        )
-        self._session.headers.update(
-            {
-                DataSharingRestClient.CAPABILITIES_HEADER: delta_sharing_capabilities,
-            }
-        )
+        self.__set_capabilities_header(DataSharingRestClient.DELTA_RESPONSE_FORMAT, for_cdf)
 
     def remove_delta_format_header(self):
-        del self._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
-
-    def _versionless_cdf_headers(self) -> Dict[str, str]:
-        capabilities = self._session.headers.get(DataSharingRestClient.CAPABILITIES_HEADER, "")
-        capabilities = ";".join(
-            capability
-            for capability in capabilities.split(";")
-            if capability and capability.partition("=")[0].strip().lower() != "versionlesscdf"
-        )
-        capabilities = ";".join(
-            capability
-            for capability in (capabilities, DataSharingRestClient.VERSIONLESS_CDF)
-            if capability
-        )
-        return {DataSharingRestClient.CAPABILITIES_HEADER: capabilities}
+        self.__set_capabilities_header()
 
     @staticmethod
     def _response_has_versionless_cdf(headers) -> bool:
@@ -475,9 +453,7 @@ class DataSharingRestClient:
             params.append(f"includeHistoricalMetadata={cdfOptions.include_historical_metadata}")
         query_str += "&".join(params)
 
-        with self._get_internal(
-            query_str, return_headers=True, headers=self._versionless_cdf_headers()
-        ) as (headers, lines):
+        with self._get_internal(query_str, return_headers=True) as (headers, lines):
             has_table_version = DataSharingRestClient.DELTA_TABLE_VERSION_HEADER in headers
             is_versionless_cdf = self._response_has_versionless_cdf(headers)
             if is_versionless_cdf and has_table_version:
@@ -518,14 +494,9 @@ class DataSharingRestClient:
         target: str,
         data: Optional[Dict[str, Any]] = None,
         return_headers: bool = False,
-        headers: Optional[Dict[str, str]] = None,
     ):
         return self._request_internal(
-            request=self._session.get,
-            return_headers=return_headers,
-            target=target,
-            params=data,
-            headers=headers,
+            request=self._session.get, return_headers=return_headers, target=target, params=data
         )
 
     def _post_internal(

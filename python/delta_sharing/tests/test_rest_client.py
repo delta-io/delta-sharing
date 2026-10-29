@@ -164,9 +164,9 @@ def test_list_view_changes(rest_client, response_format, empty, wrapper_metadata
     captured_headers = None
 
     @contextmanager
-    def get_internal(_target, **kwargs):
+    def get_internal(_target, **_kwargs):
         nonlocal captured_headers
-        captured_headers = kwargs["headers"]
+        captured_headers = rest_client._session.headers.copy()
         capabilities = f"ResponseFormat={response_format.upper()};VersionlessCDF=TRUE"
         yield {DataSharingRestClient.CAPABILITIES_HEADER: capabilities}, iter(lines)
 
@@ -228,7 +228,7 @@ def test_list_versioned_delta_changes_returns_raw_lines(rest_client, empty):
 
 @pytest.mark.parametrize("use_delta_format", [False, True])
 @pytest.mark.parametrize("retry", [False, True])
-def test_versionless_capability_is_scoped_to_changes(
+def test_versionless_capability_is_advertised_on_all_requests(
     rest_client, monkeypatch, use_delta_format, retry
 ):
     if use_delta_format:
@@ -279,13 +279,60 @@ def test_versionless_capability_is_scoped_to_changes(
     )
 
     rest_client.list_shares()
-    assert "versionlesscdf" not in requests[-1].headers.get(
-        DataSharingRestClient.CAPABILITIES_HEADER, ""
-    )
+    assert requests[-1].headers[DataSharingRestClient.CAPABILITIES_HEADER] == session_capabilities
     assert (
         rest_client._session.headers.get(DataSharingRestClient.CAPABILITIES_HEADER)
         == session_capabilities
     )
+
+
+@pytest.mark.parametrize("mode", ["auto", "snapshot", "cdf"])
+def test_format_headers_preserve_versionless_capability(rest_client, monkeypatch, mode):
+    requests = []
+
+    def send(request, **_kwargs):
+        requests.append(request)
+        response = Response()
+        response._content_consumed = True
+        response.encoding = "utf-8"
+        response.status_code = 200
+        response._content = b'{"items":[]}'
+        return response
+
+    monkeypatch.setattr(rest_client._session, "send", send)
+    rest_client.list_shares()
+
+    for _ in range(2):
+        if mode == "auto":
+            rest_client.set_sharing_capabilities_header()
+        else:
+            rest_client.set_delta_format_header(for_cdf=mode == "cdf")
+    rest_client.list_shares()
+
+    if mode == "auto":
+        rest_client.remove_sharing_capabilities_header()
+    else:
+        rest_client.remove_delta_format_header()
+    rest_client.list_shares()
+
+    header = DataSharingRestClient.CAPABILITIES_HEADER
+    assert requests[0].headers[header] == DataSharingRestClient.VERSIONLESS_CDF
+    assert requests[2].headers[header] == DataSharingRestClient.VERSIONLESS_CDF
+    expected_format = (
+        DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT
+        if mode == "auto"
+        else DataSharingRestClient.DELTA_RESPONSE_FORMAT
+    )
+    expected_features = (
+        DataSharingRestClient.DELTA_CDF_READER_FEATURES
+        if mode == "cdf"
+        else DataSharingRestClient.DELTA_SNAPSHOT_READER_FEATURES
+    )
+    assert requests[1].headers[header].split(";") == [
+        expected_format,
+        expected_features,
+        DataSharingRestClient.VERSIONLESS_CDF,
+    ]
 
 
 @pytest.mark.parametrize("bound", ["starting", "ending"])
@@ -338,7 +385,7 @@ def test_reject_inconsistent_cdf_version_headers(rest_client, response_format, v
         (
             {DataSharingRestClient.DELTA_TABLE_VERSION_HEADER: "1"},
             {
-                "cdf": {
+                "add": {
                     "url": "https://example.com/change.parquet",
                     "id": "change",
                     "partitionValues": {},
@@ -369,6 +416,8 @@ def test_reject_inconsistent_cdf_version_headers(rest_client, response_format, v
                     "id": "change",
                     "partitionValues": {},
                     "size": 10,
+                    "timestamp": 1234,
+                    "version": 1,
                 }
             },
             "View CDF responses must contain only add file actions",
@@ -655,7 +704,7 @@ def test_autoresolve_query_format(
         assert resolved_format == expected_format
 
 
-def test_autoresolve_query_format_removes_capabilities_header_after_failure(
+def test_autoresolve_query_format_restores_baseline_capabilities_after_failure(
     rest_client: DataSharingRestClient,
 ):
     class FailingContext:
@@ -679,7 +728,10 @@ def test_autoresolve_query_format_removes_capabilities_header_after_failure(
             Table(name="table_name", share="share_name", schema="schema_name")
         )
 
-    assert DataSharingRestClient.CAPABILITIES_HEADER not in failing_client._session.headers
+    assert (
+        failing_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        == DataSharingRestClient.VERSIONLESS_CDF
+    )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
