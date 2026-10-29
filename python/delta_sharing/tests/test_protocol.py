@@ -22,6 +22,7 @@ from delta_sharing.protocol import (
     AddFile,
     DeltaSharingProfile,
     Format,
+    FileAction,
     Metadata,
     Protocol,
     RemoveFile,
@@ -29,6 +30,28 @@ from delta_sharing.protocol import (
     Share,
     Table,
 )
+
+
+@pytest.mark.parametrize("wrapper_metadata", [False, True])
+def test_snapshot_add_file(wrapper_metadata):
+    file = {
+        "url": "https://example.com/cdf.parquet",
+        "id": "file-id",
+        "partitionValues": {},
+        "size": 10,
+    }
+    if wrapper_metadata:
+        file.update(timestamp=9999, version=99)
+    action = FileAction.from_json({"file": file})
+
+    assert action == AddFile(
+        url="https://example.com/cdf.parquet",
+        id="file-id",
+        partition_values={},
+        size=10,
+        timestamp=9999 if wrapper_metadata else None,
+        version=99 if wrapper_metadata else None,
+    )
 
 
 def test_share_profile(tmp_path):
@@ -863,6 +886,22 @@ def test_add_file(json: str, expected: AddFile):
 )
 def test_add_cdc_file(json: str, expected: AddCdcFile):
     assert AddCdcFile.from_json(json) == expected
+
+
+@pytest.mark.parametrize("missing_field", ["timestamp", "version"])
+def test_add_cdc_file_requires_commit_metadata(missing_field):
+    action = {
+        "url": "https://localhost/path/to/file.parquet",
+        "id": "id",
+        "partitionValues": {},
+        "size": 120,
+        "timestamp": 1652110000000,
+        "version": 2,
+    }
+    del action[missing_field]
+
+    with pytest.raises(KeyError, match=missing_field):
+        FileAction.from_json({"cdf": action})
 
 
 @pytest.mark.parametrize(
