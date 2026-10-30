@@ -250,9 +250,12 @@ class DeltaSharingReader:
         """
         Batches are produced lazily; read the reader fully (or close it) so that
         temporary resources backing the stream are released promptly.
+        Errors during consumption may be wrapped in Arrow exceptions.
         """
         schema, batches = self._to_arrow_stream()
-        return pa.RecordBatchReader.from_batches(schema, batches)
+        # The C stream transfer makes close() release the Python iterator and its
+        # temporary resources; from_batches() alone retains them until destruction.
+        return pa.RecordBatchReader.from_stream(pa.RecordBatchReader.from_batches(schema, batches))
 
     def _to_arrow_stream(self) -> Tuple[pa.Schema, Iterator[pa.RecordBatch]]:
         response_format = ""
@@ -385,7 +388,7 @@ class DeltaSharingReader:
                 last_checkpoint_file.write(last_checkpoint_content)
                 last_checkpoint_file.close()
 
-    def __table_changes_scan_kernel(self, cdfOptions: CdfOptions, log_stats: bool = False):
+    def __table_changes_scan_kernel(self, cdfOptions: CdfOptions):
         """
         Build a delta-kernel CDF scan. The caller owns the returned temp dir and
         must keep it alive until the scan result is fully consumed. The final
@@ -435,14 +438,13 @@ class DeltaSharingReader:
                     raise Exception(f"Invalid JSON object:\n{line}\nIs neither metadata nor file.")
 
             num_versions_with_action = len(version_to_actions)
-            if log_stats:
-                print(
-                    f"table_changes stats: min_version={min_version}, "
-                    f"max_version={max_version}, "
-                    f"num_versions_with_action={num_versions_with_action}, "
-                    f"num_versions_with_metadata={len(version_to_metadata)}, "
-                    f"lines_in_response={line_count}, "
-                )
+            print(
+                f"table_changes stats: min_version={min_version}, "
+                f"max_version={max_version}, "
+                f"num_versions_with_action={num_versions_with_action}, "
+                f"num_versions_with_metadata={len(version_to_metadata)}, "
+                f"lines_in_response={line_count}, "
+            )
             delta_log_dir_name = temp_dir.name
             table_path = "file:///" + delta_log_dir_name
 
@@ -472,7 +474,7 @@ class DeltaSharingReader:
 
     def __table_changes_to_pandas_kernel(self, cdfOptions: CdfOptions) -> pd.DataFrame:
         temp_dir, scan_result, num_versions_with_action = self.__table_changes_scan_kernel(
-            cdfOptions, log_stats=True
+            cdfOptions
         )
         try:
             if num_versions_with_action == 0:

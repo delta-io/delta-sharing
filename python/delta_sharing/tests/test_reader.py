@@ -177,7 +177,11 @@ def test_to_record_batches_delta_format_removes_header_before_consumption():
     assert list(batches) == []
 
 
-def test_to_record_batches_delta_format_applies_limit(tmp_path):
+@pytest.mark.parametrize("stream_type", ["iterator", "reader", "c_stream"])
+@pytest.mark.parametrize("stage", ["unstarted", "partial", "exhausted"])
+def test_snapshot_delta_format_stream_lifecycle_and_limit(
+    tmp_path, monkeypatch, stream_type, stage
+):
     parquet_file = tmp_path / "data.parquet"
     pd.DataFrame({"a": [1, 2, 3]}).to_parquet(parquet_file)
 
@@ -239,8 +243,33 @@ def test_to_record_batches_delta_format_applies_limit(tmp_path):
         use_delta_format=True,
     )
 
-    result = pa.Table.from_batches(list(reader.to_record_batches()))
-    assert result.column("a").to_pylist() == [1, 2]
+    temp_paths = []
+    temporary_directory = tempfile.TemporaryDirectory
+
+    def track_temp_dir():
+        directory = temporary_directory(dir=tmp_path)
+        temp_paths.append(Path(directory.name))
+        return directory
+
+    monkeypatch.setattr("delta_sharing.reader.tempfile.TemporaryDirectory", track_temp_dir)
+    if stream_type == "iterator":
+        stream = reader.to_record_batches()
+    else:
+        stream = reader.to_record_batch_reader()
+        if stream_type == "c_stream":
+            stream = pa.RecordBatchReader.from_stream(stream)
+
+    assert len(temp_paths) == 1 and temp_paths[0].exists()
+    if stage != "unstarted":
+        batches = [next(stream)] if stage == "partial" else list(stream)
+        result = pa.Table.from_batches(batches)
+        assert result.column("a").to_pylist() == [1, 2]
+        if stage == "exhausted":
+            assert not temp_paths[0].exists()
+    stream.close()
+    stream.close()
+    # Retain the closed stream to verify cleanup does not depend on its destruction.
+    assert not temp_paths[0].exists()
 
 
 def test_to_arrow_naive_timestamps_normalized_to_utc(tmp_path):
@@ -1007,7 +1036,9 @@ def test_table_changes_to_record_batches_delta_format_removes_header_after_failu
 
 @pytest.mark.parametrize("stream_type", ["iterator", "reader", "c_stream"])
 @pytest.mark.parametrize("stage", ["unstarted", "partial", "exhausted"])
-def test_table_changes_delta_format_stream_lifecycle(tmp_path, monkeypatch, stream_type, stage):
+def test_table_changes_delta_format_stream_lifecycle(
+    tmp_path, monkeypatch, capsys, stream_type, stage
+):
     parquet_file = tmp_path / "change.parquet"
     pd.DataFrame({"a": [1]}).to_parquet(parquet_file)
 
@@ -1089,6 +1120,7 @@ def test_table_changes_delta_format_stream_lifecycle(tmp_path, monkeypatch, stre
         if stream_type == "c_stream":
             stream = pa.RecordBatchReader.from_stream(stream)
 
+    assert "table_changes stats:" in capsys.readouterr().out
     assert rest_client.delta_format_removed
     assert len(temp_paths) == 1 and temp_paths[0].exists()
     if stage != "unstarted":
