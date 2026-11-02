@@ -87,9 +87,6 @@ case class RemoteDeltaCDFRelation(
       filters: Array[Filter]): RDD[Row] = {
     val deltaTableFiles = this.deltaTableFiles
     val fileIndexParams = this.fileIndexParams(deltaTableFiles)
-    if (deltaTableFiles.isVersionlessCDF) {
-      return scanVersionlessFiles(requiredColumns, deltaTableFiles, fileIndexParams).rdd
-    }
 
     DeltaSharingCDFReader.changesToDF(
       fileIndexParams,
@@ -102,58 +99,31 @@ case class RemoteDeltaCDFRelation(
       _ => {
         val d = this.deltaTableFiles
         TableRefreshResult(
-          DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
-          DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles),
+          if (d.isVersionlessCDF) {
+            DeltaSharingCDFReader.getIdToUrl(d.files)
+          } else {
+            DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
+          },
+          if (d.isVersionlessCDF) {
+            DeltaSharingCDFReader.getMinUrlExpiration(d.files)
+          } else {
+            DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles)
+          },
           None
         )
       },
       System.currentTimeMillis(),
-      DeltaSharingCDFReader.getMinUrlExpiration(
-        deltaTableFiles.addFiles,
-        deltaTableFiles.cdfFiles,
-        deltaTableFiles.removeFiles
-      )
-    ).rdd
-  }
-
-  private def scanVersionlessFiles(
-      requiredColumns: Array[String],
-      deltaTableFiles: DeltaTableFiles,
-      fileIndexParams: RemoteDeltaFileIndexParams): DataFrame = {
-    val fileIndex = RemoteDeltaBatchFileIndex(fileIndexParams, deltaTableFiles.files)
-    val tablePathWithParams =
-      if (ConfUtils.sparkParquetIOCacheEnabled(spark.sessionState.conf)) {
-        QueryUtils.getTablePathWithIdSuffix(
-          fileIndexParams.path.toString, fileIndexParams.queryParamsHashId.get)
+      if (deltaTableFiles.isVersionlessCDF) {
+        DeltaSharingCDFReader.getMinUrlExpiration(deltaTableFiles.files)
       } else {
-        fileIndexParams.path.toString
-      }
-
-    CachedTableManager.INSTANCE.register(
-      tablePathWithParams,
-      DeltaSharingCDFReader.getIdToUrl(deltaTableFiles.files),
-      Seq(new WeakReference[AnyRef](fileIndex)),
-      fileIndexParams.profileProvider,
-      _ => {
-        val refreshedFiles = this.deltaTableFiles
-        TableRefreshResult(
-          DeltaSharingCDFReader.getIdToUrl(refreshedFiles.files),
-          DeltaSharingCDFReader.getMinUrlExpiration(refreshedFiles.files),
-          None)
+        DeltaSharingCDFReader.getMinUrlExpiration(
+          deltaTableFiles.addFiles,
+          deltaTableFiles.cdfFiles,
+          deltaTableFiles.removeFiles
+        )
       },
-      DeltaSharingCDFReader.getMinUrlExpiration(deltaTableFiles.files).getOrElse(
-        System.currentTimeMillis() + CachedTableManager.INSTANCE.preSignedUrlExpirationMs),
-      None)
-
-    val relation = HadoopFsRelation(
-      fileIndex,
-      partitionSchema = fileIndex.partitionSchema,
-      dataSchema = schema,
-      bucketSpec = None,
-      snapshotToUse.fileFormat,
-      Map.empty)(spark)
-    DeltaSharingScanUtils.ofRows(spark, LogicalRelation(relation))
-      .select(requiredColumns.map(c => col(DeltaSharingCDFReader.quoteIdentifier(c))): _*)
+      versionlessFiles = if (deltaTableFiles.isVersionlessCDF) Some(deltaTableFiles.files) else None
+    ).rdd
   }
 }
 
@@ -173,6 +143,7 @@ object DeltaSharingCDFReader {
     }
   }
 
+  // scalastyle:off argcount
   def changesToDF(
       params: RemoteDeltaFileIndexParams,
       requiredColumns: Array[String],
@@ -183,22 +154,31 @@ object DeltaSharingCDFReader {
       isStreaming: Boolean,
       refresher: Option[String] => TableRefreshResult,
       lastQueryTableTimestamp: Long,
-      expirationTimestamp: Option[Long]
+      expirationTimestamp: Option[Long],
+      versionlessFiles: Option[Seq[AddFile]] = None
   ): DataFrame = {
+    // scalastyle:on argcount
     val dfs = ListBuffer[DataFrame]()
     val refs = ListBuffer[WeakReference[AnyRef]]()
 
-    val fileIndex1 = RemoteDeltaCDFAddFileIndex(params, addFiles)
-    refs.append(new WeakReference(fileIndex1))
-    dfs.append(scanIndex(fileIndex1, schema, isStreaming))
+    versionlessFiles match {
+      case Some(files) =>
+        val fileIndex = RemoteDeltaBatchFileIndex(params, files)
+        refs.append(new WeakReference(fileIndex))
+        dfs.append(scanIndex(fileIndex, schema, isStreaming))
+      case None =>
+        val fileIndex1 = RemoteDeltaCDFAddFileIndex(params, addFiles)
+        refs.append(new WeakReference(fileIndex1))
+        dfs.append(scanIndex(fileIndex1, schema, isStreaming))
 
-    val fileIndex2 = RemoteDeltaCDCFileIndex(params, cdfFiles)
-    refs.append(new WeakReference(fileIndex2))
-    dfs.append(scanIndex(fileIndex2, schema, isStreaming))
+        val fileIndex2 = RemoteDeltaCDCFileIndex(params, cdfFiles)
+        refs.append(new WeakReference(fileIndex2))
+        dfs.append(scanIndex(fileIndex2, schema, isStreaming))
 
-    val fileIndex3 = RemoteDeltaCDFRemoveFileIndex(params, removeFiles)
-    refs.append(new WeakReference(fileIndex3))
-    dfs.append(scanIndex(fileIndex3, schema, isStreaming))
+        val fileIndex3 = RemoteDeltaCDFRemoveFileIndex(params, removeFiles)
+        refs.append(new WeakReference(fileIndex3))
+        dfs.append(scanIndex(fileIndex3, schema, isStreaming))
+    }
 
     val tablePathWithParams =
       if (ConfUtils.sparkParquetIOCacheEnabled(params.spark.sessionState.conf)) {
@@ -213,7 +193,8 @@ object DeltaSharingCDFReader {
 
     CachedTableManager.INSTANCE.register(
       tablePathWithParams,
-      getIdToUrl(addFiles, cdfFiles, removeFiles),
+      versionlessFiles.map(files => getIdToUrl(files))
+        .getOrElse(getIdToUrl(addFiles, cdfFiles, removeFiles)),
       refs.toSeq,
       params.profileProvider,
       refresher,
@@ -288,7 +269,7 @@ object DeltaSharingCDFReader {
    * file names because that scan wouldn't include partition columns.
    */
   private def scanIndex(
-      fileIndex: RemoteDeltaCDFFileIndexBase,
+      fileIndex: RemoteDeltaFileIndexBase,
       schema: StructType,
       isStreaming: Boolean): DataFrame = {
     val relation = HadoopFsRelation(
