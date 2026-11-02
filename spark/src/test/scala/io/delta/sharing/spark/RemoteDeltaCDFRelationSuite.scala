@@ -63,6 +63,9 @@ class RemoteDeltaCDFRelationSuite extends QueryTest with SharedSparkSession {
     format = Format(),
     schemaString = viewSchema.json,
     partitionColumns = Seq("part"))
+  private val snapshotSchema = StructType(viewSchema.fields.take(2))
+  private val snapshotMetadata = viewMetadata.copy(
+    schemaString = snapshotSchema.json, partitionColumns = Nil)
 
   for {
     ioCacheEnabled <- Seq(false, true)
@@ -113,6 +116,7 @@ class RemoteDeltaCDFRelationSuite extends QueryTest with SharedSparkSession {
               respondedFormat = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
               isVersionlessCDF = true)
             var cdfCalls = 0
+            var metadataCalls = 0
             val client = new TestDeltaSharingClient() {
               override def getCDFFiles(
                   requestedTable: Table,
@@ -131,7 +135,13 @@ class RemoteDeltaCDFRelationSuite extends QueryTest with SharedSparkSession {
                   table: Table,
                   versionAsOf: Option[Long],
                   timestampAsOf: Option[String]): DeltaTableMetadata = {
-                fail("Versionless CDF must use metadata from the changes response")
+                metadataCalls += 1
+                DeltaTableMetadata(
+                  version = 1L,
+                  protocol = Protocol(1),
+                  metadata = snapshotMetadata,
+                  respondedFormat = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
+                  isVersionlessCDF = true)
               }
             }
             val path = new Path(new File(dir, "view").getAbsolutePath)
@@ -141,12 +151,18 @@ class RemoteDeltaCDFRelationSuite extends QueryTest with SharedSparkSession {
             assert(relation.schema == viewSchema)
             assert(!relation.schema.fieldNames.contains("_commit_version"))
             val df = DeltaSharingScanUtils.ofRows(spark, LogicalRelation(relation))
+            assert(df.schema == viewSchema)
+            assert(metadataCalls == 1)
+            assert(cdfCalls == 0)
             checkAnswer(df, if (empty) Nil else expected)
+            val callsAfterFirstQuery = cdfCalls
+            assert(callsAfterFirstQuery > 0)
             checkAnswer(df.filter(col("part") === "a").select("value", "_change_type"),
               if (empty) Nil else Seq(Row("first", "delete")))
-            assert(cdfCalls == 1)
+            assert(cdfCalls > callsAfterFirstQuery)
+            assert(metadataCalls == 1)
 
-            val params = relation.fileIndexParams
+            val params = relation.fileIndexParams(response)
             val index = RemoteDeltaBatchFileIndex(params, files)
             assert(index.partitionSchema.fieldNames.sameElements(Array("part")))
             assert(index.sizeInBytes == files.map(_.size).sum)
@@ -168,6 +184,71 @@ class RemoteDeltaCDFRelationSuite extends QueryTest with SharedSparkSession {
           }
         }
       }
+    }
+  }
+
+  test("versioned CDF discovers its schema from cached metadata without fetching changes") {
+    val client = new TestDeltaSharingClient() {
+      override def getCDFFiles(
+          table: Table,
+          options: Map[String, String],
+          includeHistoricalMetadata: Boolean,
+          fileIdHash: Option[String],
+          includeHistoricalProtocol: Boolean = false): DeltaTableFiles = {
+        fail("Schema discovery must not fetch changes")
+      }
+
+      override def getMetadata(
+          table: Table,
+          versionAsOf: Option[Long],
+          timestampAsOf: Option[String]): DeltaTableMetadata = {
+        fail("Initialized metadata must be reused")
+      }
+    }
+    val metadata = DeltaTableMetadata(
+      version = 1L,
+      protocol = Protocol(1),
+      metadata = snapshotMetadata,
+      respondedFormat = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET)
+    val snapshot = new RemoteSnapshot(new Path("table"), client, table,
+      initDeltaTableMetadata = Some(metadata))
+    val relation = RemoteDeltaCDFRelation(spark, snapshot, client, table, cdfOptions)
+    assert(relation.schema("_commit_version").dataType == LongType)
+    assert(relation.schema("_commit_timestamp").dataType == LongType)
+    assert(relation.schema("_change_type").dataType == StringType)
+    assert(!snapshot.isVersionlessCDF)
+  }
+
+  for (metadataVersionless <- Seq(false, true)) {
+    test(s"reject a changed CDF mode before scanning: metadataVersionless=$metadataVersionless") {
+      val client = new TestDeltaSharingClient() {
+        override def getCDFFiles(
+            table: Table,
+            options: Map[String, String],
+            includeHistoricalMetadata: Boolean,
+            fileIdHash: Option[String],
+            includeHistoricalProtocol: Boolean = false): DeltaTableFiles = {
+          DeltaTableFiles(
+            version = 0L,
+            protocol = Protocol(1),
+            metadata = viewMetadata,
+            respondedFormat = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
+            isVersionlessCDF = !metadataVersionless)
+        }
+      }
+      val metadata = DeltaTableMetadata(
+        version = 1L,
+        protocol = Protocol(1),
+        metadata = snapshotMetadata,
+        respondedFormat = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
+        isVersionlessCDF = metadataVersionless)
+      val snapshot = new RemoteSnapshot(new Path("view"), client, table,
+        initDeltaTableMetadata = Some(metadata))
+      val relation = RemoteDeltaCDFRelation(spark, snapshot, client, table, cdfOptions)
+      val error = intercept[IllegalStateException] {
+        relation.buildScan(Array("value"), Array.empty)
+      }
+      assert(error.getMessage.contains("CDF versioning mode differs"))
     }
   }
 

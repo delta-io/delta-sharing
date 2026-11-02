@@ -33,6 +33,7 @@ import io.delta.sharing.client.model.{
   AddCDCFile,
   AddFile,
   AddFileForCDF,
+  DeltaTableFiles,
   RemoveFile,
   Table => DeltaSharingTable
 }
@@ -46,20 +47,25 @@ case class RemoteDeltaCDFRelation(
     table: DeltaSharingTable,
     cdfOptions: Map[String, String]) extends BaseRelation with PrunedFilteredScan {
 
-  private lazy val deltaTableFiles = client.getCDFFiles(table, cdfOptions, false, None)
-
-  private lazy val baseSchema = {
-    if (deltaTableFiles.isVersionlessCDF) {
-      DeltaTableUtils.toSchema(deltaTableFiles.metadata.schemaString)
-    } else {
-      snapshotToUse.schema
+  private def deltaTableFiles: DeltaTableFiles = {
+    val response = client.getCDFFiles(table, cdfOptions, false, None)
+    if (response.isVersionlessCDF != snapshotToUse.isVersionlessCDF) {
+      throw new IllegalStateException(
+        "The CDF versioning mode differs between the metadata and changes responses. " +
+          "Please recreate the DataFrame using a provider that advertises versionlessCDF " +
+          "in its metadata response for versionless CDF.")
     }
+    response
   }
 
-  private[sharing] lazy val fileIndexParams = {
+  private lazy val baseSchema = snapshotToUse.schema
+
+  private[sharing] def fileIndexParams(
+      deltaTableFiles: DeltaTableFiles): RemoteDeltaFileIndexParams = {
     val partitionSchemaOverride = if (deltaTableFiles.isVersionlessCDF) {
+      val responseSchema = DeltaTableUtils.toSchema(deltaTableFiles.metadata.schemaString)
       Some(new StructType(
-        deltaTableFiles.metadata.partitionColumns.map(column => baseSchema(column)).toArray))
+        deltaTableFiles.metadata.partitionColumns.map(column => responseSchema(column)).toArray))
     } else {
       None
     }
@@ -71,21 +77,18 @@ case class RemoteDeltaCDFRelation(
       partitionSchemaOverride = partitionSchemaOverride)
   }
 
-  override lazy val schema: StructType = {
-    if (deltaTableFiles.isVersionlessCDF) {
-      baseSchema
-    } else {
-      DeltaTableUtils.addCdcSchema(baseSchema)
-    }
-  }
+  override lazy val schema: StructType =
+    DeltaTableUtils.addCdcSchema(baseSchema, snapshotToUse.isVersionlessCDF)
 
   override def sqlContext: SQLContext = spark.sqlContext
 
   override def buildScan(
       requiredColumns: Array[String],
       filters: Array[Filter]): RDD[Row] = {
+    val deltaTableFiles = this.deltaTableFiles
+    val fileIndexParams = this.fileIndexParams(deltaTableFiles)
     if (deltaTableFiles.isVersionlessCDF) {
-      return scanVersionlessFiles(requiredColumns).rdd
+      return scanVersionlessFiles(requiredColumns, deltaTableFiles, fileIndexParams).rdd
     }
 
     DeltaSharingCDFReader.changesToDF(
@@ -97,7 +100,7 @@ case class RemoteDeltaCDFRelation(
       schema,
       false,
       _ => {
-        val d = client.getCDFFiles(table, cdfOptions, false, None)
+        val d = this.deltaTableFiles
         TableRefreshResult(
           DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles),
           DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles),
@@ -113,7 +116,10 @@ case class RemoteDeltaCDFRelation(
     ).rdd
   }
 
-  private def scanVersionlessFiles(requiredColumns: Array[String]): DataFrame = {
+  private def scanVersionlessFiles(
+      requiredColumns: Array[String],
+      deltaTableFiles: DeltaTableFiles,
+      fileIndexParams: RemoteDeltaFileIndexParams): DataFrame = {
     val fileIndex = RemoteDeltaBatchFileIndex(fileIndexParams, deltaTableFiles.files)
     val tablePathWithParams =
       if (ConfUtils.sparkParquetIOCacheEnabled(spark.sessionState.conf)) {
@@ -129,7 +135,7 @@ case class RemoteDeltaCDFRelation(
       Seq(new WeakReference[AnyRef](fileIndex)),
       fileIndexParams.profileProvider,
       _ => {
-        val refreshedFiles = client.getCDFFiles(table, cdfOptions, false, None)
+        val refreshedFiles = this.deltaTableFiles
         TableRefreshResult(
           DeltaSharingCDFReader.getIdToUrl(refreshedFiles.files),
           DeltaSharingCDFReader.getMinUrlExpiration(refreshedFiles.files),

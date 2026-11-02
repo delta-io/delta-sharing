@@ -206,6 +206,8 @@ class RemoteSnapshot(
 
   lazy val schema: StructType = DeltaTableUtils.toSchema(metadata.schemaString)
 
+  lazy val isVersionlessCDF: Boolean = tableMetadata.isVersionlessCDF
+
   lazy val partitionSchema = new StructType(metadata.partitionColumns.map(c => schema(c)).toArray)
 
   def fileFormat: FileFormat = new ParquetFileFormat()
@@ -441,8 +443,13 @@ private[sharing] object DeltaTableUtils {
   }
 
   // Adds cdc schema to the table schema.
-  def addCdcSchema(tableSchema: StructType): StructType = {
-    updateSchema(tableSchema, CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile())
+  def addCdcSchema(tableSchema: StructType, isVersionlessCDF: Boolean = false): StructType = {
+    val cdfSchema = if (isVersionlessCDF) {
+      CDFColumnInfo.getVersionlessCDFSchema()
+    } else {
+      CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile()
+    }
+    updateSchema(tableSchema, cdfSchema)
   }
 
   // Adds cdc schema to the table schema string.
