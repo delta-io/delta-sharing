@@ -40,7 +40,7 @@ class TestViewSharingServerSuite extends FunSuite with BeforeAndAfterAll {
     }
   }
 
-  test("versionlessCDF is only returned for versionless CDF responses") {
+  test("view metadata and CDF responses advertise versionlessCDF") {
     def getResponseHeaders(
         objectName: String,
         path: String,
@@ -73,14 +73,18 @@ class TestViewSharingServerSuite extends FunSuite with BeforeAndAfterAll {
           responseFormat)
       }.toMap
       val viewMetadataHeaders = getResponseHeaders("view", "metadata", responseFormat)
+      val tableMetadataHeaders = getResponseHeaders("table", "metadata", responseFormat)
 
       assert(responseHeaders("view")("capabilities") ==
         s"responseformat=$responseFormat;versionlessCDF=true")
       assert(responseHeaders("view")("version") == null)
       assert(responseHeaders("table")("capabilities") == s"responseformat=$responseFormat")
       assert(responseHeaders("table")("version") == "1")
-      assert(viewMetadataHeaders("capabilities") == s"responseformat=$responseFormat")
+      assert(viewMetadataHeaders("capabilities") ==
+        s"responseformat=$responseFormat;versionlessCDF=true")
       assert(viewMetadataHeaders("version") == "1")
+      assert(tableMetadataHeaders("capabilities") == s"responseformat=$responseFormat")
+      assert(tableMetadataHeaders("version") == "1")
     }
   }
 

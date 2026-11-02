@@ -176,11 +176,13 @@ private[server] class TestViewSharingService(viewParquetFile: Path, tableParquet
 
     val responseFormat = getResponseFormat(req)
     val actions = metadataActions(responseFormat, table == VIEW_NAME, fileSize(table))
+    val responseCapabilities = Seq(
+      Some(s"${DeltaSharingService.DELTA_SHARING_RESPONSE_FORMAT}=$responseFormat"),
+      if (table == VIEW_NAME) Some(s"$VERSIONLESS_CDF_RESPONSE=true") else None
+    ).flatten.mkString(DeltaSharingService.DELTA_SHARING_CAPABILITIES_DELIMITER)
     val headers = ResponseHeaders.builder(HttpStatus.OK)
       .set(HttpHeaderNames.CONTENT_TYPE, DeltaSharingService.DELTA_TABLE_METADATA_CONTENT_TYPE)
-      .set(
-        DeltaSharingService.DELTA_SHARING_CAPABILITIES_HEADER,
-        s"${DeltaSharingService.DELTA_SHARING_RESPONSE_FORMAT}=$responseFormat")
+      .set(DeltaSharingService.DELTA_SHARING_CAPABILITIES_HEADER, responseCapabilities)
       .set(DeltaSharingService.DELTA_TABLE_VERSION_HEADER, TABLE_VERSION.toString)
       .build()
     HttpResponse.of(headers, HttpData.ofUtf8(actions.mkString("\n") + "\n"))
