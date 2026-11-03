@@ -45,7 +45,7 @@ def _get_dummy_column(schema_type):
     elif isinstance(schema_type, str) and schema_type.startswith("decimal"):
         return pd.Series([0], dtype=np.dtype("O"))
     elif schema_type == "string":
-        return pd.Series([0], dtype=np.dtype("O"))
+        return pd.Series([""], dtype="str")
     elif schema_type == "date":
         return pd.Series([pd.Timestamp(0).date()])
     elif schema_type == "timestamp":

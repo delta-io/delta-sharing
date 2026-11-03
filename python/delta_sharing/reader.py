@@ -33,6 +33,33 @@ from delta_sharing.protocol import AddCdcFile, CdfOptions, FileAction, Table
 from delta_sharing.rest_client import DataSharingRestClient
 from delta_sharing.fake_checkpoint import get_fake_checkpoint_byte_array
 
+_PANDAS_3 = int(pd.__version__.split(".")[0]) >= 3
+
+
+def _can_hold_null(dtype) -> bool:
+    return (
+        pd.api.types.is_float_dtype(dtype)
+        or pd.api.types.is_datetime64_any_dtype(dtype)
+        or isinstance(dtype, pd.StringDtype)
+    )
+
+
+def _concat_file_frames(pdfs: List[pd.DataFrame]) -> pd.DataFrame:
+    if _PANDAS_3 and len(pdfs) > 1:
+        all_null: List[Tuple[pd.DataFrame, str]] = []
+        target_dtypes: Dict[str, Any] = {}
+        for pdf in pdfs:
+            for col in pdf.columns:
+                if pdf[col].first_valid_index() is None:
+                    all_null.append((pdf, col))
+                elif col not in target_dtypes:
+                    target_dtypes[col] = pdf[col].dtype
+        for pdf, col in all_null:
+            target = target_dtypes.get(col)
+            if target is not None and target != pdf[col].dtype and _can_hold_null(target):
+                pdf[col] = pd.Series(index=pdf.index, dtype=target)
+    return pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+
 
 class DeltaSharingReader:
     def __init__(
@@ -221,12 +248,7 @@ class DeltaSharingReader:
                 if left == 0:
                     break
 
-        merged = pd.concat(
-            pdfs,
-            axis=0,
-            ignore_index=True,
-            copy=False,
-        )
+        merged = _concat_file_frames(pdfs)
 
         col_map = {}
         for col in merged.columns:
@@ -495,7 +517,7 @@ class DeltaSharingReader:
             )
             pdfs.append(pdf)
 
-        merged = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+        merged = _concat_file_frames(pdfs)
 
         col_map = {}
         for col in merged.columns:

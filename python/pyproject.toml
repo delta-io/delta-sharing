@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "delta-kernel-rust-sharing-wrapper>=0.3.4,<1.0",
-    "pandas>=2.0.3,<3.0.0",
+    "pandas>=2.0.3,<=3.1.0",
     "pyarrow>=16.1.0,<=23.0.1",
     "fsspec>=0.7.4,<=2026.2.0",
     "requests>=2.20.0,<=2.33.0",
@@ -53,7 +53,7 @@ version = {attr = "delta_sharing.version.__version__"}
 include = ["delta_sharing"]
 
 [tool.uv]
-exclude-newer = "2026-10-21T00:00:00Z"
+exclude-newer = "2026-10-24T00:00:00Z"
 
 [tool.uv.sources]
 delta-kernel-rust-sharing-wrapper = { path = "delta-kernel-rust-sharing-wrapper" }

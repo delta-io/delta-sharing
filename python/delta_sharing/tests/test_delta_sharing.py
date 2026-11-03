@@ -1408,10 +1408,10 @@ def test_load_snapshot_exception_client_delta_kernel_disabled_with_delta_table(
             None,
             pd.DataFrame(
                 {
-                    "name": pd.Series([], dtype="object"),
+                    "name": pd.Series([], dtype="str"),
                     "age": pd.Series([], dtype="int32"),
                     "birthday": pd.Series([], dtype="object"),
-                    "_change_type": pd.Series([], dtype="object"),
+                    "_change_type": pd.Series([], dtype="str"),
                     "_commit_version": pd.Series([], dtype="long"),
                     "_commit_timestamp": pd.Series([], dtype="long"),
                 }

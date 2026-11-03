@@ -31,7 +31,7 @@ from delta_sharing.protocol import (
     RemoveFile,
     Table,
 )
-from delta_sharing.reader import DeltaSharingReader
+from delta_sharing.reader import DeltaSharingReader, _concat_file_frames
 from delta_sharing.rest_client import (
     ListFilesInTableResponse,
     ListTableChangesResponse,
@@ -521,7 +521,7 @@ def test_snapshot_partitioned_different_schemas(tmp_path):
     expected2["c"] = date(2021, 1, 2)
     expected2["d"] = np.int32(2)
     expected = pd.concat([expected1, expected2])[["a", "c", "b", "d"]].reset_index(drop=True)
-    expected["b"] = expected["b"].astype(object).where(expected["b"].notna(), None)
+    expected["b"] = pd.Series([None if pd.isna(v) else v for v in expected["b"]], dtype="str")
 
     expected_arrow_pdf = expected.copy()
     expected_arrow_pdf["a"] = expected_arrow_pdf["a"].astype("int64")
@@ -1109,3 +1109,26 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
     expected = pd.concat([pdf1, pdf2, pdf3, pdf4]).reset_index(drop=True)
 
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+def test_concat_file_frames_keeps_dtypes_of_columns_missing_from_a_file():
+    with_columns = pa.table(
+        {
+            "x": pa.array([1], pa.int64()),
+            "d": pa.array([1.5], pa.float64()),
+            "t": pa.array([0], pa.timestamp("us", tz="UTC")),
+            "s": pa.array(["a"], pa.string()),
+        }
+    ).to_pandas(date_as_object=True)
+    without_columns = pa.table({"x": pa.array([2], pa.int64())}).to_pandas(date_as_object=True)
+    for col in ("d", "t", "s"):
+        without_columns[col] = None
+
+    merged = _concat_file_frames([without_columns, with_columns])
+
+    assert merged["d"].dtype == np.float64
+    assert merged["t"].dtype == pd.DatetimeTZDtype("us", "UTC")
+    assert merged["s"].dtype == with_columns["s"].dtype
+    filled = ["d", "t", "s"]
+    assert merged[filled].iloc[0].isna().all()
+    assert merged[filled].iloc[1].tolist() == with_columns[filled].iloc[0].tolist()
