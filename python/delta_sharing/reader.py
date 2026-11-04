@@ -403,6 +403,9 @@ class DeltaSharingReader:
         try:
             response = self._rest_client.list_table_changes(self._table, cdfOptions)
             if response.is_versionless_cdf:
+                # This Kernel path requests Delta format and consumes raw response lines.
+                # View CDF files already contain _change_type and _commit_timestamp,
+                # so scan them as a snapshot.
                 _, batches, num_files = self.__snapshot_scan_kernel_from_lines(
                     response.lines, temp_dir
                 )

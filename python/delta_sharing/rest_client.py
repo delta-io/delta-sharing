@@ -192,12 +192,14 @@ class DataSharingRestClient:
         self.__set_capabilities_header(DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT)
 
     def remove_sharing_capabilities_header(self):
+        # Parquet view CDF also requires versionlesscdf=true when format preferences are cleared.
         self.__set_capabilities_header()
 
     def set_delta_format_header(self, for_cdf=False):
         self.__set_capabilities_header(DataSharingRestClient.DELTA_RESPONSE_FORMAT, for_cdf)
 
     def remove_delta_format_header(self):
+        # Parquet view CDF also requires versionlesscdf=true when format preferences are cleared.
         self.__set_capabilities_header()
 
     @staticmethod
