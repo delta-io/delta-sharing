@@ -372,7 +372,7 @@ class DeltaSharingRestClient(
       table = getFullTableName(table)
     )
     if (response.lines.size != 2) {
-      logFirstKLines(response.lines, "getMetadata", 10)
+      logFirstKLines(response.lines, "getMetadata", 10, target)
       throw new IllegalStateException(s"received more than two lines:${response.lines.size}," +
         getDsQueryIdForLogging)
     }
@@ -420,7 +420,8 @@ class DeltaSharingRestClient(
   private def logFirstKLines(
       lines: Seq[String],
       methodName: String,
-      linesToLog: Int
+      linesToLog: Int,
+      targetUrl: String
   ): Unit = {
     val firstKLines = lines
       .take(linesToLog)
@@ -432,7 +433,7 @@ class DeltaSharingRestClient(
     logError(
       s"[$methodName] Unexpected line format or count. " +
       s"Showing up to first $linesToLog lines:\n$firstKLines" +
-      getDsQueryIdForLogging
+      s" targetUrl $targetUrl" + getDsQueryIdForLogging
     )
   }
 
@@ -530,7 +531,15 @@ class DeltaSharingRestClient(
       if (action.file != null) {
         files.append(action.file)
       } else {
-        throw new IllegalStateException(s"Unexpected Line:${line}" + getDsQueryIdForLogging)
+        logFirstKLines(
+          lines,
+          s"getFiles(versionAsOf-$versionAsOf, timestampAsOf-$timestampAsOf)",
+          10,
+          target
+        )
+        throw new IllegalStateException(
+          s"Expecting file actions but got ${line}. " +
+            s"targetUrl $target" + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
@@ -632,9 +641,15 @@ class DeltaSharingRestClient(
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
         case _ =>
-          logFirstKLines(lines, "getFiles", 10)
+          logFirstKLines(
+            lines,
+            s"getFiles(startingVersion:$startingVersion, endingVersion:$endingVersion)",
+            10,
+            target
+          )
           throw new IllegalStateException(
-            s"Unexpected Line:${line}" + getDsQueryIdForLogging)
+            s"Expecting add, remove, or metadata actions but got ${line}. " +
+              s"targetUrl $target" + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(
@@ -811,8 +826,11 @@ class DeltaSharingRestClient(
         case a: AddFileForCDF => addFiles.append(a)
         case r: RemoveFile => removeFiles.append(r)
         case m: Metadata => additionalMetadatas.append(m)
-        case _ => throw new IllegalStateException(
-          s"Unexpected Line:${line}," + getDsQueryIdForLogging)
+        case _ =>
+          logFirstKLines(lines, s"getCDFFiles(cdfOptions:$cdfOptions)", 10, target)
+          throw new IllegalStateException(
+            s"Expecting cdc, add, remove, or metadata actions but got ${line}. " +
+              s"targetUrl $target" + getDsQueryIdForLogging)
       }
     }
     DeltaTableFiles(

@@ -462,6 +462,8 @@ You can find other approaches in [hadoop-aws doc](https://hadoop.apache.org/docs
 
 ### Azure Blob Storage
 
+Directory-based table credentials require hierarchical namespace enabled (ADLS Gen2), including for tables using `wasb` or `wasbs` URIs.
+
 The server is using `hadoop-azure` to read Azure Blob Storage. Using Azure Blob Storage requires [configuration of credentials](https://hadoop.apache.org/docs/current/hadoop-azure/index.html#Configuring_Credentials). You can create a Hadoop configuration file named `core-site.xml` and add it to the server's `conf` directory. Then add the following content to the xml file:
 
 ```xml
