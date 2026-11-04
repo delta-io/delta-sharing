@@ -54,6 +54,9 @@ private[sharing] case class RemoteDeltaFileIndexParams(
     queryParamsHashId: Option[String] = None,
     partitionSchemaOverride: Option[StructType] = None) {
   def path: Path = snapshotAtAnalysis.getTablePath
+
+  // View metadata comes from /metadata, while materialized CDF files and their partitioning
+  // come from /changes. The override uses the partition schema of those materialized files.
   def partitionSchema: StructType =
     partitionSchemaOverride.getOrElse(snapshotAtAnalysis.partitionSchema)
 }

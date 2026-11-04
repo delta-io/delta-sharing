@@ -18,10 +18,11 @@ package io.delta.sharing.spark
 
 import java.io.File
 import java.sql.Timestamp
+import java.util.concurrent.TimeUnit
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkEnv
-import org.apache.spark.delta.sharing.{CachedTableManager, PreSignedUrlCache}
+import org.apache.spark.delta.sharing.{CachedTableManager, PreSignedUrlCache, TableRefreshResult}
 import org.apache.spark.sql.{DeltaSharingScanUtils, QueryTest, Row}
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, EqualTo, Literal}
 import org.apache.spark.sql.execution.datasources.LogicalRelation
@@ -33,6 +34,7 @@ import org.sparkproject.jetty.servlet.{DefaultServlet, ServletContextHandler, Se
 
 import io.delta.sharing.client.{DeltaSharingFileSystem, DeltaSharingRestClient}
 import io.delta.sharing.client.model.{
+  AddCDCFile,
   AddFile,
   DeltaTableFiles,
   DeltaTableMetadata,
@@ -249,6 +251,75 @@ class RemoteDeltaCDFRelationSuite extends QueryTest with SharedSparkSession {
         relation.buildScan(Array("value"), Array.empty)
       }
       assert(error.getMessage.contains("CDF versioning mode differs"))
+    }
+  }
+
+  for (metadataVersionless <- Seq(false, true)) {
+    test(s"CDF URL refresh does not revalidate metadata mode: " +
+      s"metadataVersionless=$metadataVersionless") {
+      var refresher: Option[Option[String] => TableRefreshResult] = None
+      val profileProvider = new TestDeltaSharingProfileProvider {
+        override def getCustomRefresher(
+            callback: Option[String] => TableRefreshResult
+        ): Option[String] => TableRefreshResult = {
+          refresher = Some(callback)
+          callback
+        }
+      }
+      var response = DeltaTableFiles(
+        version = if (metadataVersionless) 0L else 1L,
+        protocol = Protocol(1),
+        metadata = if (metadataVersionless) viewMetadata else snapshotMetadata,
+        respondedFormat = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
+        isVersionlessCDF = metadataVersionless)
+      var cdfCalls = 0
+      val client = new TestDeltaSharingClient(profileProvider = profileProvider) {
+        override def getCDFFiles(
+            requestedTable: Table,
+            options: Map[String, String],
+            includeHistoricalMetadata: Boolean,
+            fileIdHash: Option[String],
+            includeHistoricalProtocol: Boolean = false): DeltaTableFiles = {
+          assert(requestedTable == table)
+          assert(options == cdfOptions)
+          cdfCalls += 1
+          response
+        }
+      }
+      val metadata = DeltaTableMetadata(
+        version = 1L,
+        protocol = Protocol(1),
+        metadata = snapshotMetadata.copy(size = 0L),
+        respondedFormat = DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET,
+        isVersionlessCDF = metadataVersionless)
+      val snapshot = new RemoteSnapshot(
+        new Path(s"refresh-view-$metadataVersionless"),
+        client,
+        table,
+        initDeltaTableMetadata = Some(metadata))
+      val relation = RemoteDeltaCDFRelation(spark, snapshot, client, table, cdfOptions)
+      relation.buildScan(Array("value"), Array.empty)
+      assert(cdfCalls == 1)
+      assert(refresher.isDefined)
+
+      val url = "https://example.com/refreshed.parquet"
+      val expiration = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(1)
+      response = response.copy(
+        version = if (metadataVersionless) 1L else 0L,
+        files = if (metadataVersionless) Nil else {
+          Seq(AddFile(url, "file", Map.empty, 10L, expirationTimestamp = expiration))
+        },
+        cdfFiles = if (metadataVersionless) {
+          Seq(AddCDCFile(url, "file", Map.empty, 10L, 1L, 0L, expiration))
+        } else {
+          Nil
+        },
+        isVersionlessCDF = !metadataVersionless)
+      val result = refresher.get(None)
+      assert(cdfCalls == 2)
+      assert(result.idToUrl == Map("file" -> url))
+      assert(result.expirationTimestamp.contains(expiration))
+      assert(result.refreshToken.isEmpty)
     }
   }
 

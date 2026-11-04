@@ -47,19 +47,6 @@ case class RemoteDeltaCDFRelation(
     table: DeltaSharingTable,
     cdfOptions: Map[String, String]) extends BaseRelation with PrunedFilteredScan {
 
-  private def deltaTableFiles: DeltaTableFiles = {
-    val response = client.getCDFFiles(table, cdfOptions, false, None)
-    if (response.isVersionlessCDF != snapshotToUse.isVersionlessCDF) {
-      throw new IllegalStateException(
-        "The CDF versioning mode differs between the metadata and changes responses. " +
-          "Please recreate the DataFrame using a provider that advertises versionlessCDF " +
-          "in its metadata response for versionless CDF.")
-    }
-    response
-  }
-
-  private lazy val baseSchema = snapshotToUse.schema
-
   private[sharing] def fileIndexParams(
       deltaTableFiles: DeltaTableFiles): RemoteDeltaFileIndexParams = {
     val partitionSchemaOverride = if (deltaTableFiles.isVersionlessCDF) {
@@ -78,14 +65,20 @@ case class RemoteDeltaCDFRelation(
   }
 
   override lazy val schema: StructType =
-    DeltaTableUtils.addCdcSchema(baseSchema, snapshotToUse.isVersionlessCDF)
+    DeltaTableUtils.addCdcSchema(snapshotToUse.schema, snapshotToUse.isVersionlessCDF)
 
   override def sqlContext: SQLContext = spark.sqlContext
 
   override def buildScan(
       requiredColumns: Array[String],
       filters: Array[Filter]): RDD[Row] = {
-    val deltaTableFiles = this.deltaTableFiles
+    val deltaTableFiles = client.getCDFFiles(table, cdfOptions, false, None)
+    if (deltaTableFiles.isVersionlessCDF != snapshotToUse.isVersionlessCDF) {
+      throw new IllegalStateException(
+        "The CDF versioning mode differs between the metadata and changes responses. " +
+          "Please recreate the DataFrame using a provider that advertises versionlessCDF " +
+          "in its metadata response for versionless CDF.")
+    }
     val fileIndexParams = this.fileIndexParams(deltaTableFiles)
 
     DeltaSharingCDFReader.changesToDF(
@@ -97,31 +90,19 @@ case class RemoteDeltaCDFRelation(
       schema,
       false,
       _ => {
-        val d = this.deltaTableFiles
+        val d = client.getCDFFiles(table, cdfOptions, false, None)
         TableRefreshResult(
           if (d.isVersionlessCDF) {
             DeltaSharingCDFReader.getIdToUrl(d.files)
           } else {
             DeltaSharingCDFReader.getIdToUrl(d.addFiles, d.cdfFiles, d.removeFiles)
           },
-          if (d.isVersionlessCDF) {
-            DeltaSharingCDFReader.getMinUrlExpiration(d.files)
-          } else {
-            DeltaSharingCDFReader.getMinUrlExpiration(d.addFiles, d.cdfFiles, d.removeFiles)
-          },
+          DeltaSharingCDFReader.getMinUrlExpiration(d),
           None
         )
       },
       System.currentTimeMillis(),
-      if (deltaTableFiles.isVersionlessCDF) {
-        DeltaSharingCDFReader.getMinUrlExpiration(deltaTableFiles.files)
-      } else {
-        DeltaSharingCDFReader.getMinUrlExpiration(
-          deltaTableFiles.addFiles,
-          deltaTableFiles.cdfFiles,
-          deltaTableFiles.removeFiles
-        )
-      },
+      DeltaSharingCDFReader.getMinUrlExpiration(deltaTableFiles),
       versionlessFiles = if (deltaTableFiles.isVersionlessCDF) Some(deltaTableFiles.files) else None
     ).rdd
   }
@@ -130,6 +111,15 @@ case class RemoteDeltaCDFRelation(
 object DeltaSharingCDFReader {
   def getIdToUrl(files: Seq[AddFile]): Map[String, String] = {
     files.map(file => file.id -> file.url).toMap
+  }
+
+  def getMinUrlExpiration(deltaTableFiles: DeltaTableFiles): Option[Long] = {
+    if (deltaTableFiles.isVersionlessCDF) {
+      getMinUrlExpiration(deltaTableFiles.files)
+    } else {
+      getMinUrlExpiration(
+        deltaTableFiles.addFiles, deltaTableFiles.cdfFiles, deltaTableFiles.removeFiles)
+    }
   }
 
   def getMinUrlExpiration(files: Seq[AddFile]): Option[Long] = {
