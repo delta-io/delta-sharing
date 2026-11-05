@@ -419,6 +419,31 @@ server (based on delta-sharing protocol) implemented  in python for both Delta L
 
 </table>
 
+## R connector
+
+The community [R connector](https://zacdav-db.github.io/delta-sharing-r/) provides reusable table handles for snapshot and change data feed reads.
+
+```r
+install.packages("delta.sharing")
+library(delta.sharing)
+
+client <- sharing_client("<profile-file-path>")
+table <- client$table("<share-name>.<schema-name>.<table-name>")
+
+# Read a snapshot as a tibble.
+df <- table$snapshot(limit = 10)$to_tibble()
+
+# Read a snapshot as an Arrow Table or a lazy RecordBatchReader.
+arrow_table <- table$snapshot()$to_arrow()
+arrow_reader <- table$snapshot()$to_arrow_reader()
+```
+
+For tables shared with change data feed enabled, read an inclusive version range:
+
+```r
+changes <- table$changes(starting_version = 0, ending_version = 5)$to_tibble()
+```
+
 # Delta Sharing Reference Server
 
 The Delta Sharing Reference Server is a reference implementation server for the [Delta Sharing Protocol](PROTOCOL.md). This can be used to set up a small service to test your own connector that implements the [Delta Sharing Protocol](PROTOCOL.md). Please note that this is not a completed implementation of secure web server. We highly recommend you to put this behind a secure proxy if you would like to expose it to public.
