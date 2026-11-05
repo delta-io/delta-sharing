@@ -1549,14 +1549,6 @@ delta-table-version: 123
 
 This is the API for clients to query the table schema and other metadata.
 
-For objects whose change data feed omits source commit versions, the server includes
-`versionlessCDF=true` in the `Delta-Sharing-Capabilities` response header. This capability
-describes the object's change data feed; the metadata body still contains the ordinary snapshot
-schema, and the `Delta-Table-Version` header remains present. Clients can derive the CDF schema by
-adding `_change_type` (string) and `_commit_timestamp` (timestamp), without `_commit_version`.
-When the capability is absent, clients use the existing versioned CDF schema. This applies to both
-Parquet and Delta response formats.
-
 <table>
 <tr>
 <th>HTTP Request</th>
