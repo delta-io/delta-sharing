@@ -419,15 +419,6 @@ server (based on delta-sharing protocol) implemented  in python for both Delta L
 
 </table>
 
-## R connector
-
-```r
-library(delta.sharing)
-client <- sharing_client("<profile-file-path>")
-table <- client$table("<share-name>.<schema-name>.<table-name>")
-df <- table$snapshot()$to_tibble()
-```
-
 # Delta Sharing Reference Server
 
 The Delta Sharing Reference Server is a reference implementation server for the [Delta Sharing Protocol](PROTOCOL.md). This can be used to set up a small service to test your own connector that implements the [Delta Sharing Protocol](PROTOCOL.md). Please note that this is not a completed implementation of secure web server. We highly recommend you to put this behind a secure proxy if you would like to expose it to public.
