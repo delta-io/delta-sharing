@@ -17,7 +17,7 @@
 package io.delta.sharing.client.model
 
 import com.fasterxml.jackson.annotation.{JsonInclude, JsonRawValue}
-import org.apache.spark.sql.types.{DataType, LongType, StringType}
+import org.apache.spark.sql.types.{DataType, LongType, StringType, TimestampType}
 
 // Information about CDF columns.
 private[sharing] object CDFColumnInfo {
@@ -33,15 +33,27 @@ private[sharing] object CDFColumnInfo {
   // Returns internal partition schema for internal columns for CDF add/remove actions.
   def getInternalPartitonSchemaForCDFAddRemoveFile(): Map[String, DataType] =
     getInternalPartitonSchemaForCDC() + (change_type_col_name -> StringType)
+
+  def getVersionlessCDFSchema(): Map[String, DataType] =
+    Map(change_type_col_name -> StringType, commit_timestamp_col_name -> TimestampType)
 }
 
+/** @param isVersionlessCDF whether CDF on this object omits source commit versions. */
 private[sharing] case class DeltaTableMetadata(
     version: Long,
     protocol: Protocol = null,
     metadata: Metadata = null,
     lines: Seq[String] = Nil,
-    respondedFormat: String)
+    respondedFormat: String,
+    isVersionlessCDF: Boolean = false)
 
+/**
+ * @param version table version, or the placeholder 0L when isVersionlessCDF is true; the
+ *                placeholder does not represent a source commit version.
+ * @param lines raw Delta-format actions, interpreted by the Delta reader.
+ * @param isVersionlessCDF whether the response contains materialized CDF rows without source
+ *                        commit versions.
+ */
 private[sharing] case class DeltaTableFiles(
     version: Long,
     protocol: Protocol = null,
@@ -53,7 +65,8 @@ private[sharing] case class DeltaTableFiles(
     additionalMetadatas: Seq[Metadata] = Nil,
     lines: Seq[String] = Nil,
     refreshToken: Option[String] = None,
-    respondedFormat: String)
+    respondedFormat: String,
+    isVersionlessCDF: Boolean = false)
 
 private[sharing] case class Share(name: String)
 

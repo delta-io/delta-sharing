@@ -111,6 +111,11 @@ object DeltaSharingErrors {
     new UnsupportedOperationException("Cannot time travel streams.")
   }
 
+  def viewCDFStreamingNotSupportedException: Throwable = {
+    new UnsupportedOperationException(
+      "Change data feed on shared views is supported only for batch reads.")
+  }
+
   def schemaNotSetException: Throwable = {
     new IllegalStateException("Shared table schema is not set. Please contact your data provider.")
   }

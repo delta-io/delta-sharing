@@ -617,6 +617,9 @@ case class DeltaSharingSource(
       true,
       None
     )
+    if (tableFiles.isVersionlessCDF) {
+      throw DeltaSharingErrors.viewCDFStreamingNotSupportedException
+    }
     queryParamsHashId = QueryUtils.getQueryParamsHashId(cdfOptions)
     latestRefreshFunc = _ => {
       val queryTimestamp = System.currentTimeMillis()

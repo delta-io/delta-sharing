@@ -116,9 +116,20 @@ class DeltaSharingReader:
             finally:
                 self._rest_client.remove_delta_format_header()
 
-            lines = list(response.lines)
+            return self.__snapshot_scan_kernel_from_lines(response.lines, temp_dir)
+        except Exception:
+            temp_dir.cleanup()
+            raise
+
+    def __snapshot_scan_kernel_from_lines(self, response_lines, temp_dir=None):
+        """Build a regular Kernel scan from a Delta-format snapshot response."""
+        if temp_dir is None:
+            temp_dir = tempfile.TemporaryDirectory()
+        try:
+            lines = list(response_lines)
             table_path = self.__write_temp_delta_log_snapshot(temp_dir.name, lines)
-            num_files = len(lines)
+            # The first two lines contain protocol and metadata, not files.
+            num_files = len(lines) - 2
 
             interface = delta_kernel_rust_sharing_wrapper.PythonInterface(table_path)
             table = delta_kernel_rust_sharing_wrapper.Table(table_path)
@@ -128,6 +139,19 @@ class DeltaSharingReader:
         except Exception:
             temp_dir.cleanup()
             raise
+
+    def __kernel_scan_result_to_pandas(self, batches, num_files, limit=None):
+        if num_files == 0:
+            return pd.DataFrame(columns=batches.schema.names)
+
+        if self._convert_in_batches:
+            pdfs = [batch.to_pandas(self_destruct=True) for batch in batches]
+            print(f"Received {len(pdfs)} batches of data.")
+            result = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
+        else:
+            result = pa.Table.from_batches(batches).to_pandas(self_destruct=True)
+
+        return result.head(limit) if limit is not None else result
 
     def __to_pandas_kernel(self):
         """
@@ -141,20 +165,7 @@ class DeltaSharingReader:
         """
         temp_dir, batches, num_files = self.__snapshot_scan_kernel()
         try:
-            # The table is empty so use the schema to return an empty table with correct col names
-            if num_files == 0:
-                schema = batches.schema
-                return pd.DataFrame(columns=schema.names)
-
-            if self._convert_in_batches:
-                pdfs = [batch.to_pandas(self_destruct=True) for batch in batches]
-                print(f"Received {len(pdfs)} batches of data.")
-                result = pd.concat(pdfs, axis=0, ignore_index=True, copy=False)
-            else:
-                result = pa.Table.from_batches(batches).to_pandas(self_destruct=True)
-
-            # Apply residual limit that was not handled from server pushdown
-            return result.head(self._limit)
+            return self.__kernel_scan_result_to_pandas(batches, num_files, self._limit)
         finally:
             # Delete the temp folder explicitly.
             temp_dir.cleanup()
@@ -317,19 +328,19 @@ class DeltaSharingReader:
         json_file = open(json_file_path, "w+")
 
         # Write the protocol action to the log file
-        protocol_json = loads(lines.pop(0))
+        protocol_json = loads(lines[0])
         deltaProtocol = {"protocol": protocol_json["protocol"]["deltaProtocol"]}
         dump(deltaProtocol, json_file)
         json_file.write("\n")
 
         # Write the metadata action to the log file
-        metadata_json = loads(lines.pop(0))
+        metadata_json = loads(lines[1])
         deltaMetadata = {"metaData": metadata_json["metaData"]["deltaMetadata"]}
         dump(deltaMetadata, json_file)
         json_file.write("\n")
 
         # Write the add file actions to the log file
-        for line in lines:
+        for line in lines[2:]:
             line_json = loads(line)
             dump(line_json["file"]["deltaSingleAction"], json_file)
             json_file.write("\n")
@@ -392,7 +403,7 @@ class DeltaSharingReader:
         """
         Build a delta-kernel CDF scan. The caller owns the returned temp dir and
         must keep it alive until the scan result is fully consumed. The final
-        item is the number of versions containing file actions.
+        item counts versions containing file actions, or files for view CDF.
         """
         temp_dir = tempfile.TemporaryDirectory()
         try:
@@ -401,6 +412,11 @@ class DeltaSharingReader:
                 response = self._rest_client.list_table_changes(self._table, cdfOptions)
             finally:
                 self._rest_client.remove_delta_format_header()
+            if response.is_versionless_cdf:
+                # This Kernel path requests Delta format and consumes raw response lines.
+                # View CDF files already contain _change_type and _commit_timestamp,
+                # so scan them as a snapshot.
+                return self.__snapshot_scan_kernel_from_lines(response.lines, temp_dir)
             lines = list(response.lines)
 
             # first line is protocol
@@ -514,16 +530,20 @@ class DeltaSharingReader:
         response = self._rest_client.list_table_changes(self._table, cdfOptions)
 
         schema_json = loads(response.metadata.schema_string)
-        schema_with_cdf = self._add_special_cdf_schema(schema_json)
-        schema = to_arrow_schema(schema_with_cdf)
+        output_schema = (
+            schema_json
+            if response.is_versionless_cdf
+            else self._add_special_cdf_schema(schema_json)
+        )
+        schema = to_arrow_schema(output_schema)
 
         def iterator() -> Iterator[pa.RecordBatch]:
             for action in response.actions:
                 for batch in DeltaSharingReader._to_record_batches(
                     action,
-                    schema_with_cdf,
+                    output_schema,
                     None,
-                    for_cdf=True,
+                    for_cdf=not response.is_versionless_cdf,
                 ):
                     yield batch
 
@@ -536,17 +556,28 @@ class DeltaSharingReader:
 
         response = self._rest_client.list_table_changes(self._table, cdfOptions)
 
+        return self.__table_changes_response_to_pandas(response)
+
+    def __table_changes_response_to_pandas(self, response) -> pd.DataFrame:
         schema_json = loads(response.metadata.schema_string)
         converters = to_converters(schema_json)
-        schema_with_cdf = self._add_special_cdf_schema(schema_json)
+        output_schema = (
+            schema_json
+            if response.is_versionless_cdf
+            else self._add_special_cdf_schema(schema_json)
+        )
 
         if len(response.actions) == 0:
-            return get_empty_table(schema_with_cdf)
+            return get_empty_table(output_schema)
 
         pdfs = []
         for action in response.actions:
             pdf = DeltaSharingReader._to_pandas(
-                action, converters, True, None, self._convert_in_batches
+                action,
+                converters,
+                not response.is_versionless_cdf,
+                None,
+                self._convert_in_batches,
             )
             pdfs.append(pdf)
 
@@ -556,7 +587,7 @@ class DeltaSharingReader:
         for col in merged.columns:
             col_map[col.lower()] = col
 
-        return merged[[col_map[field["name"].lower()] for field in schema_with_cdf["fields"]]]
+        return merged[[col_map[field["name"].lower()] for field in output_schema["fields"]]]
 
     def table_changes_to_arrow(self, cdfOptions: CdfOptions) -> pa.Table:
         schema, batches = self._table_changes_to_arrow_stream(cdfOptions)
