@@ -850,13 +850,14 @@ def test_table_changes_non_partitioned(tmp_path):
 
     expected = pd.concat([pdf1, pdf2, pdf3, pdf4]).reset_index(drop=True)
     pd.testing.assert_frame_equal(pdf, expected)
-    pd.testing.assert_frame_equal(reader.table_changes_to_arrow(CdfOptions()).to_pandas(), expected)
+    pd.testing.assert_frame_equal(reader.table_changes_to_arrow(CdfOptions()).to_pandas(), pdf)
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
     )
     pdf = reader.table_changes_to_pandas(CdfOptions())
     pd.testing.assert_frame_equal(pdf, expected)
+    pd.testing.assert_frame_equal(reader.table_changes_to_arrow(CdfOptions()).to_pandas(), pdf)
 
 
 def test_table_changes_partitioned(tmp_path):
@@ -932,13 +933,14 @@ def test_table_changes_partitioned(tmp_path):
     ]
     pd.testing.assert_frame_equal(pdf, expected)
     arrow_table = reader.table_changes_to_record_batch_reader(CdfOptions()).read_all()
-    pd.testing.assert_frame_equal(arrow_table.to_pandas(), expected)
+    pd.testing.assert_frame_equal(arrow_table.to_pandas(), pdf)
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock(), convert_in_batches=True
     )
     pdf = reader.table_changes_to_pandas(CdfOptions())
     pd.testing.assert_frame_equal(pdf, expected)
+    pd.testing.assert_frame_equal(reader.table_changes_to_arrow(CdfOptions()).to_pandas(), pdf)
 
 
 def test_table_changes_empty(tmp_path):
@@ -973,7 +975,9 @@ def test_table_changes_empty(tmp_path):
 
     pdf = reader.table_changes_to_pandas(CdfOptions())
     validate_pdf(pdf)
-    validate_pdf(reader.table_changes_to_arrow(CdfOptions()).to_pandas())
+    arrow_pdf = reader.table_changes_to_arrow(CdfOptions()).to_pandas()
+    validate_pdf(arrow_pdf)
+    pd.testing.assert_frame_equal(arrow_pdf, pdf, check_dtype=False)
     batches = reader.table_changes_to_record_batches(CdfOptions())
     assert list(batches) == []
     batches.close()
@@ -983,6 +987,9 @@ def test_table_changes_empty(tmp_path):
     )
     pdf = reader.table_changes_to_pandas(CdfOptions())
     validate_pdf(pdf)
+    pd.testing.assert_frame_equal(
+        reader.table_changes_to_arrow(CdfOptions()).to_pandas(), pdf, check_dtype=False
+    )
 
 
 def test_add_special_cdf_schema_does_not_mutate_input():
@@ -1136,7 +1143,8 @@ def test_table_changes_delta_format_stream_lifecycle(
     assert not temp_paths[0].exists()
 
 
-def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
+@pytest.mark.parametrize("convert_in_batches", [False, True])
+def test_table_changes_to_pandas_non_partitioned_delta(tmp_path, convert_in_batches):
     # Create basic data frame.
     pdf1 = pd.DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
     pdf2 = pd.DataFrame({"a": [4, 5, 6], "b": ["d", "e", "f"]})
@@ -1290,9 +1298,13 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path):
             return
 
     reader = DeltaSharingReader(
-        Table("table_name", "share_name", "schema_name"), RestClientMock(), use_delta_format=True
+        Table("table_name", "share_name", "schema_name"),
+        RestClientMock(),
+        use_delta_format=True,
+        convert_in_batches=convert_in_batches,
     )
     pdf = reader.table_changes_to_pandas(CdfOptions())
+    pd.testing.assert_frame_equal(reader.table_changes_to_arrow(CdfOptions()).to_pandas(), pdf)
     pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
 
     expected = pd.concat([pdf1, pdf2, pdf3, pdf4]).reset_index(drop=True)

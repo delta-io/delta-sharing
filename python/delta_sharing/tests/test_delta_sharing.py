@@ -1777,22 +1777,37 @@ def test_load_table_changes_partition_kernel(
             ending_timestamp,
             use_delta_format=True,
         )
+        arrow_table = load_table_changes_as_arrow(
+            f"{profile_path}#{fragments}",
+            starting_version,
+            ending_version,
+            starting_timestamp,
+            ending_timestamp,
+            use_delta_format=True,
+        )
+        _assert_arrow_matches_pandas(pdf, arrow_table)
         if len(pdf) > 0:
             pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
         pd.testing.assert_frame_equal(pdf, expected)
     else:
-        try:
+        with pytest.raises(HTTPError, match=error):
             load_table_changes_as_pandas(
                 f"{profile_path}#{fragments}",
                 starting_version,
                 ending_version,
                 starting_timestamp,
                 ending_timestamp,
+                use_delta_format=True,
             )
-            assert False
-        except Exception as e:
-            assert isinstance(e, HTTPError)
-            assert error in str(e)
+        with pytest.raises(HTTPError, match=error):
+            load_table_changes_as_arrow(
+                f"{profile_path}#{fragments}",
+                starting_version,
+                ending_version,
+                starting_timestamp,
+                ending_timestamp,
+                use_delta_format=True,
+            )
 
 
 # TODO: Enable once timestampntz + CDF support is enabled for both
@@ -1844,6 +1859,10 @@ def test_load_table_changes_as_pandas_timestampntz(
     pdf = load_table_changes_as_pandas(
         f"{profile_path}#{fragments}", starting_version=0, use_delta_format=True
     )
+    arrow_table = load_table_changes_as_arrow(
+        f"{profile_path}#{fragments}", starting_version=0, use_delta_format=True
+    )
+    _assert_arrow_matches_pandas(pdf, arrow_table)
     expected["time"] = expected["time"].values.astype("datetime64[us]")
     expected["id"] = expected["id"].astype("int32")
     pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
@@ -2267,6 +2286,10 @@ def test_load_table_changes_as_pandas_delta_batch_convert(
         .reset_index(drop=True)
     )
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = load_table_changes_as_arrow(
+        f"{profile_path}#{fragments}", starting_version=0, use_delta_format=True
+    )
+    _assert_arrow_matches_pandas(pdf, arrow_table, sort_by=["_commit_timestamp", "id"])
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -2617,6 +2640,12 @@ def test_add_column_non_partitioned_cdf(
     )
     pdf = pdf.sort_values(by=["_commit_timestamp", "_change_type", "c1"]).reset_index(drop=True)
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = load_table_changes_as_arrow(
+        f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=False
+    )
+    _assert_arrow_matches_pandas(
+        pdf, arrow_table, sort_by=["_commit_timestamp", "_change_type", "c1"]
+    )
     # TODO: enable once delta-kernel-rs supports schema changes during version range
     # pdf_delta = load_table_changes_as_pandas(
     #     f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=True
@@ -2786,6 +2815,12 @@ def test_add_column_partitioned_cdf(
     )
     print(pdf)
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = load_table_changes_as_arrow(
+        f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=False
+    )
+    _assert_arrow_matches_pandas(
+        pdf, arrow_table, sort_by=["_commit_timestamp", "_change_type", "p1", "p2", "c1"]
+    )
     # TODO: enable once delta-kernel-rs supports schema changes during version range
     # pdf_delta = load_table_changes_as_pandas(
     #     f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=True
