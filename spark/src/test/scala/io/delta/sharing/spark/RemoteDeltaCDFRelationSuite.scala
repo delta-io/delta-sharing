@@ -24,7 +24,6 @@ import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkEnv
 import org.apache.spark.delta.sharing.{CachedTableManager, PreSignedUrlCache, TableRefreshResult}
 import org.apache.spark.sql.{DeltaSharingScanUtils, QueryTest, Row}
-import org.apache.spark.sql.catalyst.expressions.{AttributeReference, EqualTo, Literal}
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.test.SharedSparkSession
@@ -44,6 +43,7 @@ import io.delta.sharing.client.model.{
   Table
 }
 import io.delta.sharing.spark.TestUtils.withTempDir
+import io.delta.sharing.spark.util.QueryUtils
 
 class RemoteDeltaCDFRelationSuite extends QueryTest with SharedSparkSession {
   override def beforeAll(): Unit = {
@@ -64,10 +64,10 @@ class RemoteDeltaCDFRelationSuite extends QueryTest with SharedSparkSession {
     id = "view-id",
     format = Format(),
     schemaString = viewSchema.json,
-    partitionColumns = Seq("part"))
+    partitionColumns = Nil)
   private val snapshotSchema = StructType(viewSchema.fields.take(2))
   private val snapshotMetadata = viewMetadata.copy(
-    schemaString = snapshotSchema.json, partitionColumns = Nil)
+    schemaString = snapshotSchema.json)
 
   for {
     ioCacheEnabled <- Seq(false, true)
@@ -86,7 +86,7 @@ class RemoteDeltaCDFRelationSuite extends QueryTest with SharedSparkSession {
             spark.sparkContext.parallelize(expected), viewSchema)
           if (!empty) {
             Seq("a", "z").foreach { part =>
-              input.filter(col("part") === part).drop("part").coalesce(1)
+              input.filter(col("part") === part).coalesce(1)
                 .write.parquet(new File(dir, part).getAbsolutePath)
             }
           }
@@ -105,7 +105,7 @@ class RemoteDeltaCDFRelationSuite extends QueryTest with SharedSparkSession {
               AddFile(
                 url = s"http://127.0.0.1:${server.getURI.getPort}/$part/${file.getName}",
                 id = part,
-                partitionValues = Map("part" -> part),
+                partitionValues = Map.empty,
                 size = file.length(),
                 version = if (wrapperMetadata) Long.box(99L) else null,
                 timestamp = if (wrapperMetadata) Long.box(9999L) else null)
@@ -164,16 +164,16 @@ class RemoteDeltaCDFRelationSuite extends QueryTest with SharedSparkSession {
             assert(cdfCalls > callsAfterFirstQuery)
             assert(metadataCalls == 1)
 
-            val params = relation.fileIndexParams(response)
+            val params = new RemoteDeltaFileIndexParams(
+              spark,
+              relation.snapshotToUse,
+              client.getProfileProvider,
+              Some(QueryUtils.getQueryParamsHashId(cdfOptions)))
             val index = RemoteDeltaBatchFileIndex(params, files)
-            assert(index.partitionSchema.fieldNames.sameElements(Array("part")))
+            assert(index.partitionSchema.isEmpty)
             assert(index.sizeInBytes == files.map(_.size).sum)
-            val partFilter = EqualTo(AttributeReference("part", StringType)(), Literal("a"))
-            val selected = index.listFiles(Seq(partFilter), Nil).flatMap(_.files)
-            assert(selected.size == (if (empty) 0 else 1))
-            if (!empty) {
-              assert(DeltaSharingFileSystem.decode(selected.head.getPath).fileId == "a")
-            }
+            val selected = index.listFiles(Nil, Nil).flatMap(_.files)
+            assert(selected.size == files.size)
             assert(index.inputFiles.length == files.size)
             index.inputFiles.foreach { filePath =>
               val encoded = DeltaSharingFileSystem.decode(new Path(filePath))

@@ -47,23 +47,6 @@ case class RemoteDeltaCDFRelation(
     table: DeltaSharingTable,
     cdfOptions: Map[String, String]) extends BaseRelation with PrunedFilteredScan {
 
-  private[sharing] def fileIndexParams(
-      deltaTableFiles: DeltaTableFiles): RemoteDeltaFileIndexParams = {
-    val partitionSchemaOverride = if (deltaTableFiles.isVersionlessCDF) {
-      val responseSchema = DeltaTableUtils.toSchema(deltaTableFiles.metadata.schemaString)
-      Some(new StructType(
-        deltaTableFiles.metadata.partitionColumns.map(column => responseSchema(column)).toArray))
-    } else {
-      None
-    }
-    new RemoteDeltaFileIndexParams(
-      spark,
-      snapshotToUse,
-      client.getProfileProvider,
-      Some(QueryUtils.getQueryParamsHashId(cdfOptions)),
-      partitionSchemaOverride = partitionSchemaOverride)
-  }
-
   override lazy val schema: StructType =
     DeltaTableUtils.addCdcSchema(snapshotToUse.schema, snapshotToUse.isVersionlessCDF)
 
@@ -79,10 +62,13 @@ case class RemoteDeltaCDFRelation(
           "Please recreate the DataFrame using a provider that advertises versionlessCDF " +
           "in its metadata response for versionless CDF.")
     }
-    val fileIndexParams = this.fileIndexParams(deltaTableFiles)
-
     DeltaSharingCDFReader.changesToDF(
-      fileIndexParams,
+      new RemoteDeltaFileIndexParams(
+        spark,
+        snapshotToUse,
+        client.getProfileProvider,
+        Some(QueryUtils.getQueryParamsHashId(cdfOptions))
+      ),
       requiredColumns,
       deltaTableFiles.addFiles,
       deltaTableFiles.cdfFiles,
