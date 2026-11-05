@@ -36,7 +36,14 @@ import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import io.delta.sharing.client.{DeltaSharingClient, DeltaSharingRestClient}
-import io.delta.sharing.client.model.{AddFile, CDFColumnInfo, DeltaTableMetadata, Metadata, Protocol, Table => DeltaSharingTable}
+import io.delta.sharing.client.model.{
+  AddFile,
+  CDFColumnInfo,
+  DeltaTableMetadata,
+  Metadata,
+  Protocol,
+  Table => DeltaSharingTable
+}
 import io.delta.sharing.client.util.ConfUtils
 import io.delta.sharing.spark.perf.DeltaSharingLimitPushDown
 import io.delta.sharing.spark.util.{QueryUtils, SchemaUtils}
@@ -198,6 +205,8 @@ class RemoteSnapshot(
   }
 
   lazy val schema: StructType = DeltaTableUtils.toSchema(metadata.schemaString)
+
+  lazy val isVersionlessCDF: Boolean = tableMetadata.isVersionlessCDF
 
   lazy val partitionSchema = new StructType(metadata.partitionColumns.map(c => schema(c)).toArray)
 
@@ -434,8 +443,13 @@ private[sharing] object DeltaTableUtils {
   }
 
   // Adds cdc schema to the table schema.
-  def addCdcSchema(tableSchema: StructType): StructType = {
-    updateSchema(tableSchema, CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile())
+  def addCdcSchema(tableSchema: StructType, isVersionlessCDF: Boolean = false): StructType = {
+    val cdfSchema = if (isVersionlessCDF) {
+      CDFColumnInfo.getVersionlessCDFSchema()
+    } else {
+      CDFColumnInfo.getInternalPartitonSchemaForCDFAddRemoveFile()
+    }
+    updateSchema(tableSchema, cdfSchema)
   }
 
   // Adds cdc schema to the table schema string.

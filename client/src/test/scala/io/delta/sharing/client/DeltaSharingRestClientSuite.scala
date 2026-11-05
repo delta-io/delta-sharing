@@ -241,6 +241,82 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
+  test("metadata reports CDF versioning without changing the snapshot schema or version") {
+    val metadata = Metadata(id = "view-id",
+      schemaString = """{"type":"struct","fields":[{"name":"id","type":"integer"}]}""")
+    for {
+      responseFormat <- Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA)
+      capability <- Seq(None, Some("false"), Some("true"), Some("invalid"))
+    } {
+      val lines = if (responseFormat == RESPONSE_FORMAT_DELTA) {
+        Seq(
+          """{"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":2}}}""",
+          s"""{"metaData":{"deltaMetadata":${JsonUtils.toJson(metadata)}}}""")
+      } else {
+        Seq("""{"protocol":{"minReaderVersion":1}}""",
+          s"""{"metaData":${JsonUtils.toJson(metadata)}}""")
+      }
+      var requests = 0
+      val client = new DeltaSharingRestClient(unitTestProfileProvider,
+        responseFormat = responseFormat) {
+        override private[client] def getResponse(
+            httpRequest: HttpRequestBase,
+            allowNoContent: Boolean,
+            fetchAsOneString: Boolean,
+            setIncludeEndStreamAction: Boolean,
+            requestFileIdHash: Option[String]
+        ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
+          assert(httpRequest.getURI.getPath.endsWith("/metadata"))
+          requests += 1
+          val capabilities = Map(RESPONSE_FORMAT -> responseFormat) ++
+            capability.map(VERSIONLESS_CDF -> _)
+          (Some(7L), capabilities, lines, None)
+        }
+      }
+      try {
+        val result = client.getMetadata(Table("view", "schema", "share"))
+        assert(result.version == 7L)
+        assert(result.isVersionlessCDF == capability.contains("true"))
+        assert(result.respondedFormat == responseFormat)
+        if (responseFormat == RESPONSE_FORMAT_DELTA) {
+          assert(result.lines == lines)
+          assert(result.metadata == null)
+        } else {
+          assert(result.metadata == metadata)
+          assert(result.protocol == Protocol(1))
+        }
+        assert(requests == 1)
+      } finally {
+        client.close()
+      }
+    }
+  }
+
+  test("versionless metadata still requires a snapshot version header") {
+    for (responseFormat <- Seq(RESPONSE_FORMAT_PARQUET, RESPONSE_FORMAT_DELTA)) {
+      val client = new DeltaSharingRestClient(unitTestProfileProvider,
+        responseFormat = responseFormat) {
+        override private[client] def getResponse(
+            httpRequest: HttpRequestBase,
+            allowNoContent: Boolean,
+            fetchAsOneString: Boolean,
+            setIncludeEndStreamAction: Boolean,
+            requestFileIdHash: Option[String]
+        ): (Option[Long], Map[String, String], Seq[String], Option[String]) = {
+          (None, Map(RESPONSE_FORMAT -> responseFormat, VERSIONLESS_CDF -> "true"), Nil, None)
+        }
+      }
+      try {
+        val error = intercept[IllegalStateException] {
+          client.getMetadata(Table("view", "schema", "share"))
+        }
+        assert(error.getMessage.contains("Cannot find Delta-Table-Version in the header"))
+      } finally {
+        client.close()
+      }
+    }
+  }
+
   test("advertise versionless CDF capability on all batch requests") {
     val tableUrl = "http://localhost/shares/share/schemas/schema/tables/view"
     val requests = Seq(
