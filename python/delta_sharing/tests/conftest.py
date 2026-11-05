@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 import os
 from pathlib import Path
 import subprocess
 import threading
+import time
 from typing import Iterator, Optional
 
 import pytest
@@ -33,6 +35,60 @@ SKIP_MESSAGE = "The integration tests are disabled."
 @pytest.fixture
 def profile_path() -> str:
     return os.path.join(os.path.dirname(__file__), "test_profile.json")
+
+
+@pytest.fixture(scope="session")
+def view_server_endpoint(tmp_path_factory: TempPathFactory) -> Iterator[str]:
+    server_dir = tmp_path_factory.mktemp("view-sharing-server")
+    ready_file = server_dir / "ready"
+    stop_file = server_dir / "stop"
+    log_file = server_dir / "server.log"
+    repo_root = Path(__file__).resolve().parents[3]
+    with log_file.open("w") as server_log:
+        proc = subprocess.Popen(
+            [
+                "./build/sbt",
+                "-batch",
+                "server / Test / runMain io.delta.sharing.server.TestViewSharingServer "
+                f"{ready_file} {stop_file}",
+            ],
+            stdout=server_log,
+            stderr=subprocess.STDOUT,
+            cwd=repo_root,
+        )
+        try:
+            deadline = time.monotonic() + 180
+            while not ready_file.exists():
+                if proc.poll() is not None or time.monotonic() >= deadline:
+                    pytest.fail(f"View sharing server failed to start:\n{log_file.read_text()}")
+                time.sleep(0.1)
+            yield ready_file.read_text()
+        finally:
+            stop_file.touch()
+            try:
+                proc.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=10)
+
+
+@pytest.fixture
+def view_profile_path(tmp_path: Path, view_server_endpoint: str) -> str:
+    profile = tmp_path / "view.share"
+    profile.write_text(
+        json.dumps(
+            {
+                "shareCredentialsVersion": 1,
+                "endpoint": view_server_endpoint,
+                "bearerToken": "token",
+            }
+        )
+    )
+    return str(profile)
 
 
 @pytest.fixture

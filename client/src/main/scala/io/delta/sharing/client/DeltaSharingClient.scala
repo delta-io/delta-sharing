@@ -393,7 +393,8 @@ class DeltaSharingRestClient(
       return DeltaTableMetadata(
         response.version.get,
         lines = response.lines,
-        respondedFormat = response.respondedFormat
+        respondedFormat = response.respondedFormat,
+        isVersionlessCDF = getRespondedVersionlessCDF(response.capabilitiesMap)
       )
     }
 
@@ -404,7 +405,8 @@ class DeltaSharingRestClient(
       response.version.get,
       protocol,
       metadata,
-      respondedFormat = response.respondedFormat
+      respondedFormat = response.respondedFormat,
+      isVersionlessCDF = getRespondedVersionlessCDF(response.capabilitiesMap)
     )
   }
 
