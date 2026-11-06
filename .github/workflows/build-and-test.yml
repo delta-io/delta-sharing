@@ -104,6 +104,12 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.10", "3.11"]
+        # "locked" uses the pandas 2 version pinned in uv.lock.
+        pandas: ["locked"]
+        include:
+          # pandas 3 requires Python >= 3.11.
+          - python-version: "3.11"
+            pandas: "3"
     env:
       SPARK_LOCAL_IP: localhost
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/google_service_account_key.json
@@ -131,6 +137,11 @@ jobs:
         run: |
           cd python
           uv sync --frozen
+      - name: Install pandas ${{ matrix.pandas }}
+        if: matrix.pandas != 'locked'
+        run: |
+          cd python
+          uv pip install "pandas==${{ matrix.pandas }}.*"
       - name: Build Server
         run: ./build/sbt package
       - name: Run tests
@@ -139,6 +150,8 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AZURE_TEST_ACCOUNT_KEY: ${{ secrets.AZURE_TEST_ACCOUNT_KEY }}
           GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          # Otherwise `uv run` re-syncs to the locked pandas and undoes the override above.
+          UV_NO_SYNC: ${{ matrix.pandas != 'locked' }}
         run: |
           cd python
           uv run dev/lint-python
