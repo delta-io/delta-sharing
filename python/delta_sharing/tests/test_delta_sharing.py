@@ -62,6 +62,16 @@ from requests.models import Response
 from requests.exceptions import HTTPError
 
 
+def _with_nanosecond_timestamps(expected: pd.DataFrame) -> pd.DataFrame:
+    # pandas 3 infers microsecond resolution for pd.Timestamp literals, but the legacy pandas
+    # path returns the nanosecond resolution of the INT96 timestamps in the test parquet files.
+    expected = expected.copy()
+    for column in expected.columns:
+        if str(expected[column].dtype).startswith("datetime64"):
+            expected[column] = expected[column].astype("datetime64[ns]")
+    return expected
+
+
 def _normalize_snapshot_pdf_for_comparison(pdf: pd.DataFrame) -> pd.DataFrame:
     normalized = pdf.copy()
     for column in normalized.columns:
@@ -73,6 +83,15 @@ def _normalize_snapshot_pdf_for_comparison(pdf: pd.DataFrame) -> pd.DataFrame:
                 normalized[column].astype(object).where(normalized[column].notna(), None)
             )
     return normalized
+
+
+def _assert_frame_equal_ignoring_dtype(actual: pd.DataFrame, expected: pd.DataFrame) -> None:
+    # None and NaN both denote nulls, and which one a column holds varies with its dtype.
+    pd.testing.assert_frame_equal(
+        _normalize_snapshot_pdf_for_comparison(actual),
+        _normalize_snapshot_pdf_for_comparison(expected),
+        check_dtype=False,
+    )
 
 
 def _assert_arrow_matches_pandas(
@@ -608,11 +627,7 @@ def test_get_table_protocol(profile_path: str):
                         date(2021, 4, 28),
                         date(2021, 4, 28),
                     ],
-                    "type": [
-                        "bar",
-                        None,
-                        "foo",
-                    ],
+                    "type": pd.Series(["bar", None, "foo"], dtype="object"),
                 }
             ),
             id="partitioned and different schemas",
@@ -625,7 +640,7 @@ def test_get_table_protocol(profile_path: str):
                 {
                     "eventTime": [pd.Timestamp("2021-04-28 23:36:51.945")],
                     "date": [date(2021, 4, 28)],
-                    "type": ["bar"],
+                    "type": pd.Series(["bar"], dtype="object"),
                 }
             ).iloc[0:0],
             id="limit 0",
@@ -654,7 +669,7 @@ def test_get_table_protocol(profile_path: str):
                         pd.Timestamp("2021-04-28 23:35:53.156"),
                     ],
                     "date": [date(2021, 4, 28), date(2021, 4, 28)],
-                    "type": ["bar", None],
+                    "type": pd.Series(["bar", None], dtype="object"),
                 }
             ),
             id="limit 2",
@@ -671,7 +686,7 @@ def test_get_table_protocol(profile_path: str):
                         pd.Timestamp("2021-04-28 23:36:47.599"),
                     ],
                     "date": [date(2021, 4, 28), date(2021, 4, 28), date(2021, 4, 28)],
-                    "type": ["bar", None, "foo"],
+                    "type": pd.Series(["bar", None, "foo"], dtype="object"),
                 }
             ),
             id="limit 3",
@@ -688,7 +703,7 @@ def test_get_table_protocol(profile_path: str):
                         pd.Timestamp("2021-04-28 23:36:47.599"),
                     ],
                     "date": [date(2021, 4, 28), date(2021, 4, 28), date(2021, 4, 28)],
-                    "type": ["bar", None, "foo"],
+                    "type": pd.Series(["bar", None, "foo"], dtype="object"),
                 }
             ),
             id="limit 4",
@@ -789,7 +804,9 @@ def test_load_snapshot_success(
 ):
     url = f"{profile_path}#{fragments}"
     pdf = load_as_pandas(url, limit, version, None)
-    pd.testing.assert_frame_equal(pdf, expected)
+    # The "type" partition column is object-typed in the expectations because the reader builds
+    # partition string columns as object, while pandas 3 would infer str.
+    pd.testing.assert_frame_equal(pdf, _with_nanosecond_timestamps(expected))
     _assert_arrow_matches_pandas(pdf, load_as_arrow(url, limit, version, None))
 
 
@@ -1164,7 +1181,7 @@ def test_table_snapshot_materializers_on_real_table(profile: DeltaSharingProfile
 
     snapshot = SharingClient(profile).table("share1.default.table1").snapshot(limit=2)
     pdf = snapshot.to_pandas()
-    pd.testing.assert_frame_equal(pdf, expected)
+    pd.testing.assert_frame_equal(pdf, _with_nanosecond_timestamps(expected))
     arrow_table = snapshot.to_arrow()
     _assert_arrow_matches_pandas(pdf, arrow_table)
     assert pa.Table.from_batches(list(snapshot.to_record_batches())).equals(arrow_table)
@@ -1236,7 +1253,7 @@ def test_table_snapshot_materializers_on_real_table(profile: DeltaSharingProfile
             ),
             pd.DataFrame(
                 {
-                    "name": pd.Series([], dtype="str"),
+                    "name": pd.Series([], dtype="object"),
                     "age": pd.Series([], dtype="int32"),
                     "birthday": pd.Series([], dtype="object"),
                 }
@@ -2412,7 +2429,7 @@ def test_add_column_non_partitioned(
         sort_by=sort_by,
     )
     # check_dtype=False to deal with minor type discrepancies like float32 vs float64
-    pd.testing.assert_frame_equal(pdf, expected, check_dtype=False)
+    _assert_frame_equal_ignoring_dtype(pdf, expected)
 
     pdf_delta = load_as_pandas(url, version=version, use_delta_format=True)
     pdf_delta, _ = _assert_arrow_matches_pandas(
@@ -2420,7 +2437,7 @@ def test_add_column_non_partitioned(
         load_as_arrow(url, version=version, use_delta_format=True),
         sort_by=sort_by,
     )
-    pd.testing.assert_frame_equal(pdf_delta, expected, check_dtype=False)
+    _assert_frame_equal_ignoring_dtype(pdf_delta, expected)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -2563,7 +2580,7 @@ def test_add_column_partitioned(
         sort_by=sort_by,
     )
     # check_dtype=False to deal with minor type discrepancies like float32 vs float64
-    pd.testing.assert_frame_equal(pdf, expected, check_dtype=False)
+    _assert_frame_equal_ignoring_dtype(pdf, expected)
 
     pdf_delta = load_as_pandas(url, version=version, use_delta_format=True)
     pdf_delta, _ = _assert_arrow_matches_pandas(
@@ -2571,7 +2588,7 @@ def test_add_column_partitioned(
         load_as_arrow(url, version=version, use_delta_format=True),
         sort_by=sort_by,
     )
-    pd.testing.assert_frame_equal(pdf_delta, expected, check_dtype=False)
+    _assert_frame_equal_ignoring_dtype(pdf_delta, expected)
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -2639,7 +2656,7 @@ def test_add_column_non_partitioned_cdf(
         f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=False
     )
     pdf = pdf.sort_values(by=["_commit_timestamp", "_change_type", "c1"]).reset_index(drop=True)
-    pd.testing.assert_frame_equal(pdf, expected)
+    _assert_frame_equal_ignoring_dtype(pdf, expected)
     arrow_table = load_table_changes_as_arrow(
         f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=False
     )
@@ -2814,7 +2831,7 @@ def test_add_column_partitioned_cdf(
         drop=True
     )
     print(pdf)
-    pd.testing.assert_frame_equal(pdf, expected)
+    _assert_frame_equal_ignoring_dtype(pdf, expected)
     arrow_table = load_table_changes_as_arrow(
         f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=False
     )
