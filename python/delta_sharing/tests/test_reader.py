@@ -529,6 +529,9 @@ def test_snapshot_partitioned_different_schemas(tmp_path):
 
     expected_arrow_pdf = expected.copy()
     expected_arrow_pdf["a"] = expected_arrow_pdf["a"].astype("int64")
+    # Arrow's to_pandas picks pandas' default string dtype (str on pandas 3), unlike the reader's
+    # object-typed partition columns.
+    expected_arrow_pdf["b"] = pa.array(expected["b"].tolist(), pa.string()).to_pandas()
     _, arrow_table = _assert_snapshot_materializers(
         reader,
         expected,
@@ -707,6 +710,9 @@ def test_snapshot_empty(rest_client: DataSharingRestClient):
 
     reader = DeltaSharingReader(Table(name="table7", share="share1", schema="default"), rest_client)
     expected = reader.to_pandas().iloc[0:0]
+    # Empty tables are built with object-typed string columns, whereas non-empty reads use
+    # pandas' default string dtype (str on pandas 3).
+    expected["i"] = expected["i"].astype(object)
 
     reader = DeltaSharingReader(
         Table("table_name", "share_name", "schema_name"), RestClientMock()  # type: ignore
