@@ -754,6 +754,18 @@ class DeltaSharingReader:
             names.append(field_name)
             field_type = to_arrow_type(field["type"])
 
+            if (
+                for_cdf
+                and field_name == DeltaSharingReader._change_type_col_name()
+                and not isinstance(action, AddCdcFile)
+            ):
+                columns.append(
+                    pa.repeat(
+                        pa.scalar(action.get_change_type_col_value(), type=field_type), num_rows
+                    )
+                )
+                continue
+
             if lower_name in lower_to_index:
                 column = batch.column(lower_to_index[lower_name])
                 if column.type != field_type:
@@ -763,12 +775,7 @@ class DeltaSharingReader:
 
             if for_cdf:
                 if field_name == DeltaSharingReader._change_type_col_name():
-                    if isinstance(action, AddCdcFile):
-                        raise ValueError("Missing _change_type column in change data feed file")
-                    columns.append(
-                        pa.array([action.get_change_type_col_value()] * num_rows, type=field_type)
-                    )
-                    continue
+                    raise ValueError("Missing _change_type column in change data feed file")
                 if field_name == DeltaSharingReader._commit_version_col_name():
                     columns.append(
                         pa.array([action.version] * num_rows, type=field_type)

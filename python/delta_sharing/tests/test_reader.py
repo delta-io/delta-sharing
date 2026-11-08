@@ -751,7 +751,8 @@ def test_snapshot_empty(rest_client: DataSharingRestClient):
     assert arrow_table.schema.names == list(expected.columns)
 
 
-def test_table_changes_non_partitioned(tmp_path):
+@pytest.mark.parametrize("has_change_type_column", [False, True])
+def test_table_changes_non_partitioned(tmp_path, has_change_type_column):
     # Create basic data frame.
     pdf1 = pd.DataFrame({"a": [1, 2, 3], "b": ["a", "b", "c"]})
     pdf2 = pd.DataFrame({"a": [4, 5, 6], "b": ["d", "e", "f"]})
@@ -761,6 +762,10 @@ def test_table_changes_non_partitioned(tmp_path):
     # Add change type (which is present in the parquet files).
     pdf3[DeltaSharingReader._change_type_col_name()] = "update_preimage"
     pdf4[DeltaSharingReader._change_type_col_name()] = "update_postimage"
+
+    if has_change_type_column:
+        pdf1[DeltaSharingReader._change_type_col_name()] = [None, "delete", "update_preimage"]
+        pdf2[DeltaSharingReader._change_type_col_name()] = [None, "insert", "update_postimage"]
 
     # Save.
     pdf1.to_parquet(tmp_path / "pdf1.parquet")
