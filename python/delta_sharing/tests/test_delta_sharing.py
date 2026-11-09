@@ -32,6 +32,7 @@ from delta_sharing.delta_sharing import (
     load_as_arrow,
     load_as_pandas,
     load_as_spark,
+    load_table_changes_as_arrow,
     load_table_changes_as_spark,
     load_table_changes_as_pandas,
     _parse_url,
@@ -312,7 +313,7 @@ def test_delta_sharing_table_snapshot_materializers(tmp_path):
     }
 
 
-def test_delta_sharing_table_changes_to_pandas(tmp_path):
+def test_delta_sharing_table_changes_materializers(tmp_path):
     source = pd.DataFrame({"value": [1, 2], "label": ["a", "b"]})
     parquet_path = tmp_path / "table_changes.parquet"
     source.to_parquet(parquet_path)
@@ -354,19 +355,24 @@ def test_delta_sharing_table_changes_to_pandas(tmp_path):
         Table(name="table", share="share", schema="schema"),
         RestClientMock(),
     )
-    result = table.changes(
+    changes = table.changes(
         starting_version=1,
         ending_version=2,
         starting_timestamp="2024-01-01T00:00:00Z",
         ending_timestamp="2024-01-02T00:00:00Z",
         use_delta_format=False,
-    ).to_pandas(convert_in_batches=True)
+    )
+    result = changes.to_pandas(convert_in_batches=True)
 
     expected = source.copy()
     expected["_change_type"] = "insert"
     expected["_commit_version"] = 2
     expected["_commit_timestamp"] = 12345
     pd.testing.assert_frame_equal(result, expected)
+    arrow_table = changes.to_arrow()
+    pd.testing.assert_frame_equal(arrow_table.to_pandas(), expected)
+    assert pa.Table.from_batches(list(changes.to_record_batches())).equals(arrow_table)
+    assert changes.to_record_batch_reader().read_all().equals(arrow_table)
     assert captured == {
         "table": Table(name="table", share="share", schema="schema"),
         "cdfOptions": CdfOptions(
@@ -1452,6 +1458,7 @@ def test_load_snapshot_exception_client_delta_kernel_disabled_with_delta_table(
 )
 def test_load_table_changes(
     profile_path: str,
+    profile: DeltaSharingProfile,
     fragments: str,
     starting_version: Optional[int],
     ending_version: Optional[int],
@@ -1469,8 +1476,28 @@ def test_load_table_changes(
             ending_timestamp,
         )
         pd.testing.assert_frame_equal(pdf, expected)
+        arrow_table = load_table_changes_as_arrow(
+            f"{profile_path}#{fragments}",
+            starting_version,
+            ending_version,
+            starting_timestamp,
+            ending_timestamp,
+        )
+        _assert_arrow_matches_pandas(pdf, arrow_table)
+        table_arrow = (
+            SharingClient(profile)
+            .table(fragments)
+            .changes(
+                starting_version=starting_version,
+                ending_version=ending_version,
+                starting_timestamp=starting_timestamp,
+                ending_timestamp=ending_timestamp,
+            )
+            .to_arrow()
+        )
+        assert table_arrow.equals(arrow_table)
     else:
-        try:
+        with pytest.raises(HTTPError, match=error):
             load_table_changes_as_pandas(
                 f"{profile_path}#{fragments}",
                 starting_version,
@@ -1478,10 +1505,14 @@ def test_load_table_changes(
                 starting_timestamp,
                 ending_timestamp,
             )
-            assert False
-        except Exception as e:
-            assert isinstance(e, HTTPError)
-            assert error in str(e)
+        with pytest.raises(HTTPError, match=error):
+            load_table_changes_as_arrow(
+                f"{profile_path}#{fragments}",
+                starting_version,
+                ending_version,
+                starting_timestamp,
+                ending_timestamp,
+            )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -1598,22 +1629,37 @@ def test_load_table_changes_kernel(
             ending_timestamp,
             use_delta_format=True,
         )
+        arrow_table = load_table_changes_as_arrow(
+            f"{profile_path}#{fragments}",
+            starting_version,
+            ending_version,
+            starting_timestamp,
+            ending_timestamp,
+            use_delta_format=True,
+        )
+        _assert_arrow_matches_pandas(pdf, arrow_table)
         if len(pdf) > 0:
             pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
         pd.testing.assert_frame_equal(pdf, expected)
     else:
-        try:
+        with pytest.raises(HTTPError, match=error):
             load_table_changes_as_pandas(
                 f"{profile_path}#{fragments}",
                 starting_version,
                 ending_version,
                 starting_timestamp,
                 ending_timestamp,
+                use_delta_format=True,
             )
-            assert False
-        except Exception as e:
-            assert isinstance(e, HTTPError)
-            assert error in str(e)
+        with pytest.raises(HTTPError, match=error):
+            load_table_changes_as_arrow(
+                f"{profile_path}#{fragments}",
+                starting_version,
+                ending_version,
+                starting_timestamp,
+                ending_timestamp,
+                use_delta_format=True,
+            )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -1731,22 +1777,37 @@ def test_load_table_changes_partition_kernel(
             ending_timestamp,
             use_delta_format=True,
         )
+        arrow_table = load_table_changes_as_arrow(
+            f"{profile_path}#{fragments}",
+            starting_version,
+            ending_version,
+            starting_timestamp,
+            ending_timestamp,
+            use_delta_format=True,
+        )
+        _assert_arrow_matches_pandas(pdf, arrow_table)
         if len(pdf) > 0:
             pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
         pd.testing.assert_frame_equal(pdf, expected)
     else:
-        try:
+        with pytest.raises(HTTPError, match=error):
             load_table_changes_as_pandas(
                 f"{profile_path}#{fragments}",
                 starting_version,
                 ending_version,
                 starting_timestamp,
                 ending_timestamp,
+                use_delta_format=True,
             )
-            assert False
-        except Exception as e:
-            assert isinstance(e, HTTPError)
-            assert error in str(e)
+        with pytest.raises(HTTPError, match=error):
+            load_table_changes_as_arrow(
+                f"{profile_path}#{fragments}",
+                starting_version,
+                ending_version,
+                starting_timestamp,
+                ending_timestamp,
+                use_delta_format=True,
+            )
 
 
 # TODO: Enable once timestampntz + CDF support is enabled for both
@@ -1798,6 +1859,10 @@ def test_load_table_changes_as_pandas_timestampntz(
     pdf = load_table_changes_as_pandas(
         f"{profile_path}#{fragments}", starting_version=0, use_delta_format=True
     )
+    arrow_table = load_table_changes_as_arrow(
+        f"{profile_path}#{fragments}", starting_version=0, use_delta_format=True
+    )
+    _assert_arrow_matches_pandas(pdf, arrow_table)
     expected["time"] = expected["time"].values.astype("datetime64[us]")
     expected["id"] = expected["id"].astype("int32")
     pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
@@ -2221,6 +2286,10 @@ def test_load_table_changes_as_pandas_delta_batch_convert(
         .reset_index(drop=True)
     )
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = load_table_changes_as_arrow(
+        f"{profile_path}#{fragments}", starting_version=0, use_delta_format=True
+    )
+    _assert_arrow_matches_pandas(pdf, arrow_table, sort_by=["_commit_timestamp", "id"])
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -2571,6 +2640,12 @@ def test_add_column_non_partitioned_cdf(
     )
     pdf = pdf.sort_values(by=["_commit_timestamp", "_change_type", "c1"]).reset_index(drop=True)
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = load_table_changes_as_arrow(
+        f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=False
+    )
+    _assert_arrow_matches_pandas(
+        pdf, arrow_table, sort_by=["_commit_timestamp", "_change_type", "c1"]
+    )
     # TODO: enable once delta-kernel-rs supports schema changes during version range
     # pdf_delta = load_table_changes_as_pandas(
     #     f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=True
@@ -2740,6 +2815,12 @@ def test_add_column_partitioned_cdf(
     )
     print(pdf)
     pd.testing.assert_frame_equal(pdf, expected)
+    arrow_table = load_table_changes_as_arrow(
+        f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=False
+    )
+    _assert_arrow_matches_pandas(
+        pdf, arrow_table, sort_by=["_commit_timestamp", "_change_type", "p1", "p2", "c1"]
+    )
     # TODO: enable once delta-kernel-rs supports schema changes during version range
     # pdf_delta = load_table_changes_as_pandas(
     #     f"{profile_path}#{fragments}", starting_version, ending_version, use_delta_format=True
