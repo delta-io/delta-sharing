@@ -27,6 +27,7 @@ from typing import Optional, Sequence, Tuple
 import pandas as pd
 import numpy as np
 import pyarrow as pa
+from requests.models import Response
 
 from delta_sharing.protocol import (
     AddFile,
@@ -42,6 +43,7 @@ from delta_sharing.rest_client import (
     ListFilesInTableResponse,
     ListTableChangesResponse,
     DataSharingRestClient,
+    DeltaSharingServerError,
 )
 from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
@@ -1484,3 +1486,64 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path, convert_in_batc
     expected = pd.concat([pdf1, pdf2, pdf3, pdf4]).reset_index(drop=True)
 
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+@pytest.mark.parametrize("use_delta_format", [False, True])
+@pytest.mark.parametrize("query_type", ["snapshot", "cdf"])
+def test_end_stream_action_error_surfaces_to_user(
+    rest_client, monkeypatch, use_delta_format, query_type
+):
+    if use_delta_format:
+        protocol = {"deltaProtocol": {"minReaderVersion": 1, "minWriterVersion": 2}}
+        metadata = {
+            "deltaMetadata": {
+                "id": "table-id",
+                "format": {"provider": "parquet", "options": {}},
+                "schemaString": _SCHEMA_A,
+                "partitionColumns": [],
+                "configuration": {},
+            }
+        }
+    else:
+        protocol = {"minReaderVersion": 1}
+        metadata = {
+            "id": "table-id",
+            "format": {"provider": "parquet", "options": {}},
+            "schemaString": _SCHEMA_A,
+            "partitionColumns": [],
+        }
+    error = {
+        "endStreamAction": {
+            "errorMessage": "UNSUPPORTED_TABLE_FEATURES: deletionVectors",
+            "httpStatusErrorCode": 400,
+        }
+    }
+    lines = [json.dumps(action) for action in [{"protocol": protocol}, {"metaData": metadata}]]
+    lines.append(json.dumps(error))
+
+    def send(request, **_kwargs):
+        response = Response()
+        response._content_consumed = True
+        response.encoding = "utf-8"
+        response.status_code = 200
+        response_format = "delta" if use_delta_format else "parquet"
+        response.headers[DataSharingRestClient.CAPABILITIES_HEADER] = (
+            f"responseformat={response_format};includeendstreamaction=true"
+        )
+        response.headers[DataSharingRestClient.DELTA_TABLE_VERSION_HEADER] = "3"
+        response._content = "\n".join(lines).encode()
+        return response
+
+    monkeypatch.setattr(rest_client._session, "send", send)
+    reader = DeltaSharingReader(_TEST_TABLE, rest_client, use_delta_format=use_delta_format)
+    session_capabilities = rest_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+
+    with pytest.raises(DeltaSharingServerError, match="UNSUPPORTED_TABLE_FEATURES"):
+        if query_type == "snapshot":
+            reader.to_pandas()
+        else:
+            reader.table_changes_to_pandas(CdfOptions(starting_version=1))
+    assert (
+        rest_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        == session_capabilities
+    )

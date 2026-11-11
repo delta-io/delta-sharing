@@ -36,6 +36,8 @@ from delta_sharing.protocol import (
 )
 from delta_sharing.rest_client import (
     DataSharingRestClient,
+    DeltaSharingServerError,
+    MissingEndStreamActionError,
     retry_with_exponential_backoff,
 )
 from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
@@ -442,6 +444,217 @@ def test_reject_invalid_cdf_actions(rest_client, response_headers, action, error
             Table(name="object", share="share", schema="schema"),
             CdfOptions(starting_timestamp="2026-01-01T00:00:00Z"),
         )
+
+
+_END_STREAM_ACTION_ERROR = (
+    "UNSUPPORTED_TABLE_FEATURES: Table features deletionVectors are found in table version: 3."
+)
+
+
+def _end_stream_action_line(**fields):
+    return json.dumps({"endStreamAction": fields})
+
+
+def _end_stream_action_send(requests, response_format, responses):
+    """
+    Fakes the HTTP layer. `responses` is a list of (include_end_stream_action, lines) tuples, one
+    per expected query or changes request; the last one is reused for any further requests.
+    """
+
+    def send(request, **_kwargs):
+        requests.append(request)
+        response = Response()
+        response._content_consumed = True
+        response.encoding = "utf-8"
+        response.status_code = 200
+        path = urlparse(request.url).path
+        if path.endswith("/query") or path.endswith("/changes") or path.endswith("/metadata"):
+            index = min(len(requests), len(responses)) - 1
+            include_end_stream_action, lines = responses[index]
+            capabilities = f"responseformat={response_format}"
+            if include_end_stream_action:
+                capabilities += ";includeendstreamaction=true"
+            response.headers[DataSharingRestClient.CAPABILITIES_HEADER] = capabilities
+            response.headers[DataSharingRestClient.DELTA_TABLE_VERSION_HEADER] = "99"
+            response._content = "\n".join(lines).encode()
+        else:
+            response._content = b'{"items":[]}'
+        return response
+
+    return send
+
+
+def _query(rest_client, query_type):
+    table = Table(name="table", share="share", schema="schema")
+    if query_type == "snapshot":
+        response = rest_client.list_files_in_table(table)
+        return response.lines if response.lines else response.add_files
+    response = rest_client.list_table_changes(table, CdfOptions(starting_version=1))
+    return response.lines if response.lines is not None else response.actions
+
+
+@pytest.mark.parametrize("use_delta_format", [False, True])
+def test_end_stream_action_requested_only_for_query_and_changes(
+    rest_client, monkeypatch, use_delta_format
+):
+    if use_delta_format:
+        rest_client.set_delta_format_header()
+    session_capabilities = rest_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+    requests = []
+    response_format = "delta" if use_delta_format else "parquet"
+    lines = _view_cdf_lines(response_format, wrapper_metadata=True)
+    monkeypatch.setattr(
+        rest_client._session,
+        "send",
+        _end_stream_action_send(
+            requests, response_format, [(True, lines + [_end_stream_action_line()])]
+        ),
+    )
+
+    rest_client.list_shares()
+    _query(rest_client, "snapshot")
+    _query(rest_client, "cdf")
+
+    capabilities = [r.headers[DataSharingRestClient.CAPABILITIES_HEADER] for r in requests]
+    assert capabilities[0] == session_capabilities
+    for query_capabilities in capabilities[1:]:
+        assert query_capabilities.split(";") == session_capabilities.split(";") + [
+            DataSharingRestClient.INCLUDE_END_STREAM_ACTION
+        ]
+    assert rest_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER] == (
+        session_capabilities
+    )
+
+
+@pytest.mark.parametrize("query_type", ["snapshot", "cdf"])
+@pytest.mark.parametrize("response_format", ["parquet", "delta"])
+def test_end_stream_action_is_removed_on_success(
+    rest_client, monkeypatch, query_type, response_format
+):
+    lines = _view_cdf_lines(response_format, wrapper_metadata=True)
+    end_stream_action = _end_stream_action_line(minUrlExpirationTimestamp=1652140800000)
+
+    monkeypatch.setattr(
+        rest_client._session, "send", _end_stream_action_send([], response_format, [(False, lines)])
+    )
+    expected = _query(rest_client, query_type)
+
+    monkeypatch.setattr(
+        rest_client._session,
+        "send",
+        _end_stream_action_send([], response_format, [(True, lines + [end_stream_action])]),
+    )
+    assert _query(rest_client, query_type) == expected
+    if response_format == "delta":
+        assert expected == lines
+
+
+@pytest.mark.parametrize("query_type", ["snapshot", "cdf"])
+@pytest.mark.parametrize("response_format", ["parquet", "delta"])
+@pytest.mark.parametrize("status_code", [400, None])
+def test_end_stream_action_error_is_raised(
+    rest_client, monkeypatch, query_type, response_format, status_code
+):
+    requests = []
+    lines = _view_cdf_lines(response_format, wrapper_metadata=True)
+    fields = {"errorMessage": _END_STREAM_ACTION_ERROR}
+    if status_code is not None:
+        fields["httpStatusErrorCode"] = status_code
+    monkeypatch.setattr(
+        rest_client._session,
+        "send",
+        _end_stream_action_send(
+            requests, response_format, [(True, lines + [_end_stream_action_line(**fields)])]
+        ),
+    )
+
+    with pytest.raises(DeltaSharingServerError, match="UNSUPPORTED_TABLE_FEATURES") as e:
+        _query(rest_client, query_type)
+    assert e.value.status_code == status_code
+    assert str(e.value) == (
+        f"Server Exception[{status_code if status_code is not None else ''}]: "
+        + _END_STREAM_ACTION_ERROR
+    )
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize("query_type", ["snapshot", "cdf"])
+@pytest.mark.parametrize("status_code", [429, 503])
+def test_end_stream_action_retryable_error_is_retried(
+    rest_client, monkeypatch, query_type, status_code
+):
+    requests = []
+    sleeps = []
+    rest_client._sleeper = sleeps.append
+    lines = _view_cdf_lines("parquet", wrapper_metadata=True)
+    error = _end_stream_action_line(errorMessage="Server busy", httpStatusErrorCode=status_code)
+    monkeypatch.setattr(
+        rest_client._session,
+        "send",
+        _end_stream_action_send(
+            requests,
+            "parquet",
+            [(True, lines[:2] + [error]), (True, lines + [_end_stream_action_line()])],
+        ),
+    )
+
+    assert len(_query(rest_client, query_type)) == 1
+    assert len(requests) == 2
+    assert sleeps == [100]
+
+
+@pytest.mark.parametrize("query_type", ["snapshot", "cdf"])
+@pytest.mark.parametrize("truncate_all", [False, True])
+def test_missing_end_stream_action_is_raised_and_retried(
+    rest_client, monkeypatch, query_type, truncate_all
+):
+    requests = []
+    sleeps = []
+    rest_client._sleeper = sleeps.append
+    rest_client._num_retries = 2
+    lines = [] if truncate_all else _view_cdf_lines("parquet", wrapper_metadata=True)
+    monkeypatch.setattr(
+        rest_client._session, "send", _end_stream_action_send(requests, "parquet", [(True, lines)])
+    )
+
+    with pytest.raises(MissingEndStreamActionError, match="is not an EndStreamAction"):
+        _query(rest_client, query_type)
+    assert len(requests) == 3
+    assert sleeps == [100, 200]
+
+
+@pytest.mark.parametrize("query_type", ["snapshot", "cdf"])
+@pytest.mark.parametrize("response_format", ["parquet", "delta"])
+def test_invalid_json_error_line_is_readable_without_end_stream_action(
+    rest_client, monkeypatch, query_type, response_format
+):
+    requests = []
+    lines = _view_cdf_lines(response_format, wrapper_metadata=True)
+    invalid_json = "Failed_to_stream_response_due_to_error_UNSUPPORTED_TABLE_FEATURES_{"
+    monkeypatch.setattr(
+        rest_client._session,
+        "send",
+        _end_stream_action_send(requests, response_format, [(False, lines[:2] + [invalid_json])]),
+    )
+
+    with pytest.raises(DeltaSharingServerError, match="UNSUPPORTED_TABLE_FEATURES") as e:
+        _query(rest_client, query_type)
+    assert e.value.status_code is None
+    assert len(requests) == 1
+
+
+def test_query_table_metadata_ignores_end_stream_action(rest_client, monkeypatch):
+    requests = []
+    lines = _view_cdf_lines("parquet")
+    monkeypatch.setattr(
+        rest_client._session, "send", _end_stream_action_send(requests, "parquet", [(False, lines)])
+    )
+
+    response = rest_client.query_table_metadata(Table(name="table", share="share", schema="schema"))
+    assert response.metadata.id == "view-id"
+    assert DataSharingRestClient.INCLUDE_END_STREAM_ACTION not in (
+        requests[0].headers[DataSharingRestClient.CAPABILITIES_HEADER]
+    )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
