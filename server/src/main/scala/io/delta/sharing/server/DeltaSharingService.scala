@@ -797,6 +797,8 @@ object DeltaSharingService {
   val DELTA_SHARING_READER_FEATURES = "readerfeatures"
   val DELTA_SHARING_CAPABILITIES_DELIMITER = ";"
 
+  private val logger = LoggerFactory.getLogger(classOf[DeltaSharingService])
+
   private val parser = {
     val parser = ArgumentParsers
       .newFor("Delta Sharing Server")
@@ -935,6 +937,11 @@ object DeltaSharingService {
   }
 
   def main(args: Array[String]): Unit = {
+    // @deprecated only warns at compile time; log so zip / Docker / script users see it too.
+    logger.warn(
+      "The Delta Sharing reference server is deprecated since 1.5.0. " +
+        "Please use OpenSharing Server (io.opensharing:opensharing-server)."
+    )
     val ns = parser.parseArgsOrFail(args)
     val serverConfigPath = ns.getString("config")
     val serverConf = ServerConfig.load(serverConfigPath)
