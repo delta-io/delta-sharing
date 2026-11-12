@@ -156,9 +156,10 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   name := "delta-sharing-server",
   scalaVersion := scala212,
   commonSettings,
-  java8Settings,
+  java17Settings,
   scalaStyleSettings,
-  releaseSettings,
+  publish / skip := true,
+  publishArtifact := false,
   dockerUsername := Some("deltaio"),
   dockerBuildxPlatforms := Seq("linux/arm64", "linux/amd64"),
   scriptClasspath ++= Seq("../conf"),
@@ -263,7 +264,8 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
 
     "org.scalatest" %% "scalatest" % "3.0.5" % "test",
     "org.bouncycastle" % "bcprov-jdk15on" % "1.70" % "test",
-    "org.bouncycastle" % "bcpkix-jdk15on" % "1.70" % "test"
+    "org.bouncycastle" % "bcpkix-jdk15on" % "1.70" % "test",
+    "io.opensharing" % "opensharing-server" % "0.1.0" % "test"
   ),
   Compile / PB.targets := Seq(
     scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
