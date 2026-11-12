@@ -424,7 +424,7 @@ server (based on delta-sharing protocol) implemented  in python for both Delta L
 
 ## OpenSharing Server (Recommended)
 
-[OpenSharing Server](https://github.com/OpenSharing-IO/OpenSharing) is the open-source reference server implementing the OpenSharing and Delta Sharing protocols under the Linux Foundation AI & Data. It is fully backward-compatible with Delta Sharing clients and supports Delta tables on S3, Azure Blob/ADLS, Google Cloud Storage, and Cloudflare R2 with temporary credential vending and pre-signed URLs.
+[OpenSharing Server](https://github.com/OpenSharing-IO/OpenSharing) is a Linux Foundation AI & Data project implementing the OpenSharing and Delta Sharing protocols. It is compatible with Delta Sharing clients and supports Delta tables on S3, ADLS (abfs/abfss), Google Cloud Storage, and Cloudflare R2 with temporary credential vending and pre-signed URLs.
 
 Artifacts published to Maven Central (requires Java 17+):
 
@@ -444,11 +444,11 @@ Artifacts published to Maven Central (requires Java 17+):
 </dependency>
 ```
 
-For setup guides, catalog connectors, and configuration options, see the [OpenSharing Repository](https://github.com/OpenSharing-IO/OpenSharing) and the [OpenSharing Server 0.1.0 Release](https://github.com/OpenSharing-IO/OpenSharing/releases/tag/server-v0.1.0).
+For source code, release notes, and protocol specifications, see the [OpenSharing Repository](https://github.com/OpenSharing-IO/OpenSharing) and the [OpenSharing Server 0.1.0 Release Notes](https://github.com/OpenSharing-IO/OpenSharing/releases/tag/server-v0.1.0).
 
 ---
 
-### Legacy Reference Server
+## Legacy Reference Server
 
 The instructions below are retained for legacy reference only.
 
@@ -458,29 +458,29 @@ Some vendors offer managed services for Delta Sharing too (for example, [Databri
 
 Here are the steps to setup the reference server to share your own data.
 
-## Get the pre-built package
+### Get the pre-built package
 
-Download the pre-built package `delta-sharing-server-x.y.z.zip` from [GitHub Releases](https://github.com/delta-io/delta-sharing/releases).
+Download the pre-built package `delta-sharing-server-x.y.z.zip` from [GitHub Releases](https://github.com/delta-io/delta-sharing/releases) (only available in releases up to 1.5.x).
 
-## Server configuration and adding Shared Data
+### Server configuration and adding Shared Data
 
 - Unpack the pre-built package and copy the server config template file `conf/delta-sharing-server.yaml.template` to create your own server yaml file, such as `conf/delta-sharing-server.yaml`.
 - Make changes to your yaml file. You may also need to update some server configs for special requirements.
 - To add Shared Data, add reference to Delta Lake tables you would like to share from this server in this config file.
 
-## Config the server to access tables on cloud storage
+### Config the server to access tables on cloud storage
 
 We support sharing Delta Lake tables on S3, Azure Blob Storage and Azure Data Lake Storage Gen2.
 
-### S3
+#### S3
 
 The server is using `hadoop-aws` to access S3. Table paths in the server config file should use `s3a://` paths rather than `s3://` paths. There are multiple ways to config S3 authentication.
 
-#### EC2 IAM Metadata Authentication (Recommended)
+##### EC2 IAM Metadata Authentication (Recommended)
 
 Applications running in EC2 may associate an IAM role with the VM and query the [EC2 Instance Metadata Service](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html) for credentials to access S3.
 
-#### Authenticating via the AWS Environment Variables
+##### Authenticating via the AWS Environment Variables
 
 We support configuration via [the standard AWS environment variables](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html#cli-environment). The core environment variables are for the access key and associated secret:
 ```
@@ -488,11 +488,11 @@ export AWS_ACCESS_KEY_ID=my.aws.key
 export AWS_SECRET_ACCESS_KEY=my.secret.key
 ```
 
-#### Other S3 authentication methods
+##### Other S3 authentication methods
 
 You can find other approaches in [hadoop-aws doc](https://hadoop.apache.org/docs/r2.10.1/hadoop-aws/tools/hadoop-aws/index.html#S3A_Authentication_methods).
 
-### Azure Blob Storage
+#### Azure Blob Storage
 
 Directory-based table credentials require hierarchical namespace enabled (ADLS Gen2), including for tables using `wasb` or `wasbs` URIs.
 
@@ -510,7 +510,7 @@ The server is using `hadoop-azure` to read Azure Blob Storage. Using Azure Blob 
 ```
 `YOUR-ACCOUNT-NAME` is your Azure storage account and `YOUR-ACCOUNT-KEY` is your account key.
 
-### Azure Data Lake Storage Gen2
+#### Azure Data Lake Storage Gen2
 
 The server is using `hadoop-azure` to read Azure Data Lake Storage Gen2. We support [the Shared Key authentication](https://hadoop.apache.org/docs/stable/hadoop-azure/abfs.html#Default:_Shared_Key). You can create a Hadoop configuration file named `core-site.xml` and add it to the server's `conf` directory. Then add the following content to the xml file:
 
@@ -535,7 +535,7 @@ The server is using `hadoop-azure` to read Azure Data Lake Storage Gen2. We supp
 ```
 `YOUR-ACCOUNT-NAME` is your Azure storage account and `YOUR-ACCOUNT-KEY` is your account key.
 
-### Google Cloud Storage
+#### Google Cloud Storage
 
 We support using [Service Account](https://cloud.google.com/iam/docs/service-accounts) to read Google Cloud Storage. You can find more details in [GCP Authentication Doc](https://cloud.google.com/docs/authentication/getting-started).
 
@@ -547,7 +547,7 @@ export GOOGLE_APPLICATION_CREDENTIALS="KEY_PATH"
 
 Replace `KEY_PATH` with path of the JSON file that contains your service account key.
 
-### Cloudflare R2
+#### Cloudflare R2
 We use an R2 implementation of the [S3 API](https://developers.cloudflare.com/r2/api/s3/api/) and `hadoop-aws` to read Cloudflare R2. Table paths in the server config file should use the `s3a://` scheme. You must [generate an API token](https://developers.cloudflare.com/r2/api/s3/tokens/) for usage with existing S3-compatible SDKs. These credentials can be specified in substitute of the S3 credentials in a Hadoop configuration file named `core-site.xml` within the server's `conf` directory. For R2 to work, you also need to directly specify the S3 endpoint and reduce `fs.s3a.paging.maximum` from Hadoop's default of 5000 to 1000 since R2 only supports `MaxKeys` <= 1000.
 ```xml
 <?xml version="1.0"?>
@@ -575,7 +575,7 @@ Replace `YOUR-ACCESS-KEY` with your generated API token's R2 access key ID, `YOU
 
 **Note**: S3 and R2 credentials cannot be configured simultaneously.
 
-## Authorization
+### Authorization
 
 The server supports a basic authorization with pre-configed bearer token. You can add the following config to your server yaml file:
 
@@ -590,7 +590,7 @@ If you don't config the bearer token in the server yaml file, all requests will 
 
 To be more secure, you recommend you to put the server behind a secure proxy such as [NGINX](https://www.nginx.com/) to set up [JWT Authentication](https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-jwt-authentication/).
 
-## Start the server
+### Start the server
 
 Run the following shell command:
 
@@ -600,9 +600,9 @@ bin/delta-sharing-server -- --config <the-server-config-yaml-file>
 
 `<the-server-config-yaml-file>` should be the path of the yaml file you created in the previous step. You can find options to config JVM in [sbt-native-packager](https://www.scala-sbt.org/sbt-native-packager/archetypes/java_app/index.html#start-script-options).
 
-## Use the pre-built Docker image
+### Use the pre-built Docker image (releases up to 1.5.x)
 
-You can use the pre-built docker image from https://hub.docker.com/r/deltaio/delta-sharing-server by running the following command
+You can use the pre-built docker image from https://hub.docker.com/r/deltaio/delta-sharing-server (only available in releases up to 1.5.x) by running the following command
 
 ```
 docker run -p <host-port>:<container-port> \
@@ -612,7 +612,7 @@ docker run -p <host-port>:<container-port> \
 
 Note that `<container-port>` should be the same as the port defined inside the config file.
 
-## API Compatibility
+### API Compatibility
 
 The REST APIs provided by Delta Sharing Server are stable public APIs. They are defined by [Delta Sharing Protocol](PROTOCOL.md) and we will follow the entire protocol strictly.
 
@@ -685,7 +685,7 @@ To generate the pre-built Delta Sharing Server package (deprecated), run
 build/sbt server/universal:packageBin
 ```
 
-It will generate `server/target/universal/delta-sharing-server-x.y.z.zip`. (Note: The in-repo reference server is deprecated and no longer published for releases; use OpenSharing Server instead.)
+It will generate `server/target/universal/delta-sharing-server-x.y.z.zip`. (Note: The in-repo reference server is deprecated and no longer published as part of releases; use OpenSharing Server instead.)
 
 To build the Docker image for Delta Sharing Server (deprecated), run
 
