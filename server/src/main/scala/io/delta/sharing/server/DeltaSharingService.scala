@@ -189,7 +189,7 @@ class DeltaSharingServiceExceptionHandler extends ExceptionHandlerFunction {
 @deprecated(
   "The Delta Sharing reference server is deprecated. Please use OpenSharing Server " +
     "(io.opensharing:opensharing-server).",
-  "1.4.0"
+  "1.5.0"
 )
 @ExceptionHandler(classOf[DeltaSharingServiceExceptionHandler])
 class DeltaSharingService(serverConfig: ServerConfig) {
@@ -783,7 +783,7 @@ class DeltaSharingService(serverConfig: ServerConfig) {
 @deprecated(
   "The Delta Sharing reference server is deprecated. Please use OpenSharing Server " +
     "(io.opensharing:opensharing-server).",
-  "1.4.0"
+  "1.5.0"
 )
 object DeltaSharingService {
   val DELTA_TABLE_VERSION_HEADER = "Delta-Table-Version"
