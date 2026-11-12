@@ -21,7 +21,7 @@ This repo includes the following components:
 - Delta Sharing [protocol specification](PROTOCOL.md).
 - Python Connector: A Python library that implements the Delta Sharing Protocol to read shared tables as [pandas](https://pandas.pydata.org/) DataFrame or [Apache Spark](http://spark.apache.org/) DataFrames.
 - [Apache Spark](http://spark.apache.org/) Connector: An Apache Spark connector that implements the Delta Sharing Protocol to read shared tables from a Delta Sharing Server. The tables can then be accessed in SQL, Python, Java, Scala, or R.
-- Delta Sharing Server: A reference implementation server for the Delta Sharing Protocol for development purposes. Users can deploy this server to share existing tables in Delta Lake and Apache Parquet format on modern cloud storage systems.
+- Delta Sharing Server (**Deprecated**): A legacy reference implementation server for the Delta Sharing Protocol. New deployments should use [OpenSharing Server](https://github.com/OpenSharing-IO/OpenSharing) instead.
 
 # Python Connector
 
@@ -420,6 +420,38 @@ server (based on delta-sharing protocol) implemented  in python for both Delta L
 
 # Delta Sharing Reference Server
 
+> **Deprecation Notice:** The Delta Sharing reference server in this repository is **deprecated** and is no longer being released. Users and providers should use [OpenSharing Server](https://github.com/OpenSharing-IO/OpenSharing) instead.
+
+## OpenSharing Server (Recommended)
+
+[OpenSharing Server](https://github.com/OpenSharing-IO/OpenSharing) is the open-source reference server implementing the OpenSharing and Delta Sharing protocols under the Linux Foundation AI & Data. It is fully backward-compatible with Delta Sharing clients and supports Delta tables on S3, Azure Blob/ADLS, Google Cloud Storage, and Cloudflare R2 with temporary credential vending and pre-signed URLs.
+
+Artifacts published to Maven Central (requires Java 17+):
+
+```xml
+<!-- Embedded server library: protocol, provider API, and catalog connector SPI -->
+<dependency>
+  <groupId>io.opensharing</groupId>
+  <artifactId>opensharing-server-core</artifactId>
+  <version>0.1.0</version>
+</dependency>
+
+<!-- Standalone reference server -->
+<dependency>
+  <groupId>io.opensharing</groupId>
+  <artifactId>opensharing-server</artifactId>
+  <version>0.1.0</version>
+</dependency>
+```
+
+For setup guides, catalog connectors, and configuration options, see the [OpenSharing Repository](https://github.com/OpenSharing-IO/OpenSharing) and the [OpenSharing Server 0.1.0 Release](https://github.com/OpenSharing-IO/OpenSharing/releases/tag/server-v0.1.0).
+
+---
+
+### Legacy Reference Server
+
+The instructions below are retained for legacy reference only.
+
 The Delta Sharing Reference Server is a reference implementation server for the [Delta Sharing Protocol](PROTOCOL.md). This can be used to set up a small service to test your own connector that implements the [Delta Sharing Protocol](PROTOCOL.md). Please note that this is not a completed implementation of secure web server. We highly recommend you to put this behind a secure proxy if you would like to expose it to public.
 
 Some vendors offer managed services for Delta Sharing too (for example, [Databricks](https://databricks.com/product/delta-sharing)). Please refer to your vendor's website for how to set up sharing there. Vendors that are interested in being listed as a service provider should open an issue on GitHub to be added to this README and our project's website.
@@ -647,15 +679,15 @@ build/sbt spark/package
 
 It will generate `spark/target/scala-2.12/delta-sharing-spark_2.12-x.y.z.jar`.
 
-To generate the pre-built Delta Sharing Server package, run
+To generate the pre-built Delta Sharing Server package (deprecated), run
 
 ```
 build/sbt server/universal:packageBin
 ```
 
-It will generate `server/target/universal/delta-sharing-server-x.y.z.zip`.
+It will generate `server/target/universal/delta-sharing-server-x.y.z.zip`. (Note: The in-repo reference server is deprecated and no longer published for releases; use OpenSharing Server instead.)
 
-To build the Docker image for Delta Sharing Server, run
+To build the Docker image for Delta Sharing Server (deprecated), run
 
 ```
 build/sbt server/docker:publishLocal
