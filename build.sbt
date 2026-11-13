@@ -193,10 +193,12 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   name := "delta-sharing-server",
   scalaVersion := scala212,
   commonSettings,
-  java8Settings,
+  java17Settings,
   scalaStyleSettings,
   publish / skip := true,
   publishArtifact := false,
+  // Shared with opensharing-test-server: single catalog for client integration tables.
+  Test / unmanagedResourceDirectories += (ThisBuild / baseDirectory).value / "dev",
   scriptClasspath ++= Seq("../conf"),
   libraryDependencies ++= Seq(
     // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a
