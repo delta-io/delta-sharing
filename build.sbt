@@ -159,7 +159,9 @@ lazy val client = (project in file("client")) settings(
   }
 )
 
-lazy val spark = (project in file("spark")) dependsOn(client) settings(
+lazy val spark = (project in file("spark"))
+  .dependsOn(client % "compile->compile;test->test")
+  .settings(
   name := "delta-sharing-spark",
   scalaVersion := scala213,
   crossScalaVersions := Seq(scala213),
