@@ -1,0 +1,324 @@
+{
+  "shares": [
+    {
+      "name": "share1",
+      "schemas": [
+        {
+          "name": "default",
+          "tables": [
+            {
+              "name": "table1",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table1",
+              "id": "00000000-0000-0000-0000-000000000001"
+            },
+            {
+              "name": "table3",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table3",
+              "id": "00000000-0000-0000-0000-000000000003"
+            },
+            {
+              "name": "table7",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table7",
+              "id": "00000000-0000-0000-0000-000000000007"
+            },
+            {
+              "name": "table_temp_cred",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table1",
+              "id": "00000000-0000-0000-0000-000000000095",
+              "historyShared": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "share2",
+      "schemas": [
+        {
+          "name": "default",
+          "tables": [
+            {
+              "name": "table2",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table2",
+              "id": "00000000-0000-0000-0000-000000000002"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "share3",
+      "schemas": [
+        {
+          "name": "default",
+          "tables": [
+            {
+              "name": "table4",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table4",
+              "id": "00000000-0000-0000-0000-000000000004"
+            },
+            {
+              "name": "table5",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table5",
+              "id": "00000000-0000-0000-0000-000000000005"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "share4",
+      "schemas": [
+        {
+          "name": "default",
+          "tables": [
+            {
+              "name": "test_gzip",
+              "location": "s3a://delta-exchange-test/compress-test/table1",
+              "id": "00000000-0000-0000-0000-000000000099"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "share5",
+      "schemas": [
+        {
+          "name": "default",
+          "tables": []
+        }
+      ]
+    },
+    {
+      "name": "share6",
+      "schemas": []
+    },
+    {
+      "name": "share7",
+      "schemas": [
+        {
+          "name": "schema1",
+          "tables": [
+            {
+              "name": "table8",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table8",
+              "id": "00000000-0000-0000-0000-000000000008"
+            }
+          ]
+        },
+        {
+          "name": "schema2",
+          "tables": [
+            {
+              "name": "table9",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table9",
+              "id": "00000000-0000-0000-0000-000000000009"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "share_azure",
+      "schemas": [
+        {
+          "name": "default",
+          "tables": [
+            {
+              "name": "table_wasb",
+              "location": "wasbs://delta-sharing-test-container@deltasharingtest.blob.core.windows.net/delta-sharing-test/table1",
+              "id": "00000000-0000-0000-0000-000000000098"
+            },
+            {
+              "name": "table_abfs",
+              "location": "abfss://delta-sharing-test-container@deltasharingtest.dfs.core.windows.net/delta-sharing-test/table1",
+              "id": "00000000-0000-0000-0000-000000000097"
+            },
+            {
+              "name": "table_temp_cred_abfs",
+              "location": "abfss://delta-sharing-test-container@deltasharingtest.dfs.core.windows.net/delta-sharing-test/table1",
+              "id": "00000000-0000-0000-0000-000000000094",
+              "historyShared": true
+            },
+            {
+              "name": "table_wasb_change_query_id",
+              "location": "abfss://delta-sharing-test-container@deltasharingtest.dfs.core.windows.net/delta-sharing-test/table1",
+              "id": "00000000-0000-0000-0000-0000000000a1"
+            },
+            {
+              "name": "table_wasb_change_query_id_to_be_null",
+              "location": "abfss://delta-sharing-test-container@deltasharingtest.dfs.core.windows.net/delta-sharing-test/table1",
+              "id": "00000000-0000-0000-0000-0000000000a2"
+            },
+            {
+              "name": "table_wasb_bad_table",
+              "location": "abfss://delta-sharing-test-container@deltasharingtest.dfs.core.windows.net/delta-sharing-test/table1",
+              "id": "00000000-0000-0000-0000-0000000000a3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "share_gcp",
+      "schemas": [
+        {
+          "name": "default",
+          "tables": [
+            {
+              "name": "table_gcs",
+              "location": "gs://delta-sharing-dev/delta-sharing-test/table1",
+              "id": "00000000-0000-0000-0000-000000000096"
+            },
+            {
+              "name": "table_temp_cred_gcs",
+              "location": "gs://delta-sharing-dev/delta-sharing-test/table1",
+              "id": "00000000-0000-0000-0000-000000000093",
+              "historyShared": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "share8",
+      "schemas": [
+        {
+          "name": "default",
+          "tables": [
+            {
+              "name": "12k_rows",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/12k_rows",
+              "id": "00000000-0000-0000-0000-000000000096",
+              "historyShared": true
+            },
+            {
+              "name": "add_columns_partitioned_cdf",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/add_columns_partitioned_cdf",
+              "id": "00000000-0000-0000-0000-000000000098",
+              "historyShared": true
+            },
+            {
+              "name": "add_columns_non_partitioned_cdf",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/add_columns_non_partitioned_cdf",
+              "id": "00000000-0000-0000-0000-000000000097",
+              "historyShared": true
+            },
+            {
+              "name": "timestampntz_cdf_table",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/timestampntz_cdf_table",
+              "id": "00000000-0000-0000-0000-000000000096",
+              "historyShared": true
+            },
+            {
+              "name": "cdf_table_cdf_enabled",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/cdf_table_cdf_enabled",
+              "id": "00000000-0000-0000-0000-000000000095",
+              "historyShared": true
+            },
+            {
+              "name": "cdf_table_with_partition",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/cdf_table_with_partition",
+              "id": "00000000-0000-0000-0000-000000000094",
+              "historyShared": true,
+              "startVersion": 1
+            },
+            {
+              "name": "cdf_table_with_vacuum",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/cdf_table_with_vacuum",
+              "id": "00000000-0000-0000-0000-000000000093",
+              "historyShared": true
+            },
+            {
+              "name": "cdf_table_missing_log",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/cdf_table_missing_log",
+              "id": "00000000-0000-0000-0000-000000000092",
+              "historyShared": true
+            },
+            {
+              "name": "streaming_table_with_optimize",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/streaming_table_with_optimize",
+              "id": "00000000-0000-0000-0000-000000000091",
+              "historyShared": true
+            },
+            {
+              "name": "streaming_table_metadata_protocol",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/streaming_table_metadata_protocol",
+              "id": "00000000-0000-0000-0000-000000000090",
+              "historyShared": true
+            },
+            {
+              "name": "streaming_notnull_to_null",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/streaming_notnull_to_null",
+              "id": "00000000-0000-0000-0000-000000000089",
+              "historyShared": true
+            },
+            {
+              "name": "streaming_null_to_notnull",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/streaming_null_to_notnull",
+              "id": "00000000-0000-0000-0000-000000000088",
+              "historyShared": true
+            },
+            {
+              "name": "streaming_cdf_null_to_notnull",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/streaming_cdf_null_to_notnull",
+              "id": "00000000-0000-0000-0000-000000000087",
+              "historyShared": true
+            },
+            {
+              "name": "streaming_cdf_table",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/streaming_cdf_table",
+              "id": "00000000-0000-0000-0000-000000000086",
+              "historyShared": true
+            },
+            {
+              "name": "table_reader_version_increased",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table_reader_version_increased",
+              "id": "00000000-0000-0000-0000-000000000085",
+              "historyShared": true
+            },
+            {
+              "name": "table_with_no_metadata",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table_with_no_metadata",
+              "id": "00000000-0000-0000-0000-000000000084",
+              "historyShared": true
+            },
+            {
+              "name": "table_data_loss_with_checkpoint",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table_data_loss_with_checkpoint",
+              "id": "00000000-0000-0000-0000-000000000083",
+              "historyShared": true
+            },
+            {
+              "name": "table_data_loss_no_checkpoint",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table_data_loss_no_checkpoint",
+              "id": "00000000-0000-0000-0000-000000000082",
+              "historyShared": true
+            },
+            {
+              "name": "table_with_cm_name",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table_with_cm_name",
+              "id": "00000000-0000-0000-0000-000000000081"
+            },
+            {
+              "name": "table_with_cm_id",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/table_with_cm_id",
+              "id": "00000000-0000-0000-0000-000000000080"
+            },
+            {
+              "name": "deletion_vectors_with_dvs_dv_property_on",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/deletion_vectors_with_dvs_dv_property_on",
+              "id": "00000000-0000-0000-0000-000000000079"
+            },
+            {
+              "name": "dv_and_cm_table",
+              "location": "s3a://delta-exchange-test/delta-exchange-test/dv_and_cm_table",
+              "id": "00000000-0000-0000-0000-000000000078"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
