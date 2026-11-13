@@ -188,8 +188,10 @@ class DataSharingRestClient:
         capabilities.append(DataSharingRestClient.VERSIONLESS_CDF)
         self._session.headers[DataSharingRestClient.CAPABILITIES_HEADER] = ";".join(capabilities)
 
-    def set_sharing_capabilities_header(self):
-        self.__set_capabilities_header(DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT)
+    def set_sharing_capabilities_header(self, for_cdf=False):
+        self.__set_capabilities_header(
+            DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT, for_cdf
+        )
 
     def remove_sharing_capabilities_header(self):
         # Parquet view CDF also requires versionlesscdf=true when format preferences are cleared.
@@ -328,13 +330,14 @@ class DataSharingRestClient:
             )
 
     @retry_with_exponential_backoff
-    def autoresolve_query_format(self, table: Table):
+    def autoresolve_query_format(self, table: Table, for_cdf: bool = False):
         """
         This function determines the query format for the table (parquet or delta).
         It sends a query table metadata request with capabilities set to parquet and delta
         and uses what the server responds to use in the header.
+        Set for_cdf to advertise the reader features the CDF delta path supports.
         """
-        self.set_sharing_capabilities_header()
+        self.set_sharing_capabilities_header(for_cdf)
 
         try:
             with self._get_internal(

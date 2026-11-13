@@ -704,6 +704,54 @@ def test_autoresolve_query_format(
         assert resolved_format == expected_format
 
 
+@pytest.mark.parametrize(
+    "for_cdf,reader_features",
+    [
+        (False, DataSharingRestClient.DELTA_SNAPSHOT_READER_FEATURES),
+        (True, DataSharingRestClient.DELTA_CDF_READER_FEATURES),
+    ],
+)
+def test_autoresolve_query_format_capabilities(
+    rest_client: DataSharingRestClient, for_cdf, reader_features
+):
+    sent_capabilities = []
+
+    class MetadataRestClient(DataSharingRestClient):
+        def __init__(self):
+            super().__init__(rest_client._profile)
+
+        @contextmanager
+        def _get_internal(self, *args, **kwargs):
+            sent_capabilities.append(
+                self._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+            )
+            headers = {
+                DataSharingRestClient.DELTA_TABLE_VERSION_HEADER: "1",
+                DataSharingRestClient.CAPABILITIES_HEADER: "responseformat=delta",
+            }
+            yield headers, iter(())
+
+    client = MetadataRestClient()
+    resolved_format = client.autoresolve_query_format(
+        Table(name="table_name", share="share_name", schema="schema_name"), for_cdf=for_cdf
+    )
+
+    assert resolved_format == DataSharingRestClient.DELTA_FORMAT
+    assert sent_capabilities == [
+        ";".join(
+            [
+                DataSharingRestClient.DELTA_AND_PARQUET_RESPONSE_FORMAT,
+                reader_features,
+                DataSharingRestClient.VERSIONLESS_CDF,
+            ]
+        )
+    ]
+    assert (
+        client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        == DataSharingRestClient.VERSIONLESS_CDF
+    )
+
+
 def test_autoresolve_query_format_restores_baseline_capabilities_after_failure(
     rest_client: DataSharingRestClient,
 ):
