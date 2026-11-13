@@ -20,11 +20,16 @@ import java.io.File
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
 
+import scala.collection.JavaConverters._
+
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.commons.io.FileUtils
 
 import io.delta.sharing.server.config._
 
 object TestResource {
+  private val mapper = new ObjectMapper()
+
   def env(key: String): String = {
     sys.env.getOrElse(key, throw new IllegalArgumentException(s"Cannot find $key in sys env"))
   }
@@ -57,326 +62,16 @@ object TestResource {
     }
   }
 
+  /**
+   * Builds a reference-server config from the shared catalog at
+   * `dev/integration-tables.json` (also used by opensharing-test-server).
+   */
   def setupTestTables(): File = {
     val testConfigFile = Files.createTempFile("delta-sharing", ".yaml").toFile
     testConfigFile.deleteOnExit()
     maybeSetupGoogleServiceAccountCredentials
-    val shares = java.util.Arrays.asList(
-      ShareConfig("share1",
-        java.util.Arrays.asList(
-          SchemaConfig(
-            "default",
-            java.util.Arrays.asList(
-              TableConfig(
-                "table1",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table1",
-                "00000000-0000-0000-0000-000000000001"
-              ),
-              TableConfig(
-                "table3",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table3",
-                "00000000-0000-0000-0000-000000000003"
-              ),
-              TableConfig(
-                "table7",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table7",
-                "00000000-0000-0000-0000-000000000007"
-              ),
-              // Dedicated table for temporary-table-credentials tests (historyShared required).
-              TableConfig(
-                "table_temp_cred",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table1",
-                "00000000-0000-0000-0000-000000000095",
-                historyShared = true
-              )
-            )
-          )
-        )
-      ),
-      ShareConfig("share2",
-        java.util.Arrays.asList(
-          SchemaConfig("default", java.util.Arrays.asList(
-            TableConfig(
-              "table2",
-              s"s3a://${AWS.bucket}/delta-exchange-test/table2",
-              "00000000-0000-0000-0000-000000000002"
-            )
-          )
-          )
-        )),
-      ShareConfig("share3",
-        java.util.Arrays.asList(
-          SchemaConfig(
-            "default",
-            java.util.Arrays.asList(
-              TableConfig(
-                "table4",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table4",
-                "00000000-0000-0000-0000-000000000004"
-              ),
-              TableConfig(
-                "table5",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table5",
-                "00000000-0000-0000-0000-000000000005"
-              )
-            )
-          )
-        )
-      ),
-      ShareConfig("share4",
-        java.util.Arrays.asList(
-          SchemaConfig(
-            "default",
-            java.util.Arrays.asList(
-              // table made with spark.sql.parquet.compression.codec=gzip
-              TableConfig(
-                "test_gzip",
-                s"s3a://${AWS.bucket}/compress-test/table1",
-                "00000000-0000-0000-0000-000000000099"
-              )
-            )
-          )
-        )
-      ),
-      ShareConfig("share5",
-        java.util.Arrays.asList(
-          SchemaConfig(
-            "default", // empty schema
-            java.util.Arrays.asList()
-          )
-        )
-      ),
-      ShareConfig("share6",
-        java.util.Arrays.asList()
-      ),
-      ShareConfig("share7",
-        java.util.Arrays.asList(
-          SchemaConfig(
-            "schema1",
-            java.util.Arrays.asList(
-              TableConfig(
-                "table8",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table8",
-                "00000000-0000-0000-0000-000000000008"
-              )
-            )
-          ),
-          SchemaConfig(
-            "schema2",
-            java.util.Arrays.asList(
-              TableConfig(
-                "table9",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table9",
-                "00000000-0000-0000-0000-000000000009"
-              )
-            )
-          )
-        )
-      ),
-      // scalastyle:off maxLineLength
-      ShareConfig("share_azure",
-        java.util.Arrays.asList(
-          SchemaConfig(
-            "default",
-            java.util.Arrays.asList(
-              TableConfig(
-                "table_wasb",
-                s"wasbs://${Azure.container}@${Azure.accountName}.blob.core.windows.net/delta-sharing-test/table1",
-                "00000000-0000-0000-0000-000000000098"
-              ),
-              TableConfig(
-                "table_abfs",
-                s"abfss://${Azure.container}@${Azure.accountName}.dfs.core.windows.net/delta-sharing-test/table1",
-                "00000000-0000-0000-0000-000000000097"
-              ),
-              // Dedicated table for temporary-table-credentials tests (historyShared required).
-              TableConfig(
-                "table_temp_cred_abfs",
-                s"abfss://${Azure.container}@${Azure.accountName}.dfs.core.windows.net/delta-sharing-test/table1",
-                "00000000-0000-0000-0000-000000000094",
-                historyShared = true
-              ),
-              // Tables for async query error-handling integration tests.
-              TableConfig(
-                "table_wasb_change_query_id",
-                s"wasbs://${Azure.container}@${Azure.accountName}.blob.core.windows.net/delta-sharing-test/table1",
-                "00000000-0000-0000-0000-0000000000a1"
-              ),
-              TableConfig(
-                "table_wasb_change_query_id_to_be_null",
-                s"wasbs://${Azure.container}@${Azure.accountName}.blob.core.windows.net/delta-sharing-test/table1",
-                "00000000-0000-0000-0000-0000000000a2"
-              ),
-              TableConfig(
-                "table_wasb_bad_table",
-                s"wasbs://${Azure.container}@${Azure.accountName}.blob.core.windows.net/delta-sharing-test/table1",
-                "00000000-0000-0000-0000-0000000000a3"
-              )
-            )
-          )
-        )
-      ),
-      // scalastyle:on
-      ShareConfig("share_gcp",
-        java.util.Arrays.asList(
-          SchemaConfig(
-            "default",
-            java.util.Arrays.asList(
-              TableConfig(
-                "table_gcs",
-                s"gs://${GCP.bucket}/delta-sharing-test/table1",
-                "00000000-0000-0000-0000-000000000096"
-              ),
-              // Dedicated table for temporary-table-credentials tests (historyShared required).
-              TableConfig(
-                "table_temp_cred_gcs",
-                s"gs://${GCP.bucket}/delta-sharing-test/table1",
-                "00000000-0000-0000-0000-000000000093",
-                historyShared = true
-              )
-            )
-          )
-        )
-      ),
-      ShareConfig("share8",
-        java.util.Arrays.asList(
-          SchemaConfig(
-            "default",
-            java.util.Arrays.asList(
-              TableConfig(
-                "12k_rows",
-                s"s3a://${AWS.bucket}/delta-exchange-test/12k_rows",
-                "00000000-0000-0000-0000-000000000096",
-                historyShared = true
-              ),
-              TableConfig(
-                "add_columns_partitioned_cdf",
-                s"s3a://${AWS.bucket}/delta-exchange-test/add_columns_partitioned_cdf",
-                "00000000-0000-0000-0000-000000000098",
-                historyShared = true
-              ),
-              TableConfig(
-                "add_columns_non_partitioned_cdf",
-                s"s3a://${AWS.bucket}/delta-exchange-test/add_columns_non_partitioned_cdf",
-                "00000000-0000-0000-0000-000000000097",
-                historyShared = true
-              ),
-              TableConfig(
-                "timestampntz_cdf_table",
-                s"s3a://${AWS.bucket}/delta-exchange-test/timestampntz_cdf_table",
-                "00000000-0000-0000-0000-000000000096",
-                historyShared = true
-              ),
-              TableConfig(
-                "cdf_table_cdf_enabled",
-                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_cdf_enabled",
-                "00000000-0000-0000-0000-000000000095",
-                historyShared = true
-              ),
-              TableConfig(
-                "cdf_table_with_partition",
-                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_partition",
-                "00000000-0000-0000-0000-000000000094",
-                historyShared = true,
-                startVersion = 1
-              ),
-              TableConfig(
-                "cdf_table_with_vacuum",
-                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_with_vacuum",
-                "00000000-0000-0000-0000-000000000093",
-                historyShared = true
-              ),
-              TableConfig(
-                "cdf_table_missing_log",
-                s"s3a://${AWS.bucket}/delta-exchange-test/cdf_table_missing_log",
-                "00000000-0000-0000-0000-000000000092",
-                historyShared = true
-              ),
-              TableConfig(
-                "streaming_table_with_optimize",
-                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_table_with_optimize",
-                "00000000-0000-0000-0000-000000000091",
-                historyShared = true
-              ),
-              TableConfig(
-                "streaming_table_metadata_protocol",
-                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_table_metadata_protocol",
-                "00000000-0000-0000-0000-000000000090",
-                historyShared = true
-              ),
-              TableConfig(
-                "streaming_notnull_to_null",
-                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_notnull_to_null",
-                "00000000-0000-0000-0000-000000000089",
-                historyShared = true
-              ),
-              TableConfig(
-                "streaming_null_to_notnull",
-                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_null_to_notnull",
-                "00000000-0000-0000-0000-000000000088",
-                historyShared = true
-              ),
-              TableConfig(
-                "streaming_cdf_null_to_notnull",
-                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_cdf_null_to_notnull",
-                "00000000-0000-0000-0000-000000000087",
-                historyShared = true
-              ),
-              TableConfig(
-                "streaming_cdf_table",
-                s"s3a://${AWS.bucket}/delta-exchange-test/streaming_cdf_table",
-                "00000000-0000-0000-0000-000000000086",
-                historyShared = true
-              ),
-              TableConfig(
-                "table_reader_version_increased",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table_reader_version_increased",
-                "00000000-0000-0000-0000-000000000085",
-                historyShared = true
-              ),
-              TableConfig(
-                "table_with_no_metadata",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table_with_no_metadata",
-                "00000000-0000-0000-0000-000000000084",
-                historyShared = true
-              ),
-              TableConfig(
-                "table_data_loss_with_checkpoint",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table_data_loss_with_checkpoint",
-                "00000000-0000-0000-0000-000000000083",
-                historyShared = true
-              ),
-              TableConfig(
-                "table_data_loss_no_checkpoint",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table_data_loss_no_checkpoint",
-                "00000000-0000-0000-0000-000000000082",
-                historyShared = true
-              ),
-              TableConfig(
-                "table_with_cm_name",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table_with_cm_name",
-                "00000000-0000-0000-0000-000000000081"
-              ),
-              TableConfig(
-                "table_with_cm_id",
-                s"s3a://${AWS.bucket}/delta-exchange-test/table_with_cm_id",
-                "00000000-0000-0000-0000-000000000080"
-              ),
-              TableConfig(
-                "deletion_vectors_with_dvs_dv_property_on",
-                s"s3a://${AWS.bucket}/delta-exchange-test/deletion_vectors_with_dvs_dv_property_on",
-                "00000000-0000-0000-0000-000000000079"
-              ),
-              TableConfig(
-                "dv_and_cm_table",
-                s"s3a://${AWS.bucket}/delta-exchange-test/dv_and_cm_table",
-                "00000000-0000-0000-0000-000000000078"
-              )
-            )
-          )
-        )
-      )
-    )
+
+    val shares = loadSharesFromClasspath().asJava
 
     val serverConfig = new ServerConfig()
     serverConfig.setVersion(1)
@@ -389,5 +84,34 @@ object TestResource {
 
     serverConfig.save(testConfigFile.getCanonicalPath)
     testConfigFile
+  }
+
+  private def loadSharesFromClasspath(): Seq[ShareConfig] = {
+    val stream = getClass.getClassLoader.getResourceAsStream("integration-tables.json")
+    if (stream == null) {
+      throw new IllegalStateException(
+        "missing classpath resource integration-tables.json " +
+          "(expected from dev/ via Test / unmanagedResourceDirectories)")
+    }
+    try {
+      val root = mapper.readTree(stream)
+      root.get("shares").elements().asScala.map { shareNode =>
+        val schemas = shareNode.get("schemas").elements().asScala.map { schemaNode =>
+          val tables = schemaNode.get("tables").elements().asScala.map { tableNode =>
+            TableConfig(
+              tableNode.get("name").asText(),
+              tableNode.get("location").asText(),
+              Option(tableNode.get("id")).map(_.asText()).getOrElse(""),
+              Option(tableNode.get("historyShared")).exists(_.asBoolean()),
+              Option(tableNode.get("startVersion")).map(_.asLong()).getOrElse(0L)
+            )
+          }.toSeq
+          SchemaConfig(schemaNode.get("name").asText(), tables.asJava)
+        }.toSeq
+        ShareConfig(shareNode.get("name").asText(), schemas.asJava)
+      }.toSeq
+    } finally {
+      stream.close()
+    }
   }
 }
