@@ -69,7 +69,42 @@ lazy val java17Settings = Seq(
   ),
 )
 
-lazy val root = (project in file(".")).aggregate(client, spark, server)
+lazy val root = (project in file(".")).aggregate(client, spark, server, opensharingTestServer)
+
+lazy val opensharingTestServer = (project in file("opensharing-test-server")) settings(
+  name := "opensharing-test-server",
+  scalaVersion := scala212,
+  commonSettings,
+  java17Settings,
+  publish / skip := true,
+  publishArtifact := false,
+  // Fork runMain so OpenSharing's Jackson / Netty stay out of sbt's JVM, and so the pid file
+  // records the server process (not sbt).
+  run / fork := true,
+  // Isolated project: resolve OpenSharing (thin jar + transitive deps). Do not add this
+  // dependency to the reference `server` project — its Jackson 2.6 pins clash with OpenSharing's
+  // Jackson 2.22. There is no published `-exec` fat jar on Central.
+  //
+  // TEMPORARY: until OpenSharing releases the fixes the integration tests need, CI builds
+  // OpenSharing from git at the SHA pinned in .github/workflows/build-and-test.yml and copies
+  // its self-contained `-exec` jar into `lib/`, where sbt picks it up as an unmanaged jar and
+  // the managed dependency below is skipped. For local development, either do nothing and use
+  // the released 0.1.0 from Maven Central, or build the fixes from a clone of
+  // https://github.com/OpenSharing-IO/OpenSharing at that SHA:
+  //   cd server && JAVA_HOME=<java 17 home> mvn -q -DskipTests package
+  //   cp opensharing-server/target/opensharing-server-*-exec.jar \
+  //     <this repo>/opensharing-test-server/lib/
+  // Switch back to a plain released dependency once the fixes ship.
+  libraryDependencies ++= {
+    val localJar = (file("opensharing-test-server") / "lib").listFiles().exists { jar =>
+      jar.getName.endsWith(".jar")
+    }
+    if (localJar) Seq.empty
+    else Seq("io.opensharing" % "opensharing-server" % "0.1.0")
+  },
+  // Shared with server tests: single catalog for client integration tables.
+  Compile / unmanagedResourceDirectories += (ThisBuild / baseDirectory).value / "dev"
+)
 
 lazy val client = (project in file("client")) settings(
   name := "delta-sharing-client",

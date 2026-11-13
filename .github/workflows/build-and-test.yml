@@ -45,6 +45,9 @@ jobs:
     env:
       SPARK_LOCAL_IP: localhost
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/google_service_account_key.json
+      # Required by OpenSharing (AWS SDK v2) when signing S3 URLs for shared tables.
+      AWS_REGION: us-west-2
+      AWS_DEFAULT_REGION: us-west-2
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
@@ -61,6 +64,25 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
+      # Build OpenSharing from git and install it into the local Maven repository, where the
+      # build's mavenLocal resolver picks it up, before tests so the Maven downloads are not
+      # charged against the 180s server-startup wait the integration tests use. TEMPORARY:
+      # pinned until OpenSharing releases the fixes the tests need; then depend on the release
+      # and drop this step.
+      - name: Build OpenSharing from git
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          repository: OpenSharing-IO/OpenSharing
+          ref: 958fccd0247a1c3de1ca9d3667022ea8496fb518 # ci/delta-sharing-1040-integration
+          path: opensharing
+      - name: Install OpenSharing jar for sbt
+        run: |
+          mvn -q -f opensharing/server/pom.xml -DskipTests package
+          mkdir -p opensharing-test-server/lib
+          cp opensharing/server/opensharing-server/target/opensharing-server-*-exec.jar             opensharing-test-server/lib/
+
+      - name: Resolve OpenSharing test server
+        run: ./build/sbt opensharingTestServer/update opensharingTestServer/compile
       - name: Run tests
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -74,6 +96,8 @@ jobs:
     env:
       SPARK_LOCAL_IP: localhost
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/google_service_account_key.json
+      AWS_REGION: us-west-2
+      AWS_DEFAULT_REGION: us-west-2
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
@@ -90,6 +114,23 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
+      # Build OpenSharing from git and install it into the local Maven repository, where the
+      # build's mavenLocal resolver picks it up. TEMPORARY: pinned until OpenSharing releases
+      # the fixes the integration tests need; then depend on the release and drop this step.
+      - name: Build OpenSharing from git
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          repository: OpenSharing-IO/OpenSharing
+          ref: 958fccd0247a1c3de1ca9d3667022ea8496fb518 # ci/delta-sharing-1040-integration
+          path: opensharing
+      - name: Install OpenSharing jar for sbt
+        run: |
+          mvn -q -f opensharing/server/pom.xml -DskipTests package
+          mkdir -p opensharing-test-server/lib
+          cp opensharing/server/opensharing-server/target/opensharing-server-*-exec.jar             opensharing-test-server/lib/
+
+      - name: Resolve OpenSharing test server
+        run: ./build/sbt ++2.12.18 opensharingTestServer/update opensharingTestServer/compile
       - name: Run tests
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -107,6 +148,8 @@ jobs:
     env:
       SPARK_LOCAL_IP: localhost
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/google_service_account_key.json
+      AWS_REGION: us-west-2
+      AWS_DEFAULT_REGION: us-west-2
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
@@ -118,11 +161,11 @@ jobs:
             ~/.ivy2
             ~/.cache/coursier
           key: build-and-test-python
-      - name: Install Java 8
+      - name: Install Java 17
         uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9  # v4.8.0
         with:
           distribution: 'zulu'
-          java-version: '8'
+          java-version: '17'
       - name: Install Python and uv
         uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
         with:
@@ -131,8 +174,23 @@ jobs:
         run: |
           cd python
           uv sync --frozen
-      - name: Build Server
-        run: ./build/sbt package
+      # Build OpenSharing from git and install it into the local Maven repository, where the
+      # build's mavenLocal resolver picks it up. TEMPORARY: pinned until OpenSharing releases
+      # the fixes the integration tests need; then depend on the release and drop this step.
+      - name: Build OpenSharing from git
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          repository: OpenSharing-IO/OpenSharing
+          ref: 958fccd0247a1c3de1ca9d3667022ea8496fb518 # ci/delta-sharing-1040-integration
+          path: opensharing
+      - name: Install OpenSharing jar for sbt
+        run: |
+          mvn -q -f opensharing/server/pom.xml -DskipTests package
+          mkdir -p opensharing-test-server/lib
+          cp opensharing/server/opensharing-server/target/opensharing-server-*-exec.jar             opensharing-test-server/lib/
+
+      - name: Resolve OpenSharing test server
+        run: ./build/sbt opensharingTestServer/update opensharingTestServer/compile
       - name: Run tests
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
