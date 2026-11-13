@@ -15,6 +15,7 @@
 #
 from contextlib import contextmanager
 import json
+import re
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -452,18 +453,22 @@ def test_read_endpoint(rest_client: DataSharingRestClient):
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_shares(rest_client: DataSharingRestClient):
     response = rest_client.list_shares()
-    assert response.shares == [
-        Share(name="share1"),
-        Share(name="share2"),
-        Share(name="share3"),
-        Share(name="share4"),
-        Share(name="share5"),
-        Share(name="share6"),
-        Share(name="share7"),
-        Share(name="share_azure"),
-        Share(name="share_gcp"),
-        Share(name="share8"),
-    ]
+    # The protocol doesn't define the share list order, so compare the content.
+    assert sorted(response.shares, key=lambda share: share.name) == sorted(
+        [
+            Share(name="share1"),
+            Share(name="share2"),
+            Share(name="share3"),
+            Share(name="share4"),
+            Share(name="share5"),
+            Share(name="share6"),
+            Share(name="share7"),
+            Share(name="share_azure"),
+            Share(name="share_gcp"),
+            Share(name="share8"),
+        ],
+        key=lambda share: share.name,
+    )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -680,6 +685,9 @@ def test_query_table_metadata_with_dv_cm_partitioned_delta(
             "delta.enableDeletionVectors": "true",
         },
         created_time=1721350003845,
+        # metaData carries size and numFiles from the table.
+        size=1213,
+        num_files=1,
     )
 
 
@@ -761,8 +769,10 @@ def test_query_table_version_with_timestamp_exception(rest_client: DataSharingRe
             starting_timestamp="2020-01-1T00:00:00-08:00",
         )
     except Exception as e:
+        # OpenSharing always shares history, so a well-formed startingTimestamp is accepted;
+        # only a malformed one is rejected.
         assert isinstance(e, HTTPError)
-        assert "Reading table by version or timestamp is not supported" in (str(e))
+        assert "Invalid timestamp" in (str(e))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -950,6 +960,9 @@ def test_list_files_in_table_version(
         ),
         configuration={"enableChangeDataFeed": "true"},
         partition_columns=[],
+        # metaData carries size and numFiles from the table.
+        size=3090,
+        num_files=3,
     )
     assert response.add_files == [
         AddFile(
@@ -964,7 +977,8 @@ def test_list_files_in_table_version(
                 r'"nullCount":{"name":0,"age":0,"birthday":0}}'
             ),
             version=1,
-            timestamp=None,
+            # files read as of a version carry its commit time.
+            timestamp=1651272635000,
         ),
         AddFile(
             url=response.add_files[1].url,
@@ -978,7 +992,8 @@ def test_list_files_in_table_version(
                 r'"nullCount":{"name":0,"age":0,"birthday":0}}'
             ),
             version=1,
-            timestamp=None,
+            # files read as of a version carry its commit time.
+            timestamp=1651272635000,
         ),
         AddFile(
             url=response.add_files[2].url,
@@ -992,7 +1007,8 @@ def test_list_files_in_table_version(
                 r'"nullCount":{"name":0,"age":0,"birthday":0}}'
             ),
             version=1,
-            timestamp=None,
+            # files read as of a version carry its commit time.
+            timestamp=1651272635000,
         ),
     ]
 
@@ -1022,6 +1038,9 @@ def test_list_files_with_json_predicates(
             ),
             configuration={"enableChangeDataFeed": "true"},
             partition_columns=["birthday"],
+            # metaData carries size and numFiles from the table's checksum file.
+            size=1799,
+            num_files=2,
         )
 
         # validate that we get back all expected files.
@@ -1071,23 +1090,28 @@ def test_list_files_in_table_version_exception(
     rest_client: DataSharingRestClient,
 ):
     try:
+        # OpenSharing always shares history, so reading table1 as of a version is allowed; a
+        # version after the latest is still rejected.
         rest_client.list_files_in_table(
-            Table(name="table1", share="share1", schema="default"), version=1
+            Table(name="table1", share="share1", schema="default"), version=999999
         )
     except Exception as e:
         assert isinstance(e, HTTPError)
-        assert "Reading table by version or timestamp is not supported" in (str(e))
+        # The server's message names the table's path, and the error text wraps long messages.
+        assert "Cannot load table version 999999" in re.sub(r"[\s']+", " ", str(e))
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_files_in_table_timestamp(rest_client: DataSharingRestClient):
     try:
+        # OpenSharing always shares history, so a well-formed timestamp is accepted; only a
+        # malformed one is rejected.
         rest_client.list_files_in_table(
             Table(name="table1", share="share1", schema="default"), timestamp="random_str"
         )
     except Exception as e:
         assert isinstance(e, HTTPError)
-        assert "Reading table by version or timestamp is not supported" in (str(e))
+        assert "Invalid timestamp" in (str(e))
 
     cdf_table = Table(name="cdf_table_with_partition", share="share8", schema="default")
 
@@ -1104,9 +1128,9 @@ def test_list_files_in_table_timestamp(rest_client: DataSharingRestClient):
         rest_client.list_files_in_table(cdf_table, timestamp="randomTimestamp")
         assert False
     except Exception as e:
+        # a malformed timestamp is rejected as invalid.
         assert isinstance(e, HTTPError)
-        assert "Invalid startingTimestamp:" in (str(e))
-        assert "randomTimestamp" in (str(e))
+        assert "Invalid timestamp" in (str(e))
 
     # Use a really old start time, and look for an appropriate error.
     # This will ensure that the timestamp is parsed correctly.
@@ -1149,7 +1173,6 @@ def test_list_table_changes(
         ),
         configuration={"enableChangeDataFeed": "true"},
         partition_columns=["birthday"],
-        version=3,
     )
     assert response.actions == [
         AddFile(
@@ -1270,16 +1293,12 @@ def test_list_table_changes_with_more_metadata(
 def test_list_table_changes_with_timestamp(rest_client: DataSharingRestClient):
     cdf_table = Table(name="cdf_table_with_partition", share="share8", schema="default")
 
-    # Use a really old start time, and look for an appropriate error.
-    # This will ensure that the timestamps are parsed correctly.
-    try:
-        rest_client.list_table_changes(
-            cdf_table, CdfOptions(starting_timestamp="2000-05-03T00:00:00-08:00")
-        )
-        assert False
-    except Exception as e:
-        assert isinstance(e, HTTPError)
-        assert "Please use a timestamp greater" in str(e)
+    # A start time before the first commit resolves to version 0, which has change data, so the
+    # request succeeds; this also shows that the timestamp is parsed correctly.
+    response = rest_client.list_table_changes(
+        cdf_table, CdfOptions(starting_timestamp="2000-05-03T00:00:00-08:00")
+    )
+    assert response.metadata is not None
 
     # Use an end time far away, and look for an appropriate error.
     try:
