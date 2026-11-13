@@ -118,3 +118,4 @@ spark-warehouse/
 
 # For direnv
 .envrc
+opensharing-test-server/lib/*.jar
