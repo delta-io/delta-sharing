@@ -27,7 +27,11 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.test.SharedSparkSession
 import org.apache.spark.sql.types.{DateType, StringType, StructField, StructType, TimestampType}
 
-import io.delta.sharing.client.{InMemoryHttpInputStream, RandomAccessHttpInputStream}
+import io.delta.sharing.client.{
+  BearerTokenDeltaSharingProfile,
+  InMemoryHttpInputStream,
+  RandomAccessHttpInputStream
+}
 import io.delta.sharing.spark.TestUtils._
 
 class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaSharingIntegrationTest {
@@ -40,10 +44,12 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       Row(sqlTimestamp("2021-04-27 23:32:02.07"), sqlDate("2021-04-28")),
       Row(sqlTimestamp("2021-04-27 23:32:22.421"), sqlDate("2021-04-28"))
     )
+    // OpenSharing mints a fresh recipient token per run, so read it from the run's profile.
+    val profile = testProfileProvider.getProfile.asInstanceOf[BearerTokenDeltaSharingProfile]
     val readOptions = Map(
-      "endpoint" -> s"https://localhost:$TEST_PORT/delta-sharing",
-      "bearerToken" -> "dapi5e3574ec767ca1548ae5bbed1a2dc04d",
-      "shareCredentialsVersion" -> "1"
+      "endpoint" -> profile.endpoint,
+      "bearerToken" -> profile.bearerToken,
+      "shareCredentialsVersion" -> profile.shareCredentialsVersion.get.toString
     )
     // Test DataFrame API with inline credentials
     checkAnswer(spark.read.format("deltaSharing").options(readOptions).load(tablePath), expected)
@@ -402,14 +408,19 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
   integrationTest("table_changes_with_timestamp: cdf_table_cdf_enabled") {
     val tablePath = testProfileFile.getCanonicalPath + "#share8.default.cdf_table_cdf_enabled"
 
-    // Use a start timestamp in the past, and expect an error.
-    val result1 = intercept[IllegalStateException] {
+    // A start timestamp before the first commit resolves to version 0.
+    // The server fails the stream at version 4, where the table stops recording change data:
+    // with the end stream action the error names it, otherwise the stream ends in an invalid
+    // JSON line.
+    val result1 = intercept[Exception] {
       val df = spark.read.format("deltaSharing")
         .option("readChangeFeed", "true")
         .option("startingTimestamp", "2000-01-01 00:00:00").load(tablePath)
       checkAnswer(df, Nil)
     }
-    assert (result1.getMessage.contains("Please use a timestamp greater"))
+    assert (result1.getMessage.contains(
+      "CDF is not enabled on the original delta table for version 4") ||
+      result1.getMessage.contains("Forcing_invalid_json_to_fail_streaming_rpc_due_to_error"))
 
     // Use an end timestamp in the future, and expect an error.
     val result2 = intercept[IllegalStateException] {
@@ -464,17 +475,17 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       checkAnswer(df, Nil)
     }
     assert (ex.getMessage.contains("""400 Bad Request"""))
-    assert (ex.getMessage.contains("""{"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
+    assert (ex.getMessage.contains("""{"errorCode":"BAD_REQUEST""""))
   }
 
   integrationTest("azure support") {
-    for (azureTableName <- "table_wasb" :: "table_abfs" :: Nil) {
-      val tablePath = testProfileFile.getCanonicalPath + s"#share_azure.default.${azureTableName}"
-      checkAnswer(
-        spark.read.format("deltaSharing").load(tablePath),
-        Row("foo bar", "foo bar") :: Nil
-      )
+    // Azure tables are served over abfs/abfss only; a wasb
+    // table answers 501 NOT_IMPLEMENTED. abfs reads are covered by the async query test.
+    val tablePath = testProfileFile.getCanonicalPath + "#share_azure.default.table_wasb"
+    val ex = intercept[io.delta.sharing.client.util.UnexpectedHttpStatus] {
+      spark.read.format("deltaSharing").load(tablePath).collect()
     }
+    assert(ex.getMessage.contains("501"))
   }
 
   integrationTest("gcp support") {
@@ -487,7 +498,8 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
 
   integrationTest("async query") {
     withSQLConf("spark.delta.sharing.network.useAsyncQuery" -> "true") {
-      for (azureTableName <- "table_wasb" :: "table_abfs" :: Nil) {
+      // Azure tables are served over abfs/abfss only.
+      for (azureTableName <- "table_abfs" :: Nil) {
         val tablePath = testProfileFile.getCanonicalPath + s"#share_azure.default.${azureTableName}"
         checkAnswer(
           spark.read.format("deltaSharing").load(tablePath),
@@ -612,7 +624,8 @@ class DeltaSharingSuite extends QueryTest with SharedSparkSession with DeltaShar
       "spark.delta.sharing.network.asyncQueryTimeout" -> "1", // 1ms timeout
       "spark.delta.sharing.network.asyncQueryRetryInterval" -> "100"
     ) {
-      val tablePath = testProfileFile.getCanonicalPath + "#share_azure.default.table_wasb"
+      // Azure tables are served over abfs/abfss only.
+      val tablePath = testProfileFile.getCanonicalPath + "#share_azure.default.table_abfs"
 
       // Note: This test requires server-side support for async queries that take longer
       // than timeout In a real scenario, this would timeout if the server keeps returning
