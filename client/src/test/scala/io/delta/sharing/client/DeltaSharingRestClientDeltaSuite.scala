@@ -18,11 +18,12 @@ package io.delta.sharing.client
 
 import java.sql.Timestamp
 
+import com.fasterxml.jackson.databind.JsonNode
 import org.apache.http.HttpHeaders
 import org.apache.http.client.methods.HttpGet
 
 import io.delta.sharing.client.model._
-import io.delta.sharing.client.util.UnexpectedHttpStatus
+import io.delta.sharing.client.util.{JsonUtils, UnexpectedHttpStatus}
 
 // scalastyle:off maxLineLength
 class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
@@ -33,6 +34,40 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       sslTrustAll = true,
       responseFormat = DeltaSharingRestClient.RESPONSE_FORMAT_DELTA
     )
+  }
+
+  // JSON field order isn't significant, so the delta-format assertions compare parsed objects
+  // instead of exact substrings.
+  private def field(line: String, names: String*): JsonNode = {
+    var node = JsonUtils.readTree(line)
+    for (name <- names) {
+      node = node.path(name)
+    }
+    node
+  }
+
+  private def assertJsonEquals(node: JsonNode, expected: String): Unit = {
+    assert(node == JsonUtils.readTree(expected), s"$node != $expected")
+  }
+
+  private def assertNumber(node: JsonNode, expected: Long): Unit = {
+    assert(node.isNumber && node.asLong() == expected, s"$node != $expected")
+  }
+
+  // A file line's action sits under deltaSingleAction; expected is the action prefix
+  // `{"<kind>":{"path":"<url prefix>`, so only the URL's prefix is compared (the rest is signed).
+  private def assertFileAction(
+      line: String,
+      expected: String,
+      version: Long,
+      timestamp: Long): Unit = {
+    val m = """^\{"(\w+)":\{"path":"(.*)$""".r.findFirstMatchIn(expected).get
+    val file = field(line, "file")
+    assertNumber(file.path("version"), version)
+    assertNumber(file.path("timestamp"), timestamp)
+    assert(file.path("expirationTimestamp").isNumber, s"no expirationTimestamp in $line")
+    val path = file.path("deltaSingleAction").path(m.group(1)).path("path").asText()
+    assert(path.startsWith(m.group(2)), s"$path does not start with ${m.group(2)}")
   }
 
   integrationTest("Check headers") {
@@ -61,7 +96,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
       assert(null == tableMatadata.metadata)
       assert(2 == tableMatadata.lines.size)
       assert(tableMatadata.lines(0) == """{"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":2}}}""")
-      assert(tableMatadata.lines(1).contains("""{"deltaMetadata":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"],"configuration":{},"createdTime":1619652806049"""))
+      assertJsonEquals(field(tableMatadata.lines(1), "metaData", "deltaMetadata"), """{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"],"configuration":{},"createdTime":1619652806049}""")
     } finally {
       client.close()
     }
@@ -72,7 +107,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
     try {
       val tableMatadata =
         client.getMetadata(Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"))
-      assert(tableMatadata.lines(1).contains("""{"deltaMetadata":{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1651272615011"""))
+      assertJsonEquals(field(tableMatadata.lines(1), "metaData", "deltaMetadata"), """{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1651272615011}""")
     } finally {
       client.close()
     }
@@ -96,13 +131,23 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
   integrationTest("getFiles") {
     def verifyTableFiles(tableFiles: DeltaTableFiles): Unit = {
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 2, expectedNumLines = 4, minWriterVersion = 2)
-      assert(tableFiles.lines(1).contains("""{"deltaMetadata":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"],"configuration":{},"createdTime":1619652806049"""))
+      assertJsonEquals(field(tableFiles.lines(1), "metaData", "deltaMetadata"), """{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["date"],"configuration":{},"createdTime":1619652806049}""")
       assert(tableFiles.lines(2).startsWith("""{"file":{"id":"01f8583b4823c5109ff90c279d93d5a56756914a467d95794a7574ff7541ebbb","""))
-      assert(tableFiles.lines(2).contains("""deltaSingleAction":{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm="""))
-      assert(tableFiles.lines(2).contains(""","partitionValues":{"date":"2021-04-28"},"size":573,"modificationTime":1619652839000,"dataChange":true,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}""""))
+      val addAction2 = field(tableFiles.lines(2), "file", "deltaSingleAction", "add")
+      assert(addAction2.path("path").asText().startsWith("https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-8b0086f2-7b27-4935-ac5a-8ed6215a6640.c000.snappy.parquet?X-Amz-Algorithm="))
+      assertJsonEquals(addAction2.path("partitionValues"), """{"date":"2021-04-28"}""")
+      assertNumber(addAction2.path("size"), 573)
+      assertNumber(addAction2.path("modificationTime"), 1619652839000L)
+      assert(addAction2.path("dataChange").asBoolean)
+      assert(addAction2.path("stats").asText() == "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:57.955Z\"},\"nullCount\":{\"eventTime\":0}}")
       assert(tableFiles.lines(3).startsWith("""{"file":{"id":"2b1be721e37f82faf1e0d124e0bacc5f1787d3e43aa8753e2fdfe5f27cf1018e","""))
-      assert(tableFiles.lines(3).contains(""""deltaSingleAction":{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm="""))
-      assert(tableFiles.lines(3).contains(""","partitionValues":{"date":"2021-04-28"},"size":573,"modificationTime":1619652832000,"dataChange":true,"stats":"{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}""""))
+      val addAction3 = field(tableFiles.lines(3), "file", "deltaSingleAction", "add")
+      assert(addAction3.path("path").asText().startsWith("https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/table2/date%3D2021-04-28/part-00000-591723a8-6a27-4240-a90e-57426f4736d2.c000.snappy.parquet?X-Amz-Algorithm="))
+      assertJsonEquals(addAction3.path("partitionValues"), """{"date":"2021-04-28"}""")
+      assertNumber(addAction3.path("size"), 573)
+      assertNumber(addAction3.path("modificationTime"), 1619652832000L)
+      assert(addAction3.path("dataChange").asBoolean)
+      assert(addAction3.path("stats").asText() == "{\"numRecords\":1,\"minValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"maxValues\":{\"eventTime\":\"2021-04-28T23:33:48.719Z\"},\"nullCount\":{\"eventTime\":0}}")
       // Refresh token should be returned in latest snapshot query
       assert(tableFiles.refreshToken.nonEmpty)
     }
@@ -152,7 +197,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
         fileIdHash = None
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 1, expectedNumLines = 5)
-      assert(tableFiles.lines(1).contains("""{"deltaMetadata":{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1651272615011"""))
+      assertJsonEquals(field(tableFiles.lines(1), "metaData", "deltaMetadata"), """{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1651272615011}""")
       val prefix = """{"file":{"id":""""
       val version = ""","version":1"""
       assert(tableFiles.lines(2).startsWith(prefix) && tableFiles.lines(2).contains(version))
@@ -166,8 +211,8 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
   }
 
   private def checkCdfTableCdfEnabledTableV0Metadata(line: String, version: String = "1"): Unit = {
-    assert(line.contains(""""deltaMetadata":{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1651272615011"""))
-    assert(line.contains(s""""version":$version"""))
+    assertJsonEquals(field(line, "metaData", "deltaMetadata"), """{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1651272615011}""")
+    assertNumber(field(line, "metaData", "version"), version.toLong)
   }
 
   private def checkCdfTableCdfEnabledTableV1(lines: Seq[String]): Unit = {
@@ -175,33 +220,34 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
     val addFilePrefix = """{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/cdf_table_cdf_enabled/part-0000"""
     // VERSION 1: INSERT 3 files
     for (lineNum <- 0 to 2) {
-      assert(lines(lineNum).contains(addFilePrefix))
-      assert(lines(lineNum).contains(""""version":1,"timestamp":1651272635000,"expirationTimestamp":"""))
+      assertFileAction(lines(lineNum), addFilePrefix, 1, 1651272635000L)
     }
   }
 
   private def checkCdfTableCdfEnabledTableV2ToV3(lines: Seq[String]): Unit = {
     // VERSION 2: REMOVE 1 file
     val removeFilePrefix = """{"remove":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/cdf_table_cdf_enabled/part-0000"""
-    assert(lines(0).contains(removeFilePrefix))
-    assert(lines(0).contains(""""version":2,"timestamp":1651272655000,"expirationTimestamp":"""))
+    assertFileAction(lines(0), removeFilePrefix, 2, 1651272655000L)
     // VERSION 3: UPDATE 1 row: 1 remove + 1 add
-    assert(lines(1).contains(removeFilePrefix))
-    assert(lines(1).contains(""""version":3,"timestamp":1651272660000,"expirationTimestamp":"""))
+    assertFileAction(lines(1), removeFilePrefix, 3, 1651272660000L)
     val addFilePrefix = """{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/cdf_table_cdf_enabled/part-0000"""
-    assert(lines(2).contains(addFilePrefix))
-    assert(lines(2).contains(""""version":3,"timestamp":1651272660000,"expirationTimestamp":"""))
+    assertFileAction(lines(2), addFilePrefix, 3, 1651272660000L)
   }
 
-  private def checkCdfTableCdfEnabledTableV5Metadata(line: String): Unit = {
+  private def checkCdfTableCdfEnabledTableV5Metadata(line: String, withVersion: Boolean = true): Unit = {
     // VERSION 5: set delta.enableChangeDataFeed -> true
-    assert(line.contains(""""deltaMetadata":{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1651272615011"""))
-    assert(line.contains(""""version":5,"""))
+    assertJsonEquals(field(line, "metaData", "deltaMetadata"), """{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1651272615011}""")
+    // A Change Data Feed response's leading metaData carries no version unless
+    // includeHistoricalMetadata pins it to the start version; a startingVersion query's
+    // metaData keeps its commit version.
+    if (withVersion) {
+      assertNumber(field(line, "metaData", "version"), 5)
+    }
   }
   private def checkCdfTableCdfEnabledTableV4ToV5(lines: Seq[String]): Unit = {
     // VERSION 4: set delta.enableChangeDataFeed -> false
-    assert(lines(0).contains(""""deltaMetadata":{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"false"},"createdTime":1651272615011"""))
-    assert(lines(0).contains(""""version":4,"""))
+    assertJsonEquals(field(lines(0), "metaData", "deltaMetadata"), """{"id":"16736144-3306-4577-807a-d3f899b77670","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}},{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"birthday\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"false"},"createdTime":1651272615011}""")
+    assertNumber(field(lines(0), "metaData", "version"), 4)
     checkCdfTableCdfEnabledTableV5Metadata(lines(1))
   }
 
@@ -265,11 +311,9 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
   private def checkCdfTableCdfEnabledTableV2V3Cdc(lines: Seq[String]): Unit = {
     // VERSION 2: REMOVE 1 row
     val cdcFilePrefix = """{"cdc":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/cdf_table_cdf_enabled/_change_data/cdc-00000"""
-    assert(lines(0).contains(cdcFilePrefix))
-    assert(lines(0).contains(""""version":2,"timestamp":1651272655000,"expirationTimestamp":"""))
+    assertFileAction(lines(0), cdcFilePrefix, 2, 1651272655000L)
     // VERSION 3: UPDATE 1 row: 1 remove + 1 add
-    assert(lines(1).contains(cdcFilePrefix))
-    assert(lines(1).contains(""""version":3,"timestamp":1651272660000,"expirationTimestamp":"""))
+    assertFileAction(lines(1), cdcFilePrefix, 3, 1651272660000L)
   }
 
   integrationTest("getCDFFiles") {
@@ -283,7 +327,7 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
         None
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 0, expectedNumLines = 7)
-      checkCdfTableCdfEnabledTableV5Metadata(tableFiles.lines(1))
+      checkCdfTableCdfEnabledTableV5Metadata(tableFiles.lines(1), withVersion = false)
       checkCdfTableCdfEnabledTableV1(tableFiles.lines.slice(2, 5))
       checkCdfTableCdfEnabledTableV2V3Cdc(tableFiles.lines.slice(5, 7))
     } finally {
@@ -292,23 +336,26 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
   }
 
   private def checkNotnullToNullTableV0Metadata(line: String): Unit = {
-    assert(line.contains(""""deltaMetadata":{"id":"1e2201ff-12ad-4c3b-a539-4d34e9e36680","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":false,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1668327039667"""))
-    assert(line.contains(""""version":0,"""))
+    assertJsonEquals(field(line, "metaData", "deltaMetadata"), """{"id":"1e2201ff-12ad-4c3b-a539-4d34e9e36680","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":false,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1668327039667}""")
+    assertNumber(field(line, "metaData", "version"), 0)
   }
 
-  private def checkNotnullToNullTableV2V3Metadata(line: String, version: String): Unit = {
-    assert(line.contains(""""deltaMetadata":{"id":"1e2201ff-12ad-4c3b-a539-4d34e9e36680","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1668327039667"""))
-    assert(line.contains(s""""version":$version"""))
+  private def checkNotnullToNullTableV2V3Metadata(line: String, version: String = null): Unit = {
+    assertJsonEquals(field(line, "metaData", "deltaMetadata"), """{"id":"1e2201ff-12ad-4c3b-a539-4d34e9e36680","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"name\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1668327039667}""")
+    // A Change Data Feed response's leading metaData carries no version unless
+    // includeHistoricalMetadata pins it to the start version; in-range commit metaData keeps
+    // its commit version.
+    if (version != null) {
+      assertNumber(field(line, "metaData", "version"), version.toLong)
+    }
   }
 
   private def checkNotnullToNullTableAddFiles(lines: Seq[String]): Unit = {
     // VERSION 1: INSERT 1 file
     // VERSION 3: INSERT 1 file
     val addFilePrefix = """{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/streaming_notnull_to_null/part-00000-"""
-    assert(lines(0).contains(addFilePrefix))
-    assert(lines(1).contains(addFilePrefix))
-    assert(lines(0).contains(""""version":1,"timestamp":1668327046000,"expirationTimestamp":"""))
-    assert(lines(1).contains(""""version":3,"timestamp":1668327050000,"expirationTimestamp":"""))
+    assertFileAction(lines(0), addFilePrefix, 1, 1668327046000L)
+    assertFileAction(lines(1), addFilePrefix, 3, 1668327050000L)
   }
 
   integrationTest("getCDFFiles: more metadatas returned for includeHistoricalMetadata=true") {
@@ -341,7 +388,8 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
         fileIdHash = None
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 0, expectedNumLines = 4)
-      checkNotnullToNullTableV2V3Metadata(tableFiles.lines(1), version = "3")
+      // A Change Data Feed response's leading metaData carries no version unless includeHistoricalMetadata pins it to the start version.
+      checkNotnullToNullTableV2V3Metadata(tableFiles.lines(1))
       checkNotnullToNullTableAddFiles(tableFiles.lines.slice(2, 4))
     } finally {
       client.close()
@@ -359,21 +407,17 @@ class DeltaSharingRestClientDeltaSuite extends DeltaSharingIntegrationTest {
         None
       )
       checkDeltaTableFilesBasics(tableFiles, expectedVersion = 0, expectedNumLines = 8)
-      assert(tableFiles.lines(1).contains(""""deltaMetadata":{"id":"b960061d-dc64-4b29-8fb0-d0ddc1b29cc2","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1655408042120"""))
-      assert(tableFiles.lines(1).contains(""""version":4"""))
+      assertJsonEquals(field(tableFiles.lines(1), "metaData", "deltaMetadata"), """{"id":"b960061d-dc64-4b29-8fb0-d0ddc1b29cc2","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"age\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":[],"configuration":{"delta.enableChangeDataFeed":"true"},"createdTime":1655408042120}""")
+      // A Change Data Feed response's leading metaData carries no version unless includeHistoricalMetadata pins it to the start version.
       val cdcFilePrefix = """{"cdc":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/cdf_table_with_vacuum/_change_data/cdc-00000"""
-      assert(tableFiles.lines(4).contains(cdcFilePrefix))
-      assert(tableFiles.lines(4).contains(""""version":2,"timestamp":1655410824000,"expirationTimestamp":"""))
-      assert(tableFiles.lines(7).contains(cdcFilePrefix))
-      assert(tableFiles.lines(7).contains(""""version":4,"timestamp":1655410847000,"expirationTimestamp":"""))
+      assertFileAction(tableFiles.lines(4), cdcFilePrefix, 2, 1655410824000L)
+      assertFileAction(tableFiles.lines(7), cdcFilePrefix, 4, 1655410847000L)
       val addFilePrefix = """{"add":{"path":"https://delta-exchange-test.s3.us-west-2.amazonaws.com/delta-exchange-test/cdf_table_with_vacuum/part-0000"""
       for (lineNum <- 2 to 3) {
-        assert(tableFiles.lines(lineNum).contains(addFilePrefix))
-        assert(tableFiles.lines(lineNum).contains(""""version":1,"timestamp":1655408048000,"expirationTimestamp":"""))
+        assertFileAction(tableFiles.lines(lineNum), addFilePrefix, 1, 1655408048000L)
       }
       for (lineNum <- 5 to 6) {
-        assert(tableFiles.lines(lineNum).contains(addFilePrefix))
-        assert(tableFiles.lines(lineNum).contains(""""version":3,"timestamp":1655410829000,"expirationTimestamp":"""))
+        assertFileAction(tableFiles.lines(lineNum), addFilePrefix, 3, 1655410829000L)
       }
     } finally {
       client.close()

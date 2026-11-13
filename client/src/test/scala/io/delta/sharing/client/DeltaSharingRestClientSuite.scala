@@ -809,12 +809,13 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           responseFormat = responseFormat
         )
         try {
+          // OpenSharing always shares history, so a well-formed startingTimestamp is accepted;
+          // only a malformed one is rejected.
           val errorMessage = intercept[UnexpectedHttpStatus] {
             client.getTableVersion(Table(name = "table1", schema = "default", share = "share1"),
-              startingTimestamp = Some("2020-01-01T00:00:00Z"))
+              startingTimestamp = Some("random_timestamp"))
           }.getMessage
           assert(errorMessage.contains("400 Bad Request"))
-          assert(errorMessage.contains("Reading table by version or timestamp is not supported"))
         } finally {
           client.close()
         }
@@ -856,12 +857,16 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       val tableMatadata =
         client.getMetadata(Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"))
       assert(Protocol(minReaderVersion = 1) == tableMatadata.protocol)
+      // metaData carries size and numFiles from the table's
+      // checksum file.
       val expectedMetadata = Metadata(
         id = "16736144-3306-4577-807a-d3f899b77670",
         format = Format(),
         schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
         configuration = Map("enableChangeDataFeed" -> "true"),
-        partitionColumns = Nil)
+        partitionColumns = Nil,
+        size = 2277,
+        numFiles = 2)
       assert(expectedMetadata == tableMatadata.metadata)
     } finally {
       client.close()
@@ -871,12 +876,15 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
   integrationTest("getMetadata with parameters") {
     val client = new DeltaSharingRestClient(testProfileProvider, sslTrustAll = true)
     try {
+      // metaData carries no version, and the size and numFiles of the version's checksum file.
       val metadataV0 = Metadata(
         id = "1e2201ff-12ad-4c3b-a539-4d34e9e36680",
         format = Format(),
         schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":false,"metadata":{}}]}""",
         configuration = Map("enableChangeDataFeed" -> "true"),
-        partitionColumns = Nil
+        partitionColumns = Nil,
+        size = 0,
+        numFiles = 0
       )
       val responseV0 = client.getMetadata(
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
@@ -885,8 +893,11 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       assert(Protocol(minReaderVersion = 1) == responseV0.protocol)
       assert(metadataV0 == responseV0.metadata)
 
+      // Version 2 has a checksum file of its own.
       val metadataV2 = metadataV0.copy(
-        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}"""
+        schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
+        size = 568,
+        numFiles = 1
       )
       val responseV2 = client.getMetadata(
         Table(name = "streaming_notnull_to_null", schema = "default", share = "share8"),
@@ -900,7 +911,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         timestampAsOf = Some("2022-11-13T08:10:50Z")
       )
       assert(Protocol(minReaderVersion = 1) == responseV0.protocol)
-      assert(metadataV2 == responseTimestamp.metadata)
+      // The timestamp resolves to version 3, whose checksum file has its own size and numFiles.
+      assert(metadataV2.copy(size = 1136, numFiles = 2) == responseTimestamp.metadata)
     } finally {
       client.close()
     }
@@ -1123,6 +1135,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       )
       assert(tableFiles.version == 1)
       assert(tableFiles.files.size == 3)
+      // files read as of a version or timestamp carry that
+      // version's commit timestamp.
       val expectedFiles = Seq(
         AddFile(
           url = tableFiles.files(0).url,
@@ -1131,7 +1145,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           partitionValues = Map.empty,
           size = 1030,
           version = 1,
-          timestamp = null,
+          timestamp = 1651272635000L,
           stats = """{"numRecords":1,"minValues":{"name":"1","age":1,"birthday":"2020-01-01"},"maxValues":{"name":"1","age":1,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
         ),
         AddFile(
@@ -1141,7 +1155,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           partitionValues = Map.empty,
           size = 1030,
           version = 1,
-          timestamp = null,
+          timestamp = 1651272635000L,
           stats = """{"numRecords":1,"minValues":{"name":"2","age":2,"birthday":"2020-01-01"},"maxValues":{"name":"2","age":2,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
         ),
         AddFile(
@@ -1151,7 +1165,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           partitionValues = Map.empty,
           size = 1030,
           version = 1,
-          timestamp = null,
+          timestamp = 1651272635000L,
           stats = """{"numRecords":1,"minValues":{"name":"3","age":3,"birthday":"2020-01-01"},"maxValues":{"name":"3","age":3,"birthday":"2020-01-01"},"nullCount":{"name":0,"age":0,"birthday":0}}"""
         )
       )
@@ -1175,19 +1189,21 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           responseFormat = responseFormat
         )
         try {
+          // OpenSharing always shares history, so reading table1 as of a version is allowed; a
+          // version after the latest is still rejected.
           val errorMessage = intercept[UnexpectedHttpStatus] {
             client.getFiles(
               table = Table(name = "table1", schema = "default", share = "share1"),
               predicates = Nil,
               limit = None,
-              versionAsOf = Some(1L),
+              versionAsOf = Some(999999L),
               timestampAsOf = None,
               jsonPredicateHints = None,
               refreshToken = None,
               fileIdHash = None
             )
           }.getMessage
-          assert(errorMessage.contains("Reading table by version or timestamp is not supported because history sharing is not enabled on table: share1.default.table1"))
+          assert(errorMessage.contains("Cannot load table version 999999"))
         } finally {
           client.close()
         }
@@ -1228,7 +1244,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
     }
   }
 
-  integrationTest("getFiles with timestamp not supported on table1") {
+  integrationTest("getFiles with malformed timestamp on table1") {
     Seq(
       DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
     ).foreach {
@@ -1239,6 +1255,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           responseFormat = responseFormat
         )
         try {
+          // OpenSharing always shares history, so a well-formed timestamp is accepted; only a
+          // malformed one is rejected.
           val errorMessage = intercept[UnexpectedHttpStatus] {
             client.getFiles(
               table = Table(name = "table1", schema = "default", share = "share1"),
@@ -1251,7 +1269,7 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               fileIdHash = None
             )
           }.getMessage
-          assert(errorMessage.contains("Reading table by version or timestamp is not supported because history sharing is not enabled on table: share1.default.table1"))
+          assert(errorMessage.contains("400 Bad Request"))
         } finally {
           client.close()
         }
@@ -1501,17 +1519,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
           responseFormat = responseFormat
         )
         try {
+          // OpenSharing always shares history, so reading table1 from a startingVersion is
+          // allowed and no longer rejected here.
           var errorMessage = intercept[UnexpectedHttpStatus] {
-            client.getFiles(
-              Table(name = "table1", schema = "default", share = "share1"),
-              1,
-              None,
-              None
-            )
-          }.getMessage
-          assert(errorMessage.contains("Reading table by version or timestamp is not supported because history sharing is not enabled on table: share1.default.table1"))
-
-          errorMessage = intercept[UnexpectedHttpStatus] {
             client.getFiles(
               Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
               -1,
@@ -1568,8 +1578,9 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             schemaString =
               """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}},{"name":"age","type":"integer","nullable":true,"metadata":{}},{"name":"birthday","type":"date","nullable":true,"metadata":{}}]}""",
             configuration = Map("enableChangeDataFeed" -> "true"),
-            partitionColumns = Nil,
-            version = 5
+            partitionColumns = Nil
+            // a Change Data Feed response's leading metaData
+            // carries no version unless includeHistoricalMetadata pins it to the start version.
           )
           assert(expectedMetadata == tableFiles.metadata)
           assert(tableFiles.cdfFiles.size == 2)
@@ -1695,8 +1706,10 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
         format = Format(),
         schemaString = """{"type":"struct","fields":[{"name":"name","type":"string","nullable":true,"metadata":{}}]}""",
         configuration = Map("enableChangeDataFeed" -> "true"),
-        partitionColumns = Nil,
-        version = 3)
+        partitionColumns = Nil
+        // a Change Data Feed response's leading metaData
+        // carries no version unless includeHistoricalMetadata pins it to the start version.
+      )
       assert(expectedMetadata == tableFiles.metadata)
 
       assert(tableFiles.addFiles.size == 2)
@@ -1750,8 +1763,8 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
             )
           }.getMessage
           assert(errorMessage.contains("""400 Bad Request for query"""))
-          assert(errorMessage.contains("""{"errorCode":"RESOURCE_DOES_NOT_EXIST""""))
-          assert(errorMessage.contains("table files missing"))
+          assert(errorMessage.contains("""{"errorCode":"BAD_REQUEST""""))
+          assert(errorMessage.contains("Cannot compute snapshot. Missing delta file version 0"))
         } finally {
           client.close()
         }
@@ -1763,27 +1776,44 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
       DeltaSharingRestClient.RESPONSE_FORMAT_DELTA, DeltaSharingRestClient.RESPONSE_FORMAT_PARQUET
     ).foreach {
       responseFormat =>
+        // This is to test that timestamp is correctly passed to the server and parsed.
+        // A timestamp before the first commit resolves to version 0, which records change data;
+        // the table stops recording it at version 4, so the server fails the stream there.
+        val cdfOptions = Map("startingTimestamp" -> "2000-01-01T00:00:00Z")
+        val table = Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8")
+
+        // Without the end stream action, the failure is an invalid JSON line that fails parsing.
         val client = new DeltaSharingRestClient(
           testProfileProvider,
           sslTrustAll = true,
           responseFormat = responseFormat
         )
         try {
-          // This is to test that timestamp is correctly passed to the server and parsed.
-          // The error message is expected as we are using a timestamp much smaller than the earliest
-          // version of the table.
-          val cdfOptions = Map("startingTimestamp" -> "2000-01-01T00:00:00Z")
-          val errorMessage = intercept[UnexpectedHttpStatus] {
-            val tableFiles = client.getCDFFiles(
-              Table(name = "cdf_table_cdf_enabled", schema = "default", share = "share8"),
-              cdfOptions,
-              false,
-              None
-            )
+          val errorMessage = intercept[Exception] {
+            client.getCDFFiles(table, cdfOptions, false, None)
           }.getMessage
-          assert(errorMessage.contains("Please use a timestamp greater"))
+          assert(errorMessage.contains("Forcing_invalid_json_to_fail_streaming_rpc_due_to_error"))
         } finally {
           client.close()
+        }
+
+        // With the end stream action, the last line carries the error.
+        val endStreamClient = new DeltaSharingRestClient(
+          testProfileProvider,
+          sslTrustAll = true,
+          responseFormat = responseFormat,
+          endStreamActionEnabled = true
+        )
+        try {
+          val errorMessage = intercept[DeltaSharingServerException] {
+            endStreamClient.getCDFFiles(table, cdfOptions, false, None)
+          }.getMessage
+          assert(errorMessage.contains("[403]"))
+          assert(errorMessage.contains(
+            "Unable to access change data feed for share8.default.cdf_table_cdf_enabled. " +
+              "CDF is not enabled on the original delta table for version 4."))
+        } finally {
+          endStreamClient.close()
         }
     }
   }
@@ -1838,7 +1868,12 @@ class DeltaSharingRestClientSuite extends DeltaSharingIntegrationTest {
               None
             )
           }.getMessage
-          assert(errorMessage.contains("cdf is not enabled on table share1.default.table1"))
+          // OpenSharing always shares history; table1 has CDF disabled as a table property, so
+          // the request is rejected because change data is not enabled at that version.
+          assert(errorMessage.contains(""""errorCode":"PERMISSION_DENIED""""))
+          assert(errorMessage.contains(
+            "Unable to access change data feed for share1.default.table1. " +
+              "CDF is not enabled on the original delta table for version 0."))
         } finally {
           client.close()
         }
