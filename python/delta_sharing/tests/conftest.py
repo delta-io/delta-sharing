@@ -29,9 +29,16 @@ from delta_sharing.rest_client import DataSharingRestClient
 ENABLE_INTEGRATION = len(os.environ.get("AWS_ACCESS_KEY_ID", "")) > 0
 SKIP_MESSAGE = "The integration tests are disabled."
 
+# Must match opensharing-test-server TestDeltaSharingServer.SERVER_READY_MARKER
+SERVER_READY_MARKER = b"DELTA_SHARING_TEST_SERVER_READY"
+
+_integration_profile_path: Optional[Path] = None
+
 
 @pytest.fixture
 def profile_path() -> str:
+    if ENABLE_INTEGRATION and _integration_profile_path is not None:
+        return str(_integration_profile_path)
     return os.path.join(os.path.dirname(__file__), "test_profile.json")
 
 
@@ -52,41 +59,58 @@ def sharing_client(profile) -> SharingClient:
 
 @pytest.fixture(scope="session", autouse=ENABLE_INTEGRATION)
 def test_server(tmp_path_factory: TempPathFactory) -> Iterator[None]:
+    global _integration_profile_path
     pid_file: Optional[Path] = None
     proc: Optional[subprocess.Popen] = None
     try:
         if ENABLE_INTEGRATION:
-            pid_file = tmp_path_factory.getbasetemp() / "delta-sharing-server.pid"
+            basetemp = tmp_path_factory.getbasetemp()
+            pid_file = basetemp / "delta-sharing-server.pid"
+            profile_file = basetemp / "opensharing.share"
+            env = os.environ.copy()
+            env.setdefault("AWS_REGION", "us-west-2")
+            env.setdefault("AWS_DEFAULT_REGION", "us-west-2")
             proc = subprocess.Popen(
                 [
                     "./build/sbt",
                     (
-                        "server/test:runMain io.delta.sharing.server.TestDeltaSharingServer "
+                        "opensharingTestServer/runMain "
+                        "io.delta.sharing.server.TestDeltaSharingServer "
                         + str(pid_file)
+                        + " "
+                        + str(profile_file)
                     ),
                 ],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 cwd="..",
+                env=env,
             )
 
             ready = threading.Event()
 
             def wait_for_server() -> None:
+                assert proc is not None and proc.stdout is not None
                 for line in proc.stdout:
                     print(line.decode("utf-8").strip())
-                    if b"https://127.0.0.1:12345/" in line:
+                    if SERVER_READY_MARKER in line:
                         ready.set()
 
             threading.Thread(target=wait_for_server, daemon=True).start()
 
-            if not ready.wait(timeout=120):
-                raise TimeoutError("the server didn't start in 120 seconds")
+            if not ready.wait(timeout=180):
+                raise TimeoutError("the server didn't start in 180 seconds")
+            if not profile_file.exists() or profile_file.stat().st_size == 0:
+                raise RuntimeError(
+                    f"OpenSharing did not write a recipient profile to {profile_file}"
+                )
+            _integration_profile_path = profile_file
         yield
     finally:
         if ENABLE_INTEGRATION:
             if pid_file is not None and pid_file.exists():
-                pid = pid_file.read_text()
-                subprocess.run(["kill", "-9", pid])
+                pid = pid_file.read_text().strip()
+                if pid.isdigit():
+                    subprocess.run(["kill", "-9", pid], check=False)
             if proc is not None and proc.poll() is None:
                 proc.kill()
