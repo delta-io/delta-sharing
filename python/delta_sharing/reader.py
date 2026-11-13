@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 from collections import defaultdict
+from dataclasses import replace
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 from json import loads, dump
@@ -548,8 +549,10 @@ class DeltaSharingReader:
         return schema, iterator()
 
     def table_changes_to_pandas(self, cdfOptions: CdfOptions) -> pd.DataFrame:
-        # Only use delta format if explicitly specified
-        if self._use_delta_format:
+        if self._resolve_response_format(for_cdf=True) == DataSharingRestClient.DELTA_FORMAT:
+            if self._use_delta_format is None and cdfOptions.include_historical_metadata is None:
+                # The kernel replays the delta log, so it needs the metadata changes in range.
+                cdfOptions = replace(cdfOptions, include_historical_metadata=True)
             return self.__table_changes_to_pandas_kernel(cdfOptions)
 
         response = self._rest_client.list_table_changes(self._table, cdfOptions)

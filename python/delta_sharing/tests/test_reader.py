@@ -22,7 +22,7 @@ import pytest
 from datetime import date
 from pathlib import Path
 import tempfile
-from typing import Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import pandas as pd
 import numpy as np
@@ -49,6 +49,46 @@ _TEST_TABLE = Table("table_name", "share_name", "schema_name")
 _SCHEMA_A = (
     '{"type":"struct","fields":[' '{"metadata":{},"name":"a","nullable":true,"type":"long"}]}'
 )
+
+
+def _single_add_cdf_delta_lines(parquet_file) -> List[str]:
+    escaped_schema_string = _SCHEMA_A.replace('"', '\\"')
+    return [
+        # CDF scans require a protocol whose writer features include changeDataFeed.
+        (
+            '{"protocol":{"deltaProtocol":{'
+            '"minReaderVersion":3,'
+            '"minWriterVersion":7,'
+            '"readerFeatures":[],'
+            '"writerFeatures":["changeDataFeed"]'
+            "}}}"
+        ),
+        (
+            '{"metaData":{'
+            '"version":0,'
+            '"deltaMetadata":{'
+            '"id":"id",'
+            '"format":{"provider":"parquet","options":{}},'
+            f'"schemaString":"{escaped_schema_string}",'
+            '"partitionColumns":[],'
+            '"configuration":{"delta.enableChangeDataFeed":"true"}'
+            "}}}"
+        ),
+        (
+            '{"file":{'
+            '"id":"change",'
+            '"version":0,'
+            '"timestamp":1000,'
+            '"deltaSingleAction":{'
+            '"add":{'
+            f'"path":"{parquet_file}",'
+            '"partitionValues":{},'
+            '"modificationTime":1000,'
+            '"dataChange":true,'
+            '"size":0'
+            "}}}}"
+        ),
+    ]
 
 
 class _ListFilesRestClient:
@@ -857,7 +897,7 @@ def test_table_changes_non_partitioned(tmp_path, has_change_type_column):
                 protocol=None, metadata=metadata, actions=actions, lines=None
             )
 
-        def autoresolve_query_format(self, table: Table):
+        def autoresolve_query_format(self, table: Table, for_cdf: bool = False):
             return "parquet"
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
@@ -933,6 +973,9 @@ def test_table_changes_partitioned(tmp_path):
                 protocol=None, metadata=metadata, actions=actions, lines=None
             )
 
+        def autoresolve_query_format(self, table: Table, for_cdf: bool = False):
+            return "parquet"
+
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
     pdf = reader.table_changes_to_pandas(CdfOptions())
 
@@ -976,6 +1019,9 @@ def test_table_changes_empty(tmp_path):
             return ListTableChangesResponse(
                 protocol=None, metadata=metadata, actions=[], lines=None
             )
+
+        def autoresolve_query_format(self, table: Table, for_cdf: bool = False):
+            return "parquet"
 
     def validate_pdf(pdf):
         assert pdf.empty
@@ -1064,43 +1110,7 @@ def test_table_changes_delta_format_stream_lifecycle(
     parquet_file = tmp_path / "change.parquet"
     pd.DataFrame({"a": [1]}).to_parquet(parquet_file)
 
-    escaped_schema_string = _SCHEMA_A.replace('"', '\\"')
-    lines = [
-        # CDF scans require a protocol whose writer features include changeDataFeed.
-        (
-            '{"protocol":{"deltaProtocol":{'
-            '"minReaderVersion":3,'
-            '"minWriterVersion":7,'
-            '"readerFeatures":[],'
-            '"writerFeatures":["changeDataFeed"]'
-            "}}}"
-        ),
-        (
-            '{"metaData":{'
-            '"version":0,'
-            '"deltaMetadata":{'
-            '"id":"id",'
-            '"format":{"provider":"parquet","options":{}},'
-            f'"schemaString":"{escaped_schema_string}",'
-            '"partitionColumns":[],'
-            '"configuration":{"delta.enableChangeDataFeed":"true"}'
-            "}}}"
-        ),
-        (
-            '{"file":{'
-            '"id":"change",'
-            '"version":0,'
-            '"timestamp":1000,'
-            '"deltaSingleAction":{'
-            '"add":{'
-            f'"path":"{parquet_file}",'
-            '"partitionValues":{},'
-            '"modificationTime":1000,'
-            '"dataChange":true,'
-            '"size":0'
-            "}}}}"
-        ),
-    ]
+    lines = _single_add_cdf_delta_lines(parquet_file)
 
     class RestClientMock:
         delta_format_removed = False
@@ -1484,3 +1494,107 @@ def test_table_changes_to_pandas_non_partitioned_delta(tmp_path, convert_in_batc
     expected = pd.concat([pdf1, pdf2, pdf3, pdf4]).reset_index(drop=True)
 
     pd.testing.assert_frame_equal(pdf, expected)
+
+
+class _AutoresolveCdfRestClient:
+    def __init__(self, resolved_format, parquet_file):
+        self.resolved_format = resolved_format
+        self.parquet_file = parquet_file
+        self.autoresolve_calls = []
+        self.cdf_options = []
+        self.delta_format_header_set = False
+
+    def autoresolve_query_format(self, table: Table, for_cdf: bool = False):
+        self.autoresolve_calls.append((table, for_cdf))
+        return self.resolved_format
+
+    def set_delta_format_header(self, for_cdf=False):
+        assert for_cdf
+        self.delta_format_header_set = True
+
+    def remove_delta_format_header(self):
+        return
+
+    def list_table_changes(self, table: Table, cdfOptions: CdfOptions) -> ListTableChangesResponse:
+        self.cdf_options.append(cdfOptions)
+        if self.delta_format_header_set:
+            return ListTableChangesResponse(
+                protocol=None,
+                metadata=None,
+                actions=None,
+                lines=_single_add_cdf_delta_lines(self.parquet_file),
+            )
+        return ListTableChangesResponse(
+            protocol=None,
+            metadata=Metadata(schema_string=_SCHEMA_A),
+            actions=[
+                AddFile(
+                    url=str(self.parquet_file),
+                    id="change",
+                    partition_values={},
+                    size=0,
+                    stats="",
+                    timestamp=1000,
+                    version=0,
+                )
+            ],
+            lines=None,
+        )
+
+
+@pytest.mark.parametrize(
+    "resolved_format,expected_historical_metadata",
+    [("delta", True), ("parquet", None)],
+)
+def test_table_changes_to_pandas_autoresolves_format(
+    tmp_path, resolved_format, expected_historical_metadata
+):
+    parquet_file = tmp_path / "change.parquet"
+    pd.DataFrame({"a": [1]}).to_parquet(parquet_file)
+    rest_client = _AutoresolveCdfRestClient(resolved_format, parquet_file)
+
+    pdf = DeltaSharingReader(_TEST_TABLE, rest_client).table_changes_to_pandas(
+        CdfOptions(starting_version=0)
+    )
+
+    assert rest_client.autoresolve_calls == [(_TEST_TABLE, True)]
+    assert rest_client.delta_format_header_set == (resolved_format == "delta")
+    assert rest_client.cdf_options == [
+        CdfOptions(starting_version=0, include_historical_metadata=expected_historical_metadata)
+    ]
+    assert pdf["a"].tolist() == [1]
+    assert pdf[DeltaSharingReader._change_type_col_name()].tolist() == ["insert"]
+    assert pdf[DeltaSharingReader._commit_version_col_name()].tolist() == [0]
+
+
+def test_table_changes_to_pandas_autoresolve_keeps_caller_historical_metadata(tmp_path):
+    parquet_file = tmp_path / "change.parquet"
+    pd.DataFrame({"a": [1]}).to_parquet(parquet_file)
+    rest_client = _AutoresolveCdfRestClient("delta", parquet_file)
+
+    DeltaSharingReader(_TEST_TABLE, rest_client).table_changes_to_pandas(
+        CdfOptions(starting_version=0, include_historical_metadata=False)
+    )
+
+    assert rest_client.cdf_options == [
+        CdfOptions(starting_version=0, include_historical_metadata=False)
+    ]
+
+
+@pytest.mark.parametrize("use_delta_format", [False, True])
+def test_table_changes_to_pandas_explicit_format_skips_autoresolve(tmp_path, use_delta_format):
+    parquet_file = tmp_path / "change.parquet"
+    pd.DataFrame({"a": [1]}).to_parquet(parquet_file)
+    # The resolved format would contradict the explicit choice if it were consulted.
+    rest_client = _AutoresolveCdfRestClient(
+        "parquet" if use_delta_format else "delta", parquet_file
+    )
+
+    pdf = DeltaSharingReader(
+        _TEST_TABLE, rest_client, use_delta_format=use_delta_format
+    ).table_changes_to_pandas(CdfOptions(starting_version=0))
+
+    assert rest_client.autoresolve_calls == []
+    assert rest_client.delta_format_header_set == use_delta_format
+    assert rest_client.cdf_options == [CdfOptions(starting_version=0)]
+    assert pdf["a"].tolist() == [1]
