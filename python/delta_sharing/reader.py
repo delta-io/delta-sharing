@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 from collections import defaultdict
+from dataclasses import replace
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 from json import loads, dump
@@ -189,17 +190,21 @@ class DeltaSharingReader:
 
         return scan_result.schema, iterator()
 
-    def to_pandas(self) -> pd.DataFrame:
-        response_format = ""
-        # If client does not specify which format to use, autoresolve it.
-        # Otherwise use the specified format.
+    def _resolve_response_format(self, for_cdf: bool = False) -> str:
+        """
+        An explicit use_delta_format wins; otherwise ask the server which format it serves.
+        """
         if self._use_delta_format is None:
-            response_format = self._rest_client.autoresolve_query_format(self._table)
-        elif self._use_delta_format:
-            response_format = response_format = DataSharingRestClient.DELTA_FORMAT
+            if for_cdf:
+                return self._rest_client.autoresolve_query_format(self._table, for_cdf=True)
+            return self._rest_client.autoresolve_query_format(self._table)
+        if self._use_delta_format:
+            return DataSharingRestClient.DELTA_FORMAT
+        return DataSharingRestClient.PARQUET_FORMAT
 
+    def to_pandas(self) -> pd.DataFrame:
         # If the response format is delta, use delta kernel rust
-        if response_format == DataSharingRestClient.DELTA_FORMAT:
+        if self._resolve_response_format() == DataSharingRestClient.DELTA_FORMAT:
             return self.__to_pandas_kernel()
 
         # Otherwise use the standard approach
@@ -269,13 +274,7 @@ class DeltaSharingReader:
         return pa.RecordBatchReader.from_stream(pa.RecordBatchReader.from_batches(schema, batches))
 
     def _to_arrow_stream(self) -> Tuple[pa.Schema, Iterator[pa.RecordBatch]]:
-        response_format = ""
-        if self._use_delta_format is None:
-            response_format = self._rest_client.autoresolve_query_format(self._table)
-        elif self._use_delta_format:
-            response_format = DataSharingRestClient.DELTA_FORMAT
-
-        if response_format == DataSharingRestClient.DELTA_FORMAT:
+        if self._resolve_response_format() == DataSharingRestClient.DELTA_FORMAT:
             return self.__record_batches_kernel()
 
         response, schema_json = self._list_files()
@@ -550,8 +549,10 @@ class DeltaSharingReader:
         return schema, iterator()
 
     def table_changes_to_pandas(self, cdfOptions: CdfOptions) -> pd.DataFrame:
-        # Only use delta format if explicitly specified
-        if self._use_delta_format:
+        if self._resolve_response_format(for_cdf=True) == DataSharingRestClient.DELTA_FORMAT:
+            if self._use_delta_format is None and cdfOptions.include_historical_metadata is None:
+                # The kernel replays the delta log, so it needs the metadata changes in range.
+                cdfOptions = replace(cdfOptions, include_historical_metadata=True)
             return self.__table_changes_to_pandas_kernel(cdfOptions)
 
         response = self._rest_client.list_table_changes(self._table, cdfOptions)

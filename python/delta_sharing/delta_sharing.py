@@ -584,8 +584,8 @@ def load_table_changes_as_pandas(
     :param ending_version: The ending version of table changes.
     :param starting_timestamp: The starting timestamp of table changes.
     :param ending_timestamp: The ending timestamp of table changes.
-    :param use_delta_format: Whether to use delta format or parquet format. Default is parquet
-      format.
+    :param use_delta_format: Whether to use delta format or parquet format. If not set, table
+      metadata will be used to determine whether to use delta or parquet format.
     :param convert_in_batches: Whether to convert the parquet files to pandas one batch at a time
       rather than one file at a time. This may reduce memory consumption at the cost of taking
       longer or downloading more data, with parquet format queries being more likely to see
