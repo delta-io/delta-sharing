@@ -897,7 +897,7 @@ def test_table_changes_non_partitioned(tmp_path, has_change_type_column):
                 protocol=None, metadata=metadata, actions=actions, lines=None
             )
 
-        def autoresolve_query_format(self, table: Table, for_cdf: bool = False):
+        def autoresolve_query_format(self, table: Table, for_cdf: bool = False, **kwargs):
             return "parquet"
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
@@ -973,7 +973,7 @@ def test_table_changes_partitioned(tmp_path):
                 protocol=None, metadata=metadata, actions=actions, lines=None
             )
 
-        def autoresolve_query_format(self, table: Table, for_cdf: bool = False):
+        def autoresolve_query_format(self, table: Table, for_cdf: bool = False, **kwargs):
             return "parquet"
 
     reader = DeltaSharingReader(Table("table_name", "share_name", "schema_name"), RestClientMock())
@@ -1020,7 +1020,7 @@ def test_table_changes_empty(tmp_path):
                 protocol=None, metadata=metadata, actions=[], lines=None
             )
 
-        def autoresolve_query_format(self, table: Table, for_cdf: bool = False):
+        def autoresolve_query_format(self, table: Table, for_cdf: bool = False, **kwargs):
             return "parquet"
 
     def validate_pdf(pdf):
@@ -1501,11 +1501,19 @@ class _AutoresolveCdfRestClient:
         self.resolved_format = resolved_format
         self.parquet_file = parquet_file
         self.autoresolve_calls = []
+        self.autoresolve_pins = []
         self.cdf_options = []
         self.delta_format_header_set = False
 
-    def autoresolve_query_format(self, table: Table, for_cdf: bool = False):
+    def autoresolve_query_format(
+        self,
+        table: Table,
+        for_cdf: bool = False,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+    ):
         self.autoresolve_calls.append((table, for_cdf))
+        self.autoresolve_pins.append((version, timestamp))
         return self.resolved_format
 
     def set_delta_format_header(self, for_cdf=False):
@@ -1558,6 +1566,7 @@ def test_table_changes_to_pandas_autoresolves_format(
     )
 
     assert rest_client.autoresolve_calls == [(_TEST_TABLE, True)]
+    assert rest_client.autoresolve_pins == [(None, None)]
     assert rest_client.delta_format_header_set == (resolved_format == "delta")
     assert rest_client.cdf_options == [
         CdfOptions(starting_version=0, include_historical_metadata=expected_historical_metadata)
@@ -1565,6 +1574,37 @@ def test_table_changes_to_pandas_autoresolves_format(
     assert pdf["a"].tolist() == [1]
     assert pdf[DeltaSharingReader._change_type_col_name()].tolist() == ["insert"]
     assert pdf[DeltaSharingReader._commit_version_col_name()].tolist() == [0]
+
+
+@pytest.mark.parametrize(
+    "cdf_options,expected_pin",
+    [
+        (CdfOptions(starting_version=0, ending_version=5), (5, None)),
+        (
+            CdfOptions(starting_version=0, ending_timestamp="2024-01-01T00:00:00Z"),
+            (None, "2024-01-01T00:00:00Z"),
+        ),
+        # ending_version is preferred when both are set
+        (
+            CdfOptions(
+                starting_version=0, ending_version=5, ending_timestamp="2024-01-01T00:00:00Z"
+            ),
+            (5, None),
+        ),
+        # starting bounds alone do not pin the probe
+        (CdfOptions(starting_timestamp="2023-01-01T00:00:00Z"), (None, None)),
+    ],
+)
+def test_table_changes_to_pandas_autoresolve_pins_to_cdf_range_end(
+    tmp_path, cdf_options, expected_pin
+):
+    parquet_file = tmp_path / "change.parquet"
+    pd.DataFrame({"a": [1]}).to_parquet(parquet_file)
+    rest_client = _AutoresolveCdfRestClient("parquet", parquet_file)
+
+    DeltaSharingReader(_TEST_TABLE, rest_client).table_changes_to_pandas(cdf_options)
+
+    assert rest_client.autoresolve_pins == [expected_pin]
 
 
 def test_table_changes_to_pandas_autoresolve_keeps_caller_historical_metadata(tmp_path):

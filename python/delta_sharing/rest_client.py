@@ -330,18 +330,33 @@ class DataSharingRestClient:
             )
 
     @retry_with_exponential_backoff
-    def autoresolve_query_format(self, table: Table, for_cdf: bool = False):
+    def autoresolve_query_format(
+        self,
+        table: Table,
+        for_cdf: bool = False,
+        version: Optional[int] = None,
+        timestamp: Optional[str] = None,
+    ):
         """
         This function determines the query format for the table (parquet or delta).
         It sends a query table metadata request with capabilities set to parquet and delta
         and uses what the server responds to use in the header.
         Set for_cdf to advertise the reader features the CDF delta path supports.
+        For CDF, pass the end of the range as version or timestamp so the format matches the
+        snapshot at the end of the CDF range, consistent with the Spark connector.
         """
         self.set_sharing_capabilities_header(for_cdf)
+
+        data: Dict = {}
+        if version is not None:
+            data["version"] = version
+        elif timestamp is not None:
+            data["timestamp"] = timestamp
 
         try:
             with self._get_internal(
                 f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/metadata",
+                data or None,
                 return_headers=True,
             ) as values:
                 headers = values[0]

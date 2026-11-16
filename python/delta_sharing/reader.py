@@ -190,13 +190,26 @@ class DeltaSharingReader:
 
         return scan_result.schema, iterator()
 
-    def _resolve_response_format(self, for_cdf: bool = False) -> str:
+    def _resolve_response_format(
+        self, for_cdf: bool = False, cdf_options: Optional[CdfOptions] = None
+    ) -> str:
         """
         An explicit use_delta_format wins; otherwise ask the server which format it serves.
+        For CDF the probe is pinned to the end of the range (ending version preferred, then
+        ending timestamp, else latest) so the format matches the snapshot at that point,
+        consistent with the Spark connector.
         """
         if self._use_delta_format is None:
             if for_cdf:
-                return self._rest_client.autoresolve_query_format(self._table, for_cdf=True)
+                kwargs = {}
+                if cdf_options is not None:
+                    if cdf_options.ending_version is not None:
+                        kwargs["version"] = cdf_options.ending_version
+                    elif cdf_options.ending_timestamp is not None:
+                        kwargs["timestamp"] = cdf_options.ending_timestamp
+                return self._rest_client.autoresolve_query_format(
+                    self._table, for_cdf=True, **kwargs
+                )
             return self._rest_client.autoresolve_query_format(self._table)
         if self._use_delta_format:
             return DataSharingRestClient.DELTA_FORMAT
@@ -549,7 +562,8 @@ class DeltaSharingReader:
         return schema, iterator()
 
     def table_changes_to_pandas(self, cdfOptions: CdfOptions) -> pd.DataFrame:
-        if self._resolve_response_format(for_cdf=True) == DataSharingRestClient.DELTA_FORMAT:
+        response_format = self._resolve_response_format(for_cdf=True, cdf_options=cdfOptions)
+        if response_format == DataSharingRestClient.DELTA_FORMAT:
             if self._use_delta_format is None and cdfOptions.include_historical_metadata is None:
                 # The kernel replays the delta log, so it needs the metadata changes in range.
                 cdfOptions = replace(cdfOptions, include_historical_metadata=True)
