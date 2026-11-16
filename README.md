@@ -433,18 +433,18 @@ Artifacts published to Maven Central (requires Java 17+):
 <dependency>
   <groupId>io.opensharing</groupId>
   <artifactId>opensharing-server-core</artifactId>
-  <version>0.1.0</version>
+  <version>0.1.1</version>
 </dependency>
 
 <!-- Standalone reference server -->
 <dependency>
   <groupId>io.opensharing</groupId>
   <artifactId>opensharing-server</artifactId>
-  <version>0.1.0</version>
+  <version>0.1.1</version>
 </dependency>
 ```
 
-For source code, release notes, and protocol specifications, see the [OpenSharing Repository](https://github.com/OpenSharing-IO/OpenSharing) and the [OpenSharing Server 0.1.0 Release Notes](https://github.com/OpenSharing-IO/OpenSharing/releases/tag/server-v0.1.0).
+For source code, release notes, and protocol specifications, see the [OpenSharing Repository](https://github.com/OpenSharing-IO/OpenSharing) and the [OpenSharing Server 0.1.1 Release Notes](https://github.com/OpenSharing-IO/OpenSharing/releases/tag/server-v0.1.1).
 
 ---
 
