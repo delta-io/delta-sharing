@@ -201,7 +201,7 @@ class DeltaSharingReader:
         """
         if self._use_delta_format is None:
             if for_cdf:
-                kwargs = {}
+                kwargs: Dict[str, Any] = {}
                 if cdf_options is not None:
                     if cdf_options.ending_version is not None:
                         kwargs["version"] = cdf_options.ending_version
