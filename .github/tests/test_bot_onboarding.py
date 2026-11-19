@@ -425,6 +425,43 @@ class InstallBoundaryTests(unittest.TestCase):
             self.assertIn("40-character", result.stderr)
             self.assertEqual(list(Path(tmp).iterdir()), [])
 
+    def test_bootstrap_pin_is_hashed_and_triggers_configuration_checks(self):
+        pin = ROOT / ".github/requirements/bot-bootstrap.txt"
+        self.assertRegex(pin.read_text(), r"(?m)^pip==[0-9.]+ --hash=sha256:[0-9a-f]{64}$")
+        workflow = yaml.load((ROOT / ".github/workflows/bot-config-checks.yml").read_text(), Loader=yaml.BaseLoader)
+        for event in ("pull_request", "push"):
+            self.assertIn(str(pin.relative_to(ROOT)), workflow["on"][event]["paths"])
+
+    def test_install_bootstraps_only_job_local_pip_before_engine_dependencies(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, runtime = root / "bot-engine-source.fixture", root / "runtime"
+            source.mkdir()
+            subprocess.run(["git", "init", "-q", str(source)], check=True)
+            subprocess.run(["git", "-C", str(source), "-c", "core.hooksPath=/dev/null",
+                            "-c", "commit.gpgsign=false", "-c", "user.name=Test",
+                            "-c", "user.email=test@example.invalid", "commit", "-q", "--allow-empty", "-m", "fixture"], check=True)
+            ref = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+            python = runtime / "venv/bin/python"
+            python.parent.mkdir(parents=True)
+            record = root / "calls"
+            python.write_text('#!/bin/bash\nprintf "%s\\0" "$@" >> ' + shlex.quote(str(record)) + '\nprintf "\\n" >> ' + shlex.quote(str(record)) + '\n')
+            python.chmod(0o700)
+            # No job venv in PATH: any accidental use of system `python` must fail.
+            env = {"PATH": "/usr/bin:/bin", "ENGINE_REF": ref, "ENGINE_SOURCE": str(source),
+                   "RUNNER_TEMP": tmp, "BOT_RUNTIME": str(runtime)}
+            result = subprocess.run(["bash", str(SCRIPTS / "install-bot-engine.sh")], env=env, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            calls = [line.rstrip("\0").split("\0") for line in record.read_text().splitlines()]
+            self.assertEqual(len(calls), 5)
+            self.assertEqual(calls[0][:7], ["-I", "-m", "pip", "install", "--require-hashes", "--only-binary", ":all:"])
+            self.assertEqual(Path(calls[0][-1]).resolve(), ROOT / ".github/requirements/bot-bootstrap.txt")
+            self.assertIn(str(source / "requirements/build.lock"), calls[1])
+            self.assertIn("--require-hashes", calls[1])
+            self.assertIn("--no-build-isolation", calls[2])
+            self.assertEqual(calls[3][2], "databricks_bot_engine.install_runtime")
+            self.assertEqual(calls[4], ["-I", "-m", "pip", "check"])
+
     def test_install_refuses_ambient_credentials(self):
         with tempfile.TemporaryDirectory() as tmp:
             for key in ("ENGINE_TOKEN", "GH_TOKEN"):

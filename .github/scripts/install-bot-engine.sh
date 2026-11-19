@@ -26,10 +26,13 @@ git -C "$SOURCE_ROOT" -c core.hooksPath=/dev/null checkout -q --detach "$ENGINE_
 [ "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$ENGINE_REF" ] || {
   printf '%s\n' 'Fetched engine commit does not match ENGINE_REF' >&2; exit 1;
 }
-# No unpinned pip upgrade or isolated builds that fetch unpinned build tooling.
-python -I -m pip install --require-hashes --only-binary :all: \
+# Upgrade only the job-local pip, pinned/hashed like the dependency locks.
+PYTHON="$BOT_RUNTIME/venv/bin/python"
+"$PYTHON" -I -m pip install --require-hashes --only-binary :all: \
+  -r "$(dirname "${BASH_SOURCE[0]}")/../requirements/bot-bootstrap.txt"
+"$PYTHON" -I -m pip install --require-hashes --only-binary :all: \
   -r "$SOURCE_ROOT/requirements/build.lock" -r "$SOURCE_ROOT/requirements/runtime.lock"
-python -I -m pip install --no-deps --no-build-isolation "$SOURCE_ROOT"
+"$PYTHON" -I -m pip install --no-deps --no-build-isolation "$SOURCE_ROOT"
 # The wheel carries this engine revision's runtime/SDK/npm locks; one engine pin.
-python -I -m databricks_bot_engine.install_runtime --cli-prefix "$BOT_RUNTIME/cli"
-python -I -m pip check
+"$PYTHON" -I -m databricks_bot_engine.install_runtime --cli-prefix "$BOT_RUNTIME/cli"
+"$PYTHON" -I -m pip check

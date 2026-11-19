@@ -6,6 +6,7 @@ on:
       - '.github/CODEOWNERS'
       - '.github/actions/setup-bot-*/**'
       - '.github/scripts/*bot*'
+      - '.github/requirements/bot-bootstrap.txt'
       - '.github/tests/**'
       - '.github/workflows/*bot*.yml'
   push:
@@ -15,6 +16,7 @@ on:
       - '.github/CODEOWNERS'
       - '.github/actions/setup-bot-*/**'
       - '.github/scripts/*bot*'
+      - '.github/requirements/bot-bootstrap.txt'
       - '.github/tests/**'
       - '.github/workflows/*bot*.yml'
 permissions:
