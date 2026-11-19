@@ -1,4 +1,3 @@
-# Delta Sharing bot lessons
+# Lessons
 
-No reviewed lessons yet. Daily learning proposes changes here through a
-maintainer-reviewed PR; it never auto-merges.
+<!-- distilled-through: none -->
