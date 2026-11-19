@@ -158,9 +158,8 @@ lazy val server = (project in file("server")) enablePlugins(JavaAppPackaging) se
   commonSettings,
   java8Settings,
   scalaStyleSettings,
-  releaseSettings,
-  dockerUsername := Some("deltaio"),
-  dockerBuildxPlatforms := Seq("linux/arm64", "linux/amd64"),
+  publish / skip := true,
+  publishArtifact := false,
   scriptClasspath ++= Seq("../conf"),
   libraryDependencies ++= Seq(
     // Pin versions for jackson libraries as the new version of `jackson-module-scala` introduces a
