@@ -26,7 +26,7 @@ git -C "$SOURCE_ROOT" -c core.hooksPath=/dev/null checkout -q --detach "$ENGINE_
 [ "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" = "$ENGINE_REF" ] || {
   printf '%s\n' 'Fetched engine commit does not match ENGINE_REF' >&2; exit 1;
 }
-# No unpinned pip upgrade or isolated builds that fetch unpinned build tooling.
+"$BOT_RUNTIME/venv/bin/python" -I -m pip install --upgrade pip
 python -I -m pip install --require-hashes --only-binary :all: \
   -r "$SOURCE_ROOT/requirements/build.lock" -r "$SOURCE_ROOT/requirements/runtime.lock"
 python -I -m pip install --no-deps --no-build-isolation "$SOURCE_ROOT"
