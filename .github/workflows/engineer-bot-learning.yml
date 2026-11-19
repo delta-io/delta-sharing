@@ -53,6 +53,7 @@ jobs:
     - name: Install reviewed private engine
       uses: ./bot-control/.github/actions/setup-bot-engine
       with:
+        model-host: ${{ vars.BOT_DATABRICKS_HOST }}
         app-id: ${{ secrets.ENGINEER_BOT_APP_ID }}
         private-key: ${{ secrets.ENGINEER_BOT_APP_PRIVATE_KEY }}
       if: steps.context.outputs.eligible == 'true'

@@ -68,7 +68,7 @@ credentials on this exact worker, the integration is NOT end-to-end verified.
    Dependency access must follow the approved registry policy. If egress requires
    a mirror, have maintainers adapt the job-local registry configuration without
    putting mirror credentials in agent-visible environments.
-5. Create the maintainer-controlled `engineer-bot` issue/PR label. Protect workflow,
+5. Create the `review-bot` PR label and `engineer-bot` issue/PR label. Protect workflow,
    bot policy and release paths through code-owner review. Do not grant bots the
    ability to edit their own workflows. Maintainer authorization is checked via
    the live collaborator permission API (write/maintain/admin), not the broad
@@ -85,14 +85,17 @@ writer changing the workflow definition itself. Keep branch/runner protections.
 1. Verify the offline **Bot configuration checks** job. It runs on a standard
    hosted runner with read-only permissions, no secrets or private-engine access,
    and is safe to run on fork PRs. Existing product CI is unchanged.
-2. Set `BOT_ENGINE_ENABLED=true` to enable reviewer + follow-up. Dispatch
-   **Reviewer Bot** from main against a trusted, non-draft, same-repo PR with
-   `dry_run=true`. This does not post, but generated review text can appear in
+2. For the first dry review, add `review-bot` to a trusted, non-draft, same-repo
+   PR while `BOT_ENGINE_ENABLED=false`. Then enable the master flag and dispatch
+   **Reviewer Bot** from main with that PR number and `dry_run=true`. Manual runs
+   also require the label. This does not post, but generated review text can appear in
    public Actions logs. Verify the engine revision, SDK/CLI, model endpoint and
    the completion of both review passes/judge when findings exist. Then perform
    a supervised posting run and a maintainer reply to verify follow-up separately.
-   Pushes trigger the main reviewer only; reviewer follow-up runs on review-comment
-   events, avoiding a second setup/model job for every push on the same worker.
+   With the master on, adding `review-bot` starts a posting review; later pushes
+   re-review while the label remains. Removing it stops future reviewer jobs.
+   Follow-up runs only on review comments of opted-in PRs. No extra reviewer flag
+   is needed; the engineer and learning flags remain unchanged.
 3. Only after approving test execution/isolation, set `BOT_ENGINEER_ENABLED=true`.
    A maintainer labels a small non-sensitive issue `engineer-bot`, or dispatches
    **Engineer Bot** from main for an already-labelled issue. Label-event runs use
@@ -106,8 +109,8 @@ writer changing the workflow definition itself. Keep branch/runner protections.
    PR for sensitive content; no auto-merge is enabled. For a bounded recovery,
    supply the optional ISO `since` input. `.bot/knowledge/journal` is created on
    the first real learning; lessons are injected automatically by the engine.
-5. Disable any feature immediately by setting its variable to `false` (master
-   `BOT_ENGINE_ENABLED=false` disables all five). Existing running jobs must be
+5. Remove `review-bot` to disable reviewer for a PR; disable engineer/learning
+   with their variables. Master `BOT_ENGINE_ENABLED=false` disables all five. Existing running jobs must be
    cancelled separately if necessary; a variable change doesn't stop them.
 
 ## Testing and limits

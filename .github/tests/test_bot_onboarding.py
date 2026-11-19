@@ -23,7 +23,7 @@ spec.loader.exec_module(context)
 REPO = "example-owner/example-repo"
 PR = {"state": "open", "draft": False,
       "head": {"sha": "a" * 40, "ref": "bot/test", "repo": {"full_name": REPO}},
-      "base": {"sha": "b" * 40}, "labels": [{"name": "engineer-bot"}]}
+      "base": {"sha": "b" * 40}, "labels": [{"name": "engineer-bot"}, {"name": "review-bot"}]}
 
 
 class EventTests(unittest.TestCase):
@@ -83,6 +83,25 @@ class EventTests(unittest.TestCase):
         with patch.object(context, "api", side_effect=api):
             out, env = context.prepare("review", "workflow_dispatch", self.event(), "maintainer", "42")
         self.assertEqual(out["eligible"], "false")
+        self.assertFalse(env)
+
+    def test_review_and_followup_require_live_opt_in_label(self):
+        for mode in ("review", "review-followup"):
+            for labels in ([], [{"name": "engineer-bot"}]):
+                with self.subTest(mode=mode, labels=labels):
+                    out, env = self.call(mode, pr={**PR, "labels": labels})
+                    self.assertEqual(out, {"eligible": "false"})
+                    self.assertFalse(env)
+            with self.subTest(mode=mode):
+                out, _ = self.call(mode, pr={**PR, "labels": [{"name": "review-bot"}]})
+                self.assertEqual(out["eligible"], "true")
+
+    def test_manual_review_cannot_bypass_live_opt_in_label(self):
+        def api(route):
+            return {"permission": "admin"} if route.endswith("/permission") else {**PR, "labels": []}
+        with patch.object(context, "api", side_effect=api):
+            out, env = context.prepare("review", "workflow_dispatch", self.event(), "maintainer", "42")
+        self.assertEqual(out, {"eligible": "false"})
         self.assertFalse(env)
 
     def test_engineer_followup_requires_label(self):
@@ -266,6 +285,48 @@ class WorkflowTests(unittest.TestCase):
                 result = subprocess.run([sys.executable, "-I", "-"], input=script,
                                         env={"BOT_DATABRICKS_HOST": host}, capture_output=True, text=True)
                 self.assertEqual(result.returncode == 0, host in valid, result.stderr)
+
+    def test_composite_actions_do_not_read_unsupported_workflow_contexts(self):
+        # Regression for the live runner's "Unrecognized named-value: vars".
+        # Contexts must be resolved by the caller, not inside a composite.
+        for path in (ROOT / ".github/actions").glob("setup-bot-*/action.yml"):
+            document = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
+            content = json.dumps(document["runs"])
+            with self.subTest(action=path.parent.name):
+                self.assertNotRegex(content, r"\b(?:vars|secrets)\.")
+                for key in re.findall(r"\binputs\.([A-Za-z0-9_-]+)", content):
+                    self.assertIn(key, document["inputs"])
+        action = yaml.load((ROOT / ".github/actions/setup-bot-engine/action.yml").read_text(), Loader=yaml.BaseLoader)
+        self.assertEqual(action["inputs"]["model-host"]["required"], "true")
+        self.assertEqual(action["runs"]["steps"][0]["env"]["BOT_DATABRICKS_HOST"], "${{ inputs.model-host }}")
+        tests = yaml.load((ROOT / ".github/actions/setup-bot-tests/action.yml").read_text(), Loader=yaml.BaseLoader)
+        self.assertEqual(tests["inputs"]["rust-toolchain"]["default"], "stable")
+        rust = next(s for s in tests["runs"]["steps"] if s.get("uses", "").startswith("dtolnay/rust-toolchain@"))
+        self.assertEqual(rust["with"]["toolchain"], "${{ inputs.rust-toolchain }}")
+
+    def test_workflows_pass_model_and_toolchain_settings_through_inputs(self):
+        host = "${{ vars.BOT_DATABRICKS_HOST }}"
+        token = "${{ secrets.BOT_DATABRICKS_TOKEN }}"
+        for name, workflow in self.workflows.items():
+            for step in workflow["jobs"]["bot"]["steps"]:
+                with self.subTest(workflow=name, step=step.get("name")):
+                    if step.get("uses", "").endswith("/setup-bot-engine"):
+                        self.assertEqual(step["with"]["model-host"], host)
+                    if step.get("uses", "").endswith("/setup-bot-tests"):
+                        self.assertEqual(step["with"]["rust-toolchain"], "${{ vars.BOT_RUST_TOOLCHAIN || 'stable' }}")
+                    if "DATABRICKS_TOKEN" in step.get("env", {}):
+                        self.assertEqual(step["env"]["DATABRICKS_TOKEN"], token)
+
+    def test_reviewer_uses_master_flag_and_review_label_without_an_extra_flag(self):
+        workflow = self.workflows["reviewer-bot.yml"]
+        self.assertIn("labeled", workflow["on"]["pull_request"]["types"])
+        condition = workflow["jobs"]["bot"]["if"]
+        self.assertIn("github.event.action != 'labeled' || github.event.label.name == 'review-bot'", condition)
+        for name in ("reviewer-bot.yml", "reviewer-bot-followup.yml"):
+            condition = self.workflows[name]["jobs"]["bot"]["if"]
+            self.assertIn("vars.BOT_ENGINE_ENABLED == 'true'", condition)
+            self.assertNotIn("BOT_REVIEWER_ENABLED", json.dumps(self.workflows[name]))
+            self.assertIn("contains(github.event.pull_request.labels.*.name, 'review-bot')", condition)
 
     def test_configuration_check_is_hosted_and_unprivileged(self):
         workflow = yaml.load((ROOT / ".github/workflows/bot-config-checks.yml").read_text(), Loader=yaml.BaseLoader)

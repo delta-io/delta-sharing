@@ -7,6 +7,9 @@ inputs:
   private-key:
     required: true
     description: Private key for that App.
+  model-host:
+    required: true
+    description: Bare direct model-workspace hostname, resolved by the calling workflow.
 outputs:
   engine-ref:
     description: Reviewed engine commit installed by this action.
@@ -20,15 +23,16 @@ runs:
       env:
         # Keep every bot on one immutable engine revision. Update via a reviewed PR.
         ENGINE_REF: fcf69265d182cc884aa732b2fbd7d559556897ce
-        BOT_DATABRICKS_HOST: ${{ vars.BOT_DATABRICKS_HOST }}
+        BOT_DATABRICKS_HOST: ${{ inputs.model-host }}
       run: |
         set -euo pipefail
         python3.11 -I - <<'PY'
         import os, re
         host = os.environ.get('BOT_DATABRICKS_HOST', '')
         if not re.fullmatch(r'[a-z0-9][a-z0-9.-]*', host) or not host.endswith(('.databricks.com', '.azuredatabricks.net')):
-            raise SystemExit('Set BOT_DATABRICKS_HOST to the bare, direct workspace hostname')
+            raise SystemExit('Set model-host to the bare, direct workspace hostname')
         PY
+        printf '::add-mask::%s\n' "$BOT_DATABRICKS_HOST"
         printf 'MODEL_ENDPOINT=https://%s/serving-endpoints/anthropic\n' "$BOT_DATABRICKS_HOST" >> "$GITHUB_ENV"
         umask 077
         runtime=$(mktemp -d "$RUNNER_TEMP/delta-sharing-bot.XXXXXXXX")

@@ -50,6 +50,7 @@ jobs:
     - name: Install reviewed private engine
       uses: ./bot-control/.github/actions/setup-bot-engine
       with:
+        model-host: ${{ vars.BOT_DATABRICKS_HOST }}
         app-id: ${{ secrets.ENGINEER_BOT_APP_ID }}
         private-key: ${{ secrets.ENGINEER_BOT_APP_PRIVATE_KEY }}
       if: steps.context.outputs.eligible == 'true'
@@ -70,6 +71,8 @@ jobs:
       if: steps.context.outputs.eligible == 'true'
     - name: Provision test toolchains
       uses: ./bot-control/.github/actions/setup-bot-tests
+      with:
+        rust-toolchain: ${{ vars.BOT_RUST_TOOLCHAIN || 'stable' }}
       if: steps.context.outputs.eligible == 'true'
     - name: Mint consumer write token
       id: app-token
