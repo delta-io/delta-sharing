@@ -15,7 +15,6 @@ import secrets
 import subprocess
 import sys
 
-REPOSITORY = "delta-io/delta-sharing"
 MAINTAINER_PERMISSIONS = {"admin", "maintain", "write"}
 BOT_LOGINS = {"peco-review-bot[bot]", "peco-engineer-bot[bot]"}
 
@@ -47,13 +46,15 @@ def is_maintainer(login: str, event: dict, *, allow_bot: bool) -> bool:
     sender = event.get("sender", {})
     if allow_bot and login in BOT_LOGINS and sender.get("login") == login and sender.get("type") == "Bot":
         return True
-    return api(f"repos/{REPOSITORY}/collaborators/{login}/permission").get("permission") in MAINTAINER_PERMISSIONS
+    repo = os.environ["GITHUB_REPOSITORY"]
+    return api(f"repos/{repo}/collaborators/{login}/permission").get("permission") in MAINTAINER_PERMISSIONS
 
 
 def prepare(mode: str, event_name: str, event: dict, actor: str, requested: str = "") -> tuple[dict, dict]:
     """Return (step outputs, environment). Kept separate for offline tests."""
-    if event.get("repository", {}).get("full_name") != REPOSITORY:
-        raise ValueError("Bot workflows are restricted to delta-io/delta-sharing")
+    repo = os.environ["GITHUB_REPOSITORY"]
+    if event.get("repository", {}).get("full_name") != repo:
+        raise ValueError("Event repository does not match the GitHub repository context")
     if not is_maintainer(actor, event, allow_bot=mode in {"review", "review-followup", "engineer-followup"}):
         return {"eligible": "false"}, {}
     if mode == "learning":
@@ -61,7 +62,7 @@ def prepare(mode: str, event_name: str, event: dict, actor: str, requested: str 
     if mode == "engineer":
         item = event.get("issue", {})
         n = number(requested if event_name == "workflow_dispatch" else item.get("number", ""))
-        current = api(f"repos/{REPOSITORY}/issues/{n}")
+        current = api(f"repos/{repo}/issues/{n}")
         if current.get("pull_request") or current.get("state") != "open":
             return {"eligible": "false"}, {}
         if "engineer-bot" not in {label["name"] for label in current.get("labels", [])}:
@@ -76,8 +77,8 @@ def prepare(mode: str, event_name: str, event: dict, actor: str, requested: str 
             "ISSUE_NUMBER": n, "ISSUE_TITLE": issue.get("title") or "", "ISSUE_URL": current["html_url"],
         }
     n = number(requested if event_name == "workflow_dispatch" else event.get("pull_request", {}).get("number", ""))
-    pr = api(f"repos/{REPOSITORY}/pulls/{n}")
-    if pr.get("state") != "open" or ((pr.get("head") or {}).get("repo") or {}).get("full_name") != REPOSITORY:
+    pr = api(f"repos/{repo}/pulls/{n}")
+    if pr.get("state") != "open" or ((pr.get("head") or {}).get("repo") or {}).get("full_name") != repo:
         return {"eligible": "false"}, {}
     if mode == "review" and pr.get("draft"):
         return {"eligible": "false"}, {}
@@ -105,12 +106,15 @@ def main() -> int:
     # The schedule is declared on the default branch, not a user-controlled ref.
     # Use the runner-provided repository context: schedule payloads need not
     # contain the repository object that PR/issue webhooks carry.
+    repo = os.environ["GITHUB_REPOSITORY"]
     if args.mode == "learning" and name == "schedule":
-        if os.environ.get("GITHUB_REPOSITORY") != REPOSITORY:
+        if (event.get("repository") or {}).get("full_name", repo) != repo:
             raise ValueError("Wrong repository")
         outputs, env = {"eligible": "true"}, {}
     else:
         outputs, env = prepare(args.mode, name, event, os.environ["GITHUB_ACTOR"], os.environ.get("REQUESTED_NUMBER", ""))
+    # Scope App tokens explicitly even when a schedule payload omits repository.
+    _, outputs["repository_name"] = repo.split("/")
     write_values(os.environ["GITHUB_OUTPUT"], outputs)
     if env:
         write_values(os.environ["GITHUB_ENV"], env)

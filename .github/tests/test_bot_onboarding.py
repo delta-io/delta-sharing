@@ -19,13 +19,18 @@ SCRIPTS = ROOT / ".github/scripts"
 spec = importlib.util.spec_from_file_location("bot_context", SCRIPTS / "bot-context.py")
 context = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(context)
-REPO = "delta-io/delta-sharing"
+REPO = "example-owner/example-repo"
 PR = {"state": "open", "draft": False,
       "head": {"sha": "a" * 40, "ref": "bot/test", "repo": {"full_name": REPO}},
       "base": {"sha": "b" * 40}, "labels": [{"name": "engineer-bot"}]}
 
 
 class EventTests(unittest.TestCase):
+    def setUp(self):
+        scope = patch.dict(os.environ, {"GITHUB_REPOSITORY": REPO})
+        scope.start()
+        self.addCleanup(scope.stop)
+
     def event(self):
         return {"repository": {"full_name": REPO}, "sender": {"login": "maintainer", "type": "User"},
                 "pull_request": {"number": 42}, "comment": {"id": 123}}
@@ -100,6 +105,25 @@ class EventTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 context.number(value)
 
+    def test_api_and_head_checks_use_current_repository_without_a_fixed_name(self):
+        repo = "another-owner/another-project"
+        event = {**self.event(), "repository": {"full_name": repo}}
+        pr = {**PR, "head": {**PR["head"], "repo": {"full_name": repo}}}
+        routes = []
+        def api(route):
+            routes.append(route)
+            return {"permission": "write"} if route.endswith("/permission") else pr
+        with patch.dict(os.environ, {"GITHUB_REPOSITORY": repo}), patch.object(context, "api", side_effect=api):
+            out, _ = context.prepare("review", "pull_request", event, "maintainer")
+        self.assertEqual(out["eligible"], "true")
+        self.assertEqual(routes, [f"repos/{repo}/collaborators/maintainer/permission", f"repos/{repo}/pulls/42"])
+
+    def test_missing_repository_context_fails_before_any_api(self):
+        with patch.dict(os.environ, {}, clear=True), patch.object(context, "api") as api:
+            with self.assertRaises(KeyError):
+                context.prepare("review", "pull_request", self.event(), "maintainer")
+            api.assert_not_called()
+
     def test_invalid_head_sha_fails(self):
         with self.assertRaises(ValueError):
             self.call(pr={**PR, "head": {**PR["head"], "sha": "main"}})
@@ -107,7 +131,7 @@ class EventTests(unittest.TestCase):
     def test_issue_body_comes_from_label_event_not_later_edit(self):
         event = self.event()
         event["issue"] = {"number": 7, "title": "Approved title\nUNTRUSTED=1", "body": "Approved snapshot", "type": {"name": "Bug"}}
-        current = {"state": "open", "body": "Later edit", "html_url": "https://github.com/delta-io/delta-sharing/issues/7", "labels": [{"name": "engineer-bot"}]}
+        current = {"state": "open", "body": "Later edit", "html_url": f"https://github.com/{REPO}/issues/7", "labels": [{"name": "engineer-bot"}]}
         def api(route):
             return {"permission": "write"} if route.endswith("/permission") else current
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"RUNNER_TEMP": tmp}), patch.object(context, "api", side_effect=api):
@@ -138,7 +162,7 @@ class EventTests(unittest.TestCase):
         for issue_type, expected in (("Bug", "bug-fix"), ("Task", "task"), ("Feature", "task"), ("Other", "bug-fix")):
             current = {"state": "open", "labels": [{"name": "engineer-bot"}],
                        "body": "Current dispatch body", "title": "Current title",
-                       "html_url": "https://github.com/delta-io/delta-sharing/issues/7",
+                       "html_url": f"https://github.com/{REPO}/issues/7",
                        "type": {"name": issue_type}}
             def api(route):
                 return {"permission": "write"} if route.endswith("/permission") else current
@@ -168,6 +192,13 @@ class MainTests(unittest.TestCase):
         rc, output, calls = self.invoke("learning", "schedule", {"schedule": "37 8 * * *"})
         self.assertEqual(rc, 0)
         self.assertRegex(output, r"eligible<<BOT_[0-9a-f]+\ntrue\n")
+        self.assertFalse(calls)
+
+    def test_scheduled_learning_uses_current_repository_for_app_token_scope(self):
+        rc, output, calls = self.invoke("learning", "schedule", {"schedule": "37 8 * * *"},
+                                        repo="another-owner/another-project")
+        self.assertEqual(rc, 0)
+        self.assertRegex(output, r"repository_name<<BOT_[0-9a-f]+\nanother-project\n")
         self.assertFalse(calls)
 
     def test_schedule_exception_does_not_apply_to_other_modes(self):
@@ -229,7 +260,7 @@ class WorkflowTests(unittest.TestCase):
                 job = workflow["jobs"]["bot"]
                 self.assertEqual(job["runs-on"], ["self-hosted", "Linux", "X64", "delta-sharing-linux"])
                 self.assertIn("vars.BOT_ENGINE_ENABLED == 'true'", job["if"])
-                self.assertIn("github.repository == 'delta-io/delta-sharing'", job["if"])
+                self.assertNotIn("github.repository ==", job["if"])
                 self.assertNotIn("id-token", job["permissions"])
                 self.assertNotIn("write", job["permissions"].values())
 
@@ -268,7 +299,7 @@ class WorkflowTests(unittest.TestCase):
         for workflow in self.workflows.values():
             for step in workflow["jobs"]["bot"]["steps"]:
                 if step.get("uses", "").startswith("actions/create-github-app-token@"):
-                    self.assertEqual(step["with"]["repositories"], "delta-sharing")
+                    self.assertEqual(step["with"]["repositories"], "${{ steps.context.outputs.repository_name }}")
                     self.assertEqual(step["with"]["owner"], "${{ github.repository_owner }}")
 
     def test_setup_separates_engine_fetch_from_build_and_pins_one_revision(self):

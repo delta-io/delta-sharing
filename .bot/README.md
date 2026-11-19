@@ -6,7 +6,9 @@ This integration prepares reviewer + reviewer follow-up, engineer author + engin
 follow-up, and daily journal/distilled learning. Every bot job targets the existing
 `[self-hosted, Linux, X64, delta-sharing-linux]` runner. The integration is staged
 OFF: no privileged job runs until a maintainer sets the activation variables below.
-Learning auto-merge is explicitly disabled.
+Learning auto-merge is explicitly disabled. There is no fixed repository-name
+allowlist: API routes and consumer App-token scope derive from GitHub's current
+repository context. Same-repository PR/fork and maintainer checks still apply.
 
 The engine repository is internal and IP-restricted. A consumer-owned composite
 fetches a reviewed immutable engine commit using a read-only, engine-scoped App
