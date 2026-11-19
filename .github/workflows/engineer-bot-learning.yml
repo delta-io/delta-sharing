@@ -1,0 +1,109 @@
+# Consumer-owned workflow: no cross-repo uses of the private engine.
+# Activation and credential provisioning are documented in .bot/README.md.
+name: Engineer Bot - Learning
+'on':
+  schedule:
+  - cron: 37 8 * * *
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Selection only: no model calls, git writes or PRs'
+        type: boolean
+        default: true
+      since:
+        description: Optional ISO lower bound for manual recovery
+        type: string
+        default: ''
+permissions:
+  contents: read
+jobs:
+  bot:
+    if: ${{ github.repository == 'delta-io/delta-sharing' && vars.BOT_ENGINE_ENABLED == 'true' && (github.event_name != 'workflow_dispatch'
+      || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) && (vars.BOT_LEARNING_ENABLED ==
+      'true') }}
+    runs-on:
+    - self-hosted
+    - Linux
+    - X64
+    - delta-sharing-linux
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    timeout-minutes: 30
+    concurrency:
+      group: engineer-learning
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout bot-control
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: bot-control
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Authorize actor and resolve task
+      id: context
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        python3.11 -I bot-control/.github/scripts/bot-context.py learning
+    - name: Install reviewed private engine
+      uses: ./bot-control/.github/actions/setup-bot-engine
+      with:
+        app-id: ${{ secrets.ENGINEER_BOT_APP_ID }}
+        private-key: ${{ secrets.ENGINEER_BOT_APP_PRIVATE_KEY }}
+      if: steps.context.outputs.eligible == 'true'
+    - name: Checkout bot-work
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: bot-work
+        fetch-depth: 0
+        persist-credentials: false
+      if: steps.context.outputs.eligible == 'true'
+    - name: Mint consumer write token
+      id: app-token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      with:
+        app-id: ${{ secrets.ENGINEER_BOT_APP_ID }}
+        private-key: ${{ secrets.ENGINEER_BOT_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: ${{ github.event.repository.name }}
+        permission-contents: write
+        permission-pull-requests: write
+        permission-issues: write
+        permission-actions: read
+      if: steps.context.outputs.eligible == 'true'
+    - name: Set bot commit identity
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        REPO_ROOT: ${{ github.workspace }}/bot-work
+      run: |
+        set -euo pipefail
+        slug="$APP_SLUG"
+        uid=$(gh api "/users/${slug}[bot]" --jq .id)
+        git -C "$REPO_ROOT" config user.name "${slug}[bot]"
+        git -C "$REPO_ROOT" config user.email "${uid}+${slug}[bot]@users.noreply.github.com"
+      if: steps.context.outputs.eligible == 'true'
+    - name: Propose reviewed learnings
+      working-directory: ${{ github.workspace }}/bot-control
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        DATABRICKS_TOKEN: ${{ secrets.BOT_DATABRICKS_TOKEN }}
+        REPO_ROOT: ${{ github.workspace }}/bot-work
+        REVIEW_CONTENT_ROOT: ${{ github.workspace }}/bot-work
+        DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+        SINCE: ${{ inputs.since || '' }}
+      run: |
+        set -euo pipefail
+        source "$GITHUB_WORKSPACE/bot-control/.github/scripts/bot-git-auth.sh"
+        args=(--repo-dir "$REPO_ROOT" --bot "$GITHUB_WORKSPACE/bot-control/.bot" --window-hours 24)
+        [ "$DRY_RUN" = true ] && args+=(--dry-run)
+        [ -n "$SINCE" ] && args+=(--since "$SINCE")
+        python -I -m databricks_bot_engine.engineer_bot.retrospective "${args[@]}"
+      if: steps.context.outputs.eligible == 'true'

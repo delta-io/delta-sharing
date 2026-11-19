@@ -1,0 +1,96 @@
+# Consumer-owned workflow: no cross-repo uses of the private engine.
+# Activation and credential provisioning are documented in .bot/README.md.
+name: Reviewer Bot
+'on':
+  pull_request:
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - ready_for_review
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Open, same-repository PR number
+        required: true
+        type: string
+      dry_run:
+        description: Do not post; review text can appear in public Actions logs
+        type: boolean
+        default: true
+permissions:
+  contents: read
+jobs:
+  bot:
+    if: ${{ github.repository == 'delta-io/delta-sharing' && vars.BOT_ENGINE_ENABLED == 'true' && (github.event_name != 'workflow_dispatch'
+      || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) && (github.event_name == 'workflow_dispatch'
+      || (github.event.pull_request.head.repo.fork == false && github.event.pull_request.draft == false)) }}
+    runs-on:
+    - self-hosted
+    - Linux
+    - X64
+    - delta-sharing-linux
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    timeout-minutes: 30
+    concurrency:
+      group: reviewer-bot-${{ github.event.pull_request.number || inputs.pr_number }}
+      cancel-in-progress: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout bot-control
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: bot-control
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Authorize actor and resolve task
+      id: context
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REQUESTED_NUMBER: ${{ inputs.pr_number }}
+      run: |
+        python3.11 -I bot-control/.github/scripts/bot-context.py review
+    - name: Install reviewed private engine
+      uses: ./bot-control/.github/actions/setup-bot-engine
+      with:
+        app-id: ${{ secrets.REVIEW_BOT_APP_ID }}
+        private-key: ${{ secrets.REVIEW_BOT_APP_PRIVATE_KEY }}
+      if: steps.context.outputs.eligible == 'true'
+    - name: Checkout bot-work
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ steps.context.outputs.head }}
+        path: bot-work
+        fetch-depth: 0
+        persist-credentials: false
+      if: steps.context.outputs.eligible == 'true'
+    - name: Mint consumer write token
+      id: app-token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      with:
+        app-id: ${{ secrets.REVIEW_BOT_APP_ID }}
+        private-key: ${{ secrets.REVIEW_BOT_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: ${{ github.event.repository.name }}
+        permission-contents: read
+        permission-pull-requests: write
+      if: steps.context.outputs.eligible == 'true'
+    - name: Review PR
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        DATABRICKS_TOKEN: ${{ secrets.BOT_DATABRICKS_TOKEN }}
+        REPO_ROOT: ${{ github.workspace }}/bot-work
+        REVIEW_CONTENT_ROOT: ${{ github.workspace }}/bot-work
+        REVIEW_SYSTEM_PROMPT: ${{ github.workspace }}/bot-control/.bot/prompts/review/system.md
+        REPO_RULES_FILES: CONTRIBUTING.md
+        DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+      run: |
+        python -I -m databricks_bot_engine.reviewer_bot.run_review
+      if: steps.context.outputs.eligible == 'true'
+      working-directory: ${{ github.workspace }}/bot-control
