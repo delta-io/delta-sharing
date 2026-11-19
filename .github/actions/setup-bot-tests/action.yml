@@ -1,5 +1,10 @@
 name: Set up Delta Sharing bot tests
 description: Provision Java 8/17, uv and Rust before minting consumer write credentials.
+inputs:
+  rust-toolchain:
+    description: Rust toolchain selected by the calling workflow.
+    required: false
+    default: stable
 runs:
   using: composite
   steps:
@@ -21,7 +26,7 @@ runs:
         printf 'RUSTUP_HOME=%s/rustup\n' "$BOT_RUNTIME" >> "$GITHUB_ENV"
     - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable action, pinned commit
       with:
-        toolchain: ${{ vars.BOT_RUST_TOOLCHAIN || 'stable' }}
+        toolchain: ${{ inputs.rust-toolchain }}
     - name: Install the trusted test launcher
       shell: bash
       env:

@@ -5,7 +5,10 @@
 This integration prepares reviewer + reviewer follow-up, engineer author + engineer
 follow-up, and daily journal/distilled learning. Every bot job targets the existing
 `[self-hosted, Linux, X64, delta-sharing-linux]` runner. The integration is staged
-OFF: no privileged job runs until a maintainer sets the activation variables below.
+OFF by default: every job needs the master `BOT_ENGINE_ENABLED` flag plus its
+feature flag (`BOT_REVIEWER_ENABLED`, `BOT_ENGINEER_ENABLED` or
+`BOT_LEARNING_ENABLED`). The master may stay on while individual features stay
+off. Reviewer PRs require `review-bot`; engineer issues/PRs require `engineer-bot`.
 Learning auto-merge is explicitly disabled. There is no fixed repository-name
 allowlist: API routes and consumer App-token scope derive from GitHub's current
 repository context. Same-repository PR/fork and maintainer checks still apply.
@@ -40,13 +43,22 @@ credentials on this exact worker, the integration is NOT end-to-end verified.
    | `REVIEW_BOT_APP_PRIVATE_KEY` | Reviewer App private key |
    | `ENGINEER_BOT_APP_ID` | Existing engineer App ID |
    | `ENGINEER_BOT_APP_PRIVATE_KEY` | Engineer App private key |
-   | `BOT_DATABRICKS_TOKEN` | Least-privilege model token for the selected workspace |
+   | `BOT_MODEL_HOST` | Bare, direct model workspace hostname; no scheme or path |
+   | `BOT_MODEL_TOKEN` | Least-privilege model token for that workspace |
 
-   Add repository variable `BOT_DATABRICKS_HOST`: the bare, direct workspace host,
-   no scheme or path. The workflow validates it and builds a full Model Serving
-   endpoint. It must pair with the token and serve the pinned engine's configured
-   review/second-review/judge models. Check actual cross-review completion, not
-   just the workflow's green status. No live cloud/storage test secrets are mapped.
+   Both new model settings are **repository secrets**, not variables. Existing
+   `BOT_DATABRICKS_TOKEN` secrets and `BOT_DATABRICKS_HOST` secrets/variables still
+   work as fallbacks; no existing value needs renaming. Neutral secrets take
+   precedence when present. Callers resolve these values and pass `model-host`
+   explicitly into the setup composite. Composites do not read the unsupported
+   `vars`/`secrets` contexts directly. The consumer maps the host/token to the
+   unchanged engine's `MODEL_ENDPOINT`/`DATABRICKS_TOKEN` interface; no engine
+   upgrade is needed. The setup validates and masks the host before constructing
+   its endpoint. Secret names do not conceal the backend from workflow/runner
+   administrators or make arbitrary code safe to execute with credentials.
+   The workspace must serve the pinned engine's configured review/second-review/
+   judge models. Check actual cross-review completion, not just green status.
+   No live cloud/storage test secrets are mapped.
 3. Confirm the worker's access policy **before allowing any workflow to use it**,
    not merely before enabling the bot flags. Registration to a public repository
    makes runner access relevant to other workflows too; the bot flags and labels
@@ -68,8 +80,11 @@ credentials on this exact worker, the integration is NOT end-to-end verified.
    Dependency access must follow the approved registry policy. If egress requires
    a mirror, have maintainers adapt the job-local registry configuration without
    putting mirror credentials in agent-visible environments.
-5. Create the maintainer-controlled `engineer-bot` issue/PR label. Protect workflow,
-   bot policy and release paths through code-owner review. Do not grant bots the
+5. Create the `review-bot` PR label and `engineer-bot` issue/PR label. Labels are
+   opt-in, not authorization: applying one still requires the triggering actor's
+   live write/maintain/admin permission for bot execution. Triage users can apply
+   labels but do not pass that check. Protect workflow, bot policy and release
+   paths through code-owner review. Do not grant bots the
    ability to edit their own workflows. Maintainer authorization is checked via
    the live collaborator permission API (write/maintain/admin), not the broad
    `CONTRIBUTOR` association. Only the two exact existing App identities get the
@@ -85,14 +100,19 @@ writer changing the workflow definition itself. Keep branch/runner protections.
 1. Verify the offline **Bot configuration checks** job. It runs on a standard
    hosted runner with read-only permissions, no secrets or private-engine access,
    and is safe to run on fork PRs. Existing product CI is unchanged.
-2. Set `BOT_ENGINE_ENABLED=true` to enable reviewer + follow-up. Dispatch
-   **Reviewer Bot** from main against a trusted, non-draft, same-repo PR with
-   `dry_run=true`. This does not post, but generated review text can appear in
-   public Actions logs. Verify the engine revision, SDK/CLI, model endpoint and
-   the completion of both review passes/judge when findings exist. Then perform
-   a supervised posting run and a maintainer reply to verify follow-up separately.
-   Pushes trigger the main reviewer only; reviewer follow-up runs on review-comment
-   events, avoiding a second setup/model job for every push on the same worker.
+2. After the workflow fix is on main, set `BOT_ENGINE_ENABLED=true`. This alone
+   enables no feature. To test reviewer, add `review-bot` to a trusted, non-draft,
+   same-repo PR while `BOT_REVIEWER_ENABLED` is still off. Then set
+   `BOT_REVIEWER_ENABLED=true` and dispatch **Reviewer Bot** from main with that
+   PR number and `dry_run=true`. Manual dispatch also requires the live label;
+   it cannot bypass the actor or fork restrictions. Dry review calls the models
+   and incurs usage, but posts nothing; generated review text can appear in
+   public Actions logs. Verify engine/runtime, model connectivity and completion
+   of both reviews/judge when findings exist. Then supervise a posting run and a
+   maintainer reply to verify follow-up separately. For automatic posting, adding
+   `review-bot` starts a review; pushes/reopens/ready events re-review only while
+   the label remains. Other label additions do not trigger a review. Reviewer
+   follow-up runs only on review comments of opted-in PRs, not on every push.
 3. Only after approving test execution/isolation, set `BOT_ENGINEER_ENABLED=true`.
    A maintainer labels a small non-sensitive issue `engineer-bot`, or dispatches
    **Engineer Bot** from main for an already-labelled issue. Label-event runs use

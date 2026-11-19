@@ -52,6 +52,7 @@ jobs:
     - name: Install reviewed private engine
       uses: ./bot-control/.github/actions/setup-bot-engine
       with:
+        model-host: ${{ secrets.BOT_MODEL_HOST || secrets.BOT_DATABRICKS_HOST || vars.BOT_DATABRICKS_HOST }}
         app-id: ${{ secrets.ENGINEER_BOT_APP_ID }}
         private-key: ${{ secrets.ENGINEER_BOT_APP_PRIVATE_KEY }}
       if: steps.context.outputs.eligible == 'true'
@@ -65,6 +66,8 @@ jobs:
       if: steps.context.outputs.eligible == 'true'
     - name: Provision test toolchains
       uses: ./bot-control/.github/actions/setup-bot-tests
+      with:
+        rust-toolchain: ${{ vars.BOT_RUST_TOOLCHAIN || 'stable' }}
       if: steps.context.outputs.eligible == 'true'
     - name: Mint consumer read-only token
       id: read-token
@@ -83,7 +86,7 @@ jobs:
       working-directory: ${{ runner.temp }}
       env:
         GH_TOKEN: ${{ steps.read-token.outputs.token }}
-        DATABRICKS_TOKEN: ${{ secrets.BOT_DATABRICKS_TOKEN }}
+        DATABRICKS_TOKEN: ${{ secrets.BOT_MODEL_TOKEN || secrets.BOT_DATABRICKS_TOKEN }}
         REPO_ROOT: ${{ github.workspace }}/bot-work
         REVIEW_CONTENT_ROOT: ${{ github.workspace }}/bot-work
         FLOW: ${{ steps.context.outputs.flow }}
