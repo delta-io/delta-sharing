@@ -1,14 +1,7 @@
-# Consumer-owned workflow: no cross-repo uses of the private engine.
-# Activation and credential provisioning are documented in .bot/README.md.
-name: Reviewer Bot
+# Temporary manual-only test; do not merge this branch.
+# Setup is pinned to the approved candidate; PR content is never executed.
+name: Reviewer Bot - Pinned dry E2E
 'on':
-  pull_request:
-    types:
-    - opened
-    - synchronize
-    - reopened
-    - ready_for_review
-    - labeled
   workflow_dispatch:
     inputs:
       pr_number:
@@ -25,13 +18,9 @@ jobs:
   bot:
     if: >-
       vars.BOT_ENGINE_ENABLED == 'true'
-      && (github.event_name != 'workflow_dispatch'
-          || github.ref == format('refs/heads/{0}', github.event.repository.default_branch || 'main'))
-      && (github.event_name == 'workflow_dispatch'
-          || (github.event.pull_request.head.repo.fork == false
-              && github.event.pull_request.draft == false
-              && contains(github.event.pull_request.labels.*.name, 'review-bot')
-              && (github.event.action != 'labeled' || github.event.label.name == 'review-bot')))
+      && github.event_name == 'workflow_dispatch'
+      && github.ref == 'refs/heads/test/bot-pip-e2e-20261119'
+      && inputs.pr_number == '1050' && inputs.dry_run == true
     runs-on:
     - self-hosted
     - Linux
@@ -43,8 +32,8 @@ jobs:
       issues: read
     timeout-minutes: 30
     concurrency:
-      group: reviewer-bot-${{ github.event.pull_request.number || inputs.pr_number }}
-      cancel-in-progress: true
+      group: reviewer-pip-bootstrap-e2e
+      cancel-in-progress: false
     defaults:
       run:
         shell: bash
@@ -52,7 +41,7 @@ jobs:
     - name: Checkout bot-control
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
-        ref: ${{ github.event.repository.default_branch || 'main' }}
+        ref: f2a240e636b220b4bda2871e324f9d7eb46c4fd9
         path: bot-control
         fetch-depth: 0
         persist-credentials: false
@@ -97,7 +86,7 @@ jobs:
         REVIEW_CONTENT_ROOT: ${{ github.workspace }}/bot-work
         REVIEW_SYSTEM_PROMPT: ${{ github.workspace }}/bot-control/.bot/prompts/review/system.md
         REPO_RULES_FILES: CONTRIBUTING.md
-        DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+        DRY_RUN: 'true'
       run: |
         python -I -m databricks_bot_engine.reviewer_bot.run_review
       if: steps.context.outputs.eligible == 'true'
