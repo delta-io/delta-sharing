@@ -4,10 +4,22 @@
 set -euo pipefail
 : "${REPO_ROOT:?REPO_ROOT is required}"
 cd "$REPO_ROOT"
-unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE \
-  AZURE_TEST_ACCOUNT_KEY GOOGLE_SERVICE_ACCOUNT_KEY GOOGLE_APPLICATION_CREDENTIALS
 export SPARK_LOCAL_IP=127.0.0.1
 export UV_CACHE_DIR="${BOT_RUNTIME:?BOT_RUNTIME is required}/uv-cache"
+
+# Defense in depth even if this launcher is called outside the engine scrubber.
+# Forward only toolchain/runtime settings, never model, GitHub or cloud tokens,
+# credential helpers, shell startup hooks or arbitrary caller variables.
+# This is environment hygiene, NOT isolation from the surrounding job/host.
+clean_exec() {
+  local name
+  local -a clean=(CI=true GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0)
+  for name in PATH HOME REPO_ROOT BOT_RUNTIME JAVA_HOME JAVA_HOME_8_X64 JAVA_HOME_17_X64 \
+    CARGO_HOME RUSTUP_HOME RUSTUP_TOOLCHAIN UV_CACHE_DIR SPARK_LOCAL_IP TMPDIR TMP TEMP LANG LC_ALL; do
+    if [[ -v $name ]]; then clean+=("$name=${!name}"); fi
+  done
+  exec /usr/bin/env -i "${clean[@]}" "$@"
+}
 mode=${1:?Select python-test, python-lint, or scala-<module>-test}
 shift
 case "$mode" in
@@ -18,12 +30,12 @@ case "$mode" in
     [[ "$1" != *..* ]] || exit 2
     if [ "$#" -ne 1 ]; then [ "$#" -eq 3 ] && [ "$2" = '-k' ] || exit 2; fi
     cd python
-    exec uv run --frozen --python 3.11 dev/pytest "$@"
+    clean_exec uv run --frozen --python 3.11 dev/pytest "$@"
     ;;
   python-lint)
     [ "$#" -eq 0 ] || exit 2
     cd python
-    exec uv run --frozen --python 3.11 dev/lint-python
+    clean_exec uv run --frozen --python 3.11 dev/lint-python
     ;;
   scala-client-test|scala-client212-test|scala-spark-test|scala-server-test)
     [ "$#" -eq 1 ] && [[ "$1" =~ ^[A-Za-z0-9_.*]+$ ]] && [[ "$1" =~ [A-Za-z0-9_] ]] || { printf '%s\n' 'Select a targeted test suite pattern' >&2; exit 2; }
@@ -35,9 +47,9 @@ case "$mode" in
     fi
     export PATH="$JAVA_HOME/bin:$PATH"
     if [ "$module" = client212 ]; then
-      exec ./build/sbt ++2.12.18 "client/testOnly $1"
+      clean_exec ./build/sbt ++2.12.18 "client/testOnly $1"
     fi
-    exec ./build/sbt "$module/testOnly $1"
+    clean_exec ./build/sbt "$module/testOnly $1"
     ;;
   *) printf 'Unsupported bot-test mode: %s\n' "$mode" >&2; exit 2 ;;
 esac

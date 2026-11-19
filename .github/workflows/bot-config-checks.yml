@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - '.bot/**'
+      - '.github/CODEOWNERS'
       - '.github/actions/setup-bot-*/**'
       - '.github/scripts/*bot*'
       - '.github/tests/**'
@@ -11,6 +12,7 @@ on:
     branches: [main]
     paths:
       - '.bot/**'
+      - '.github/CODEOWNERS'
       - '.github/actions/setup-bot-*/**'
       - '.github/scripts/*bot*'
       - '.github/tests/**'
@@ -23,7 +25,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2; matches project CI
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1; same pin as bot workflows
         with:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0

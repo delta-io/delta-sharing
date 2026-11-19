@@ -47,13 +47,17 @@ credentials on this exact worker, the integration is NOT end-to-end verified.
    endpoint. It must pair with the token and serve the pinned engine's configured
    review/second-review/judge models. Check actual cross-review completion, not
    just the workflow's green status. No live cloud/storage test secrets are mapped.
-3. Review the shared worker's trust boundary. It uses the same VM and Linux user
-   as ADBC: separate runner folders and job-local HOME/venv/npm/Git configuration
-   prevent accidental clashes, NOT cross-job credential access. Tests/native
-   builds execute arbitrary code. An ephemeral isolated worker is preferred for
-   engineer jobs. Explicitly approve the runner before enabling engineer; keep
-   public fork jobs off this VM. Check runner-group/repo policy and require
-   approval for untrusted public workflows as appropriate.
+3. Confirm the worker's access policy **before allowing any workflow to use it**,
+   not merely before enabling the bot flags. Registration to a public repository
+   makes runner access relevant to other workflows too; the bot flags and labels
+   are not runner access controls. Require fork-workflow approval for **all
+   external contributors**, not only first-time contributors, and have an org
+   administrator verify runner-group repository/workflow restrictions.
+   A persistent worker sharing a host/account with other services is not isolated:
+   separate runner folders and job-local configuration prevent accidental clashes,
+   NOT credential access by arbitrary code. Engineer tests/native builds execute
+   code and should use an ephemeral isolated worker. Keep engineer activation off
+   until its isolation and the write-token exposure below have explicit approval.
 4. Worker prerequisites: Python 3.11 with venv, Git, `gh`, curl, tar and native
    C/C++ build prerequisites, plus approved access to the engine, GitHub Actions
    downloads, model endpoints and dependency registries. The workflows provision
@@ -61,9 +65,9 @@ credentials on this exact worker, the integration is NOT end-to-end verified.
    toolchain for the native Python wrapper. Set optional variable
    `BOT_RUST_TOOLCHAIN` to a reviewed exact Rust version to pin it; otherwise the
    setup action installs stable. No sudo installs are performed by bot jobs.
-   This worker follows ADBC's public-registry install pattern; if egress requires
-   a mirror, have maintainers adapt the job-local registry configuration using
-   the approved policy, without putting mirror credentials in agent-visible env.
+   Dependency access must follow the approved registry policy. If egress requires
+   a mirror, have maintainers adapt the job-local registry configuration without
+   putting mirror credentials in agent-visible environments.
 5. Create the maintainer-controlled `engineer-bot` issue/PR label. Protect workflow,
    bot policy and release paths through code-owner review. Do not grant bots the
    ability to edit their own workflows. Maintainer authorization is checked via
@@ -87,6 +91,8 @@ writer changing the workflow definition itself. Keep branch/runner protections.
    public Actions logs. Verify the engine revision, SDK/CLI, model endpoint and
    the completion of both review passes/judge when findings exist. Then perform
    a supervised posting run and a maintainer reply to verify follow-up separately.
+   Pushes trigger the main reviewer only; reviewer follow-up runs on review-comment
+   events, avoiding a second setup/model job for every push on the same worker.
 3. Only after approving test execution/isolation, set `BOT_ENGINEER_ENABLED=true`.
    A maintainer labels a small non-sensitive issue `engineer-bot`, or dispatches
    **Engineer Bot** from main for an already-labelled issue. Label-event runs use
@@ -107,8 +113,12 @@ writer changing the workflow definition itself. Keep branch/runner protections.
 ## Testing and limits
 
 The engineer invokes a default-branch copy of `bot-test` installed into its venv.
-It selects Java 8 for server and Java 17 for client/Spark, unsets cloud integration
-credentials, and accepts only targeted test/lint command shapes. Python uses
+It selects Java 8 for server and Java 17 for client/Spark, and starts test/lint
+commands with an allowlisted environment via `env -i`. Model, GitHub and cloud
+credentials, credential-helper environment and arbitrary caller variables are
+not forwarded. Only required runtime/toolchain paths and locale settings survive;
+Git uses no global/system credential configuration and cannot prompt. The launcher
+accepts only targeted test/lint command shapes. Python uses
 `uv run --frozen`; the repository lock is not changed. Scala client work needs
 both 2.12 and 2.13 verification. Some server suites still require cloud resources
 and must be reported blocked. Dependency downloads/native builds need network.
@@ -128,6 +138,24 @@ author succeeded and publishing is attempted. Follow-up/learning need write acce
 operations. Git push auth is per-process via `gh`, never a token in a remote URL.
 No workflow enables `secrets: inherit`, a privileged fork trigger, learning
 PR auto-merge, or automatic issue closure.
+
+### Engineer follow-up write access — activation blocker
+
+The pinned engine's `--phase followup` applies changes, tests, commits, pushes and
+posts replies inside one invocation. It exposes no apply-only/separate-publisher
+contract, so giving that invocation a read-only token would break its push/reply
+operations. The current workflow therefore has a repo-scoped write token during
+the whole follow-up command. Contents write also permits more than updating the
+PR branch; it is not a branch-limited credential.
+
+The launcher's clean child environment is defense in depth, not protection from
+code inspecting the surrounding process, files or another job under the same
+account. Keep `BOT_ENGINEER_ENABLED` unset/false until maintainers approve an
+isolated execution arrangement and document any residual risk acceptance in the
+deployment review. **This PR does not record that acceptance or enable engineer.**
+A true read-only-agent/fresh-publisher split needs an engine API change and is not
+claimed by this consumer integration. Reviewer and learning activation do not
+constitute approval of engineer test execution.
 
 Local checks (no network/model credentials):
 

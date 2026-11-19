@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -233,6 +234,26 @@ class WorkflowTests(unittest.TestCase):
                          for p in (ROOT / ".github/workflows").glob("*bot*.yml")
                          if p.name != "bot-config-checks.yml"}
 
+    def test_bot_policy_has_the_same_codeowners_as_github_configuration(self):
+        rules = {}
+        for line in (ROOT / ".github/CODEOWNERS").read_text().splitlines():
+            fields = line.split("#", 1)[0].split()
+            if len(fields) > 1:
+                rules[fields[0]] = fields[1:]
+        self.assertTrue(rules["/.bot/"])
+        self.assertEqual(rules["/.bot/"], rules["/.github/"])
+
+    def test_reviewer_followup_does_not_duplicate_push_reviews(self):
+        triggers = self.workflows["reviewer-bot-followup.yml"]["on"]
+        self.assertEqual(triggers, {"pull_request_review_comment": {"types": ["created"]}})
+
+    def test_all_new_workflows_use_one_checkout_revision(self):
+        workflows = list(self.workflows.values()) + [yaml.load(
+            (ROOT / ".github/workflows/bot-config-checks.yml").read_text(), Loader=yaml.BaseLoader)]
+        uses = {step["uses"] for workflow in workflows for job in workflow["jobs"].values()
+                for step in job["steps"] if step.get("uses", "").startswith("actions/checkout@")}
+        self.assertEqual(uses, {"actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"})
+
     def test_model_host_guard_accepts_only_bare_databricks_hosts(self):
         action = yaml.load((ROOT / ".github/actions/setup-bot-engine/action.yml").read_text(), Loader=yaml.BaseLoader)
         command = action["runs"]["steps"][0]["run"]
@@ -355,24 +376,53 @@ class InstallBoundaryTests(unittest.TestCase):
 
 
 class TestLauncherTests(unittest.TestCase):
-    def test_python_test_is_targeted_and_cloud_credentials_are_removed(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "python").mkdir()
-            (root / "bin").mkdir()
-            fake = root / "bin/uv"
-            fake.write_text('#!/bin/bash\nprintf "%s\\n" "$PWD" "$*" "${AWS_ACCESS_KEY_ID-unset}" "${AZURE_TEST_ACCOUNT_KEY-unset}" "${GOOGLE_APPLICATION_CREDENTIALS-unset}" > "$CAPTURE"\n')
-            fake.chmod(0o700)
-            env = {"PATH": str(root / "bin") + ":" + os.defpath, "REPO_ROOT": tmp, "BOT_RUNTIME": tmp,
-                   "CAPTURE": str(root / "capture"), "AWS_ACCESS_KEY_ID": "dummy",
-                   "AZURE_TEST_ACCOUNT_KEY": "dummy", "GOOGLE_APPLICATION_CREDENTIALS": "dummy"}
-            result = subprocess.run(["bash", str(SCRIPTS / "bot-test.sh"), "python-test",
-                                     "delta_sharing/tests/test_protocol.py", "-k", "test_name"], env=env, capture_output=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            lines = (root / "capture").read_text().splitlines()
-            self.assertEqual(lines[0], str(root / "python"))
-            self.assertIn("run --frozen --python 3.11 dev/pytest delta_sharing/tests/test_protocol.py -k test_name", lines[1])
-            self.assertEqual(lines[2:], ["unset", "unset", "unset"])
+    def test_every_launcher_path_uses_an_allowlisted_environment(self):
+        cases = [
+            (["python-test", "delta_sharing/tests/test_protocol.py", "-k", "test_name"], "bin/uv", "python",
+             "run --frozen --python 3.11 dev/pytest delta_sharing/tests/test_protocol.py -k test_name", "17"),
+            (["python-lint"], "bin/uv", "python", "run --frozen --python 3.11 dev/lint-python", "17"),
+            (["scala-client-test", "SomeSuite"], "build/sbt", "", "client/testOnly SomeSuite", "17"),
+            (["scala-client212-test", "SomeSuite"], "build/sbt", "", "++2.12.18 client/testOnly SomeSuite", "17"),
+            (["scala-spark-test", "SomeSuite"], "build/sbt", "", "spark/testOnly SomeSuite", "17"),
+            (["scala-server-test", "SomeSuite"], "build/sbt", "", "server/testOnly SomeSuite", "8"),
+        ]
+        excluded = ["DATABRICKS_TOKEN", "BOT_MODEL_TOKEN", "GH_TOKEN", "GITHUB_TOKEN",
+                    "MODEL_ENDPOINT", "BOT_MODEL_HOST", "BOT_DATABRICKS_HOST", "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
+                    "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
+                    "AZURE_TEST_ACCOUNT_KEY", "GOOGLE_SERVICE_ACCOUNT_KEY", "GOOGLE_APPLICATION_CREDENTIALS",
+                    "PIP_INDEX_URL", "UNEXPECTED_CALLER_VARIABLE", "GIT_CONFIG_COUNT", "GIT_CONFIG_VALUE_1"]
+        for args, executable, cwd, expected_args, java in cases:
+            with self.subTest(mode=args[0]), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / "python").mkdir()
+                (root / "bin").mkdir()
+                fake = root / executable
+                fake.parent.mkdir(exist_ok=True)
+                fake.write_text('#!/bin/bash\nprintf "%s\\n" "$PWD" "$*" > '
+                                + shlex.quote(str(root / "args")) + '\n/usr/bin/env > '
+                                + shlex.quote(str(root / "env")) + '\n')
+                fake.chmod(0o700)
+                env = {"PATH": str(root / "bin") + ":" + os.defpath, "HOME": str(root / "home"),
+                       "REPO_ROOT": tmp, "BOT_RUNTIME": tmp, "JAVA_HOME": str(root / "jdk17"),
+                       "JAVA_HOME_8_X64": str(root / "jdk8"), "JAVA_HOME_17_X64": str(root / "jdk17"),
+                       "CARGO_HOME": str(root / "cargo"), "RUSTUP_HOME": str(root / "rustup"),
+                       "RUSTUP_TOOLCHAIN": "stable", **{name: "not-forwarded" for name in excluded},
+                       "GIT_CONFIG_GLOBAL": str(root / "untrusted-config"), "GIT_CONFIG_NOSYSTEM": "0"}
+                result = subprocess.run(["bash", str(SCRIPTS / "bot-test.sh"), *args], env=env, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual((root / "args").read_text().splitlines(), [str(root / cwd), expected_args])
+                child = dict(line.split("=", 1) for line in (root / "env").read_text().splitlines())
+                for name in excluded:
+                    self.assertNotIn(name, child)
+                for name in ("HOME", "REPO_ROOT", "BOT_RUNTIME", "JAVA_HOME_8_X64", "JAVA_HOME_17_X64",
+                             "CARGO_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN"):
+                    self.assertEqual(child[name], env[name])
+                self.assertEqual(child["JAVA_HOME"], str(root / ("jdk" + java)))
+                self.assertEqual(child["UV_CACHE_DIR"], str(root / "uv-cache"))
+                self.assertEqual(child["SPARK_LOCAL_IP"], "127.0.0.1")
+                self.assertEqual(child["GIT_CONFIG_GLOBAL"], "/dev/null")
+                self.assertEqual(child["GIT_CONFIG_NOSYSTEM"], "1")
+                self.assertEqual(child["GIT_TERMINAL_PROMPT"], "0")
 
     def test_rejects_unrecognized_commands_and_path_escape(self):
         with tempfile.TemporaryDirectory() as tmp:
