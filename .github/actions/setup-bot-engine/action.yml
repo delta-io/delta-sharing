@@ -1,0 +1,72 @@
+name: Set up pinned bot engine
+description: Fetch the private engine with read-only credentials, then install without them.
+inputs:
+  app-id:
+    required: true
+    description: GitHub App installed on the engine with contents read.
+  private-key:
+    required: true
+    description: Private key for that App.
+outputs:
+  engine-ref:
+    description: Reviewed engine commit installed by this action.
+    value: ${{ steps.runtime.outputs.engine-ref }}
+runs:
+  using: composite
+  steps:
+    - name: Create job-local runtime
+      id: runtime
+      shell: bash
+      env:
+        # Keep every bot on one immutable engine revision. Update via a reviewed PR.
+        ENGINE_REF: fcf69265d182cc884aa732b2fbd7d559556897ce
+        BOT_DATABRICKS_HOST: ${{ vars.BOT_DATABRICKS_HOST }}
+      run: |
+        set -euo pipefail
+        python3.11 -I - <<'PY'
+        import os, re
+        host = os.environ.get('BOT_DATABRICKS_HOST', '')
+        if not re.fullmatch(r'[a-z0-9][a-z0-9.-]*', host) or not host.endswith(('.databricks.com', '.azuredatabricks.net')):
+            raise SystemExit('Set BOT_DATABRICKS_HOST to the bare, direct workspace hostname')
+        PY
+        printf 'MODEL_ENDPOINT=https://%s/serving-endpoints/anthropic\n' "$BOT_DATABRICKS_HOST" >> "$GITHUB_ENV"
+        umask 077
+        runtime=$(mktemp -d "$RUNNER_TEMP/delta-sharing-bot.XXXXXXXX")
+        python3.11 -I -m venv "$runtime/venv"
+        mkdir -p "$runtime/home"
+        touch "$runtime/gitconfig" "$runtime/npmrc"
+        {
+          printf 'BOT_RUNTIME=%s\n' "$runtime"
+          printf 'ENGINE_REF=%s\n' "$ENGINE_REF"
+          printf 'HOME=%s/home\n' "$runtime"
+          printf 'GIT_CONFIG_GLOBAL=%s/gitconfig\n' "$runtime"
+          printf 'NPM_CONFIG_USERCONFIG=%s/npmrc\n' "$runtime"
+          printf 'NPM_CONFIG_CACHE=%s/npm-cache\n' "$runtime"
+        } >> "$GITHUB_ENV"
+        printf '%s/venv/bin\n' "$runtime" >> "$GITHUB_PATH"
+        printf 'engine-ref=%s\n' "$ENGINE_REF" >> "$GITHUB_OUTPUT"
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: '22'
+    - name: Mint read-only engine download token
+      id: engine-token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: databricks
+        repositories: databricks-bot-engine
+        permission-contents: read
+    - name: Fetch reviewed engine source
+      id: engine-source
+      shell: bash
+      env:
+        ENGINE_TOKEN: ${{ steps.engine-token.outputs.token }}
+        SCRIPT_ROOT: ${{ github.action_path }}/../../scripts
+      run: bash "$SCRIPT_ROOT/fetch-bot-engine.sh"
+    - name: Install engine and its locked runtime
+      shell: bash
+      env:
+        ENGINE_SOURCE: ${{ steps.engine-source.outputs.path }}
+        SCRIPT_ROOT: ${{ github.action_path }}/../../scripts
+      run: bash "$SCRIPT_ROOT/install-bot-engine.sh"

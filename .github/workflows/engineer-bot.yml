@@ -1,0 +1,162 @@
+# Consumer-owned workflow: no cross-repo uses of the private engine.
+# Activation and credential provisioning are documented in .bot/README.md.
+name: Engineer Bot
+'on':
+  issues:
+    types:
+    - labeled
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Open issue carrying the engineer-bot label
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  bot:
+    if: ${{ vars.BOT_ENGINE_ENABLED == 'true' && (github.event_name != 'workflow_dispatch' || github.ref == format('refs/heads/{0}',
+      github.event.repository.default_branch || 'main')) && (vars.BOT_ENGINEER_ENABLED == 'true' && (github.event_name ==
+      'workflow_dispatch' || (github.event.label.name == 'engineer-bot' && !github.event.issue.pull_request))) }}
+    runs-on:
+    - self-hosted
+    - Linux
+    - X64
+    - delta-sharing-linux
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    timeout-minutes: 60
+    concurrency:
+      group: engineer-issue-${{ github.event.issue.number || inputs.issue_number }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout bot-control
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch || 'main' }}
+        path: bot-control
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Authorize actor and resolve task
+      id: context
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REQUESTED_NUMBER: ${{ inputs.issue_number }}
+      run: |
+        python3.11 -I bot-control/.github/scripts/bot-context.py engineer
+    - name: Install reviewed private engine
+      uses: ./bot-control/.github/actions/setup-bot-engine
+      with:
+        app-id: ${{ secrets.ENGINEER_BOT_APP_ID }}
+        private-key: ${{ secrets.ENGINEER_BOT_APP_PRIVATE_KEY }}
+      if: steps.context.outputs.eligible == 'true'
+    - name: Checkout bot-work
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch || 'main' }}
+        path: bot-work
+        fetch-depth: 0
+        persist-credentials: false
+      if: steps.context.outputs.eligible == 'true'
+    - name: Provision test toolchains
+      uses: ./bot-control/.github/actions/setup-bot-tests
+      if: steps.context.outputs.eligible == 'true'
+    - name: Mint consumer read-only token
+      id: read-token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      with:
+        app-id: ${{ secrets.ENGINEER_BOT_APP_ID }}
+        private-key: ${{ secrets.ENGINEER_BOT_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: ${{ steps.context.outputs.repository_name }}
+        permission-contents: read
+        permission-pull-requests: read
+        permission-issues: read
+      if: steps.context.outputs.eligible == 'true'
+    - name: Implement approved issue
+      id: author
+      working-directory: ${{ runner.temp }}
+      env:
+        GH_TOKEN: ${{ steps.read-token.outputs.token }}
+        DATABRICKS_TOKEN: ${{ secrets.BOT_DATABRICKS_TOKEN }}
+        REPO_ROOT: ${{ github.workspace }}/bot-work
+        REVIEW_CONTENT_ROOT: ${{ github.workspace }}/bot-work
+        FLOW: ${{ steps.context.outputs.flow }}
+      run: |
+        set -euo pipefail
+        python -I -m databricks_bot_engine.engineer_bot.run --phase author \
+          --bot "$GITHUB_WORKSPACE/bot-control/.bot" \
+          --system-prompt "$GITHUB_WORKSPACE/bot-control/.bot/prompts/engineer/system.md" \
+          --user-prompt "$GITHUB_WORKSPACE/bot-control/.bot/prompts/engineer/user.md" \
+          --flow "$FLOW"
+      if: steps.context.outputs.eligible == 'true'
+    - name: Mint consumer write token
+      id: app-token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      with:
+        app-id: ${{ secrets.ENGINEER_BOT_APP_ID }}
+        private-key: ${{ secrets.ENGINEER_BOT_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: ${{ steps.context.outputs.repository_name }}
+        permission-contents: ${{ steps.author.outputs.outcome == 'success' && 'write' || 'read' }}
+        permission-pull-requests: ${{ steps.author.outputs.outcome == 'success' && 'write' || 'read' }}
+        permission-issues: write
+      if: always() && steps.context.outputs.eligible == 'true' && steps.author.outcome != 'skipped'
+    - name: Set bot commit identity
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        REPO_ROOT: ${{ github.workspace }}/bot-work
+      run: |
+        set -euo pipefail
+        slug="$APP_SLUG"
+        uid=$(gh api "/users/${slug}[bot]" --jq .id)
+        git -C "$REPO_ROOT" config user.name "${slug}[bot]"
+        git -C "$REPO_ROOT" config user.email "${uid}+${slug}[bot]@users.noreply.github.com"
+      if: steps.author.outputs.outcome == 'success'
+    - name: Publish proposed fix
+      id: publish
+      if: steps.author.outputs.outcome == 'success'
+      working-directory: ${{ github.workspace }}/bot-control
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        REPO_ROOT: ${{ github.workspace }}/bot-work
+        ENGINEER_BOT_APP_ID: ${{ secrets.ENGINEER_BOT_APP_ID }}
+        TOUCHED_FILES: ${{ steps.author.outputs.touched_files }}
+        TOUCHED_COUNT: ${{ steps.author.outputs.touched_count }}
+        SUMMARY: ${{ steps.author.outputs.summary }}
+        PLAN: ${{ steps.author.outputs.plan }}
+        RED_GREEN_TESTS: ${{ steps.author.outputs.red_green_tests }}
+        OUT_OF_SCOPE: ${{ steps.author.outputs.out_of_scope }}
+        FLOW: ${{ steps.author.outputs.flow }}
+      run: |
+        set -euo pipefail
+        source "$GITHUB_WORKSPACE/bot-control/.github/scripts/bot-git-auth.sh"
+        python -I -m databricks_bot_engine.engineer_bot.publish \
+          --repo-dir "$REPO_ROOT" --bot "$GITHUB_WORKSPACE/bot-control/.bot"
+    - name: Report issue outcome
+      if: always() && steps.context.outputs.eligible == 'true' && steps.app-token.outcome == 'success'
+      working-directory: ${{ github.workspace }}/bot-control
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        OUTCOME: ${{ steps.author.outputs.outcome }}
+        PR_URL: ${{ steps.publish.outputs.coverage_pr_url }}
+        PUBLISH_OUTCOME: ${{ steps.publish.outputs.publish_outcome }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        set -euo pipefail
+        [ "$PUBLISH_OUTCOME" = closed-pr ] && exit 0
+        case "$OUTCOME" in success|no_change|blocked) ;; *) OUTCOME=failed ;; esac
+        body=$(mktemp "$RUNNER_TEMP/engineer-outcome.XXXXXXXX.md")
+        printf 'Engineer run outcome: `%s`.\n\n[Workflow run](%s)\n' "$OUTCOME" "$RUN_URL" > "$body"
+        if [ -n "$PR_URL" ]; then
+          printf '\nProposed PR: %s\n' "$PR_URL" >> "$body"
+        elif [ "$OUTCOME" = success ]; then
+          printf '\nChanges were proposed locally, but no PR URL was returned. Publishing needs attention.\n' >> "$body"
+        fi
+        gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$body"

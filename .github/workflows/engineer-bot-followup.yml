@@ -1,0 +1,111 @@
+# Consumer-owned workflow: no cross-repo uses of the private engine.
+# Activation and credential provisioning are documented in .bot/README.md.
+name: Engineer Bot - Follow-up
+'on':
+  pull_request_review_comment:
+    types:
+    - created
+  pull_request:
+    types:
+    - labeled
+permissions:
+  contents: read
+jobs:
+  bot:
+    if: ${{ vars.BOT_ENGINE_ENABLED == 'true' && (github.event_name != 'workflow_dispatch' || github.ref == format('refs/heads/{0}',
+      github.event.repository.default_branch || 'main')) && (vars.BOT_ENGINEER_ENABLED == 'true' && github.event.pull_request.head.repo.fork
+      == false && github.event.pull_request.state == 'open' && contains(github.event.pull_request.labels.*.name, 'engineer-bot')
+      && github.event.comment.user.login != 'peco-engineer-bot[bot]' && (github.event_name != 'pull_request' || github.event.label.name
+      == 'engineer-bot')) }}
+    runs-on:
+    - self-hosted
+    - Linux
+    - X64
+    - delta-sharing-linux
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    timeout-minutes: 60
+    concurrency:
+      group: engineer-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout bot-control
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch || 'main' }}
+        path: bot-control
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Authorize actor and resolve task
+      id: context
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        python3.11 -I bot-control/.github/scripts/bot-context.py engineer-followup
+    - name: Install reviewed private engine
+      uses: ./bot-control/.github/actions/setup-bot-engine
+      with:
+        app-id: ${{ secrets.ENGINEER_BOT_APP_ID }}
+        private-key: ${{ secrets.ENGINEER_BOT_APP_PRIVATE_KEY }}
+      if: steps.context.outputs.eligible == 'true'
+    - name: Checkout bot-work
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ steps.context.outputs.head }}
+        path: bot-work
+        fetch-depth: 0
+        persist-credentials: false
+      if: steps.context.outputs.eligible == 'true'
+    - name: Attach the validated PR branch
+      working-directory: ${{ github.workspace }}/bot-work
+      env:
+        PR_HEAD_BRANCH: ${{ steps.context.outputs.branch }}
+      run: |
+        git checkout -B "$PR_HEAD_BRANCH" "$HEAD_SHA"
+      if: steps.context.outputs.eligible == 'true'
+    - name: Provision test toolchains
+      uses: ./bot-control/.github/actions/setup-bot-tests
+      if: steps.context.outputs.eligible == 'true'
+    - name: Mint consumer write token
+      id: app-token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      with:
+        app-id: ${{ secrets.ENGINEER_BOT_APP_ID }}
+        private-key: ${{ secrets.ENGINEER_BOT_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: ${{ steps.context.outputs.repository_name }}
+        permission-contents: write
+        permission-pull-requests: write
+        permission-issues: write
+      if: steps.context.outputs.eligible == 'true'
+    - name: Set bot commit identity
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        REPO_ROOT: ${{ github.workspace }}/bot-work
+      run: |
+        set -euo pipefail
+        slug="$APP_SLUG"
+        uid=$(gh api "/users/${slug}[bot]" --jq .id)
+        git -C "$REPO_ROOT" config user.name "${slug}[bot]"
+        git -C "$REPO_ROOT" config user.email "${uid}+${slug}[bot]@users.noreply.github.com"
+      if: steps.context.outputs.eligible == 'true'
+    - name: Address review feedback
+      working-directory: ${{ github.workspace }}/bot-control
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        DATABRICKS_TOKEN: ${{ secrets.BOT_DATABRICKS_TOKEN }}
+        REPO_ROOT: ${{ github.workspace }}/bot-work
+        REVIEW_CONTENT_ROOT: ${{ github.workspace }}/bot-work
+      run: |
+        set -euo pipefail
+        source "$GITHUB_WORKSPACE/bot-control/.github/scripts/bot-git-auth.sh"
+        python -I -m databricks_bot_engine.engineer_bot.run --phase followup \
+          --bot "$GITHUB_WORKSPACE/bot-control/.bot" \
+          --system-prompt "$GITHUB_WORKSPACE/bot-control/.bot/prompts/engineer-followup/system.md"
+      if: steps.context.outputs.eligible == 'true'

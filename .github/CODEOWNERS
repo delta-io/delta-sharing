@@ -5,6 +5,9 @@
 # Dependabot and GitHub config
 /.github/            @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 
+# Bot policy, prompts and learned instructions
+/.bot/               @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
+
 # Build scripts (SBT launcher, linting)
 /build/              @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88
 build.sbt            @linzhou-db @littlegrasscao @PatrickJin-db @chakankardb @wchau @mengxi-chen88 
