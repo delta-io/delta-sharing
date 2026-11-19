@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -119,6 +120,80 @@ class EventTests(unittest.TestCase):
             self.assertIn("Approved title\nUNTRUSTED=1", text)
 
 
+    def test_engineer_rejects_closed_pr_and_unlabelled_issues_without_writing_body(self):
+        event = self.event()
+        event["issue"] = {"number": 7, "body": "Approved snapshot"}
+        for change in ({"state": "closed"}, {"pull_request": {"url": "a-pr"}}, {"labels": []}):
+            current = {"state": "open", "labels": [{"name": "engineer-bot"}], **change}
+            def api(route):
+                return {"permission": "write"} if route.endswith("/permission") else current
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as tmp, \
+                    patch.dict(os.environ, {"RUNNER_TEMP": tmp}), patch.object(context, "api", side_effect=api):
+                out, env = context.prepare("engineer", "issues", event, "maintainer")
+                self.assertEqual(out, {"eligible": "false"})
+                self.assertFalse(env)
+                self.assertFalse(Path(tmp, "issue_body.txt").exists())
+
+    def test_engineer_dispatch_uses_current_issue_and_maps_issue_types(self):
+        for issue_type, expected in (("Bug", "bug-fix"), ("Task", "task"), ("Feature", "task"), ("Other", "bug-fix")):
+            current = {"state": "open", "labels": [{"name": "engineer-bot"}],
+                       "body": "Current dispatch body", "title": "Current title",
+                       "html_url": "https://github.com/delta-io/delta-sharing/issues/7",
+                       "type": {"name": issue_type}}
+            def api(route):
+                return {"permission": "write"} if route.endswith("/permission") else current
+            with self.subTest(issue_type=issue_type), tempfile.TemporaryDirectory() as tmp, \
+                    patch.dict(os.environ, {"RUNNER_TEMP": tmp}), patch.object(context, "api", side_effect=api):
+                out, env = context.prepare("engineer", "workflow_dispatch", self.event(), "maintainer", "7")
+                self.assertEqual(out, {"eligible": "true", "flow": expected})
+                self.assertEqual(env["ISSUE_TITLE"], "Current title")
+                self.assertEqual(Path(tmp, "issue_body.txt").read_text(), "Current dispatch body")
+
+
+class MainTests(unittest.TestCase):
+    def invoke(self, mode, event_name, event, repo=REPO, permission="read"):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            payload, output = root / "event.json", root / "output"
+            payload.write_text(json.dumps(event))
+            env = {"GITHUB_EVENT_PATH": str(payload), "GITHUB_EVENT_NAME": event_name,
+                   "GITHUB_REPOSITORY": repo, "GITHUB_ACTOR": "maintainer",
+                   "GITHUB_OUTPUT": str(output), "GITHUB_ENV": str(root / "env")}
+            with patch.dict(os.environ, env), patch.object(sys, "argv", ["bot-context.py", mode]), \
+                    patch.object(context, "api", return_value={"permission": permission}) as api:
+                rc = context.main()
+                return rc, output.read_text(), api.call_args_list
+
+    def test_scheduled_learning_accepts_minimal_payload_without_api_calls(self):
+        rc, output, calls = self.invoke("learning", "schedule", {"schedule": "37 8 * * *"})
+        self.assertEqual(rc, 0)
+        self.assertRegex(output, r"eligible<<BOT_[0-9a-f]+\ntrue\n")
+        self.assertFalse(calls)
+
+    def test_schedule_exception_does_not_apply_to_other_modes(self):
+        event = {"repository": {"full_name": REPO}, "schedule": "37 8 * * *"}
+        rc, output, calls = self.invoke("review", "schedule", event)
+        self.assertEqual(rc, 0)
+        self.assertRegex(output, r"eligible<<BOT_[0-9a-f]+\nfalse\n")
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(calls[0].args[0].endswith("/permission"))
+
+    def test_scheduled_learning_rejects_wrong_runner_repository(self):
+        # A claimed payload repository must not override the runner context.
+        with self.assertRaisesRegex(ValueError, "Wrong repository"):
+            self.invoke("learning", "schedule", {"repository": {"full_name": REPO}}, repo="outside/fork")
+
+    def test_unsupported_trigger_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Unsupported trigger"):
+            self.invoke("learning", "issue_comment", {})
+
+    def test_manual_learning_still_requires_maintainer(self):
+        rc, output, calls = self.invoke("learning", "workflow_dispatch", {"repository": {"full_name": REPO}})
+        self.assertEqual(rc, 0)
+        self.assertRegex(output, r"eligible<<BOT_[0-9a-f]+\nfalse\n")
+        self.assertEqual(len(calls), 1)
+
+
 class WorkflowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -126,6 +201,19 @@ class WorkflowTests(unittest.TestCase):
         cls.workflows = {p.name: yaml.load(p.read_text(), Loader=yaml.BaseLoader)
                          for p in (ROOT / ".github/workflows").glob("*bot*.yml")
                          if p.name != "bot-config-checks.yml"}
+
+    def test_model_host_guard_accepts_only_bare_databricks_hosts(self):
+        action = yaml.load((ROOT / ".github/actions/setup-bot-engine/action.yml").read_text(), Loader=yaml.BaseLoader)
+        command = action["runs"]["steps"][0]["run"]
+        script = re.search(r"python3\.11 -I - <<'PY'\n(.*?)\nPY", command, re.S).group(1)
+        valid = ("adb-1.2.azuredatabricks.net", "foo.cloud.databricks.com")
+        invalid = ("evil.com", "x.databricks.com.evil.com", "https://foo.databricks.com",
+                   "foo.databricks.com/path", "", "foo.databricks.com\nBAD=1")
+        for host in valid + invalid:
+            with self.subTest(host=host):
+                result = subprocess.run([sys.executable, "-I", "-"], input=script,
+                                        env={"BOT_DATABRICKS_HOST": host}, capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, host in valid, result.stderr)
 
     def test_configuration_check_is_hosted_and_unprivileged(self):
         workflow = yaml.load((ROOT / ".github/workflows/bot-config-checks.yml").read_text(), Loader=yaml.BaseLoader)
@@ -149,7 +237,7 @@ class WorkflowTests(unittest.TestCase):
         for name, workflow in self.workflows.items():
             with self.subTest(name=name):
                 steps = workflow["jobs"]["bot"]["steps"]
-                self.assertEqual(steps[0]["with"]["ref"], "${{ github.event.repository.default_branch }}")
+                self.assertEqual(steps[0]["with"]["ref"], "${{ github.event.repository.default_branch || 'main' }}")
                 self.assertEqual(steps[0]["with"]["persist-credentials"], "false")
                 self.assertEqual(steps[1]["id"], "context")
                 self.assertIn("bot-control/.github/scripts/bot-context.py", steps[1]["run"])
@@ -175,6 +263,13 @@ class WorkflowTests(unittest.TestCase):
                     if uses and not uses.startswith("./"):
                         self.assertRegex(uses, r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+@[0-9a-f]{40}$")
                     self.assertNotIn("databricks/databricks-bot-engine/", uses)
+
+    def test_consumer_app_tokens_never_default_to_all_installation_repos(self):
+        for workflow in self.workflows.values():
+            for step in workflow["jobs"]["bot"]["steps"]:
+                if step.get("uses", "").startswith("actions/create-github-app-token@"):
+                    self.assertEqual(step["with"]["repositories"], "delta-sharing")
+                    self.assertEqual(step["with"]["owner"], "${{ github.repository_owner }}")
 
     def test_setup_separates_engine_fetch_from_build_and_pins_one_revision(self):
         action = yaml.load((ROOT / ".github/actions/setup-bot-engine/action.yml").read_text(), Loader=yaml.BaseLoader)

@@ -103,8 +103,10 @@ def main() -> int:
     if name not in {"pull_request", "pull_request_review_comment", "issues", "workflow_dispatch", "schedule"}:
         raise ValueError("Unsupported trigger")
     # The schedule is declared on the default branch, not a user-controlled ref.
+    # Use the runner-provided repository context: schedule payloads need not
+    # contain the repository object that PR/issue webhooks carry.
     if args.mode == "learning" and name == "schedule":
-        if event.get("repository", {}).get("full_name") != REPOSITORY:
+        if os.environ.get("GITHUB_REPOSITORY") != REPOSITORY:
             raise ValueError("Wrong repository")
         outputs, env = {"eligible": "true"}, {}
     else:
