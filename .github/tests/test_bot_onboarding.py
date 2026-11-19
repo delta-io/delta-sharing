@@ -283,7 +283,7 @@ class WorkflowTests(unittest.TestCase):
         for host in valid + invalid:
             with self.subTest(host=host):
                 result = subprocess.run([sys.executable, "-I", "-"], input=script,
-                                        env={"BOT_MODEL_HOST": host}, capture_output=True, text=True)
+                                        env={"BOT_DATABRICKS_HOST": host}, capture_output=True, text=True)
                 self.assertEqual(result.returncode == 0, host in valid, result.stderr)
 
     def test_composite_actions_do_not_read_unsupported_workflow_contexts(self):
@@ -293,20 +293,20 @@ class WorkflowTests(unittest.TestCase):
             document = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
             content = json.dumps(document["runs"])
             with self.subTest(action=path.parent.name):
-                self.assertNotRegex(content, r"\\b(?:vars|secrets)\\.")
-                for key in re.findall(r"\\binputs\\.([A-Za-z0-9_-]+)", content):
+                self.assertNotRegex(content, r"\b(?:vars|secrets)\.")
+                for key in re.findall(r"\binputs\.([A-Za-z0-9_-]+)", content):
                     self.assertIn(key, document["inputs"])
         action = yaml.load((ROOT / ".github/actions/setup-bot-engine/action.yml").read_text(), Loader=yaml.BaseLoader)
         self.assertEqual(action["inputs"]["model-host"]["required"], "true")
-        self.assertEqual(action["runs"]["steps"][0]["env"]["BOT_MODEL_HOST"], "${{ inputs.model-host }}")
+        self.assertEqual(action["runs"]["steps"][0]["env"]["BOT_DATABRICKS_HOST"], "${{ inputs.model-host }}")
         tests = yaml.load((ROOT / ".github/actions/setup-bot-tests/action.yml").read_text(), Loader=yaml.BaseLoader)
         self.assertEqual(tests["inputs"]["rust-toolchain"]["default"], "stable")
         rust = next(s for s in tests["runs"]["steps"] if s.get("uses", "").startswith("dtolnay/rust-toolchain@"))
         self.assertEqual(rust["with"]["toolchain"], "${{ inputs.rust-toolchain }}")
 
     def test_workflows_pass_model_and_toolchain_settings_through_inputs(self):
-        host = "${{ secrets.BOT_MODEL_HOST || secrets.BOT_DATABRICKS_HOST || vars.BOT_DATABRICKS_HOST }}"
-        token = "${{ secrets.BOT_MODEL_TOKEN || secrets.BOT_DATABRICKS_TOKEN }}"
+        host = "${{ vars.BOT_DATABRICKS_HOST }}"
+        token = "${{ secrets.BOT_DATABRICKS_TOKEN }}"
         for name, workflow in self.workflows.items():
             for step in workflow["jobs"]["bot"]["steps"]:
                 with self.subTest(workflow=name, step=step.get("name")):
