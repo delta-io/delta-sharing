@@ -5,10 +5,11 @@
 This integration prepares reviewer + reviewer follow-up, engineer author + engineer
 follow-up, and daily journal/distilled learning. Every bot job targets the existing
 `[self-hosted, Linux, X64, delta-sharing-linux]` runner. The integration is staged
-OFF by default: every job needs the master `BOT_ENGINE_ENABLED` flag plus its
-feature flag (`BOT_REVIEWER_ENABLED`, `BOT_ENGINEER_ENABLED` or
-`BOT_LEARNING_ENABLED`). The master may stay on while individual features stay
-off. Reviewer PRs require `review-bot`; engineer issues/PRs require `engineer-bot`.
+OFF by default: every job needs the master `BOT_ENGINE_ENABLED` flag. Reviewer
+PRs also require `review-bot`, with no extra reviewer flag. Engineer issues/PRs
+require `engineer-bot` plus `BOT_ENGINEER_ENABLED`; scheduled learning requires
+`BOT_LEARNING_ENABLED`. The master may stay on while no PRs are opted in and
+engineer/learning stay off.
 Learning auto-merge is explicitly disabled. There is no fixed repository-name
 allowlist: API routes and consumer App-token scope derive from GitHub's current
 repository context. Same-repository PR/fork and maintainer checks still apply.
@@ -100,19 +101,19 @@ writer changing the workflow definition itself. Keep branch/runner protections.
 1. Verify the offline **Bot configuration checks** job. It runs on a standard
    hosted runner with read-only permissions, no secrets or private-engine access,
    and is safe to run on fork PRs. Existing product CI is unchanged.
-2. After the workflow fix is on main, set `BOT_ENGINE_ENABLED=true`. This alone
-   enables no feature. To test reviewer, add `review-bot` to a trusted, non-draft,
-   same-repo PR while `BOT_REVIEWER_ENABLED` is still off. Then set
-   `BOT_REVIEWER_ENABLED=true` and dispatch **Reviewer Bot** from main with that
-   PR number and `dry_run=true`. Manual dispatch also requires the live label;
-   it cannot bypass the actor or fork restrictions. Dry review calls the models
-   and incurs usage, but posts nothing; generated review text can appear in
-   public Actions logs. Verify engine/runtime, model connectivity and completion
-   of both reviews/judge when findings exist. Then supervise a posting run and a
-   maintainer reply to verify follow-up separately. For automatic posting, adding
-   `review-bot` starts a review; pushes/reopens/ready events re-review only while
-   the label remains. Other label additions do not trigger a review. Reviewer
-   follow-up runs only on review comments of opted-in PRs, not on every push.
+2. For the first dry test after this fix is on main, keep `BOT_ENGINE_ENABLED=false`
+   while adding `review-bot` to a trusted, non-draft, same-repo PR. Then set
+   `BOT_ENGINE_ENABLED=true` and dispatch **Reviewer Bot** from main with that PR
+   number and `dry_run=true`. Manual dispatch also requires the live label; it
+   cannot bypass the actor or fork restrictions. Dry review calls the models and
+   incurs usage, but posts nothing; generated review text can appear in public
+   Actions logs. Verify engine/runtime, model connectivity and completion of both
+   reviews/judge when findings exist. Then supervise a posting run and a maintainer
+   reply to verify follow-up separately. The master flag may remain on afterward:
+   adding `review-bot` starts an automatic posting review; pushes/reopens/ready
+   events re-review only while the label remains. Other label additions do not
+   trigger a review. Reviewer follow-up runs only on review comments of opted-in
+   PRs, not on every push. There is no `BOT_REVIEWER_ENABLED` setting.
 3. Only after approving test execution/isolation, set `BOT_ENGINEER_ENABLED=true`.
    A maintainer labels a small non-sensitive issue `engineer-bot`, or dispatches
    **Engineer Bot** from main for an already-labelled issue. Label-event runs use
@@ -126,9 +127,10 @@ writer changing the workflow definition itself. Keep branch/runner protections.
    PR for sensitive content; no auto-merge is enabled. For a bounded recovery,
    supply the optional ISO `since` input. `.bot/knowledge/journal` is created on
    the first real learning; lessons are injected automatically by the engine.
-5. Disable any feature immediately by setting its variable to `false` (master
-   `BOT_ENGINE_ENABLED=false` disables all five). Existing running jobs must be
-   cancelled separately if necessary; a variable change doesn't stop them.
+5. Remove `review-bot` to stop future reviewer jobs for that PR. Disable engineer
+   or learning with its feature variable. The master `BOT_ENGINE_ENABLED=false`
+   disables all five. Existing running jobs must be cancelled separately if
+   necessary; changing labels or variables doesn't stop them.
 
 ## Testing and limits
 

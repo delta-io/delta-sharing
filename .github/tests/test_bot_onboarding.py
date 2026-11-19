@@ -317,14 +317,15 @@ class WorkflowTests(unittest.TestCase):
                     if "DATABRICKS_TOKEN" in step.get("env", {}):
                         self.assertEqual(step["env"]["DATABRICKS_TOKEN"], token)
 
-    def test_reviewer_has_an_independent_flag_and_only_review_label_triggers(self):
+    def test_reviewer_uses_master_flag_and_review_label_without_an_extra_flag(self):
         workflow = self.workflows["reviewer-bot.yml"]
         self.assertIn("labeled", workflow["on"]["pull_request"]["types"])
         condition = workflow["jobs"]["bot"]["if"]
         self.assertIn("github.event.action != 'labeled' || github.event.label.name == 'review-bot'", condition)
         for name in ("reviewer-bot.yml", "reviewer-bot-followup.yml"):
             condition = self.workflows[name]["jobs"]["bot"]["if"]
-            self.assertIn("vars.BOT_REVIEWER_ENABLED == 'true'", condition)
+            self.assertIn("vars.BOT_ENGINE_ENABLED == 'true'", condition)
+            self.assertNotIn("BOT_REVIEWER_ENABLED", json.dumps(self.workflows[name]))
             self.assertIn("contains(github.event.pull_request.labels.*.name, 'review-bot')", condition)
 
     def test_configuration_check_is_hosted_and_unprivileged(self):

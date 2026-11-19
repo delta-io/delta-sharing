@@ -10,7 +10,7 @@ permissions:
 jobs:
   bot:
     if: >-
-      vars.BOT_ENGINE_ENABLED == 'true' && vars.BOT_REVIEWER_ENABLED == 'true'
+      vars.BOT_ENGINE_ENABLED == 'true'
       && github.event.pull_request.head.repo.fork == false
       && github.event.pull_request.state == 'open'
       && contains(github.event.pull_request.labels.*.name, 'review-bot')
