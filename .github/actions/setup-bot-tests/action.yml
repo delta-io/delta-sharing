@@ -1,0 +1,35 @@
+name: Set up Delta Sharing bot tests
+description: Provision Java 8/17, uv and Rust before minting consumer write credentials.
+inputs:
+  rust-toolchain:
+    description: Rust toolchain selected by the calling workflow.
+    required: false
+    default: stable
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0; matches existing CI
+      with:
+        distribution: zulu
+        java-version: '8'
+    - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+      with:
+        distribution: zulu
+        java-version: '17'
+    - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0; matches existing CI
+      with:
+        enable-cache: false
+    - name: Isolate the native Python build toolchain
+      shell: bash
+      run: |
+        printf 'CARGO_HOME=%s/cargo\n' "$BOT_RUNTIME" >> "$GITHUB_ENV"
+        printf 'RUSTUP_HOME=%s/rustup\n' "$BOT_RUNTIME" >> "$GITHUB_ENV"
+    - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable action, pinned commit
+      with:
+        toolchain: ${{ inputs.rust-toolchain }}
+    - name: Install the trusted test launcher
+      shell: bash
+      env:
+        SCRIPT_ROOT: ${{ github.action_path }}/../../scripts
+      run: |
+        install -m 700 "$SCRIPT_ROOT/bot-test.sh" "$BOT_RUNTIME/venv/bin/bot-test"
