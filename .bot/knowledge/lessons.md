@@ -1,6 +1,6 @@
 # Lessons
 
-<!-- distilled-through: 2026-11-20 -->
+<!-- distilled-through: 2026-11-20-2 -->
 
 ## Scala client [lang=scala]
 - L-0006 (1×, #962): Never place a retry/backoff sleep inside a synchronized method or block: the thread holds the object monitor for the whole sleep (up to the max retry duration) and starves every other caller.
@@ -8,6 +8,9 @@
 
 ## Scala tests [phase=cover; lang=scala]
 - L-0008 (1×, #836 #837): Reserve the integrationTest tag for tests that genuinely need cloud credentials or real tables; the tag makes external contributors skip the test in pre-commit.
+- L-0013 (1×, #1043): Assert on parsed JSON nodes, not exact substrings; JSON field order is insignificant and varies across server implementations.
+- L-0014 (1×, #1044): Read endpoint and bearer token from the test run's profile rather than hardcoding them; some servers mint fresh recipient credentials per run.
+- L-0015 (1×, #1044): In cross-implementation integration tests assert on stable signals (HTTP status, error presence), not an exact errorCode string or message text, which differ per server.
 
 ## Python connector [lang=python]
 - L-0009 (1×, #1030): Under pandas 3, pd.Timestamp columns default to microsecond resolution (pandas 2 used nanosecond); normalize timestamp dtype in tests instead of asserting nanosecond.
