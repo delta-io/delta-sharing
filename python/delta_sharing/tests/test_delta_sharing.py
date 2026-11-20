@@ -13,9 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 import re
 from datetime import date, datetime
-from typing import Optional, Sequence, Tuple
+from functools import partial
+from typing import Callable, Optional, Sequence, Tuple
 
 import pandas as pd
 import pyarrow as pa
@@ -68,9 +70,23 @@ def _server_text(text: str) -> str:
     return r"[\s']+".join(re.escape(word) for word in text.split())
 
 
-# A change data feed range that reaches a version without change data fails mid-stream: the
-# stream ends in a line that is not valid JSON, and the parsing error is the client's.
-STREAM_FAILURE = r"Expecting value|expected value|Forcing_invalid_json|[Ii]nvalid|JSON|json"
+# A change data feed range that reaches a version without change data fails mid-stream. Clients
+# that don't request the end stream action get this marker line, which is not JSON, at the end.
+STREAM_FAILURE_MARKER = "Forcing_invalid_json_to_fail_streaming_rpc_due_to_error"
+# Spark's JSON parser quotes the unparseable token, so its error message contains the marker.
+STREAM_FAILURE = re.escape(STREAM_FAILURE_MARKER)
+
+
+def _assert_cdf_load_fails(error: str, load: Callable[[], object]) -> None:
+    """The Python client's json.loads keeps the unparseable line only in the error's doc, so a
+    stream failure is matched there; requests the server rejects up front are HTTP errors."""
+    if error == STREAM_FAILURE:
+        with pytest.raises(json.JSONDecodeError) as exc_info:
+            load()
+        assert STREAM_FAILURE_MARKER in exc_info.value.doc
+    else:
+        with pytest.raises(HTTPError, match=error):
+            load()
 
 
 def _with_nanosecond_timestamps(expected: pd.DataFrame) -> pd.DataFrame:
@@ -1554,21 +1570,17 @@ def test_load_table_changes(
         )
         assert table_arrow.equals(arrow_table)
     else:
-        with pytest.raises(Exception, match=error):
-            load_table_changes_as_pandas(
-                f"{profile_path}#{fragments}",
-                starting_version,
-                ending_version,
-                starting_timestamp,
-                ending_timestamp,
-            )
-        with pytest.raises(Exception, match=error):
-            load_table_changes_as_arrow(
-                f"{profile_path}#{fragments}",
-                starting_version,
-                ending_version,
-                starting_timestamp,
-                ending_timestamp,
+        for load in (load_table_changes_as_pandas, load_table_changes_as_arrow):
+            _assert_cdf_load_fails(
+                error,
+                partial(
+                    load,
+                    f"{profile_path}#{fragments}",
+                    starting_version,
+                    ending_version,
+                    starting_timestamp,
+                    ending_timestamp,
+                ),
             )
 
 
@@ -1701,23 +1713,18 @@ def test_load_table_changes_kernel(
             pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
         pd.testing.assert_frame_equal(pdf, expected)
     else:
-        with pytest.raises(Exception, match=error):
-            load_table_changes_as_pandas(
-                f"{profile_path}#{fragments}",
-                starting_version,
-                ending_version,
-                starting_timestamp,
-                ending_timestamp,
-                use_delta_format=True,
-            )
-        with pytest.raises(Exception, match=error):
-            load_table_changes_as_arrow(
-                f"{profile_path}#{fragments}",
-                starting_version,
-                ending_version,
-                starting_timestamp,
-                ending_timestamp,
-                use_delta_format=True,
+        for load in (load_table_changes_as_pandas, load_table_changes_as_arrow):
+            _assert_cdf_load_fails(
+                error,
+                partial(
+                    load,
+                    f"{profile_path}#{fragments}",
+                    starting_version,
+                    ending_version,
+                    starting_timestamp,
+                    ending_timestamp,
+                    use_delta_format=True,
+                ),
             )
 
 
