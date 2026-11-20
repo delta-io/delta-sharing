@@ -35,19 +35,7 @@ cd python/
 uv build
 cd ..
 
-# Generate the pre-built server package and sign files
-build/sbt server/universal:packageBin
-cd server/target/universal
-gpg --detach-sign --armor --sign delta-sharing-server-$VERSION.zip
-gpg --verify delta-sharing-server-$VERSION.zip.asc
-sha256sum delta-sharing-server-$VERSION.zip > delta-sharing-server-$VERSION.zip.sha256
-sha256sum -c delta-sharing-server-$VERSION.zip.sha256
-sha256sum delta-sharing-server-$VERSION.zip.asc > delta-sharing-server-$VERSION.zip.asc.sha256
-sha256sum -c delta-sharing-server-$VERSION.zip.asc.sha256
-cd -
-
-# Build the docker image
-build/sbt server/docker:publish
+# Delta Sharing reference server is deprecated and no longer released; use OpenSharing Server instead.
 
 git checkout main
 

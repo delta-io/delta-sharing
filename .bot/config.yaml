@@ -1,0 +1,60 @@
+name: delta_sharing_engineer
+marker_namespace: engineer-bot-delta-sharing
+bot_login_prefix: peco-engineer-bot
+flow: bug-fix
+bot_loop_ceiling: 10
+max_replies_per_thread: 5
+bash_timeout: 900
+# Defense in depth, not an OS sandbox. Agent-authored tests can execute code.
+denied_subpaths:
+  - .github
+  - .bot
+  - .claude
+  - LICENSE.txt
+  - python/NOTICE.txt
+  - RELEASE_NOTES.md
+  - version.sbt
+  - python/uv.lock
+bash_allowlist:
+  - [bot-test]
+  - [git, diff, HEAD]
+  - [git, diff, --cached]
+  - [git, status]
+  - [git, log]
+pr_body_template: |-
+  ## Summary
+  {summary}
+
+  ## Plan
+  {plan}
+
+  ## Files changed
+  {files_changed}
+
+  ## Verification
+  {test_plan}
+
+  Automated proposal. A maintainer must review and merge; integration tests
+  requiring cloud credentials are not provisioned to these bot jobs.
+author:
+  env_tokens:
+    issue_number: ISSUE_NUMBER
+    issue_title: ISSUE_TITLE
+    issue_url: ISSUE_URL
+  context_files: [issue_body.txt]
+retrospective:
+  log_mode: distill
+  log_path: .bot/knowledge/archive.md
+  journal_dir: .bot/knowledge/journal
+  lessons_path: .bot/knowledge/lessons.md
+  lessons_budget_bytes: 24576
+  journal_max_entries: 30
+  journal_max_bytes: 32768
+  mistake_inputs: [closed_unmerged, human_commits, needs_human]
+  lesson_tags:
+    lang: [python, scala]
+  author_workflow: engineer-bot.yml
+  system_prompt: prompts/retrospective_system.md
+  branch_prefix: ai/learning-pr-
+  pr_label: engineer-bot-learning
+  auto_merge_learning_pr: false
