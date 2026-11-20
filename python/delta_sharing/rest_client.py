@@ -17,7 +17,7 @@ import collections
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
-from typing import Any, ClassVar, Dict, List, Optional, Sequence
+from typing import Any, ClassVar, Dict, Iterable, List, Mapping, Optional, Sequence
 from urllib.parse import quote, urlparse
 import time
 import logging
@@ -49,8 +49,8 @@ class DeltaSharingServerError(Exception):
     """
 
     def __init__(self, message: str, status_code: Optional[int] = None):
-        prefix = f"Server Exception[{status_code if status_code is not None else ''}]: "
-        super().__init__(prefix + message)
+        prefix = "Server Exception" if status_code is None else f"Server Exception[{status_code}]"
+        super().__init__(f"{prefix}: {message}")
         self.status_code = status_code
 
 
@@ -234,7 +234,7 @@ class DataSharingRestClient:
         }
 
     @staticmethod
-    def _response_includes_end_stream_action(headers) -> bool:
+    def _response_includes_end_stream_action(headers: Mapping[str, str]) -> bool:
         capabilities = headers.get(DataSharingRestClient.CAPABILITIES_HEADER, "")
         return any(
             capability.partition("=")[0].strip().lower() == "includeendstreamaction"
@@ -243,7 +243,9 @@ class DataSharingRestClient:
         )
 
     @staticmethod
-    def _read_lines_and_check_end_stream_action(headers, lines) -> List[str]:
+    def _read_lines_and_check_end_stream_action(
+        headers: Mapping[str, str], lines: Iterable[str]
+    ) -> List[str]:
         """
         Reads all response lines and handles the EndStreamAction the server may append. Returns
         the lines without the EndStreamAction, so callers can parse them as before.
@@ -260,28 +262,28 @@ class DataSharingRestClient:
                     json.loads(last_line)
                 except ValueError:
                     raise DeltaSharingServerError(
-                        "Failed to parse the last line of the response, which usually means the "
-                        f"server hit an error while streaming it: {last_line}"
+                        f"Invalid JSON in the last line of the response: {last_line}"
                     ) from None
             return all_lines
+        else:
+            end_stream_action = None
+            if last_line is not None:
+                try:
+                    end_stream_action = json.loads(last_line).get("endStreamAction")
+                except (ValueError, AttributeError):
+                    pass
 
-        end_stream_action = None
-        if last_line is not None:
-            try:
-                end_stream_action = json.loads(last_line).get("endStreamAction")
-            except (ValueError, AttributeError):
-                pass
-        if end_stream_action is None:
-            raise MissingEndStreamActionError(
-                "The server responded with includeendstreamaction=true but the last line of the "
-                f"response ({len(all_lines)} lines) is not an EndStreamAction: {last_line}"
-            )
-        error_message = end_stream_action.get("errorMessage")
-        if error_message is not None:
-            raise DeltaSharingServerError(
-                error_message, end_stream_action.get("httpStatusErrorCode")
-            )
-        return all_lines[:-1]
+            if end_stream_action is None:
+                raise MissingEndStreamActionError(
+                    "The server responded with includeendstreamaction=true but the last line of "
+                    f"the response ({len(all_lines)} lines) is not an EndStreamAction: {last_line}"
+                )
+            elif end_stream_action.get("errorMessage") is not None:
+                raise DeltaSharingServerError(
+                    end_stream_action["errorMessage"], end_stream_action.get("httpStatusErrorCode")
+                )
+            else:
+                return all_lines[:-1]
 
     @staticmethod
     def _response_has_versionless_cdf(headers) -> bool:

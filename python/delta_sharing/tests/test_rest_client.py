@@ -493,13 +493,24 @@ def _query(rest_client, query_type):
     return response.lines if response.lines is not None else response.actions
 
 
-@pytest.mark.parametrize("use_delta_format", [False, True])
+@pytest.mark.parametrize(
+    "use_delta_format,session_capabilities,query_capabilities",
+    [
+        (False, "versionlesscdf=true", "versionlesscdf=true;includeendstreamaction=true"),
+        (
+            True,
+            "responseformat=delta;readerfeatures=deletionvectors,columnmapping,timestampntz;"
+            "versionlesscdf=true",
+            "responseformat=delta;readerfeatures=deletionvectors,columnmapping,timestampntz;"
+            "versionlesscdf=true;includeendstreamaction=true",
+        ),
+    ],
+)
 def test_end_stream_action_requested_only_for_query_and_changes(
-    rest_client, monkeypatch, use_delta_format
+    rest_client, monkeypatch, use_delta_format, session_capabilities, query_capabilities
 ):
     if use_delta_format:
         rest_client.set_delta_format_header()
-    session_capabilities = rest_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
     requests = []
     response_format = "delta" if use_delta_format else "parquet"
     lines = _view_cdf_lines(response_format, wrapper_metadata=True)
@@ -515,12 +526,16 @@ def test_end_stream_action_requested_only_for_query_and_changes(
     _query(rest_client, "snapshot")
     _query(rest_client, "cdf")
 
-    capabilities = [r.headers[DataSharingRestClient.CAPABILITIES_HEADER] for r in requests]
-    assert capabilities[0] == session_capabilities
-    for query_capabilities in capabilities[1:]:
-        assert query_capabilities.split(";") == session_capabilities.split(";") + [
-            DataSharingRestClient.INCLUDE_END_STREAM_ACTION
-        ]
+    list_shares_request, *query_requests = requests
+    assert list_shares_request.headers[DataSharingRestClient.CAPABILITIES_HEADER] == (
+        session_capabilities
+    )
+    assert len(query_requests) == 2
+    for request in query_requests:
+        assert request.headers[DataSharingRestClient.CAPABILITIES_HEADER] == query_capabilities
+        # The per-request header is merged with the session headers rather than replacing them.
+        assert request.headers["Authorization"] == f"Bearer {rest_client._profile.bearer_token}"
+        assert request.headers["User-Agent"].startswith("Delta-Sharing-Python/")
     assert rest_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER] == (
         session_capabilities
     )
@@ -551,9 +566,23 @@ def test_end_stream_action_is_removed_on_success(
 
 @pytest.mark.parametrize("query_type", ["snapshot", "cdf"])
 @pytest.mark.parametrize("response_format", ["parquet", "delta"])
-@pytest.mark.parametrize("status_code", [400, None])
+@pytest.mark.parametrize(
+    "status_code,expected_message",
+    [
+        (
+            400,
+            "Server Exception[400]: UNSUPPORTED_TABLE_FEATURES: Table features deletionVectors "
+            "are found in table version: 3.",
+        ),
+        (
+            None,
+            "Server Exception: UNSUPPORTED_TABLE_FEATURES: Table features deletionVectors are "
+            "found in table version: 3.",
+        ),
+    ],
+)
 def test_end_stream_action_error_is_raised(
-    rest_client, monkeypatch, query_type, response_format, status_code
+    rest_client, monkeypatch, query_type, response_format, status_code, expected_message
 ):
     requests = []
     lines = _view_cdf_lines(response_format, wrapper_metadata=True)
@@ -571,10 +600,7 @@ def test_end_stream_action_error_is_raised(
     with pytest.raises(DeltaSharingServerError, match="UNSUPPORTED_TABLE_FEATURES") as e:
         _query(rest_client, query_type)
     assert e.value.status_code == status_code
-    assert str(e.value) == (
-        f"Server Exception[{status_code if status_code is not None else ''}]: "
-        + _END_STREAM_ACTION_ERROR
-    )
+    assert str(e.value) == expected_message
     assert len(requests) == 1
 
 
@@ -637,8 +663,12 @@ def test_invalid_json_error_line_is_readable_without_end_stream_action(
         _end_stream_action_send(requests, response_format, [(False, lines[:2] + [invalid_json])]),
     )
 
-    with pytest.raises(DeltaSharingServerError, match="UNSUPPORTED_TABLE_FEATURES") as e:
+    with pytest.raises(DeltaSharingServerError) as e:
         _query(rest_client, query_type)
+    assert str(e.value) == (
+        "Server Exception: Invalid JSON in the last line of the response: "
+        "Failed_to_stream_response_due_to_error_UNSUPPORTED_TABLE_FEATURES_{"
+    )
     assert e.value.status_code is None
     assert len(requests) == 1
 

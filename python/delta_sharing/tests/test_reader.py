@@ -1521,7 +1521,10 @@ def test_end_stream_action_error_surfaces_to_user(
     lines = [json.dumps(action) for action in [{"protocol": protocol}, {"metaData": metadata}]]
     lines.append(json.dumps(error))
 
+    sent_capabilities = []
+
     def send(request, **_kwargs):
+        sent_capabilities.append(request.headers[DataSharingRestClient.CAPABILITIES_HEADER])
         response = Response()
         response._content_consumed = True
         response.encoding = "utf-8"
@@ -1536,14 +1539,12 @@ def test_end_stream_action_error_surfaces_to_user(
 
     monkeypatch.setattr(rest_client._session, "send", send)
     reader = DeltaSharingReader(_TEST_TABLE, rest_client, use_delta_format=use_delta_format)
-    session_capabilities = rest_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
 
-    with pytest.raises(DeltaSharingServerError, match="UNSUPPORTED_TABLE_FEATURES"):
+    with pytest.raises(DeltaSharingServerError) as e:
         if query_type == "snapshot":
             reader.to_pandas()
         else:
             reader.table_changes_to_pandas(CdfOptions(starting_version=1))
-    assert (
-        rest_client._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
-        == session_capabilities
-    )
+    assert str(e.value) == "Server Exception[400]: UNSUPPORTED_TABLE_FEATURES: deletionVectors"
+    assert len(sent_capabilities) == 1
+    assert sent_capabilities[0].endswith(";includeendstreamaction=true")
