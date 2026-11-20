@@ -17,14 +17,7 @@
 package io.delta.sharing.client
 
 import java.io.File
-import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.Files
-import java.util.concurrent.{CountDownLatch, TimeUnit}
 
-import scala.sys.process._
-import scala.util.Try
-
-import org.apache.commons.io.FileUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkFunSuite
 import org.scalatest.BeforeAndAfterAll
@@ -37,8 +30,7 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
       sys.env.get("GOOGLE_APPLICATION_CREDENTIALS").exists(_.length > 0)
   }
 
-  @volatile private var process: Process = _
-  @volatile private var pidFile: File = _
+  @volatile private var serverHandle: TestDeltaSharingServerProcess.Handle = _
   var testProfileFile: File = _
 
   val TEST_PORT = 12345
@@ -46,53 +38,8 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     super.beforeAll()
     if (shouldRunIntegrationTest) {
-      pidFile = Files.createTempFile("delta-sharing-server", ".pid").toFile
-      testProfileFile = Files.createTempFile("delta-test", ".share").toFile
-      FileUtils.writeStringToFile(testProfileFile,
-        s"""{
-          |  "shareCredentialsVersion": 1,
-          |  "endpoint": "https://localhost:$TEST_PORT/delta-sharing",
-          |  "bearerToken": "dapi5e3574ec767ca1548ae5bbed1a2dc04d"
-          |}""".stripMargin, UTF_8)
-
-      val startLatch = new CountDownLatch(1)
-      new Thread("Run TestDeltaSharingServer") {
-        setDaemon(true)
-
-        override def run(): Unit = {
-          val processLogger = ProcessLogger { stdout =>
-            // scalastyle:off println
-            println(stdout)
-            // scalastyle:on println
-            if (stdout.contains(s"https://127.0.0.1:$TEST_PORT/")) {
-              startLatch.countDown()
-            }
-          }
-          process =
-            Seq(
-              "/bin/bash",
-              "-c",
-              s"cd .. && build/sbt 'server / Test / runMain " +
-                s"io.delta.sharing.server.TestDeltaSharingServer ${pidFile.getCanonicalPath}'")
-              .run(processLogger)
-          process.exitValue()
-          process = null
-          startLatch.countDown()
-        }
-      }.start()
-      try {
-        assert(startLatch.await(120, TimeUnit.SECONDS), "the server didn't start in 120 seconds")
-        if (process == null) {
-          fail("the process exited with an error")
-        }
-      } catch {
-        case e: Throwable =>
-          if (process != null) {
-            process.destroy()
-            process = null
-          }
-          throw e
-      }
+      serverHandle = TestDeltaSharingServerProcess.start()
+      testProfileFile = serverHandle.profileFile
     }
   }
 
@@ -100,22 +47,9 @@ trait DeltaSharingIntegrationTest extends SparkFunSuite with BeforeAndAfterAll {
     if (shouldRunIntegrationTest) {
       try {
         org.apache.hadoop.fs.FileSystem.closeAll()
-        if (process != null) {
-          process.destroy()
-          process = null
-        }
-        if (pidFile != null) {
-          val pid = FileUtils.readFileToString(pidFile)
-          Try(pid.toLong).foreach { pid =>
-            // scalastyle:off println
-            println(s"Killing $pid")
-            // scalastyle:on println
-            s"kill -9 $pid".!
-          }
-          pidFile.delete()
-        }
-        if (testProfileFile != null) {
-          testProfileFile.delete()
+        if (serverHandle != null) {
+          TestDeltaSharingServerProcess.stop(serverHandle)
+          serverHandle = null
         }
       } finally {
         super.afterAll()
