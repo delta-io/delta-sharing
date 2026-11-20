@@ -26,7 +26,7 @@ BOT_LOGINS = {"peco-review-bot[bot]", "peco-engineer-bot[bot]"}
 HIDDEN_PATTERNS = {
     "HTML comment": re.compile(r"<!--"),
     "collapsed <details> block": re.compile(r"<details\b", re.IGNORECASE),
-    "invisible or bidirectional Unicode": re.compile("[​-‏‪-‮⁠-⁤⁦-⁩﻿\U000e0000-\U000e007f]"),
+    "invisible or bidirectional Unicode": re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\U000e0000-\U000e007f]"),
 }
 SUSPICIOUS_PATTERNS = {
     "credential or environment access": re.compile(
