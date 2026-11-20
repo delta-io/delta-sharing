@@ -21,14 +21,15 @@ clean_exec() {
   done
   # Cloud test credentials come only from the file the trusted workflow staged
   # (bot-e2e-env.py), never from the caller's environment, and only these names.
-  if [[ -n "${BOT_E2E_ENV_FILE:-}" && -f "$BOT_E2E_ENV_FILE" ]]; then
+  local staged="$BOT_RUNTIME/e2e/env"
+  if [[ -f "$staged" ]]; then
     local record
     while IFS= read -r -d '' record; do
       case "${record%%=*}" in
         AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AZURE_TEST_ACCOUNT_KEY|GOOGLE_SERVICE_ACCOUNT_KEY|\
         GOOGLE_APPLICATION_CREDENTIALS|AWS_REGION|AWS_DEFAULT_REGION) clean+=("$record") ;;
       esac
-    done < "$BOT_E2E_ENV_FILE"
+    done < "$staged"
   fi
   exec /usr/bin/env -i "${clean[@]}" "$@"
 }

@@ -22,9 +22,9 @@ def records(env: dict[str, str], key_file: Path) -> dict[str, str]:
     values = {name: env[name] for name in SECRETS if env.get(name)}
     if not values:
         return {}
-    if "GOOGLE_SERVICE_ACCOUNT_KEY" in values:
-        # The test fixtures write the key to this path themselves (TestResource).
-        values["GOOGLE_APPLICATION_CREDENTIALS"] = str(key_file)
+    # Always set, as build-and-test.yml does: the client/Spark integration gates need it.
+    # The test fixtures write the key to this path themselves (TestResource).
+    values["GOOGLE_APPLICATION_CREDENTIALS"] = str(key_file)
     values["AWS_REGION"] = values["AWS_DEFAULT_REGION"] = REGION
     return values
 

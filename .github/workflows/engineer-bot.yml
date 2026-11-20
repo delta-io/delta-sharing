@@ -83,7 +83,6 @@ jobs:
         dir="$BOT_RUNTIME/e2e"
         mkdir -p "$dir"
         python3.11 -I bot-control/.github/scripts/bot-e2e-env.py "$dir/env"
-        if [ -f "$dir/env" ]; then printf 'BOT_E2E_ENV_FILE=%s\n' "$dir/env" >> "$GITHUB_ENV"; fi
       if: steps.context.outputs.eligible == 'true'
     - name: Mint consumer read-only token
       id: read-token
@@ -114,6 +113,10 @@ jobs:
           --user-prompt "$GITHUB_WORKSPACE/bot-control/.bot/prompts/engineer/user.md" \
           --flow "$FLOW"
       if: steps.context.outputs.eligible == 'true'
+    - name: Remove E2E test credentials after the agent
+      if: always()
+      run: |
+        if [ -n "${BOT_RUNTIME:-}" ]; then rm -rf "$BOT_RUNTIME/e2e"; fi
     - name: Mint consumer write token
       id: app-token
       uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
@@ -179,7 +182,7 @@ jobs:
           printf '\nChanges were proposed locally, but no PR URL was returned. Publishing needs attention.\n' >> "$body"
         fi
         gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$body"
-    - name: Remove E2E test credentials
+    - name: Remove E2E test credentials (backstop)
       if: always()
       run: |
         if [ -n "${BOT_RUNTIME:-}" ]; then rm -rf "$BOT_RUNTIME/e2e"; fi

@@ -425,12 +425,14 @@ class WorkflowTests(unittest.TestCase):
                 self.assertLess(names.index("Install reviewed private engine"), i)
                 first_token = min(k for k, s in enumerate(steps) if "create-github-app-token" in s.get("uses", ""))
                 self.assertLess(i, first_token)
-                # The only value the staging step exports is the file's path, never a secret.
-                exports = [line for line in steps[i]["run"].splitlines() if "GITHUB_ENV" in line]
-                self.assertEqual(len(exports), 1)
-                self.assertIn("BOT_E2E_ENV_FILE=%s", exports[0])
-                self.assertEqual(steps[-1]["name"], "Remove E2E test credentials")
-                self.assertEqual(steps[-1]["if"], "always()")
+                # Nothing is exported to later steps, not even a path.
+                self.assertNotIn("GITHUB_ENV", steps[i]["run"])
+                # Removed right after the agent step, and again at the end as a backstop.
+                agent = next(k for k, s in enumerate(steps) if "databricks_bot_engine.engineer_bot.run" in s.get("run", ""))
+                for k in (agent + 1, len(steps) - 1):
+                    self.assertTrue(steps[k]["name"].startswith("Remove E2E test credentials"))
+                    self.assertEqual(steps[k]["if"], "always()")
+                    self.assertIn('rm -rf "$BOT_RUNTIME/e2e"', steps[k]["run"])
 
     def test_all_bot_python_entrypoints_use_isolated_imports(self):
         for workflow in self.workflows.values():
@@ -523,12 +525,16 @@ class TestLauncherTests(unittest.TestCase):
             fake = root / "bin" / "uv"
             fake.write_text('#!/bin/bash\n/usr/bin/env -0 > ' + shlex.quote(str(root / "env")) + '\n')
             fake.chmod(0o700)
-            staged = root / "e2e-env"
+            (root / "e2e").mkdir()
+            staged = root / "e2e" / "env"
             staged.write_bytes(b"".join(f"{k}={v}".encode() + b"\0" for k, v in {**forwarded, **injected}.items()))
+            decoy = root / "decoy"
+            decoy.write_bytes(b"AWS_ACCESS_KEY_ID=from-decoy\0")
             env = {"PATH": str(root / "bin") + ":" + os.defpath, "HOME": str(root / "home"), "REPO_ROOT": tmp,
-                   "BOT_RUNTIME": tmp, "JAVA_HOME": str(root / "jdk17"), "BOT_E2E_ENV_FILE": str(staged),
-                   # Caller-environment copies are still never forwarded.
-                   "AZURE_TEST_ACCOUNT_KEY": "from-caller"}
+                   "BOT_RUNTIME": tmp, "JAVA_HOME": str(root / "jdk17"),
+                   # A caller can't redirect the launcher to another file, and its own
+                   # copies of the names are never forwarded.
+                   "BOT_E2E_ENV_FILE": str(decoy), "AZURE_TEST_ACCOUNT_KEY": "from-caller"}
             result = subprocess.run(["bash", str(SCRIPTS / "bot-test.sh"), "python-test",
                                      "delta_sharing/tests/test_protocol.py"], env=env, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -544,7 +550,7 @@ class TestLauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp, "env")
             env = {"PATH": os.defpath, "AWS_ACCESS_KEY_ID": "AKIAEXAMPLE", "AWS_SECRET_ACCESS_KEY": "s",
-                   "AZURE_TEST_ACCOUNT_KEY": "a", "GOOGLE_SERVICE_ACCOUNT_KEY": "{}", "UNRELATED_SECRET": "x"}
+                   "AZURE_TEST_ACCOUNT_KEY": "a", "UNRELATED_SECRET": "x"}  # no Google secret
             result = subprocess.run([sys.executable, "-I", str(SCRIPTS / "bot-e2e-env.py"), str(out)],
                                     env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)

@@ -88,7 +88,6 @@ jobs:
         dir="$BOT_RUNTIME/e2e"
         mkdir -p "$dir"
         python3.11 -I bot-control/.github/scripts/bot-e2e-env.py "$dir/env"
-        if [ -f "$dir/env" ]; then printf 'BOT_E2E_ENV_FILE=%s\n' "$dir/env" >> "$GITHUB_ENV"; fi
       if: steps.context.outputs.eligible == 'true'
     - name: Mint consumer write token
       id: app-token
@@ -128,7 +127,11 @@ jobs:
           --bot "$GITHUB_WORKSPACE/bot-control/.bot" \
           --system-prompt "$GITHUB_WORKSPACE/bot-control/.bot/prompts/engineer-followup/system.md"
       if: steps.context.outputs.eligible == 'true'
-    - name: Remove E2E test credentials
+    - name: Remove E2E test credentials after the agent
+      if: always()
+      run: |
+        if [ -n "${BOT_RUNTIME:-}" ]; then rm -rf "$BOT_RUNTIME/e2e"; fi
+    - name: Remove E2E test credentials (backstop)
       if: always()
       run: |
         if [ -n "${BOT_RUNTIME:-}" ]; then rm -rf "$BOT_RUNTIME/e2e"; fi

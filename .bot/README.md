@@ -130,7 +130,7 @@ both 2.12 and 2.13 verification. Dependency downloads/native builds need network
 integration suites the agent selects, with the same cloud test secrets as
 `build-and-test.yml`. A single workflow step receives them and makes them
 available only to the `bot-test` launcher for the test process it starts; they are
-removed when the job ends. `.github/tests` pins this. Review new or changed tests
+removed right after the agent step. `.github/tests` pins this. Review new or changed tests
 in every bot PR before approving its CI. A bot run doesn't replace the full CI
 matrix.
 
