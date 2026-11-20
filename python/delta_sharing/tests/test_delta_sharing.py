@@ -76,14 +76,23 @@ STREAM_FAILURE_MARKER = "Forcing_invalid_json_to_fail_streaming_rpc_due_to_error
 # Spark's JSON parser quotes the unparseable token, so its error message contains the marker.
 STREAM_FAILURE = re.escape(STREAM_FAILURE_MARKER)
 
+CDF_LOADERS: Tuple[Callable[..., object], ...] = (
+    load_table_changes_as_pandas,
+    load_table_changes_as_arrow,
+)
+
 
 def _assert_cdf_load_fails(error: str, load: Callable[[], object]) -> None:
     """The Python client's json.loads keeps the unparseable line only in the error's doc, so a
     stream failure is matched there; requests the server rejects up front are HTTP errors."""
     if error == STREAM_FAILURE:
-        with pytest.raises(json.JSONDecodeError) as exc_info:
+        # try/except rather than pytest.raises: mypy 0.981 can't infer ExceptionInfo.value's type.
+        try:
             load()
-        assert STREAM_FAILURE_MARKER in exc_info.value.doc
+        except json.JSONDecodeError as e:
+            assert STREAM_FAILURE_MARKER in e.doc
+        else:
+            pytest.fail("Expected the change data feed stream to fail")
     else:
         with pytest.raises(HTTPError, match=error):
             load()
@@ -1570,7 +1579,7 @@ def test_load_table_changes(
         )
         assert table_arrow.equals(arrow_table)
     else:
-        for load in (load_table_changes_as_pandas, load_table_changes_as_arrow):
+        for load in CDF_LOADERS:
             _assert_cdf_load_fails(
                 error,
                 partial(
@@ -1713,7 +1722,7 @@ def test_load_table_changes_kernel(
             pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
         pd.testing.assert_frame_equal(pdf, expected)
     else:
-        for load in (load_table_changes_as_pandas, load_table_changes_as_arrow):
+        for load in CDF_LOADERS:
             _assert_cdf_load_fails(
                 error,
                 partial(
