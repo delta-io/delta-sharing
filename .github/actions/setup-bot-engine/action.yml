@@ -22,7 +22,7 @@ runs:
       shell: bash
       env:
         # Keep every bot on one immutable engine revision. Update via a reviewed PR.
-        ENGINE_REF: fcf69265d182cc884aa732b2fbd7d559556897ce
+        ENGINE_REF: a1ea41782248337501634fb6792101313ee19468
         BOT_DATABRICKS_HOST: ${{ inputs.model-host }}
       run: |
         set -euo pipefail
