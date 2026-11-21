@@ -13,8 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
+import re
 from datetime import date, datetime
-from typing import Optional, Sequence, Tuple
+from functools import partial
+from typing import Callable, Optional, Sequence, Tuple
 
 import pandas as pd
 import pyarrow as pa
@@ -60,6 +63,39 @@ from delta_sharing.tests.conftest import ENABLE_INTEGRATION, SKIP_MESSAGE
 
 from requests.models import Response
 from requests.exceptions import HTTPError
+
+
+def _server_text(text: str) -> str:
+    """A regex for server text that the HTTPError message may wrap across quoted lines."""
+    return r"[\s']+".join(re.escape(word) for word in text.split())
+
+
+# A change data feed range that reaches a version without change data fails mid-stream. Clients
+# that don't request the end stream action get this marker line, which is not JSON, at the end.
+STREAM_FAILURE_MARKER = "Forcing_invalid_json_to_fail_streaming_rpc_due_to_error"
+# Spark's JSON parser quotes the unparseable token, so its error message contains the marker.
+STREAM_FAILURE = re.escape(STREAM_FAILURE_MARKER)
+
+CDF_LOADERS: Tuple[Callable[..., object], ...] = (
+    load_table_changes_as_pandas,
+    load_table_changes_as_arrow,
+)
+
+
+def _assert_cdf_load_fails(error: str, load: Callable[[], object]) -> None:
+    """The Python client's json.loads keeps the unparseable line only in the error's doc, so a
+    stream failure is matched there; requests the server rejects up front are HTTP errors."""
+    if error == STREAM_FAILURE:
+        # try/except rather than pytest.raises: mypy 0.981 can't infer ExceptionInfo.value's type.
+        try:
+            load()
+        except json.JSONDecodeError as e:
+            assert STREAM_FAILURE_MARKER in e.doc
+        else:
+            pytest.fail("Expected the change data feed stream to fail")
+    else:
+        with pytest.raises(HTTPError, match=error):
+            load()
 
 
 def _with_nanosecond_timestamps(expected: pd.DataFrame) -> pd.DataFrame:
@@ -117,18 +153,22 @@ def _assert_arrow_matches_pandas(
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 def test_list_shares(sharing_client: SharingClient):
     shares = sharing_client.list_shares()
-    assert shares == [
-        Share(name="share1"),
-        Share(name="share2"),
-        Share(name="share3"),
-        Share(name="share4"),
-        Share(name="share5"),
-        Share(name="share6"),
-        Share(name="share7"),
-        Share(name="share_azure"),
-        Share(name="share_gcp"),
-        Share(name="share8"),
-    ]
+    # The protocol doesn't define the share list order, so compare the content.
+    assert sorted(shares, key=lambda share: share.name) == sorted(
+        [
+            Share(name="share1"),
+            Share(name="share2"),
+            Share(name="share3"),
+            Share(name="share4"),
+            Share(name="share5"),
+            Share(name="share6"),
+            Share(name="share7"),
+            Share(name="share_azure"),
+            Share(name="share_gcp"),
+            Share(name="share8"),
+        ],
+        key=lambda share: share.name,
+    )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -155,48 +195,56 @@ def test_list_tables(sharing_client: SharingClient):
 
 
 def _verify_all_tables_result(tables: Sequence[Table]):
-    assert tables == [
-        Table(name="table1", share="share1", schema="default"),
-        Table(name="table3", share="share1", schema="default"),
-        Table(name="table7", share="share1", schema="default"),
-        Table(name="table_temp_cred", share="share1", schema="default"),
-        Table(name="table2", share="share2", schema="default"),
-        Table(name="table4", share="share3", schema="default"),
-        Table(name="table5", share="share3", schema="default"),
-        Table(name="test_gzip", share="share4", schema="default"),
-        Table(name="table8", share="share7", schema="schema1"),
-        Table(name="table9", share="share7", schema="schema2"),
-        Table(name="table_wasb", share="share_azure", schema="default"),
-        Table(name="table_abfs", share="share_azure", schema="default"),
-        Table(name="table_temp_cred_abfs", share="share_azure", schema="default"),
-        Table(name="table_wasb_change_query_id", share="share_azure", schema="default"),
-        Table(name="table_wasb_change_query_id_to_be_null", share="share_azure", schema="default"),
-        Table(name="table_wasb_bad_table", share="share_azure", schema="default"),
-        Table(name="table_gcs", share="share_gcp", schema="default"),
-        Table(name="table_temp_cred_gcs", share="share_gcp", schema="default"),
-        Table(name="12k_rows", share="share8", schema="default"),
-        Table(name="add_columns_partitioned_cdf", share="share8", schema="default"),
-        Table(name="add_columns_non_partitioned_cdf", share="share8", schema="default"),
-        Table(name="timestampntz_cdf_table", share="share8", schema="default"),
-        Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
-        Table(name="cdf_table_with_partition", share="share8", schema="default"),
-        Table(name="cdf_table_with_vacuum", share="share8", schema="default"),
-        Table(name="cdf_table_missing_log", share="share8", schema="default"),
-        Table(name="streaming_table_with_optimize", share="share8", schema="default"),
-        Table(name="streaming_table_metadata_protocol", share="share8", schema="default"),
-        Table(name="streaming_notnull_to_null", share="share8", schema="default"),
-        Table(name="streaming_null_to_notnull", share="share8", schema="default"),
-        Table(name="streaming_cdf_null_to_notnull", share="share8", schema="default"),
-        Table(name="streaming_cdf_table", share="share8", schema="default"),
-        Table(name="table_reader_version_increased", share="share8", schema="default"),
-        Table(name="table_with_no_metadata", share="share8", schema="default"),
-        Table(name="table_data_loss_with_checkpoint", share="share8", schema="default"),
-        Table(name="table_data_loss_no_checkpoint", share="share8", schema="default"),
-        Table(name="table_with_cm_name", share="share8", schema="default"),
-        Table(name="table_with_cm_id", share="share8", schema="default"),
-        Table(name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default"),
-        Table(name="dv_and_cm_table", share="share8", schema="default"),
-    ]
+    # The protocol doesn't define the table list order, so compare the content.
+    assert sorted(tables, key=lambda t: (t.share, t.schema, t.name)) == sorted(
+        [
+            Table(name="table1", share="share1", schema="default"),
+            Table(name="table3", share="share1", schema="default"),
+            Table(name="table7", share="share1", schema="default"),
+            Table(name="table_temp_cred", share="share1", schema="default"),
+            Table(name="table2", share="share2", schema="default"),
+            Table(name="table4", share="share3", schema="default"),
+            Table(name="table5", share="share3", schema="default"),
+            Table(name="test_gzip", share="share4", schema="default"),
+            Table(name="table8", share="share7", schema="schema1"),
+            Table(name="table9", share="share7", schema="schema2"),
+            Table(name="table_wasb", share="share_azure", schema="default"),
+            Table(name="table_abfs", share="share_azure", schema="default"),
+            Table(name="table_temp_cred_abfs", share="share_azure", schema="default"),
+            Table(name="table_wasb_change_query_id", share="share_azure", schema="default"),
+            Table(
+                name="table_wasb_change_query_id_to_be_null", share="share_azure", schema="default"
+            ),
+            Table(name="table_wasb_bad_table", share="share_azure", schema="default"),
+            Table(name="table_gcs", share="share_gcp", schema="default"),
+            Table(name="table_temp_cred_gcs", share="share_gcp", schema="default"),
+            Table(name="12k_rows", share="share8", schema="default"),
+            Table(name="add_columns_partitioned_cdf", share="share8", schema="default"),
+            Table(name="add_columns_non_partitioned_cdf", share="share8", schema="default"),
+            Table(name="timestampntz_cdf_table", share="share8", schema="default"),
+            Table(name="cdf_table_cdf_enabled", share="share8", schema="default"),
+            Table(name="cdf_table_with_partition", share="share8", schema="default"),
+            Table(name="cdf_table_with_vacuum", share="share8", schema="default"),
+            Table(name="cdf_table_missing_log", share="share8", schema="default"),
+            Table(name="streaming_table_with_optimize", share="share8", schema="default"),
+            Table(name="streaming_table_metadata_protocol", share="share8", schema="default"),
+            Table(name="streaming_notnull_to_null", share="share8", schema="default"),
+            Table(name="streaming_null_to_notnull", share="share8", schema="default"),
+            Table(name="streaming_cdf_null_to_notnull", share="share8", schema="default"),
+            Table(name="streaming_cdf_table", share="share8", schema="default"),
+            Table(name="table_reader_version_increased", share="share8", schema="default"),
+            Table(name="table_with_no_metadata", share="share8", schema="default"),
+            Table(name="table_data_loss_with_checkpoint", share="share8", schema="default"),
+            Table(name="table_data_loss_no_checkpoint", share="share8", schema="default"),
+            Table(name="table_with_cm_name", share="share8", schema="default"),
+            Table(name="table_with_cm_id", share="share8", schema="default"),
+            Table(
+                name="deletion_vectors_with_dvs_dv_property_on", share="share8", schema="default"
+            ),
+            Table(name="dv_and_cm_table", share="share8", schema="default"),
+        ],
+        key=lambda t: (t.share, t.schema, t.name),
+    )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
@@ -578,6 +626,16 @@ def test_get_table_protocol(profile_path: str):
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
+def test_load_snapshot_wasb_not_implemented(
+    profile_path: str,
+):
+    # Azure tables are served over abfs/abfss only; a wasb
+    # table answers 501 NOT_IMPLEMENTED.
+    with pytest.raises(HTTPError, match="501"):
+        load_as_pandas(f"{profile_path}#share_azure.default.table_wasb")
+
+
+@pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
 @pytest.mark.parametrize(
     "fragments,limit,version,expected",
     [
@@ -758,7 +816,8 @@ def test_get_table_protocol(profile_path: str):
             id="table column order is not the same as parquet files",
         ),
         pytest.param(
-            "share_azure.default.table_wasb",
+            # Azure tables are served over abfs/abfss only.
+            "share_azure.default.table_abfs",
             None,
             None,
             pd.DataFrame(
@@ -1293,17 +1352,21 @@ def test_load_snapshot_with_json_predicates(
     "fragments,version,timestamp,error",
     [
         pytest.param(
+            # OpenSharing always shares history, so reading table1 as of a version is allowed;
+            # a version after the latest is still rejected.
             "share1.default.table1",
-            1,
+            999999,
             None,
-            "Reading table by version or timestamp is not supported",
+            _server_text("Cannot load table version 999999"),
             id="version not supported",
         ),
         pytest.param(
+            # OpenSharing always shares history, so a well-formed timestamp is accepted; only a
+            # malformed one is rejected.
             "share1.default.table1",
             None,
             "random_timestamp",
-            "Reading table by version or timestamp is not supported",
+            "Invalid timestamp",
             id="timestamp not supported",
         ),
         pytest.param(
@@ -1349,7 +1412,7 @@ def test_load_snapshot_exception(
             "share8.default.table_with_cm_name",
             None,
             None,
-            "Unsupported Delta Table Properties",
+            "Table features delta.columnMapping.mode are found in table",
             id="column mapping id not supported",
         ),
     ],
@@ -1447,7 +1510,7 @@ def test_load_snapshot_exception_client_delta_kernel_disabled_with_delta_table(
             None,
             "2000-01-01T00:00:00Z",
             None,
-            "Please use a timestamp greater",
+            STREAM_FAILURE,
             pd.DataFrame({"not_used": []}),
             id="cdf_table_cdf_enabled table changes with starting_timestamp",
         ),
@@ -1467,7 +1530,9 @@ def test_load_snapshot_exception_client_delta_kernel_disabled_with_delta_table(
             1,
             None,
             None,
-            "cdf is not enabled on table share1.default.table1",
+            # OpenSharing always shares history; table1 has CDF disabled as a table property,
+            # so the request is rejected because change data is not enabled.
+            _server_text("CDF is not enabled on the original delta table for version 0"),
             pd.DataFrame({"not_used": []}),
             id="table1 table changes not supported",
         ),
@@ -1514,21 +1579,17 @@ def test_load_table_changes(
         )
         assert table_arrow.equals(arrow_table)
     else:
-        with pytest.raises(HTTPError, match=error):
-            load_table_changes_as_pandas(
-                f"{profile_path}#{fragments}",
-                starting_version,
-                ending_version,
-                starting_timestamp,
-                ending_timestamp,
-            )
-        with pytest.raises(HTTPError, match=error):
-            load_table_changes_as_arrow(
-                f"{profile_path}#{fragments}",
-                starting_version,
-                ending_version,
-                starting_timestamp,
-                ending_timestamp,
+        for load in CDF_LOADERS:
+            _assert_cdf_load_fails(
+                error,
+                partial(
+                    load,
+                    f"{profile_path}#{fragments}",
+                    starting_version,
+                    ending_version,
+                    starting_timestamp,
+                    ending_timestamp,
+                ),
             )
 
 
@@ -1601,7 +1662,7 @@ def test_load_table_changes(
             None,
             "2000-01-01T00:00:00Z",
             None,
-            "Please use a timestamp greater",
+            STREAM_FAILURE,
             pd.DataFrame({"not_used": []}),
             id="cdf_table_cdf_enabled table changes with starting_timestamp",
         ),
@@ -1621,7 +1682,9 @@ def test_load_table_changes(
             1,
             None,
             None,
-            "cdf is not enabled on table share1.default.table1",
+            # OpenSharing always shares history; table1 has CDF disabled as a table property,
+            # so the request is rejected because change data is not enabled.
+            _server_text("CDF is not enabled on the original delta table for version 0"),
             pd.DataFrame({"not_used": []}),
             id="table1 table changes not supported",
         ),
@@ -1659,23 +1722,18 @@ def test_load_table_changes_kernel(
             pdf["_commit_timestamp"] = pdf["_commit_timestamp"].astype("int") // 1000
         pd.testing.assert_frame_equal(pdf, expected)
     else:
-        with pytest.raises(HTTPError, match=error):
-            load_table_changes_as_pandas(
-                f"{profile_path}#{fragments}",
-                starting_version,
-                ending_version,
-                starting_timestamp,
-                ending_timestamp,
-                use_delta_format=True,
-            )
-        with pytest.raises(HTTPError, match=error):
-            load_table_changes_as_arrow(
-                f"{profile_path}#{fragments}",
-                starting_version,
-                ending_version,
-                starting_timestamp,
-                ending_timestamp,
-                use_delta_format=True,
+        for load in CDF_LOADERS:
+            _assert_cdf_load_fails(
+                error,
+                partial(
+                    load,
+                    f"{profile_path}#{fragments}",
+                    starting_version,
+                    ending_version,
+                    starting_timestamp,
+                    ending_timestamp,
+                    use_delta_format=True,
+                ),
             )
 
 
@@ -2078,7 +2136,7 @@ def test_validate_url():
             None,
             "2000-01-01T00:00:00Z",
             None,
-            "Please use a timestamp greater",
+            STREAM_FAILURE,
             [],
             "unused-schema-str",
             id="cdf_table_cdf_enabled starting_timestamp correctly passed",
@@ -2100,7 +2158,9 @@ def test_validate_url():
             3,
             None,
             None,
-            "cdf is not enabled on table share1.default.table1",
+            # OpenSharing always shares history; table1 has CDF disabled as a table property,
+            # so the request is rejected because change data is not enabled.
+            _server_text("CDF is not enabled on the original delta table for version 0"),
             [],
             "name: string, age: int, birthday:date, _commit_version: long, _commit_timestamp"
             + ": long, _change_type: string",
@@ -2166,8 +2226,7 @@ def test_load_table_changes_as_spark(
                     ending_timestamp=ending_timestamp,
                 )
             except Exception as e:
-                assert isinstance(e, HTTPError)
-                assert error in str(e)
+                assert re.search(error, str(e))
             try:
                 (
                     SharingClient(profile)
@@ -2181,8 +2240,7 @@ def test_load_table_changes_as_spark(
                     .to_spark()
                 )
             except Exception as e:
-                assert isinstance(e, HTTPError)
-                assert error in str(e)
+                assert re.search(error, str(e))
 
     except ImportError:
         with pytest.raises(
