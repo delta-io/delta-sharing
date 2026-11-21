@@ -4291,7 +4291,7 @@ Example:
 ```json
 {
   "shareCredentialsVersion": 1,
-  "endpoint": "https://sharing.delta.io/delta-sharing/",
+  "endpoint": "https://sharing.example.com/delta-sharing/",
   "bearerToken": "<token>",
   "expirationTime": "2021-11-12T00:12:29.0Z"
 }
