@@ -234,12 +234,24 @@ class DataSharingRestClient:
         }
 
     @staticmethod
-    def _response_includes_end_stream_action(headers: Mapping[str, str]) -> bool:
+    def _response_capability_values(headers: Mapping[str, str], name: str) -> List[str]:
+        """
+        Returns the values of capability `name` in the response capabilities header, one per
+        occurrence, stripped and lowercased. The header has the form "key1=value1;key2=v2,v3" and
+        capability names are case-insensitive.
+        """
         capabilities = headers.get(DataSharingRestClient.CAPABILITIES_HEADER, "")
-        return any(
-            capability.partition("=")[0].strip().lower() == "includeendstreamaction"
-            and capability.partition("=")[2].strip().lower() == "true"
-            for capability in capabilities.split(";")
+        values = []
+        for capability in capabilities.split(";"):
+            key, _, value = capability.partition("=")
+            if key.strip().lower() == name:
+                values.append(value.strip().lower())
+        return values
+
+    @staticmethod
+    def _response_includes_end_stream_action(headers: Mapping[str, str]) -> bool:
+        return "true" in DataSharingRestClient._response_capability_values(
+            headers, "includeendstreamaction"
         )
 
     @staticmethod
@@ -286,22 +298,18 @@ class DataSharingRestClient:
                 return all_lines[:-1]
 
     @staticmethod
-    def _response_has_versionless_cdf(headers) -> bool:
-        capabilities = headers.get(DataSharingRestClient.CAPABILITIES_HEADER, "")
-        return any(
-            capability.partition("=")[0].strip().lower() == "versionlesscdf"
-            and capability.partition("=")[2].strip().lower() == "true"
-            for capability in capabilities.split(";")
+    def _response_has_versionless_cdf(headers: Mapping[str, str]) -> bool:
+        return "true" in DataSharingRestClient._response_capability_values(
+            headers, "versionlesscdf"
         )
 
     @staticmethod
-    def _response_uses_delta_format(headers) -> bool:
-        capabilities = headers.get(DataSharingRestClient.CAPABILITIES_HEADER, "")
+    def _response_uses_delta_format(headers: Mapping[str, str]) -> bool:
         return any(
-            capability.partition("=")[0].strip().lower() == "responseformat"
-            and "delta"
-            in {value.strip().lower() for value in capability.partition("=")[2].split(",")}
-            for capability in capabilities.split(";")
+            "delta" in {response_format.strip() for response_format in value.split(",")}
+            for value in DataSharingRestClient._response_capability_values(
+                headers, "responseformat"
+            )
         )
 
     @staticmethod

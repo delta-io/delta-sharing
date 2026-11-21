@@ -524,13 +524,14 @@ def test_end_stream_action_requested_only_for_query_and_changes(
     )
 
     rest_client.list_shares()
+    metadata = rest_client.query_table_metadata(Table(name="table", share="share", schema="schema"))
     _query(rest_client, "snapshot")
     _query(rest_client, "cdf")
 
-    list_shares_request, *query_requests = requests
-    assert list_shares_request.headers[DataSharingRestClient.CAPABILITIES_HEADER] == (
-        session_capabilities
-    )
+    assert metadata.metadata.id == "view-id"
+    list_shares_request, metadata_request, *query_requests = requests
+    for request in (list_shares_request, metadata_request):
+        assert request.headers[DataSharingRestClient.CAPABILITIES_HEADER] == session_capabilities
     assert len(query_requests) == 2
     for request in query_requests:
         assert request.headers[DataSharingRestClient.CAPABILITIES_HEADER] == query_capabilities
@@ -672,20 +673,6 @@ def test_invalid_json_error_line_is_readable_without_end_stream_action(
     )
     assert e.value.status_code is None
     assert len(requests) == 1
-
-
-def test_query_table_metadata_ignores_end_stream_action(rest_client, monkeypatch):
-    requests = []
-    lines = _view_cdf_lines("parquet")
-    monkeypatch.setattr(
-        rest_client._session, "send", _end_stream_action_send(requests, "parquet", [(False, lines)])
-    )
-
-    response = rest_client.query_table_metadata(Table(name="table", share="share", schema="schema"))
-    assert response.metadata.id == "view-id"
-    assert DataSharingRestClient.INCLUDE_END_STREAM_ACTION not in (
-        requests[0].headers[DataSharingRestClient.CAPABILITIES_HEADER]
-    )
 
 
 @pytest.mark.skipif(not ENABLE_INTEGRATION, reason=SKIP_MESSAGE)
