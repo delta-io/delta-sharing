@@ -15,7 +15,7 @@
 #
 
 from unittest.mock import MagicMock
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from delta_sharing._internal_auth import (
     ClientSecretOAuthClient,
     BasicAuthProvider,
@@ -54,6 +54,35 @@ def test_bearer_token_auth_provider_is_expired():
     valid_token = "valid-token"
     expiration_time = (datetime.now() + timedelta(days=1)).isoformat()
     provider = BearerTokenAuthProvider(valid_token, expiration_time)
+    assert not provider.is_expired()
+
+
+def test_bearer_token_auth_provider_is_expired_iso8601_utc():
+    # The profile "expirationTime" is emitted as an ISO-8601 UTC timestamp with a
+    # trailing "Z", e.g. "2021-11-12T00:12:29.0Z" (see the profile test fixtures).
+    provider = BearerTokenAuthProvider("expired-token", "2021-11-12T00:12:29.0Z")
+    assert provider.is_expired()
+
+    future = datetime.now(timezone.utc) + timedelta(days=1)
+    expiration_time = future.strftime("%Y-%m-%dT%H:%M:%S.0Z")
+    provider = BearerTokenAuthProvider("valid-token", expiration_time)
+    assert not provider.is_expired()
+
+
+def test_bearer_token_auth_provider_is_expired_with_offset():
+    # ISO-8601 timestamps may carry a non-UTC offset, e.g. "...-02:00".
+    provider = BearerTokenAuthProvider("expired-token", "2022-01-01T00:00:00-02:00")
+    assert provider.is_expired()
+
+    provider = BearerTokenAuthProvider("valid-token", "2999-01-01T00:00:00-02:00")
+    assert not provider.is_expired()
+
+
+def test_bearer_token_auth_provider_is_expired_invalid_timestamp():
+    provider = BearerTokenAuthProvider("token", "not-a-timestamp")
+    assert not provider.is_expired()
+
+    provider = BearerTokenAuthProvider("token", None)
     assert not provider.is_expired()
 
 
