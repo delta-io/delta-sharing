@@ -1,0 +1,31 @@
+name: Audit delta-kernel-rust-sharing-wrapper dependencies
+
+on:
+  push:
+    paths:
+      - python/delta-kernel-rust-sharing-wrapper/Cargo.lock
+      - python/delta-kernel-rust-sharing-wrapper/Cargo.toml
+      - .github/workflows/cargo-audit.yml
+  pull_request:
+    paths:
+      - python/delta-kernel-rust-sharing-wrapper/Cargo.lock
+      - python/delta-kernel-rust-sharing-wrapper/Cargo.toml
+      - .github/workflows/cargo-audit.yml
+  # Advisories are published without any change to Cargo.lock, so also re-check weekly.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked --version 0.22.2
+
+      - name: Audit Cargo.lock against the RustSec advisory database
+        run: cargo audit --file python/delta-kernel-rust-sharing-wrapper/Cargo.lock
