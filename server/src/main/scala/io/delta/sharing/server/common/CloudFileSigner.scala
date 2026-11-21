@@ -55,7 +55,13 @@ class S3FileSigner(
     preSignedUrlTimeoutSeconds: Long) extends CloudFileSigner {
 
   private val s3Client = ReflectionUtils.newInstance(classOf[DefaultS3ClientFactory], conf)
-    .createS3Client(name, new S3ClientCreationParameters())
+    .createS3Client(name, {
+        val p = new S3ClientCreationParameters()
+        val ep = conf.get("fs.s3a.endpoint", "")
+        if (ep != null && ep.nonEmpty) p.withEndpoint(ep)
+        p.withPathStyleAccess(conf.getBoolean("fs.s3a.path.style.access", false))
+        p
+      })
 
   override def sign(path: Path): PreSignedUrl = {
     val absPath = path.toUri
