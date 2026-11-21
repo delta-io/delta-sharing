@@ -19,6 +19,34 @@ MAINTAINER_PERMISSIONS = {"admin", "maintain", "write"}
 BOT_LOGINS = {"peco-review-bot[bot]", "peco-engineer-bot[bot]"}
 
 
+# Issue text reaches an agent that runs the tests it writes. These checks are a
+# speed bump against prompt injection, not a security boundary: they refuse
+# text hidden from a reviewer (2) and text that asks for secrets, network calls
+# or new instructions (3). A refused issue needs a maintainer to edit and relabel.
+HIDDEN_PATTERNS = {
+    "HTML comment": re.compile(r"<!--"),
+    "collapsed <details> block": re.compile(r"<details\b", re.IGNORECASE),
+    "invisible or bidirectional Unicode": re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\U000e0000-\U000e007f]"),
+}
+SUSPICIOUS_PATTERNS = {
+    "credential or environment access": re.compile(
+        r"AWS_(ACCESS_KEY_ID|SECRET_ACCESS_KEY)|AZURE_TEST_ACCOUNT_KEY|GOOGLE_(APPLICATION_CREDENTIALS|SERVICE_ACCOUNT_KEY)"
+        r"|DATABRICKS_TOKEN|GH_TOKEN|GITHUB_TOKEN|os\.environ|sys\.env\b|System\.getenv|printenv|/proc/\w+/environ|\.aws/credentials",
+        re.IGNORECASE),
+    "instructions addressed to the agent": re.compile(
+        r"\b(ignore|disregard|forget)\b.{0,30}\b(previous|prior|above|earlier|all)\b.{0,20}\b(instructions?|rules|prompts?)\b"
+        r"|system prompt|\byou are (now )?(an? )?(ai|assistant|agent|bot)\b",
+        re.IGNORECASE),
+    "long encoded blob": re.compile(r"[A-Za-z0-9+/]{160,}={0,2}"),
+}
+
+
+def screen_issue(text: str) -> list[str]:
+    """Reasons to refuse issue text, or an empty list."""
+    return [name for patterns in (HIDDEN_PATTERNS, SUSPICIOUS_PATTERNS)
+            for name, pattern in patterns.items() if pattern.search(text)]
+
+
 def api(route: str) -> dict:
     return json.loads(subprocess.check_output(["gh", "api", route], text=True))
 
@@ -71,6 +99,11 @@ def prepare(mode: str, event_name: str, event: dict, actor: str, requested: str 
         # not a later edit by the issue author while this job was queued.
         issue = item if event_name == "issues" else current
         body = issue.get("body") or ""
+        reasons = screen_issue(f"{issue.get('title') or ''}\n{body}")
+        if reasons:
+            print(f"::warning::Issue #{n} refused for the engineer bot: {'; '.join(reasons)}. "
+                  "A maintainer can edit the issue and relabel it.")
+            return {"eligible": "false"}, {}
         Path(os.environ["RUNNER_TEMP"], "issue_body.txt").write_text(body, encoding="utf-8")
         flow = {"Bug": "bug-fix", "Task": "task", "Feature": "task"}.get((issue.get("type") or {}).get("name"), "bug-fix")
         return {"eligible": "true", "flow": flow}, {
