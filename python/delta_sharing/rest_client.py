@@ -17,7 +17,7 @@ import collections
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
-from typing import Any, ClassVar, Dict, List, Optional, Sequence
+from typing import Any, ClassVar, Dict, Iterable, List, Mapping, Optional, Sequence
 from urllib.parse import quote, urlparse
 import time
 import logging
@@ -39,6 +39,26 @@ from delta_sharing.protocol import (
 )
 
 from delta_sharing._internal_auth import AuthCredentialProviderFactory
+
+
+class DeltaSharingServerError(Exception):
+    """
+    Raised when the server reports an error inside a streamed response. Errors that happen after
+    the server has sent HTTP 200 cannot change the status code, so the server returns them in an
+    EndStreamAction at the end of the response instead.
+    """
+
+    def __init__(self, message: str, status_code: Optional[int] = None):
+        prefix = "Server Exception" if status_code is None else f"Server Exception[{status_code}]"
+        super().__init__(f"{prefix}: {message}")
+        self.status_code = status_code
+
+
+class MissingEndStreamActionError(Exception):
+    """
+    Raised when the server promised an EndStreamAction at the end of the response, but the last
+    line is not one. This usually means the response was truncated.
+    """
 
 
 @dataclass(frozen=True)
@@ -150,6 +170,7 @@ class DataSharingRestClient:
     DELTA_CDF_READER_FEATURES = "readerfeatures=deletionvectors,columnmapping"
     CAPABILITIES_HEADER = "delta-sharing-capabilities"
     VERSIONLESS_CDF = "versionlesscdf=true"
+    INCLUDE_END_STREAM_ACTION = "includeendstreamaction=true"
     DELTA_TABLE_VERSION_HEADER = "delta-table-version"
     DELTA_FORMAT = "delta"
     PARQUET_FORMAT = "parquet"
@@ -202,23 +223,93 @@ class DataSharingRestClient:
         # Parquet view CDF also requires versionlesscdf=true when format preferences are cleared.
         self.__set_capabilities_header()
 
+    def __end_stream_action_request_headers(self) -> Dict[str, str]:
+        # Only queryTable and queryTableChanges return EndStreamAction, so the capability is added
+        # per request rather than to the session headers.
+        capabilities = self._session.headers[DataSharingRestClient.CAPABILITIES_HEADER]
+        return {
+            DataSharingRestClient.CAPABILITIES_HEADER: ";".join(
+                [capabilities, DataSharingRestClient.INCLUDE_END_STREAM_ACTION]
+            )
+        }
+
     @staticmethod
-    def _response_has_versionless_cdf(headers) -> bool:
+    def _response_capability_values(headers: Mapping[str, str], name: str) -> List[str]:
+        """
+        Returns the values of capability `name` in the response capabilities header, one per
+        occurrence, stripped and lowercased. The header has the form "key1=value1;key2=v2,v3" and
+        capability names are case-insensitive.
+        """
         capabilities = headers.get(DataSharingRestClient.CAPABILITIES_HEADER, "")
-        return any(
-            capability.partition("=")[0].strip().lower() == "versionlesscdf"
-            and capability.partition("=")[2].strip().lower() == "true"
-            for capability in capabilities.split(";")
+        values = []
+        for capability in capabilities.split(";"):
+            key, _, value = capability.partition("=")
+            if key.strip().lower() == name:
+                values.append(value.strip().lower())
+        return values
+
+    @staticmethod
+    def _response_includes_end_stream_action(headers: Mapping[str, str]) -> bool:
+        return "true" in DataSharingRestClient._response_capability_values(
+            headers, "includeendstreamaction"
         )
 
     @staticmethod
-    def _response_uses_delta_format(headers) -> bool:
-        capabilities = headers.get(DataSharingRestClient.CAPABILITIES_HEADER, "")
+    def _read_lines_and_check_end_stream_action(
+        headers: Mapping[str, str], lines: Iterable[str]
+    ) -> List[str]:
+        """
+        Reads all response lines and handles the EndStreamAction the server may append. Returns
+        the lines without the EndStreamAction, so callers can parse them as before.
+        """
+        all_lines = list(lines)
+        last_line = all_lines[-1] if all_lines else None
+
+        if not DataSharingRestClient._response_includes_end_stream_action(headers):
+            # Servers that don't send EndStreamAction report errors after HTTP 200 by writing an
+            # invalid JSON line that contains the error, so the client fails instead of returning
+            # partial results.
+            if last_line:
+                try:
+                    json.loads(last_line)
+                except ValueError:
+                    raise DeltaSharingServerError(
+                        f"Invalid JSON in the last line of the response: {last_line}"
+                    ) from None
+            return all_lines
+        else:
+            end_stream_action = None
+            if last_line is not None:
+                try:
+                    end_stream_action = json.loads(last_line).get("endStreamAction")
+                except (ValueError, AttributeError):
+                    pass
+
+            if end_stream_action is None:
+                raise MissingEndStreamActionError(
+                    "The server responded with includeendstreamaction=true but the last line of "
+                    f"the response ({len(all_lines)} lines) is not an EndStreamAction: {last_line}"
+                )
+            elif end_stream_action.get("errorMessage") is not None:
+                raise DeltaSharingServerError(
+                    end_stream_action["errorMessage"], end_stream_action.get("httpStatusErrorCode")
+                )
+            else:
+                return all_lines[:-1]
+
+    @staticmethod
+    def _response_has_versionless_cdf(headers: Mapping[str, str]) -> bool:
+        return "true" in DataSharingRestClient._response_capability_values(
+            headers, "versionlesscdf"
+        )
+
+    @staticmethod
+    def _response_uses_delta_format(headers: Mapping[str, str]) -> bool:
         return any(
-            capability.partition("=")[0].strip().lower() == "responseformat"
-            and "delta"
-            in {value.strip().lower() for value in capability.partition("=")[2].split(",")}
-            for capability in capabilities.split(";")
+            "delta" in {response_format.strip() for response_format in value.split(",")}
+            for value in DataSharingRestClient._response_capability_values(
+                headers, "responseformat"
+            )
         )
 
     @staticmethod
@@ -406,13 +497,14 @@ class DataSharingRestClient:
             f"/shares/{table.share}/schemas/{table.schema}/tables/{table.name}/query",
             data=data,
             return_headers=True,
+            headers=self.__end_stream_action_request_headers(),
         ) as values:
             headers = values[0]
             # it's a bug in the server if it doesn't return delta-table-version in the header
             if DataSharingRestClient.DELTA_TABLE_VERSION_HEADER not in headers:
                 raise LookupError("Missing delta-table-version header")
 
-            lines = values[1]
+            all_lines = self._read_lines_and_check_end_stream_action(headers, values[1])
 
             if self._response_uses_delta_format(headers):
                 return ListFilesInTableResponse(
@@ -422,9 +514,10 @@ class DataSharingRestClient:
                     protocol=None,
                     metadata=None,
                     add_files=[],
-                    lines=[line for line in lines],
+                    lines=all_lines,
                 )
             else:
+                lines = iter(all_lines)
                 protocol_json = json.loads(next(lines))
                 metadata_json = json.loads(next(lines))
 
@@ -455,7 +548,9 @@ class DataSharingRestClient:
             params.append(f"includeHistoricalMetadata={cdfOptions.include_historical_metadata}")
         query_str += "&".join(params)
 
-        with self._get_internal(query_str, return_headers=True) as (headers, lines):
+        with self._get_internal(
+            query_str, return_headers=True, headers=self.__end_stream_action_request_headers()
+        ) as (headers, response_lines):
             has_table_version = DataSharingRestClient.DELTA_TABLE_VERSION_HEADER in headers
             is_versionless_cdf = self._response_has_versionless_cdf(headers)
             if is_versionless_cdf and has_table_version:
@@ -464,15 +559,17 @@ class DataSharingRestClient:
                 raise LookupError(
                     "Missing delta-table-version header and versionlesscdf=true response capability"
                 )
+            all_lines = self._read_lines_and_check_end_stream_action(headers, response_lines)
             if self._response_uses_delta_format(headers):
                 return ListTableChangesResponse(
                     protocol=None,
                     metadata=None,
                     actions=None,
-                    lines=list(lines),
+                    lines=all_lines,
                     is_versionless_cdf=is_versionless_cdf,
                 )
             else:
+                lines = iter(all_lines)
                 protocol_json = json.loads(next(lines))
                 metadata_json = json.loads(next(lines))
                 actions: List[FileAction] = []
@@ -496,9 +593,14 @@ class DataSharingRestClient:
         target: str,
         data: Optional[Dict[str, Any]] = None,
         return_headers: bool = False,
+        headers: Optional[Dict[str, str]] = None,
     ):
         return self._request_internal(
-            request=self._session.get, return_headers=return_headers, target=target, params=data
+            request=self._session.get,
+            return_headers=return_headers,
+            target=target,
+            params=data,
+            headers=headers,
         )
 
     def _post_internal(
@@ -506,9 +608,14 @@ class DataSharingRestClient:
         target: str,
         data: Optional[Dict[str, Any]] = None,
         return_headers: bool = False,
+        headers: Optional[Dict[str, str]] = None,
     ):
         return self._request_internal(
-            request=self._session.post, return_headers=return_headers, target=target, json=data
+            request=self._session.post,
+            return_headers=return_headers,
+            target=target,
+            json=data,
+            headers=headers,
         )
 
     @contextmanager
@@ -552,6 +659,11 @@ class DataSharingRestClient:
                 return True
             else:
                 return False
+        elif isinstance(error, DeltaSharingServerError):
+            status_code = error.status_code
+            return status_code is not None and (status_code == 429 or 500 <= status_code < 600)
+        elif isinstance(error, MissingEndStreamActionError):  # Response was likely truncated
+            return True
         elif isinstance(error, ConnectionError):  # Unable to connect to service
             return True
         else:
