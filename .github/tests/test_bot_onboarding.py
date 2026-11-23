@@ -85,20 +85,20 @@ class EventTests(unittest.TestCase):
         self.assertEqual(out["eligible"], "false")
         self.assertFalse(env)
 
-    def test_review_and_followup_require_live_opt_in_label(self):
+    def test_review_and_followup_run_by_default_unless_opted_out(self):
         for mode in ("review", "review-followup"):
-            for labels in ([], [{"name": "engineer-bot"}]):
+            for labels in ([], [{"name": "engineer-bot"}], [{"name": "engineer-bot-learning"}]):
                 with self.subTest(mode=mode, labels=labels):
-                    out, env = self.call(mode, pr={**PR, "labels": labels})
-                    self.assertEqual(out, {"eligible": "false"})
-                    self.assertFalse(env)
-            with self.subTest(mode=mode):
-                out, _ = self.call(mode, pr={**PR, "labels": [{"name": "review-bot"}]})
-                self.assertEqual(out["eligible"], "true")
+                    out, _ = self.call(mode, pr={**PR, "labels": labels})
+                    self.assertEqual(out["eligible"], "true")
+            with self.subTest(mode=mode, opted_out=True):
+                out, env = self.call(mode, pr={**PR, "labels": [{"name": "no-review-bot"}]})
+                self.assertEqual(out, {"eligible": "false"})
+                self.assertFalse(env)
 
-    def test_manual_review_cannot_bypass_live_opt_in_label(self):
+    def test_manual_review_cannot_bypass_live_opt_out_label(self):
         def api(route):
-            return {"permission": "admin"} if route.endswith("/permission") else {**PR, "labels": []}
+            return {"permission": "admin"} if route.endswith("/permission") else {**PR, "labels": [{"name": "no-review-bot"}]}
         with patch.object(context, "api", side_effect=api):
             out, env = context.prepare("review", "workflow_dispatch", self.event(), "maintainer", "42")
         self.assertEqual(out, {"eligible": "false"})
@@ -317,16 +317,18 @@ class WorkflowTests(unittest.TestCase):
                     if "DATABRICKS_TOKEN" in step.get("env", {}):
                         self.assertEqual(step["env"]["DATABRICKS_TOKEN"], token)
 
-    def test_reviewer_uses_master_flag_and_review_label_without_an_extra_flag(self):
+    def test_reviewer_runs_by_default_under_master_flag_with_opt_out_label(self):
         workflow = self.workflows["reviewer-bot.yml"]
-        self.assertIn("labeled", workflow["on"]["pull_request"]["types"])
-        condition = workflow["jobs"]["bot"]["if"]
-        self.assertIn("github.event.action != 'labeled' || github.event.label.name == 'review-bot'", condition)
+        # No label trigger: adding unrelated labels must not start duplicate reviews.
+        self.assertEqual(workflow["on"]["pull_request"]["types"],
+                         ["opened", "synchronize", "reopened", "ready_for_review"])
         for name in ("reviewer-bot.yml", "reviewer-bot-followup.yml"):
             condition = self.workflows[name]["jobs"]["bot"]["if"]
             self.assertIn("vars.BOT_ENGINE_ENABLED == 'true'", condition)
             self.assertNotIn("BOT_REVIEWER_ENABLED", json.dumps(self.workflows[name]))
-            self.assertIn("contains(github.event.pull_request.labels.*.name, 'review-bot')", condition)
+            self.assertIn("github.event.pull_request.head.repo.fork == false", condition)
+            self.assertIn("!contains(github.event.pull_request.labels.*.name, 'no-review-bot')", condition)
+            self.assertNotIn("'review-bot')", condition)
 
     def test_configuration_check_is_hosted_and_unprivileged(self):
         workflow = yaml.load((ROOT / ".github/workflows/bot-config-checks.yml").read_text(), Loader=yaml.BaseLoader)

@@ -8,7 +8,6 @@ name: Reviewer Bot
     - synchronize
     - reopened
     - ready_for_review
-    - labeled
   workflow_dispatch:
     inputs:
       pr_number:
@@ -30,8 +29,7 @@ jobs:
       && (github.event_name == 'workflow_dispatch'
           || (github.event.pull_request.head.repo.fork == false
               && github.event.pull_request.draft == false
-              && contains(github.event.pull_request.labels.*.name, 'review-bot')
-              && (github.event.action != 'labeled' || github.event.label.name == 'review-bot')))
+              && !contains(github.event.pull_request.labels.*.name, 'no-review-bot')))
     runs-on:
     - self-hosted
     - Linux
