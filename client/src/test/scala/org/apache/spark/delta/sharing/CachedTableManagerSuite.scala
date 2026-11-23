@@ -1129,4 +1129,239 @@ class CachedTableManagerSuite extends SparkFunSuite with SharedSparkSession{
     assert(manager.size == 1)
     assert(manager.getQueryStateSize(tablePath) == 1)
   }
+
+  private val identityRefresherWrapper: QuerySpecificCachedTable.RefresherWrapper =
+    (token, refresher) => refresher(token)
+
+  /** A refresher wrapper that counts how many times it is used to refresh urls. */
+  private class CountingRefresherWrapper {
+    @volatile var calls = 0
+    val wrapper: QuerySpecificCachedTable.RefresherWrapper = (token, refresher) => {
+      calls += 1
+      refresher(token)
+    }
+  }
+
+  private def enableSparkParquetIOCache(): Unit = {
+    SparkSession.active.sessionState.conf.setConfString(
+      "spark.delta.sharing.client.sparkParquetIOCache.enabled", "true")
+  }
+
+  test("tryRegisterQueryStatesForReuse - returns false when the table is not cached") {
+    enableSparkParquetIOCache()
+    val manager = createManager()
+    try {
+      val reused = manager.tryRegisterQueryStatesForReuse(
+        "test_table",
+        Seq(new WeakReference[AnyRef](new Object())),
+        createProfileProvider("query1", identityRefresherWrapper)
+      )
+      assert(!reused)
+      assert(manager.size == 0)
+    } finally {
+      manager.stop()
+    }
+  }
+
+  test("tryRegisterQueryStatesForReuse - returns false without a query id") {
+    enableSparkParquetIOCache()
+    val manager = createManager()
+    try {
+      // TestDeltaSharingProfileProvider has no query id, so it registers a plain CachedTable.
+      val provider = new TestDeltaSharingProfileProvider
+      val ref = new AnyRef
+      manager.register(
+        "test_table",
+        Map("file1" -> "https://test.com/file1"),
+        Seq(new WeakReference(ref)),
+        provider,
+        _ => TableRefreshResult(Map.empty, None, None),
+        System.currentTimeMillis() + preSignedUrlExpirationMs,
+        None
+      )
+      assert(manager.size == 1)
+
+      // Neither a provider without a query id nor a query-specific provider can reuse a plain
+      // CachedTable entry.
+      assert(!manager.tryRegisterQueryStatesForReuse(
+        "test_table", Seq(new WeakReference[AnyRef](new Object())), provider))
+      assert(!manager.tryRegisterQueryStatesForReuse(
+        "prefix.test_table",
+        Seq(new WeakReference[AnyRef](new Object())),
+        createProfileProvider("query1", identityRefresherWrapper)
+      ))
+      assert(manager.size == 1)
+      assert(manager.getQueryStateSize("prefix.test_table") == 0)
+    } finally {
+      manager.stop()
+    }
+  }
+
+  test("tryRegisterQueryStatesForReuse - returns false when the cached urls expire soon") {
+    enableSparkParquetIOCache()
+    val manager = createManager()
+    try {
+      val tablePath = "test_table"
+      val ref1 = new WeakReference[AnyRef](new Object())
+      manager.register(
+        tablePath,
+        Map("file1" -> "https://test.com/file1"),
+        Seq(ref1),
+        createProfileProvider("query1", identityRefresherWrapper),
+        _ => TableRefreshResult(Map.empty, None, None),
+        System.currentTimeMillis() + refreshThresholdMs + 100,
+        None
+      )
+
+      // Let the urls get within refreshThresholdMs of their expiration.
+      Thread.sleep(200)
+      val reused = manager.tryRegisterQueryStatesForReuse(
+        tablePath,
+        Seq(new WeakReference[AnyRef](new Object())),
+        createProfileProvider("query2", identityRefresherWrapper)
+      )
+      assert(!reused)
+      // The entry is unchanged: only query1's state is there.
+      assert(manager.getQueryStateSize(tablePath) == 1)
+    } finally {
+      manager.stop()
+    }
+  }
+
+  test("tryRegisterQueryStatesForReuse - refreshes with the new query's wrapper") {
+    enableSparkParquetIOCache()
+    val manager = createManager()
+    try {
+      val tablePath = "test_table"
+      val fileId = "file1"
+      val initialUrl = "https://test.com/file1"
+      val refreshedUrl = "https://test.com/file1-refreshed"
+      val refresher: Option[String] => TableRefreshResult = _ =>
+        TableRefreshResult(
+          Map(fileId -> refreshedUrl),
+          Some(System.currentTimeMillis() + preSignedUrlExpirationMs),
+          None
+        )
+      val wrapper1 = new CountingRefresherWrapper
+      val wrapper2 = new CountingRefresherWrapper
+
+      // query1 registers the urls without keepUrlsAfterRefsGone.
+      val ref1 = new WeakReference[AnyRef](new Object())
+      manager.register(
+        tablePath,
+        Map(fileId -> initialUrl),
+        Seq(ref1),
+        createProfileProvider("query1", wrapper1.wrapper),
+        refresher,
+        System.currentTimeMillis() + refreshThresholdMs + 300,
+        None
+      )
+
+      // query2 reuses the entry while the urls are still valid.
+      val anchor2 = new Object()
+      assert(manager.tryRegisterQueryStatesForReuse(
+        tablePath,
+        Seq(new WeakReference[AnyRef](anchor2)),
+        createProfileProvider("query2", wrapper2.wrapper)
+      ))
+      assert(manager.getQueryStateSize(tablePath) == 2)
+      val (url, _) = manager.getPreSignedUrl(tablePath, fileId)
+      assert(url === initialUrl)
+
+      // query1 ends and the urls get close to expiring: the refresh uses query2's wrapper.
+      ref1.clear()
+      Thread.sleep(400)
+      manager.refresh()
+      assert(wrapper1.calls == 0)
+      assert(wrapper2.calls == 1)
+      assert(manager.getQueryStateSize(tablePath) == 1)
+      val (refreshed, _) = manager.getPreSignedUrl(tablePath, fileId)
+      assert(refreshed === refreshedUrl)
+      assert(anchor2 != null) // Keep query2's anchor alive until here.
+    } finally {
+      manager.stop()
+    }
+  }
+
+  test("tryRegisterQueryStatesForReuse - keeps urls after all queries are gone") {
+    enableSparkParquetIOCache()
+    val manager = createManager()
+    try {
+      val tablePath = "test_table"
+      val fileId = "file1"
+      val url = "https://test.com/file1"
+
+      // query1 registers without keepUrlsAfterRefsGone, and query2 reuses the entry.
+      val ref1 = new WeakReference[AnyRef](new Object())
+      manager.register(
+        tablePath,
+        Map(fileId -> url),
+        Seq(ref1),
+        createProfileProvider("query1", identityRefresherWrapper),
+        _ => TableRefreshResult(Map.empty, None, None),
+        System.currentTimeMillis() + preSignedUrlExpirationMs,
+        None
+      )
+      val ref2 = new WeakReference[AnyRef](new Object())
+      assert(manager.tryRegisterQueryStatesForReuse(
+        tablePath, Seq(ref2), createProfileProvider("query2", identityRefresherWrapper)))
+
+      // Both queries end. Reuse turned on keepUrlsAfterRefsGone, so the urls stay cached.
+      ref1.clear()
+      ref2.clear()
+      manager.refresh()
+      assert(manager.size == 1)
+      assert(manager.getQueryStateSize(tablePath) == 0)
+
+      // A later query, not running at the same time as the first two, can reuse the urls.
+      assert(manager.tryRegisterQueryStatesForReuse(
+        tablePath,
+        Seq(new WeakReference[AnyRef](new Object())),
+        createProfileProvider("query3", identityRefresherWrapper)
+      ))
+      assert(manager.getQueryStateSize(tablePath) == 1)
+      val (retrieved, _) = manager.getPreSignedUrl(tablePath, fileId)
+      assert(retrieved === url)
+    } finally {
+      manager.stop()
+    }
+  }
+
+  test("tryRegisterQueryStatesForReuse - resets the last access time") {
+    enableSparkParquetIOCache()
+    val manager = new CachedTableManager(
+      preSignedUrlExpirationMs,
+      refreshCheckIntervalMs,
+      refreshThresholdMs,
+      expireAfterAccessMs = 1000
+    )
+    try {
+      val tablePath = "test_table"
+      val anchor1 = new Object()
+      manager.register(
+        tablePath,
+        Map("file1" -> "https://test.com/file1"),
+        Seq(new WeakReference[AnyRef](anchor1)),
+        createProfileProvider("query1", identityRefresherWrapper),
+        _ => TableRefreshResult(Map.empty, None, None),
+        System.currentTimeMillis() + preSignedUrlExpirationMs,
+        None
+      )
+      Thread.sleep(700)
+      val anchor2 = new Object()
+      assert(manager.tryRegisterQueryStatesForReuse(
+        tablePath,
+        Seq(new WeakReference[AnyRef](anchor2)),
+        createProfileProvider("query2", identityRefresherWrapper)
+      ))
+
+      // 1200ms since register but 500ms since reuse: the entry is not idle yet.
+      Thread.sleep(500)
+      manager.refresh()
+      assert(manager.size == 1)
+      assert(anchor1 != null && anchor2 != null) // Keep both anchors alive until here.
+    } finally {
+      manager.stop()
+    }
+  }
 }

@@ -451,6 +451,83 @@ class CachedTableManager(
   }
 
   /**
+   * Tries to reuse an existing QuerySpecificCachedTable entry for a new query, so the caller can
+   * skip fetching the same file actions and pre-signed urls from the server again.
+   *
+   * The entry is reusable when it is a QuerySpecificCachedTable whose urls stay valid for more
+   * than `refreshThresholdMs`. In that case the new query's state (its weak references and
+   * refresher wrapper) is added to the entry, so the urls keep being refreshed while the new
+   * query runs, even after the query that registered them is gone. The entry is also marked to
+   * keep its urls after all references are gone, and its last access time is reset, so it is not
+   * evicted as idle right after it is reused.
+   *
+   * The check and the update happen in one `computeIfPresent`, so a concurrent register or
+   * refresh cannot remove or replace the entry in between.
+   *
+   * Unlike [[registerQueryStatesInQuerySpecificCachedTable]], this method reports whether the
+   * query state was added, and returns false instead of throwing when the profile provider has
+   * no query id or refresher wrapper.
+   *
+   * @param tablePath The path of the table whose cache entry should be reused.
+   * @param refs Weak references for the new query, used to track its usage.
+   * @param profileProvider The profile provider, which supplies the custom table path, the
+   *                        query id and the refresher wrapper for the new query.
+   * @return true if the new query state was added, so the new query can use the cached urls.
+   *         false if nothing changed, in which case the caller should fetch the files from the
+   *         server and call `register`.
+   */
+  def tryRegisterQueryStatesForReuse(
+    tablePath: String,
+    refs: Seq[WeakReference[AnyRef]],
+    profileProvider: DeltaSharingProfileProvider
+  ): Boolean = {
+    (profileProvider.getCustomQueryId(), profileProvider.getCustomRefresherWrapper()) match {
+      case (Some(queryId), Some(refresherWrapper)) =>
+        val customTablePath = profileProvider.getCustomTablePath(tablePath)
+        var reused = false
+        cache.computeIfPresent(customTablePath, (_, existingTable) => existingTable match {
+          case q: QuerySpecificCachedTable
+              if q.expiration - System.currentTimeMillis() > refreshThresholdMs =>
+            // Same merge as registerQuerySpecificCachedTable: if this query already has a state,
+            // keep its refs and add the new ones, skipping refs to the same object.
+            val mergedRefs = q.queryStates.get(queryId) match {
+              case Some((existingRefs, _)) =>
+                refs.filterNot(ref => existingRefs.exists(_.get eq ref.get)) ++ existingRefs
+              case None => refs
+            }
+            reused = true
+            logInfo(
+              s"Reusing QuerySpecificCachedTable for table $customTablePath, queryId $queryId, " +
+              s"total urls ${q.idToUrl.size}, expiration ${new java.util.Date(q.expiration)}."
+            )
+            new QuerySpecificCachedTable(
+              expiration = q.expiration,
+              idToUrl = q.idToUrl,
+              lastAccess = System.currentTimeMillis(),
+              refreshToken = q.refreshToken,
+              refresher = q.refresher,
+              queryStates = q.queryStates + (queryId -> (mergedRefs, refresherWrapper)),
+              keepUrlsAfterRefsGone = true
+            )
+          case _ => existingTable
+        })
+        if (!reused) {
+          logInfo(
+            s"No reusable QuerySpecificCachedTable for table $customTablePath: it is not " +
+            s"cached, or its urls expire within $refreshThresholdMs ms."
+          )
+        }
+        reused
+      case _ =>
+        logInfo(
+          s"Cannot reuse cached urls for table $tablePath: the profile provider has no " +
+          "query id or refresher wrapper."
+        )
+        false
+    }
+  }
+
+  /**
    * Registers a query-specific cached table in the cache. This method ensures that each query
    * maintains its own refresher state, even if multiple queries share the same table.
    * If the table is not already in the cache, a new entry is created. If the table is
