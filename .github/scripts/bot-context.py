@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 MAINTAINER_PERMISSIONS = {"admin", "maintain", "write"}
-BOT_LOGINS = {"oss-reviewer-bot[bot]", "oss-engineer-bot[bot]"}
+BOT_LOGINS = {"oss-review-bot[bot]", "oss-engineer-bot[bot]"}
 
 
 def api(route: str) -> dict:
