@@ -109,7 +109,7 @@ class EventTests(unittest.TestCase):
 
     def test_bot_exception_requires_real_bot_sender(self):
         event = self.event()
-        actor = "peco-review-bot[bot]"
+        actor = "sharing-review-bot[bot]"
         with patch.object(context, "api", return_value={"permission": "read"}):
             self.assertFalse(context.is_maintainer(actor, event, allow_bot=True))
             event["sender"] = {"login": actor, "type": "Bot"}
