@@ -82,8 +82,6 @@ def prepare(mode: str, event_name: str, event: dict, actor: str, requested: str 
         return {"eligible": "false"}, {}
     if mode == "review" and pr.get("draft"):
         return {"eligible": "false"}, {}
-    if mode in {"review", "review-followup"} and "review-bot" not in {label["name"] for label in pr.get("labels", [])}:
-        return {"eligible": "false"}, {}
     if mode == "engineer-followup" and "engineer-bot" not in {label["name"] for label in pr.get("labels", [])}:
         return {"eligible": "false"}, {}
     head, base = pr["head"]["sha"], pr["base"]["sha"]
