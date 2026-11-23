@@ -67,7 +67,6 @@ maturin develop
 
 The connector accesses shared tables based on [profile files](PROTOCOL.md#profile-file-format), which are JSON files containing a user's credentials to access a Delta Sharing Server. We have several ways to get started:
 
-- Download the profile file to access an open, example Delta Sharing Server that we're hosting [here](https://databricks-datasets-oregon.s3-us-west-2.amazonaws.com/delta-sharing/share/open-datasets.share). You can try the connectors with this sample data.
 - Start your own [Delta Sharing Server](#delta-sharing-reference-server) and create your own profile file following [profile file format](PROTOCOL.md#profile-file-format) to connect to this server.
 - Download a profile file from your data provider.
 
@@ -135,8 +134,6 @@ delta_sharing.load_table_changes_as_spark(table_url, starting_version=0, ending_
 ```
   
 
-You can try this by running our [examples](examples/README.md) with the open, example Delta Sharing Server.
-
 ### Details on Profile Paths
 
 - The profile file path for `SharingClient` and `load_as_pandas` can be any URL supported by [FSSPEC](https://filesystem-spec.readthedocs.io/en/latest/index.html) (such as `s3a://my_bucket/my/profile/file`). If you are using [Databricks File System](https://docs.databricks.com/data/databricks-file-system.html), you can also [preface the path with `/dbfs/`](https://docs.databricks.com/data/databricks-file-system.html#dbfs-and-local-driver-node-paths) to access the profile file as if it were a local file.  
@@ -155,7 +152,7 @@ The Apache Spark Connector implements the [Delta Sharing Protocol](PROTOCOL.md) 
 
 ## Accessing Shared Data
 
-The connector loads user credentials from profile files. Please see [Accessing Shared Data](#accessing-shared-data) to download a profile file for our example server or for your own data sharing server.
+The connector loads user credentials from profile files. Please see [Accessing Shared Data](#accessing-shared-data) to get a profile file.
 
 ## Configuring Apache Spark
 
@@ -252,8 +249,6 @@ Dataset<Row> df = spark.read.format("deltaSharing").load(tablePath);
 table_path <- "<profile-file-path>#<share-name>.<schema-name>.<table-name>"
 df <- read.df(table_path, "deltaSharing")
 ```
-
-You can try this by running our [examples](examples/README.md) with the open, example Delta Sharing Server.
 
 ### CDF 
 Starting from release 0.5.0, querying [Change Data Feed](https://docs.databricks.com/delta/delta-change-data-feed.html) is supported with Delta Sharing.
