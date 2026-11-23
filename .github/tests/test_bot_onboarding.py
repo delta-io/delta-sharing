@@ -85,24 +85,12 @@ class EventTests(unittest.TestCase):
         self.assertEqual(out["eligible"], "false")
         self.assertFalse(env)
 
-    def test_review_and_followup_run_by_default_unless_opted_out(self):
+    def test_review_and_followup_need_no_label(self):
         for mode in ("review", "review-followup"):
             for labels in ([], [{"name": "engineer-bot"}], [{"name": "engineer-bot-learning"}]):
                 with self.subTest(mode=mode, labels=labels):
                     out, _ = self.call(mode, pr={**PR, "labels": labels})
                     self.assertEqual(out["eligible"], "true")
-            with self.subTest(mode=mode, opted_out=True):
-                out, env = self.call(mode, pr={**PR, "labels": [{"name": "no-review-bot"}]})
-                self.assertEqual(out, {"eligible": "false"})
-                self.assertFalse(env)
-
-    def test_manual_review_cannot_bypass_live_opt_out_label(self):
-        def api(route):
-            return {"permission": "admin"} if route.endswith("/permission") else {**PR, "labels": [{"name": "no-review-bot"}]}
-        with patch.object(context, "api", side_effect=api):
-            out, env = context.prepare("review", "workflow_dispatch", self.event(), "maintainer", "42")
-        self.assertEqual(out, {"eligible": "false"})
-        self.assertFalse(env)
 
     def test_engineer_followup_requires_label(self):
         self.assertEqual(self.call("engineer-followup", pr={**PR, "labels": []})[0]["eligible"], "false")
@@ -317,7 +305,7 @@ class WorkflowTests(unittest.TestCase):
                     if "DATABRICKS_TOKEN" in step.get("env", {}):
                         self.assertEqual(step["env"]["DATABRICKS_TOKEN"], token)
 
-    def test_reviewer_runs_by_default_under_master_flag_with_opt_out_label(self):
+    def test_reviewer_runs_by_default_under_master_flag(self):
         workflow = self.workflows["reviewer-bot.yml"]
         # No label trigger: adding unrelated labels must not start duplicate reviews.
         self.assertEqual(workflow["on"]["pull_request"]["types"],
@@ -327,8 +315,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn("vars.BOT_ENGINE_ENABLED == 'true'", condition)
             self.assertNotIn("BOT_REVIEWER_ENABLED", json.dumps(self.workflows[name]))
             self.assertIn("github.event.pull_request.head.repo.fork == false", condition)
-            self.assertIn("!contains(github.event.pull_request.labels.*.name, 'no-review-bot')", condition)
-            self.assertNotIn("'review-bot')", condition)
+            self.assertNotIn("labels", condition)
 
     def test_configuration_check_is_hosted_and_unprivileged(self):
         workflow = yaml.load((ROOT / ".github/workflows/bot-config-checks.yml").read_text(), Loader=yaml.BaseLoader)
