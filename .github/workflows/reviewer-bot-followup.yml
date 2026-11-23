@@ -14,7 +14,7 @@ jobs:
       && github.event.pull_request.head.repo.fork == false
       && github.event.pull_request.state == 'open'
       && contains(github.event.pull_request.labels.*.name, 'review-bot')
-      && github.event.comment.user.login != 'peco-review-bot[bot]'
+      && github.event.comment.user.login != 'sharing-review-bot[bot]'
     runs-on:
     - self-hosted
     - Linux
