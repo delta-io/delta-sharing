@@ -1,6 +1,6 @@
 name: delta_sharing_engineer
 marker_namespace: engineer-bot-delta-sharing
-bot_login_prefix: peco-engineer-bot
+bot_login_prefix: sharing-engineer-bot
 flow: bug-fix
 bot_loop_ceiling: 10
 max_replies_per_thread: 5
