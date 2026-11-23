@@ -15,7 +15,7 @@ jobs:
     if: ${{ vars.BOT_ENGINE_ENABLED == 'true' && (github.event_name != 'workflow_dispatch' || github.ref == format('refs/heads/{0}',
       github.event.repository.default_branch || 'main')) && (vars.BOT_ENGINEER_ENABLED == 'true' && github.event.pull_request.head.repo.fork
       == false && github.event.pull_request.state == 'open' && contains(github.event.pull_request.labels.*.name, 'engineer-bot')
-      && github.event.comment.user.login != 'sharing-engineer-bot[bot]' && (github.event_name != 'pull_request' || github.event.label.name
+      && github.event.comment.user.login != 'oss-engineer-bot[bot]' && (github.event_name != 'pull_request' || github.event.label.name
       == 'engineer-bot')) }}
     runs-on:
     - self-hosted
