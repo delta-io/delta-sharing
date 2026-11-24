@@ -34,8 +34,8 @@ pr_body_template: |-
   ## Verification
   {test_plan}
 
-  Automated proposal. A maintainer must review and merge; integration tests
-  requiring cloud credentials are not provisioned to these bot jobs.
+  Automated proposal. A maintainer must review and merge. Review new or
+  changed tests before approving this PR's CI.
 author:
   env_tokens:
     issue_number: ISSUE_NUMBER

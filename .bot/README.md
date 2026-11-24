@@ -46,7 +46,8 @@ credentials on this exact worker, the integration is NOT end-to-end verified.
    no scheme or path. The workflow validates it and builds a full Model Serving
    endpoint. It must pair with the token and serve the pinned engine's configured
    review/second-review/judge models. Check actual cross-review completion, not
-   just the workflow's green status. No live cloud/storage test secrets are mapped.
+   just the workflow's green status. The engineer workflows also hand the existing
+   CI cloud test secrets to integration tests; see Testing and limits.
 3. Confirm the worker's access policy **before allowing any workflow to use it**,
    not merely before enabling the bot flags. Registration to a public repository
    makes runner access relevant to other workflows too; the bot flags and labels
@@ -115,15 +116,21 @@ writer changing the workflow definition itself. Keep branch/runner protections.
 
 The engineer invokes a default-branch copy of `bot-test` installed into its venv.
 It selects Java 8 for server and Java 17 for client/Spark, and starts test/lint
-commands with an allowlisted environment via `env -i`. Model, GitHub and cloud
+commands with an allowlisted environment via `env -i`. Model and GitHub
 credentials, credential-helper environment and arbitrary caller variables are
 not forwarded. Only required runtime/toolchain paths and locale settings survive;
 Git uses no global/system credential configuration and cannot prompt. The launcher
 accepts only targeted test/lint command shapes. Python uses
 `uv run --frozen`; the repository lock is not changed. Scala client work needs
-both 2.12 and 2.13 verification. Some server suites still require cloud resources
-and must be reported blocked. Dependency downloads/native builds need network.
-Do not claim the full cloud integration matrix ran in a bot job.
+both 2.12 and 2.13 verification. Dependency downloads/native builds need network.
+
+**Integration (E2E) tests.** The engineer and engineer follow-up jobs run the
+integration suites the agent selects, with the same cloud test secrets as
+`build-and-test.yml`. A single workflow step receives them and makes them
+available only to the `bot-test` launcher for the test process it starts; they are
+removed right after the agent step. `.github/tests` pins this. Review new or changed tests
+in every bot PR before approving its CI. A bot run doesn't replace the full CI
+matrix.
 
 The reviewer runs the installed engine using Python isolated imports from a
 trusted control checkout, while reading a separately checked-out PR SHA through

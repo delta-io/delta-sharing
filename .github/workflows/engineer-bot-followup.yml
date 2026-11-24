@@ -74,6 +74,21 @@ jobs:
       with:
         rust-toolchain: ${{ vars.BOT_RUST_TOOLCHAIN || 'stable' }}
       if: steps.context.outputs.eligible == 'true'
+    - name: Stage E2E test credentials for bot-test
+      # The only step that receives the cloud test secrets; they are for the trusted
+      # bot-test launcher only (see .github/tests).
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AZURE_TEST_ACCOUNT_KEY: ${{ secrets.AZURE_TEST_ACCOUNT_KEY }}
+        GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+      run: |
+        set -euo pipefail
+        umask 077
+        dir="$BOT_RUNTIME/e2e"
+        mkdir -p "$dir"
+        python3.11 -I bot-control/.github/scripts/bot-e2e-env.py "$dir/env"
+      if: steps.context.outputs.eligible == 'true'
     - name: Mint consumer write token
       id: app-token
       uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc
@@ -112,3 +127,11 @@ jobs:
           --bot "$GITHUB_WORKSPACE/bot-control/.bot" \
           --system-prompt "$GITHUB_WORKSPACE/bot-control/.bot/prompts/engineer-followup/system.md"
       if: steps.context.outputs.eligible == 'true'
+    - name: Remove E2E test credentials after the agent
+      if: always()
+      run: |
+        if [ -n "${BOT_RUNTIME:-}" ]; then rm -rf "$BOT_RUNTIME/e2e"; fi
+    - name: Remove E2E test credentials (backstop)
+      if: always()
+      run: |
+        if [ -n "${BOT_RUNTIME:-}" ]; then rm -rf "$BOT_RUNTIME/e2e"; fi

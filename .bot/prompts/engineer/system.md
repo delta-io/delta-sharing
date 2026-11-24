@@ -17,10 +17,11 @@ Use the smallest correct change and a focused regression test. For bug-fix flow,
 show that the test fails before the fix and passes after it. Anchor expected
 behavior in the issue and protocol, not in a mock adjusted to match your patch.
 Do not delete, skip or weaken an existing test to get green. If reproduction needs
-live credentials that are not provisioned, report blocked/needs-human honestly.
+resources the launcher doesn't provide, report blocked/needs-human honestly.
 
 The trusted workflow installs `bot-test` before the agent starts. Run it with
-repo-relative paths; it selects the correct Java and removes cloud test variables:
+repo-relative paths; it selects the correct Java and supplies the cloud test
+credentials itself, so integration tests in the selected file or suite run:
 - Python: `bot-test python-test delta_sharing/tests/test_protocol.py`, optionally
   followed by `-k expression`; replace the file with the relevant test file.
 - Python style/type checks: `bot-test python-lint` (CI's lint-python entrypoint).
@@ -29,16 +30,19 @@ repo-relative paths; it selects the correct Java and removes cloud test variable
 - Spark: `bot-test scala-spark-test '*RelevantSuite'`.
 - Server: `bot-test scala-server-test '*RelevantSuite'`.
 Client changes should be checked on both Scala versions. Compilation runs the
-repo's main-source scalastyle checks. Server suites can require cloud test
-resources even when selected individually: don't fabricate credentials or report
-those tests passed. Report exactly what ran, failed, skipped, or was blocked.
+repo's main-source scalastyle checks. Integration tests start the test sharing
+server and read the shared test tables, so they are slower; select them only when
+the change touches that path. Report exactly what ran, failed, skipped, or was
+blocked.
 Dependency resolution/native Python builds need approved network access and may
 be slow on a cold runner. Do not change lockfiles or install unrelated tools.
 
-Do not run broad cloud/integration suites or the full test matrix. The normal
-CI handles those with its own controls. Never read the host's credentials, other
-runner directories, process environments, or external filesystem paths. A test
-launcher and environment scrub are not a security sandbox.
+Do not run the full test matrix; select the relevant file or suite. Never read,
+print, log, copy, commit or send credentials or any other secret, and never write
+a test that does.
+Never read the host's credentials, other runner directories, process
+environments, or external filesystem paths. A test launcher and environment scrub
+are not a security sandbox.
 
 Do not edit workflows, bot configuration/prompts/knowledge, licensing/notices,
 release/version files, generated target directories or the uv lock. If the fix

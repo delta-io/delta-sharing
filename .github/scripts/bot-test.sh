@@ -8,8 +8,9 @@ export SPARK_LOCAL_IP=127.0.0.1
 export UV_CACHE_DIR="${BOT_RUNTIME:?BOT_RUNTIME is required}/uv-cache"
 
 # Defense in depth even if this launcher is called outside the engine scrubber.
-# Forward only toolchain/runtime settings, never model, GitHub or cloud tokens,
-# credential helpers, shell startup hooks or arbitrary caller variables.
+# Forward only toolchain/runtime settings, never model or GitHub tokens, credential
+# helpers, shell startup hooks or arbitrary caller variables. Cloud test credentials
+# come only from the staged E2E file below, so integration suites can run.
 # This is environment hygiene, NOT isolation from the surrounding job/host.
 clean_exec() {
   local name
@@ -18,6 +19,18 @@ clean_exec() {
     CARGO_HOME RUSTUP_HOME RUSTUP_TOOLCHAIN UV_CACHE_DIR SPARK_LOCAL_IP TMPDIR TMP TEMP LANG LC_ALL; do
     if [[ -v $name ]]; then clean+=("$name=${!name}"); fi
   done
+  # Cloud test credentials come only from the file the trusted workflow staged
+  # (bot-e2e-env.py), never from the caller's environment, and only these names.
+  local staged="$BOT_RUNTIME/e2e/env"
+  if [[ -f "$staged" ]]; then
+    local record
+    while IFS= read -r -d '' record; do
+      case "${record%%=*}" in
+        AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AZURE_TEST_ACCOUNT_KEY|GOOGLE_SERVICE_ACCOUNT_KEY|\
+        GOOGLE_APPLICATION_CREDENTIALS|AWS_REGION|AWS_DEFAULT_REGION) clean+=("$record") ;;
+      esac
+    done < "$staged"
+  fi
   exec /usr/bin/env -i "${clean[@]}" "$@"
 }
 mode=${1:?Select python-test, python-lint, or scala-<module>-test}

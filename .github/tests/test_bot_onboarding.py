@@ -390,11 +390,38 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("BOT_LEARNING_ENABLED", self.workflows["engineer-bot-learning.yml"]["jobs"]["bot"]["if"])
         self.assertFalse(yaml.safe_load((ROOT / ".bot/config.yaml").read_text())["retrospective"]["auto_merge_learning_pr"])
 
-    def test_no_live_cloud_credentials_are_mapped(self):
-        for workflow in self.workflows.values():
-            text = json.dumps(workflow)
-            for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AZURE_TEST_ACCOUNT_KEY", "GOOGLE_SERVICE_ACCOUNT_KEY"):
-                self.assertNotIn("secrets." + name, text)
+    def test_cloud_test_secrets_reach_only_the_engineer_staging_step(self):
+        secrets = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AZURE_TEST_ACCOUNT_KEY", "GOOGLE_SERVICE_ACCOUNT_KEY")
+        stage = "Stage E2E test credentials for bot-test"
+        for name, workflow in self.workflows.items():
+            steps = workflow["jobs"]["bot"]["steps"] if "bot" in workflow.get("jobs", {}) else []
+            with self.subTest(workflow=name):
+                if name not in ("engineer-bot.yml", "engineer-bot-followup.yml"):
+                    for secret in secrets:
+                        self.assertNotIn("secrets." + secret, json.dumps(workflow))
+                    continue
+                names = [s.get("name") for s in steps]
+                i = names.index(stage)
+                for j, step in enumerate(steps):
+                    text = json.dumps(step)
+                    for secret in secrets:
+                        if j == i:
+                            self.assertEqual(step["env"][secret], "${{ secrets.%s }}" % secret)
+                        else:
+                            self.assertNotIn("secrets." + secret, text)
+                # Staged after the engine install (which refuses ambient credentials) and
+                # before any GitHub App token or agent step.
+                self.assertLess(names.index("Install reviewed private engine"), i)
+                first_token = min(k for k, s in enumerate(steps) if "create-github-app-token" in s.get("uses", ""))
+                self.assertLess(i, first_token)
+                # Nothing is exported to later steps, not even a path.
+                self.assertNotIn("GITHUB_ENV", steps[i]["run"])
+                # Removed right after the agent step, and again at the end as a backstop.
+                agent = next(k for k, s in enumerate(steps) if "databricks_bot_engine.engineer_bot.run" in s.get("run", ""))
+                for k in (agent + 1, len(steps) - 1):
+                    self.assertTrue(steps[k]["name"].startswith("Remove E2E test credentials"))
+                    self.assertEqual(steps[k]["if"], "always()")
+                    self.assertIn('rm -rf "$BOT_RUNTIME/e2e"', steps[k]["run"])
 
     def test_all_bot_python_entrypoints_use_isolated_imports(self):
         for workflow in self.workflows.values():
@@ -473,6 +500,61 @@ class TestLauncherTests(unittest.TestCase):
                 self.assertEqual(child["GIT_CONFIG_GLOBAL"], "/dev/null")
                 self.assertEqual(child["GIT_CONFIG_NOSYSTEM"], "1")
                 self.assertEqual(child["GIT_TERMINAL_PROMPT"], "0")
+
+    def test_staged_e2e_credentials_reach_tests_but_nothing_else_does(self):
+        forwarded = {"AWS_ACCESS_KEY_ID": "AKIAEXAMPLE", "AWS_SECRET_ACCESS_KEY": "secret value",
+                     "AZURE_TEST_ACCOUNT_KEY": "azure-key", "GOOGLE_SERVICE_ACCOUNT_KEY": '{\n "type": "service_account"\n}',
+                     "GOOGLE_APPLICATION_CREDENTIALS": "/runtime/e2e/key.json", "AWS_REGION": "us-west-2",
+                     "AWS_DEFAULT_REGION": "us-west-2"}
+        injected = {"LD_PRELOAD": "/tmp/evil.so", "DATABRICKS_TOKEN": "model", "PATH": "/evil"}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "python").mkdir()
+            (root / "bin").mkdir()
+            fake = root / "bin" / "uv"
+            fake.write_text('#!/bin/bash\n/usr/bin/env -0 > ' + shlex.quote(str(root / "env")) + '\n')
+            fake.chmod(0o700)
+            (root / "e2e").mkdir()
+            staged = root / "e2e" / "env"
+            staged.write_bytes(b"".join(f"{k}={v}".encode() + b"\0" for k, v in {**forwarded, **injected}.items()))
+            decoy = root / "decoy"
+            decoy.write_bytes(b"AWS_ACCESS_KEY_ID=from-decoy\0")
+            env = {"PATH": str(root / "bin") + ":" + os.defpath, "HOME": str(root / "home"), "REPO_ROOT": tmp,
+                   "BOT_RUNTIME": tmp, "JAVA_HOME": str(root / "jdk17"),
+                   # A caller can't redirect the launcher to another file, and its own
+                   # copies of the names are never forwarded.
+                   "BOT_E2E_ENV_FILE": str(decoy), "AZURE_TEST_ACCOUNT_KEY": "from-caller"}
+            result = subprocess.run(["bash", str(SCRIPTS / "bot-test.sh"), "python-test",
+                                     "delta_sharing/tests/test_protocol.py"], env=env, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            child = dict(r.split("=", 1) for r in (root / "env").read_text().split("\0") if r)
+            for name, value in forwarded.items():
+                self.assertEqual(child[name], value)
+            for name in ("LD_PRELOAD", "DATABRICKS_TOKEN"):
+                self.assertNotIn(name, child)
+            self.assertEqual(child["PATH"], env["PATH"])
+            self.assertNotIn("BOT_E2E_ENV_FILE", child)
+
+    def test_stage_script_writes_a_private_allowlisted_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp, "env")
+            env = {"PATH": os.defpath, "AWS_ACCESS_KEY_ID": "AKIAEXAMPLE", "AWS_SECRET_ACCESS_KEY": "s",
+                   "AZURE_TEST_ACCOUNT_KEY": "a", "UNRELATED_SECRET": "x"}  # no Google secret
+            result = subprocess.run([sys.executable, "-I", str(SCRIPTS / "bot-e2e-env.py"), str(out)],
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(out.stat().st_mode & 0o777, 0o600)
+            records = dict(r.split("=", 1) for r in out.read_text().split("\0") if r)
+            self.assertEqual(records["GOOGLE_APPLICATION_CREDENTIALS"], str(Path(tmp, "google_service_account_key.json")))
+            self.assertEqual(records["AWS_REGION"], "us-west-2")
+            self.assertNotIn("UNRELATED_SECRET", records)
+            self.assertNotIn("AKIAEXAMPLE", result.stdout + result.stderr)
+            # No secrets configured: no file, integration tests skip.
+            empty = Path(tmp, "none")
+            result = subprocess.run([sys.executable, "-I", str(SCRIPTS / "bot-e2e-env.py"), str(empty)],
+                                    env={"PATH": os.defpath}, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0)
+            self.assertFalse(empty.exists())
 
     def test_rejects_unrecognized_commands_and_path_escape(self):
         with tempfile.TemporaryDirectory() as tmp:
