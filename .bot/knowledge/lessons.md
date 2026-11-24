@@ -1,6 +1,6 @@
 # Lessons
 
-<!-- distilled-through: 2026-11-21 -->
+<!-- distilled-through: 2026-11-24 -->
 
 ## Scala client [lang=scala]
 - L-0006 (1×, #962): Never place a retry/backoff sleep inside a synchronized method or block: the thread holds the object monitor for the whole sleep (up to the max retry duration) and starves every other caller.
@@ -24,3 +24,4 @@
 
 ## CI / bot
 - L-0012 (1×, #1048): Before executing agent- or issue-authored code, unset every sensitive token (model, git/GitHub, and cloud) or sandbox it credential-less; scrubbing only cloud credentials still allows token exfiltration via prompt injection.
+- L-0019 (1×, #1064): When renaming a bot identity used in self-reply guards or allow/deny login sets, accept both the old and new logins during the migration window; drop the old one only after the App/secrets cutover is confirmed, or old-bot comments stop being filtered and can trigger bot loops.
