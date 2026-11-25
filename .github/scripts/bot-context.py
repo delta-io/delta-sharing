@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 MAINTAINER_PERMISSIONS = {"admin", "maintain", "write"}
-BOT_LOGINS = {"peco-review-bot[bot]", "peco-engineer-bot[bot]"}
+BOT_LOGINS = {"sharing-review-bot[bot]", "sharing-engineer-bot[bot]"}
 
 
 def api(route: str) -> dict:
@@ -81,8 +81,6 @@ def prepare(mode: str, event_name: str, event: dict, actor: str, requested: str 
     if pr.get("state") != "open" or ((pr.get("head") or {}).get("repo") or {}).get("full_name") != repo:
         return {"eligible": "false"}, {}
     if mode == "review" and pr.get("draft"):
-        return {"eligible": "false"}, {}
-    if mode in {"review", "review-followup"} and "review-bot" not in {label["name"] for label in pr.get("labels", [])}:
         return {"eligible": "false"}, {}
     if mode == "engineer-followup" and "engineer-bot" not in {label["name"] for label in pr.get("labels", [])}:
         return {"eligible": "false"}, {}

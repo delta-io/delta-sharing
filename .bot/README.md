@@ -23,7 +23,7 @@ credentials on this exact worker, the integration is NOT end-to-end verified.
 
 ## Maintainer prerequisites (do not paste secret values into chat or PRs)
 
-1. Install the existing `peco-review-bot` and `peco-engineer-bot` GitHub Apps on
+1. Install the existing `sharing-review-bot` and `sharing-engineer-bot` GitHub Apps on
    `delta-io/delta-sharing`. An org owner may need to approve the installations.
    Give reviewer contents read + pull-requests write; engineer contents, issues
    and pull-requests write + Actions read (learning downloads author-run logs).
@@ -68,7 +68,7 @@ credentials on this exact worker, the integration is NOT end-to-end verified.
    Dependency access must follow the approved registry policy. If egress requires
    a mirror, have maintainers adapt the job-local registry configuration without
    putting mirror credentials in agent-visible environments.
-5. Create the `review-bot` PR label and `engineer-bot` issue/PR label. Protect workflow,
+5. Create the `engineer-bot` issue/PR label. Protect workflow,
    bot policy and release paths through code-owner review. Do not grant bots the
    ability to edit their own workflows. Maintainer authorization is checked via
    the live collaborator permission API (write/maintain/admin), not the broad
@@ -85,16 +85,15 @@ writer changing the workflow definition itself. Keep branch/runner protections.
 1. Verify the offline **Bot configuration checks** job. It runs on a standard
    hosted runner with read-only permissions, no secrets or private-engine access,
    and is safe to run on fork PRs. Existing product CI is unchanged.
-2. For the first dry review, add `review-bot` to a trusted, non-draft, same-repo
-   PR while `BOT_ENGINE_ENABLED=false`. Then enable the master flag and dispatch
-   **Reviewer Bot** from main with that PR number and `dry_run=true`. Manual runs
-   also require the label. This does not post, but generated review text can appear in
+2. For the first dry review, pick a trusted, non-draft, same-repo PR while
+   `BOT_ENGINE_ENABLED=false`. Then enable the master flag and dispatch
+   **Reviewer Bot** from main with that PR number and `dry_run=true`. This does not post, but generated review text can appear in
    public Actions logs. Verify the engine revision, SDK/CLI, model endpoint and
    the completion of both review passes/judge when findings exist. Then perform
    a supervised posting run and a maintainer reply to verify follow-up separately.
-   With the master on, adding `review-bot` starts a posting review; later pushes
-   re-review while the label remains. Removing it stops future reviewer jobs.
-   Follow-up runs only on review comments of opted-in PRs. No extra reviewer flag
+   With the master on, every non-draft, same-repo PR is reviewed when it is
+   opened, reopened or marked ready, and re-reviewed on each push. Fork PRs are
+   skipped. No extra reviewer flag
    is needed; the engineer and learning flags remain unchanged.
 3. Only after approving test execution/isolation, set `BOT_ENGINEER_ENABLED=true`.
    A maintainer labels a small non-sensitive issue `engineer-bot`, or dispatches
@@ -109,8 +108,7 @@ writer changing the workflow definition itself. Keep branch/runner protections.
    PR for sensitive content; no auto-merge is enabled. For a bounded recovery,
    supply the optional ISO `since` input. `.bot/knowledge/journal` is created on
    the first real learning; lessons are injected automatically by the engine.
-5. Remove `review-bot` to disable reviewer for a PR; disable engineer/learning
-   with their variables. Master `BOT_ENGINE_ENABLED=false` disables all five. Existing running jobs must be
+5. Disable engineer/learning with their variables. Master `BOT_ENGINE_ENABLED=false` disables all five. Existing running jobs must be
    cancelled separately if necessary; a variable change doesn't stop them.
 
 ## Testing and limits
