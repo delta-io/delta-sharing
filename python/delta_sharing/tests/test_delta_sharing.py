@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import json
 import re
 from datetime import date, datetime
 from functools import partial
@@ -54,6 +53,7 @@ from delta_sharing.protocol import (
 )
 from delta_sharing.rest_client import (
     DataSharingRestClient,
+    DeltaSharingServerError,
     ListAllTablesResponse,
     ListFilesInTableResponse,
     ListTableChangesResponse,
@@ -75,6 +75,8 @@ def _server_text(text: str) -> str:
 STREAM_FAILURE_MARKER = "Forcing_invalid_json_to_fail_streaming_rpc_due_to_error"
 # Spark's JSON parser quotes the unparseable token, so its error message contains the marker.
 STREAM_FAILURE = re.escape(STREAM_FAILURE_MARKER)
+# The Python client requests the end stream action, so it gets the server's own error instead.
+STREAM_FAILURE_SERVER_ERROR = "CDF is not enabled on the original delta table"
 
 CDF_LOADERS: Tuple[Callable[..., object], ...] = (
     load_table_changes_as_pandas,
@@ -83,14 +85,15 @@ CDF_LOADERS: Tuple[Callable[..., object], ...] = (
 
 
 def _assert_cdf_load_fails(error: str, load: Callable[[], object]) -> None:
-    """The Python client's json.loads keeps the unparseable line only in the error's doc, so a
-    stream failure is matched there; requests the server rejects up front are HTTP errors."""
+    """A stream failure reaches the Python client in the EndStreamAction, as the server's error
+    and status code; requests the server rejects up front are HTTP errors."""
     if error == STREAM_FAILURE:
         # try/except rather than pytest.raises: mypy 0.981 can't infer ExceptionInfo.value's type.
         try:
             load()
-        except json.JSONDecodeError as e:
-            assert STREAM_FAILURE_MARKER in e.doc
+        except DeltaSharingServerError as e:
+            assert e.status_code == 403
+            assert STREAM_FAILURE_SERVER_ERROR in str(e)
         else:
             pytest.fail("Expected the change data feed stream to fail")
     else:
