@@ -23,7 +23,7 @@ credentials on this exact worker, the integration is NOT end-to-end verified.
 
 ## Maintainer prerequisites (do not paste secret values into chat or PRs)
 
-1. Install the existing `sharing-review-bot` and `sharing-engineer-bot` GitHub Apps on
+1. Install the existing `oss-review-bot` and `oss-engineer-bot` GitHub Apps on
    `delta-io/delta-sharing`. An org owner may need to approve the installations.
    Give reviewer contents read + pull-requests write; engineer contents, issues
    and pull-requests write + Actions read (learning downloads author-run logs).

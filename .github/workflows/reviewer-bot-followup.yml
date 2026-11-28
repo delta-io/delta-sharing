@@ -13,7 +13,7 @@ jobs:
       vars.BOT_ENGINE_ENABLED == 'true'
       && github.event.pull_request.head.repo.fork == false
       && github.event.pull_request.state == 'open'
-      && github.event.comment.user.login != 'sharing-review-bot[bot]'
+      && github.event.comment.user.login != 'oss-review-bot[bot]'
     runs-on:
     - self-hosted
     - Linux
